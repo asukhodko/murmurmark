@@ -17,6 +17,7 @@ Working now:
 - `Me`/`Colleagues` role reconciliation;
 - timeline repair for long mic segments that cross remote speech;
 - `shadow_v2` repair profile with no-regression gates, audit artifacts and start-of-call repair;
+- local extractive synthesis with quality verdicts, review items and evidence-backed notes;
 - Markdown transcript export and JSON/audit artifacts for review.
 
 Still future:
@@ -25,7 +26,7 @@ Still future:
 - remote speaker diarization inside `Colleagues`;
 - heavy-local ASR stack with specialized models;
 - strict glossary/domain correction beyond the current whisper prompt;
-- evidence-backed notes, decisions and action extraction;
+- polished generative notes, decisions and action extraction;
 - automated raw retention/deletion policy;
 - Obsidian/docs/ticket export flows.
 
@@ -50,7 +51,8 @@ Implemented in the current CLI spike:
 - session package creation and inspection;
 - Echo Guard diagnostics and derived cleanup engines;
 - session-wide `local_fir` cleanup with the default `preserve_local` role policy;
-- simple local `whisper.cpp` transcription with windowing, domain prompt, timeline repair and `shadow_v2` audit output.
+- simple local `whisper.cpp` transcription with windowing, domain prompt, timeline repair and `shadow_v2` audit output;
+- extractive local synthesis over transcript-derived JSON without LLM calls.
 
 Excluded from v1 scope or not implemented yet:
 
@@ -123,6 +125,7 @@ Current MVP transcription is narrower:
 - short overlapping ASR windows are reconciled into a global timeline;
 - timeline repair and micro-ASR recover local islands when Whisper glues `Me` and `remote` turns together;
 - `transcript.shadow_v2.md` is the best candidate only when `repair_comparison.json` passes.
+- extractive notes can use the safe shadow dialogue when comparison gates pass.
 
 The heavy-local stack above remains a future replacement or validation layer, not the current implementation.
 
@@ -182,6 +185,7 @@ Pipeline spike:
 - runs Echo Guard diagnostics and selects `mic_for_asr.wav` through quality gates;
 - produces current MVP transcript artifacts under `derived/transcript-simple/whisper-cpp/resolved/`;
 - produces `transcript.md`, `transcript.shadow_v2.md`, `clean_dialogue*.json`, `role_decisions*.json`, `quality_report*.json` and audit artifacts;
+- produces `quality_verdict.json`, `quality_verdict.md`, `notes.md`, `evidence_notes.json` and `review_items.jsonl` under `derived/synthesis-simple/extractive/`;
 - keeps raw audio local;
 - can delete raw audio after successful processing when configured.
 

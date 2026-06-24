@@ -2,7 +2,7 @@
 
 Use this temporary path while the full MurmurMark transcription pipeline is not implemented.
 
-The goal is a useful local transcript, not final diarization or polished notes.
+The goal is a useful local transcript and a first extractive notes package, not final diarization or polished generative notes.
 
 ## Preconditions
 
@@ -115,6 +115,18 @@ and `repair_comparison.json`; `transcript.md` remains the baseline. The core raw
 JSON files are also written with the same suffix so the shadow result is auditable without mixing it
 with the baseline artifacts.
 
+Build the local extractive synthesis package:
+
+```bash
+scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile auto
+
+jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
+  "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json"
+
+less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
+less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+```
+
 ## Outputs
 
 ```text
@@ -166,6 +178,15 @@ derived/
       timeline-audit/
         current/
         shadow_v2/
+
+  synthesis-simple/
+    extractive/
+      synthesis_manifest.json
+      quality_verdict.json
+      quality_verdict.md
+      notes.md
+      evidence_notes.json
+      review_items.jsonl
 ```
 
 Initial role assignment is deliberately simple:
@@ -276,6 +297,23 @@ Risky remaining places are collected in `resolved/timeline_audit_examples.jsonl`
 utterance data, overlap metadata when present, nearby Echo Guard speaker-state rows, and `afplay`
 commands for short mic/remote clips cut under `derived/transcript-simple/whisper-cpp/timeline-audit/`.
 Raw `audio/*.caf` files are not touched.
+
+## Extractive Synthesis
+
+`scripts/synthesize-simple-extractive.py` reads only derived transcript JSON. It does not run ASR,
+does not call an LLM, and does not read raw audio.
+
+Profile selection:
+
+```text
+auto      -> shadow_v2 if repair_comparison.json passes, otherwise current
+current   -> baseline clean_dialogue.json
+shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
+```
+
+The script writes a quality verdict and a conservative `notes.md`. The notes are extractive:
+conversation outline entries cite utterance ranges, and potential decisions/actions/risks quote
+utterances with matching lexical markers. The script does not invent owners, deadlines or decisions.
 
 ## Reusing Existing Raw Whisper Output
 

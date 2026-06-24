@@ -2,14 +2,48 @@
 
 Synthesis is the stage that turns transcript evidence into useful work artifacts. It must not be mixed into ASR.
 
-Status, 2026-06-24: this is target architecture. The implemented CLI currently stops at transcript and audit artifacts. Evidence-backed notes, decisions, action items, risks and docs patch plans are not implemented yet.
+Status, 2026-06-24: MurmurMark has a first local extractive synthesis spike over the current `transcript-simple` artifacts. The richer LLM-assisted synthesis, docs patch plans and external export flows remain target architecture.
 
-The current `transcript-simple` outputs are close enough to support a first synthesis spike, but they are not the final evidence package:
+The current `transcript-simple` outputs are useful enough for evidence-backed extractive notes, but they are not the final evidence package:
 
 - `clean_dialogue*.json` can provide utterance text and IDs;
 - `quality_report*.json` and `overlaps*.json` can identify risky regions;
 - `timeline_audit_examples*.jsonl` can provide review clips and context;
 - `speaker_map.json`, chapter summaries, extracted decisions and action items are still future work.
+
+## Current Extractive Spike
+
+Implemented command:
+
+```bash
+scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile auto
+```
+
+It writes:
+
+```text
+derived/synthesis-simple/extractive/
+  synthesis_manifest.json
+  quality_verdict.json
+  quality_verdict.md
+  notes.md
+  evidence_notes.json
+  review_items.jsonl
+```
+
+The `auto` profile uses `clean_dialogue.shadow_v2.json` only when `repair_comparison.json` passes.
+Otherwise it falls back to the baseline `clean_dialogue.json`. The script reads only derived
+transcript JSON and never reads raw audio.
+
+The output is intentionally extractive:
+
+- conversation outline groups nearby utterances and cites their IDs;
+- potential decisions, actions, risks and open questions are only quoted from utterances with simple lexical markers;
+- every candidate item is marked `needs_review`;
+- unsupported claims are not generated.
+
+`quality_verdict.json` is the first gate a user should read. It reports `good`, `usable_with_review`,
+`risky` or `failed` from transcript quality counters and risky intervals.
 
 ## Boundary
 

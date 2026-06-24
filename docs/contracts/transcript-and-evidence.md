@@ -51,6 +51,51 @@ Current source-of-truth order:
 3. `quality_report*.json` and `overlaps*.json` for risk review.
 4. `transcript*.md` only as a human-readable export.
 
+The current extractive synthesis spike writes:
+
+```text
+derived/synthesis-simple/extractive/
+  synthesis_manifest.json
+  quality_verdict.json
+  quality_verdict.md
+  notes.md
+  evidence_notes.json
+  review_items.jsonl
+```
+
+`quality_verdict.json` is a local quality gate:
+
+```json
+{
+  "schema": "murmurmark.quality_verdict/v1",
+  "verdict": "usable_with_review",
+  "selected_transcript_profile": "shadow_v2",
+  "inputs": {
+    "clean_dialogue": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.shadow_v2.json",
+    "quality_report": "derived/transcript-simple/whisper-cpp/resolved/quality_report.shadow_v2.json",
+    "overlaps": "derived/transcript-simple/whisper-cpp/resolved/overlaps.shadow_v2.json",
+    "repair_comparison": "derived/transcript-simple/whisper-cpp/resolved/repair_comparison.json"
+  },
+  "metrics": {
+    "utterances": 120,
+    "needs_review_count": 4,
+    "cross_role_overlap_gt2_count": 2,
+    "remote_duplicate_in_me_seconds": 8.4
+  },
+  "risk_items": [
+    {
+      "type": "needs_review_ratio",
+      "severity": "medium",
+      "reason": "some transcript regions need review"
+    }
+  ]
+}
+```
+
+`notes.md` is not a free summary. It contains extractive outline items and potential
+decisions/actions/risks with utterance IDs. Every item that looks like a decision or action remains
+`needs_review` until a human confirms it.
+
 Current role model:
 
 - `Me` from the local microphone track;

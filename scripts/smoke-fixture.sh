@@ -280,6 +280,80 @@ jq -e '.utterances[] | select(.id == "utt_mic_002") | .quality.possible_mic_leak
 jq -e '.summary.echo.segments_excluded_from_me_role == 1' "$session/derived/transcript/resolved/quality_report.json" >/dev/null
 jq -e '.schema == "murmurmark.echo_reconciliation_report/v1"' "$session/derived/transcript/resolved/echo_reconciliation_report.json" >/dev/null
 
+simple_resolved="$session/derived/transcript-simple/whisper-cpp/resolved"
+mkdir -p "$simple_resolved"
+jq -n '{
+  schema: "murmurmark.clean_dialogue/v1",
+  session: "fixture",
+  utterances: [
+    {
+      id: "utt_simple_001",
+      start: 0.0,
+      end: 2.0,
+      role: "Me",
+      speaker_label: "Me",
+      source_track: "mic",
+      text: "Привет, давай посмотрим план.",
+      quality: {needs_review: false}
+    },
+    {
+      id: "utt_simple_002",
+      start: 3.0,
+      end: 7.0,
+      role: "Colleagues",
+      speaker_label: "Colleagues",
+      source_track: "remote",
+      text: "Нужно проверить риск и открытый вопрос.",
+      quality: {needs_review: false}
+    }
+  ]
+}' >"$simple_resolved/clean_dialogue.json"
+jq -n '{
+  schema: "murmurmark.simple_transcript_quality/v1",
+  utterances: 2,
+  needs_review_count: 0,
+  cross_role_overlap_gt2_count: 1,
+  cross_role_overlap_gt2_seconds: 3,
+  remote_duplicate_in_me_seconds: 0,
+  unrepaired_long_mic_crossings_count: 0,
+  golden_phrase_fail_count: 0
+}' >"$simple_resolved/quality_report.json"
+jq -n '{
+  schema: "murmurmark.transcript_overlaps/v1",
+  session: "fixture",
+  overlaps: [
+    {
+      left_utterance_id: "utt_simple_001",
+      right_utterance_id: "utt_simple_002",
+      start: 1.0,
+      end: 4.0,
+      duration_sec: 3.0,
+      type: "fixture_overlap"
+    }
+  ]
+}' >"$simple_resolved/overlaps.json"
+
+"$repo_root/scripts/synthesize-simple-extractive.py" "$session" --transcript-profile auto >/dev/null
+[[ -s "$session/derived/synthesis-simple/extractive/synthesis_manifest.json" ]]
+[[ -s "$session/derived/synthesis-simple/extractive/quality_verdict.json" ]]
+[[ -s "$session/derived/synthesis-simple/extractive/quality_verdict.md" ]]
+[[ -s "$session/derived/synthesis-simple/extractive/notes.md" ]]
+[[ -s "$session/derived/synthesis-simple/extractive/evidence_notes.json" ]]
+[[ -s "$session/derived/synthesis-simple/extractive/review_items.jsonl" ]]
+jq -e '.schema == "murmurmark.quality_verdict/v1"' "$session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
+jq -e '.verdict == "usable_with_review"' "$session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
+grep -q 'utt_simple_001' "$session/derived/synthesis-simple/extractive/notes.md"
+grep -q 'utt_simple_002' "$session/derived/synthesis-simple/extractive/notes.md"
+
+empty_session="$workdir/empty-session"
+empty_resolved="$empty_session/derived/transcript-simple/whisper-cpp/resolved"
+mkdir -p "$empty_resolved"
+jq -n '{schema: "murmurmark.clean_dialogue/v1", session: "empty", utterances: []}' >"$empty_resolved/clean_dialogue.json"
+jq -n '{schema: "murmurmark.simple_transcript_quality/v1", utterances: 0, needs_review_count: 0}' >"$empty_resolved/quality_report.json"
+jq -n '{schema: "murmurmark.transcript_overlaps/v1", session: "empty", overlaps: []}' >"$empty_resolved/overlaps.json"
+"$repo_root/scripts/synthesize-simple-extractive.py" "$empty_session" --transcript-profile auto >/dev/null
+jq -e '.verdict == "failed"' "$empty_session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
+
 mic_sha_after="$(shasum -a 256 "$session/audio/mic/000001.caf" | awk '{print $1}')"
 remote_sha_after="$(shasum -a 256 "$session/audio/remote/000001.caf" | awk '{print $1}')"
 [[ "$mic_sha_before" == "$mic_sha_after" ]]

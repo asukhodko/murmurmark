@@ -80,6 +80,15 @@ scripts/transcribe-simple-whispercpp.py
     transcript.md
     transcript.shadow_v2.md
     repair_comparison.json
+  |
+  v
+scripts/synthesize-simple-extractive.py
+  derived/synthesis-simple/extractive/
+    quality_verdict.json
+    quality_verdict.md
+    notes.md
+    evidence_notes.json
+    review_items.jsonl
 ```
 
 Target full-product path:
