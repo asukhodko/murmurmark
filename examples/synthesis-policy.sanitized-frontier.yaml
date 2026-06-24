@@ -1,0 +1,23 @@
+schema: murmurmark.synthesis_policy/v1
+
+privacy_mode: sanitized_frontier
+
+allowed_external_payload:
+  raw_audio: false
+  transcript: true
+  speaker_names: false
+  project_codenames: false
+  ticket_ids: true
+  service_names: true
+
+provider:
+  type: openai_responses
+  model: gpt-5.5
+  require_zero_data_retention: true
+  store: false
+
+outputs:
+  require_utterance_citations: true
+  require_human_review_before_docs_update: true
+  reject_uncited_facts: true
+

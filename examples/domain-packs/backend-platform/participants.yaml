@@ -1,0 +1,23 @@
+schema: murmurmark.participants/v1
+
+participants:
+  - id: me
+    display_name: Local User
+    role: meeting participant
+    track_hint: mic
+
+  - id: teammate_a
+    display_name: Teammate A
+    aliases:
+      - "Teammate A"
+    role: backend engineer
+    voiceprint:
+      status: not_enrolled
+
+  - id: teammate_b
+    display_name: Teammate B
+    aliases:
+      - "Teammate B"
+    role: engineering manager
+    voiceprint:
+      status: not_enrolled

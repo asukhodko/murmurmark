@@ -1,0 +1,8 @@
+disabled_rules:
+  - cyclomatic_complexity
+  - file_length
+  - function_body_length
+  - trailing_comma
+
+line_length:
+  warning: 150

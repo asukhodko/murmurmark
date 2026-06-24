@@ -1,0 +1,37 @@
+.DS_Store
+
+# Real meeting material must not be committed.
+sessions/
+recordings/
+exports/private/
+*.caf
+*.wav
+*.flac
+*.m4a
+*.mp3
+*.mp4
+*.mkv
+
+# Local model/runtime caches.
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+models/
+weights/
+
+# Local ASR prompts can contain workspace-specific vocabulary.
+examples/domain-packs/*/whisper-prompt*.txt
+examples/domain-packs/*/glossary.yaml
+
+# Local app/runtime state.
+.build/
+DerivedData/
+build/
+dist/
+target/
+.env
+.env.*

@@ -1,0 +1,17 @@
+schema: murmurmark.synthesis_policy/v1
+
+privacy_mode: local_only
+
+allowed_external_payload:
+  raw_audio: false
+  transcript: false
+  speaker_names: false
+  project_codenames: false
+  ticket_ids: false
+  service_names: false
+
+outputs:
+  require_utterance_citations: true
+  require_human_review_before_docs_update: true
+  reject_uncited_facts: true
+
