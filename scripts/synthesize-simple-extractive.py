@@ -3,15 +3,321 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
-VERDICTS = ("good", "usable_with_review", "risky", "failed")
-DECISION_MARKERS = ("решили", "договорились", "согласовали", "окей", "тогда делаем")
-ACTION_MARKERS = ("надо", "нужно", "я сделаю", "давай", "проверь", "посмотрю", "сделаем")
-RISK_MARKERS = ("риск", "проблема", "непонятно", "вопрос", "блокер", "сомневаюсь")
+GENERATOR_VERSION = "0.2.0"
+TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
+
+DEFAULT_RULES: dict[str, Any] = {
+    "selection": {
+        "max_outline_blocks": 8,
+        "max_decisions": 5,
+        "max_actions": 8,
+        "max_risks": 5,
+        "max_open_questions": 5,
+        "representative_utterances_per_block": 4,
+    },
+    "thresholds": {
+        "selected_action": 75,
+        "candidate_action": 55,
+        "weak_action": 35,
+        "selected_decision": 75,
+        "candidate_decision": 55,
+        "weak_decision": 35,
+        "selected_risk": 70,
+        "candidate_risk": 50,
+        "weak_risk": 35,
+        "selected_open_question": 70,
+        "candidate_open_question": 50,
+        "weak_open_question": 35,
+    },
+    "outline": {
+        "min_block_sec": 120,
+        "target_block_sec": 480,
+        "max_block_sec": 720,
+        "pause_boundary_sec": 30,
+        "strong_pause_boundary_sec": 60,
+        "min_salience_score": 18,
+    },
+}
+
+STOP_WORDS = {
+    "а",
+    "бы",
+    "в",
+    "во",
+    "вот",
+    "да",
+    "для",
+    "же",
+    "и",
+    "или",
+    "как",
+    "как-то",
+    "когда",
+    "мы",
+    "на",
+    "ну",
+    "о",
+    "об",
+    "он",
+    "она",
+    "они",
+    "по",
+    "просто",
+    "с",
+    "со",
+    "там",
+    "типа",
+    "то",
+    "тут",
+    "ты",
+    "у",
+    "это",
+    "этот",
+    "эта",
+    "эти",
+    "что",
+    "чтобы",
+    "я",
+}
+FILLER_WORDS = {
+    "ага",
+    "алло",
+    "да",
+    "ладно",
+    "ну",
+    "ок",
+    "окей",
+    "понял",
+    "сейчас",
+    "так",
+    "угу",
+    "хм",
+    "хм-хм",
+    "это",
+}
+DOMAIN_TERMS = {
+    "api",
+    "backend",
+    "ci",
+    "ci/cd",
+    "deploy",
+    "git",
+    "gitlab",
+    "github",
+    "kubernetes",
+    "mcp",
+    "merge",
+    "mr",
+    "openapi",
+    "pipeline",
+    "slo",
+    "админка",
+    "агент",
+    "агенты",
+    "бэкенд",
+    "дашборд",
+    "деплой",
+    "деплоя",
+    "дока",
+    "доки",
+    "документация",
+    "квота",
+    "квоты",
+    "лог",
+    "логи",
+    "миграция",
+    "пайплайн",
+    "пайплайна",
+    "прод",
+    "сервис",
+    "сервисы",
+    "стейдж",
+    "стейджи",
+    "троттлинг",
+    "фича",
+}
+
+ACTION_STRONG_MARKERS = (
+    "я сделаю",
+    "я посмотрю",
+    "я проверю",
+    "я добавлю",
+    "я допишу",
+    "я создам",
+    "я заведу",
+    "я перенесу",
+    "я отпишусь",
+    "я скину",
+    "я подготовлю",
+    "я обновлю",
+    "я поправлю",
+    "я разберусь",
+    "я возьму",
+    "беру на себя",
+    "за мной",
+)
+ACTION_MEDIUM_MARKERS = ("надо", "нужно", "нужен", "нужна", "давай", "давайте", "стоит")
+ACTION_SOFT_MARKERS = ("имеет смысл", "лучше", "можно", "попробуем", "попробовать")
+ACTION_VERBS = {
+    "добавить",
+    "дописать",
+    "завести",
+    "задеплоить",
+    "замержить",
+    "запросить",
+    "заревьюить",
+    "исправить",
+    "мигрировать",
+    "обновить",
+    "отписать",
+    "перенести",
+    "переехать",
+    "перекинуть",
+    "подготовить",
+    "померить",
+    "посчитать",
+    "починить",
+    "проверить",
+    "протестировать",
+    "согласовать",
+    "собрать",
+    "создать",
+    "спросить",
+    "уточнить",
+    "выкатить",
+    "скинуть",
+}
+WEAK_ACTION_VERBS = {"подумать", "понять", "обсудить", "поговорить", "посмотреть", "разобраться"}
+ABSTRACT_ACTION_PATTERNS = (
+    "надо понимать",
+    "надо сказать",
+    "надо иметь в виду",
+    "надо признать",
+    "надо вообще",
+    "нужно понимать",
+    "нужно сказать",
+    "давай поговорим",
+    "давай обсудим",
+    "как бы надо",
+    "в целом надо",
+    "по-хорошему надо",
+)
+
+DECISION_EXPLICIT_MARKERS = (
+    "решили",
+    "договорились",
+    "согласовали",
+    "зафиксировали",
+    "фиксируем",
+    "принимаем",
+    "решение такое",
+    "итого",
+    "вывод",
+)
+DECISION_DIALOGUE_MARKERS = (
+    "окей, тогда",
+    "тогда",
+    "да, так и сделаем",
+    "так и сделаем",
+    "оставляем",
+    "берём",
+    "берем",
+    "не делаем",
+    "откладываем",
+    "переносим",
+    "выбираем",
+    "идём с",
+    "идем с",
+    "остаемся на",
+    "остаёмся на",
+    "делаем так",
+)
+PROPOSAL_MARKERS = (
+    "давай",
+    "предлагаю",
+    "оставим",
+    "берём",
+    "берем",
+    "не будем",
+    "пока не",
+    "перенесём",
+    "перенесем",
+    "отложим",
+    "идём по",
+    "идем по",
+    "сделаем так",
+)
+AGREEMENT_MARKERS = ("окей", "согласен", "договорились", "так и сделаем", "давай", "подходит")
+
+RISK_STRONG_MARKERS = (
+    "риск",
+    "опасно",
+    "сломается",
+    "может сломаться",
+    "не успеем",
+    "не взлетит",
+    "заблокирует",
+    "блокирует",
+    "блокер",
+    "узкое место",
+    "отвалится",
+    "деградирует",
+    "потеряем",
+    "не получится",
+    "не хватает",
+    "зависим от",
+    "нет доступа",
+    "нет данных",
+    "сложно доказать",
+    "сомнение",
+    "под вопросом",
+)
+RISK_MEDIUM_MARKERS = ("проблема", "непонятно", "сложно", "тяжело", "дорого", "медленно", "нестабильно", "хрупко", "неочевидно")
+RISK_CONSEQUENCE_MARKERS = ("если", "когда", "иначе", "может", "не сможем", "не успеем", "сломается", "заблокирует")
+RISK_SOLVED_PATTERNS = ("проблема решена", "проблема будет решена", "скоро будет решена", "уже решена")
+
+OPEN_QUESTION_STRONG_PATTERNS = (
+    "как именно",
+    "кто будет",
+    "что делать",
+    "какой вариант",
+    "надо понять",
+    "надо выяснить",
+    "надо уточнить",
+    "не ясно",
+    "неясно",
+    "непонятно",
+    "остается вопрос",
+    "остаётся вопрос",
+)
+QUESTION_WORDS = ("как", "кто", "когда", "что", "почему", "зачем", "сколько", "какой", "какая", "какие")
+TOPIC_ONLY_QUESTION_PATTERNS = ("вопрос по", "вопрос с", "тема вопроса", "обсудим вопрос")
+ANSWER_MARKERS = ("да", "нет", "потому что", "это", "мы", "я", "нужно", "давай", "тогда", "ответ", "причина")
+
+DISCOURSE_MARKERS = (
+    "теперь",
+    "дальше",
+    "следующее",
+    "вторая тема",
+    "по поводу",
+    "давай про",
+    "тогда про",
+    "возвращаясь",
+    "кстати",
+    "ещё момент",
+    "еще момент",
+    "отдельно",
+    "перейдём",
+    "перейдем",
+    "закрыли",
+    "окей, теперь",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -66,8 +372,29 @@ def clean_text(text: Any, limit: int = 280) -> str:
     return value[: limit - 1].rstrip() + "…"
 
 
+def lower_text(text: Any) -> str:
+    return str(text or "").lower().replace("ё", "е")
+
+
+def tokens(text: Any) -> list[str]:
+    normalized: list[str] = []
+    for token in TOKEN_RE.findall(str(text or "")):
+        clean = token.strip(".,!?;:()[]{}«»\"'`")
+        if clean:
+            normalized.append(clean.replace("ё", "е").lower())
+    return normalized
+
+
+def content_tokens(text: Any) -> list[str]:
+    return [token for token in tokens(text) if token not in STOP_WORDS and token not in FILLER_WORDS and len(token) > 2]
+
+
 def utterance_id(row: dict[str, Any], index: int) -> str:
     return str(row.get("id") or f"utt_{index + 1:06d}")
+
+
+def role(row: dict[str, Any]) -> str:
+    return str(row.get("speaker_label") or row.get("role") or row.get("source_track") or "Unknown")
 
 
 def source_profile_paths(resolved_dir: Path, requested_profile: str) -> dict[str, Path]:
@@ -112,7 +439,7 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
     return "current", source_profile_paths(resolved_dir, "current"), None, risk_items
 
 
-def load_inputs(session: Path, selected_profile: str, paths: dict[str, Path]) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+def load_inputs(selected_profile: str, paths: dict[str, Path]) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     dialogue, dialogue_error = read_json(paths["clean_dialogue"])
     quality, quality_error = read_json(paths["quality_report"])
     overlaps, overlaps_error = read_json(paths["overlaps"])
@@ -236,106 +563,720 @@ def verdict_from_metrics(
     return "good", items
 
 
-def role(row: dict[str, Any]) -> str:
-    return str(row.get("speaker_label") or row.get("role") or row.get("source_track") or "Unknown")
+def phrase_matches(text: str, phrases: tuple[str, ...]) -> list[str]:
+    lowered = lower_text(text)
+    return [phrase for phrase in phrases if phrase in lowered]
 
 
-def contains_marker(text: str, markers: tuple[str, ...]) -> bool:
-    lowered = text.lower()
-    return any(marker in lowered for marker in markers)
+def domain_terms(text: Any) -> list[str]:
+    text_tokens = tokens(text)
+    found = sorted({token for token in text_tokens if token in DOMAIN_TERMS})
+    lowered = lower_text(text)
+    for term in DOMAIN_TERMS:
+        if " " in term and term in lowered:
+            found.append(term)
+    return sorted(set(found))
 
 
-def evidence_item(row: dict[str, Any], index: int, category: str, markers: tuple[str, ...]) -> dict[str, Any] | None:
-    text = clean_text(row.get("text"), limit=420)
-    if not text or not contains_marker(text, markers):
-        return None
+def row_quality_flags(row: dict[str, Any]) -> list[str]:
+    flags: list[str] = []
+    quality = row.get("quality")
+    if isinstance(quality, dict):
+        for key, value in quality.items():
+            if value is True:
+                flags.append(str(key))
+    return sorted(flags)
+
+
+def context_ids(utterances: list[dict[str, Any]], index: int) -> list[str]:
+    ids: list[str] = []
+    for neighbor in (index - 1, index + 1):
+        if 0 <= neighbor < len(utterances):
+            ids.append(utterance_id(utterances[neighbor], neighbor))
+    return ids
+
+
+def find_action_verbs(text_tokens: list[str]) -> tuple[list[str], list[str]]:
+    concrete = [token for token in text_tokens if token in ACTION_VERBS]
+    weak = [token for token in text_tokens if token in WEAK_ACTION_VERBS]
+    return sorted(set(concrete)), sorted(set(weak))
+
+
+def detect_action_object(text_tokens: list[str], verbs: list[str]) -> tuple[bool, list[str]]:
+    for verb in verbs:
+        if verb not in text_tokens:
+            continue
+        start = text_tokens.index(verb) + 1
+        span = [token for token in text_tokens[start : start + 8] if token not in STOP_WORDS and token not in FILLER_WORDS]
+        if len(span) >= 2:
+            return True, span[:6]
+        if any(token in DOMAIN_TERMS for token in span):
+            return True, span[:6]
+    return False, []
+
+
+def candidate_base(
+    candidate_id: str,
+    candidate_type: str,
+    row: dict[str, Any],
+    index: int,
+    utterances: list[dict[str, Any]],
+    selected_profile: str,
+    topic_block_id: str | None,
+    display_text: str | None = None,
+    evidence_ids: list[str] | None = None,
+) -> dict[str, Any]:
     return {
-        "id": f"{category}_{index + 1:04d}",
-        "category": category,
-        "status": "needs_review",
-        "utterance_ids": [utterance_id(row, index)],
-        "start": row.get("start"),
-        "end": row.get("end"),
-        "role": role(row),
-        "text": text,
+        "id": candidate_id,
+        "type": candidate_type,
+        "subtype": candidate_type,
+        "status": "hidden",
+        "score": 0,
+        "confidence": "low",
+        "display_text": clean_text(display_text if display_text is not None else row.get("text"), limit=420),
+        "evidence_utterance_ids": evidence_ids or [utterance_id(row, index)],
+        "context_utterance_ids": context_ids(utterances, index),
+        "topic_block_id": topic_block_id,
+        "time": {"start": row.get("start"), "end": row.get("end")},
+        "roles": [role(row)],
+        "features": {
+            "markers": [],
+            "verbs": [],
+            "objects": [],
+            "domain_terms": domain_terms(row.get("text")),
+            "quality_flags": row_quality_flags(row),
+        },
+        "reasons": [],
+        "penalties": [],
+        "needs_review": True,
+        "source": {"transcript_profile": selected_profile, "extractor": "deterministic_rules_v2"},
     }
 
 
-def build_outline(utterances: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def finalize_candidate(candidate: dict[str, Any], thresholds: dict[str, int]) -> dict[str, Any]:
+    candidate["score"] = max(0, min(100, int(candidate["score"])))
+    score = candidate["score"]
+    candidate_type = candidate["type"]
+
+    if candidate_type == "action":
+        if candidate.get("subtype") in {"process_discussion", "weak_action"}:
+            candidate["status"] = "hidden"
+        elif score >= thresholds["selected_action"]:
+            candidate["subtype"] = "action_item"
+            candidate["status"] = "selected"
+        elif score >= thresholds["candidate_action"]:
+            candidate["subtype"] = "candidate_action"
+            candidate["status"] = "selected"
+        elif score >= thresholds["weak_action"]:
+            candidate["subtype"] = "weak_action"
+            candidate["status"] = "hidden"
+        else:
+            candidate["status"] = "hidden"
+    elif candidate_type == "decision":
+        if score >= thresholds["selected_decision"]:
+            candidate["subtype"] = "decision"
+            candidate["status"] = "selected"
+        elif score >= thresholds["candidate_decision"]:
+            candidate["subtype"] = "candidate_decision"
+            candidate["status"] = "selected"
+        elif score >= thresholds["weak_decision"]:
+            candidate["subtype"] = "weak_decision"
+            candidate["status"] = "hidden"
+        else:
+            candidate["status"] = "hidden"
+    elif candidate_type == "risk":
+        if score >= thresholds["selected_risk"]:
+            candidate["subtype"] = "risk"
+            candidate["status"] = "selected"
+        elif score >= thresholds["candidate_risk"]:
+            candidate["subtype"] = "candidate_risk"
+            candidate["status"] = "selected"
+        elif score >= thresholds["weak_risk"]:
+            candidate["subtype"] = "weak_risk"
+            candidate["status"] = "hidden"
+        else:
+            candidate["status"] = "hidden"
+    elif candidate_type == "open_question":
+        if score >= thresholds["selected_open_question"]:
+            candidate["subtype"] = "open_question"
+            candidate["status"] = "selected"
+        elif score >= thresholds["candidate_open_question"]:
+            candidate["subtype"] = "candidate_open_question"
+            candidate["status"] = "selected"
+        elif score >= thresholds["weak_open_question"]:
+            candidate["subtype"] = "discussion_question"
+            candidate["status"] = "hidden"
+        else:
+            candidate["status"] = "hidden"
+
+    if score >= 75:
+        candidate["confidence"] = "high"
+    elif score >= 55:
+        candidate["confidence"] = "medium"
+    else:
+        candidate["confidence"] = "low"
+    return candidate
+
+
+def score_action(row: dict[str, Any], index: int, utterances: list[dict[str, Any]], selected_profile: str, topic_block_id: str | None, candidate_number: int) -> dict[str, Any] | None:
+    text = str(row.get("text") or "")
+    text_tokens = tokens(text)
+    strong_markers = phrase_matches(text, ACTION_STRONG_MARKERS)
+    medium_markers = phrase_matches(text, ACTION_MEDIUM_MARKERS)
+    soft_markers = phrase_matches(text, ACTION_SOFT_MARKERS)
+    concrete_verbs, weak_verbs = find_action_verbs(text_tokens)
+    marker_present = bool(strong_markers or medium_markers or soft_markers or concrete_verbs or weak_verbs)
+    if not marker_present:
+        return None
+
+    candidate = candidate_base(f"cand_action_{candidate_number:04d}", "action", row, index, utterances, selected_profile, topic_block_id)
+    features = candidate["features"]
+    features["markers"] = strong_markers + medium_markers + soft_markers
+    features["verbs"] = concrete_verbs + weak_verbs
+
+    score = 0
+    if strong_markers:
+        score += 25
+        candidate["reasons"].append(f"strong commitment marker: {strong_markers[0]}")
+    if medium_markers:
+        score += 18
+        candidate["reasons"].append(f"obligation/proposal marker: {medium_markers[0]}")
+    if soft_markers:
+        score += 10
+        candidate["reasons"].append(f"soft action marker: {soft_markers[0]}")
+    if concrete_verbs:
+        score += 22
+        candidate["reasons"].append(f"action verb: {concrete_verbs[0]}")
+
+    object_verbs = concrete_verbs or weak_verbs
+    has_object, object_span = detect_action_object(text_tokens, object_verbs)
+    if weak_verbs:
+        if has_object:
+            score += 10
+            candidate["reasons"].append(f"weak action verb with object: {weak_verbs[0]}")
+        else:
+            score -= 12
+            candidate["penalties"].append(f"weak action verb without object: {weak_verbs[0]}")
+    if has_object:
+        score += 22
+        features["objects"] = object_span
+        candidate["reasons"].append(f"object span: {' '.join(object_span[:4])}")
+    else:
+        score -= 20
+        candidate["penalties"].append("no concrete object")
+
+    if features["domain_terms"]:
+        score += min(10, len(features["domain_terms"]) * 5)
+        candidate["reasons"].append(f"domain terms: {', '.join(features['domain_terms'][:3])}")
+    if any(token in {"я", "мы", "ты"} for token in text_tokens) or strong_markers:
+        score += 15
+        candidate["reasons"].append("owner hint")
+    if any(token in {"потом", "после", "сначала", "завтра", "сегодня"} for token in text_tokens):
+        score += 6
+        candidate["reasons"].append("time/sequencing hint")
+    if not row.get("quality", {}).get("needs_review"):
+        score += 8
+    else:
+        score -= 15
+        candidate["penalties"].append("utterance needs review")
+
+    abstract_hits = phrase_matches(text, ABSTRACT_ACTION_PATTERNS)
+    if abstract_hits:
+        score -= 25
+        candidate["subtype"] = "process_discussion"
+        candidate["penalties"].append(f"abstract/process pattern: {abstract_hits[0]}")
+    if len(content_tokens(text)) < 3:
+        score -= 10
+        candidate["penalties"].append("too short")
+    if len(content_tokens(text)) > 45:
+        score -= 10
+        candidate["penalties"].append("too long and rambling")
+    if "?" in text:
+        score -= 15
+        candidate["penalties"].append("question-like uncertainty")
+    if weak_verbs and not concrete_verbs and not abstract_hits:
+        candidate["subtype"] = "weak_action"
+
+    candidate["score"] = score
+    return finalize_candidate(candidate, DEFAULT_RULES["thresholds"])
+
+
+def score_explicit_decision(row: dict[str, Any], index: int, utterances: list[dict[str, Any]], selected_profile: str, topic_block_id: str | None, candidate_number: int) -> dict[str, Any] | None:
+    text = str(row.get("text") or "")
+    explicit = phrase_matches(text, DECISION_EXPLICIT_MARKERS)
+    dialogue = phrase_matches(text, DECISION_DIALOGUE_MARKERS)
+    if not explicit and not dialogue:
+        return None
+    if lower_text(text).strip() in {"окей", "ок", "да", "угу", "хорошо"}:
+        return None
+
+    candidate = candidate_base(f"cand_decision_{candidate_number:04d}", "decision", row, index, utterances, selected_profile, topic_block_id)
+    candidate["features"]["markers"] = explicit + dialogue
+    score = 0
+    if explicit:
+        score += 50
+        candidate["reasons"].append(f"explicit decision marker: {explicit[0]}")
+    if dialogue:
+        score += 20
+        candidate["reasons"].append(f"dialogue decision marker: {dialogue[0]}")
+    if domain_terms(text):
+        score += 15
+        candidate["reasons"].append("domain term")
+    if len(content_tokens(text)) >= 3:
+        score += 10
+        candidate["reasons"].append("specific decision content")
+    if any(verb in tokens(text) for verb in ("оставляем", "берем", "берём", "переносим", "откладываем", "выбираем")):
+        score += 15
+        candidate["reasons"].append("clear choice verb")
+    if not row.get("quality", {}).get("needs_review"):
+        score += 8
+    else:
+        score -= 15
+        candidate["penalties"].append("utterance needs review")
+    if "?" in text:
+        score -= 20
+        candidate["penalties"].append("question-like")
+    if len(content_tokens(text)) < 2:
+        score -= 20
+        candidate["penalties"].append("too vague")
+    candidate["score"] = score
+    return finalize_candidate(candidate, DEFAULT_RULES["thresholds"])
+
+
+def score_proposal_decision(
+    row: dict[str, Any],
+    index: int,
+    utterances: list[dict[str, Any]],
+    selected_profile: str,
+    topic_block_id: str | None,
+    candidate_number: int,
+) -> dict[str, Any] | None:
+    text = str(row.get("text") or "")
+    proposal = phrase_matches(text, PROPOSAL_MARKERS)
+    if not proposal:
+        return None
+    start = float(row.get("start", 0.0) or 0.0)
+    for neighbor_index in range(index + 1, min(index + 4, len(utterances))):
+        neighbor = utterances[neighbor_index]
+        neighbor_start = float(neighbor.get("start", start) or start)
+        if neighbor_start - start > 45:
+            break
+        agreement = phrase_matches(str(neighbor.get("text") or ""), AGREEMENT_MARKERS)
+        if not agreement:
+            continue
+        candidate = candidate_base(
+            f"cand_decision_{candidate_number:04d}",
+            "decision",
+            row,
+            index,
+            utterances,
+            selected_profile,
+            topic_block_id,
+            display_text=f"{clean_text(row.get('text'), 240)} / {clean_text(neighbor.get('text'), 160)}",
+            evidence_ids=[utterance_id(row, index), utterance_id(neighbor, neighbor_index)],
+        )
+        candidate["subtype"] = "proposal_accepted"
+        candidate["context_utterance_ids"] = context_ids(utterances, index) + context_ids(utterances, neighbor_index)
+        candidate["roles"] = sorted({role(row), role(neighbor)})
+        candidate["time"] = {"start": row.get("start"), "end": neighbor.get("end")}
+        candidate["features"]["markers"] = proposal + agreement
+        score = 35 + 25
+        candidate["reasons"].append(f"proposal marker: {proposal[0]}")
+        candidate["reasons"].append(f"neighbor agreement: {agreement[0]}")
+        if role(row) != role(neighbor):
+            score += 10
+            candidate["reasons"].append("opposite roles involved")
+        if neighbor_start - start <= 20:
+            score += 10
+            candidate["reasons"].append("agreement within 20 seconds")
+        if domain_terms(text) or domain_terms(neighbor.get("text")):
+            score += 10
+        if row.get("quality", {}).get("needs_review") or neighbor.get("quality", {}).get("needs_review"):
+            score -= 15
+            candidate["penalties"].append("some evidence utterance needs review")
+        candidate["score"] = score
+        return finalize_candidate(candidate, DEFAULT_RULES["thresholds"])
+    return None
+
+
+def score_risk(row: dict[str, Any], index: int, utterances: list[dict[str, Any]], selected_profile: str, topic_block_id: str | None, candidate_number: int) -> dict[str, Any] | None:
+    text = str(row.get("text") or "")
+    strong = phrase_matches(text, RISK_STRONG_MARKERS)
+    medium = phrase_matches(text, RISK_MEDIUM_MARKERS)
+    if not strong and not medium:
+        return None
+    candidate = candidate_base(f"cand_risk_{candidate_number:04d}", "risk", row, index, utterances, selected_profile, topic_block_id)
+    candidate["features"]["markers"] = strong + medium
+    score = 0
+    if strong:
+        score += 35
+        candidate["reasons"].append(f"strong risk marker: {strong[0]}")
+    if medium:
+        score += 20
+        candidate["reasons"].append(f"medium risk marker: {medium[0]}")
+    if phrase_matches(text, RISK_CONSEQUENCE_MARKERS):
+        score += 20
+        candidate["reasons"].append("consequence or condition pattern")
+    if domain_terms(text):
+        score += 10
+    if any(token in tokens(text) for token in ("может", "возможно", "скорее")):
+        score += 8
+    solved = phrase_matches(text, RISK_SOLVED_PATTERNS)
+    if solved:
+        score -= 30
+        candidate["penalties"].append(f"issue described as solved: {solved[0]}")
+    if "проблема" in medium and not phrase_matches(text, RISK_CONSEQUENCE_MARKERS):
+        score -= 15
+        candidate["penalties"].append("problem used without clear consequence")
+    if not row.get("quality", {}).get("needs_review"):
+        score += 8
+    else:
+        score -= 10
+        candidate["penalties"].append("utterance needs review")
+    candidate["score"] = score
+    return finalize_candidate(candidate, DEFAULT_RULES["thresholds"])
+
+
+def score_open_question(
+    row: dict[str, Any],
+    index: int,
+    utterances: list[dict[str, Any]],
+    selected_profile: str,
+    topic_block_id: str | None,
+    candidate_number: int,
+) -> dict[str, Any] | None:
+    text = str(row.get("text") or "")
+    lowered = lower_text(text)
+    strong = phrase_matches(text, OPEN_QUESTION_STRONG_PATTERNS)
+    interrogative = any(lowered.startswith(word + " ") or f" {word} " in lowered for word in QUESTION_WORDS)
+    has_question = "?" in text or bool(strong) or interrogative
+    if not has_question:
+        return None
+    candidate = candidate_base(f"cand_question_{candidate_number:04d}", "open_question", row, index, utterances, selected_profile, topic_block_id)
+    candidate["features"]["markers"] = strong + (["question_mark"] if "?" in text else [])
+    score = 0
+    if "?" in text or interrogative:
+        score += 35
+        candidate["reasons"].append("question construction")
+    if strong:
+        score += 25
+        candidate["reasons"].append(f"unresolved marker: {strong[0]}")
+    if domain_terms(text):
+        score += 10
+    if any(word in tokens(text) for word in ("кто", "кого", "кому", "когда")):
+        score += 15
+        candidate["reasons"].append("owner or timing unknown")
+    topic_only = phrase_matches(text, TOPIC_ONLY_QUESTION_PATTERNS)
+    if topic_only:
+        score -= 25
+        candidate["penalties"].append(f"topic-only question pattern: {topic_only[0]}")
+    if answered_nearby(utterances, index):
+        score -= 30
+        candidate["penalties"].append("answered nearby")
+    if not row.get("quality", {}).get("needs_review"):
+        score += 8
+    else:
+        score -= 10
+        candidate["penalties"].append("utterance needs review")
+    candidate["score"] = score
+    return finalize_candidate(candidate, DEFAULT_RULES["thresholds"])
+
+
+def answered_nearby(utterances: list[dict[str, Any]], index: int) -> bool:
+    source_end = float(utterances[index].get("end", utterances[index].get("start", 0.0)) or 0.0)
+    for neighbor in utterances[index + 1 : index + 6]:
+        start = float(neighbor.get("start", source_end) or source_end)
+        if start - source_end > 90:
+            break
+        if phrase_matches(str(neighbor.get("text") or ""), ANSWER_MARKERS):
+            return True
+    return False
+
+
+def row_topic_block(topic_blocks: list[dict[str, Any]], row: dict[str, Any]) -> str | None:
+    start = float(row.get("start", 0.0) or 0.0)
+    for block in topic_blocks:
+        if float(block["start"]) <= start <= float(block["end"]):
+            return str(block["id"])
+    return None
+
+
+def extract_candidates(utterances: list[dict[str, Any]], selected_profile: str, topic_blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    counters = {"action": 0, "decision": 0, "risk": 0, "question": 0}
+    for index, row in enumerate(utterances):
+        if not isinstance(row, dict):
+            continue
+        topic_block_id = row_topic_block(topic_blocks, row)
+
+        counters["action"] += 1
+        action = score_action(row, index, utterances, selected_profile, topic_block_id, counters["action"])
+        if action:
+            candidates.append(action)
+
+        counters["decision"] += 1
+        explicit_decision = score_explicit_decision(row, index, utterances, selected_profile, topic_block_id, counters["decision"])
+        if explicit_decision:
+            candidates.append(explicit_decision)
+        proposal_decision = score_proposal_decision(row, index, utterances, selected_profile, topic_block_id, counters["decision"])
+        if proposal_decision:
+            candidates.append(proposal_decision)
+
+        counters["risk"] += 1
+        risk = score_risk(row, index, utterances, selected_profile, topic_block_id, counters["risk"])
+        if risk:
+            candidates.append(risk)
+
+        counters["question"] += 1
+        question = score_open_question(row, index, utterances, selected_profile, topic_block_id, counters["question"])
+        if question:
+            candidates.append(question)
+
+    candidates.sort(key=lambda item: (float(item["time"].get("start") or 0.0), item["type"], -int(item["score"])))
+    return candidates
+
+
+def salience_score(row: dict[str, Any]) -> tuple[int, list[str], list[str]]:
+    text = str(row.get("text") or "")
+    words = content_tokens(text)
+    dterms = domain_terms(text)
+    score = min(len(words), 20) * 2 + len(dterms) * 5
+    reasons: list[str] = []
+    penalties: list[str] = []
+    if dterms:
+        reasons.append(f"domain_terms:{','.join(dterms[:3])}")
+    if phrase_matches(text, ACTION_MEDIUM_MARKERS + DECISION_EXPLICIT_MARKERS + RISK_STRONG_MARKERS + OPEN_QUESTION_STRONG_PATTERNS):
+        score += 8
+        reasons.append("marker_bonus")
+    if not row.get("quality", {}).get("needs_review"):
+        score += 8
+    else:
+        score -= 12
+        penalties.append("needs_review")
+    if is_filler_utterance(text):
+        score -= 35
+        penalties.append("filler")
+    if len(words) < 3:
+        score -= 15
+        penalties.append("too_short")
+    if len(words) > 45:
+        score -= 8
+        penalties.append("too_long")
+    return max(0, int(score)), reasons, penalties
+
+
+def is_filler_utterance(text: str) -> bool:
+    words = content_tokens(text)
+    text_lower = lower_text(text).strip(" .,!?:;")
+    if text_lower in FILLER_WORDS:
+        return True
+    return len(words) <= 1 and len(tokens(text)) <= 3
+
+
+def discourse_boundary(row: dict[str, Any]) -> str | None:
+    text = lower_text(row.get("text")).strip()
+    if not text:
+        return None
+    for marker in DISCOURSE_MARKERS:
+        if text.startswith(marker):
+            return f"topic_marker:{marker}"
+    if text.startswith("так ") and len(content_tokens(text)) >= 4:
+        return "topic_marker:так"
+    if text.startswith("ладно") and len(content_tokens(text)) >= 4:
+        return "topic_marker:ладно"
+    return None
+
+
+def build_topic_blocks(utterances: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not utterances:
         return []
 
-    blocks: list[list[tuple[int, dict[str, Any]]]] = []
+    config = DEFAULT_RULES["outline"]
+    raw_blocks: list[list[tuple[int, dict[str, Any]]]] = []
     current: list[tuple[int, dict[str, Any]]] = []
     block_start = float(utterances[0].get("start", 0.0) or 0.0)
     previous_end = block_start
+    boundary_reasons: list[list[str]] = [[]]
 
     for index, row in enumerate(utterances):
         start = float(row.get("start", previous_end) or previous_end)
         gap = start - previous_end
         span = start - block_start
-        if current and (gap > 90.0 or span > 600.0):
-            blocks.append(current)
+        reasons: list[str] = []
+        if gap >= config["strong_pause_boundary_sec"]:
+            reasons.append(f"strong_pause_{int(gap)}s")
+        elif gap >= config["pause_boundary_sec"]:
+            reasons.append(f"pause_{int(gap)}s")
+        marker = discourse_boundary(row)
+        if marker and span >= config["target_block_sec"] / 2:
+            reasons.append(marker)
+        should_split = bool(current) and span >= config["min_block_sec"] and bool(reasons)
+        if current and span >= config["max_block_sec"]:
+            should_split = True
+            reasons.append("max_block_duration")
+        if should_split:
+            raw_blocks.append(current)
+            boundary_reasons.append(reasons)
             current = []
             block_start = start
         current.append((index, row))
         previous_end = float(row.get("end", start) or start)
 
     if current:
-        blocks.append(current)
+        raw_blocks.append(current)
 
-    outline: list[dict[str, Any]] = []
-    for block_index, block in enumerate(blocks, start=1):
+    topic_blocks: list[dict[str, Any]] = []
+    for block_index, block in enumerate(raw_blocks, start=1):
         first_index, first = block[0]
         last_index, last = block[-1]
-        samples = []
-        for sample_index, sample in block[:3]:
-            text = clean_text(sample.get("text"), limit=180)
-            if text:
-                samples.append(
-                    {
-                        "utterance_id": utterance_id(sample, sample_index),
-                        "role": role(sample),
-                        "text": text,
-                    }
-                )
-        outline.append(
+        scored: list[tuple[int, int, dict[str, Any], list[str], list[str]]] = []
+        for item_index, item in block:
+            score, reasons, penalties = salience_score(item)
+            if score >= config["min_salience_score"]:
+                scored.append((score, item_index, item, reasons, penalties))
+        if not scored:
+            best_index, best_item = max(block, key=lambda pair: salience_score(pair[1])[0])
+            best_score, best_reasons, best_penalties = salience_score(best_item)
+            scored = [(best_score, best_index, best_item, best_reasons, best_penalties)]
+        scored.sort(key=lambda item: (-item[0], float(item[2].get("start", 0.0) or 0.0)))
+        representatives = scored[: int(DEFAULT_RULES["selection"]["representative_utterances_per_block"])]
+        representative_ids = {utterance_id(item, item_index) for _, item_index, item, _, _ in representatives}
+        if len({role(item) for _, _, item, _, _ in representatives}) == 1:
+            present_role = role(representatives[0][2])
+            for score, item_index, item, reasons, penalties in scored[int(DEFAULT_RULES["selection"]["representative_utterances_per_block"]) :]:
+                if role(item) != present_role and score >= config["min_salience_score"]:
+                    representatives.append((score, item_index, item, reasons, penalties))
+                    representative_ids.add(utterance_id(item, item_index))
+                    break
+        representatives.sort(key=lambda item: float(item[2].get("start", 0.0) or 0.0))
+
+        block_terms: list[str] = []
+        for _, row in block:
+            block_terms.extend(domain_terms(row.get("text")))
+        if len(block_terms) < 3:
+            content_counts: dict[str, int] = {}
+            for _, row in block:
+                for token in content_tokens(row.get("text")):
+                    content_counts[token] = content_counts.get(token, 0) + 1
+            block_terms.extend([token for token, _ in sorted(content_counts.items(), key=lambda pair: (-pair[1], pair[0]))[:4]])
+        keywords = sorted(set(block_terms))[:5]
+
+        salience_scores = {
+            utterance_id(item, item_index): score
+            for score, item_index, item, _, _ in representatives
+        }
+        topic_blocks.append(
             {
-                "id": f"outline_{block_index:03d}",
+                "id": f"topic_{block_index:04d}",
                 "start": first.get("start"),
                 "end": last.get("end"),
+                "boundary_reasons": boundary_reasons[block_index - 1] if block_index - 1 < len(boundary_reasons) else [],
+                "keywords": keywords,
                 "utterance_ids": [utterance_id(first, first_index), utterance_id(last, last_index)],
                 "utterance_count": len(block),
-                "samples": samples,
+                "representative_utterance_ids": [utterance_id(item, item_index) for _, item_index, item, _, _ in representatives],
+                "representatives": [
+                    {
+                        "utterance_id": utterance_id(item, item_index),
+                        "role": role(item),
+                        "start": item.get("start"),
+                        "end": item.get("end"),
+                        "text": clean_text(item.get("text"), limit=220),
+                        "salience_score": score,
+                    }
+                    for score, item_index, item, _, _ in representatives
+                ],
+                "salience_scores": salience_scores,
+                "quality": {
+                    "needs_review_count": sum(1 for _, row in block if row.get("quality", {}).get("needs_review")),
+                },
             }
         )
-    return outline
+    return topic_blocks
 
 
-def build_evidence_notes(utterances: list[dict[str, Any]]) -> dict[str, Any]:
-    decisions: list[dict[str, Any]] = []
-    actions: list[dict[str, Any]] = []
-    risks: list[dict[str, Any]] = []
-    for index, row in enumerate(utterances):
-        if not isinstance(row, dict):
-            continue
-        decision = evidence_item(row, index, "decision", DECISION_MARKERS)
-        action = evidence_item(row, index, "action", ACTION_MARKERS)
-        risk = evidence_item(row, index, "risk_or_open_question", RISK_MARKERS)
-        if decision:
-            decisions.append(decision)
-        if action:
-            actions.append(action)
-        if risk:
-            risks.append(risk)
-
-    return {
-        "schema": "murmurmark.evidence_notes/v1",
-        "outline": build_outline(utterances),
-        "potential_decisions": decisions,
-        "potential_actions": actions,
-        "risks_and_open_questions": risks,
+def select_items(candidates: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    selected: dict[str, list[dict[str, Any]]] = {
+        "decisions": [],
+        "actions": [],
+        "risks": [],
+        "open_questions": [],
     }
+    mapping = {
+        "decision": ("decisions", "max_decisions"),
+        "action": ("actions", "max_actions"),
+        "risk": ("risks", "max_risks"),
+        "open_question": ("open_questions", "max_open_questions"),
+    }
+    for candidate_type, (selected_key, limit_key) in mapping.items():
+        rows = [item for item in candidates if item["type"] == candidate_type and item["status"] == "selected"]
+        rows.sort(key=lambda item: (-int(item["score"]), float(item["time"].get("start") or 0.0)))
+        selected[selected_key] = rows[: int(DEFAULT_RULES["selection"][limit_key])]
+        for rank, item in enumerate(selected[selected_key], start=1):
+            item["rank"] = rank
+    return selected
+
+
+def build_evidence_notes(
+    *,
+    session: Path,
+    selected_profile: str,
+    inputs: dict[str, str],
+    utterances: list[dict[str, Any]],
+    review_items: list[dict[str, Any]],
+    metrics: dict[str, Any],
+) -> dict[str, Any]:
+    topic_blocks = build_topic_blocks(utterances)
+    candidates = extract_candidates(utterances, selected_profile, topic_blocks)
+    selected = select_items(candidates)
+    selected["outline_blocks"] = topic_blocks[: int(DEFAULT_RULES["selection"].get("max_outline_blocks", 8))]
+    selected_counts = {key: len(value) for key, value in selected.items()}
+
+    hidden_counts: dict[str, int] = {}
+    for candidate in candidates:
+        if candidate["status"] != "selected":
+            key = str(candidate["subtype"])
+            hidden_counts[key] = hidden_counts.get(key, 0) + 1
+
+    evidence = {
+        "schema": "murmurmark.evidence_notes/v2",
+        "session_id": session.name,
+        "source": {
+            "transcript_profile": selected_profile,
+            "clean_dialogue_path": inputs.get("clean_dialogue"),
+            "quality_report_path": inputs.get("quality_report"),
+            "overlaps_path": inputs.get("overlaps"),
+        },
+        "generator": {
+            "name": "synthesize-simple-extractive",
+            "version": GENERATOR_VERSION,
+            "mode": "deterministic",
+            "config": "default_v2",
+        },
+        "topic_blocks": topic_blocks,
+        "candidates": candidates,
+        "selected": selected,
+        "review": {
+            "items": review_items,
+            "summary": {
+                "review_item_count": len(review_items),
+                "hidden_candidate_counts": dict(sorted(hidden_counts.items())),
+            },
+        },
+        "metrics": {
+            **metrics,
+            "topic_block_count": len(topic_blocks),
+            "candidate_count": len(candidates),
+            "selected_counts": selected_counts,
+            "hidden_candidate_counts": dict(sorted(hidden_counts.items())),
+        },
+        "rules": DEFAULT_RULES,
+        "outline": selected["outline_blocks"],
+        "potential_decisions": selected["decisions"],
+        "potential_actions": selected["actions"],
+        "risks_and_open_questions": selected["risks"] + selected["open_questions"],
+    }
+    return evidence
 
 
 def build_review_items(
@@ -359,7 +1300,7 @@ def build_review_items(
                 }
             )
 
-    for index, overlap in enumerate(overlaps):
+    for overlap in overlaps:
         if not isinstance(overlap, dict) or "duration_sec" not in overlap:
             continue
         severity = "medium" if float(overlap.get("duration_sec", 0.0) or 0.0) > 2.0 else "low"
@@ -420,7 +1361,20 @@ def write_quality_markdown(path: Path, verdict_payload: dict[str, Any]) -> None:
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+def candidate_line(item: dict[str, Any]) -> str:
+    ids = ", ".join(f"`{value}`" for value in item.get("evidence_utterance_ids", []))
+    reasons = "; ".join(item.get("reasons", [])[:2])
+    subtype = item.get("subtype", item.get("type"))
+    return (
+        f"- `needs_review` `{subtype}` score `{item.get('score')}` "
+        f"{format_time(item.get('time', {}).get('start'))}-{format_time(item.get('time', {}).get('end'))} "
+        f"{ids} {', '.join(item.get('roles', []))}: {item.get('display_text', '')}"
+        + (f"\n  - Reason: {reasons}" if reasons else "")
+    )
+
+
 def write_notes_markdown(path: Path, verdict: dict[str, Any], evidence: dict[str, Any]) -> None:
+    selected = evidence.get("selected", {})
     lines = [
         "# Extractive Notes",
         "",
@@ -432,34 +1386,55 @@ def write_notes_markdown(path: Path, verdict: dict[str, Any], evidence: dict[str
         "## Conversation Outline",
         "",
     ]
-    for block in evidence["outline"]:
+    for block in selected.get("outline_blocks", []):
         start = format_time(block.get("start"))
         end = format_time(block.get("end"))
+        keywords = ", ".join(block.get("keywords", [])[:4]) or "no keywords"
         ids = block.get("utterance_ids", [])
-        lines.append(f"- `{start}-{end}` utterances `{ids[0]}`..`{ids[-1]}` ({block.get('utterance_count', 0)} turns)")
-        for sample in block.get("samples", []):
+        id_span = f"`{ids[0]}`..`{ids[-1]}`" if ids else "`unknown`"
+        lines.append(f"### {start}-{end}: {keywords}")
+        lines.append(f"- Utterances {id_span} ({block.get('utterance_count', 0)} turns)")
+        for sample in block.get("representatives", []):
             lines.append(f"  - `{sample['utterance_id']}` {sample['role']}: {sample['text']}")
-    if not evidence["outline"]:
+        lines.append("")
+    if not selected.get("outline_blocks"):
         lines.append("- no utterances")
 
-    section_titles = (
-        ("Potential Decisions", "potential_decisions"),
-        ("Potential Actions", "potential_actions"),
-        ("Risks / Open Questions", "risks_and_open_questions"),
+    sections = (
+        ("Potential Decisions", "decisions"),
+        ("Potential Actions", "actions"),
+        ("Risks", "risks"),
+        ("Open Questions", "open_questions"),
     )
-    for title, key in section_titles:
+    for title, key in sections:
         lines.extend(["", f"## {title}", ""])
-        rows = evidence.get(key, [])
+        rows = selected.get(key, [])
         if not rows:
             lines.append("- none detected")
             continue
         for item in rows:
-            ids = ", ".join(f"`{value}`" for value in item["utterance_ids"])
-            lines.append(
-                f"- `needs_review` {format_time(item.get('start'))}-{format_time(item.get('end'))} "
-                f"{ids} {item['role']}: {item['text']}"
-            )
+            lines.append(candidate_line(item))
+    lines.extend(["", "## Hidden / Weak Candidates", "", "Full scored list: `evidence_notes.json`."])
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def empty_evidence(session: Path, requested_profile: str, risk_items: list[dict[str, Any]], metrics: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema": "murmurmark.evidence_notes/v2",
+        "session_id": session.name,
+        "source": {"transcript_profile": requested_profile},
+        "generator": {"name": "synthesize-simple-extractive", "version": GENERATOR_VERSION, "mode": "deterministic", "config": "default_v2"},
+        "topic_blocks": [],
+        "candidates": [],
+        "selected": {"outline_blocks": [], "decisions": [], "actions": [], "risks": [], "open_questions": []},
+        "review": {"items": build_review_items([], [], risk_items), "summary": {"review_item_count": len(risk_items)}},
+        "metrics": {**metrics, "topic_block_count": 0, "candidate_count": 0, "selected_counts": {}, "hidden_candidate_counts": {}},
+        "rules": DEFAULT_RULES,
+        "outline": [],
+        "potential_decisions": [],
+        "potential_actions": [],
+        "risks_and_open_questions": [],
+    }
 
 
 def write_failed_outputs(out_dir: Path, session: Path, requested_profile: str, risk_items: list[dict[str, Any]]) -> int:
@@ -482,11 +1457,12 @@ def write_failed_outputs(out_dir: Path, session: Path, requested_profile: str, r
         "metrics": metrics,
         "risk_items": risk_items,
     }
+    evidence = empty_evidence(session, requested_profile, risk_items, metrics)
     write_json(out_dir / "quality_verdict.json", payload)
     write_quality_markdown(out_dir / "quality_verdict.md", payload)
-    write_json(out_dir / "evidence_notes.json", {"schema": "murmurmark.evidence_notes/v1", "outline": [], "potential_decisions": [], "potential_actions": [], "risks_and_open_questions": []})
-    (out_dir / "notes.md").write_text("# Extractive Notes\n\nNo transcript evidence was available.\n", encoding="utf-8")
-    write_jsonl(out_dir / "review_items.jsonl", build_review_items([], [], risk_items))
+    write_json(out_dir / "evidence_notes.json", evidence)
+    write_notes_markdown(out_dir / "notes.md", payload, evidence)
+    write_jsonl(out_dir / "review_items.jsonl", evidence["review"]["items"])
     write_json(
         out_dir / "synthesis_manifest.json",
         {
@@ -494,6 +1470,8 @@ def write_failed_outputs(out_dir: Path, session: Path, requested_profile: str, r
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "session": str(session),
             "mode": "extractive",
+            "generator": {"name": "synthesize-simple-extractive", "version": GENERATOR_VERSION, "config": "default_v2"},
+            "rules": DEFAULT_RULES,
             "outputs": {
                 "quality_verdict": "quality_verdict.json",
                 "quality_verdict_markdown": "quality_verdict.md",
@@ -518,7 +1496,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     selected_profile, paths, repair_comparison, selection_risks = choose_profile(resolved_dir, args.transcript_profile)
-    quality, utterances, overlaps_and_input_risks = load_inputs(session, selected_profile, paths)
+    quality, utterances, overlaps_and_input_risks = load_inputs(selected_profile, paths)
 
     input_risks = [item for item in overlaps_and_input_risks if "duration_sec" not in item]
     overlap_rows = [item for item in overlaps_and_input_risks if "duration_sec" in item]
@@ -546,8 +1524,15 @@ def main() -> int:
     if verdict == "failed":
         return write_failed_outputs(out_dir, session, selected_profile, risk_items)
 
-    evidence = build_evidence_notes(utterances)
     review_items = build_review_items(utterances, overlap_rows, risk_items)
+    evidence = build_evidence_notes(
+        session=session,
+        selected_profile=selected_profile,
+        inputs=inputs,
+        utterances=utterances,
+        review_items=review_items,
+        metrics=metrics,
+    )
 
     write_json(out_dir / "quality_verdict.json", verdict_payload)
     write_quality_markdown(out_dir / "quality_verdict.md", verdict_payload)
@@ -561,9 +1546,11 @@ def main() -> int:
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "session": str(session),
             "mode": "extractive",
+            "generator": {"name": "synthesize-simple-extractive", "version": GENERATOR_VERSION, "config": "default_v2"},
             "selected_transcript_profile": selected_profile,
             "requested_transcript_profile": args.transcript_profile,
             "inputs": inputs,
+            "rules": DEFAULT_RULES,
             "outputs": {
                 "quality_verdict": "quality_verdict.json",
                 "quality_verdict_markdown": "quality_verdict.md",

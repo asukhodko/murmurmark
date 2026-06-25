@@ -37,10 +37,23 @@ transcript JSON and never reads raw audio.
 
 The output is intentionally extractive:
 
-- conversation outline groups nearby utterances and cites their IDs;
-- potential decisions, actions, risks and open questions are only quoted from utterances with simple lexical markers;
-- every candidate item is marked `needs_review`;
+- topic blocks choose salient utterances instead of the first utterances in a time window;
+- potential decisions, actions, risks and open questions are scored rule candidates with evidence IDs;
+- Markdown shows only selected top items, while `evidence_notes.json` keeps the full candidate audit;
+- every selected or candidate item is marked `needs_review`;
 - unsupported claims are not generated.
+
+Current data flow:
+
+```text
+clean_dialogue.json
+  -> topic_blocks
+  -> candidate_items
+  -> scored_items
+  -> selected_notes
+  -> notes.md
+  -> evidence_notes.json
+```
 
 `quality_verdict.json` is the first gate a user should read. It reports `good`, `usable_with_review`,
 `risky` or `failed` from transcript quality counters and risky intervals.

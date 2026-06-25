@@ -311,9 +311,30 @@ current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
 ```
 
-The script writes a quality verdict and a conservative `notes.md`. The notes are extractive:
-conversation outline entries cite utterance ranges, and potential decisions/actions/risks quote
-utterances with matching lexical markers. The script does not invent owners, deadlines or decisions.
+The script writes a quality verdict and a conservative `notes.md`. The v2 notes path is extractive
+and scored:
+
+```text
+clean_dialogue.json
+  -> topic_blocks
+  -> candidate_items
+  -> scored_items
+  -> selected_notes
+```
+
+Markdown shows only selected top items. `evidence_notes.json` keeps all candidates, including weak
+actions and process discussions hidden from Markdown. The script does not invent owners, deadlines
+or decisions.
+
+Useful checks:
+
+```bash
+jq '{schema, metrics, selected_counts: .metrics.selected_counts}' \
+  "$SESSION/derived/synthesis-simple/extractive/evidence_notes.json"
+
+jq -r '.candidates[] | select(.type == "action") | [.subtype, .status, .score, .display_text] | @tsv' \
+  "$SESSION/derived/synthesis-simple/extractive/evidence_notes.json" | head
+```
 
 ## Reusing Existing Raw Whisper Output
 

@@ -92,9 +92,129 @@ derived/synthesis-simple/extractive/
 }
 ```
 
-`notes.md` is not a free summary. It contains extractive outline items and potential
-decisions/actions/risks with utterance IDs. Every item that looks like a decision or action remains
-`needs_review` until a human confirms it.
+`notes.md` is not a free summary. It contains selected extractive outline items and top
+decisions/actions/risks/open questions with utterance IDs. Every item that looks like a decision or
+action remains `needs_review` until a human confirms it. The complete scored candidate list lives in
+`evidence_notes.json`.
+
+`evidence_notes.json` v2:
+
+```json
+{
+  "schema": "murmurmark.evidence_notes/v2",
+  "source": {
+    "transcript_profile": "shadow_v2",
+    "clean_dialogue_path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.shadow_v2.json",
+    "quality_report_path": "derived/transcript-simple/whisper-cpp/resolved/quality_report.shadow_v2.json"
+  },
+  "generator": {
+    "name": "synthesize-simple-extractive",
+    "version": "0.2.0",
+    "mode": "deterministic",
+    "config": "default_v2"
+  },
+  "topic_blocks": [],
+  "candidates": [],
+  "selected": {
+    "outline_blocks": [],
+    "decisions": [],
+    "actions": [],
+    "risks": [],
+    "open_questions": []
+  },
+  "review": {
+    "items": [],
+    "summary": {}
+  },
+  "metrics": {}
+}
+```
+
+Candidate items are extractive and auditable:
+
+```json
+{
+  "id": "cand_action_0012",
+  "type": "action",
+  "subtype": "candidate_action",
+  "status": "selected",
+  "score": 68,
+  "confidence": "medium",
+  "display_text": "Надо проверить, почему deploy в GitLab pipeline тормозит.",
+  "evidence_utterance_ids": ["utt_0123"],
+  "context_utterance_ids": ["utt_0122", "utt_0124"],
+  "topic_block_id": "topic_0003",
+  "time": {"start": 812.42, "end": 818.77},
+  "roles": ["Me"],
+  "features": {
+    "markers": ["надо"],
+    "verbs": ["проверить"],
+    "objects": ["deploy", "GitLab pipeline"],
+    "domain_terms": ["deploy", "GitLab"],
+    "quality_flags": []
+  },
+  "reasons": ["obligation marker: надо", "action verb: проверить"],
+  "penalties": [],
+  "needs_review": true
+}
+```
+
+Topic blocks are time ranges with representative utterances chosen by salience:
+
+```json
+{
+  "id": "topic_0003",
+  "start": 720.12,
+  "end": 1198.44,
+  "title": "12:00-19:58: gitlab, deploy, pipeline",
+  "utterance_range": {"first_id": "utt_0101", "last_id": "utt_0174", "count": 74},
+  "keywords": ["gitlab", "deploy", "pipeline"],
+  "representatives": [
+    {
+      "utterance_id": "utt_0123",
+      "role": "Me",
+      "text": "Надо проверить, почему deploy в GitLab pipeline тормозит.",
+      "salience_score": 86
+    }
+  ]
+}
+```
+
+The `selected` section is the Markdown view source. It keeps only top items:
+
+```json
+{
+  "selected": {
+    "actions": [
+      {
+        "id": "cand_action_0012",
+        "subtype": "candidate_action",
+        "score": 68,
+        "evidence_utterance_ids": ["utt_0123"],
+        "display_text": "Надо проверить, почему deploy в GitLab pipeline тормозит.",
+        "needs_review": true
+      }
+    ],
+    "decisions": [],
+    "risks": [],
+    "open_questions": []
+  }
+}
+```
+
+Review items point either to risky utterances or intervals:
+
+```json
+{
+  "type": "quality_needs_review",
+  "severity": "medium",
+  "start": 812.42,
+  "end": 818.77,
+  "utterance_ids": ["utt_0123"],
+  "reason": "utterance marked needs_review by transcript pipeline",
+  "text": "Надо проверить, почему deploy в GitLab pipeline тормозит."
+}
+```
 
 Current role model:
 
