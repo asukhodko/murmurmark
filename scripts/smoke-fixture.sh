@@ -352,6 +352,118 @@ grep -q 'utt_simple_006' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -q 'Надо подумать' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -q 'Вопрос по Kubernetes' "$session/derived/synthesis-simple/extractive/notes.md"
 
+audit_python=""
+if [[ -x "$repo_root/.venv/bin/python" ]] && "$repo_root/.venv/bin/python" - <<'PY' >/dev/null 2>&1
+import librosa
+import numpy
+import scipy
+import soundfile
+PY
+then
+  audit_python="$repo_root/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1 && python3 - <<'PY' >/dev/null 2>&1
+import librosa
+import numpy
+import scipy
+import soundfile
+PY
+then
+  audit_python="$(command -v python3)"
+fi
+
+if [[ -n "$audit_python" ]]; then
+  group_session="$workdir/group-session"
+  group_resolved="$group_session/derived/transcript-simple/whisper-cpp/resolved"
+  mkdir -p \
+    "$group_session/audio/mic" \
+    "$group_session/audio/remote" \
+    "$group_session/derived/preprocess/audio" \
+    "$group_session/derived/preprocess/echo" \
+    "$group_resolved"
+
+  ffmpeg -y -hide_banner -loglevel error \
+    -f lavfi -i 'aevalsrc=0.18*sin(2*PI*600*t)*between(t\,0\,3)+0.18*sin(2*PI*500*t)*between(t\,5\,8)+0.18*sin(2*PI*700*t)*between(t\,10\,11)+0.18*sin(2*PI*650*t)*between(t\,12\,13.6):s=16000:d=16' \
+    -c:a pcm_s16le "$group_session/audio/remote/000001.caf"
+  ffmpeg -y -hide_banner -loglevel error \
+    -f lavfi -i 'aevalsrc=0.12*sin(2*PI*600*t)*between(t\,0\,3)+0.18*sin(2*PI*1000*t)*between(t\,5\,8)+0.18*sin(2*PI*900*t)*between(t\,13\,14.2):s=16000:d=16' \
+    -c:a pcm_s16le "$group_session/audio/mic/000001.caf"
+  ffmpeg -y -hide_banner -loglevel error \
+    -f lavfi -i 'aevalsrc=0.18*sin(2*PI*1000*t)*between(t\,5\,8)+0.18*sin(2*PI*900*t)*between(t\,13\,14.2):s=16000:d=16' \
+    -c:a pcm_s16le "$group_session/derived/preprocess/audio/mic_clean_local_fir.wav"
+  ffmpeg -y -hide_banner -loglevel error \
+    -f lavfi -i 'aevalsrc=0.18*sin(2*PI*1000*t)*between(t\,5\,8)+0.18*sin(2*PI*900*t)*between(t\,13\,14.2):s=16000:d=16' \
+    -c:a pcm_s16le "$group_session/derived/preprocess/audio/mic_role_masked_for_asr.wav"
+
+  cat >"$group_session/derived/preprocess/echo/speaker_state.jsonl" <<'EOF'
+{"start":0.0,"end":3.0,"state":"remote_only","confidence":0.95,"remote_db":-18,"mic_db":-28}
+{"start":5.0,"end":8.0,"state":"double_talk","confidence":0.95,"remote_db":-18,"mic_db":-18}
+{"start":10.0,"end":11.0,"state":"remote_only","confidence":0.95,"remote_db":-18,"mic_db":-80}
+{"start":12.0,"end":13.6,"state":"remote_only","confidence":0.90,"remote_db":-18,"mic_db":-24}
+{"start":13.0,"end":14.2,"state":"local_only","confidence":0.90,"remote_db":-80,"mic_db":-18}
+EOF
+
+  jq -n '{
+    schema: "murmurmark.local_fir_report/v1",
+    summary: {median_delay_ms: 0}
+  }' >"$group_session/derived/preprocess/echo/local_fir_report.json"
+  jq -n '{
+    schema: "murmurmark.clean_dialogue/v1",
+    session: "group-fixture",
+    utterances: [
+      {id: "utt_dup_me", start: 0.5, end: 2.5, source_track: "mic", speaker_label: "Me", role: "Me", text: "Надо проверить deploy.", quality: {needs_review: false}},
+      {id: "utt_dup_remote", start: 0.3, end: 2.7, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Надо проверить deploy.", quality: {needs_review: false}},
+      {id: "utt_dt_me", start: 5.0, end: 7.0, source_track: "mic", speaker_label: "Me", role: "Me", text: "Я возьму логи.", quality: {needs_review: false}},
+      {id: "utt_dt_remote", start: 5.2, end: 7.2, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Давайте обсудим релиз.", quality: {needs_review: false}},
+      {id: "utt_noise_me", start: 10.0, end: 10.8, source_track: "mic", speaker_label: "Me", role: "Me", text: "Окей.", quality: {needs_review: false}},
+      {id: "utt_noise_remote", start: 10.0, end: 11.0, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Проверим после созвона.", quality: {needs_review: false}},
+      {id: "utt_timing_remote", start: 12.0, end: 13.6, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Закроем вопрос по квотам.", quality: {needs_review: false}},
+      {id: "utt_timing_me", start: 13.0, end: 14.2, source_track: "mic", speaker_label: "Me", role: "Me", text: "Я понял.", quality: {needs_review: false}}
+    ]
+  }' >"$group_resolved/clean_dialogue.shadow_v2.json"
+  jq -n '{
+    schema: "murmurmark.transcript_overlaps/v1",
+    session: "group-fixture",
+    overlaps: [
+      {left_utterance_id: "utt_dup_me", right_utterance_id: "utt_dup_remote", start: 0.5, end: 2.5, duration_sec: 2.0},
+      {left_utterance_id: "utt_dt_me", right_utterance_id: "utt_dt_remote", start: 5.2, end: 7.0, duration_sec: 1.8},
+      {left_utterance_id: "utt_noise_me", right_utterance_id: "utt_noise_remote", start: 10.0, end: 10.8, duration_sec: 0.8},
+      {left_utterance_id: "utt_timing_remote", right_utterance_id: "utt_timing_me", start: 13.0, end: 13.6, duration_sec: 0.6}
+    ]
+  }' >"$group_resolved/overlaps.shadow_v2.json"
+  jq -n '{
+    schema: "murmurmark.simple_transcript_quality/v1",
+    utterances: 8,
+    needs_review_count: 0,
+    cross_role_overlap_gt2_count: 1,
+    cross_role_overlap_gt2_seconds: 2,
+    remote_duplicate_in_me_seconds: 2,
+    unrepaired_long_mic_crossings_count: 0,
+    local_only_island_recall: 1.0
+  }' >"$group_resolved/quality_report.shadow_v2.json"
+  jq -n '{schema: "murmurmark.role_decisions/v1", decisions: []}' >"$group_resolved/role_decisions.shadow_v2.json"
+
+  "$audit_python" "$repo_root/scripts/audit-group-overlaps.py" "$group_session" \
+    --profile shadow_v2 \
+    --min-overlap-sec 0.5 \
+    --review-threshold-sec 2.0 \
+    --write-clips \
+    --max-clips 10 >/dev/null
+
+  group_audit="$group_session/derived/audit/group-overlaps/group_overlap_audit.jsonl"
+  group_summary="$group_session/derived/audit/group-overlaps/group_overlap_summary.json"
+  [[ -s "$group_audit" ]]
+  [[ -s "$group_summary" ]]
+  [[ -s "$group_session/derived/audit/group-overlaps/group_overlap_review.md" ]]
+  [[ -s "$group_session/derived/audit/group-overlaps/group_overlap_patch_suggestions.jsonl" ]]
+  jq -e '.schema == "murmurmark.group_overlap_summary/v1"' "$group_summary" >/dev/null
+  jq -e '.classified.total_overlap_count == 4' "$group_summary" >/dev/null
+  jq -s 'any(.[]; .classification.label == "probable_duplicate")' "$group_audit" >/dev/null
+  jq -s 'any(.[]; .classification.label == "probable_double_talk")' "$group_audit" >/dev/null
+  jq -s 'any(.[]; .classification.label == "probable_asr_noise")' "$group_audit" >/dev/null
+  jq -s 'any(.[]; .classification.label == "probable_timing_overlap")' "$group_audit" >/dev/null
+  compgen -G "$group_session/derived/audit/group-overlaps/clips/*.wav" >/dev/null
+fi
+
 empty_session="$workdir/empty-session"
 empty_resolved="$empty_session/derived/transcript-simple/whisper-cpp/resolved"
 mkdir -p "$empty_resolved"

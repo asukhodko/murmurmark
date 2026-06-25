@@ -216,6 +216,114 @@ Review items point either to risky utterances or intervals:
 }
 ```
 
+The group-call overlap audit is diagnostic and writes only under:
+
+```text
+derived/audit/group-overlaps/
+  group_overlap_audit.jsonl
+  group_overlap_summary.json
+  group_overlap_review.md
+  group_overlap_patch_suggestions.jsonl
+  clips/
+```
+
+`group_overlap_summary.json` v1:
+
+```json
+{
+  "schema": "murmurmark.group_overlap_summary/v1",
+  "profile": "shadow_v2",
+  "input_metrics": {
+    "cross_role_overlap_gt2_count": 25,
+    "cross_role_overlap_gt2_seconds": 144.09,
+    "remote_duplicate_in_me_seconds": 192.85
+  },
+  "classified": {
+    "total_overlap_count": 93,
+    "total_overlap_seconds": 201.34,
+    "by_label": {
+      "probable_duplicate": {"count": 6, "seconds": 11.77},
+      "probable_timing_overlap": {"count": 38, "seconds": 81.55},
+      "needs_human_review": {"count": 47, "seconds": 104.84}
+    }
+  },
+  "harmful": {
+    "seconds": 11.77,
+    "labels": ["probable_asr_noise", "probable_duplicate", "probable_remote_leak"]
+  },
+  "benign_or_expected": {
+    "seconds": 84.73,
+    "labels": ["probable_double_talk", "probable_timing_overlap"]
+  },
+  "review": {"seconds": 104.84, "count": 47},
+  "recommended_verdict_adjustment": {
+    "old": "usable_with_review",
+    "new": "usable_with_review",
+    "informational_only": true
+  }
+}
+```
+
+`group_overlap_audit.jsonl` v1 contains one record per `Me`/`Colleagues` overlap:
+
+```json
+{
+  "schema": "murmurmark.group_overlap_audit/v1",
+  "id": "ov_000042",
+  "profile": "shadow_v2",
+  "interval": {
+    "start": 812.42,
+    "end": 818.77,
+    "duration_sec": 6.35,
+    "severity": "critical"
+  },
+  "utterances": {
+    "me": {"id": "utt_mic_0123", "text": "Да, надо проверить deploy."},
+    "remote": {"id": "utt_remote_0119", "text": "Надо проверить deploy."}
+  },
+  "features": {
+    "speaker_state": {},
+    "audio": {},
+    "text": {},
+    "interval": {}
+  },
+  "scores": {
+    "local_evidence": 22,
+    "audio_leak": 71,
+    "text_duplicate": 84,
+    "probable_duplicate": 89
+  },
+  "classification": {
+    "label": "probable_duplicate",
+    "confidence": 0.89,
+    "action_suggestion": "drop_me_duplicate"
+  },
+  "clips": {
+    "stereo_clean_left_remote_right": "derived/audit/group-overlaps/clips/ov_000042_stereo_clean_left_remote_right.wav"
+  }
+}
+```
+
+Allowed group-overlap labels:
+
+- `probable_duplicate`
+- `probable_remote_leak`
+- `probable_double_talk`
+- `probable_timing_overlap`
+- `probable_asr_noise`
+- `needs_human_review`
+
+Patch suggestions are dry-run only:
+
+```json
+{
+  "schema": "murmurmark.group_overlap_patch_suggestion/v1",
+  "overlap_id": "ov_000042",
+  "action": "drop_me_duplicate",
+  "apply_automatically": false
+}
+```
+
 Current role model:
 
 - `Me` from the local microphone track;

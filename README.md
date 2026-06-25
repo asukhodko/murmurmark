@@ -49,9 +49,20 @@ scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile auto
 jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
   "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json"
 
+scripts/audit-group-overlaps.py "$SESSION" \
+  --profile shadow_v2 \
+  --min-overlap-sec 0.5 \
+  --review-threshold-sec 2.0 \
+  --write-clips \
+  --max-clips 80
+
+jq '{classified, harmful, benign_or_expected, review, recommended_verdict_adjustment}' \
+  "$SESSION/derived/audit/group-overlaps/group_overlap_summary.json"
+
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.shadow_v2.md"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+less "$SESSION/derived/audit/group-overlaps/group_overlap_review.md"
 ```
 
 ### End-to-End From a New Recording
@@ -102,13 +113,25 @@ scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile auto
 jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
   "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json"
 
+scripts/audit-group-overlaps.py "$SESSION" \
+  --profile shadow_v2 \
+  --min-overlap-sec 0.5 \
+  --review-threshold-sec 2.0 \
+  --write-clips \
+  --max-clips 80
+
+jq '{classified, harmful, benign_or_expected, review, recommended_verdict_adjustment}' \
+  "$SESSION/derived/audit/group-overlaps/group_overlap_summary.json"
+
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.shadow_v2.md"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+less "$SESSION/derived/audit/group-overlaps/group_overlap_review.md"
 ```
 
 `transcript.md` is the stable baseline output. `transcript.shadow_v2.md` is the current best candidate when `repair_comparison.json` passes. The shadow profile does not replace the baseline transcript; it writes separate audit and comparison artifacts so changes can be checked before promotion.
 `scripts/synthesize-simple-extractive.py` then selects the best allowed dialogue JSON, writes a quality verdict, and creates local extractive notes where every item cites utterance IDs.
+`scripts/audit-group-overlaps.py` is an optional diagnostic step for group calls. It classifies `Me`/`Colleagues` timeline overlaps into harmful, benign and review buckets, writes listenable clips, and does not change transcripts or quality verdicts.
 
 ### Command Reference
 
@@ -131,6 +154,7 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --prompt-file examples/domain-packs/backend-platform/whisper-prompt.ru.txt
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --repair-profile shadow_v2 --skip-export --skip-transcribe
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile auto
+.venv/bin/python scripts/audit-group-overlaps.py ./sessions/<session> --profile shadow_v2 --write-clips
 .venv/bin/python scripts/echo-guard-delay-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-fir-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-local-subtract-lab.py ./sessions/<session> --start-sec <seconds>
@@ -168,6 +192,8 @@ For `local_fir`, `--echo-policy preserve_local` is the default because it avoids
 The temporary transcription bridge is `scripts/transcribe-simple-whispercpp.py`. It runs `export-audio`, prepares ASR-only speech-band `mic` audio and normalized `remote` audio, calls local `whisper-cli` on short overlapping windows, creates raw segment and candidate JSON, runs timeline repair plus role reconciliation, then writes `clean_dialogue.json`, `role_decisions.json`, `overlaps.json`, `quality_report.json`, `timeline_repair_report.json`, `transcript.md` and `transcript.simple.json` under `derived/transcript-simple/whisper-cpp/resolved/`. ASR preparation never changes raw capture. See [docs/runbooks/transcribe-simple-whispercpp.md](docs/runbooks/transcribe-simple-whispercpp.md).
 
 The first synthesis bridge is `scripts/synthesize-simple-extractive.py`. It reads only transcript-derived JSON, chooses the best safe dialogue profile, writes `quality_verdict.json`/`.md`, and creates extractive `notes.md` plus `evidence_notes.json` and `review_items.jsonl` under `derived/synthesis-simple/extractive/`. It does not call an LLM and does not infer facts beyond quoted utterances. Its v2 notes path builds topic blocks, scores action/decision/risk/question candidates, shows only selected top items in Markdown, and keeps every hidden weak/process candidate in `evidence_notes.json`.
+
+The group overlap audit is `scripts/audit-group-overlaps.py`. It reads transcript overlaps, Echo Guard `speaker_state.jsonl`, and local audio derivatives, then writes `derived/audit/group-overlaps/`. It separates likely harmful `Me` duplicates or remote leakage from expected group-call double-talk and timing overlap. This is audit-only: no transcript, Echo Guard output, synthesis output, or `quality_verdict` is modified.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 

@@ -127,6 +127,43 @@ less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 ```
 
+## Group Overlap Audit
+
+For group calls, `remote_duplicate_in_me_seconds` can overstate the real damage. Some overlap is
+normal double-talk, and some is only timestamp boundary overlap between adjacent turns. Run the
+group audit after transcription and synthesis when you need to separate harmful duplicates from
+expected group-call overlap:
+
+```bash
+scripts/audit-group-overlaps.py "$SESSION" \
+  --profile shadow_v2 \
+  --min-overlap-sec 0.5 \
+  --review-threshold-sec 2.0 \
+  --write-clips \
+  --max-clips 80
+
+jq '{classified, harmful, benign_or_expected, review, recommended_verdict_adjustment}' \
+  "$SESSION/derived/audit/group-overlaps/group_overlap_summary.json"
+
+less "$SESSION/derived/audit/group-overlaps/group_overlap_review.md"
+```
+
+The audit reads transcript overlaps, Echo Guard speaker state, and local audio artifacts. It writes
+only under `derived/audit/group-overlaps/` and does not change `transcript.md`, `transcript.shadow_v2.md`,
+Echo Guard outputs, synthesis notes, or `quality_verdict.json`.
+
+Interpretation:
+
+- `harmful.seconds`: likely duplicate `Me` text, remote leakage, or unsupported ASR noise.
+- `benign_or_expected.seconds`: likely real double-talk or harmless boundary timing overlap.
+- `review.seconds`: mixed or low-confidence regions that still need listening or future algorithmic
+  improvement.
+- `recommended_verdict_adjustment`: informational only; it does not rewrite the synthesis verdict.
+
+When `--write-clips` is used, the script creates mono and stereo clips under
+`derived/audit/group-overlaps/clips/`. `group_overlap_review.md` includes ready `afplay` commands
+for the highest-priority examples.
+
 ## Outputs
 
 ```text
@@ -187,6 +224,14 @@ derived/
       notes.md
       evidence_notes.json
       review_items.jsonl
+
+  audit/
+    group-overlaps/
+      group_overlap_audit.jsonl
+      group_overlap_summary.json
+      group_overlap_review.md
+      group_overlap_patch_suggestions.jsonl
+      clips/
 ```
 
 Initial role assignment is deliberately simple:
