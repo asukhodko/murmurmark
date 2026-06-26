@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 
 
@@ -257,6 +257,111 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
     return rows[: max(0, max_items)]
 
 
+def review_queue_minutes(items: list[dict[str, Any]]) -> float:
+    seconds = 0.0
+    for item in items:
+        interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
+        seconds += safe_float(interval.get("duration_sec"))
+    return round(seconds / 60.0, 2)
+
+
+def promotion_plan(
+    verdict: str,
+    blockers: list[str],
+    warnings: list[str],
+    burdens: list[dict[str, Any]],
+    review_queue: list[dict[str, Any]],
+    audio_judge_review_queue: dict[str, Any] | None,
+) -> dict[str, Any]:
+    not_ready = [row for row in burdens if row.get("use_gate") != "ready_for_notes"]
+    high_burden = sorted(not_ready, key=lambda row: safe_float(row.get("review_burden_ratio")), reverse=True)
+    by_session: dict[str, dict[str, Any]] = {}
+    for item in review_queue:
+        session_id = str(item.get("session_id") or "unknown")
+        row = by_session.setdefault(
+            session_id,
+            {
+                "session_id": session_id,
+                "items": 0,
+                "seconds": 0.0,
+                "labels": {},
+            },
+        )
+        row["items"] += 1
+        interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
+        row["seconds"] += safe_float(interval.get("duration_sec"))
+        label = str(item.get("label") or "unknown")
+        row["labels"][label] = row["labels"].get(label, 0) + 1
+    queue_by_session = [
+        {
+            **row,
+            "minutes": round(safe_float(row.get("seconds")) / 60.0, 2),
+            "seconds": round(safe_float(row.get("seconds")), 3),
+            "labels": dict(sorted((row.get("labels") or {}).items())),
+        }
+        for row in by_session.values()
+    ]
+    queue_by_session.sort(key=lambda row: (-safe_float(row.get("seconds")), str(row.get("session_id"))))
+
+    if blockers:
+        status = "blocked_by_structural_issues"
+    elif warnings:
+        status = "manual_review_or_algorithmic_cleanup_needed"
+    elif not_ready:
+        status = "medium_risk_ready_but_some_sessions_need_review"
+    else:
+        status = "medium_risk_ready"
+
+    next_actions: list[str] = []
+    if blockers:
+        next_actions.append("fix_blockers_before_using_for_medium_risk_meetings")
+    if not_ready:
+        next_actions.append("review_or_improve_sessions_with_use_gate_not_ready_for_notes")
+    if review_queue:
+        next_actions.append("run_build_review_plan_and_close_review_decisions")
+    if audio_judge_review_queue and safe_int(audio_judge_review_queue.get("remaining_human_review_items")):
+        next_actions.append("use_audio_judge_queue_as_shadow_signal_only_until_reviewed")
+    if not next_actions:
+        next_actions.append("keep_collecting_regression_sessions_and_watch_for_new_risk_flags")
+
+    return {
+        "target": "medium_risk_ready",
+        "current_verdict": verdict,
+        "status": status,
+        "outstanding_conditions": {
+            "blockers": blockers,
+            "warnings": warnings,
+            "sessions_not_ready_for_notes": len(not_ready),
+            "review_queue_items": len(review_queue),
+            "review_queue_raw_audio_minutes": review_queue_minutes(review_queue),
+            "audio_judge_remaining_human_review_items": (
+                safe_int(audio_judge_review_queue.get("remaining_human_review_items"))
+                if isinstance(audio_judge_review_queue, dict)
+                else None
+            ),
+        },
+        "session_targets": [
+            {
+                "session_id": row.get("session_id"),
+                "label": row.get("label"),
+                "use_gate": row.get("use_gate"),
+                "selected_profile": row.get("selected_profile"),
+                "review_burden_min": round(safe_float(row.get("review_burden_sec")) / 60.0, 2),
+                "review_burden_ratio": row.get("review_burden_ratio"),
+                "risk_flags": row.get("risk_flags") or [],
+                "recommended_action": (
+                    "close_review_decisions_or_improve_cleanup"
+                    if row.get("use_gate") == "review_first"
+                    else "rerun_pipeline_or_fix_artifacts"
+                ),
+            }
+            for row in high_burden
+        ],
+        "review_queue_by_session": queue_by_session,
+        "next_actions": next_actions,
+    }
+
+
 def active_audio_judge_queue_summary(sessions: list[dict[str, Any]], predictions: list[dict[str, Any]]) -> dict[str, Any] | None:
     if not predictions:
         return None
@@ -389,6 +494,7 @@ def build_report(
     review_queue = build_review_queue(burdens, max_review_items)
     active_judge_queue = active_audio_judge_queue_summary(burdens, audio_judge_queue)
     audio_judge_review_queue = active_judge_queue or (audio_judge.get("review_queue") if isinstance(audio_judge, dict) else None)
+    promotion = promotion_plan(verdict, blockers, warnings, burdens, review_queue, audio_judge_review_queue)
     return {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -421,6 +527,7 @@ def build_report(
         },
         "session_review_burden": burdens,
         "review_queue": review_queue,
+        "promotion_plan": promotion,
         "recommendations": recommendations(verdict, blockers, warnings),
     }
 
@@ -472,6 +579,43 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         lines.extend(f"- `{item}`" for item in report["warnings"])
     else:
         lines.append("- none")
+    plan = report.get("promotion_plan") if isinstance(report.get("promotion_plan"), dict) else {}
+    conditions = plan.get("outstanding_conditions") if isinstance(plan.get("outstanding_conditions"), dict) else {}
+    lines.extend(
+        [
+            "",
+            "## Promotion Plan",
+            "",
+            f"- Target: `{plan.get('target')}`",
+            f"- Status: `{plan.get('status')}`",
+            f"- Sessions not ready for notes: `{conditions.get('sessions_not_ready_for_notes')}`",
+            f"- Review queue: `{conditions.get('review_queue_items')}` items / `{conditions.get('review_queue_raw_audio_minutes')}` raw audio min",
+            f"- Audio judge remaining human review items: `{conditions.get('audio_judge_remaining_human_review_items')}`",
+            "",
+            "### Session Targets",
+            "",
+            "| Session | Gate | Review min | Flags | Action |",
+            "|---|---|---:|---|---|",
+        ]
+    )
+    for row in plan.get("session_targets", [])[:10]:
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    f"`{row.get('session_id')}`",
+                    str(row.get("use_gate")),
+                    f"{safe_float(row.get('review_burden_min')):.2f}",
+                    ", ".join(row.get("risk_flags") or []),
+                    str(row.get("recommended_action")),
+                ]
+            )
+            + " |"
+        )
+    if not plan.get("session_targets"):
+        lines.append("| none | - | 0.00 | - | - |")
+    lines.extend(["", "### Next Actions", ""])
+    lines.extend(f"- `{item}`" for item in plan.get("next_actions", []))
     lines.extend(["", "## Session Review Burden", ""])
     lines.append("| Session | Gate | Profile | Verdict | Review min | Review % | Flags |")
     lines.append("|---|---|---|---|---:|---:|---|")

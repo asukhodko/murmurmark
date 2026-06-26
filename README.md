@@ -254,8 +254,10 @@ overlap coverage, no protected markers and no notes impact are required. It rema
 `scripts/report-operational-readiness.py` combines session quality, corpus readiness and audio-judge
 shadow readiness into a practical verdict such as `pilot_ready_with_review` for medium-risk working
 meetings. It also assigns per-session use gates such as `ready_for_notes` and `review_first`, then
-writes a short review queue with concrete `afplay` commands for the highest-priority audio-review
-clips. The queue is filtered through the selected transcript profile, so already-dropped `Me`
+writes a promotion plan and a short review queue with concrete `afplay` commands for the
+highest-priority audio-review clips. The promotion plan explains what still blocks
+`medium_risk_ready`: unresolved warnings, sessions not ready for notes, and the remaining review
+minutes. The queue is filtered through the selected transcript profile, so already-dropped `Me`
 utterances do not stay in the operational review list.
 
 `scripts/build-review-plan.py` turns that operational review queue into a compact working checklist

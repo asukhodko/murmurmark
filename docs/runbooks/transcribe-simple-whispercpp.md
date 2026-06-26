@@ -408,6 +408,8 @@ The operational readiness report answers whether the current pipeline is usable 
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first. Its review queue is also
 profile-aware: already-resolved cleanup items are not shown as remaining work.
+Its `promotion_plan` section explains the current delta to `medium_risk_ready`: unresolved warnings,
+sessions not ready for notes, remaining review minutes, and the next action class.
 `build-review-plan.py` turns that queue into a compact checklist. Use it when a session is
 `review_first`: listen to the listed stereo clips, decide whether each `Me` candidate is leaked
 remote speech, real local speech, or unclear, then keep unclear cases marked for review.

@@ -629,6 +629,24 @@ sessions/_reports/operational-readiness/
     },
     "review_queue_items": 40
   },
+  "promotion_plan": {
+    "target": "medium_risk_ready",
+    "current_verdict": "pilot_ready_with_review",
+    "status": "manual_review_or_algorithmic_cleanup_needed",
+    "outstanding_conditions": {
+      "sessions_not_ready_for_notes": 6,
+      "review_queue_items": 40,
+      "review_queue_raw_audio_minutes": 1.81
+    },
+    "session_targets": [
+      {
+        "session_id": "2026-06-26_12-04-04",
+        "use_gate": "review_first",
+        "review_burden_min": 1.95,
+        "recommended_action": "close_review_decisions_or_improve_cleanup"
+      }
+    ]
+  },
   "review_queue": [
     {
       "session_id": "2026-06-26_11-15-50",
@@ -646,6 +664,10 @@ sessions/_reports/operational-readiness/
 The operational verdict is not a transcript correctness proof. It is a use-readiness summary for
 piloting MurmurMark on medium-risk meetings with explicit review burden, per-session use gates and a
 prioritised review queue.
+
+`promotion_plan` is the bridge from current pilot status to the target state. It names remaining
+conditions, sessions that are not yet `ready_for_notes`, review minutes and the next actions needed
+to reduce uncertainty. It is report-only: it never edits transcripts or cleanup profiles.
 
 `build-review-plan.py` converts the operational review queue into a short working checklist under:
 
