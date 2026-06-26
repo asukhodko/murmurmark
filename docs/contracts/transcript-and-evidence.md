@@ -562,6 +562,57 @@ The operational verdict is not a transcript correctness proof. It is a use-readi
 piloting MurmurMark on medium-risk meetings with explicit review burden, per-session use gates and a
 prioritised review queue.
 
+`build-review-plan.py` converts the operational review queue into a short working checklist under:
+
+```text
+sessions/_reports/review-plan/
+  review_plan.json
+  review_plan.md
+  review_plan_clusters.jsonl
+```
+
+`review_plan.json` uses `murmurmark.review_plan/v1`:
+
+```json
+{
+  "schema": "murmurmark.review_plan/v1",
+  "summary": {
+    "raw_item_count": 40,
+    "cluster_count": 29,
+    "sessions_with_review": 6,
+    "estimated_listen_seconds": 215.52,
+    "by_review_action": {
+      "confirm_drop_or_keep_me": 21,
+      "check_unique_me_content": 13
+    }
+  },
+  "clusters": [
+    {
+      "id": "review_cluster_0001",
+      "session_id": "2026-06-26_11-15-50",
+      "severity": "high",
+      "start_time": "24:15",
+      "end_time": "24:20",
+      "estimated_listen_sec": 9.62,
+      "primary_command": "afplay sessions/.../arp_000020_stereo_clean_left_remote_right.wav",
+      "items": [
+        {
+          "source_audit_id": "arp_000020",
+          "label": "remote_duplicate",
+          "review_action": "confirm_drop_or_keep_me",
+          "utterance_ids": ["utt_000269", "utt_000271"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+The review plan is audit-only. It does not create new audio clips and does not modify transcripts.
+It groups nearby suspicious intervals, keeps the original `afplay` commands, and gives a small
+decision protocol: drop leaked `Me`, keep real local speech, or leave unclear cases as
+`needs_review`.
+
 Session quality and operational readiness are profile-aware. They compare audio-review items with
 the selected `clean_dialogue*.json` profile and treat items whose `Me` utterance was removed by
 cleanup as resolved. Raw audio-review summaries are still available inside each session for audit,

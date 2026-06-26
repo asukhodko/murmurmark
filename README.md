@@ -120,10 +120,14 @@ work, build a corpus from existing audio-review audits:
   --audio-judge sessions/_reports/audio-judge-v0/audio_judge_v0_report.json \
   --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
 
+.venv/bin/python scripts/build-review-plan.py \
+  --operational-readiness sessions/_reports/operational-readiness/operational_readiness_report.json
+
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
 less sessions/_reports/audio-judge-v0/audio_judge_v0_report.md
 less sessions/_reports/operational-readiness/operational_readiness_report.md
+less sessions/_reports/review-plan/review_plan.md
 ```
 
 ### End-to-End From a New Recording
@@ -251,6 +255,7 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/evaluate-regression-corpus.py
 .venv/bin/python scripts/train-audio-judge-v0.py
 .venv/bin/python scripts/report-operational-readiness.py
+.venv/bin/python scripts/build-review-plan.py
 .venv/bin/python scripts/echo-guard-delay-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-fir-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-local-subtract-lab.py ./sessions/<session> --start-sec <seconds>
@@ -339,6 +344,12 @@ meetings. It also assigns per-session use gates such as `ready_for_notes` and `r
 writes a short review queue with concrete `afplay` commands for the highest-priority audio-review
 clips. The queue is filtered through the selected transcript profile, so already-dropped `Me`
 utterances do not stay in the operational review list.
+
+`scripts/build-review-plan.py` turns that operational review queue into a compact working checklist
+under `sessions/_reports/review-plan/`. It groups nearby risky intervals by session, estimates the
+actual listening time, keeps ready-to-run `afplay` commands, and gives a small protocol for deciding
+whether each `Me` candidate should be dropped, kept, or left as `needs_review`. It is audit-only and
+does not edit transcript profiles.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 

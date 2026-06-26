@@ -691,6 +691,15 @@ EOF
   jq -e 'all(.session_review_burden[]; (.use_gate | type) == "string")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.review_queue | type == "array"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'all(.review_queue[]; .source_audit_id != "arp_manual_v2_duplicate")' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  review_plan_dir="$workdir/review-plan"
+  "$repo_root/scripts/build-review-plan.py" \
+    --operational-readiness "$readiness_dir/operational_readiness_report.json" \
+    --out-dir "$review_plan_dir" >/dev/null
+  [[ -s "$review_plan_dir/review_plan.json" ]]
+  [[ -s "$review_plan_dir/review_plan.md" ]]
+  [[ -s "$review_plan_dir/review_plan_clusters.jsonl" ]]
+  jq -e '.schema == "murmurmark.review_plan/v1" and .summary.cluster_count >= 1' "$review_plan_dir/review_plan.json" >/dev/null
+  jq -s 'all(.[]; (.primary_command | type) == "string")' "$review_plan_dir/review_plan_clusters.jsonl" >/dev/null
 fi
 
 empty_session="$workdir/empty-session"

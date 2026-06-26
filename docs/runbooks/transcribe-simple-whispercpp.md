@@ -318,10 +318,14 @@ work:
   --audio-judge sessions/_reports/audio-judge-v0/audio_judge_v0_report.json \
   --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
 
+.venv/bin/python scripts/build-review-plan.py \
+  --operational-readiness sessions/_reports/operational-readiness/operational_readiness_report.json
+
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
 less sessions/_reports/audio-judge-v0/audio_judge_v0_report.md
 less sessions/_reports/operational-readiness/operational_readiness_report.md
+less sessions/_reports/review-plan/review_plan.md
 ```
 
 The script reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, balances examples by
@@ -338,6 +342,9 @@ The operational readiness report answers whether the current pipeline is usable 
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first. Its review queue is also
 profile-aware: already-resolved cleanup items are not shown as remaining work.
+`build-review-plan.py` turns that queue into a compact checklist. Use it when a session is
+`review_first`: listen to the listed stereo clips, decide whether each `Me` candidate is leaked
+remote speech, real local speech, or unclear, then keep unclear cases marked for review.
 
 ## Outputs
 
