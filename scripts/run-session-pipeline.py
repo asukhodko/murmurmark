@@ -126,6 +126,12 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
         step("transcribe_current", current_transcribe, enabled=not args.skip_transcription, reason="--skip-transcription"),
         step("transcribe_shadow_v2", shadow_transcribe, enabled=not args.skip_transcription, reason="--skip-transcription"),
         step(
+            "audit_local_recall",
+            [py, str(repo_root / "scripts/audit-local-recall.py"), str(session), "--profile", "shadow_v2"],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+        ),
+        step(
             "audit_group_overlaps",
             [
                 py,

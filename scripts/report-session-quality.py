@@ -547,6 +547,33 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
     }
 
 
+def local_recall_metrics(local_recall: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(local_recall, dict):
+        return {
+            "local_recall_audit_status": "missing",
+            "local_recall_missing_island_count": None,
+            "local_recall_possible_lost_me_count": None,
+            "local_recall_possible_lost_me_seconds": None,
+            "local_recall_needs_review_count": None,
+            "local_recall_needs_review_seconds": None,
+            "local_recall_meaningful_review_seconds": None,
+            "local_recall_blocking_low_local_recall": None,
+            "local_recall_recommended_next_step": "run_local_recall_audit",
+        }
+    summary = local_recall.get("summary") if isinstance(local_recall.get("summary"), dict) else {}
+    return {
+        "local_recall_audit_status": local_recall.get("status"),
+        "local_recall_missing_island_count": safe_int(summary.get("audited_missing_island_count")),
+        "local_recall_possible_lost_me_count": safe_int(summary.get("possible_lost_me_count")),
+        "local_recall_possible_lost_me_seconds": round_or_none(summary.get("possible_lost_me_seconds")),
+        "local_recall_needs_review_count": safe_int(summary.get("needs_review_count")),
+        "local_recall_needs_review_seconds": round_or_none(summary.get("needs_review_seconds")),
+        "local_recall_meaningful_review_seconds": round_or_none(summary.get("meaningful_review_seconds")),
+        "local_recall_blocking_low_local_recall": summary.get("blocking_low_local_recall"),
+        "local_recall_recommended_next_step": summary.get("recommended_next_step"),
+    }
+
+
 def risk_flags(row: dict[str, Any]) -> list[str]:
     flags: list[str] = []
     verdict = row.get("verdict")
@@ -565,7 +592,10 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
         flags.append("golden_phrase_fail")
     recall = safe_float(row.get("local_only_island_recall"))
     if recall is not None and recall < 0.9:
-        flags.append("low_local_recall")
+        if row.get("local_recall_audit_status") != "ok":
+            flags.append("low_local_recall")
+        elif row.get("local_recall_blocking_low_local_recall") is True:
+            flags.append("low_local_recall")
     needs_ratio = safe_float(row.get("needs_review_ratio"))
     if needs_ratio is not None and needs_ratio > 0.12:
         flags.append("high_needs_review_ratio")
@@ -624,6 +654,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     evidence = read_evidence(session, profile)
     group_summary = read_json(session / "derived/audit/group-overlaps/group_overlap_summary.json")
     audio_summary = read_json(session / "derived/audit/audio-review-pack/audio_review_summary.json")
+    local_recall = read_json(session / "derived/audit/local-recall/local_recall_audit.json")
     local_fir = read_json(session / "derived/preprocess/echo/local_fir_report.json")
     cleanup_report = (
         read_json(session / "derived/transcript-simple/whisper-cpp/audit-cleanup" / f"audit_cleanup_report{suffix(profile)}.json")
@@ -699,6 +730,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(cleanup_metrics(quality, cleanup_report))
     row.update(review_decision_metrics(review_report))
     row.update(audio_review_metrics(audio_summary, session, profile))
+    row.update(local_recall_metrics(local_recall))
     row["risk_flags"] = risk_flags(row)
     add_use_gate(row)
     return row
@@ -749,6 +781,10 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "needs_review_count",
         "needs_review_ratio",
         "local_only_island_recall",
+        "local_recall_recommended_next_step",
+        "local_recall_missing_island_count",
+        "local_recall_possible_lost_me_seconds",
+        "local_recall_needs_review_seconds",
         "cross_role_overlap_gt2_seconds",
         "remote_duplicate_in_me_seconds",
         "audit_harmful_seconds_after",
@@ -805,8 +841,8 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         "",
         "## Sessions",
         "",
-        "| Session | Label | Gate | Status | Profile | Verdict | Min | Review % | Utterances | Needs Review | Local Recall | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
-        "|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|",
+        "| Session | Label | Gate | Status | Profile | Verdict | Min | Review % | Utterances | Needs Review | Local Recall | Local Audit | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
+        "|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---|---|",
     ]
     for row in rows:
         duration = safe_float(row.get("meeting_duration_sec"))
@@ -816,6 +852,11 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
             f"{fmt(row.get('audio_review_reliable_count'), '0')}/"
             f"{fmt(row.get('audio_review_probable_error_count'), '0')}/"
             f"{fmt(row.get('audio_review_stronger_judge_count'), '0')}"
+        )
+        local_audit = (
+            f"{fmt(row.get('local_recall_recommended_next_step'))}; "
+            f"lost/review {fmt(row.get('local_recall_possible_lost_me_seconds'), '0')}/"
+            f"{fmt(row.get('local_recall_needs_review_seconds'), '0')}s"
         )
         lines.append(
             "| "
@@ -832,6 +873,7 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
                     fmt(row.get("utterances")),
                     fmt(row.get("needs_review_count")),
                     fmt(row.get("local_only_island_recall")),
+                    local_audit,
                     fmt(row.get("audit_harmful_seconds_after")),
                     fmt(row.get("audit_review_seconds")),
                     audio_review,
@@ -875,6 +917,7 @@ def readiness_outputs(session: Path, profile: str) -> dict[str, Any]:
         "evidence_notes": synthesis / f"evidence_notes{suffix(profile)}.json",
         "review_items": synthesis / f"review_items{suffix(profile)}.jsonl",
         "audio_review_report": session / "derived/audit/audio-review-pack/audio_review_report.md",
+        "local_recall_review": session / "derived/audit/local-recall/local_recall_review.md",
         "pipeline_run_report": session / "derived/pipeline-run/pipeline_run_report.json",
     }
     if profile == "current":
@@ -932,6 +975,10 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "audit_harmful_seconds_after": row.get("audit_harmful_seconds_after"),
             "audit_review_seconds": row.get("audit_review_seconds"),
             "local_only_island_recall": row.get("local_only_island_recall"),
+            "local_recall_missing_island_count": row.get("local_recall_missing_island_count"),
+            "local_recall_possible_lost_me_seconds": row.get("local_recall_possible_lost_me_seconds"),
+            "local_recall_needs_review_seconds": row.get("local_recall_needs_review_seconds"),
+            "local_recall_recommended_next_step": row.get("local_recall_recommended_next_step"),
         },
         "outputs": readiness_outputs(session, profile),
     }
@@ -952,7 +999,7 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         "## Open First",
         "",
     ]
-    for key in ("quality_verdict", "notes", "transcript", "audio_review_report"):
+    for key in ("quality_verdict", "notes", "transcript", "audio_review_report", "local_recall_review"):
         item = payload["outputs"].get(key) or {}
         if item.get("exists"):
             lines.append(f"- `{key}`: `{item['path']}`")

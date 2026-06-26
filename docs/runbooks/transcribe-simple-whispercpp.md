@@ -38,8 +38,8 @@ jq '{status, outputs}' "$SESSION/derived/pipeline-run/pipeline_run_report.json"
 less "$SESSION/derived/readiness/session_readiness.md"
 ```
 
-The runner calls Echo Guard, export/transcription, shadow timeline repair, group-overlap audit,
-audio-review audit, `audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. Use
+The runner calls Echo Guard, export/transcription, shadow timeline repair, local-recall audit,
+group-overlap audit, audio-review audit, `audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. Use
 `--force-asr` when you need to regenerate Whisper output, and `--reuse-asr-cache` when you only want
 to rebuild repair, cleanup, synthesis and reports from cached ASR JSON.
 
@@ -156,6 +156,24 @@ jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' 
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 ```
+
+## Local Recall Audit
+
+Timeline repair can report low `local_only_island_recall` when a long `Me` candidate is split around
+remote speech and some short local-only islands are not recovered as separate `Me` utterances. Run
+the local recall audit to separate likely harmless short/weak islands from possible lost local
+speech:
+
+```bash
+.venv/bin/python scripts/audit-local-recall.py "$SESSION" --profile shadow_v2
+
+jq '.summary' "$SESSION/derived/audit/local-recall/local_recall_audit.json"
+less "$SESSION/derived/audit/local-recall/local_recall_review.md"
+```
+
+The audit reads only timeline-repair examples and Echo Guard `speaker_state.jsonl`. It writes under
+`derived/audit/local-recall/`, does not edit transcripts, and is used by
+`report-session-quality.py` to decide whether low local recall should block `ready_for_notes`.
 
 ## Group Overlap Audit
 
@@ -337,7 +355,7 @@ derived artifacts:
 less sessions/_reports/session-quality/session_quality_report.md
 ```
 
-The report reads `quality_report*.json`, Echo Guard `local_fir_report.json`, group overlap audit,
+The report reads `quality_report*.json`, Echo Guard `local_fir_report.json`, local recall audit, group overlap audit,
 audit cleanup, synthesis verdicts, evidence note counts and audio review audit summaries. It writes
 JSON, CSV and Markdown under `sessions/_reports/session-quality/` by default, which is ignored
 together with `sessions/`. It does not run ASR, does not rewrite transcripts and does not touch raw
@@ -351,6 +369,10 @@ Audio-review metrics in this report are profile-aware. The script reads the sele
 `clean_dialogue*.json` profile and excludes audio-review items whose `Me` utterance has already been
 removed by cleanup. The raw audio-review totals remain useful for debugging, but the operational
 review burden should follow the adjusted counters.
+
+Local-recall metrics are also audited. If `local_only_island_recall < 0.9` but the audit finds only
+short or weak unrecovered islands, the warning stays visible in `local_recall_review.md` and no
+longer blocks `ready_for_notes`. Possible lost `Me` speech still keeps the session in `review_first`.
 
 ## Regression Corpus
 

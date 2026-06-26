@@ -315,6 +315,45 @@ Allowed group-overlap labels:
 - `probable_asr_noise`
 - `needs_human_review`
 
+The local recall audit explains low timeline-repair `local_only_island_recall`. It is audit-only and
+writes under:
+
+```text
+derived/audit/local-recall/
+  local_recall_audit.json
+  local_recall_items.jsonl
+  local_recall_review.md
+```
+
+`local_recall_audit.json` uses `murmurmark.local_recall_audit/v1`:
+
+```json
+{
+  "schema": "murmurmark.local_recall_audit/v1",
+  "profile": "shadow_v2",
+  "status": "ok",
+  "summary": {
+    "audited_missing_island_count": 5,
+    "possible_lost_me_seconds": 0.0,
+    "needs_review_seconds": 0.7,
+    "blocking_low_local_recall": false,
+    "recommended_next_step": "local_recall_risk_explained"
+  }
+}
+```
+
+`local_recall_items.jsonl` uses `murmurmark.local_recall_item/v1`. Labels are:
+
+- `possible_lost_me`
+- `needs_review`
+- `likely_harmless_short`
+- `likely_harmless_weak_audio`
+- `likely_harmless_remote_guard`
+
+The audit reads timeline-repair examples and Echo Guard `speaker_state.jsonl`; it does not read or
+modify raw capture. Session quality gates may ignore low local recall only when this audit says
+`blocking_low_local_recall: false`. Possible lost local speech remains a blocking risk.
+
 The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
 and writes under:
 
@@ -571,7 +610,9 @@ records which existing stage commands were run and what final synthesis profile 
     "review_burden_sec": 42.5,
     "review_burden_ratio": 0.031,
     "audio_review_probable_error_count": 2,
-    "audio_review_stronger_judge_count": 6
+    "audio_review_stronger_judge_count": 6,
+    "local_only_island_recall": 0.875,
+    "local_recall_recommended_next_step": "local_recall_risk_explained"
   },
   "outputs": {
     "transcript": {
@@ -839,6 +880,11 @@ the selected `clean_dialogue*.json` profile and treat items whose `Me` utterance
 cleanup as resolved. Raw audio-review summaries are still available inside each session for audit,
 but operational `review_burden` and review queues should reflect the remaining selected transcript,
 not the pre-cleanup audit file.
+
+They also consume `derived/audit/local-recall/local_recall_audit.json`. A raw
+`local_only_island_recall < 0.9` is blocking only when the audit is missing or reports possible lost
+local speech. Explained short/weak islands stay visible in readiness metrics but do not by
+themselves force `review_first`.
 
 `audit_cleanup_v2` consumes the audio review audit as an extra evidence layer. It writes the same
 profile-shaped transcript artifacts as v1, but with the `audit_cleanup_v2` suffix:

@@ -113,7 +113,7 @@ less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 ```
 
 `scripts/run-session-pipeline.py` is the normal post-recording runner. It calls Echo Guard,
-whisper.cpp transcription, shadow timeline repair, group-overlap audit, audio-review audit,
+whisper.cpp transcription, shadow timeline repair, local-recall audit, group-overlap audit, audio-review audit,
 `audit_cleanup_v1..v4`, and extractive synthesis, then writes
 `derived/pipeline-run/pipeline_run_report.json` and `derived/readiness/session_readiness.md`.
 Read `session_readiness.md` first: it gives the session use gate, selected profile, review burden,
@@ -145,6 +145,7 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --repair-profile shadow_v2 --skip-export --skip-transcribe
 .venv/bin/python scripts/run-session-pipeline.py ./sessions/<session> --model "$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile auto
+.venv/bin/python scripts/audit-local-recall.py ./sessions/<session> --profile shadow_v2
 .venv/bin/python scripts/audit-group-overlaps.py ./sessions/<session> --profile shadow_v2 --write-clips
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile shadow_v2 --output-profile audit_cleanup_v1
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v1
@@ -205,6 +206,12 @@ The first synthesis bridge is `scripts/synthesize-simple-extractive.py`. It read
 
 The group overlap audit is `scripts/audit-group-overlaps.py`. It reads transcript overlaps, Echo Guard `speaker_state.jsonl`, and local audio derivatives, then writes `derived/audit/group-overlaps/`. It separates likely harmful `Me` duplicates or remote leakage from expected group-call double-talk and timing overlap. This is audit-only: no transcript, Echo Guard output, synthesis output, or `quality_verdict` is modified.
 
+The local recall audit is `scripts/audit-local-recall.py`. It reads timeline-repair examples and
+Echo Guard `speaker_state.jsonl`, then writes `derived/audit/local-recall/`. Its job is to explain
+low `local_only_island_recall`: short or weak unrecovered islands are recorded as low-risk evidence,
+while stronger unrecovered local speech stays as a blocking `low_local_recall` risk. It never edits
+transcripts.
+
 Audit-informed cleanup is `scripts/apply-audit-cleanup.py`. It reads `clean_dialogue.shadow_v2.json` and the group overlap audit, then writes only `audit_cleanup_v1` artifacts under `derived/transcript-simple/whisper-cpp/resolved/` and `derived/transcript-simple/whisper-cpp/audit-cleanup/`. In conservative mode it may drop whole `Me` utterances only when they are high-confidence remote duplicates or short unsupported ASR noise. Double-talk, timing overlap, remote leak, and human-review regions are kept and marked.
 
 The audio review layer is `scripts/build-audio-review-pack.py` plus `scripts/audit-audio-review-pack.py`.
@@ -233,6 +240,9 @@ for one or more sessions and writes a private JSON/CSV/Markdown summary under
 audio or transcript artifacts. Audio-review counters are computed against the selected transcript
 profile: if `audit_cleanup_v2` already removed a duplicate `Me` utterance, that audio-review item is
 counted as resolved by cleanup and no longer inflates the remaining review burden.
+Low local recall is also profile-aware enough for use gates: if `audit-local-recall.py` explains the
+unrecovered islands as short or weak, the recall warning is kept in the audit report but does not
+block `ready_for_notes`; possible lost `Me` speech still blocks the gate.
 
 `scripts/build-regression-corpus.py` collects high-value examples from existing
 `audio_review_audit.jsonl` files across sessions. It balances examples by label, copies the already
