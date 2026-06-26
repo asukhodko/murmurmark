@@ -736,12 +736,15 @@ EOF
 {"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","allowed_decisions":["keep_me","needs_review","skip"],"session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","cluster_id":"review_cluster_local_001","source":"local_recall","source_audit_id":"local_recall_0001","label":"lost_me","verdict":"needs_stronger_audio_judge","review_action":"check_lost_local_speech","suggested_decision":"needs_review","suggested_decision_confidence":"medium","suggested_decision_reason":"fixture local recall row","me_utterance_ids":[],"remote_utterance_ids":[],"utterance_ids":[],"interval":{"start":13.0,"end":14.2,"duration_sec":1.2},"text":[{"id":"cand_mic_fixture_002","role":"Me","source_track":"local_recall","text":"Я понял."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 12.000 -t 3.200 \"$group_session/audio/mic/000001.caf\""},"reviewer":"","notes":""}
 EOF
   review_cli_out="$workdir/review_decisions_cli.jsonl"
+  review_cli_stdout="$workdir/review_decisions_cli_stdout.txt"
   printf '\n' | "$repo_root/scripts/review-decisions-cli.py" \
     --template "$review_template" \
     --out "$review_cli_out" \
     --no-play \
-    --limit 1 >/dev/null
+    --limit 1 >"$review_cli_stdout"
   jq -s '.[0].decision == "keep_me" and .[0].status == "reviewed"' "$review_cli_out" >/dev/null
+  rg -q 'Context:' "$review_cli_stdout"
+  rg -q 'utt_audio_uncertain_me' "$review_cli_stdout"
   local_cli_template="$workdir/review_decisions_local_only.template.jsonl"
   local_cli_out="$workdir/review_decisions_local_only.jsonl"
   tail -n 1 "$review_template" >"$local_cli_template"

@@ -450,7 +450,9 @@ sessions not ready for notes, remaining review minutes, and the next action clas
 unclear cases marked for review.
 `review-decisions-cli.py` is the normal way to fill the checklist: it plays each preferred clip,
 shows the transcript rows, respects each row's `allowed_decisions`, and writes
-`review_decisions.jsonl` after every answer.
+`review_decisions.jsonl` after every answer. It also prints nearby turns from the reviewed transcript
+profile. Keep `--context-utterances 2` unless you need a shorter terminal view; use
+`--context-utterances 0` to hide context.
 `apply-review-decisions-batch.py` is the normal command after the review file is filled. It applies
 the same edited JSONL to every session mentioned in the review plan and can immediately regenerate
 extractive notes. Under the hood, `apply-review-decisions.py` writes a separate `reviewed_v1`

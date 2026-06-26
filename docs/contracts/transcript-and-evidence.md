@@ -842,6 +842,8 @@ island, not a transcript utterance. `keep_me` and `skip` close that local-recall
 `review-decisions-cli.py` and `apply-review-decisions.py` must honor `allowed_decisions`; for
 example, they must not accept `drop_me` on `source: "local_recall"` rows even though `drop_me` is
 valid for ordinary audio-review rows.
+The CLI may also render nearby transcript context from `clean_dialogue.<input_profile>.json`. This
+context is display-only and must not change the decision schema or coverage accounting.
 `suggested_decision` is only a review hint. It never changes transcript output by itself and does not
 count as coverage. The reviewer must still copy the intended value into `decision`.
 
