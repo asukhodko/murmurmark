@@ -410,6 +410,8 @@ sessions/_reports/regression-corpus/
   "source_audit_id": "arp_000042",
   "profile": "audit_cleanup_v2",
   "label": "remote_duplicate",
+  "audio_review_label": "remote_duplicate",
+  "label_evidence": ["audio_review:remote_duplicate"],
   "verdict": "probable_transcript_error",
   "confidence": 0.94,
   "target_use": ["cleanup_regression", "auto_drop_gate"],
@@ -434,8 +436,13 @@ mark_only_regression
 needs_audio_judge
 ```
 
-These buckets are not human truth labels. They are silver labels derived from current local metrics
-and are suitable for no-regression checks and prioritising future audio-judge work.
+`label` is the corpus class used for regression selection. `audio_review_label` preserves the raw
+local audio-review classifier output. They can differ: for example a row that audio review considers
+`likely_reliable` can still be a useful `timing_overlap` false-positive guard when the source group
+overlap audit marked it as `probable_timing_overlap`.
+
+Readiness buckets are not human truth labels. They are silver labels derived from current local
+metrics and are suitable for no-regression checks and prioritising future audio-judge work.
 
 `audit_cleanup_v2` consumes the audio review audit as an extra evidence layer. It writes the same
 profile-shaped transcript artifacts as v1, but with the `audit_cleanup_v2` suffix:

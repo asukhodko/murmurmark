@@ -134,6 +134,8 @@ def target_use(label: str, verdict: str) -> list[str]:
     uses: list[str] = []
     if verdict == "probable_transcript_error" and label in {"remote_duplicate", "asr_noise"}:
         uses.extend(["cleanup_regression", "auto_drop_gate"])
+    if verdict == "likely_reliable" and label in {"remote_duplicate", "asr_noise"}:
+        uses.append("false_positive_guard")
     if verdict == "probable_transcript_error" and label in {"lost_me", "remote_leak"}:
         uses.extend(["audio_judge_training", "mark_only_regression"])
     if verdict == "needs_stronger_audio_judge" or label == "uncertain":
@@ -141,6 +143,50 @@ def target_use(label: str, verdict: str) -> list[str]:
     if label in {"double_talk", "timing_overlap", "likely_reliable"}:
         uses.append("false_positive_guard")
     return uses or ["manual_audit"]
+
+
+def group_source_labels(row: dict[str, Any]) -> list[str]:
+    labels: list[str] = []
+    mapping = {
+        "probable_duplicate": "remote_duplicate",
+        "probable_asr_noise": "asr_noise",
+        "probable_remote_leak": "remote_leak",
+        "probable_double_talk": "double_talk",
+        "probable_timing_overlap": "timing_overlap",
+    }
+    for reason in row.get("source_reasons") or []:
+        if not isinstance(reason, str) or not reason.startswith("group_overlap:"):
+            continue
+        label = mapping.get(reason.split(":", 1)[1])
+        if label:
+            labels.append(label)
+    return labels
+
+
+def corpus_label(row: dict[str, Any]) -> tuple[str, list[str]]:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    audio_label = str(classification.get("label") or "unknown")
+    scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
+    source_labels = group_source_labels(row)
+    evidence: list[str] = [f"audio_review:{audio_label}"]
+
+    if audio_label in ERROR_LABELS:
+        return audio_label, evidence
+    for label in ("remote_duplicate", "asr_noise", "remote_leak"):
+        if label in source_labels:
+            evidence.append(f"group_overlap:{label}")
+            return label, evidence
+    for label in ("lost_me", "double_talk", "timing_overlap"):
+        if safe_float(scores.get(label)) >= 68.0:
+            evidence.append(f"score:{label}>={safe_float(scores.get(label)):.0f}")
+            return label, evidence
+    for label in ("double_talk", "timing_overlap"):
+        if label in source_labels:
+            evidence.append(f"group_overlap:{label}")
+            return label, evidence
+    if audio_label == "uncertain":
+        return "uncertain", evidence
+    return audio_label, evidence
 
 
 def compact_utterance(row: dict[str, Any]) -> dict[str, Any]:
@@ -187,7 +233,8 @@ def build_item(session: Path, row: dict[str, Any], ordinal: int) -> dict[str, An
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
     scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
     features = row.get("features") if isinstance(row.get("features"), dict) else {}
-    label = str(classification.get("label") or "unknown")
+    audio_review_label = str(classification.get("label") or "unknown")
+    label, label_evidence = corpus_label(row)
     verdict = str(classification.get("verdict") or "unknown")
     confidence = safe_float(classification.get("confidence"))
     duration = safe_float(interval.get("duration_sec"))
@@ -201,6 +248,8 @@ def build_item(session: Path, row: dict[str, Any], ordinal: int) -> dict[str, An
         "source_audit_id": row.get("id"),
         "profile": row.get("profile"),
         "label": label,
+        "audio_review_label": audio_review_label,
+        "label_evidence": label_evidence,
         "verdict": verdict,
         "confidence": confidence,
         "priority_score": label_priority(label, verdict, confidence, duration, scores),
@@ -224,11 +273,11 @@ def build_item(session: Path, row: dict[str, Any], ordinal: int) -> dict[str, An
 
 def dedupe_key(row: dict[str, Any]) -> tuple[Any, ...]:
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
-    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    label, _ = corpus_label(row)
     ids = tuple(sorted(str(value) for value in row.get("utterance_ids", []) if value))
     return (
         row.get("session_id"),
-        classification.get("label"),
+        label,
         ids,
         round(safe_float(interval.get("start")), 1),
         round(safe_float(interval.get("end")), 1),
@@ -243,8 +292,7 @@ def select_items(candidates: list[dict[str, Any]], per_label: int, max_items: in
         if key in seen:
             continue
         seen.add(key)
-        classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
-        label = str(classification.get("label") or "unknown")
+        label, _ = corpus_label(row)
         buckets[label].append(row)
 
     selected: list[dict[str, Any]] = []
@@ -269,7 +317,7 @@ def select_items(candidates: list[dict[str, Any]], per_label: int, max_items: in
         selected,
         key=lambda row: (
             -label_priority(
-                str((row.get("classification") or {}).get("label") or "unknown"),
+                corpus_label(row)[0],
                 str((row.get("classification") or {}).get("verdict") or "unknown"),
                 safe_float((row.get("classification") or {}).get("confidence")),
                 safe_float((row.get("interval") or {}).get("duration_sec")),

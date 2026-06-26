@@ -77,6 +77,9 @@ def classify_item(item: dict[str, Any]) -> tuple[str, list[str]]:
     if label in AUTO_DROP_LABELS and verdict == "probable_transcript_error" and confidence >= 0.90:
         reasons.append("high-confidence auto-drop error")
         return "silver_cleanup_positive", reasons
+    if label in AUTO_DROP_LABELS and verdict == "likely_reliable":
+        reasons.append("auto-drop-shaped example that local metrics say to keep")
+        return "silver_keep_negative", reasons
     if label in BENIGN_LABELS and verdict == "likely_reliable" and confidence >= 0.85:
         reasons.append("high-confidence keep example")
         return "silver_keep_negative", reasons
@@ -140,7 +143,12 @@ def evaluate(items: list[dict[str, Any]]) -> tuple[dict[str, Any], list[dict[str
     readiness = "weak"
     if silver_cleanup.get("count", 0) >= 8 and silver_keep.get("count", 0) >= 8:
         readiness = "partial_cleanup_regression_ready"
-    if silver_cleanup.get("count", 0) >= 12 and silver_keep.get("count", 0) >= 12 and needs_judge.get("count", 0) >= 8:
+    if (
+        not missing_labels
+        and silver_cleanup.get("count", 0) >= 10
+        and silver_keep.get("count", 0) >= 16
+        and needs_judge.get("count", 0) >= 20
+    ):
         readiness = "useful_for_audio_judge_v0"
     if not missing_labels and silver_cleanup.get("count", 0) >= 20 and silver_keep.get("count", 0) >= 20:
         readiness = "broad_regression_ready"
