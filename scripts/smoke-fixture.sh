@@ -366,6 +366,18 @@ grep -q 'utt_simple_006' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -q 'Давайте проголосуем' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -Eq '^### .*: (если|есть|меня|потому)(, (если|есть|меня|потому))*$' "$session/derived/synthesis-simple/extractive/notes.md"
 
+"$repo_root/scripts/report-session-quality.py" \
+  "$session" \
+  --label "session=smoke fixture" \
+  --out-dir "$session/derived/session-quality" >/dev/null
+[[ -s "$session/derived/session-quality/session_quality_report.json" ]]
+[[ -s "$session/derived/session-quality/session_quality_report.csv" ]]
+[[ -s "$session/derived/session-quality/session_quality_report.md" ]]
+jq -e '.schema == "murmurmark.session_quality_report/v1"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
+jq -e '.summary.session_count == 1' "$session/derived/session-quality/session_quality_report.json" >/dev/null
+jq -e '.sessions[0].label == "smoke fixture"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
+jq -e '.sessions[0].pipeline_status == "partial"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
+
 audit_python=""
 if [[ -x "$repo_root/.venv/bin/python" ]] && "$repo_root/.venv/bin/python" - <<'PY' >/dev/null 2>&1
 import librosa
@@ -544,6 +556,24 @@ EOF
 
   "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" --transcript-profile audit_cleanup_v1 >/dev/null
   jq -e '.selected_transcript_profile == "audit_cleanup_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json" >/dev/null
+
+  "$repo_root/scripts/build-audio-review-pack.py" "$group_session" \
+    --profile audit_cleanup_v1 \
+    --write-clips \
+    --max-items 20 >/dev/null
+  "$audit_python" "$repo_root/scripts/audit-audio-review-pack.py" "$group_session" >/dev/null
+  review_pack="$group_session/derived/audit/audio-review-pack/review_pack_items.jsonl"
+  review_summary="$group_session/derived/audit/audio-review-pack/audio_review_summary.json"
+  [[ -s "$review_pack" ]]
+  [[ -s "$group_session/derived/audit/audio-review-pack/review_pack_summary.json" ]]
+  [[ -s "$review_summary" ]]
+  [[ -s "$group_session/derived/audit/audio-review-pack/audio_review_report.md" ]]
+  jq -s 'length >= 4' "$review_pack" >/dev/null
+  jq -e '.schema == "murmurmark.audio_review_summary/v1"' "$review_summary" >/dev/null
+  jq -e '.items >= 4' "$review_summary" >/dev/null
+  jq -e '.by_verdict.probable_transcript_error.count >= 1' "$review_summary" >/dev/null
+  jq -e '.by_verdict.likely_reliable.count >= 1 or .by_verdict.needs_stronger_audio_judge.count >= 1' "$review_summary" >/dev/null
+  compgen -G "$group_session/derived/audit/audio-review-pack/clips/*.wav" >/dev/null
 fi
 
 empty_session="$workdir/empty-session"

@@ -200,6 +200,49 @@ less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md"
 `--transcript-profile auto` also chooses `audit_cleanup_v1` when the cleanup report exists and its
 gates pass. Use the explicit profile when comparing runs.
 
+## Audio Review Pack
+
+For agent-driven review, build a local pack of suspicious clips after synthesis:
+
+```bash
+.venv/bin/python scripts/build-audio-review-pack.py "$SESSION" \
+  --profile audit_cleanup_v1 \
+  --write-clips \
+  --max-items 160
+
+.venv/bin/python scripts/audit-audio-review-pack.py "$SESSION"
+
+jq '{items, likely_reliable, probable_error, needs_stronger_audio_judge, recommended_next_step}' \
+  "$SESSION/derived/audit/audio-review-pack/audio_review_summary.json"
+
+less "$SESSION/derived/audit/audio-review-pack/audio_review_report.md"
+```
+
+The pack is written under `derived/audit/audio-review-pack/`. It includes short `mic_raw`,
+`remote`, `mic_clean`, `mic_role_masked` and stereo comparison clips for suspicious transcript
+regions. The local audit classifies each item as likely reliable, probable transcript error, or
+needing a stronger local audio judge. It does not rewrite transcripts, Echo Guard outputs,
+synthesis files or raw `audio/*.caf`.
+
+## Session Quality Report
+
+For a regression set or a batch of real meetings, build a private quality summary from existing
+derived artifacts:
+
+```bash
+.venv/bin/python scripts/report-session-quality.py \
+  sessions/<session-1> \
+  sessions/<session-2>
+
+less sessions/_reports/session-quality/session_quality_report.md
+```
+
+The report reads `quality_report*.json`, Echo Guard `local_fir_report.json`, group overlap audit,
+audit cleanup, synthesis verdicts, evidence note counts and audio review audit summaries. It writes
+JSON, CSV and Markdown under `sessions/_reports/session-quality/` by default, which is ignored
+together with `sessions/`. It does not run ASR, does not rewrite transcripts and does not touch raw
+`audio/mic/*.caf` or `audio/remote/*.caf`.
+
 ## Outputs
 
 ```text

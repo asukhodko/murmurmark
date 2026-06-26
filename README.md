@@ -64,11 +64,30 @@ jq '{classified, harmful, benign_or_expected, review, recommended_verdict_adjust
 jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
   "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json"
 
+.venv/bin/python scripts/build-audio-review-pack.py "$SESSION" \
+  --profile audit_cleanup_v1 \
+  --write-clips \
+  --max-items 160
+
+.venv/bin/python scripts/audit-audio-review-pack.py "$SESSION"
+
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.shadow_v2.md"
 less "$SESSION/derived/audit/group-overlaps/group_overlap_review.md"
+less "$SESSION/derived/audit/audio-review-pack/audio_review_report.md"
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v1.md"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md"
+```
+
+For a regression set or several real meetings, build a private quality summary under the ignored
+`sessions/_reports/` tree:
+
+```bash
+.venv/bin/python scripts/report-session-quality.py \
+  sessions/<session-1> \
+  sessions/<session-2>
+
+less sessions/_reports/session-quality/session_quality_report.md
 ```
 
 ### End-to-End From a New Recording
@@ -134,8 +153,16 @@ jq '{classified, harmful, benign_or_expected, review, recommended_verdict_adjust
 jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
   "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json"
 
+.venv/bin/python scripts/build-audio-review-pack.py "$SESSION" \
+  --profile audit_cleanup_v1 \
+  --write-clips \
+  --max-items 160
+
+.venv/bin/python scripts/audit-audio-review-pack.py "$SESSION"
+
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.shadow_v2.md"
 less "$SESSION/derived/audit/group-overlaps/group_overlap_review.md"
+less "$SESSION/derived/audit/audio-review-pack/audio_review_report.md"
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v1.md"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md"
@@ -170,6 +197,9 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/audit-group-overlaps.py ./sessions/<session> --profile shadow_v2 --write-clips
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile shadow_v2 --output-profile audit_cleanup_v1
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v1
+.venv/bin/python scripts/build-audio-review-pack.py ./sessions/<session> --profile audit_cleanup_v1 --write-clips
+.venv/bin/python scripts/audit-audio-review-pack.py ./sessions/<session>
+.venv/bin/python scripts/report-session-quality.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-delay-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-fir-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-local-subtract-lab.py ./sessions/<session> --start-sec <seconds>
@@ -211,6 +241,18 @@ The first synthesis bridge is `scripts/synthesize-simple-extractive.py`. It read
 The group overlap audit is `scripts/audit-group-overlaps.py`. It reads transcript overlaps, Echo Guard `speaker_state.jsonl`, and local audio derivatives, then writes `derived/audit/group-overlaps/`. It separates likely harmful `Me` duplicates or remote leakage from expected group-call double-talk and timing overlap. This is audit-only: no transcript, Echo Guard output, synthesis output, or `quality_verdict` is modified.
 
 Audit-informed cleanup is `scripts/apply-audit-cleanup.py`. It reads `clean_dialogue.shadow_v2.json` and the group overlap audit, then writes only `audit_cleanup_v1` artifacts under `derived/transcript-simple/whisper-cpp/resolved/` and `derived/transcript-simple/whisper-cpp/audit-cleanup/`. In conservative mode it may drop whole `Me` utterances only when they are high-confidence remote duplicates or short unsupported ASR noise. Double-talk, timing overlap, remote leak, and human-review regions are kept and marked.
+
+The audio review layer is `scripts/build-audio-review-pack.py` plus `scripts/audit-audio-review-pack.py`.
+It collects suspicious transcript regions from `needs_review`, overlaps, group-overlap audit and cleanup
+rejections, cuts local comparison clips under `derived/audit/audio-review-pack/`, then classifies them
+with local audio/text metrics. The output separates likely reliable regions, probable transcript errors
+and regions that should go to a stronger local audio judge. It is audit-only and never edits transcript
+profiles or raw capture.
+
+The quality report helper is `scripts/report-session-quality.py`. It reads existing derived JSON
+for one or more sessions and writes a private JSON/CSV/Markdown summary under
+`sessions/_reports/session-quality/` by default. It does not run ASR and does not modify session
+audio or transcript artifacts.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 

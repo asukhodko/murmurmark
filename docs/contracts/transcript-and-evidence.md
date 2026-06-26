@@ -315,6 +315,77 @@ Allowed group-overlap labels:
 - `probable_asr_noise`
 - `needs_human_review`
 
+The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
+and writes under:
+
+```text
+derived/audit/audio-review-pack/
+  review_pack_manifest.json
+  review_pack_summary.json
+  review_pack_items.jsonl
+  review_pack.md
+  audio_review_audit.jsonl
+  audio_review_summary.json
+  audio_review_report.md
+  clips/
+```
+
+`review_pack_items.jsonl` contains suspicious regions collected from `needs_review`, transcript
+overlaps, group overlap audit and audit-cleanup rejections:
+
+```json
+{
+  "schema": "murmurmark.audio_review_pack_item/v1",
+  "id": "arp_000042",
+  "session_id": "2026-06-26_14-01-21",
+  "profile": "audit_cleanup_v1",
+  "source_reasons": ["group_overlap:needs_human_review", "cross_role_overlap"],
+  "priority_score": 88.4,
+  "interval": {
+    "start": 812.42,
+    "end": 818.77,
+    "duration_sec": 6.35,
+    "start_time": "13:32",
+    "end_time": "13:38"
+  },
+  "utterance_ids": ["utt_0123", "utt_0124"],
+  "utterances": [
+    {"id": "utt_0123", "role": "Me", "text": "Да, я проверю логи.", "needs_review": true},
+    {"id": "utt_0124", "role": "Colleagues", "text": "Давайте посмотрим deploy.", "needs_review": false}
+  ],
+  "clips": {
+    "mic_raw": "derived/audit/audio-review-pack/clips/arp_000042_mic_raw.wav",
+    "remote": "derived/audit/audio-review-pack/clips/arp_000042_remote.wav",
+    "mic_clean": "derived/audit/audio-review-pack/clips/arp_000042_mic_clean.wav",
+    "mic_role_masked": "derived/audit/audio-review-pack/clips/arp_000042_mic_role_masked.wav",
+    "stereo_clean_left_remote_right": "derived/audit/audio-review-pack/clips/arp_000042_stereo_clean_left_remote_right.wav"
+  }
+}
+```
+
+`audio_review_summary.json` is the local metric audit over the pack:
+
+```json
+{
+  "schema": "murmurmark.audio_review_summary/v1",
+  "items": 37,
+  "by_label": {
+    "remote_duplicate": {"count": 4, "seconds": 12.8},
+    "double_talk": {"count": 11, "seconds": 42.6},
+    "uncertain": {"count": 7, "seconds": 31.4}
+  },
+  "by_verdict": {
+    "likely_reliable": {"count": 18, "seconds": 68.2},
+    "probable_transcript_error": {"count": 8, "seconds": 22.9},
+    "needs_stronger_audio_judge": {"count": 11, "seconds": 48.7}
+  },
+  "recommended_next_step": "send_uncertain_clips_to_stronger_local_audio_judge"
+}
+```
+
+The local audio review does not apply patches. Later stronger local audio judges should consume the
+same `review_pack_items.jsonl` and write their own verdicts instead of re-cutting clips.
+
 Patch suggestions are dry-run only:
 
 ```json
