@@ -642,7 +642,8 @@ def add_use_gate(row: dict[str, Any]) -> None:
     duration = safe_float(row.get("meeting_duration_sec")) or 0.0
     probable_error = safe_float(row.get("audio_review_probable_error_seconds")) or 0.0
     stronger_judge = safe_float(row.get("audio_review_stronger_judge_seconds")) or 0.0
-    burden = probable_error + stronger_judge
+    local_recall_review = safe_float(row.get("local_recall_meaningful_review_seconds")) or 0.0
+    burden = probable_error + stronger_judge + local_recall_review
     row["review_burden_sec"] = round(burden, 3)
     row["review_burden_ratio"] = round(burden / duration, 6) if duration > 0 else 0.0
     row["use_gate"] = session_use_gate(row)

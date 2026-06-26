@@ -245,6 +245,9 @@ counted as resolved by cleanup and no longer inflates the remaining review burde
 Low local recall is also profile-aware enough for use gates: if `audit-local-recall.py` explains the
 unrecovered islands as short or weak, the recall warning is kept in the audit report but does not
 block `ready_for_notes`; possible lost `Me` speech still blocks the gate.
+Those blocking local-recall items are included in the operational review queue and review plan with
+short `ffplay` commands against the local mic capture, so `review_first` always points to concrete
+audio to check.
 
 `scripts/build-regression-corpus.py` collects high-value examples from existing
 `audio_review_audit.jsonl` files across sessions. It balances examples by label, copies the already
@@ -275,7 +278,7 @@ when the current audio-review audit has since reclassified that item as reliable
 
 `scripts/build-review-plan.py` turns that operational review queue into a compact working checklist
 under `sessions/_reports/review-plan/`. It groups nearby risky intervals by session, estimates the
-actual listening time, keeps ready-to-run `afplay` commands, and gives a small protocol for deciding
+actual listening time, keeps ready-to-run `afplay`/`ffplay` commands, and gives a small protocol for deciding
 whether each `Me` candidate should be dropped, kept, or left as `needs_review`. It is audit-only and
 does not edit transcript profiles.
 

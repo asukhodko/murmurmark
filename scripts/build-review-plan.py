@@ -82,6 +82,8 @@ def review_action(label: str, verdict: str) -> str:
         return "check_unique_me_content"
     if label == "lost_me":
         return "check_lost_local_speech"
+    if label == "local_recall_needs_review":
+        return "check_local_recall_island"
     if label in {"double_talk", "timing_overlap"}:
         return "confirm_benign_overlap"
     return "classify_audio"
@@ -107,6 +109,12 @@ def suggested_decision(label: str, verdict: str, confidence: float) -> dict[str,
             "suggested_decision": "needs_review",
             "suggested_decision_confidence": "medium",
             "suggested_decision_reason": "possible missing local speech requires manual classification",
+        }
+    if label == "local_recall_needs_review":
+        return {
+            "suggested_decision": "needs_review",
+            "suggested_decision_confidence": "low",
+            "suggested_decision_reason": "unrecovered local-only island needs a quick local speech check",
         }
     if label in {"double_talk", "timing_overlap"}:
         return {

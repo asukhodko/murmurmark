@@ -94,6 +94,16 @@ def suffix(profile: str) -> str:
     return "" if profile == "current" else f".{profile}"
 
 
+def format_time(seconds: float) -> str:
+    total = max(0, int(seconds))
+    hours = total // 3600
+    minutes = (total % 3600) // 60
+    secs = total % 60
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
 def selected_me_ids(session_path: Path, profile: str) -> set[str]:
     path = session_path / "derived/transcript-simple/whisper-cpp/resolved" / f"clean_dialogue{suffix(profile)}.json"
     data = read_json(path)
@@ -141,8 +151,9 @@ def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
     duration = safe_float(session.get("meeting_duration_sec"))
     probable_error = safe_float(session.get("audio_review_probable_error_seconds"))
     stronger_judge = safe_float(session.get("audio_review_stronger_judge_seconds"))
+    local_recall = safe_float(session.get("local_recall_meaningful_review_seconds"))
     harmful = safe_float(session.get("audit_harmful_seconds_after"))
-    burden = probable_error + stronger_judge
+    burden = probable_error + stronger_judge + local_recall
     ratio = burden / duration if duration > 0 else 0.0
     row = {
         "session_id": session.get("session_id"),
@@ -155,6 +166,9 @@ def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
         "review_burden_ratio": round(ratio, 6),
         "audio_review_probable_error_seconds": round(probable_error, 3),
         "audio_review_stronger_judge_seconds": round(stronger_judge, 3),
+        "local_recall_meaningful_review_seconds": round(local_recall, 3),
+        "local_recall_possible_lost_me_seconds": round(safe_float(session.get("local_recall_possible_lost_me_seconds")), 3),
+        "local_recall_needs_review_seconds": round(safe_float(session.get("local_recall_needs_review_seconds")), 3),
         "audit_harmful_seconds_after": round(harmful, 3),
         "risk_flags": session.get("risk_flags") or [],
     }
@@ -230,6 +244,69 @@ def compact_review_item(session: dict[str, Any], row: dict[str, Any]) -> dict[st
     }
 
 
+def local_recall_review_priority(row: dict[str, Any]) -> float:
+    label = str(row.get("label") or "")
+    confidence = safe_float(row.get("confidence"))
+    duration = safe_float(row.get("duration_sec"))
+    score = duration + confidence * 10.0 + 90.0
+    if label == "possible_lost_me":
+        score += 45.0
+    elif label == "needs_review":
+        score += 25.0
+    return round(score, 3)
+
+
+def compact_local_recall_item(session: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
+    start = safe_float(row.get("start_sec"))
+    end = safe_float(row.get("end_sec"))
+    if end < start:
+        end = start
+    duration = max(0.0, end - start)
+    label = str(row.get("label") or "needs_review")
+    if label == "possible_lost_me":
+        review_label = "lost_me"
+        verdict = "needs_stronger_audio_judge"
+    else:
+        review_label = "local_recall_needs_review"
+        verdict = "needs_stronger_audio_judge"
+    session_path = str(session.get("session") or "")
+    listen_start = max(0.0, start - 1.0)
+    listen_duration = duration + 2.0
+    return {
+        "session_id": session.get("session_id"),
+        "session": session.get("session"),
+        "source_audit_id": row.get("item_id"),
+        "source": "local_recall",
+        "label": review_label,
+        "verdict": verdict,
+        "confidence": row.get("confidence"),
+        "priority_score": local_recall_review_priority(row),
+        "interval": {
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "duration_sec": round(duration, 3),
+            "start_time": format_time(start),
+            "end_time": format_time(end),
+        },
+        "utterance_ids": [],
+        "text": [
+            {
+                "id": row.get("parent_candidate_id"),
+                "role": "Me",
+                "source_track": "mic",
+                "text": row.get("parent_text"),
+            }
+        ],
+        "commands": {
+            "mic_raw": (
+                f"ffplay -hide_banner -loglevel error -ss {listen_start:.3f} "
+                f"-t {listen_duration:.3f} \"{session_path}/audio/mic/000001.caf\""
+            )
+        },
+        "reason": row.get("reason"),
+    }
+
+
 def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     by_session = {str(session.get("session_id")): session for session in sessions}
@@ -253,6 +330,12 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
                 continue
             session_id = str(row.get("session_id") or session.get("session_id"))
             rows.append(compact_review_item(by_session.get(session_id, session), row))
+        local_recall_path = session_path / "derived/audit/local-recall/local_recall_items.jsonl"
+        for row in read_jsonl(local_recall_path):
+            label = str(row.get("label") or "")
+            if label not in {"possible_lost_me", "needs_review"}:
+                continue
+            rows.append(compact_local_recall_item(session, row))
     rows.sort(key=lambda item: (-safe_float(item.get("priority_score")), str(item.get("session_id") or "")))
     return rows[: max(0, max_items)]
 

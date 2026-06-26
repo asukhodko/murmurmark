@@ -378,6 +378,8 @@ of `needs_stronger_audio_judge`.
 Local-recall metrics are also audited. If `local_only_island_recall < 0.9` but the audit finds only
 short or weak unrecovered islands, the warning stays visible in `local_recall_review.md` and no
 longer blocks `ready_for_notes`. Possible lost `Me` speech still keeps the session in `review_first`.
+Blocking local-recall items are added to the operational review queue with short `ffplay` commands
+against the mic capture.
 
 ## Regression Corpus
 
@@ -443,8 +445,9 @@ the source item as reliable.
 Its `promotion_plan` section explains the current delta to `medium_risk_ready`: unresolved warnings,
 sessions not ready for notes, remaining review minutes, and the next action class.
 `build-review-plan.py` turns that queue into a compact checklist. Use it when a session is
-`review_first`: listen to the listed stereo clips, decide whether each `Me` candidate is leaked
-remote speech, real local speech, or unclear, then keep unclear cases marked for review.
+`review_first`: listen to the listed stereo clips or local-recall mic snippets, decide whether each
+`Me` candidate is leaked remote speech, real local speech, lost local speech, or unclear, then keep
+unclear cases marked for review.
 `review-decisions-cli.py` is the normal way to fill the checklist: it plays each preferred clip,
 shows the transcript rows, and writes `review_decisions.jsonl` after every answer.
 `apply-review-decisions-batch.py` is the normal command after the review file is filled. It applies

@@ -888,6 +888,9 @@ They also consume `derived/audit/local-recall/local_recall_audit.json`. A raw
 `local_only_island_recall < 0.9` is blocking only when the audit is missing or reports possible lost
 local speech. Explained short/weak islands stay visible in readiness metrics but do not by
 themselves force `review_first`.
+Blocking local-recall items are emitted into the operational review queue as `lost_me` or
+`local_recall_needs_review` items. These rows may not have transcript utterance IDs yet; they carry
+the timeline-repair parent candidate and a short `ffplay` command for the mic capture.
 
 `audit_cleanup_v2` consumes the audio review audit as an extra evidence layer. It writes the same
 profile-shaped transcript artifacts as v1, but with the `audit_cleanup_v2` suffix:
