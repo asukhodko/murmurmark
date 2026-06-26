@@ -454,7 +454,9 @@ shows the transcript rows, respects each row's `allowed_decisions`, and writes
 profile. Keep `--context-utterances 2` unless you need a shorter terminal view; use
 `--context-utterances 0` to hide context. When several clips are available, the CLI prints
 `audio=1:stereo_clean_left_remote_right, 2:stereo_mic_left_remote_right, ...`; type the number to
-play that exact clip, or `p` to replay the preferred clip.
+play that exact clip, or `p` to replay the preferred clip. At exit, the CLI prints review progress;
+when no `todo` rows remain it prints the batch command that applies decisions and refreshes
+readiness reports.
 `apply-review-decisions-batch.py` is the normal command after the review file is filled. It applies
 the same edited JSONL to every session mentioned in the review plan and can immediately regenerate
 extractive notes. Under the hood, `apply-review-decisions.py` writes a separate `reviewed_v1`

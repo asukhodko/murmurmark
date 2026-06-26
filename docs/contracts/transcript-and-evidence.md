@@ -846,6 +846,8 @@ The CLI may also render nearby transcript context from `clean_dialogue.<input_pr
 context is display-only and must not change the decision schema or coverage accounting.
 It may expose numbered playback shortcuts for commands already present in the review row; those
 shortcuts are UI-only and must not alter the row schema.
+It may print progress and suggested next shell commands after writing `review_decisions.jsonl`; this
+is also UI-only and does not count as review coverage.
 `suggested_decision` is only a review hint. It never changes transcript output by itself and does not
 count as coverage. The reviewer must still copy the intended value into `decision`.
 

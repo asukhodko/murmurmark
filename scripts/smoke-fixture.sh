@@ -745,6 +745,8 @@ EOF
   jq -s '.[0].decision == "keep_me" and .[0].status == "reviewed"' "$review_cli_out" >/dev/null
   rg -q 'Context:' "$review_cli_stdout"
   rg -q 'utt_audio_uncertain_me' "$review_cli_stdout"
+  rg -q 'Progress: reviewed=1/2, remaining=1' "$review_cli_stdout"
+  rg -q 'Resume:' "$review_cli_stdout"
   local_cli_template="$workdir/review_decisions_local_only.template.jsonl"
   local_cli_out="$workdir/review_decisions_local_only.jsonl"
   local_cli_stdout="$workdir/review_decisions_local_only_stdout.txt"
@@ -757,6 +759,8 @@ EOF
   jq -s '.[0].decision == "needs_review" and (.[0].allowed_decisions | index("drop_me") | not)' "$local_cli_out" >/dev/null
   rg -q 'audio=1:mic_raw' "$local_cli_stdout"
   rg -q 'Decision drop_me is not allowed' "$local_cli_stdout"
+  rg -q 'Progress: reviewed=1/1, remaining=0' "$local_cli_stdout"
+  rg -q 'apply-review-decisions-batch.py' "$local_cli_stdout"
   invalid_allowed_decisions="$workdir/review_decisions_invalid_allowed.jsonl"
   jq -c '.decision = "drop_me" | .status = "reviewed"' "$local_cli_template" >"$invalid_allowed_decisions"
   if "$repo_root/scripts/apply-review-decisions.py" "$group_session" \

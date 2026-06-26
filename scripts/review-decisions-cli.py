@@ -5,12 +5,13 @@ import argparse
 import json
 import shlex
 import subprocess
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.review_decision/v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 SHORTCUTS = {
@@ -343,6 +344,28 @@ def undecided(row: dict[str, Any]) -> bool:
     return str(row.get("decision") or "todo") in {"", "todo"}
 
 
+def print_progress_summary(rows: list[dict[str, Any]], out: Path, template: Path, filters: set[str]) -> None:
+    scoped = [row for row in rows if session_matches(row, filters)]
+    counts = Counter(str(row.get("decision") or "todo") or "todo" for row in scoped)
+    remaining = sum(1 for row in scoped if undecided(row))
+    reviewed = len(scoped) - remaining
+    print(f"Progress: reviewed={reviewed}/{len(scoped)}, remaining={remaining}, decisions={dict(sorted(counts.items()))}")
+    if remaining:
+        filter_args = " ".join(f"--session {shlex.quote(value)}" for value in sorted(filters))
+        filter_suffix = f" {filter_args}" if filter_args else ""
+        print(
+            f"Resume: {shlex.quote(str(Path(__file__)))} "
+            f"--template {shlex.quote(str(template))} --out {shlex.quote(str(out))}{filter_suffix}"
+        )
+        return
+    print(
+        "Next: .venv/bin/python scripts/apply-review-decisions-batch.py "
+        f"--decisions {shlex.quote(str(out))} "
+        f"--review-template {shlex.quote(str(template))} "
+        "--synthesize --refresh-reports"
+    )
+
+
 def main() -> int:
     args = parse_args()
     template = args.template.expanduser()
@@ -361,6 +384,7 @@ def main() -> int:
     if not indexes:
         write_jsonl(out, rows)
         print(f"No undecided rows. Written: {out}")
+        print_progress_summary(rows, out, template, filters)
         return 0
 
     for visible_index, row_index in enumerate(indexes, start=1):
@@ -375,6 +399,7 @@ def main() -> int:
             if decision is None:
                 write_jsonl(out, rows)
                 print(f"Stopped. Written: {out}")
+                print_progress_summary(rows, out, template, filters)
                 return 0
             if decision == "play":
                 play_command(command)
@@ -398,9 +423,11 @@ def main() -> int:
         prompted += 1
         if args.limit and prompted >= args.limit:
             print(f"Limit reached. Written: {out}")
+            print_progress_summary(rows, out, template, filters)
             return 0
 
     print(f"Done. Written: {out}")
+    print_progress_summary(rows, out, template, filters)
     return 0
 
 
