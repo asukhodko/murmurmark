@@ -152,6 +152,16 @@ def session_duration_sec(session_json: dict[str, Any]) -> float | None:
 def selected_profile(session: Path) -> str:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     cleanup = session / "derived/transcript-simple/whisper-cpp/audit-cleanup"
+    review_decisions = session / "derived/transcript-simple/whisper-cpp/review-decisions"
+    reviewed = read_json(review_decisions / "review_decisions_report.reviewed_v1.json")
+    reviewed_gates = reviewed.get("gates") if isinstance(reviewed, dict) else {}
+    if (
+        (resolved / "quality_report.reviewed_v1.json").exists()
+        and (resolved / "clean_dialogue.reviewed_v1.json").exists()
+        and isinstance(reviewed_gates, dict)
+        and reviewed_gates.get("passed") is True
+    ):
+        return "reviewed_v1"
     cleanup_v3 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v3.json")
     cleanup_v3_summary = cleanup_v3.get("summary") if isinstance(cleanup_v3, dict) else {}
     cleanup_v3_gates = cleanup_v3.get("gates") if isinstance(cleanup_v3, dict) else {}
@@ -179,6 +189,7 @@ def stage_status(session: Path) -> dict[str, bool]:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     synthesis = session / "derived/synthesis-simple/extractive"
     cleanup = session / "derived/transcript-simple/whisper-cpp/audit-cleanup"
+    review_decisions = session / "derived/transcript-simple/whisper-cpp/review-decisions"
     audio_review = session / "derived/audit/audio-review-pack"
     return {
         "capture": (session / "session.json").exists()
@@ -199,6 +210,9 @@ def stage_status(session: Path) -> dict[str, bool]:
         "audit_cleanup_v3": (resolved / "quality_report.audit_cleanup_v3.json").exists()
         and (resolved / "clean_dialogue.audit_cleanup_v3.json").exists()
         and (cleanup / "audit_cleanup_report.audit_cleanup_v3.json").exists(),
+        "reviewed_v1": (resolved / "quality_report.reviewed_v1.json").exists()
+        and (resolved / "clean_dialogue.reviewed_v1.json").exists()
+        and (review_decisions / "review_decisions_report.reviewed_v1.json").exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
@@ -206,6 +220,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (synthesis / "evidence_notes.audit_cleanup_v2.json").exists(),
         "synthesis_audit_cleanup_v3": (synthesis / "quality_verdict.audit_cleanup_v3.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v3.json").exists(),
+        "synthesis_reviewed_v1": (synthesis / "quality_verdict.reviewed_v1.json").exists()
+        and (synthesis / "evidence_notes.reviewed_v1.json").exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
         and (audio_review / "review_pack_items.jsonl").exists(),
         "audio_review_audit": (audio_review / "audio_review_summary.json").exists()
@@ -382,6 +398,25 @@ def echo_metrics(local_fir_report: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def review_decision_metrics(review_report: dict[str, Any] | None) -> dict[str, Any]:
+    summary = review_report.get("summary") if isinstance(review_report, dict) else None
+    if not isinstance(summary, dict):
+        summary = {}
+    gates = review_report.get("gates") if isinstance(review_report, dict) else None
+    if not isinstance(gates, dict):
+        gates = {}
+    return {
+        "review_decisions_gates_passed": gates.get("passed"),
+        "review_decisions_applied": safe_int(summary.get("applied_decision_rows")),
+        "review_decisions_rejected": safe_int(summary.get("rejected_decision_rows")),
+        "review_decisions_conflicts": safe_int(summary.get("conflict_count")),
+        "review_decisions_dropped_me": safe_int(summary.get("dropped_me_utterances")),
+        "review_decisions_dropped_me_seconds": round_or_none(summary.get("dropped_me_seconds")),
+        "review_decisions_keep_me": safe_int(summary.get("kept_me_decisions")),
+        "review_decisions_needs_review": safe_int(summary.get("needs_review_decisions")),
+    }
+
+
 def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, profile: str) -> dict[str, Any]:
     if not isinstance(audio_summary, dict):
         return {}
@@ -477,8 +512,10 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
     verdict = row.get("verdict")
     if verdict in {"risky", "failed"}:
         flags.append(f"verdict:{verdict}")
-    if row.get("selected_profile") not in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3"}:
+    if row.get("selected_profile") not in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "reviewed_v1"}:
         flags.append("no_audit_cleanup_profile")
+    if row.get("selected_profile") == "reviewed_v1" and row.get("review_decisions_gates_passed") is not True:
+        flags.append("review_decisions_gates_failed")
     missing = row.get("missing_artifacts") or []
     if missing:
         flags.append("missing:" + ",".join(missing[:3]))
@@ -522,6 +559,11 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     cleanup_report = (
         read_json(session / "derived/transcript-simple/whisper-cpp/audit-cleanup" / f"audit_cleanup_report{suffix(profile)}.json")
         if profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3"}
+        else None
+    )
+    review_report = (
+        read_json(session / "derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_v1.json")
+        if profile == "reviewed_v1"
         else None
     )
     session_json = read_json(session / "session.json") or {}
@@ -586,6 +628,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(echo_metrics(local_fir))
     row.update(group_metrics(group_summary))
     row.update(cleanup_metrics(quality, cleanup_report))
+    row.update(review_decision_metrics(review_report))
     row.update(audio_review_metrics(audio_summary, session, profile))
     row["risk_flags"] = risk_flags(row)
     return row
@@ -640,6 +683,9 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "applied_patches",
         "dropped_me_duplicate_seconds",
         "dropped_me_noise_seconds",
+        "review_decisions_applied",
+        "review_decisions_dropped_me",
+        "review_decisions_dropped_me_seconds",
         "echo_reduction_db",
         "selected_notes",
         "hidden_meeting_facilitation_count",

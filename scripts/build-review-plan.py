@@ -106,6 +106,21 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
     label = str(item.get("label") or "unknown")
     verdict = str(item.get("verdict") or "unknown")
     confidence = safe_float(item.get("confidence"))
+    text_rows = item.get("text") if isinstance(item.get("text"), list) else []
+    me_ids = [
+        str(row.get("id"))
+        for row in text_rows
+        if isinstance(row, dict)
+        and (str(row.get("source_track") or "").lower() == "mic" or str(row.get("role") or "").lower() == "me")
+        and row.get("id")
+    ]
+    remote_ids = [
+        str(row.get("id"))
+        for row in text_rows
+        if isinstance(row, dict)
+        and (str(row.get("source_track") or "").lower() == "remote" or str(row.get("role") or "").lower() == "remote")
+        and row.get("id")
+    ]
     return {
         "session_id": item.get("session_id"),
         "session": item.get("session"),
@@ -124,6 +139,8 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
             "end_time": interval.get("end_time") or fmt_time(end),
         },
         "utterance_ids": item.get("utterance_ids") if isinstance(item.get("utterance_ids"), list) else [],
+        "me_utterance_ids": me_ids,
+        "remote_utterance_ids": remote_ids,
         "text": item.get("text") if isinstance(item.get("text"), list) else [],
         "commands": item.get("commands") if isinstance(item.get("commands"), dict) else {},
     }
@@ -260,6 +277,45 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
     }
 
 
+def decision_template_rows(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    sessions = plan.get("session_review_burden") if isinstance(plan.get("session_review_burden"), dict) else {}
+    rows: list[dict[str, Any]] = []
+    for cluster in plan.get("clusters") or []:
+        if not isinstance(cluster, dict):
+            continue
+        session_id = str(cluster.get("session_id") or "")
+        session_row = sessions.get(session_id) if isinstance(sessions.get(session_id), dict) else {}
+        for item in cluster.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                {
+                    "schema": "murmurmark.review_decision/v1",
+                    "status": "todo",
+                    "decision": "todo",
+                    "allowed_decisions": ["drop_me", "keep_me", "needs_review", "skip"],
+                    "session_id": session_id,
+                    "session": cluster.get("session"),
+                    "input_profile": session_row.get("selected_profile"),
+                    "cluster_id": cluster.get("id"),
+                    "source_audit_id": item.get("source_audit_id"),
+                    "label": item.get("label"),
+                    "verdict": item.get("verdict"),
+                    "confidence": item.get("confidence"),
+                    "review_action": item.get("review_action"),
+                    "interval": item.get("interval"),
+                    "me_utterance_ids": item.get("me_utterance_ids") or [],
+                    "remote_utterance_ids": item.get("remote_utterance_ids") or [],
+                    "utterance_ids": item.get("utterance_ids") or [],
+                    "text": item.get("text") or [],
+                    "commands": item.get("commands") or {},
+                    "reviewer": "",
+                    "notes": "",
+                }
+            )
+    return rows
+
+
 def write_markdown(path: Path, plan: dict[str, Any]) -> None:
     summary = plan.get("summary") or {}
     lines = [
@@ -330,6 +386,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     write_json(out_dir / "review_plan.json", plan)
     write_jsonl(out_dir / "review_plan_clusters.jsonl", plan["clusters"])
+    write_jsonl(out_dir / "review_decisions.template.jsonl", decision_template_rows(plan))
     write_markdown(out_dir / "review_plan.md", plan)
     print(f"review_plan: {out_dir / 'review_plan.json'}")
     print(f"clusters: {len(plan['clusters'])}")

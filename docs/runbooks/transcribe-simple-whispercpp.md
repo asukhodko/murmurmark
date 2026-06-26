@@ -321,6 +321,18 @@ work:
 .venv/bin/python scripts/build-review-plan.py \
   --operational-readiness sessions/_reports/operational-readiness/operational_readiness_report.json
 
+cp sessions/_reports/review-plan/review_decisions.template.jsonl \
+  sessions/_reports/review-plan/review_decisions.jsonl
+# Edit review_decisions.jsonl after listening to the listed clips.
+
+.venv/bin/python scripts/apply-review-decisions.py sessions/<session> \
+  --decisions sessions/_reports/review-plan/review_decisions.jsonl \
+  --input-profile auto \
+  --output-profile reviewed_v1
+
+.venv/bin/python scripts/synthesize-simple-extractive.py sessions/<session> \
+  --transcript-profile reviewed_v1
+
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
 less sessions/_reports/audio-judge-v0/audio_judge_v0_report.md
@@ -345,6 +357,9 @@ profile-aware: already-resolved cleanup items are not shown as remaining work.
 `build-review-plan.py` turns that queue into a compact checklist. Use it when a session is
 `review_first`: listen to the listed stereo clips, decide whether each `Me` candidate is leaked
 remote speech, real local speech, or unclear, then keep unclear cases marked for review.
+`apply-review-decisions.py` consumes the edited decision JSONL and writes a separate `reviewed_v1`
+profile. It can drop whole reviewed `Me` utterances, clear review flags for confirmed local speech,
+or keep an item marked `needs_review`. It does not edit `audit_cleanup_v1/v2/v3`.
 
 ## Outputs
 

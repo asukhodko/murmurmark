@@ -569,6 +569,7 @@ sessions/_reports/review-plan/
   review_plan.json
   review_plan.md
   review_plan_clusters.jsonl
+  review_decisions.template.jsonl
 ```
 
 `review_plan.json` uses `murmurmark.review_plan/v1`:
@@ -612,6 +613,49 @@ The review plan is audit-only. It does not create new audio clips and does not m
 It groups nearby suspicious intervals, keeps the original `afplay` commands, and gives a small
 decision protocol: drop leaked `Me`, keep real local speech, or leave unclear cases as
 `needs_review`.
+
+`review_decisions.template.jsonl` contains editable `murmurmark.review_decision/v1` rows:
+
+```json
+{
+  "schema": "murmurmark.review_decision/v1",
+  "status": "todo",
+  "decision": "todo",
+  "allowed_decisions": ["drop_me", "keep_me", "needs_review", "skip"],
+  "session_id": "2026-06-26_11-15-50",
+  "input_profile": "audit_cleanup_v3",
+  "source_audit_id": "arp_000020",
+  "me_utterance_ids": ["utt_000271"],
+  "remote_utterance_ids": ["utt_000269"],
+  "commands": {
+    "stereo_clean_left_remote_right": "afplay sessions/.../clip.wav"
+  },
+  "reviewer": "",
+  "notes": ""
+}
+```
+
+After review, `apply-review-decisions.py` consumes the edited decision file and writes a separate
+`reviewed_v1` transcript profile:
+
+```text
+derived/transcript-simple/whisper-cpp/resolved/
+  clean_dialogue.reviewed_v1.json
+  transcript.reviewed_v1.md
+  transcript.simple.reviewed_v1.json
+  quality_report.reviewed_v1.json
+  overlaps.reviewed_v1.json
+
+derived/transcript-simple/whisper-cpp/review-decisions/
+  review_decisions_report.reviewed_v1.json
+  review_decisions_applied.reviewed_v1.jsonl
+  review_decisions_rejected.reviewed_v1.jsonl
+  review_decisions_conflicts.reviewed_v1.jsonl
+```
+
+`drop_me` removes whole reviewed `Me` utterances. `keep_me` keeps the utterance and can clear its
+review flag. `needs_review` keeps the utterance marked for review. Conflicting decisions fail the
+`reviewed_v1` gates. Automatic cleanup profiles remain unchanged.
 
 Session quality and operational readiness are profile-aware. They compare audio-review items with
 the selected `clean_dialogue*.json` profile and treat items whose `Me` utterance was removed by

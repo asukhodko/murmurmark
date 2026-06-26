@@ -643,6 +643,24 @@ EOF
   "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" --transcript-profile auto >/dev/null
   jq -e '.selected_transcript_profile == "audit_cleanup_v3"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
 
+  review_decisions="$workdir/review_decisions.jsonl"
+  cat >"$review_decisions" <<EOF
+{"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v3","source_audit_id":"arp_manual_review_keep","label":"uncertain","verdict":"needs_stronger_audio_judge","review_action":"classify_audio","me_utterance_ids":["utt_audio_uncertain_me"],"remote_utterance_ids":["utt_audio_uncertain_remote"],"utterance_ids":["utt_audio_uncertain_remote","utt_audio_uncertain_me"],"text":[{"id":"utt_audio_uncertain_remote","role":"remote","source_track":"remote","text":"Там есть спорный кусок."},{"id":"utt_audio_uncertain_me","role":"me","source_track":"mic","text":"Я уточню отдельно."}],"reviewer":"smoke","notes":"confirmed local speech"}
+EOF
+  "$repo_root/scripts/apply-review-decisions.py" "$group_session" \
+    --decisions "$review_decisions" \
+    --input-profile auto \
+    --output-profile reviewed_v1 >/dev/null
+  reviewed_dialogue="$group_resolved/clean_dialogue.reviewed_v1.json"
+  reviewed_report="$group_session/derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_v1.json"
+  [[ -s "$reviewed_dialogue" ]]
+  [[ -s "$reviewed_report" ]]
+  jq -e '.gates.passed == true and .summary.applied_decision_rows == 1' "$reviewed_report" >/dev/null
+  jq -e 'any(.utterances[]; .id == "utt_audio_uncertain_me" and .quality.human_review.decisions[0] == "keep_me")' "$reviewed_dialogue" >/dev/null
+  "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" --transcript-profile auto >/dev/null
+  jq -e '.selected_transcript_profile == "reviewed_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
+  jq -e '.selected_transcript_profile == "reviewed_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.reviewed_v1.json" >/dev/null
+
   corpus_dir="$workdir/regression-corpus"
   "$repo_root/scripts/build-regression-corpus.py" "$group_session" \
     --out-dir "$corpus_dir" \
@@ -698,8 +716,10 @@ EOF
   [[ -s "$review_plan_dir/review_plan.json" ]]
   [[ -s "$review_plan_dir/review_plan.md" ]]
   [[ -s "$review_plan_dir/review_plan_clusters.jsonl" ]]
+  [[ -s "$review_plan_dir/review_decisions.template.jsonl" ]]
   jq -e '.schema == "murmurmark.review_plan/v1" and .summary.cluster_count >= 1' "$review_plan_dir/review_plan.json" >/dev/null
   jq -s 'all(.[]; (.primary_command | type) == "string")' "$review_plan_dir/review_plan_clusters.jsonl" >/dev/null
+  jq -s 'all(.[]; .schema == "murmurmark.review_decision/v1" and .decision == "todo" and (.me_utterance_ids | type) == "array")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
 fi
 
 empty_session="$workdir/empty-session"

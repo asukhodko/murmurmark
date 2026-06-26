@@ -123,6 +123,18 @@ work, build a corpus from existing audio-review audits:
 .venv/bin/python scripts/build-review-plan.py \
   --operational-readiness sessions/_reports/operational-readiness/operational_readiness_report.json
 
+cp sessions/_reports/review-plan/review_decisions.template.jsonl \
+  sessions/_reports/review-plan/review_decisions.jsonl
+# Edit review_decisions.jsonl after listening to the listed clips.
+
+.venv/bin/python scripts/apply-review-decisions.py sessions/<session> \
+  --decisions sessions/_reports/review-plan/review_decisions.jsonl \
+  --input-profile auto \
+  --output-profile reviewed_v1
+
+.venv/bin/python scripts/synthesize-simple-extractive.py sessions/<session> \
+  --transcript-profile reviewed_v1
+
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
 less sessions/_reports/audio-judge-v0/audio_judge_v0_report.md
@@ -256,6 +268,7 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/train-audio-judge-v0.py
 .venv/bin/python scripts/report-operational-readiness.py
 .venv/bin/python scripts/build-review-plan.py
+.venv/bin/python scripts/apply-review-decisions.py ./sessions/<session> --decisions sessions/_reports/review-plan/review_decisions.jsonl
 .venv/bin/python scripts/echo-guard-delay-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-fir-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-local-subtract-lab.py ./sessions/<session> --start-sec <seconds>
@@ -350,6 +363,11 @@ under `sessions/_reports/review-plan/`. It groups nearby risky intervals by sess
 actual listening time, keeps ready-to-run `afplay` commands, and gives a small protocol for deciding
 whether each `Me` candidate should be dropped, kept, or left as `needs_review`. It is audit-only and
 does not edit transcript profiles.
+
+`scripts/apply-review-decisions.py` closes the manual review loop. Copy
+`review_decisions.template.jsonl` to `review_decisions.jsonl`, listen to the listed clips, fill each
+`decision` as `drop_me`, `keep_me`, `needs_review`, or `skip`, then apply it to a session. The script
+writes a separate `reviewed_v1` profile and never changes the automatic cleanup profiles.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 
