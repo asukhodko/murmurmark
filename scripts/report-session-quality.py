@@ -151,6 +151,8 @@ def session_duration_sec(session_json: dict[str, Any]) -> float | None:
 
 def selected_profile(session: Path) -> str:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    if (resolved / "quality_report.audit_cleanup_v3.json").exists() and (resolved / "clean_dialogue.audit_cleanup_v3.json").exists():
+        return "audit_cleanup_v3"
     if (resolved / "quality_report.audit_cleanup_v2.json").exists() and (resolved / "clean_dialogue.audit_cleanup_v2.json").exists():
         return "audit_cleanup_v2"
     if (resolved / "quality_report.audit_cleanup_v1.json").exists() and (resolved / "clean_dialogue.audit_cleanup_v1.json").exists():
@@ -183,11 +185,16 @@ def stage_status(session: Path) -> dict[str, bool]:
         "audit_cleanup_v2": (resolved / "quality_report.audit_cleanup_v2.json").exists()
         and (resolved / "clean_dialogue.audit_cleanup_v2.json").exists()
         and (cleanup / "audit_cleanup_report.audit_cleanup_v2.json").exists(),
+        "audit_cleanup_v3": (resolved / "quality_report.audit_cleanup_v3.json").exists()
+        and (resolved / "clean_dialogue.audit_cleanup_v3.json").exists()
+        and (cleanup / "audit_cleanup_report.audit_cleanup_v3.json").exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
         "synthesis_audit_cleanup_v2": (synthesis / "quality_verdict.audit_cleanup_v2.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v2.json").exists(),
+        "synthesis_audit_cleanup_v3": (synthesis / "quality_verdict.audit_cleanup_v3.json").exists()
+        and (synthesis / "evidence_notes.audit_cleanup_v3.json").exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
         and (audio_review / "review_pack_items.jsonl").exists(),
         "audio_review_audit": (audio_review / "audio_review_summary.json").exists()
@@ -230,6 +237,50 @@ def read_evidence(session: Path, profile: str) -> dict[str, Any] | None:
     if preferred.exists():
         return read_json(preferred)
     return read_json(synthesis / "evidence_notes.json")
+
+
+def dialogue_me_ids(session: Path, profile: str) -> set[str]:
+    dialogue = read_json(session / "derived/transcript-simple/whisper-cpp/resolved" / f"clean_dialogue{suffix(profile)}.json")
+    if not isinstance(dialogue, dict):
+        return set()
+    rows = dialogue.get("utterances")
+    if not isinstance(rows, list):
+        return set()
+    ids: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        source = str(row.get("source_track") or "").lower()
+        role = str(row.get("role") or row.get("speaker_label") or "").lower()
+        if source == "mic" or role == "me":
+            ids.add(str(row.get("id")))
+    return ids
+
+
+def audio_review_me_ids(row: dict[str, Any]) -> set[str]:
+    rows = row.get("utterances")
+    if not isinstance(rows, list):
+        return set()
+    ids: set[str] = set()
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        source = str(item.get("source_track") or "").lower()
+        role = str(item.get("role") or item.get("speaker_label") or "").lower()
+        if source == "mic" or role == "me":
+            ids.add(str(item.get("id")))
+    return ids
+
+
+def active_audio_review_row(row: dict[str, Any], selected_me_ids: set[str]) -> bool:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    label = str(classification.get("label") or "")
+    me_ids = audio_review_me_ids(row)
+    if label == "lost_me":
+        return True
+    if not me_ids:
+        return True
+    return bool(me_ids & selected_me_ids)
 
 
 def selected_counts(evidence: dict[str, Any] | None) -> dict[str, int]:
@@ -320,9 +371,77 @@ def echo_metrics(local_fir_report: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def audio_review_metrics(audio_summary: dict[str, Any] | None) -> dict[str, Any]:
+def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, profile: str) -> dict[str, Any]:
     if not isinstance(audio_summary, dict):
         return {}
+
+    audit_path = session / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
+    selected_me_ids = dialogue_me_ids(session, profile)
+    audit_rows: list[dict[str, Any]] = []
+    if audit_path.exists() and selected_me_ids:
+        with audit_path.open("r", encoding="utf-8") as file:
+            for line in file:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    value = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(value, dict):
+                    audit_rows.append(value)
+
+    if audit_rows:
+        buckets = {
+            "likely_reliable": {"count": 0, "seconds": 0.0},
+            "probable_error": {"count": 0, "seconds": 0.0},
+            "needs_stronger_audio_judge": {"count": 0, "seconds": 0.0},
+        }
+        resolved_count = 0
+        resolved_seconds = 0.0
+        active_count = 0
+        active_seconds = 0.0
+        for row in audit_rows:
+            interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+            seconds = safe_float(interval.get("duration_sec")) or 0.0
+            if not active_audio_review_row(row, selected_me_ids):
+                resolved_count += 1
+                resolved_seconds += seconds
+                continue
+            active_count += 1
+            active_seconds += seconds
+            classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+            verdict = str(classification.get("verdict") or "")
+            if verdict == "probable_transcript_error":
+                verdict = "probable_error"
+            if verdict in buckets:
+                buckets[verdict]["count"] += 1
+                buckets[verdict]["seconds"] += seconds
+
+        raw_error = audio_summary.get("probable_error") if isinstance(audio_summary.get("probable_error"), dict) else {}
+        raw_stronger = (
+            audio_summary.get("needs_stronger_audio_judge")
+            if isinstance(audio_summary.get("needs_stronger_audio_judge"), dict)
+            else {}
+        )
+        return {
+            "audio_review_items": active_count,
+            "audio_review_seconds": round(active_seconds, 3),
+            "audio_review_reliable_count": buckets["likely_reliable"]["count"],
+            "audio_review_reliable_seconds": round(buckets["likely_reliable"]["seconds"], 3),
+            "audio_review_probable_error_count": buckets["probable_error"]["count"],
+            "audio_review_probable_error_seconds": round(buckets["probable_error"]["seconds"], 3),
+            "audio_review_stronger_judge_count": buckets["needs_stronger_audio_judge"]["count"],
+            "audio_review_stronger_judge_seconds": round(buckets["needs_stronger_audio_judge"]["seconds"], 3),
+            "audio_review_resolved_by_cleanup_count": resolved_count,
+            "audio_review_resolved_by_cleanup_seconds": round(resolved_seconds, 3),
+            "audio_review_raw_probable_error_count": safe_int(raw_error.get("count")),
+            "audio_review_raw_probable_error_seconds": round_or_none(raw_error.get("seconds")),
+            "audio_review_raw_stronger_judge_count": safe_int(raw_stronger.get("count")),
+            "audio_review_raw_stronger_judge_seconds": round_or_none(raw_stronger.get("seconds")),
+            "audio_review_recommended_next_step": audio_summary.get("recommended_next_step"),
+        }
+
     reliable = audio_summary.get("likely_reliable") if isinstance(audio_summary.get("likely_reliable"), dict) else {}
     error = audio_summary.get("probable_error") if isinstance(audio_summary.get("probable_error"), dict) else {}
     stronger = (
@@ -347,7 +466,7 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
     verdict = row.get("verdict")
     if verdict in {"risky", "failed"}:
         flags.append(f"verdict:{verdict}")
-    if row.get("selected_profile") not in {"audit_cleanup_v1", "audit_cleanup_v2"}:
+    if row.get("selected_profile") not in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3"}:
         flags.append("no_audit_cleanup_profile")
     missing = row.get("missing_artifacts") or []
     if missing:
@@ -391,7 +510,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     local_fir = read_json(session / "derived/preprocess/echo/local_fir_report.json")
     cleanup_report = (
         read_json(session / "derived/transcript-simple/whisper-cpp/audit-cleanup" / f"audit_cleanup_report{suffix(profile)}.json")
-        if profile in {"audit_cleanup_v1", "audit_cleanup_v2"}
+        if profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3"}
         else None
     )
     session_json = read_json(session / "session.json") or {}
@@ -456,7 +575,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(echo_metrics(local_fir))
     row.update(group_metrics(group_summary))
     row.update(cleanup_metrics(quality, cleanup_report))
-    row.update(audio_review_metrics(audio_summary))
+    row.update(audio_review_metrics(audio_summary, session, profile))
     row["risk_flags"] = risk_flags(row)
     return row
 

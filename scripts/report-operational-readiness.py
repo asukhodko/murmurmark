@@ -30,6 +30,11 @@ def parse_args() -> argparse.Namespace:
         default=Path("sessions/_reports/audio-judge-v0/audio_judge_v0_report.json"),
     )
     parser.add_argument(
+        "--audio-judge-queue",
+        type=Path,
+        default=Path("sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl"),
+    )
+    parser.add_argument(
         "--out-dir",
         type=Path,
         default=Path("sessions/_reports/operational-readiness"),
@@ -85,6 +90,53 @@ def safe_int(value: Any) -> int:
         return 0
 
 
+def suffix(profile: str) -> str:
+    return "" if profile == "current" else f".{profile}"
+
+
+def selected_me_ids(session_path: Path, profile: str) -> set[str]:
+    path = session_path / "derived/transcript-simple/whisper-cpp/resolved" / f"clean_dialogue{suffix(profile)}.json"
+    data = read_json(path)
+    rows = data.get("utterances") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return set()
+    ids: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        source = str(row.get("source_track") or "").lower()
+        role = str(row.get("role") or row.get("speaker_label") or "").lower()
+        if source == "mic" or role == "me":
+            ids.add(str(row.get("id")))
+    return ids
+
+
+def audio_review_me_ids(row: dict[str, Any]) -> set[str]:
+    rows = row.get("utterances")
+    if not isinstance(rows, list):
+        return set()
+    ids: set[str] = set()
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        source = str(item.get("source_track") or "").lower()
+        role = str(item.get("role") or item.get("speaker_label") or "").lower()
+        if source == "mic" or role == "me":
+            ids.add(str(item.get("id")))
+    return ids
+
+
+def active_audio_review_row(row: dict[str, Any], selected_ids: set[str]) -> bool:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    label = str(classification.get("label") or "")
+    me_ids = audio_review_me_ids(row)
+    if label == "lost_me":
+        return True
+    if not me_ids:
+        return True
+    return bool(me_ids & selected_ids)
+
+
 def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
     duration = safe_float(session.get("meeting_duration_sec"))
     probable_error = safe_float(session.get("audio_review_probable_error_seconds"))
@@ -117,7 +169,7 @@ def session_use_gate(row: dict[str, Any]) -> str:
     verdict = str(row.get("verdict") or "")
     if verdict in {"failed", "risky"}:
         return "do_not_use_without_manual_review"
-    if profile not in {"audit_cleanup_v1", "audit_cleanup_v2"}:
+    if profile not in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3"}:
         return "pipeline_incomplete_review_first"
     if ratio <= 0.025 and not flags:
         return "ready_for_notes"
@@ -181,20 +233,72 @@ def compact_review_item(session: dict[str, Any], row: dict[str, Any]) -> dict[st
 def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     by_session = {str(session.get("session_id")): session for session in sessions}
+    me_ids_cache: dict[tuple[str, str], set[str]] = {}
     for session in sessions:
         if session.get("use_gate") == "ready_for_notes":
             continue
         session_path = Path(str(session.get("session") or ""))
+        profile = str(session.get("selected_profile") or "")
+        cache_key = (str(session_path), profile)
+        if cache_key not in me_ids_cache:
+            me_ids_cache[cache_key] = selected_me_ids(session_path, profile)
+        selected_ids = me_ids_cache[cache_key]
         audit_path = session_path / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
         for row in read_jsonl(audit_path):
             classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
             verdict = str(classification.get("verdict") or "")
             if verdict not in {"probable_transcript_error", "needs_stronger_audio_judge"}:
                 continue
+            if selected_ids and not active_audio_review_row(row, selected_ids):
+                continue
             session_id = str(row.get("session_id") or session.get("session_id"))
             rows.append(compact_review_item(by_session.get(session_id, session), row))
     rows.sort(key=lambda item: (-safe_float(item.get("priority_score")), str(item.get("session_id") or "")))
     return rows[: max(0, max_items)]
+
+
+def active_audio_judge_queue_summary(sessions: list[dict[str, Any]], predictions: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not predictions:
+        return None
+    sessions_by_id = {str(row.get("session_id")): row for row in sessions}
+    me_ids_by_session: dict[str, set[str]] = {}
+    active: list[dict[str, Any]] = []
+    resolved = 0
+    for row in predictions:
+        session_id = str(row.get("session_id") or "")
+        session = sessions_by_id.get(session_id)
+        if not session:
+            continue
+        session_path = Path(str(session.get("session") or ""))
+        profile = str(session.get("selected_profile") or "")
+        if session_id not in me_ids_by_session:
+            me_ids_by_session[session_id] = selected_me_ids(session_path, profile)
+        selected_ids = me_ids_by_session[session_id]
+        utterance_ids = {str(item) for item in row.get("utterance_ids", []) or []}
+        if selected_ids and not (utterance_ids & selected_ids):
+            resolved += 1
+            continue
+        active.append(row)
+    by_label: dict[str, int] = {}
+    by_action: dict[str, int] = {}
+    for row in active:
+        label = str(row.get("judge_label") or "unknown")
+        action = str(row.get("shadow_action") or "unknown")
+        by_label[label] = by_label.get(label, 0) + 1
+        by_action[action] = by_action.get(action, 0) + 1
+    remove_candidates = by_action.get("candidate_remove_from_review_queue", 0)
+    future_cleanup = by_action.get("candidate_future_cleanup_review", 0)
+    mark_only = by_action.get("candidate_mark_only_review", 0)
+    return {
+        "items": len(active),
+        "resolved_by_selected_profile_items": resolved,
+        "by_judge_label": dict(sorted(by_label.items())),
+        "by_shadow_action": dict(sorted(by_action.items())),
+        "candidate_review_reduction_items": remove_candidates,
+        "candidate_future_cleanup_items": future_cleanup,
+        "candidate_mark_only_items": mark_only,
+        "remaining_human_review_items": len(active) - remove_candidates,
+    }
 
 
 def operational_verdict(
@@ -263,6 +367,7 @@ def build_report(
     session_quality: dict[str, Any],
     corpus: dict[str, Any] | None,
     audio_judge: dict[str, Any] | None,
+    audio_judge_queue: list[dict[str, Any]],
     inputs: dict[str, str],
     max_review_items: int,
 ) -> dict[str, Any]:
@@ -276,6 +381,8 @@ def build_report(
         gate = str(row.get("use_gate") or "unknown")
         gates[gate] = gates.get(gate, 0) + 1
     review_queue = build_review_queue(burdens, max_review_items)
+    active_judge_queue = active_audio_judge_queue_summary(burdens, audio_judge_queue)
+    audio_judge_review_queue = active_judge_queue or (audio_judge.get("review_queue") if isinstance(audio_judge, dict) else None)
     return {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -303,7 +410,7 @@ def build_report(
                 if isinstance(audio_judge, dict)
                 else None
             ),
-            "audio_judge_review_queue": audio_judge.get("review_queue") if isinstance(audio_judge, dict) else None,
+            "audio_judge_review_queue": audio_judge_review_queue,
             "review_queue_items": len(review_queue),
         },
         "session_review_burden": burdens,
@@ -345,6 +452,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Audio judge readiness: `{report['summary']['audio_judge_readiness']}`",
         f"- Audio judge CV accuracy: `{report['summary']['audio_judge_cv_accuracy']}`",
         f"- Audio judge remaining review items: `{((report['summary'].get('audio_judge_review_queue') or {}).get('remaining_human_review_items'))}`",
+        f"- Audio judge resolved by selected profile: `{((report['summary'].get('audio_judge_review_queue') or {}).get('resolved_by_selected_profile_items'))}`",
         "",
         "## Blockers",
         "",
@@ -407,12 +515,14 @@ def main() -> int:
         raise SystemExit(f"missing session quality report: {args.session_quality}")
     corpus = read_json(args.corpus_evaluation)
     audio_judge = read_json(args.audio_judge)
+    audio_judge_queue = read_jsonl(args.audio_judge_queue)
     inputs = {
         "session_quality": str(args.session_quality),
         "corpus_evaluation": str(args.corpus_evaluation),
         "audio_judge": str(args.audio_judge),
+        "audio_judge_queue": str(args.audio_judge_queue),
     }
-    report = build_report(session_quality, corpus, audio_judge, inputs, args.max_review_items)
+    report = build_report(session_quality, corpus, audio_judge, audio_judge_queue, inputs, args.max_review_items)
     out_dir: Path = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     write_json(out_dir / "operational_readiness_report.json", report)

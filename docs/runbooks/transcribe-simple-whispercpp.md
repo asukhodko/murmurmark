@@ -266,6 +266,11 @@ JSON, CSV and Markdown under `sessions/_reports/session-quality/` by default, wh
 together with `sessions/`. It does not run ASR, does not rewrite transcripts and does not touch raw
 `audio/mic/*.caf` or `audio/remote/*.caf`.
 
+Audio-review metrics in this report are profile-aware. The script reads the selected
+`clean_dialogue*.json` profile and excludes audio-review items whose `Me` utterance has already been
+removed by cleanup. The raw audio-review totals remain useful for debugging, but the operational
+review burden should follow the adjusted counters.
+
 ## Regression Corpus
 
 Use the already-audited sessions to build a private corpus for future cleanup and local audio-judge
@@ -307,7 +312,8 @@ transcripts. Queue predictions are conservative: `drop_error` and `mark_only_err
 for a future cleanup profile, not automatic review-burden reduction.
 The operational readiness report answers whether the current pipeline is usable for medium-risk
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
-`review_first`, and which audio-review clips should be checked first.
+`review_first`, and which audio-review clips should be checked first. Its review queue is also
+profile-aware: already-resolved cleanup items are not shown as remaining work.
 
 ## Outputs
 

@@ -516,10 +516,15 @@ sessions/_reports/operational-readiness/
       "review_first": 5,
       "pipeline_incomplete_review_first": 1
     },
-    "total_review_burden_ratio": 0.030003,
+    "total_review_burden_ratio": 0.029619,
     "corpus_readiness": "useful_for_audio_judge_v0",
     "audio_judge_readiness": "cleanup_shadow_candidate",
     "audio_judge_cv_accuracy": 0.901961,
+    "audio_judge_review_queue": {
+      "items": 38,
+      "resolved_by_selected_profile_items": 2,
+      "remaining_human_review_items": 38
+    },
     "review_queue_items": 40
   },
   "review_queue": [
@@ -539,6 +544,12 @@ sessions/_reports/operational-readiness/
 The operational verdict is not a transcript correctness proof. It is a use-readiness summary for
 piloting MurmurMark on medium-risk meetings with explicit review burden, per-session use gates and a
 prioritised review queue.
+
+Session quality and operational readiness are profile-aware. They compare audio-review items with
+the selected `clean_dialogue*.json` profile and treat items whose `Me` utterance was removed by
+cleanup as resolved. Raw audio-review summaries are still available inside each session for audit,
+but operational `review_burden` and review queues should reflect the remaining selected transcript,
+not the pre-cleanup audit file.
 
 `audit_cleanup_v2` consumes the audio review audit as an extra evidence layer. It writes the same
 profile-shaped transcript artifacts as v1, but with the `audit_cleanup_v2` suffix:

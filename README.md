@@ -306,7 +306,9 @@ short `asr_noise` `Me` utterances can be dropped. `remote_leak`, `lost_me`, `unc
 The quality report helper is `scripts/report-session-quality.py`. It reads existing derived JSON
 for one or more sessions and writes a private JSON/CSV/Markdown summary under
 `sessions/_reports/session-quality/` by default. It does not run ASR and does not modify session
-audio or transcript artifacts.
+audio or transcript artifacts. Audio-review counters are computed against the selected transcript
+profile: if `audit_cleanup_v2` already removed a duplicate `Me` utterance, that audio-review item is
+counted as resolved by cleanup and no longer inflates the remaining review burden.
 
 `scripts/build-regression-corpus.py` collects high-value examples from existing
 `audio_review_audit.jsonl` files across sessions. It balances examples by label, copies the already
@@ -324,7 +326,8 @@ them with its own gates.
 shadow readiness into a practical verdict such as `pilot_ready_with_review` for medium-risk working
 meetings. It also assigns per-session use gates such as `ready_for_notes` and `review_first`, then
 writes a short review queue with concrete `afplay` commands for the highest-priority audio-review
-clips.
+clips. The queue is filtered through the selected transcript profile, so already-dropped `Me`
+utterances do not stay in the operational review list.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 

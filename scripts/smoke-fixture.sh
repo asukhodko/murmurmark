@@ -644,6 +644,7 @@ EOF
 
   quality_dir="$workdir/session-quality"
   "$repo_root/scripts/report-session-quality.py" "$group_session" --out-dir "$quality_dir" >/dev/null
+  jq -e '.sessions[0].audio_review_resolved_by_cleanup_count >= 1' "$quality_dir/session_quality_report.json" >/dev/null
   readiness_dir="$workdir/operational-readiness"
   "$repo_root/scripts/report-operational-readiness.py" \
     --session-quality "$quality_dir/session_quality_report.json" \
@@ -658,6 +659,7 @@ EOF
   jq -e '.summary.audio_judge_readiness | type == "string"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'all(.session_review_burden[]; (.use_gate | type) == "string")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.review_queue | type == "array"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e 'all(.review_queue[]; .source_audit_id != "arp_manual_v2_duplicate")' "$readiness_dir/operational_readiness_report.json" >/dev/null
 fi
 
 empty_session="$workdir/empty-session"
