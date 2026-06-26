@@ -35,12 +35,20 @@ MODEL="$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
   --language ru
 
 jq '{status, outputs}' "$SESSION/derived/pipeline-run/pipeline_run_report.json"
+less "$SESSION/derived/readiness/session_readiness.md"
 ```
 
 The runner calls Echo Guard, export/transcription, shadow timeline repair, group-overlap audit,
-audio-review audit, `audit_cleanup_v1..v4`, and extractive synthesis. Use `--force-asr` when you
-need to regenerate Whisper output, and `--reuse-asr-cache` when you only want to rebuild repair,
-cleanup, synthesis and reports from cached ASR JSON.
+audio-review audit, `audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. Use
+`--force-asr` when you need to regenerate Whisper output, and `--reuse-asr-cache` when you only want
+to rebuild repair, cleanup, synthesis and reports from cached ASR JSON.
+
+Read `derived/readiness/session_readiness.md` before using a meeting result. It contains:
+
+- `ready_for_notes`: the notes can be used with normal caution;
+- `review_first`: check the listed audio-review regions before using the result for medium-risk work;
+- `do_not_use_without_manual_review`: the transcript is too risky for unattended use;
+- `pipeline_incomplete`: rerun the full pipeline before judging the session.
 
 ## Low-Level Transcription
 
@@ -320,7 +328,8 @@ derived artifacts:
 ```bash
 .venv/bin/python scripts/report-session-quality.py \
   sessions/<session-1> \
-  sessions/<session-2>
+  sessions/<session-2> \
+  --write-session-readiness
 
 less sessions/_reports/session-quality/session_quality_report.md
 ```
@@ -330,6 +339,10 @@ audit cleanup, synthesis verdicts, evidence note counts and audio review audit s
 JSON, CSV and Markdown under `sessions/_reports/session-quality/` by default, which is ignored
 together with `sessions/`. It does not run ASR, does not rewrite transcripts and does not touch raw
 `audio/mic/*.caf` or `audio/remote/*.caf`.
+
+With `--write-session-readiness`, the script also writes
+`SESSION/derived/readiness/session_readiness.json` and `.md` for each input session. This is the
+short per-meeting use gate for day-to-day work.
 
 Audio-review metrics in this report are profile-aware. The script reads the selected
 `clean_dialogue*.json` profile and excludes audio-review items whose `Me` utterance has already been

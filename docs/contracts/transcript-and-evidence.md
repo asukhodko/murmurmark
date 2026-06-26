@@ -514,6 +514,9 @@ The post-recording runner writes a per-session execution manifest:
 ```text
 derived/pipeline-run/
   pipeline_run_report.json
+derived/readiness/
+  session_readiness.json
+  session_readiness.md
 ```
 
 `pipeline_run_report.json` uses `murmurmark.session_pipeline_run/v1`:
@@ -530,8 +533,10 @@ derived/pipeline-run/
   },
   "outputs": {
     "quality_verdict": "derived/synthesis-simple/extractive/quality_verdict.json",
+    "session_readiness": "derived/readiness/session_readiness.json",
     "selected_transcript_profile": "audit_cleanup_v4",
-    "verdict": "usable_with_review"
+    "verdict": "usable_with_review",
+    "use_gate": "review_first"
   },
   "steps": [
     {
@@ -548,6 +553,46 @@ derived/pipeline-run/
 
 The report is a reproducibility/audit artifact. It does not replace the per-stage reports; it only
 records which existing stage commands were run and what final synthesis profile was selected.
+
+`session_readiness.json` uses `murmurmark.session_readiness/v1`:
+
+```json
+{
+  "schema": "murmurmark.session_readiness/v1",
+  "session": "sessions/2026-06-26_15-32-02",
+  "use_gate": "review_first",
+  "recommendation": "review_flagged_audio_before_using_for_medium_risk_work",
+  "selected_profile": "audit_cleanup_v4",
+  "verdict": "usable_with_review",
+  "metrics": {
+    "review_burden_sec": 42.5,
+    "review_burden_ratio": 0.031,
+    "audio_review_probable_error_count": 2,
+    "audio_review_stronger_judge_count": 6
+  },
+  "outputs": {
+    "transcript": {
+      "path": "derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v4.md",
+      "exists": true
+    },
+    "notes": {
+      "path": "derived/synthesis-simple/extractive/notes.audit_cleanup_v4.md",
+      "exists": true
+    }
+  }
+}
+```
+
+`use_gate` is the short per-session answer for practical use:
+
+- `ready_for_notes`: use the notes with normal caution;
+- `review_first`: review flagged regions before using the result for medium-risk work;
+- `do_not_use_without_manual_review`: do not rely on the transcript without manual checking;
+- `pipeline_incomplete`: rerun the full post-recording pipeline first;
+- `pipeline_incomplete_review_first`: cleanup/synthesis profiles are missing or not selected yet.
+
+`session_readiness.md` is the human-readable view of the same object and should be opened before
+the transcript or notes.
 
 Operational readiness combines the private session quality report and regression corpus evaluation:
 

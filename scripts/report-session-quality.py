@@ -11,8 +11,10 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA = "murmurmark.session_quality_report/v1"
+READINESS_SCHEMA = "murmurmark.session_readiness/v1"
+CLEANUP_PROFILES = {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "reviewed_v1"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,6 +32,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("sessions/_reports/session-quality"),
         help="Output directory. Default is under ignored sessions/.",
+    )
+    parser.add_argument(
+        "--write-session-readiness",
+        action="store_true",
+        help="Also write SESSION/derived/readiness/session_readiness.{json,md} for every input session.",
     )
     return parser.parse_args()
 
@@ -72,6 +79,13 @@ def round_or_none(value: Any, digits: int = 3) -> float | None:
 
 def suffix(profile: str) -> str:
     return "" if profile == "current" else f".{profile}"
+
+
+def rel(path: Path, base: Path) -> str:
+    try:
+        return str(path.relative_to(base))
+    except ValueError:
+        return str(path)
 
 
 def parse_labels(rows: list[str]) -> dict[str, str]:
@@ -573,6 +587,35 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
     return flags
 
 
+def session_use_gate(row: dict[str, Any]) -> str:
+    if row.get("pipeline_status") != "complete":
+        return "pipeline_incomplete"
+    if row.get("verdict") in {"failed", "risky"}:
+        return "do_not_use_without_manual_review"
+    if row.get("selected_profile") not in CLEANUP_PROFILES:
+        return "pipeline_incomplete_review_first"
+
+    duration = safe_float(row.get("meeting_duration_sec")) or 0.0
+    burden = safe_float(row.get("review_burden_sec")) or 0.0
+    ratio = burden / duration if duration > 0 else 0.0
+    flags = row.get("risk_flags") or []
+    if ratio <= 0.025 and not flags:
+        return "ready_for_notes"
+    if ratio <= 0.08:
+        return "review_first"
+    return "do_not_use_without_manual_review"
+
+
+def add_use_gate(row: dict[str, Any]) -> None:
+    duration = safe_float(row.get("meeting_duration_sec")) or 0.0
+    probable_error = safe_float(row.get("audio_review_probable_error_seconds")) or 0.0
+    stronger_judge = safe_float(row.get("audio_review_stronger_judge_seconds")) or 0.0
+    burden = probable_error + stronger_judge
+    row["review_burden_sec"] = round(burden, 3)
+    row["review_burden_ratio"] = round(burden / duration, 6) if duration > 0 else 0.0
+    row["use_gate"] = session_use_gate(row)
+
+
 def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     status = stage_status(session)
     profile = selected_profile(session)
@@ -657,6 +700,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(review_decision_metrics(review_report))
     row.update(audio_review_metrics(audio_summary, session, profile))
     row["risk_flags"] = risk_flags(row)
+    add_use_gate(row)
     return row
 
 
@@ -696,8 +740,11 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "label",
         "pipeline_status",
         "selected_profile",
+        "use_gate",
         "verdict",
         "meeting_duration_sec",
+        "review_burden_sec",
+        "review_burden_ratio",
         "utterances",
         "needs_review_count",
         "needs_review_ratio",
@@ -758,8 +805,8 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         "",
         "## Sessions",
         "",
-        "| Session | Label | Status | Profile | Verdict | Min | Utterances | Needs Review | Local Recall | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
-        "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|",
+        "| Session | Label | Gate | Status | Profile | Verdict | Min | Review % | Utterances | Needs Review | Local Recall | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
+        "|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|",
     ]
     for row in rows:
         duration = safe_float(row.get("meeting_duration_sec"))
@@ -776,10 +823,12 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
                 [
                     f"`{row['session_id']}`",
                     row["label"].replace("|", "\\|"),
+                    row.get("use_gate") or "unknown",
                     row["pipeline_status"],
                     row["selected_profile"],
                     fmt(row.get("verdict")),
                     fmt(round(duration / 60.0, 1) if duration is not None else None),
+                    fmt((safe_float(row.get("review_burden_ratio")) or 0.0) * 100.0),
                     fmt(row.get("utterances")),
                     fmt(row.get("needs_review_count")),
                     fmt(row.get("local_only_island_recall")),
@@ -814,6 +863,111 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def readiness_outputs(session: Path, profile: str) -> dict[str, Any]:
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    synthesis = session / "derived/synthesis-simple/extractive"
+    outputs = {
+        "transcript": resolved / f"transcript{suffix(profile)}.md",
+        "clean_dialogue": resolved / f"clean_dialogue{suffix(profile)}.json",
+        "quality_report": resolved / f"quality_report{suffix(profile)}.json",
+        "notes": synthesis / f"notes{suffix(profile)}.md",
+        "quality_verdict": synthesis / f"quality_verdict{suffix(profile)}.md",
+        "evidence_notes": synthesis / f"evidence_notes{suffix(profile)}.json",
+        "review_items": synthesis / f"review_items{suffix(profile)}.jsonl",
+        "audio_review_report": session / "derived/audit/audio-review-pack/audio_review_report.md",
+        "pipeline_run_report": session / "derived/pipeline-run/pipeline_run_report.json",
+    }
+    if profile == "current":
+        outputs["transcript"] = resolved / "transcript.md"
+        outputs["notes"] = synthesis / "notes.md"
+        outputs["quality_verdict"] = synthesis / "quality_verdict.md"
+        outputs["evidence_notes"] = synthesis / "evidence_notes.json"
+        outputs["review_items"] = synthesis / "review_items.jsonl"
+    return {
+        key: {"path": rel(path, session), "exists": path.exists()}
+        for key, path in outputs.items()
+    }
+
+
+def readiness_recommendation(gate: str) -> str:
+    if gate == "ready_for_notes":
+        return "use_notes_with_normal_caution"
+    if gate == "review_first":
+        return "review_flagged_audio_before_using_for_medium_risk_work"
+    if gate == "pipeline_incomplete":
+        return "rerun_full_session_pipeline"
+    if gate == "pipeline_incomplete_review_first":
+        return "run_audit_cleanup_and_synthesis_before_use"
+    return "do_not_use_without_manual_review"
+
+
+def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
+    out_dir = session / "derived/readiness"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    profile = str(row.get("selected_profile") or "missing")
+    gate = str(row.get("use_gate") or "pipeline_incomplete")
+    payload = {
+        "schema": READINESS_SCHEMA,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generator": {"name": "report-session-quality", "version": SCRIPT_VERSION},
+        "session": str(session),
+        "session_id": row.get("session_id"),
+        "label": row.get("label"),
+        "use_gate": gate,
+        "recommendation": readiness_recommendation(gate),
+        "selected_profile": profile,
+        "verdict": row.get("verdict"),
+        "pipeline_status": row.get("pipeline_status"),
+        "risk_flags": row.get("risk_flags") or [],
+        "metrics": {
+            "meeting_duration_sec": row.get("meeting_duration_sec"),
+            "review_burden_sec": row.get("review_burden_sec"),
+            "review_burden_ratio": row.get("review_burden_ratio"),
+            "audio_review_probable_error_count": row.get("audio_review_probable_error_count"),
+            "audio_review_probable_error_seconds": row.get("audio_review_probable_error_seconds"),
+            "audio_review_stronger_judge_count": row.get("audio_review_stronger_judge_count"),
+            "audio_review_stronger_judge_seconds": row.get("audio_review_stronger_judge_seconds"),
+            "needs_review_count": row.get("needs_review_count"),
+            "needs_review_ratio": row.get("needs_review_ratio"),
+            "audit_harmful_seconds_after": row.get("audit_harmful_seconds_after"),
+            "audit_review_seconds": row.get("audit_review_seconds"),
+            "local_only_island_recall": row.get("local_only_island_recall"),
+        },
+        "outputs": readiness_outputs(session, profile),
+    }
+    write_json_path = out_dir / "session_readiness.json"
+    write_json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    review_min = (safe_float(row.get("review_burden_sec")) or 0.0) / 60.0
+    review_pct = (safe_float(row.get("review_burden_ratio")) or 0.0) * 100.0
+    lines = [
+        "# MurmurMark Session Readiness",
+        "",
+        f"Gate: `{gate}`",
+        f"Recommendation: `{payload['recommendation']}`",
+        f"Selected profile: `{profile}`",
+        f"Verdict: `{row.get('verdict')}`",
+        f"Review burden: `{review_min:.2f} min` / `{review_pct:.2f}%`",
+        "",
+        "## Open First",
+        "",
+    ]
+    for key in ("quality_verdict", "notes", "transcript", "audio_review_report"):
+        item = payload["outputs"].get(key) or {}
+        if item.get("exists"):
+            lines.append(f"- `{key}`: `{item['path']}`")
+    lines.extend(["", "## Risk Flags", ""])
+    flags = row.get("risk_flags") or []
+    if flags:
+        lines.extend(f"- `{flag}`" for flag in flags)
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Metrics", ""])
+    for key, value in payload["metrics"].items():
+        lines.append(f"- `{key}`: `{fmt(value)}`")
+    (out_dir / "session_readiness.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
 def main() -> int:
     args = parse_args()
     labels = parse_labels(args.label)
@@ -832,6 +986,9 @@ def main() -> int:
     write_json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     write_csv(out_dir / "session_quality_report.csv", rows)
     write_markdown(out_dir / "session_quality_report.md", payload)
+    if args.write_session_readiness:
+        for session, row in zip(args.sessions, rows):
+            write_session_readiness(session, row)
     print(f"written: {write_json_path}")
     print(f"markdown: {out_dir / 'session_quality_report.md'}")
     return 0

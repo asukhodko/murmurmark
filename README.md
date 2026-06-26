@@ -25,6 +25,7 @@ git pull
   --force-asr
 
 jq '{status, outputs}' "$SESSION/derived/pipeline-run/pipeline_run_report.json"
+less "$SESSION/derived/readiness/session_readiness.md"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 ```
@@ -106,6 +107,7 @@ echo "SESSION=\"$SESSION\""
   --language ru
 
 jq '{status, outputs}' "$SESSION/derived/pipeline-run/pipeline_run_report.json"
+less "$SESSION/derived/readiness/session_readiness.md"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 ```
@@ -113,7 +115,9 @@ less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 `scripts/run-session-pipeline.py` is the normal post-recording runner. It calls Echo Guard,
 whisper.cpp transcription, shadow timeline repair, group-overlap audit, audio-review audit,
 `audit_cleanup_v1..v4`, and extractive synthesis, then writes
-`derived/pipeline-run/pipeline_run_report.json`.
+`derived/pipeline-run/pipeline_run_report.json` and `derived/readiness/session_readiness.md`.
+Read `session_readiness.md` first: it gives the session use gate, selected profile, review burden,
+and links to the transcript, notes, quality verdict and audio-review report.
 `transcript.md` is the stable baseline output. `transcript.shadow_v2.md` is the current best candidate when `repair_comparison.json` passes. The shadow profile does not replace the baseline transcript; it writes separate audit and comparison artifacts so changes can be checked before promotion.
 `scripts/audit-group-overlaps.py` is an optional diagnostic step for group calls. It classifies `Me`/`Colleagues` timeline overlaps into harmful, benign and review buckets, writes listenable clips, and does not change transcripts or quality verdicts.
 `scripts/apply-audit-cleanup.py` is an optional conservative cleanup over the group audit. It writes a separate `audit_cleanup_v1` profile and only drops whole `Me` utterances when the audit strongly supports remote duplicate or ASR-noise classification. It never edits `shadow_v2`.
@@ -152,7 +156,7 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v3
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v3 --output-profile audit_cleanup_v4 --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v4
-.venv/bin/python scripts/report-session-quality.py ./sessions/<session>
+.venv/bin/python scripts/report-session-quality.py ./sessions/<session> --write-session-readiness
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
 .venv/bin/python scripts/evaluate-regression-corpus.py
 .venv/bin/python scripts/train-audio-judge-v0.py

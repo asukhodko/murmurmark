@@ -223,6 +223,17 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             reason="missing audio judge queue",
         ),
         step("synthesize_auto", [py, str(repo_root / "scripts/synthesize-simple-extractive.py"), str(session), "--transcript-profile", "auto"]),
+        step(
+            "session_readiness",
+            [
+                py,
+                str(repo_root / "scripts/report-session-quality.py"),
+                str(session),
+                "--out-dir",
+                str(session / "derived/readiness/session-quality"),
+                "--write-session-readiness",
+            ],
+        ),
     ]
 
 
@@ -278,7 +289,9 @@ def main() -> int:
             break
 
     quality_path = session / "derived/synthesis-simple/extractive/quality_verdict.json"
+    readiness_path = session / "derived/readiness/session_readiness.json"
     quality = read_json(quality_path)
+    readiness = read_json(readiness_path)
     report = {
         "schema": SCHEMA,
         "generator": {"name": "run-session-pipeline", "version": SCRIPT_VERSION},
@@ -294,8 +307,10 @@ def main() -> int:
         },
         "outputs": {
             "quality_verdict": rel(quality_path, session) if quality_path.exists() else None,
+            "session_readiness": rel(readiness_path, session) if readiness_path.exists() else None,
             "selected_transcript_profile": quality.get("selected_transcript_profile") if isinstance(quality, dict) else None,
             "verdict": quality.get("verdict") if isinstance(quality, dict) else None,
+            "use_gate": readiness.get("use_gate") if isinstance(readiness, dict) else None,
         },
         "steps": results,
     }

@@ -369,14 +369,19 @@ grep -q 'utt_simple_006' "$session/derived/synthesis-simple/extractive/notes.md"
 "$repo_root/scripts/report-session-quality.py" \
   "$session" \
   --label "session=smoke fixture" \
-  --out-dir "$session/derived/session-quality" >/dev/null
+  --out-dir "$session/derived/session-quality" \
+  --write-session-readiness >/dev/null
 [[ -s "$session/derived/session-quality/session_quality_report.json" ]]
 [[ -s "$session/derived/session-quality/session_quality_report.csv" ]]
 [[ -s "$session/derived/session-quality/session_quality_report.md" ]]
+[[ -s "$session/derived/readiness/session_readiness.json" ]]
+[[ -s "$session/derived/readiness/session_readiness.md" ]]
 jq -e '.schema == "murmurmark.session_quality_report/v1"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
 jq -e '.summary.session_count == 1' "$session/derived/session-quality/session_quality_report.json" >/dev/null
 jq -e '.sessions[0].label == "smoke fixture"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
 jq -e '.sessions[0].pipeline_status == "partial"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
+jq -e '.sessions[0].use_gate == "pipeline_incomplete"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
+jq -e '.schema == "murmurmark.session_readiness/v1" and .use_gate == "pipeline_incomplete"' "$session/derived/readiness/session_readiness.json" >/dev/null
 
 audit_python=""
 if [[ -x "$repo_root/.venv/bin/python" ]] && "$repo_root/.venv/bin/python" - <<'PY' >/dev/null 2>&1
@@ -727,6 +732,7 @@ EOF
   [[ -s "$pipeline_plan" ]]
   jq -e '.schema == "murmurmark.session_pipeline_run/v1" and .status == "planned" and (.steps | length) >= 10' "$pipeline_plan" >/dev/null
   jq -e 'all(.steps[]; (.started_at | type) == "string" and (.duration_sec | type) == "number")' "$pipeline_plan" >/dev/null
+  jq -e 'any(.steps[]; .name == "session_readiness")' "$pipeline_plan" >/dev/null
 
   corpus_dir="$workdir/regression-corpus"
   "$repo_root/scripts/build-regression-corpus.py" "$group_session" \
