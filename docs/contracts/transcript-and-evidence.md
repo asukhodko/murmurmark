@@ -739,6 +739,18 @@ sessions/_reports/review-plan/
     "by_review_action": {
       "confirm_drop_or_keep_me": 21,
       "check_unique_me_content": 13
+    },
+    "by_review_lane": {
+      "fast_confirm_drop": 10,
+      "check_unique_me_content": 20
+    }
+  },
+  "review_lanes": {
+    "fast_confirm_drop": {
+      "title": "Fast confirm drop",
+      "item_count": 10,
+      "raw_item_seconds": 24.3,
+      "description": "Likely leaked remote/ASR noise. Listen once; if it is only non-local speech, accept drop_me."
     }
   },
   "clusters": [
@@ -754,6 +766,7 @@ sessions/_reports/review-plan/
         {
           "source_audit_id": "arp_000020",
           "label": "remote_duplicate",
+          "review_lane": "fast_confirm_drop",
           "review_action": "confirm_drop_or_keep_me",
           "suggested_decision": "drop_me",
           "utterance_ids": ["utt_000269", "utt_000271"]
@@ -768,6 +781,10 @@ The review plan is audit-only. It does not create new audio clips and does not m
 It groups nearby suspicious intervals, keeps the original `afplay` commands, and gives a small
 decision protocol: drop leaked `Me`, keep real local speech, or leave unclear cases as
 `needs_review`.
+`review_lane` is a workflow hint, not a decision. `fast_confirm_drop` rows are the quickest duplicate
+or ASR-noise checks, `check_unique_me_content` rows need a content check before any drop,
+`check_local_recall` rows are audit-only possible missing-local-speech checks, `confirm_benign` rows
+usually clear harmless overlap, and `classify_audio` rows have no safe shortcut.
 `remote_duplicate` suggestions are coverage-aware. `drop_me` is suggested only when the suspicious
 interval covers enough of the whole `Me` utterance. Partial duplicates keep
 `allowed_decisions: ["drop_me", "keep_me", "needs_review", "skip"]`, but the hint becomes
@@ -785,6 +802,8 @@ coverage and text-similarity signals.
   "session_id": "2026-06-26_11-15-50",
   "input_profile": "audit_cleanup_v3",
   "source_audit_id": "arp_000020",
+  "review_lane": "fast_confirm_drop",
+  "review_action": "confirm_drop_or_keep_me",
   "suggested_decision": "drop_me",
   "suggested_decision_confidence": "high",
   "suggested_decision_reason": "probable leaked remote duplicate; confirm by listening before changing decision",

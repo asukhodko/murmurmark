@@ -9,8 +9,31 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.review_plan/v1"
+
+REVIEW_LANES = {
+    "fast_confirm_drop": {
+        "title": "Fast confirm drop",
+        "description": "Likely leaked remote/ASR noise. Listen once; if it is only non-local speech, accept drop_me.",
+    },
+    "check_unique_me_content": {
+        "title": "Check unique Me content",
+        "description": "Remote leak/duplicate may cover only part of Me. Keep real local speech; do not drop blindly.",
+    },
+    "check_local_recall": {
+        "title": "Check local recall",
+        "description": "Possible missing local speech from the mic candidate stream. Usually short, but it can affect meaning.",
+    },
+    "confirm_benign": {
+        "title": "Confirm benign overlap",
+        "description": "Likely double-talk or timing overlap. Confirm and keep Me when local speech is real.",
+    },
+    "classify_audio": {
+        "title": "Classify audio",
+        "description": "No safe shortcut; listen and choose keep_me, needs_review, or skip.",
+    },
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -158,6 +181,18 @@ def suggested_decision(label: str, verdict: str, confidence: float, item: dict[s
     }
 
 
+def review_lane(source: str, label: str, action: str, suggestion: dict[str, Any]) -> str:
+    if source == "local_recall" or label in {"lost_me", "local_recall_needs_review"}:
+        return "check_local_recall"
+    if suggestion.get("suggested_decision") == "drop_me" and action == "confirm_drop_or_keep_me":
+        return "fast_confirm_drop"
+    if action == "check_unique_me_content":
+        return "check_unique_me_content"
+    if action == "confirm_benign_overlap":
+        return "confirm_benign"
+    return "classify_audio"
+
+
 def severity(label: str, verdict: str, confidence: float) -> str:
     if verdict == "probable_transcript_error" and label in {"remote_duplicate", "asr_noise"}:
         return "high"
@@ -179,6 +214,7 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
     confidence = safe_float(item.get("confidence"))
     text_rows = item.get("text") if isinstance(item.get("text"), list) else []
     is_local_recall = str(item.get("source") or "") == "local_recall"
+    source = str(item.get("source") or "audio_review")
     me_ids = [] if is_local_recall else [
         str(row.get("id"))
         for row in text_rows
@@ -193,17 +229,20 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
         and (str(row.get("source_track") or "").lower() == "remote" or str(row.get("role") or "").lower() == "remote")
         and row.get("id")
     ]
+    action = review_action(label, verdict, item)
     suggestion = suggested_decision(label, verdict, confidence, item)
+    lane = review_lane(source, label, action, suggestion)
     return {
         "session_id": item.get("session_id"),
         "session": item.get("session"),
-        "source": item.get("source") or "audio_review",
+        "source": source,
         "source_audit_id": item.get("source_audit_id"),
         "label": label,
         "verdict": verdict,
         "confidence": round(confidence, 6),
         "severity": severity(label, verdict, confidence),
-        "review_action": review_action(label, verdict, item),
+        "review_action": action,
+        "review_lane": lane,
         **suggestion,
         "priority_score": safe_float(item.get("priority_score")),
         "interval": {
@@ -313,11 +352,24 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
     by_session = Counter(str(cluster.get("session_id")) for cluster in clusters)
     by_label: Counter[str] = Counter()
     by_action: Counter[str] = Counter()
+    by_lane: Counter[str] = Counter()
+    lane_seconds: Counter[str] = Counter()
     for item in items:
         by_label[str(item.get("label") or "unknown")] += 1
         by_action[str(item.get("review_action") or "classify_audio")] += 1
+        lane = str(item.get("review_lane") or "classify_audio")
+        by_lane[lane] += 1
+        lane_seconds[lane] += safe_float(item["interval"].get("duration_sec"))
     raw_seconds = sum(safe_float(item["interval"].get("duration_sec")) for item in items)
     listen_seconds = sum(safe_float(cluster.get("estimated_listen_sec")) for cluster in clusters)
+    lanes = {
+        lane: {
+            **REVIEW_LANES.get(lane, REVIEW_LANES["classify_audio"]),
+            "item_count": by_lane.get(lane, 0),
+            "raw_item_seconds": round(lane_seconds.get(lane, 0.0), 3),
+        }
+        for lane in sorted(by_lane)
+    }
     return {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -340,8 +392,10 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
             "estimated_listen_minutes": round(listen_seconds / 60.0, 2),
             "by_label": dict(sorted(by_label.items())),
             "by_review_action": dict(sorted(by_action.items())),
+            "by_review_lane": dict(sorted(by_lane.items())),
             "by_session": dict(sorted(by_session.items())),
         },
+        "review_lanes": lanes,
         "session_review_burden": sessions,
         "clusters": clusters,
         "review_protocol": [
@@ -387,6 +441,7 @@ def decision_template_rows(plan: dict[str, Any]) -> list[dict[str, Any]]:
                     "verdict": item.get("verdict"),
                     "confidence": item.get("confidence"),
                     "review_action": item.get("review_action"),
+                    "review_lane": item.get("review_lane"),
                     "suggested_decision": item.get("suggested_decision"),
                     "suggested_decision_confidence": item.get("suggested_decision_confidence"),
                     "suggested_decision_reason": item.get("suggested_decision_reason"),
@@ -418,12 +473,60 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
         f"- Sessions with review: `{summary.get('sessions_with_review')}`",
         f"- Estimated listening time: `{summary.get('estimated_listen_minutes')}` min",
         f"- Labels: `{summary.get('by_label')}`",
+        f"- Lanes: `{summary.get('by_review_lane')}`",
         "",
         "## Protocol",
         "",
     ]
     for item in plan.get("review_protocol") or []:
         lines.append(f"- {item}")
+
+    lanes = plan.get("review_lanes") if isinstance(plan.get("review_lanes"), dict) else {}
+    if lanes:
+        lines.extend(
+            [
+                "",
+                "## Decision Lanes",
+                "",
+                "Use this section to close the queue in the safest order: quick confirm-drop candidates first, then partial/unique-content checks, then local-recall checks.",
+                "",
+                "| Lane | Items | Raw sec | What to do |",
+                "|---|---:|---:|---|",
+            ]
+        )
+        lane_order = [
+            "fast_confirm_drop",
+            "check_unique_me_content",
+            "check_local_recall",
+            "confirm_benign",
+            "classify_audio",
+        ]
+        for lane in lane_order:
+            row = lanes.get(lane)
+            if not isinstance(row, dict):
+                continue
+            lines.append(
+                f"| `{lane}` | {row.get('item_count')} | {safe_float(row.get('raw_item_seconds')):.2f} | "
+                f"{row.get('description')} |"
+            )
+        lines.extend(
+            [
+                "",
+                "Suggested commands:",
+                "",
+                "```bash",
+                ".venv/bin/python scripts/review-decisions-cli.py \\",
+                "  --template sessions/_reports/review-plan/review_decisions.template.jsonl \\",
+                "  --out sessions/_reports/review-plan/review_decisions.jsonl",
+                "",
+                ".venv/bin/python scripts/apply-review-decisions-batch.py \\",
+                "  --decisions sessions/_reports/review-plan/review_decisions.jsonl \\",
+                "  --review-template sessions/_reports/review-plan/review_decisions.template.jsonl \\",
+                "  --synthesize \\",
+                "  --refresh-reports",
+                "```",
+            ]
+        )
 
     sessions = plan.get("session_review_burden") if isinstance(plan.get("session_review_burden"), dict) else {}
     if sessions:
@@ -453,7 +556,8 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
             lines.append(
                 f"- `{item.get('source_audit_id')}` `{item.get('label')}` "
                 f"{item.get('interval', {}).get('start_time')}-{item.get('interval', {}).get('end_time')} "
-                f"action `{item.get('review_action')}`, suggestion `{item.get('suggested_decision')}`"
+                f"lane `{item.get('review_lane')}`, action `{item.get('review_action')}`, "
+                f"suggestion `{item.get('suggested_decision')}`"
             )
             if item.get("suggested_decision_reason"):
                 lines.append(f"  - suggestion: {item.get('suggested_decision_reason')}")

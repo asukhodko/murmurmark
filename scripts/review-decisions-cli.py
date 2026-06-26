@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.4.0"
 SCHEMA = "murmurmark.review_decision/v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 SHORTCUTS = {
@@ -269,7 +269,7 @@ def print_row(
     print(f"[{index}/{total}] {row.get('session_id')} {interval.get('start_time')}..{interval.get('end_time')}")
     print(
         f"label={row.get('label')} verdict={row.get('verdict')} confidence={row.get('confidence')} "
-        f"action={row.get('review_action')}"
+        f"lane={row.get('review_lane')} action={row.get('review_action')}"
     )
     print(f"allowed={', '.join(sorted(allowed_decisions(row)))}")
     if row.get("suggested_decision"):

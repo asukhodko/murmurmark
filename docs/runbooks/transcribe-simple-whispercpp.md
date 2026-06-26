@@ -448,6 +448,11 @@ sessions not ready for notes, remaining review minutes, and the next action clas
 `review_first`: listen to the listed stereo clips or local-recall mic snippets, decide whether each
 `Me` candidate is leaked remote speech, real local speech, lost local speech, or unclear, then keep
 unclear cases marked for review.
+The plan also assigns each row a `review_lane`: `fast_confirm_drop` for likely duplicate/noise rows,
+`check_unique_me_content` for partial duplicates and leaks, `check_local_recall` for possible missing
+local speech, `confirm_benign` for likely harmless overlap, and `classify_audio` for anything else.
+Close `fast_confirm_drop` first; it gives the largest cleanup with the least judgment. Keep the
+other lanes conservative unless the audio is clear.
 `review-decisions-cli.py` is the normal way to fill the checklist: it plays each preferred clip,
 shows the transcript rows, respects each row's `allowed_decisions`, and writes
 `review_decisions.jsonl` after every answer. It also prints nearby turns from the reviewed transcript

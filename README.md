@@ -285,6 +285,10 @@ missing text into the transcript. The plan itself is audit-only and does not edi
 For `remote_duplicate`, `drop_me` is suggested only when the duplicate covers enough of the whole
 `Me` utterance. If the overlap is only a slice of a longer local utterance, the row is marked
 `check_unique_me_content` and the safe default is `needs_review`.
+The generated plan also splits the queue into `review_lane` groups:
+`fast_confirm_drop`, `check_unique_me_content`, `check_local_recall`, `confirm_benign`, and
+`classify_audio`. Use those lanes to clear easy duplicate/noise checks first and leave meaning-heavy
+checks for a slower pass.
 
 `scripts/review-decisions-cli.py` is the fastest way to fill that checklist. It walks through
 `review_decisions.template.jsonl`, plays the preferred stereo clip, shows the `Me`/`remote` texts and
