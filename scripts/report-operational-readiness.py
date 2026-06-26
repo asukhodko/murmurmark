@@ -25,6 +25,11 @@ def parse_args() -> argparse.Namespace:
         default=Path("sessions/_reports/regression-corpus/regression_corpus_evaluation.json"),
     )
     parser.add_argument(
+        "--audio-judge",
+        type=Path,
+        default=Path("sessions/_reports/audio-judge-v0/audio_judge_v0_report.json"),
+    )
+    parser.add_argument(
         "--out-dir",
         type=Path,
         default=Path("sessions/_reports/operational-readiness"),
@@ -192,7 +197,11 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
     return rows[: max(0, max_items)]
 
 
-def operational_verdict(session_quality: dict[str, Any], corpus: dict[str, Any] | None) -> tuple[str, list[str], list[str]]:
+def operational_verdict(
+    session_quality: dict[str, Any],
+    corpus: dict[str, Any] | None,
+    audio_judge: dict[str, Any] | None,
+) -> tuple[str, list[str], list[str]]:
     sessions = session_quality.get("sessions") if isinstance(session_quality.get("sessions"), list) else []
     summary = session_quality.get("summary") if isinstance(session_quality.get("summary"), dict) else {}
     blockers: list[str] = []
@@ -216,6 +225,7 @@ def operational_verdict(session_quality: dict[str, Any], corpus: dict[str, Any] 
 
     corpus_readiness = corpus.get("readiness") if isinstance(corpus, dict) else None
     missing_labels = corpus.get("missing_labels") if isinstance(corpus, dict) and isinstance(corpus.get("missing_labels"), list) else []
+    audio_judge_readiness = audio_judge.get("readiness") if isinstance(audio_judge, dict) else None
 
     if session_count < 5:
         blockers.append("too_few_regression_sessions")
@@ -235,6 +245,8 @@ def operational_verdict(session_quality: dict[str, Any], corpus: dict[str, Any] 
         warnings.append("some_sessions_need_manual_review_before_use")
     if corpus_readiness not in {"useful_for_audio_judge_v0", "broad_regression_ready"}:
         warnings.append("regression_corpus_not_ready_for_audio_judge")
+    if audio_judge_readiness not in {"shadow_ready", "cleanup_shadow_candidate"}:
+        warnings.append("audio_judge_v0_not_shadow_ready")
     if missing_labels:
         warnings.append("regression_corpus_missing_labels:" + ",".join(str(label) for label in missing_labels))
 
@@ -247,12 +259,18 @@ def operational_verdict(session_quality: dict[str, Any], corpus: dict[str, Any] 
     return verdict, blockers, warnings
 
 
-def build_report(session_quality: dict[str, Any], corpus: dict[str, Any] | None, inputs: dict[str, str], max_review_items: int) -> dict[str, Any]:
+def build_report(
+    session_quality: dict[str, Any],
+    corpus: dict[str, Any] | None,
+    audio_judge: dict[str, Any] | None,
+    inputs: dict[str, str],
+    max_review_items: int,
+) -> dict[str, Any]:
     sessions = session_quality.get("sessions") if isinstance(session_quality.get("sessions"), list) else []
     burdens = [session_review_burden(row) for row in sessions]
     total_duration = sum(item["duration_sec"] for item in burdens)
     total_burden = sum(item["review_burden_sec"] for item in burdens)
-    verdict, blockers, warnings = operational_verdict(session_quality, corpus)
+    verdict, blockers, warnings = operational_verdict(session_quality, corpus, audio_judge)
     gates: dict[str, int] = {}
     for row in burdens:
         gate = str(row.get("use_gate") or "unknown")
@@ -279,6 +297,12 @@ def build_report(session_quality: dict[str, Any], corpus: dict[str, Any] | None,
             "corpus_readiness": corpus.get("readiness") if isinstance(corpus, dict) else None,
             "corpus_item_count": safe_int(corpus.get("item_count")) if isinstance(corpus, dict) else 0,
             "corpus_missing_labels": corpus.get("missing_labels") if isinstance(corpus, dict) else None,
+            "audio_judge_readiness": audio_judge.get("readiness") if isinstance(audio_judge, dict) else None,
+            "audio_judge_cv_accuracy": (
+                safe_float((audio_judge.get("evaluation") or {}).get("cv_accuracy"))
+                if isinstance(audio_judge, dict)
+                else None
+            ),
             "review_queue_items": len(review_queue),
         },
         "session_review_burden": burdens,
@@ -295,6 +319,8 @@ def recommendations(verdict: str, blockers: list[str], warnings: list[str]) -> l
         rows.append("review_audio_review_report_for_high_burden_sessions")
     if any(item.startswith("regression_corpus") for item in warnings):
         rows.append("expand_or_rebuild_regression_corpus_before_audio_judge_v1")
+    if "audio_judge_v0_not_shadow_ready" in warnings:
+        rows.append("do_not_use_audio_judge_for_cleanup_yet")
     rows.append("use_quality_verdict_and_notes_for_medium_risk_meetings_with_review")
     rows.append("keep_raw_audio_private_and_derived_artifacts_ignored")
     return rows
@@ -315,6 +341,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Review burden ratio: `{round(report['summary']['total_review_burden_ratio'] * 100.0, 2)}%`",
         f"- Corpus readiness: `{report['summary']['corpus_readiness']}`",
         f"- Corpus items: `{report['summary']['corpus_item_count']}`",
+        f"- Audio judge readiness: `{report['summary']['audio_judge_readiness']}`",
+        f"- Audio judge CV accuracy: `{report['summary']['audio_judge_cv_accuracy']}`",
         "",
         "## Blockers",
         "",
@@ -376,11 +404,13 @@ def main() -> int:
     if not session_quality:
         raise SystemExit(f"missing session quality report: {args.session_quality}")
     corpus = read_json(args.corpus_evaluation)
+    audio_judge = read_json(args.audio_judge)
     inputs = {
         "session_quality": str(args.session_quality),
         "corpus_evaluation": str(args.corpus_evaluation),
+        "audio_judge": str(args.audio_judge),
     }
-    report = build_report(session_quality, corpus, inputs, args.max_review_items)
+    report = build_report(session_quality, corpus, audio_judge, inputs, args.max_review_items)
     out_dir: Path = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     write_json(out_dir / "operational_readiness_report.json", report)

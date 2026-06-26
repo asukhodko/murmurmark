@@ -631,18 +631,30 @@ EOF
   jq -e '.schema == "murmurmark.regression_corpus_evaluation/v1"' "$corpus_dir/regression_corpus_evaluation.json" >/dev/null
   jq -e '.by_readiness_bucket.silver_cleanup_positive.count >= 1 and .by_readiness_bucket.needs_audio_judge.count >= 1' "$corpus_dir/regression_corpus_evaluation.json" >/dev/null
 
+  judge_dir="$workdir/audio-judge-v0"
+  "$audit_python" "$repo_root/scripts/train-audio-judge-v0.py" \
+    --corpus-dir "$corpus_dir" \
+    --out-dir "$judge_dir" >/dev/null
+  [[ -s "$judge_dir/audio_judge_v0_report.json" ]]
+  [[ -s "$judge_dir/audio_judge_v0_predictions.jsonl" ]]
+  [[ -s "$judge_dir/audio_judge_v0_report.md" ]]
+  jq -e '.schema == "murmurmark.audio_judge_v0_report/v1"' "$judge_dir/audio_judge_v0_report.json" >/dev/null
+  jq -e '.policy.may_modify_transcript == false and .training.rows >= 2' "$judge_dir/audio_judge_v0_report.json" >/dev/null
+
   quality_dir="$workdir/session-quality"
   "$repo_root/scripts/report-session-quality.py" "$group_session" --out-dir "$quality_dir" >/dev/null
   readiness_dir="$workdir/operational-readiness"
   "$repo_root/scripts/report-operational-readiness.py" \
     --session-quality "$quality_dir/session_quality_report.json" \
     --corpus-evaluation "$corpus_dir/regression_corpus_evaluation.json" \
+    --audio-judge "$judge_dir/audio_judge_v0_report.json" \
     --out-dir "$readiness_dir" >/dev/null
   [[ -s "$readiness_dir/operational_readiness_report.json" ]]
   [[ -s "$readiness_dir/operational_readiness_report.md" ]]
   jq -e '.schema == "murmurmark.operational_readiness_report/v1"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.operational_verdict | IN("not_ready", "pilot_ready_with_review", "medium_risk_ready")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.summary.use_gates | type == "object"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.summary.audio_judge_readiness | type == "string"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'all(.session_review_burden[]; (.use_gate | type) == "string")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.review_queue | type == "array"' "$readiness_dir/operational_readiness_report.json" >/dev/null
 fi

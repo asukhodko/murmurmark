@@ -281,12 +281,18 @@ work:
 .venv/bin/python scripts/evaluate-regression-corpus.py \
   --corpus-dir sessions/_reports/regression-corpus
 
+.venv/bin/python scripts/train-audio-judge-v0.py \
+  --corpus-dir sessions/_reports/regression-corpus \
+  --out-dir sessions/_reports/audio-judge-v0
+
 .venv/bin/python scripts/report-operational-readiness.py \
   --session-quality sessions/_reports/session-quality/session_quality_report.json \
-  --corpus-evaluation sessions/_reports/regression-corpus/regression_corpus_evaluation.json
+  --corpus-evaluation sessions/_reports/regression-corpus/regression_corpus_evaluation.json \
+  --audio-judge sessions/_reports/audio-judge-v0/audio_judge_v0_report.json
 
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
+less sessions/_reports/audio-judge-v0/audio_judge_v0_report.md
 less sessions/_reports/operational-readiness/operational_readiness_report.md
 ```
 
@@ -295,6 +301,9 @@ label, and copies existing review clips under `sessions/_reports/regression-corp
 audit-only: no transcript profile, Echo Guard artifact or raw `audio/*.caf` file is modified.
 The evaluation script labels the corpus readiness for future work: silver cleanup positives,
 silver keep negatives, mark-only regressions, and examples that need a stronger local audio judge.
+The audio judge v0 script trains a local shadow classifier on those silver labels using numeric
+audio/text metrics only. It reports leave-one-session-out validation and predictions, but never edits
+transcripts.
 The operational readiness report answers whether the current pipeline is usable for medium-risk
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first.

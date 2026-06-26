@@ -110,12 +110,18 @@ work, build a corpus from existing audio-review audits:
 .venv/bin/python scripts/evaluate-regression-corpus.py \
   --corpus-dir sessions/_reports/regression-corpus
 
+.venv/bin/python scripts/train-audio-judge-v0.py \
+  --corpus-dir sessions/_reports/regression-corpus \
+  --out-dir sessions/_reports/audio-judge-v0
+
 .venv/bin/python scripts/report-operational-readiness.py \
   --session-quality sessions/_reports/session-quality/session_quality_report.json \
-  --corpus-evaluation sessions/_reports/regression-corpus/regression_corpus_evaluation.json
+  --corpus-evaluation sessions/_reports/regression-corpus/regression_corpus_evaluation.json \
+  --audio-judge sessions/_reports/audio-judge-v0/audio_judge_v0_report.json
 
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
+less sessions/_reports/audio-judge-v0/audio_judge_v0_report.md
 less sessions/_reports/operational-readiness/operational_readiness_report.md
 ```
 
@@ -240,6 +246,7 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session>
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
 .venv/bin/python scripts/evaluate-regression-corpus.py
+.venv/bin/python scripts/train-audio-judge-v0.py
 .venv/bin/python scripts/report-operational-readiness.py
 .venv/bin/python scripts/echo-guard-delay-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-fir-lab.py ./sessions/<session>
@@ -308,10 +315,14 @@ Markdown reports. The corpus is meant for future agent-driven cleanup checks and
 audio judge. It is private generated data and does not modify sessions or raw audio.
 `scripts/evaluate-regression-corpus.py` then buckets the corpus into silver cleanup positives,
 silver keep negatives, mark-only regressions and examples that need a stronger audio judge.
-`scripts/report-operational-readiness.py` combines session quality and corpus readiness into a
-practical verdict such as `pilot_ready_with_review` for medium-risk working meetings. It also assigns
-per-session use gates such as `ready_for_notes` and `review_first`, then writes a short review queue
-with concrete `afplay` commands for the highest-priority audio-review clips.
+`scripts/train-audio-judge-v0.py` trains a local shadow classifier on corpus silver labels using only
+numeric audio/text metrics. It does not edit transcripts; it reports cross-session validation quality
+and candidate predictions for later cleanup experiments.
+`scripts/report-operational-readiness.py` combines session quality, corpus readiness and audio-judge
+shadow readiness into a practical verdict such as `pilot_ready_with_review` for medium-risk working
+meetings. It also assigns per-session use gates such as `ready_for_notes` and `review_first`, then
+writes a short review queue with concrete `afplay` commands for the highest-priority audio-review
+clips.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 

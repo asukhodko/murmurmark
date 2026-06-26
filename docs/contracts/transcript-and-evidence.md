@@ -444,6 +444,46 @@ overlap audit marked it as `probable_timing_overlap`.
 Readiness buckets are not human truth labels. They are silver labels derived from current local
 metrics and are suitable for no-regression checks and prioritising future audio-judge work.
 
+Audio judge v0 is a local shadow classifier trained on the regression corpus:
+
+```text
+sessions/_reports/audio-judge-v0/
+  audio_judge_v0_report.json
+  audio_judge_v0_predictions.jsonl
+  audio_judge_v0_report.md
+```
+
+`audio_judge_v0_report.json` uses `murmurmark.audio_judge_v0_report/v1`:
+
+```json
+{
+  "schema": "murmurmark.audio_judge_v0_report/v1",
+  "readiness": "cleanup_shadow_candidate",
+  "training": {
+    "rows": 102,
+    "sessions": 10,
+    "label_counts": {
+      "drop_error": 18,
+      "keep": 18,
+      "mark_only_error": 16,
+      "uncertain": 50
+    }
+  },
+  "evaluation": {
+    "method": "leave_one_session_out",
+    "cv_accuracy": 0.901961
+  },
+  "policy": {
+    "mode": "shadow_only",
+    "may_modify_transcript": false
+  }
+}
+```
+
+The model uses only numeric audio/text metrics, not `label`, `verdict`, readiness bucket, or free-text
+content as features. The labels are still silver labels derived from current local metrics, so v0 is a
+shadow judge for prioritisation and future cleanup experiments, not a human-quality audio oracle.
+
 Operational readiness combines the private session quality report and regression corpus evaluation:
 
 ```text
@@ -470,6 +510,8 @@ sessions/_reports/operational-readiness/
     },
     "total_review_burden_ratio": 0.030003,
     "corpus_readiness": "useful_for_audio_judge_v0",
+    "audio_judge_readiness": "cleanup_shadow_candidate",
+    "audio_judge_cv_accuracy": 0.901961,
     "review_queue_items": 40
   },
   "review_queue": [
