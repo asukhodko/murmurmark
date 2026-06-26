@@ -324,6 +324,149 @@ Patch suggestions are dry-run only:
 }
 ```
 
+Audit-informed cleanup consumes the group overlap audit and writes a separate profile. It never edits
+`current`, `shadow_v2`, raw audio, Echo Guard outputs, or ASR raw segments.
+
+```text
+derived/transcript-simple/whisper-cpp/resolved/
+  clean_dialogue.audit_cleanup_v1.json
+  transcript.audit_cleanup_v1.md
+  transcript.simple.audit_cleanup_v1.json
+  quality_report.audit_cleanup_v1.json
+  overlaps.audit_cleanup_v1.json
+
+derived/transcript-simple/whisper-cpp/audit-cleanup/
+  audit_cleanup_report.audit_cleanup_v1.json
+  audit_cleanup_patches.audit_cleanup_v1.jsonl
+  audit_cleanup_rejected_patches.audit_cleanup_v1.jsonl
+  audit_cleanup_diff.audit_cleanup_v1.json
+```
+
+`audit_cleanup_report.audit_cleanup_v1.json` v1:
+
+```json
+{
+  "schema": "murmurmark.audit_cleanup_report/v1",
+  "input_profile": "shadow_v2",
+  "output_profile": "audit_cleanup_v1",
+  "mode": "conservative",
+  "summary": {
+    "input_utterances": 497,
+    "output_utterances": 486,
+    "applied_patches": 11,
+    "rejected_patches": 82,
+    "dropped_me_duplicate_seconds": 40.82,
+    "dropped_me_noise_seconds": 0,
+    "protected_intentional_repeat_count": 3,
+    "audit_harmful_seconds_before": 44.28,
+    "audit_harmful_seconds_after": 3.46
+  },
+  "gates": {
+    "passed": true,
+    "hard_failures": [],
+    "warnings": []
+  }
+}
+```
+
+Patch JSONL records are explicit and auditable:
+
+```json
+{
+  "schema": "murmurmark.audit_cleanup_patch/v1",
+  "patch_id": "patch_000011",
+  "action": "drop_me_duplicate",
+  "status": "applied",
+  "reason": "conservative_gate_passed",
+  "input_profile": "shadow_v2",
+  "output_profile": "audit_cleanup_v1",
+  "target": {
+    "utterance_id": "utt_mic_0420",
+    "role": "Me",
+    "start": 1801.12,
+    "end": 1805.44,
+    "text": "Да, проверим deploy."
+  },
+  "matched_remote": {
+    "utterance_id": "utt_remote_0417",
+    "start": 1800.92,
+    "end": 1805.68,
+    "text": "Да, проверим deploy."
+  },
+  "audit_overlap_ids": ["ov_000087"],
+  "evidence": {
+    "label": "probable_duplicate",
+    "classification_confidence": 0.93,
+    "scores": {},
+    "text": {},
+    "speaker_state": {},
+    "interval": {}
+  },
+  "safety_checks": {
+    "unique_me_content_token_count": 0,
+    "notes_impact": false,
+    "has_protected_action_decision_risk_marker": false,
+    "intentional_repeat_candidate": false,
+    "safe_to_drop_entire_utterance": true
+  }
+}
+```
+
+Conservative cleanup rules:
+
+- `probable_duplicate`: may drop only a whole `Me` utterance when confidence, text duplicate
+  evidence, weak local evidence, utterance coverage, unique-content, notes-impact and protected-marker
+  checks all pass.
+- `probable_asr_noise`: may drop only a short whole `Me` utterance with weak local support, few
+  content tokens, no domain terms, and no action/decision/risk marker.
+- `probable_double_talk`, `probable_timing_overlap`, `probable_remote_leak`, and
+  `needs_human_review`: kept in v1 and written as `quality.audit_cleanup` flags on the utterance.
+- Audio-only remote leak is mark-only unless it also passes duplicate/noise gates.
+
+`quality_report.audit_cleanup_v1.json` keeps the simple quality schema and adds audit-informed
+metrics both at top level and under `audit_cleanup`:
+
+```json
+{
+  "schema": "murmurmark.simple_transcript_quality/v1",
+  "utterances": 486,
+  "remote_duplicate_in_me_seconds": 125.83,
+  "meeting_duration_sec": 3102.4,
+  "audit_cleanup": {
+    "profile": "audit_cleanup_v1",
+    "applied_patches": 11,
+    "rejected_patches": 82,
+    "dropped_me_duplicate_seconds": 40.82,
+    "dropped_me_noise_seconds": 0,
+    "audit_harmful_seconds_before": 44.28,
+    "audit_harmful_seconds_after": 3.46,
+    "audit_benign_seconds": 210.15,
+    "audit_review_seconds": 98.7,
+    "protected_intentional_repeat_count": 3
+  }
+}
+```
+
+When synthesis is run with `--transcript-profile audit_cleanup_v1`, it writes the normal extractive
+outputs plus profile aliases:
+
+```text
+quality_verdict.audit_cleanup_v1.json
+quality_verdict.audit_cleanup_v1.md
+notes.audit_cleanup_v1.md
+evidence_notes.audit_cleanup_v1.json
+```
+
+`--transcript-profile auto` may choose `audit_cleanup_v1` only when the cleanup report exists and
+`gates.passed == true`; otherwise it falls back to the previous `shadow_v2` selection logic.
+For `audit_cleanup_v1`, verdict thresholds prefer audit-informed group metrics:
+
+- `good`: harmful overlap ratio is at most 1% and review ratio is at most 3%.
+- `usable_with_review`: harmful ratio is at most 3% and review ratio is at most 12%.
+- `risky`: above those limits or local-only recall is below 0.80.
+- `failed`: unrepaired long mic crossings, golden phrase failures, local-only recall below 0.70, or
+  severe harmful/review ratios.
+
 Current role model:
 
 - `Me` from the local microphone track;

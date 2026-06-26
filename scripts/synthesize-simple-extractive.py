@@ -325,7 +325,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("session", type=Path)
     parser.add_argument(
         "--transcript-profile",
-        choices=("auto", "current", "shadow_v2"),
+        choices=("auto", "current", "shadow_v2", "audit_cleanup_v1"),
         default="auto",
         help="Transcript artifact profile to synthesize from.",
     )
@@ -398,12 +398,13 @@ def role(row: dict[str, Any]) -> str:
 
 
 def source_profile_paths(resolved_dir: Path, requested_profile: str) -> dict[str, Path]:
-    suffix = ".shadow_v2" if requested_profile == "shadow_v2" else ""
+    suffix = "" if requested_profile == "current" else f".{requested_profile}"
     return {
         "clean_dialogue": resolved_dir / f"clean_dialogue{suffix}.json",
         "quality_report": resolved_dir / f"quality_report{suffix}.json",
         "overlaps": resolved_dir / f"overlaps{suffix}.json",
         "repair_comparison": resolved_dir / "repair_comparison.json",
+        "audit_cleanup_report": resolved_dir.parent / "audit-cleanup" / f"audit_cleanup_report{suffix}.json",
     }
 
 
@@ -416,10 +417,38 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         comparison, error = read_json(comparison_path)
         if error is None and isinstance(comparison, dict):
             repair_comparison = comparison
+        cleanup_paths = source_profile_paths(resolved_dir, "audit_cleanup_v1")
+        cleanup_report, cleanup_error = read_json(cleanup_paths["audit_cleanup_report"])
+        if (
+            cleanup_paths["clean_dialogue"].exists()
+            and cleanup_error is None
+            and isinstance(cleanup_report, dict)
+            and isinstance(cleanup_report.get("gates"), dict)
+            and cleanup_report["gates"].get("passed") is True
+        ):
+            return "audit_cleanup_v1", cleanup_paths, repair_comparison, risk_items
         shadow_paths = source_profile_paths(resolved_dir, "shadow_v2")
         if shadow_paths["clean_dialogue"].exists() and repair_comparison and repair_comparison.get("passed") is True:
             return "shadow_v2", shadow_paths, repair_comparison, risk_items
         return "current", source_profile_paths(resolved_dir, "current"), repair_comparison, risk_items
+
+    if requested_profile == "audit_cleanup_v1":
+        paths = source_profile_paths(resolved_dir, "audit_cleanup_v1")
+        comparison, error = read_json(paths["repair_comparison"])
+        if error is None and isinstance(comparison, dict):
+            repair_comparison = comparison
+        cleanup_report, cleanup_error = read_json(paths["audit_cleanup_report"])
+        if cleanup_error is not None:
+            risk_items.append({"type": "missing_audit_cleanup_report", "severity": "high", "reason": cleanup_error})
+        elif not isinstance(cleanup_report, dict) or not isinstance(cleanup_report.get("gates"), dict) or cleanup_report["gates"].get("passed") is not True:
+            risk_items.append(
+                {
+                    "type": "audit_cleanup_gates_failed",
+                    "severity": "high",
+                    "reason": "audit cleanup profile was requested but cleanup gates did not pass",
+                }
+            )
+        return "audit_cleanup_v1", paths, repair_comparison, risk_items
 
     if requested_profile == "shadow_v2":
         paths = source_profile_paths(resolved_dir, "shadow_v2")
@@ -485,7 +514,11 @@ def metrics_from_quality(quality: dict[str, Any], utterances: list[dict[str, Any
     utterance_count = int(quality.get("utterances", len(utterances)))
     cross_gt2 = int(quality.get("cross_role_overlap_gt2_count", sum(1 for row in overlap_rows if float(row.get("duration_sec", 0) or 0) > 2.0)))
     remote_duplicate_seconds = float(quality.get("remote_duplicate_in_me_seconds", 0.0) or 0.0)
-    return {
+    audit_cleanup = quality.get("audit_cleanup") if isinstance(quality.get("audit_cleanup"), dict) else {}
+    meeting_duration = float(quality.get("meeting_duration_sec", 0.0) or 0.0)
+    if meeting_duration <= 0.0 and utterances:
+        meeting_duration = max(float(row.get("end", 0.0) or 0.0) for row in utterances if isinstance(row, dict))
+    metrics = {
         "utterances": utterance_count,
         "needs_review_count": needs_review,
         "needs_review_ratio": round(needs_review / utterance_count, 6) if utterance_count > 0 else None,
@@ -494,7 +527,23 @@ def metrics_from_quality(quality: dict[str, Any], utterances: list[dict[str, Any
         "remote_duplicate_in_me_seconds": round(remote_duplicate_seconds, 3),
         "unrepaired_long_mic_crossings_count": int(quality.get("unrepaired_long_mic_crossings_count", 0) or 0),
         "golden_phrase_fail_count": int(quality.get("golden_phrase_fail_count", 0) or 0),
+        "local_only_island_recall": float(quality.get("local_only_island_recall", 1.0) or 0.0),
+        "meeting_duration_sec": round(meeting_duration, 3),
     }
+    for key in (
+        "audit_harmful_seconds_before",
+        "audit_harmful_seconds_after",
+        "audit_benign_seconds",
+        "audit_review_seconds",
+        "dropped_me_duplicate_seconds",
+        "dropped_me_noise_seconds",
+        "protected_intentional_repeat_count",
+    ):
+        if key in audit_cleanup:
+            metrics[key] = audit_cleanup[key]
+        elif key in quality:
+            metrics[key] = quality[key]
+    return metrics
 
 
 def verdict_from_metrics(
@@ -531,6 +580,46 @@ def verdict_from_metrics(
         )
     if int(metrics["golden_phrase_fail_count"]) > 0:
         items.append({"type": "golden_phrase_failures", "severity": "high", "reason": "configured golden phrase checks failed"})
+
+    if selected_profile == "audit_cleanup_v1" and "audit_harmful_seconds_after" in metrics:
+        duration = max(1.0, float(metrics.get("meeting_duration_sec", 0.0) or 0.0))
+        harmful = float(metrics.get("audit_harmful_seconds_after", 0.0) or 0.0)
+        review = float(metrics.get("audit_review_seconds", 0.0) or 0.0)
+        local_recall = float(metrics.get("local_only_island_recall", 1.0) or 1.0)
+        harmful_ratio = harmful / duration
+        review_ratio = review / duration
+        if local_recall < 0.70 or harmful > max(180.0, duration * 0.06) or review > max(900.0, duration * 0.35):
+            items.append(
+                {
+                    "type": "audit_cleanup_group_quality",
+                    "severity": "fatal",
+                    "reason": "audit-informed overlap metrics failed hard thresholds",
+                }
+            )
+            return "failed", items
+        if local_recall < 0.80 or harmful > max(90.0, duration * 0.03) or review > max(300.0, duration * 0.12):
+            items.append(
+                {
+                    "type": "audit_cleanup_group_quality",
+                    "severity": "high",
+                    "reason": "audit-informed harmful/review overlap metrics exceed usable thresholds",
+                }
+            )
+            return "risky", items
+        if harmful > max(30.0, duration * 0.01) or review > max(60.0, duration * 0.03):
+            items.append(
+                {
+                    "type": "audit_cleanup_group_review",
+                    "severity": "medium",
+                    "reason": "audit-informed overlap metrics require review",
+                }
+            )
+            return "usable_with_review", items
+        if int(metrics["needs_review_count"]) > 0 or int(metrics["cross_role_overlap_gt2_count"]) > 0:
+            items.append({"type": "remaining_review_regions", "severity": "medium", "reason": "some transcript regions still need review"})
+            return "usable_with_review", items
+        return "good", items
+
     if needs_ratio is not None and float(needs_ratio) > 0.12:
         items.append(
             {
@@ -1510,6 +1599,8 @@ def main() -> int:
     }
     if repair_comparison is not None or paths["repair_comparison"].exists():
         inputs["repair_comparison"] = rel(paths["repair_comparison"], session)
+    if paths.get("audit_cleanup_report") and paths["audit_cleanup_report"].exists():
+        inputs["audit_cleanup_report"] = rel(paths["audit_cleanup_report"], session)
 
     verdict_payload = {
         "schema": "murmurmark.quality_verdict/v1",
@@ -1539,6 +1630,18 @@ def main() -> int:
     write_json(out_dir / "evidence_notes.json", evidence)
     write_notes_markdown(out_dir / "notes.md", verdict_payload, evidence)
     write_jsonl(out_dir / "review_items.jsonl", review_items)
+    profile_aliases: dict[str, str] = {}
+    if selected_profile == "audit_cleanup_v1":
+        profile_aliases = {
+            "quality_verdict": "quality_verdict.audit_cleanup_v1.json",
+            "quality_verdict_markdown": "quality_verdict.audit_cleanup_v1.md",
+            "notes_markdown": "notes.audit_cleanup_v1.md",
+            "evidence_notes": "evidence_notes.audit_cleanup_v1.json",
+        }
+        write_json(out_dir / profile_aliases["quality_verdict"], verdict_payload)
+        write_quality_markdown(out_dir / profile_aliases["quality_verdict_markdown"], verdict_payload)
+        write_json(out_dir / profile_aliases["evidence_notes"], evidence)
+        write_notes_markdown(out_dir / profile_aliases["notes_markdown"], verdict_payload, evidence)
     write_json(
         out_dir / "synthesis_manifest.json",
         {
@@ -1557,6 +1660,7 @@ def main() -> int:
                 "notes_markdown": "notes.md",
                 "evidence_notes": "evidence_notes.json",
                 "review_items": "review_items.jsonl",
+                **{f"profile_{key}": value for key, value in profile_aliases.items()},
             },
         },
     )

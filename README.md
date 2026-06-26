@@ -44,12 +44,7 @@ scripts/transcribe-simple-whispercpp.py "$SESSION" \
 jq '{passed, no_regression_gates, control_texts}' \
   "$SESSION/derived/transcript-simple/whisper-cpp/resolved/repair_comparison.json"
 
-scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile auto
-
-jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
-  "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json"
-
-scripts/audit-group-overlaps.py "$SESSION" \
+.venv/bin/python scripts/audit-group-overlaps.py "$SESSION" \
   --profile shadow_v2 \
   --min-overlap-sec 0.5 \
   --review-threshold-sec 2.0 \
@@ -59,10 +54,21 @@ scripts/audit-group-overlaps.py "$SESSION" \
 jq '{classified, harmful, benign_or_expected, review, recommended_verdict_adjustment}' \
   "$SESSION/derived/audit/group-overlaps/group_overlap_summary.json"
 
+.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+  --input-profile shadow_v2 \
+  --output-profile audit_cleanup_v1 \
+  --mode conservative
+
+.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile audit_cleanup_v1
+
+jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
+  "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json"
+
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.shadow_v2.md"
-less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
-less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 less "$SESSION/derived/audit/group-overlaps/group_overlap_review.md"
+less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v1.md"
+less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.md"
+less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md"
 ```
 
 ### End-to-End From a New Recording
@@ -108,12 +114,7 @@ scripts/transcribe-simple-whispercpp.py "$SESSION" \
 jq '{passed, no_regression_gates, control_texts}' \
   "$SESSION/derived/transcript-simple/whisper-cpp/resolved/repair_comparison.json"
 
-scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile auto
-
-jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
-  "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json"
-
-scripts/audit-group-overlaps.py "$SESSION" \
+.venv/bin/python scripts/audit-group-overlaps.py "$SESSION" \
   --profile shadow_v2 \
   --min-overlap-sec 0.5 \
   --review-threshold-sec 2.0 \
@@ -123,15 +124,27 @@ scripts/audit-group-overlaps.py "$SESSION" \
 jq '{classified, harmful, benign_or_expected, review, recommended_verdict_adjustment}' \
   "$SESSION/derived/audit/group-overlaps/group_overlap_summary.json"
 
+.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+  --input-profile shadow_v2 \
+  --output-profile audit_cleanup_v1 \
+  --mode conservative
+
+.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile audit_cleanup_v1
+
+jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
+  "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json"
+
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.shadow_v2.md"
-less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
-less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 less "$SESSION/derived/audit/group-overlaps/group_overlap_review.md"
+less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v1.md"
+less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.md"
+less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md"
 ```
 
 `transcript.md` is the stable baseline output. `transcript.shadow_v2.md` is the current best candidate when `repair_comparison.json` passes. The shadow profile does not replace the baseline transcript; it writes separate audit and comparison artifacts so changes can be checked before promotion.
-`scripts/synthesize-simple-extractive.py` then selects the best allowed dialogue JSON, writes a quality verdict, and creates local extractive notes where every item cites utterance IDs.
 `scripts/audit-group-overlaps.py` is an optional diagnostic step for group calls. It classifies `Me`/`Colleagues` timeline overlaps into harmful, benign and review buckets, writes listenable clips, and does not change transcripts or quality verdicts.
+`scripts/apply-audit-cleanup.py` is an optional conservative cleanup over the group audit. It writes a separate `audit_cleanup_v1` profile and only drops whole `Me` utterances when the audit strongly supports remote duplicate or ASR-noise classification. It never edits `shadow_v2`.
+`scripts/synthesize-simple-extractive.py` then selects or accepts a dialogue profile, writes a quality verdict, and creates local extractive notes where every item cites utterance IDs.
 
 ### Command Reference
 
@@ -155,6 +168,8 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --repair-profile shadow_v2 --skip-export --skip-transcribe
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile auto
 .venv/bin/python scripts/audit-group-overlaps.py ./sessions/<session> --profile shadow_v2 --write-clips
+.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile shadow_v2 --output-profile audit_cleanup_v1
+.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v1
 .venv/bin/python scripts/echo-guard-delay-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-fir-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-local-subtract-lab.py ./sessions/<session> --start-sec <seconds>
@@ -195,6 +210,8 @@ The first synthesis bridge is `scripts/synthesize-simple-extractive.py`. It read
 
 The group overlap audit is `scripts/audit-group-overlaps.py`. It reads transcript overlaps, Echo Guard `speaker_state.jsonl`, and local audio derivatives, then writes `derived/audit/group-overlaps/`. It separates likely harmful `Me` duplicates or remote leakage from expected group-call double-talk and timing overlap. This is audit-only: no transcript, Echo Guard output, synthesis output, or `quality_verdict` is modified.
 
+Audit-informed cleanup is `scripts/apply-audit-cleanup.py`. It reads `clean_dialogue.shadow_v2.json` and the group overlap audit, then writes only `audit_cleanup_v1` artifacts under `derived/transcript-simple/whisper-cpp/resolved/` and `derived/transcript-simple/whisper-cpp/audit-cleanup/`. In conservative mode it may drop whole `Me` utterances only when they are high-confidence remote duplicates or short unsupported ASR noise. Double-talk, timing overlap, remote leak, and human-review regions are kept and marked.
+
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 
 `--repair-profile current` is the default and keeps the current transcript path stable. `--repair-profile shadow_v2` writes a separate candidate transcript, quality report, timeline-repair report, comparison gates, and audit examples without replacing `transcript.md`. Shadow repair seeds every short local-island micro-ASR choice with the current result, then tests wider windows, alternate mic sources, leading silence, narrow boundary-prefix fixes such as `адно` -> `Ладно`, and a guarded start-of-call repair for short opening turns such as `Привет`, `Меня слышно?`, `Привет, да`. `repair_comparison.json` must pass no-regression gates before any shadow behavior is promoted.
@@ -220,7 +237,7 @@ MurmurMark Evidence
   -> utterance citations + corrections + review flags
 
 MurmurMark Synthesis
-  -> extractive notes, potential decisions/actions/risks, docs patches later
+  -> quality verdict, extractive notes, potential decisions/actions/risks, docs patches later
 
 MurmurMark Policy
   -> privacy modes, retention, redaction, provider approvals

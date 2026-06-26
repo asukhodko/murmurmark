@@ -31,9 +31,10 @@ derived/synthesis-simple/extractive/
   review_items.jsonl
 ```
 
-The `auto` profile uses `clean_dialogue.shadow_v2.json` only when `repair_comparison.json` passes.
-Otherwise it falls back to the baseline `clean_dialogue.json`. The script reads only derived
-transcript JSON and never reads raw audio.
+The `auto` profile uses `clean_dialogue.audit_cleanup_v1.json` when the audit cleanup report exists
+and its gates pass. Otherwise it uses `clean_dialogue.shadow_v2.json` only when
+`repair_comparison.json` passes, then falls back to the baseline `clean_dialogue.json`. The script
+reads only derived transcript and audit JSON; it never reads raw audio.
 
 The output is intentionally extractive:
 
@@ -47,6 +48,7 @@ Current data flow:
 
 ```text
 clean_dialogue.json
+  -> optional audit_cleanup_v1 profile
   -> topic_blocks
   -> candidate_items
   -> scored_items

@@ -462,6 +462,74 @@ EOF
   jq -s 'any(.[]; .classification.label == "probable_asr_noise")' "$group_audit" >/dev/null
   jq -s 'any(.[]; .classification.label == "probable_timing_overlap")' "$group_audit" >/dev/null
   compgen -G "$group_session/derived/audit/group-overlaps/clips/*.wav" >/dev/null
+
+  tmp_json="$workdir/group-dialogue-extra.json"
+  jq '.utterances += [
+    {id: "utt_repeat_remote", start: 14.5, end: 15.4, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Надо идти к IAM.", quality: {needs_review: false}},
+    {id: "utt_repeat_me", start: 15.2, end: 17.6, source_track: "mic", speaker_label: "Me", role: "Me", text: "Да, надо идти к IAM, но сначала проверим права доступа.", quality: {needs_review: false}},
+    {id: "utt_action_remote", start: 18.0, end: 19.0, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Надо проверить deploy.", quality: {needs_review: false}},
+    {id: "utt_action_me", start: 18.1, end: 19.2, source_track: "mic", speaker_label: "Me", role: "Me", text: "Надо проверить deploy и права.", quality: {needs_review: false}}
+  ]' "$group_resolved/clean_dialogue.shadow_v2.json" >"$tmp_json"
+  mv "$tmp_json" "$group_resolved/clean_dialogue.shadow_v2.json"
+
+  mkdir -p "$group_session/derived/synthesis-simple/extractive"
+  jq -n '{
+    schema: "murmurmark.evidence_notes/v2",
+    selected: {
+      actions: [{evidence_utterance_ids: ["utt_action_me"]}],
+      decisions: [],
+      risks: [],
+      open_questions: [],
+      outline_blocks: []
+    }
+  }' >"$group_session/derived/synthesis-simple/extractive/evidence_notes.json"
+
+  tmp_json="$workdir/group-audit-confidence.jsonl"
+  jq -c 'if .utterances.me.id == "utt_noise_me" then
+    .classification.confidence = 0.9
+    | .classification.top_score = 90
+    | .scores.probable_asr_noise = 90
+    else . end' "$group_audit" >"$tmp_json"
+  mv "$tmp_json" "$group_audit"
+
+  cat >>"$group_audit" <<'EOF'
+{"schema":"murmurmark.group_overlap_audit/v1","id":"ov_manual_duplicate","session_id":"group-fixture","profile":"shadow_v2","interval":{"start":0.5,"end":2.5,"duration_sec":2.0,"severity":"high","source_overlap_index":8},"utterances":{"me":{"id":"utt_dup_me","start":0.5,"end":2.5,"text":"Надо проверить deploy.","needs_review":false},"remote":{"id":"utt_dup_remote","start":0.3,"end":2.7,"text":"Надо проверить deploy.","needs_review":false}},"features":{"speaker_state":{"local_only_ratio":0.0,"remote_only_ratio":1.0,"double_talk_ratio":0.0,"remote_active_ratio":1.0,"local_score_mean":0.0,"local_score_max":0.0},"audio":{"rms_db":{"mic_role_masked":-80},"energy_ratios_db":{},"xcorr":{"raw":{"max_corr":0.9}}},"text":{"similarity_max":1.0,"token_containment":1.0,"domain_term_overlap":1.0,"is_short_backchannel":false,"me_token_count":3,"remote_token_count":3},"interval":{"me_coverage":1.0,"time_overlap_ratio":1.0,"near_boundary":true}},"scores":{"local_evidence":0,"remote_evidence":100,"audio_leak":100,"text_duplicate":100,"probable_duplicate":100,"probable_remote_leak":0,"probable_double_talk":0,"probable_timing_overlap":0,"probable_asr_noise":0},"classification":{"label":"probable_duplicate","confidence":0.96,"top_score":100,"second_score":0,"action_suggestion":"drop_me_duplicate"}}
+{"schema":"murmurmark.group_overlap_audit/v1","id":"ov_manual_double_talk","session_id":"group-fixture","profile":"shadow_v2","interval":{"start":5.2,"end":7.0,"duration_sec":1.8,"severity":"medium","source_overlap_index":9},"utterances":{"me":{"id":"utt_dt_me","start":5.0,"end":7.0,"text":"Я возьму логи.","needs_review":false},"remote":{"id":"utt_dt_remote","start":5.2,"end":7.2,"text":"Давайте обсудим релиз.","needs_review":false}},"features":{"speaker_state":{"local_only_ratio":0.0,"remote_only_ratio":0.0,"double_talk_ratio":1.0,"remote_active_ratio":1.0,"local_score_mean":0.7,"local_score_max":0.7},"audio":{"rms_db":{"mic_role_masked":-18},"energy_ratios_db":{},"xcorr":{"raw":{"max_corr":0.2}}},"text":{"similarity_max":0.1,"token_containment":0.0,"domain_term_overlap":0.0,"is_short_backchannel":false,"me_token_count":3,"remote_token_count":3},"interval":{"me_coverage":0.9,"time_overlap_ratio":0.9,"near_boundary":false}},"scores":{"local_evidence":70,"remote_evidence":30,"audio_leak":10,"text_duplicate":0,"probable_duplicate":0,"probable_remote_leak":0,"probable_double_talk":90,"probable_timing_overlap":0,"probable_asr_noise":0},"classification":{"label":"probable_double_talk","confidence":0.9,"top_score":90,"second_score":0,"action_suggestion":"mark_double_talk"}}
+{"schema":"murmurmark.group_overlap_audit/v1","id":"ov_manual_noise","session_id":"group-fixture","profile":"shadow_v2","interval":{"start":10.0,"end":10.8,"duration_sec":0.8,"severity":"medium","source_overlap_index":7},"utterances":{"me":{"id":"utt_noise_me","start":10.0,"end":10.8,"text":"Окей.","needs_review":false},"remote":{"id":"utt_noise_remote","start":10.0,"end":11.0,"text":"Проверим после созвона.","needs_review":false}},"features":{"speaker_state":{"local_only_ratio":0.0,"remote_only_ratio":1.0,"double_talk_ratio":0.0,"remote_active_ratio":1.0,"local_score_mean":0.0,"local_score_max":0.0},"audio":{"rms_db":{"mic_role_masked":-80},"energy_ratios_db":{},"xcorr":{"raw":{"max_corr":0.1}}},"text":{"similarity_max":0.1,"token_containment":0.0,"domain_term_overlap":0.0,"is_short_backchannel":true,"me_token_count":1,"remote_token_count":3},"interval":{"me_coverage":1.0,"time_overlap_ratio":1.0,"near_boundary":true}},"scores":{"local_evidence":0,"remote_evidence":70,"audio_leak":10,"text_duplicate":0,"probable_duplicate":0,"probable_remote_leak":0,"probable_double_talk":0,"probable_timing_overlap":0,"probable_asr_noise":90},"classification":{"label":"probable_asr_noise","confidence":0.9,"top_score":90,"second_score":0,"action_suggestion":"drop_me_noise"}}
+{"schema":"murmurmark.group_overlap_audit/v1","id":"ov_manual_repeat","session_id":"group-fixture","profile":"shadow_v2","interval":{"start":15.2,"end":15.4,"duration_sec":0.2,"severity":"low","source_overlap_index":5},"utterances":{"me":{"id":"utt_repeat_me","start":15.2,"end":17.6,"text":"Да, надо идти к IAM, но сначала проверим права доступа.","needs_review":false},"remote":{"id":"utt_repeat_remote","start":14.5,"end":15.4,"text":"Надо идти к IAM.","needs_review":false}},"features":{"speaker_state":{"local_only_ratio":0.3,"remote_only_ratio":0.2,"double_talk_ratio":0.5,"remote_active_ratio":0.7,"local_score_mean":0.65,"local_score_max":0.8},"audio":{"rms_db":{"mic_role_masked":-20},"energy_ratios_db":{},"xcorr":{"raw":{"max_corr":0.2}}},"text":{"similarity_max":0.9,"token_containment":1.0,"domain_term_overlap":1.0,"is_short_backchannel":false,"me_token_count":10,"remote_token_count":4},"interval":{"me_coverage":0.95,"time_overlap_ratio":0.95,"near_boundary":true}},"scores":{"local_evidence":70,"remote_evidence":65,"audio_leak":20,"text_duplicate":95,"probable_duplicate":100,"probable_remote_leak":0,"probable_double_talk":0,"probable_timing_overlap":0,"probable_asr_noise":0},"classification":{"label":"probable_duplicate","confidence":0.99,"top_score":100,"second_score":0,"action_suggestion":"drop_me_duplicate"}}
+{"schema":"murmurmark.group_overlap_audit/v1","id":"ov_manual_action","session_id":"group-fixture","profile":"shadow_v2","interval":{"start":18.1,"end":19.0,"duration_sec":0.9,"severity":"medium","source_overlap_index":6},"utterances":{"me":{"id":"utt_action_me","start":18.1,"end":19.2,"text":"Надо проверить deploy и права.","needs_review":false},"remote":{"id":"utt_action_remote","start":18.0,"end":19.0,"text":"Надо проверить deploy.","needs_review":false}},"features":{"speaker_state":{"local_only_ratio":0.0,"remote_only_ratio":0.9,"double_talk_ratio":0.0,"remote_active_ratio":0.9,"local_score_mean":0.0,"local_score_max":0.0},"audio":{"rms_db":{"mic_role_masked":-70},"energy_ratios_db":{},"xcorr":{"raw":{"max_corr":0.5}}},"text":{"similarity_max":0.95,"token_containment":1.0,"domain_term_overlap":1.0,"is_short_backchannel":false,"me_token_count":5,"remote_token_count":3},"interval":{"me_coverage":0.95,"time_overlap_ratio":0.95,"near_boundary":true}},"scores":{"local_evidence":0,"remote_evidence":80,"audio_leak":80,"text_duplicate":95,"probable_duplicate":100,"probable_remote_leak":0,"probable_double_talk":0,"probable_timing_overlap":0,"probable_asr_noise":0},"classification":{"label":"probable_duplicate","confidence":0.99,"top_score":100,"second_score":0,"action_suggestion":"drop_me_duplicate"}}
+EOF
+
+  shadow_dialogue_sha_before="$(shasum -a 256 "$group_resolved/clean_dialogue.shadow_v2.json" | awk '{print $1}')"
+  "$repo_root/scripts/apply-audit-cleanup.py" "$group_session" \
+    --input-profile shadow_v2 \
+    --output-profile audit_cleanup_v1 \
+    --mode conservative >/dev/null
+  shadow_dialogue_sha_after="$(shasum -a 256 "$group_resolved/clean_dialogue.shadow_v2.json" | awk '{print $1}')"
+  [[ "$shadow_dialogue_sha_before" == "$shadow_dialogue_sha_after" ]]
+
+  cleanup_dialogue="$group_resolved/clean_dialogue.audit_cleanup_v1.json"
+  cleanup_quality="$group_resolved/quality_report.audit_cleanup_v1.json"
+  cleanup_report="$group_session/derived/transcript-simple/whisper-cpp/audit-cleanup/audit_cleanup_report.audit_cleanup_v1.json"
+  cleanup_patches="$group_session/derived/transcript-simple/whisper-cpp/audit-cleanup/audit_cleanup_patches.audit_cleanup_v1.jsonl"
+  cleanup_rejected="$group_session/derived/transcript-simple/whisper-cpp/audit-cleanup/audit_cleanup_rejected_patches.audit_cleanup_v1.jsonl"
+  [[ -s "$cleanup_dialogue" ]]
+  [[ -s "$cleanup_quality" ]]
+  [[ -s "$cleanup_report" ]]
+  [[ -s "$cleanup_patches" ]]
+  [[ -s "$cleanup_rejected" ]]
+  jq -e '.gates.passed == true' "$cleanup_report" >/dev/null
+  jq -e 'all(.utterances[]; .id != "utt_dup_me" and .id != "utt_noise_me")' "$cleanup_dialogue" >/dev/null
+  jq -e 'any(.utterances[]; .id == "utt_dt_me" and (.quality.audit_cleanup.labels | index("probable_double_talk")))' "$cleanup_dialogue" >/dev/null
+  jq -e 'any(.utterances[]; .id == "utt_timing_me" and (.quality.audit_cleanup.labels | index("probable_timing_overlap")))' "$cleanup_dialogue" >/dev/null
+  jq -e 'any(.utterances[]; .id == "utt_repeat_me")' "$cleanup_dialogue" >/dev/null
+  jq -e 'any(.utterances[]; .id == "utt_action_me")' "$cleanup_dialogue" >/dev/null
+  jq -s 'all(.[]; (.reason | length) > 0 and (.evidence | type) == "object")' "$cleanup_patches" >/dev/null
+  jq -s 'any(.[]; .target.utterance_id == "utt_repeat_me" and .safety_checks.intentional_repeat_candidate == true)' "$cleanup_rejected" >/dev/null
+  jq -s 'any(.[]; .target.utterance_id == "utt_action_me" and .safety_checks.has_protected_action_decision_risk_marker == true)' "$cleanup_rejected" >/dev/null
+
+  "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" --transcript-profile audit_cleanup_v1 >/dev/null
+  jq -e '.selected_transcript_profile == "audit_cleanup_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json" >/dev/null
 fi
 
 empty_session="$workdir/empty-session"

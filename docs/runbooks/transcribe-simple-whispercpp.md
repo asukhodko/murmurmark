@@ -115,7 +115,7 @@ and `repair_comparison.json`; `transcript.md` remains the baseline. The core raw
 JSON files are also written with the same suffix so the shadow result is auditable without mixing it
 with the baseline artifacts.
 
-Build the local extractive synthesis package:
+Build the local extractive synthesis package directly from the best safe transcript profile:
 
 ```bash
 scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile auto
@@ -135,7 +135,7 @@ group audit after transcription and synthesis when you need to separate harmful 
 expected group-call overlap:
 
 ```bash
-scripts/audit-group-overlaps.py "$SESSION" \
+.venv/bin/python scripts/audit-group-overlaps.py "$SESSION" \
   --profile shadow_v2 \
   --min-overlap-sec 0.5 \
   --review-threshold-sec 2.0 \
@@ -163,6 +163,42 @@ Interpretation:
 When `--write-clips` is used, the script creates mono and stereo clips under
 `derived/audit/group-overlaps/clips/`. `group_overlap_review.md` includes ready `afplay` commands
 for the highest-priority examples.
+
+## Audit-Informed Cleanup
+
+When the group audit shows high-confidence duplicate `Me` utterances or short unsupported mic ASR
+noise, apply the conservative cleanup profile:
+
+```bash
+.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+  --input-profile shadow_v2 \
+  --output-profile audit_cleanup_v1 \
+  --mode conservative
+
+jq '.summary, .gates' \
+  "$SESSION/derived/transcript-simple/whisper-cpp/audit-cleanup/audit_cleanup_report.audit_cleanup_v1.json"
+```
+
+This stage writes a new transcript profile and leaves `current` and `shadow_v2` untouched. It only
+drops whole `Me` utterances when the group-overlap audit and local safety checks agree. It keeps
+double-talk, timing overlap, remote leak, and human-review cases, but adds audit flags to affected
+utterances.
+
+Then build synthesis from the cleanup profile:
+
+```bash
+.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile audit_cleanup_v1
+
+jq '{verdict, selected_transcript_profile, metrics, risk_items: (.risk_items | length)}' \
+  "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json"
+
+less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v1.md"
+less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.md"
+less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md"
+```
+
+`--transcript-profile auto` also chooses `audit_cleanup_v1` when the cleanup report exists and its
+gates pass. Use the explicit profile when comparing runs.
 
 ## Outputs
 
@@ -212,9 +248,19 @@ derived/
         transcript.md
         corrections.jsonl
         transcribe_simple_report.json
+        clean_dialogue.audit_cleanup_v1.json
+        quality_report.audit_cleanup_v1.json
+        overlaps.audit_cleanup_v1.json
+        transcript.simple.audit_cleanup_v1.json
+        transcript.audit_cleanup_v1.md
       timeline-audit/
         current/
         shadow_v2/
+      audit-cleanup/
+        audit_cleanup_report.audit_cleanup_v1.json
+        audit_cleanup_patches.audit_cleanup_v1.jsonl
+        audit_cleanup_rejected_patches.audit_cleanup_v1.jsonl
+        audit_cleanup_diff.audit_cleanup_v1.json
 
   synthesis-simple/
     extractive/
@@ -224,6 +270,10 @@ derived/
       notes.md
       evidence_notes.json
       review_items.jsonl
+      quality_verdict.audit_cleanup_v1.json
+      quality_verdict.audit_cleanup_v1.md
+      notes.audit_cleanup_v1.md
+      evidence_notes.audit_cleanup_v1.json
 
   audit/
     group-overlaps/
