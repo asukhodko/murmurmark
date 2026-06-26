@@ -718,6 +718,14 @@ EOF
     --synthesize >/dev/null
   [[ -s "$batch_report" ]]
   jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.session_count == 1 and .summary.failed_sessions == 0' "$batch_report" >/dev/null
+  pipeline_plan="$workdir/pipeline_run_report.json"
+  "$repo_root/scripts/run-session-pipeline.py" "$group_session" \
+    --plan-only \
+    --skip-build \
+    --reuse-asr-cache \
+    --report "$pipeline_plan" >/dev/null
+  [[ -s "$pipeline_plan" ]]
+  jq -e '.schema == "murmurmark.session_pipeline_run/v1" and .status == "planned" and (.steps | length) >= 10' "$pipeline_plan" >/dev/null
 
   corpus_dir="$workdir/regression-corpus"
   "$repo_root/scripts/build-regression-corpus.py" "$group_session" \

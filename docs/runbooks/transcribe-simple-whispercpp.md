@@ -1,8 +1,9 @@
 # Simple whisper.cpp Transcription Runbook
 
-Use this temporary path while the full MurmurMark transcription pipeline is not implemented.
+Use this path for local post-recording transcription, cleanup, quality verdicts and extractive notes.
 
-The goal is a useful local transcript and a first extractive notes package, not final diarization or polished generative notes.
+The goal is a useful local transcript and an evidence-backed notes package, not final diarization or
+polished generative notes.
 
 ## Preconditions
 
@@ -23,7 +24,28 @@ the list of possible causes when comparing results.
 
 ## Recommended Flow
 
-Start from a completed session. If the call was recorded through speakers, run Echo Guard first:
+Start from a completed session and run the current full post-recording pipeline:
+
+```bash
+SESSION=./sessions/<session>
+MODEL="$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
+
+.venv/bin/python scripts/run-session-pipeline.py "$SESSION" \
+  --model "$MODEL" \
+  --language ru
+
+jq '{status, outputs}' "$SESSION/derived/pipeline-run/pipeline_run_report.json"
+```
+
+The runner calls Echo Guard, export/transcription, shadow timeline repair, group-overlap audit,
+audio-review audit, `audit_cleanup_v1..v4`, and extractive synthesis. Use `--force-asr` when you
+need to regenerate Whisper output, and `--reuse-asr-cache` when you only want to rebuild repair,
+cleanup, synthesis and reports from cached ASR JSON.
+
+## Low-Level Transcription
+
+Use the lower-level commands below when debugging a specific layer. If the call was recorded through
+speakers, run Echo Guard first:
 
 ```bash
 SESSION=./sessions/<session>

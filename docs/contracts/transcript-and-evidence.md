@@ -509,6 +509,43 @@ When an operational readiness report exists, `train-audio-judge-v0.py` may also 
 
 These rows are shadow evidence. They do not modify a transcript by themselves.
 
+The post-recording runner writes a per-session execution manifest:
+
+```text
+derived/pipeline-run/
+  pipeline_run_report.json
+```
+
+`pipeline_run_report.json` uses `murmurmark.session_pipeline_run/v1`:
+
+```json
+{
+  "schema": "murmurmark.session_pipeline_run/v1",
+  "session": "sessions/2026-06-26_15-32-02",
+  "status": "passed",
+  "inputs": {
+    "model": "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin",
+    "language": "ru",
+    "prompt_file": "examples/domain-packs/backend-platform/whisper-prompt.ru.txt"
+  },
+  "outputs": {
+    "quality_verdict": "derived/synthesis-simple/extractive/quality_verdict.json",
+    "selected_transcript_profile": "audit_cleanup_v4",
+    "verdict": "usable_with_review"
+  },
+  "steps": [
+    {
+      "name": "transcribe_current",
+      "status": "passed",
+      "command": ["python", "scripts/transcribe-simple-whispercpp.py", "sessions/..."]
+    }
+  ]
+}
+```
+
+The report is a reproducibility/audit artifact. It does not replace the per-stage reports; it only
+records which existing stage commands were run and what final synthesis profile was selected.
+
 Operational readiness combines the private session quality report and regression corpus evaluation:
 
 ```text

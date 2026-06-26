@@ -17,73 +17,16 @@ cd murmurmark
 
 SESSION=./sessions/<session>
 MODEL="$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
-ASR_PROMPT="examples/domain-packs/backend-platform/whisper-prompt.ru.txt"
-ASR_PROMPT_ARGS=()
-[[ -f "$ASR_PROMPT" ]] && ASR_PROMPT_ARGS=(--prompt-file "$ASR_PROMPT")
 
 git pull
-swift build
-.build/debug/murmurmark inspect "$SESSION"
-.build/debug/murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir
-.build/debug/murmurmark inspect "$SESSION" --echo
-
-scripts/transcribe-simple-whispercpp.py "$SESSION" \
+.venv/bin/python scripts/run-session-pipeline.py "$SESSION" \
   --model "$MODEL" \
-  "${ASR_PROMPT_ARGS[@]}" \
   --language ru \
-  --force
+  --force-asr
 
-scripts/transcribe-simple-whispercpp.py "$SESSION" \
-  --model "$MODEL" \
-  "${ASR_PROMPT_ARGS[@]}" \
-  --language ru \
-  --skip-export \
-  --skip-transcribe \
-  --repair-profile shadow_v2
-
-jq '{passed, no_regression_gates, control_texts}' \
-  "$SESSION/derived/transcript-simple/whisper-cpp/resolved/repair_comparison.json"
-
-.venv/bin/python scripts/audit-group-overlaps.py "$SESSION" \
-  --profile shadow_v2 \
-  --min-overlap-sec 0.5 \
-  --review-threshold-sec 2.0 \
-  --write-clips \
-  --max-clips 80
-
-jq '{classified, harmful, benign_or_expected, review, recommended_verdict_adjustment}' \
-  "$SESSION/derived/audit/group-overlaps/group_overlap_summary.json"
-
-.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
-  --input-profile shadow_v2 \
-  --output-profile audit_cleanup_v1 \
-  --mode conservative
-
-.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile audit_cleanup_v1
-
-jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
-  "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json"
-
-.venv/bin/python scripts/build-audio-review-pack.py "$SESSION" \
-  --profile audit_cleanup_v1 \
-  --write-clips \
-  --max-items 160
-
-.venv/bin/python scripts/audit-audio-review-pack.py "$SESSION"
-
-.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
-  --input-profile audit_cleanup_v1 \
-  --output-profile audit_cleanup_v2 \
-  --mode conservative
-
-.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile audit_cleanup_v2
-
-less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.shadow_v2.md"
-less "$SESSION/derived/audit/group-overlaps/group_overlap_review.md"
-less "$SESSION/derived/audit/audio-review-pack/audio_review_report.md"
-less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v2.md"
-less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v2.md"
-less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v2.md"
+jq '{status, outputs}' "$SESSION/derived/pipeline-run/pipeline_run_report.json"
+less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
+less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 ```
 
 For a regression set or several real meetings, build a private quality summary under the ignored
@@ -148,9 +91,6 @@ The `record` command keeps running until `Ctrl-C`; the following commands contin
 cd murmurmark
 
 MODEL="$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
-ASR_PROMPT="examples/domain-packs/backend-platform/whisper-prompt.ru.txt"
-ASR_PROMPT_ARGS=()
-[[ -f "$ASR_PROMPT" ]] && ASR_PROMPT_ARGS=(--prompt-file "$ASR_PROMPT")
 
 git pull
 swift build
@@ -161,69 +101,19 @@ swift build
 SESSION="$(ls -td sessions/* | head -1)"
 echo "SESSION=\"$SESSION\""
 
-.build/debug/murmurmark inspect "$SESSION"
-.build/debug/murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir
-.build/debug/murmurmark inspect "$SESSION" --echo
-
-scripts/transcribe-simple-whispercpp.py "$SESSION" \
+.venv/bin/python scripts/run-session-pipeline.py "$SESSION" \
   --model "$MODEL" \
-  "${ASR_PROMPT_ARGS[@]}" \
-  --language ru \
-  --force
+  --language ru
 
-scripts/transcribe-simple-whispercpp.py "$SESSION" \
-  --model "$MODEL" \
-  "${ASR_PROMPT_ARGS[@]}" \
-  --language ru \
-  --skip-export \
-  --skip-transcribe \
-  --repair-profile shadow_v2
-
-jq '{passed, no_regression_gates, control_texts}' \
-  "$SESSION/derived/transcript-simple/whisper-cpp/resolved/repair_comparison.json"
-
-.venv/bin/python scripts/audit-group-overlaps.py "$SESSION" \
-  --profile shadow_v2 \
-  --min-overlap-sec 0.5 \
-  --review-threshold-sec 2.0 \
-  --write-clips \
-  --max-clips 80
-
-jq '{classified, harmful, benign_or_expected, review, recommended_verdict_adjustment}' \
-  "$SESSION/derived/audit/group-overlaps/group_overlap_summary.json"
-
-.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
-  --input-profile shadow_v2 \
-  --output-profile audit_cleanup_v1 \
-  --mode conservative
-
-.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile audit_cleanup_v1
-
-jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
-  "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json"
-
-.venv/bin/python scripts/build-audio-review-pack.py "$SESSION" \
-  --profile audit_cleanup_v1 \
-  --write-clips \
-  --max-items 160
-
-.venv/bin/python scripts/audit-audio-review-pack.py "$SESSION"
-
-.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
-  --input-profile audit_cleanup_v1 \
-  --output-profile audit_cleanup_v2 \
-  --mode conservative
-
-.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile audit_cleanup_v2
-
-less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.shadow_v2.md"
-less "$SESSION/derived/audit/group-overlaps/group_overlap_review.md"
-less "$SESSION/derived/audit/audio-review-pack/audio_review_report.md"
-less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v2.md"
-less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v2.md"
-less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v2.md"
+jq '{status, outputs}' "$SESSION/derived/pipeline-run/pipeline_run_report.json"
+less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
+less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 ```
 
+`scripts/run-session-pipeline.py` is the normal post-recording runner. It calls Echo Guard,
+whisper.cpp transcription, shadow timeline repair, group-overlap audit, audio-review audit,
+`audit_cleanup_v1..v4`, and extractive synthesis, then writes
+`derived/pipeline-run/pipeline_run_report.json`.
 `transcript.md` is the stable baseline output. `transcript.shadow_v2.md` is the current best candidate when `repair_comparison.json` passes. The shadow profile does not replace the baseline transcript; it writes separate audit and comparison artifacts so changes can be checked before promotion.
 `scripts/audit-group-overlaps.py` is an optional diagnostic step for group calls. It classifies `Me`/`Colleagues` timeline overlaps into harmful, benign and review buckets, writes listenable clips, and does not change transcripts or quality verdicts.
 `scripts/apply-audit-cleanup.py` is an optional conservative cleanup over the group audit. It writes a separate `audit_cleanup_v1` profile and only drops whole `Me` utterances when the audit strongly supports remote duplicate or ASR-noise classification. It never edits `shadow_v2`.
@@ -249,6 +139,7 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session>
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --prompt-file examples/domain-packs/backend-platform/whisper-prompt.ru.txt
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --repair-profile shadow_v2 --skip-export --skip-transcribe
+.venv/bin/python scripts/run-session-pipeline.py ./sessions/<session> --model "$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile auto
 .venv/bin/python scripts/audit-group-overlaps.py ./sessions/<session> --profile shadow_v2 --write-clips
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile shadow_v2 --output-profile audit_cleanup_v1
