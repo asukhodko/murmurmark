@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-GENERATOR_VERSION = "0.2.0"
+GENERATOR_VERSION = "0.3.0"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
 
 DEFAULT_RULES: dict[str, Any] = {
@@ -20,6 +20,7 @@ DEFAULT_RULES: dict[str, Any] = {
         "max_risks": 5,
         "max_open_questions": 5,
         "representative_utterances_per_block": 4,
+        "topic_keywords_per_block": 4,
     },
     "thresholds": {
         "selected_action": 75,
@@ -50,17 +51,46 @@ STOP_WORDS = {
     "бы",
     "в",
     "во",
+    "вообще",
     "вот",
+    "все",
+    "всё",
+    "всех",
+    "всего",
     "да",
+    "давайте",
+    "давай",
     "для",
+    "его",
+    "ее",
+    "её",
     "же",
+    "здесь",
     "и",
+    "если",
     "или",
     "как",
     "как-то",
+    "какая",
+    "какие",
+    "какие-то",
+    "какой",
+    "какой-то",
     "когда",
+    "который",
+    "которая",
+    "которые",
+    "которых",
+    "меня",
     "мы",
     "на",
+    "надо",
+    "нам",
+    "нас",
+    "наш",
+    "наша",
+    "наше",
+    "наши",
     "ну",
     "о",
     "об",
@@ -68,9 +98,13 @@ STOP_WORDS = {
     "она",
     "они",
     "по",
+    "пока",
+    "потому",
+    "почему",
     "просто",
     "с",
     "со",
+    "сейчас",
     "там",
     "типа",
     "то",
@@ -81,9 +115,25 @@ STOP_WORDS = {
     "этот",
     "эта",
     "эти",
+    "этим",
+    "этими",
+    "этих",
+    "этой",
+    "этом",
+    "этого",
+    "этому",
+    "эту",
+    "такой",
+    "такое",
+    "такую",
+    "такая",
+    "такие",
     "что",
     "чтобы",
     "я",
+    "еще",
+    "ещё",
+    "есть",
 }
 FILLER_WORDS = {
     "ага",
@@ -116,10 +166,15 @@ DOMAIN_TERMS = {
     "mr",
     "openapi",
     "pipeline",
+    "retro",
+    "sre",
     "slo",
     "админка",
     "агент",
     "агенты",
+    "алерт",
+    "алерты",
+    "алертами",
     "бэкенд",
     "дашборд",
     "деплой",
@@ -135,6 +190,7 @@ DOMAIN_TERMS = {
     "пайплайн",
     "пайплайна",
     "прод",
+    "ретро",
     "сервис",
     "сервисы",
     "стейдж",
@@ -208,6 +264,147 @@ ABSTRACT_ACTION_PATTERNS = (
     "в целом надо",
     "по-хорошему надо",
 )
+MEETING_FACILITATION_PATTERNS = (
+    "давайте перейдем",
+    "давайте перейдём",
+    "давайте переходить",
+    "давайте проголосуем",
+    "давайте голосовать",
+    "давайте обсудим",
+    "давай обсудим",
+    "давайте дальше",
+    "давайте побежали",
+    "давайте продолжим",
+    "давайте посмотрим",
+    "давайте воспользуемся",
+    "перейдем к следующ",
+    "перейдём к следующ",
+    "проголосовать",
+    "голосовать",
+    "зелеными кружочками",
+    "зелёными кружочками",
+    "давайте сфокусируемся",
+    "давайте сфокусимся",
+    "давай сфокусируемся",
+    "давай сфокусимся",
+    "следующий блок",
+    "следующему блоку",
+    "следующая тема",
+    "ссылку на всех",
+    "ссылка на всех",
+    "по таймингу",
+    "тайминг",
+    "мемы ставим",
+    "мемки",
+    "анонимно",
+    "ткнуть в кнопочку",
+    "поднимите руку",
+)
+TOPIC_GENERIC_WORDS = STOP_WORDS | {
+    "блок",
+    "блока",
+    "блоку",
+    "будет",
+    "больше",
+    "будто",
+    "была",
+    "были",
+    "было",
+    "быть",
+    "говорить",
+    "говорю",
+    "говорят",
+    "берут",
+    "будем",
+    "будешь",
+    "будут",
+    "делаем",
+    "делать",
+    "думаю",
+    "даже",
+    "кажется",
+    "какие-то",
+    "какой-то",
+    "кстати",
+    "короче",
+    "знаю",
+    "знаем",
+    "может",
+    "можно",
+    "наверное",
+    "например",
+    "момент",
+    "моменты",
+    "возможно",
+    "всеми",
+    "большую",
+    "взять",
+    "него",
+    "ощущение",
+    "особо",
+    "очень",
+    "понятно",
+    "помню",
+    "получается",
+    "после",
+    "посмотреть",
+    "потом",
+    "поэтому",
+    "привет",
+    "про",
+    "раз",
+    "раза",
+    "разом",
+    "разные",
+    "тобой",
+    "сильно",
+    "сказать",
+    "сделать",
+    "слышал",
+    "смотрим",
+    "стало",
+    "стоит",
+    "ставим",
+    "спасибо",
+    "тебе",
+    "тему",
+    "тогда",
+    "тоже",
+    "хотим",
+    "хочется",
+    "чего",
+    "хорошо",
+    "лучше",
+    "что-то",
+    "какую-то",
+    "конечно",
+}
+TOPIC_LABEL_TRANSLATIONS = {
+    "alert": "alerts",
+    "alerts": "alerts",
+    "алерт": "alerts",
+    "алерты": "alerts",
+    "алертами": "alerts",
+    "дашборд": "dashboards",
+    "дашборды": "dashboards",
+    "дежурство": "дежурство",
+    "дежурства": "дежурство",
+    "дьюти": "дежурство",
+    "задача": "задачи",
+    "задачи": "задачи",
+    "задачу": "задачи",
+    "команда": "команда",
+    "команды": "команда",
+    "метрика": "метрики",
+    "метрики": "метрики",
+    "обращаемость": "обращаемость",
+    "планирование": "планирование",
+    "ретро": "ретро",
+    "спринт": "спринт",
+    "спринта": "спринт",
+    "срок": "сроки",
+    "сроки": "сроки",
+}
 
 DECISION_EXPLICIT_MARKERS = (
     "решили",
@@ -253,7 +450,7 @@ PROPOSAL_MARKERS = (
     "идем по",
     "сделаем так",
 )
-AGREEMENT_MARKERS = ("окей", "согласен", "договорились", "так и сделаем", "давай", "подходит")
+AGREEMENT_MARKERS = ("окей", "согласен", "согласна", "договорились", "так и сделаем", "подходит", "хорошо")
 
 RISK_STRONG_MARKERS = (
     "риск",
@@ -657,6 +854,14 @@ def phrase_matches(text: str, phrases: tuple[str, ...]) -> list[str]:
     return [phrase for phrase in phrases if phrase in lowered]
 
 
+def facilitation_matches(text: Any) -> list[str]:
+    return phrase_matches(str(text or ""), MEETING_FACILITATION_PATTERNS)
+
+
+def is_meeting_facilitation(text: Any) -> bool:
+    return bool(facilitation_matches(text))
+
+
 def domain_terms(text: Any) -> list[str]:
     text_tokens = tokens(text)
     found = sorted({token for token in text_tokens if token in DOMAIN_TERMS})
@@ -704,6 +909,62 @@ def detect_action_object(text_tokens: list[str], verbs: list[str]) -> tuple[bool
     return False, []
 
 
+def substantive_terms(text: Any) -> list[str]:
+    terms: list[str] = []
+    for token in content_tokens(text):
+        translated = TOPIC_LABEL_TRANSLATIONS.get(token, token)
+        if translated in TOPIC_GENERIC_WORDS or translated in FILLER_WORDS:
+            continue
+        if len(translated) < 4 and translated not in DOMAIN_TERMS:
+            continue
+        terms.append(translated)
+    terms.extend(domain_terms(text))
+    return sorted(set(terms))
+
+
+def topic_keywords_for_block(block: list[tuple[int, dict[str, Any]]]) -> list[str]:
+    weights: dict[str, int] = {}
+
+    def add(term: str, weight: int) -> None:
+        if not term or term in TOPIC_GENERIC_WORDS or term in FILLER_WORDS:
+            return
+        if len(term) < 4 and term not in DOMAIN_TERMS:
+            return
+        weights[term] = weights.get(term, 0) + weight
+
+    for _, row in block:
+        text = str(row.get("text") or "")
+        for term in domain_terms(text):
+            add(TOPIC_LABEL_TRANSLATIONS.get(term, term), 8)
+        for term in substantive_terms(text):
+            add(TOPIC_LABEL_TRANSLATIONS.get(term, term), 2)
+        if phrase_matches(text, DECISION_EXPLICIT_MARKERS):
+            add("решения", 3)
+        concrete_verbs, _ = find_action_verbs(tokens(text))
+        if phrase_matches(text, ACTION_STRONG_MARKERS) or concrete_verbs:
+            add("действия", 2)
+        if phrase_matches(text, RISK_STRONG_MARKERS):
+            add("риски", 3)
+        if phrase_matches(text, OPEN_QUESTION_STRONG_PATTERNS):
+            add("вопросы", 3)
+
+    ranked = sorted(weights.items(), key=lambda pair: (-pair[1], pair[0]))
+    return [term for term, score in ranked if score >= 3][: int(DEFAULT_RULES["selection"]["topic_keywords_per_block"])]
+
+
+def has_substantive_decision_content(*texts: Any) -> bool:
+    combined = " ".join(str(text or "") for text in texts)
+    if domain_terms(combined):
+        return True
+    if len(substantive_terms(combined)) >= 2:
+        return True
+    if phrase_matches(combined, DECISION_EXPLICIT_MARKERS):
+        return True
+    if any(token in tokens(combined) for token in ("оставляем", "берем", "берём", "переносим", "откладываем", "выбираем", "раз", "неделю", "недели", "месяц")):
+        return True
+    return False
+
+
 def candidate_base(
     candidate_id: str,
     candidate_type: str,
@@ -738,7 +999,7 @@ def candidate_base(
         "reasons": [],
         "penalties": [],
         "needs_review": True,
-        "source": {"transcript_profile": selected_profile, "extractor": "deterministic_rules_v2"},
+        "source": {"transcript_profile": selected_profile, "extractor": "deterministic_rules_v3"},
     }
 
 
@@ -748,7 +1009,7 @@ def finalize_candidate(candidate: dict[str, Any], thresholds: dict[str, int]) ->
     candidate_type = candidate["type"]
 
     if candidate_type == "action":
-        if candidate.get("subtype") in {"process_discussion", "weak_action"}:
+        if candidate.get("subtype") in {"meeting_facilitation", "process_discussion", "weak_action"}:
             candidate["status"] = "hidden"
         elif score >= thresholds["selected_action"]:
             candidate["subtype"] = "action_item"
@@ -762,7 +1023,9 @@ def finalize_candidate(candidate: dict[str, Any], thresholds: dict[str, int]) ->
         else:
             candidate["status"] = "hidden"
     elif candidate_type == "decision":
-        if score >= thresholds["selected_decision"]:
+        if candidate.get("subtype") == "meeting_facilitation":
+            candidate["status"] = "hidden"
+        elif score >= thresholds["selected_decision"]:
             candidate["subtype"] = "decision"
             candidate["status"] = "selected"
         elif score >= thresholds["candidate_decision"]:
@@ -813,15 +1076,23 @@ def score_action(row: dict[str, Any], index: int, utterances: list[dict[str, Any
     strong_markers = phrase_matches(text, ACTION_STRONG_MARKERS)
     medium_markers = phrase_matches(text, ACTION_MEDIUM_MARKERS)
     soft_markers = phrase_matches(text, ACTION_SOFT_MARKERS)
+    facilitation = facilitation_matches(text)
     concrete_verbs, weak_verbs = find_action_verbs(text_tokens)
-    marker_present = bool(strong_markers or medium_markers or soft_markers or concrete_verbs or weak_verbs)
+    marker_present = bool(strong_markers or medium_markers or soft_markers or facilitation or concrete_verbs or weak_verbs)
     if not marker_present:
         return None
 
     candidate = candidate_base(f"cand_action_{candidate_number:04d}", "action", row, index, utterances, selected_profile, topic_block_id)
     features = candidate["features"]
-    features["markers"] = strong_markers + medium_markers + soft_markers
+    features["markers"] = strong_markers + medium_markers + soft_markers + facilitation
     features["verbs"] = concrete_verbs + weak_verbs
+
+    if facilitation:
+        candidate["subtype"] = "meeting_facilitation"
+        candidate["score"] = 25
+        candidate["reasons"].append(f"meeting facilitation pattern: {facilitation[0]}")
+        candidate["penalties"].append("hidden from notes markdown")
+        return finalize_candidate(candidate, DEFAULT_RULES["thresholds"])
 
     score = 0
     if strong_markers:
@@ -853,6 +1124,10 @@ def score_action(row: dict[str, Any], index: int, utterances: list[dict[str, Any
     else:
         score -= 20
         candidate["penalties"].append("no concrete object")
+        if not strong_markers:
+            score -= 25
+            candidate["subtype"] = "process_discussion"
+            candidate["penalties"].append("hidden because action lacks concrete object and owner commitment")
 
     if features["domain_terms"]:
         score += min(10, len(features["domain_terms"]) * 5)
@@ -874,6 +1149,10 @@ def score_action(row: dict[str, Any], index: int, utterances: list[dict[str, Any
         score -= 25
         candidate["subtype"] = "process_discussion"
         candidate["penalties"].append(f"abstract/process pattern: {abstract_hits[0]}")
+    if medium_markers and not strong_markers and not concrete_verbs and not has_object:
+        score -= 18
+        candidate["subtype"] = "process_discussion"
+        candidate["penalties"].append("proposal marker without concrete action object")
     if len(content_tokens(text)) < 3:
         score -= 10
         candidate["penalties"].append("too short")
@@ -901,6 +1180,14 @@ def score_explicit_decision(row: dict[str, Any], index: int, utterances: list[di
 
     candidate = candidate_base(f"cand_decision_{candidate_number:04d}", "decision", row, index, utterances, selected_profile, topic_block_id)
     candidate["features"]["markers"] = explicit + dialogue
+    facilitation = facilitation_matches(text)
+    if facilitation and not explicit:
+        candidate["subtype"] = "meeting_facilitation"
+        candidate["features"]["markers"].extend(facilitation)
+        candidate["score"] = 25
+        candidate["reasons"].append(f"meeting facilitation pattern: {facilitation[0]}")
+        candidate["penalties"].append("hidden from notes markdown")
+        return finalize_candidate(candidate, DEFAULT_RULES["thresholds"])
     score = 0
     if explicit:
         score += 50
@@ -917,6 +1204,10 @@ def score_explicit_decision(row: dict[str, Any], index: int, utterances: list[di
     if any(verb in tokens(text) for verb in ("оставляем", "берем", "берём", "переносим", "откладываем", "выбираем")):
         score += 15
         candidate["reasons"].append("clear choice verb")
+    if dialogue and not explicit and not has_substantive_decision_content(text):
+        score -= 35
+        candidate["subtype"] = "weak_decision"
+        candidate["penalties"].append("dialogue marker without substantive decision content")
     if not row.get("quality", {}).get("needs_review"):
         score += 8
     else:
@@ -944,6 +1235,10 @@ def score_proposal_decision(
     proposal = phrase_matches(text, PROPOSAL_MARKERS)
     if not proposal:
         return None
+    if "?" in text:
+        return None
+    if is_meeting_facilitation(text) or not has_substantive_decision_content(text):
+        return None
     start = float(row.get("start", 0.0) or 0.0)
     for neighbor_index in range(index + 1, min(index + 4, len(utterances))):
         neighbor = utterances[neighbor_index]
@@ -952,6 +1247,8 @@ def score_proposal_decision(
             break
         agreement = phrase_matches(str(neighbor.get("text") or ""), AGREEMENT_MARKERS)
         if not agreement:
+            continue
+        if not has_substantive_decision_content(text, neighbor.get("text")):
             continue
         candidate = candidate_base(
             f"cand_decision_{candidate_number:04d}",
@@ -1145,6 +1442,10 @@ def salience_score(row: dict[str, Any]) -> tuple[int, list[str], list[str]]:
     if is_filler_utterance(text):
         score -= 35
         penalties.append("filler")
+    facilitation = facilitation_matches(text)
+    if facilitation:
+        score -= 30
+        penalties.append(f"meeting_facilitation:{facilitation[0]}")
     if len(words) < 3:
         score -= 15
         penalties.append("too_short")
@@ -1239,16 +1540,7 @@ def build_topic_blocks(utterances: list[dict[str, Any]]) -> list[dict[str, Any]]
                     break
         representatives.sort(key=lambda item: float(item[2].get("start", 0.0) or 0.0))
 
-        block_terms: list[str] = []
-        for _, row in block:
-            block_terms.extend(domain_terms(row.get("text")))
-        if len(block_terms) < 3:
-            content_counts: dict[str, int] = {}
-            for _, row in block:
-                for token in content_tokens(row.get("text")):
-                    content_counts[token] = content_counts.get(token, 0) + 1
-            block_terms.extend([token for token, _ in sorted(content_counts.items(), key=lambda pair: (-pair[1], pair[0]))[:4]])
-        keywords = sorted(set(block_terms))[:5]
+        keywords = topic_keywords_for_block(block)
 
         salience_scores = {
             utterance_id(item, item_index): score
@@ -1340,7 +1632,7 @@ def build_evidence_notes(
             "name": "synthesize-simple-extractive",
             "version": GENERATOR_VERSION,
             "mode": "deterministic",
-            "config": "default_v2",
+            "config": "default_v3",
         },
         "topic_blocks": topic_blocks,
         "candidates": candidates,
@@ -1478,7 +1770,7 @@ def write_notes_markdown(path: Path, verdict: dict[str, Any], evidence: dict[str
     for block in selected.get("outline_blocks", []):
         start = format_time(block.get("start"))
         end = format_time(block.get("end"))
-        keywords = ", ".join(block.get("keywords", [])[:4]) or "no keywords"
+        keywords = ", ".join(block.get("keywords", [])[:4]) or "discussion block"
         ids = block.get("utterance_ids", [])
         id_span = f"`{ids[0]}`..`{ids[-1]}`" if ids else "`unknown`"
         lines.append(f"### {start}-{end}: {keywords}")
@@ -1512,7 +1804,7 @@ def empty_evidence(session: Path, requested_profile: str, risk_items: list[dict[
         "schema": "murmurmark.evidence_notes/v2",
         "session_id": session.name,
         "source": {"transcript_profile": requested_profile},
-        "generator": {"name": "synthesize-simple-extractive", "version": GENERATOR_VERSION, "mode": "deterministic", "config": "default_v2"},
+        "generator": {"name": "synthesize-simple-extractive", "version": GENERATOR_VERSION, "mode": "deterministic", "config": "default_v3"},
         "topic_blocks": [],
         "candidates": [],
         "selected": {"outline_blocks": [], "decisions": [], "actions": [], "risks": [], "open_questions": []},
@@ -1559,7 +1851,7 @@ def write_failed_outputs(out_dir: Path, session: Path, requested_profile: str, r
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "session": str(session),
             "mode": "extractive",
-            "generator": {"name": "synthesize-simple-extractive", "version": GENERATOR_VERSION, "config": "default_v2"},
+            "generator": {"name": "synthesize-simple-extractive", "version": GENERATOR_VERSION, "config": "default_v3"},
             "rules": DEFAULT_RULES,
             "outputs": {
                 "quality_verdict": "quality_verdict.json",
@@ -1649,7 +1941,7 @@ def main() -> int:
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "session": str(session),
             "mode": "extractive",
-            "generator": {"name": "synthesize-simple-extractive", "version": GENERATOR_VERSION, "config": "default_v2"},
+            "generator": {"name": "synthesize-simple-extractive", "version": GENERATOR_VERSION, "config": "default_v3"},
             "selected_transcript_profile": selected_profile,
             "requested_transcript_profile": args.transcript_profile,
             "inputs": inputs,

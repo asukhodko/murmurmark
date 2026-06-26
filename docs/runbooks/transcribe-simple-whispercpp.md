@@ -401,12 +401,13 @@ does not call an LLM, and does not read raw audio.
 Profile selection:
 
 ```text
-auto      -> shadow_v2 if repair_comparison.json passes, otherwise current
+auto      -> audit_cleanup_v1 if cleanup gates pass, then shadow_v2 if repair_comparison.json passes, otherwise current
 current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
+audit_cleanup_v1 -> audit-cleaned dialogue, marked risky if cleanup gates failed
 ```
 
-The script writes a quality verdict and a conservative `notes.md`. The v2 notes path is extractive
+The script writes a quality verdict and a conservative `notes.md`. The v3 notes path is extractive
 and scored:
 
 ```text
@@ -418,8 +419,8 @@ clean_dialogue.json
 ```
 
 Markdown shows only selected top items. `evidence_notes.json` keeps all candidates, including weak
-actions and process discussions hidden from Markdown. The script does not invent owners, deadlines
-or decisions.
+actions, process discussions and meeting facilitation hidden from Markdown. The script does not
+invent owners, deadlines or decisions.
 
 Useful checks:
 
@@ -429,6 +430,8 @@ jq '{schema, metrics, selected_counts: .metrics.selected_counts}' \
 
 jq -r '.candidates[] | select(.type == "action") | [.subtype, .status, .score, .display_text] | @tsv' \
   "$SESSION/derived/synthesis-simple/extractive/evidence_notes.json" | head
+
+less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md"
 ```
 
 ## Reusing Existing Raw Whisper Output

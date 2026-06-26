@@ -298,12 +298,16 @@ jq -n '{
     {id: "utt_simple_010", start: 110.0, end: 118.0, role: "Colleagues", speaker_label: "Colleagues", source_track: "remote", text: "Есть риск, что мы не успеем выкатить deploy до пятницы.", quality: {needs_review: false}},
     {id: "utt_simple_011", start: 126.0, end: 132.0, role: "Me", speaker_label: "Me", source_track: "mic", text: "Проблема троттлингов скоро будет решена.", quality: {needs_review: false}},
     {id: "utt_simple_012", start: 144.0, end: 151.0, role: "Colleagues", speaker_label: "Colleagues", source_track: "remote", text: "Надо понять, кто будет делать миграцию.", quality: {needs_review: false}},
-    {id: "utt_simple_013", start: 160.0, end: 164.0, role: "Me", speaker_label: "Me", source_track: "mic", text: "Вопрос по Kubernetes квотам.", quality: {needs_review: false}}
+    {id: "utt_simple_013", start: 160.0, end: 164.0, role: "Me", speaker_label: "Me", source_track: "mic", text: "Вопрос по Kubernetes квотам.", quality: {needs_review: false}},
+    {id: "utt_simple_014", start: 176.0, end: 179.0, role: "Me", speaker_label: "Me", source_track: "mic", text: "Давайте перейдем к следующему блоку.", quality: {needs_review: false}},
+    {id: "utt_simple_015", start: 184.0, end: 187.0, role: "Me", speaker_label: "Me", source_track: "mic", text: "Давайте проголосуем.", quality: {needs_review: false}},
+    {id: "utt_simple_016", start: 196.0, end: 202.0, role: "Me", speaker_label: "Me", source_track: "mic", text: "Нужно добавить задачу на алерты.", quality: {needs_review: false}},
+    {id: "utt_simple_017", start: 212.0, end: 218.0, role: "Colleagues", speaker_label: "Colleagues", source_track: "remote", text: "Решили оставить ретро раз в две недели.", quality: {needs_review: false}}
   ]
 }' >"$simple_resolved/clean_dialogue.json"
 jq -n '{
   schema: "murmurmark.simple_transcript_quality/v1",
-  utterances: 13,
+  utterances: 17,
   needs_review_count: 0,
   cross_role_overlap_gt2_count: 1,
   cross_role_overlap_gt2_seconds: 3,
@@ -347,10 +351,20 @@ jq -e 'all(.selected.risks[]; (.display_text | contains("Проблема тро
 jq -e 'any(.selected.open_questions[]; .display_text | contains("кто будет делать миграцию"))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
 jq -e 'all(.selected.open_questions[]; (.display_text | contains("Вопрос по Kubernetes") | not))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
 jq -e 'all(.selected.outline_blocks[].representatives[]?; .text != "Вот." and .text != "Хм.")' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
+jq -e 'any(.candidates[]; .subtype == "meeting_facilitation" and .status == "hidden" and (.display_text | contains("Давайте перейдем")))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
+jq -e 'any(.candidates[]; .subtype == "meeting_facilitation" and .status == "hidden" and (.display_text | contains("Давайте проголосуем")))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
+jq -e 'all(.selected.decisions[]; (((.display_text | contains("Давайте перейдем")) or (.display_text | contains("Давайте проголосуем"))) | not))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
+jq -e 'all(.selected.actions[]; (((.display_text | contains("Давайте перейдем")) or (.display_text | contains("Давайте проголосуем"))) | not))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
+jq -e 'any(.selected.actions[]; .display_text | contains("Нужно добавить задачу на алерты"))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
+jq -e 'any(.selected.decisions[]; .display_text | contains("Решили оставить ретро"))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
+jq -e 'all(.selected.outline_blocks[].representatives[]?; (((.text | contains("Давайте перейдем")) or (.text | contains("Давайте проголосуем"))) | not))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
 grep -q 'utt_simple_003' "$session/derived/synthesis-simple/extractive/notes.md"
 grep -q 'utt_simple_006' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -q 'Надо подумать' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -q 'Вопрос по Kubernetes' "$session/derived/synthesis-simple/extractive/notes.md"
+! grep -q 'Давайте перейдем к следующему блоку' "$session/derived/synthesis-simple/extractive/notes.md"
+! grep -q 'Давайте проголосуем' "$session/derived/synthesis-simple/extractive/notes.md"
+! grep -Eq '^### .*: (если|есть|меня|потому)(, (если|есть|меня|потому))*$' "$session/derived/synthesis-simple/extractive/notes.md"
 
 audit_python=""
 if [[ -x "$repo_root/.venv/bin/python" ]] && "$repo_root/.venv/bin/python" - <<'PY' >/dev/null 2>&1

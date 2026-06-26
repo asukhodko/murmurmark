@@ -95,7 +95,9 @@ derived/synthesis-simple/extractive/
 `notes.md` is not a free summary. It contains selected extractive outline items and top
 decisions/actions/risks/open questions with utterance IDs. Every item that looks like a decision or
 action remains `needs_review` until a human confirms it. The complete scored candidate list lives in
-`evidence_notes.json`.
+`evidence_notes.json`. Since generator `0.3.0`, meeting facilitation and process phrases such as
+`let's move to the next block` or `let's vote` are kept as hidden candidates in JSON, but are not
+shown as decisions or actions in Markdown.
 
 `evidence_notes.json` v2:
 
@@ -109,9 +111,9 @@ action remains `needs_review` until a human confirms it. The complete scored can
   },
   "generator": {
     "name": "synthesize-simple-extractive",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "mode": "deterministic",
-    "config": "default_v2"
+    "config": "default_v3"
   },
   "topic_blocks": [],
   "candidates": [],

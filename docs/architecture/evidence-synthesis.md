@@ -41,6 +41,7 @@ The output is intentionally extractive:
 - topic blocks choose salient utterances instead of the first utterances in a time window;
 - potential decisions, actions, risks and open questions are scored rule candidates with evidence IDs;
 - Markdown shows only selected top items, while `evidence_notes.json` keeps the full candidate audit;
+- meeting facilitation and process phrases are hidden from Markdown but kept as candidates for audit;
 - every selected or candidate item is marked `needs_review`;
 - unsupported claims are not generated.
 
