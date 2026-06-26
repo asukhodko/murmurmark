@@ -762,6 +762,22 @@ utterance only when:
 If v3 applies no patches, automatic synthesis and session-quality reporting should keep using v2 or
 v1 instead of promoting an empty v3 profile.
 
+`audit_cleanup_v4` has the same artifact shape with the `audit_cleanup_v4` suffix. It usually uses
+`audit_cleanup_v3` as input and reads the same audio-judge queue. v4 adds one expanded gate for
+strong duplicate evidence:
+
+- audio judge label is `drop_error`;
+- judge confidence is at least `0.93`;
+- audio-review label is `remote_duplicate`;
+- duplicate score is at least `82`;
+- text similarity and token containment are at least `0.75`;
+- local support is at most `55`;
+- `Me` overlap coverage is at least `0.60`;
+- unique `Me` content tokens are at most `2`;
+- no protected action/decision/risk marker, intentional repeat or notes impact is present.
+
+All non-duplicate audio-review classes remain mark-only in v4.
+
 Patch suggestions are dry-run only:
 
 ```json

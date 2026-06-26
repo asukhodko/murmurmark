@@ -259,6 +259,8 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v2
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v2 --output-profile audit_cleanup_v3 --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v3
+.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v3 --output-profile audit_cleanup_v4 --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
+.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v4
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session>
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
 .venv/bin/python scripts/evaluate-regression-corpus.py
@@ -349,6 +351,10 @@ and candidate predictions for later cleanup experiments. Queue predictions stay 
 `drop_error` and `mark_only_error` remain human-review items until a separate cleanup profile consumes
 them with its own gates. `audit_cleanup_v3` is that first consuming profile, but it only accepts
 high-confidence `drop_error` candidates that also satisfy the existing cleanup safety checks.
+`audit_cleanup_v4` is still conservative, but it adds a narrow expanded duplicate gate for
+audio-judge `drop_error` predictions above `0.93`: strong text containment, low local support, good
+overlap coverage, no protected markers and no notes impact are required. It remains mark-only for
+`remote_leak`, `lost_me`, `uncertain`, double-talk and timing overlap.
 `scripts/report-operational-readiness.py` combines session quality, corpus readiness and audio-judge
 shadow readiness into a practical verdict such as `pilot_ready_with_review` for medium-risk working
 meetings. It also assigns per-session use gates such as `ready_for_notes` and `review_first`, then

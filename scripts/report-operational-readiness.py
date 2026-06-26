@@ -169,7 +169,7 @@ def session_use_gate(row: dict[str, Any]) -> str:
     verdict = str(row.get("verdict") or "")
     if verdict in {"failed", "risky"}:
         return "do_not_use_without_manual_review"
-    if profile not in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "reviewed_v1"}:
+    if profile not in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "reviewed_v1"}:
         return "pipeline_incomplete_review_first"
     if ratio <= 0.025 and not flags:
         return "ready_for_notes"
@@ -321,6 +321,7 @@ def operational_verdict(
         safe_int(selected_profiles.get("audit_cleanup_v1"))
         + safe_int(selected_profiles.get("audit_cleanup_v2"))
         + safe_int(selected_profiles.get("audit_cleanup_v3"))
+        + safe_int(selected_profiles.get("audit_cleanup_v4"))
         + safe_int(selected_profiles.get("reviewed_v1"))
     )
     cleanup_ratio = cleanup_profiles / session_count if session_count > 0 else 0.0

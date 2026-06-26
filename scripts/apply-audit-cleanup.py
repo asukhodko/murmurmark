@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 INPUT_PROFILE_DEFAULT = "shadow_v2"
 OUTPUT_PROFILE_DEFAULT = "audit_cleanup_v1"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
@@ -159,7 +159,7 @@ def parse_args() -> argparse.Namespace:
         "--audio-judge-queue",
         type=Path,
         default=Path("sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl"),
-        help="Optional cross-session audio-judge queue predictions used only by audit_cleanup_v3.",
+        help="Optional cross-session audio-judge queue predictions used by audit_cleanup_v3/v4.",
     )
     return parser.parse_args()
 
@@ -731,7 +731,7 @@ def audio_review_gate(record: dict[str, Any], notes_ids: set[str]) -> tuple[bool
     return duplicate_safe or noise_safe, checks, action
 
 
-def audio_judge_gate(record: dict[str, Any], notes_ids: set[str]) -> tuple[bool, dict[str, Any], str]:
+def audio_judge_gate(record: dict[str, Any], notes_ids: set[str], output_profile: str) -> tuple[bool, dict[str, Any], str]:
     prediction = record.get("audio_judge_prediction") if isinstance(record.get("audio_judge_prediction"), dict) else {}
     review_safe, review_checks, review_action = audio_review_gate(record, notes_ids)
     classification = record.get("classification") or {}
@@ -788,7 +788,26 @@ def audio_judge_gate(record: dict[str, Any], notes_ids: set[str]) -> tuple[bool,
         and domain_count == 0
         and not has_marker(me.get("text"))
     )
-    safe = review_safe or judge_duplicate_safe or judge_noise_safe
+    expanded_common_ok = (
+        output_profile == "audit_cleanup_v4"
+        and verdict == "probable_transcript_error"
+        and judge_label == "drop_error"
+        and judge_confidence >= 0.93
+        and not protected_marker
+        and not protected_repeat
+        and not notes_impact
+    )
+    expanded_duplicate_safe = (
+        label == "remote_duplicate"
+        and expanded_common_ok
+        and duplicate_score >= 82.0
+        and local_support <= 55.0
+        and similarity >= 0.75
+        and containment >= 0.75
+        and coverage >= 0.60
+        and unique_count <= 2
+    )
+    safe = review_safe or judge_duplicate_safe or judge_noise_safe or expanded_duplicate_safe
     action = "drop_me_duplicate" if label == "remote_duplicate" else "drop_me_noise" if label == "asr_noise" else "mark_audio_judge"
     checks = {
         **review_checks,
@@ -799,6 +818,9 @@ def audio_judge_gate(record: dict[str, Any], notes_ids: set[str]) -> tuple[bool,
         "audio_judge_common_gate_passed": common_ok,
         "audio_judge_duplicate_gate_passed": judge_duplicate_safe,
         "audio_judge_noise_gate_passed": judge_noise_safe,
+        "audio_judge_expanded_profile": output_profile == "audit_cleanup_v4",
+        "audio_judge_expanded_common_gate_passed": expanded_common_ok,
+        "audio_judge_expanded_duplicate_gate_passed": expanded_duplicate_safe,
         "audio_review_gate_passed": review_safe,
         "safe_to_drop_entire_utterance": safe,
     }
@@ -809,13 +831,19 @@ def audio_judge_gate(record: dict[str, Any], notes_ids: set[str]) -> tuple[bool,
     return safe, checks, action
 
 
-def best_patch_for_utterance(utterance_id: str, rows: list[dict[str, Any]], notes_ids: set[str], patch_index: int) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+def best_patch_for_utterance(
+    utterance_id: str,
+    rows: list[dict[str, Any]],
+    notes_ids: set[str],
+    patch_index: int,
+    output_profile: str,
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     candidates: list[tuple[int, dict[str, Any], dict[str, Any], str]] = []
     rejected: list[dict[str, Any]] = []
     for record in rows:
         label = str((record.get("classification") or {}).get("label") or "")
         if record.get("source") == "audio_judge":
-            safe, checks, action = audio_judge_gate(record, notes_ids)
+            safe, checks, action = audio_judge_gate(record, notes_ids, output_profile)
         elif record.get("source") == "audio_review":
             safe, checks, action = audio_review_gate(record, notes_ids)
         elif label == "probable_duplicate":
@@ -1033,8 +1061,8 @@ def main() -> int:
             continue
         if not path.exists():
             raise FileNotFoundError(f"missing {label}: {path}")
-    use_audio_review = args.output_profile in {"audit_cleanup_v2", "audit_cleanup_v3"}
-    use_audio_judge = args.output_profile == "audit_cleanup_v3"
+    use_audio_review = args.output_profile in {"audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4"}
+    use_audio_judge = args.output_profile in {"audit_cleanup_v3", "audit_cleanup_v4"}
     if use_audio_review:
         for label in ("audio_review_audit", "audio_review_summary"):
             if not paths[label].exists():
@@ -1065,7 +1093,7 @@ def main() -> int:
     dropped_ids: set[str] = set()
 
     for utterance_id, records in grouped.items():
-        patch, rejected_rows = best_patch_for_utterance(utterance_id, records, notes_ids, patch_index)
+        patch, rejected_rows = best_patch_for_utterance(utterance_id, records, notes_ids, patch_index, args.output_profile)
         rejected.extend(rejected_rows)
         patch_index += len(rejected_rows)
         if patch and args.mode == "conservative":

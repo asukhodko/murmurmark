@@ -190,6 +190,11 @@ def existing_profile(session: Path) -> str:
         and (resolved / "quality_report.reviewed_v1.json").exists()
     ):
         return "reviewed_v1"
+    v4 = cleanup / "audit_cleanup_report.audit_cleanup_v4.json"
+    if v4.exists():
+        data = read_json(v4)
+        if (data.get("gates") or {}).get("passed") is True and (data.get("summary") or {}).get("applied_patches", 0) > 0:
+            return "audit_cleanup_v4"
     v3 = cleanup / "audit_cleanup_report.audit_cleanup_v3.json"
     if v3.exists():
         data = read_json(v3)

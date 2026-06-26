@@ -522,7 +522,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("session", type=Path)
     parser.add_argument(
         "--transcript-profile",
-        choices=("auto", "current", "shadow_v2", "audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "reviewed_v1"),
+        choices=("auto", "current", "shadow_v2", "audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "reviewed_v1"),
         default="auto",
         help="Transcript artifact profile to synthesize from.",
     )
@@ -625,12 +625,12 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             and reviewed_report["gates"].get("passed") is True
         ):
             return "reviewed_v1", reviewed_paths, repair_comparison, risk_items
-        for cleanup_profile in ("audit_cleanup_v3", "audit_cleanup_v2", "audit_cleanup_v1"):
+        for cleanup_profile in ("audit_cleanup_v4", "audit_cleanup_v3", "audit_cleanup_v2", "audit_cleanup_v1"):
             cleanup_paths = source_profile_paths(resolved_dir, cleanup_profile)
             cleanup_report, cleanup_error = read_json(cleanup_paths["audit_cleanup_report"])
             summary = cleanup_report.get("summary") if isinstance(cleanup_report, dict) else {}
             applied = int(summary.get("applied_patches", 0) or 0) if isinstance(summary, dict) else 0
-            if cleanup_profile == "audit_cleanup_v3" and applied <= 0:
+            if cleanup_profile in {"audit_cleanup_v3", "audit_cleanup_v4"} and applied <= 0:
                 continue
             if (
                 cleanup_paths["clean_dialogue"].exists()
@@ -645,7 +645,7 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             return "shadow_v2", shadow_paths, repair_comparison, risk_items
         return "current", source_profile_paths(resolved_dir, "current"), repair_comparison, risk_items
 
-    if requested_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3"}:
+    if requested_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4"}:
         paths = source_profile_paths(resolved_dir, requested_profile)
         comparison, error = read_json(paths["repair_comparison"])
         if error is None and isinstance(comparison, dict):
@@ -812,7 +812,7 @@ def verdict_from_metrics(
     if int(metrics["golden_phrase_fail_count"]) > 0:
         items.append({"type": "golden_phrase_failures", "severity": "high", "reason": "configured golden phrase checks failed"})
 
-    if selected_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "reviewed_v1"} and "audit_harmful_seconds_after" in metrics:
+    if selected_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "reviewed_v1"} and "audit_harmful_seconds_after" in metrics:
         duration = max(1.0, float(metrics.get("meeting_duration_sec", 0.0) or 0.0))
         harmful = float(metrics.get("audit_harmful_seconds_after", 0.0) or 0.0)
         review = float(metrics.get("audit_review_seconds", 0.0) or 0.0)
@@ -1959,7 +1959,7 @@ def main() -> int:
     write_notes_markdown(out_dir / "notes.md", verdict_payload, evidence)
     write_jsonl(out_dir / "review_items.jsonl", review_items)
     profile_aliases: dict[str, str] = {}
-    if selected_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "reviewed_v1"}:
+    if selected_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "reviewed_v1"}:
         profile_suffix = selected_profile
         profile_aliases = {
             "quality_verdict": f"quality_verdict.{profile_suffix}.json",

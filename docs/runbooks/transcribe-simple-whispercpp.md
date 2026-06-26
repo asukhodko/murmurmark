@@ -269,6 +269,27 @@ existing audio-review record. A whole `Me` utterance can be dropped only when th
 `mark_only_error`, `uncertain`, `remote_leak`, `lost_me`, double-talk and timing overlap remain
 review/mark-only cases. If v3 applies no patches, automatic profile selection keeps using v2 or v1.
 
+## Audit Cleanup v4
+
+v4 is a narrow follow-up over v3. It keeps the same audio-judge queue, but allows a lower
+`drop_error` confidence threshold only for strong remote duplicates:
+
+```bash
+.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+  --input-profile audit_cleanup_v3 \
+  --output-profile audit_cleanup_v4 \
+  --mode conservative \
+  --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
+
+.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" \
+  --transcript-profile audit_cleanup_v4
+```
+
+The expanded v4 gate still requires strong text containment, low local support, good overlap
+coverage, at most two unique `Me` content tokens, no protected action/decision/risk marker, no
+intentional repeat and no notes impact. It does not drop `remote_leak`, `lost_me`, `uncertain`,
+double-talk or timing-overlap cases.
+
 ## Session Quality Report
 
 For a regression set or a batch of real meetings, build a private quality summary from existing
@@ -346,7 +367,8 @@ The audio judge v0 script trains a local shadow classifier on those silver label
 audio/text metrics only. It reports leave-one-session-out validation and predictions, but never edits
 transcripts. Queue predictions are conservative: `drop_error` and `mark_only_error` are candidates
 for cleanup/review work, not automatic review-burden reduction. `audit_cleanup_v3` consumes only
-high-confidence `drop_error` predictions that also pass the conservative cleanup gates.
+high-confidence `drop_error` predictions that also pass the conservative cleanup gates. v4 can
+consume a few more strong duplicate predictions, but remains mark-only for leak/uncertain classes.
 The operational readiness report answers whether the current pipeline is usable for medium-risk
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first. Its review queue is also
@@ -565,10 +587,11 @@ does not call an LLM, and does not read raw audio.
 Profile selection:
 
 ```text
-auto      -> audit_cleanup_v1 if cleanup gates pass, then shadow_v2 if repair_comparison.json passes, otherwise current
+auto      -> reviewed_v1 when review gates pass, then audit_cleanup_v4/v3/v2/v1 with passing cleanup gates, then shadow_v2 if repair_comparison.json passes, otherwise current
 current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
-audit_cleanup_v1 -> audit-cleaned dialogue, marked risky if cleanup gates failed
+audit_cleanup_v1..v4 -> audit-cleaned dialogue, marked risky if cleanup gates failed
+reviewed_v1 -> human-reviewed dialogue, marked risky if review gates failed
 ```
 
 The script writes a quality verdict and a conservative `notes.md`. The v3 notes path is extractive
