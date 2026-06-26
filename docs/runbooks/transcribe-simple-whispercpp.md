@@ -471,6 +471,17 @@ To close only one lane, pass `--lane`, for example:
   --lane fast_confirm_drop
 ```
 
+If the lane contains many short clips, build a single listening pack first:
+
+```bash
+.venv/bin/python scripts/build-review-lane-pack.py \
+  --template sessions/_reports/review-plan/review_decisions.template.jsonl \
+  --lane fast_confirm_drop
+
+afplay sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav
+less sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.md
+```
+
 `apply-review-decisions-batch.py` is the normal command after the review file is filled. It applies
 the same edited JSONL to every session mentioned in the review plan and can immediately regenerate
 extractive notes. Under the hood, `apply-review-decisions.py` writes a separate `reviewed_v1`

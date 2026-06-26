@@ -757,6 +757,15 @@ EOF
     --limit 1 >"$lane_cli_stdout"
   jq -s '.[0].decision == "todo" and .[1].decision == "needs_review"' "$lane_cli_out" >/dev/null
   rg -q 'Progress: reviewed=1/1, remaining=0' "$lane_cli_stdout"
+  lane_pack_dir="$workdir/review_lane_pack"
+  "$repo_root/scripts/build-review-lane-pack.py" \
+    --template "$review_template" \
+    --lane check_local_recall \
+    --out-dir "$lane_pack_dir" >/dev/null
+  [[ -s "$lane_pack_dir/review_lane_pack.check_local_recall.wav" ]]
+  [[ -s "$lane_pack_dir/review_lane_pack.check_local_recall.json" ]]
+  [[ -s "$lane_pack_dir/review_lane_pack.check_local_recall.md" ]]
+  jq -e '.schema == "murmurmark.review_lane_pack/v1" and .summary.item_count == 1 and .items[0].source_audit_id == "local_recall_0001"' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   local_cli_template="$workdir/review_decisions_local_only.template.jsonl"
   local_cli_out="$workdir/review_decisions_local_only.jsonl"
   local_cli_stdout="$workdir/review_decisions_local_only_stdout.txt"

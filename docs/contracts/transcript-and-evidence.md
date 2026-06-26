@@ -830,6 +830,44 @@ answered row so the review can be resumed. `--session` limits the walk to one or
 so a reviewer can close `fast_confirm_drop` first and return later for `check_unique_me_content` or
 `check_local_recall`.
 
+`build-review-lane-pack.py` can turn one lane into a single listening WAV and index:
+
+```text
+sessions/_reports/review-plan/lane-packs/
+  review_lane_pack.fast_confirm_drop.wav
+  review_lane_pack.fast_confirm_drop.json
+  review_lane_pack.fast_confirm_drop.md
+```
+
+The JSON uses `murmurmark.review_lane_pack/v1`:
+
+```json
+{
+  "schema": "murmurmark.review_lane_pack/v1",
+  "lane": "fast_confirm_drop",
+  "summary": {
+    "selected_rows": 10,
+    "item_count": 10,
+    "skipped_count": 0,
+    "duration_sec": 93.42
+  },
+  "items": [
+    {
+      "index": 1,
+      "source_audit_id": "arp_000020",
+      "session_id": "2026-06-26_11-15-50",
+      "pack_start": 0.0,
+      "pack_end": 9.62,
+      "pack_start_time": "00:00.000",
+      "pack_end_time": "00:09.620",
+      "suggested_decision": "drop_me"
+    }
+  ]
+}
+```
+
+Lane packs are listening aids only. They do not mark decisions and do not modify transcript profiles.
+
 After review, `apply-review-decisions.py` consumes the edited decision file and writes a separate
 `reviewed_v1` transcript profile:
 

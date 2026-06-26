@@ -291,6 +291,8 @@ The generated plan also splits the queue into `review_lane` groups:
 checks for a slower pass.
 To clear only the quickest lane, run the CLI with `--lane fast_confirm_drop`; the output file still
 keeps the full template, so later passes can continue with the remaining lanes.
+For faster listening, `scripts/build-review-lane-pack.py --lane fast_confirm_drop` creates a single
+WAV plus a Markdown index under `sessions/_reports/review-plan/lane-packs/`.
 
 `scripts/review-decisions-cli.py` is the fastest way to fill that checklist. It walks through
 `review_decisions.template.jsonl`, plays the preferred stereo clip, shows the `Me`/`remote` texts and
