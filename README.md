@@ -317,7 +317,9 @@ audio judge. It is private generated data and does not modify sessions or raw au
 silver keep negatives, mark-only regressions and examples that need a stronger audio judge.
 `scripts/train-audio-judge-v0.py` trains a local shadow classifier on corpus silver labels using only
 numeric audio/text metrics. It does not edit transcripts; it reports cross-session validation quality
-and candidate predictions for later cleanup experiments.
+and candidate predictions for later cleanup experiments. Queue predictions stay conservative:
+`drop_error` and `mark_only_error` remain human-review items until a separate cleanup profile consumes
+them with its own gates.
 `scripts/report-operational-readiness.py` combines session quality, corpus readiness and audio-judge
 shadow readiness into a practical verdict such as `pilot_ready_with_review` for medium-risk working
 meetings. It also assigns per-session use gates such as `ready_for_notes` and `review_first`, then

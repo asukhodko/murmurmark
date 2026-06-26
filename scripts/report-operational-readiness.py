@@ -303,6 +303,7 @@ def build_report(
                 if isinstance(audio_judge, dict)
                 else None
             ),
+            "audio_judge_review_queue": audio_judge.get("review_queue") if isinstance(audio_judge, dict) else None,
             "review_queue_items": len(review_queue),
         },
         "session_review_burden": burdens,
@@ -343,6 +344,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Corpus items: `{report['summary']['corpus_item_count']}`",
         f"- Audio judge readiness: `{report['summary']['audio_judge_readiness']}`",
         f"- Audio judge CV accuracy: `{report['summary']['audio_judge_cv_accuracy']}`",
+        f"- Audio judge remaining review items: `{((report['summary'].get('audio_judge_review_queue') or {}).get('remaining_human_review_items'))}`",
         "",
         "## Blockers",
         "",

@@ -50,6 +50,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train and evaluate a local audio judge v0 on the regression corpus.")
     parser.add_argument("--corpus-dir", type=Path, default=Path("sessions/_reports/regression-corpus"))
     parser.add_argument("--out-dir", type=Path, default=Path("sessions/_reports/audio-judge-v0"))
+    parser.add_argument(
+        "--operational-readiness",
+        type=Path,
+        default=Path("sessions/_reports/operational-readiness/operational_readiness_report.json"),
+    )
     parser.add_argument("--min-confidence", type=float, default=0.58)
     return parser.parse_args()
 
@@ -70,6 +75,16 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
             if isinstance(value, dict):
                 rows.append(value)
     return rows
+
+
+def read_json(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -202,6 +217,132 @@ def predict_rows(model: Pipeline, rows: list[dict[str, Any]], features: np.ndarr
     return output
 
 
+def role_from_utterance(row: dict[str, Any]) -> str:
+    role = str(row.get("role") or "").lower()
+    source = str(row.get("source_track") or "").lower()
+    if role == "me" or source == "mic":
+        return "me"
+    if "colleague" in role or source == "remote":
+        return "remote"
+    return role or source
+
+
+def text_features_from_utterances(utterances: list[dict[str, Any]]) -> dict[str, Any]:
+    for row in utterances:
+        if not isinstance(row, dict):
+            continue
+    me_text = " ".join(str(row.get("text") or "") for row in utterances if isinstance(row, dict) and role_from_utterance(row) == "me")
+    remote_text = " ".join(str(row.get("text") or "") for row in utterances if isinstance(row, dict) and role_from_utterance(row) == "remote")
+    return {"me_text": me_text, "remote_text": remote_text}
+
+
+def queue_feature_item(session_path: Path, queue_item: dict[str, Any]) -> dict[str, Any] | None:
+    audit_id = str(queue_item.get("source_audit_id") or "")
+    if not audit_id:
+        return None
+    audit_rows = read_jsonl(session_path / "derived/audit/audio-review-pack/audio_review_audit.jsonl")
+    source = next((row for row in audit_rows if str(row.get("id") or "") == audit_id), None)
+    if not source:
+        return None
+    classification = source.get("classification") if isinstance(source.get("classification"), dict) else {}
+    features = source.get("features") if isinstance(source.get("features"), dict) else {}
+    text = features.get("text") if isinstance(features.get("text"), dict) else text_features_from_utterances(source.get("utterances") or [])
+    return {
+        "id": f"queue_{queue_item.get('session_id')}_{audit_id}",
+        "session_id": queue_item.get("session_id"),
+        "source_audit_id": audit_id,
+        "label": classification.get("label"),
+        "verdict": classification.get("verdict"),
+        "confidence": classification.get("confidence"),
+        "interval": source.get("interval", queue_item.get("interval")),
+        "scores": source.get("scores") if isinstance(source.get("scores"), dict) else {},
+        "text_features": text,
+        "utterance_ids": source.get("utterance_ids", queue_item.get("utterance_ids", [])),
+        "commands": source.get("commands", queue_item.get("commands", {})),
+    }
+
+
+def load_review_queue(path: Path) -> list[dict[str, Any]]:
+    report = read_json(path)
+    if not report:
+        return []
+    rows: list[dict[str, Any]] = []
+    for item in report.get("review_queue") or []:
+        if not isinstance(item, dict):
+            continue
+        session_path = Path(str(item.get("session") or ""))
+        if not session_path.exists():
+            continue
+        feature_item = queue_feature_item(session_path, item)
+        if feature_item:
+            rows.append(feature_item)
+    return rows
+
+
+def predict_queue(model: Pipeline, rows: list[dict[str, Any]], min_confidence: float) -> list[dict[str, Any]]:
+    if not rows:
+        return []
+    features = np.asarray([feature_vector(row) for row in rows], dtype=np.float64)
+    classes = model.named_steps["clf"].classes_
+    probabilities = model.predict_proba(features)
+    predictions = model.predict(features)
+    output: list[dict[str, Any]] = []
+    for row, predicted, probs in zip(rows, predictions, probabilities):
+        confidence = float(max(probs))
+        judge_label = str(predicted) if confidence >= min_confidence else "uncertain"
+        output.append(
+            {
+                "schema": "murmurmark.audio_judge_v0_queue_prediction/v1",
+                "id": row.get("id"),
+                "session_id": row.get("session_id"),
+                "source_audit_id": row.get("source_audit_id"),
+                "audio_review_label": row.get("label"),
+                "audio_review_verdict": row.get("verdict"),
+                "judge_label": judge_label,
+                "judge_confidence": round(confidence, 6),
+                "probabilities": probability_map(classes, probs),
+                "interval": row.get("interval"),
+                "utterance_ids": row.get("utterance_ids", []),
+                "commands": row.get("commands", {}),
+                "shadow_action": shadow_action(judge_label, confidence),
+            }
+        )
+    output.sort(key=lambda item: (-safe_float(item.get("judge_confidence")), str(item.get("session_id") or "")))
+    return output
+
+
+def shadow_action(judge_label: str, confidence: float) -> str:
+    if confidence < 0.75:
+        return "keep_in_human_review_queue"
+    if judge_label == "drop_error":
+        return "candidate_future_cleanup_review"
+    if judge_label == "keep":
+        return "candidate_remove_from_review_queue"
+    if judge_label == "mark_only_error":
+        return "candidate_mark_only_review"
+    return "keep_in_human_review_queue"
+
+
+def queue_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    by_label = Counter(str(row.get("judge_label") or "unknown") for row in rows)
+    by_action = Counter(str(row.get("shadow_action") or "unknown") for row in rows)
+    removable = by_action.get("candidate_remove_from_review_queue", 0)
+    candidate_drop = by_action.get("candidate_future_cleanup_review", 0)
+    mark_only = by_action.get("candidate_mark_only_review", 0)
+    direct_review = by_action.get("keep_in_human_review_queue", 0)
+    remaining_review = len(rows) - removable
+    return {
+        "items": len(rows),
+        "by_judge_label": dict(sorted(by_label.items())),
+        "by_shadow_action": dict(sorted(by_action.items())),
+        "candidate_review_reduction_items": removable,
+        "candidate_future_cleanup_items": candidate_drop,
+        "candidate_mark_only_items": mark_only,
+        "direct_human_review_items": direct_review,
+        "remaining_human_review_items": remaining_review,
+    }
+
+
 def top_features(model: Pipeline, class_name: str, limit: int = 8) -> list[dict[str, Any]]:
     clf: LogisticRegression = model.named_steps["clf"]
     if class_name not in clf.classes_:
@@ -222,7 +363,7 @@ def evaluate_predictions(labels: np.ndarray, predictions: np.ndarray, classes: l
     }
 
 
-def write_markdown(path: Path, report: dict[str, Any], predictions: list[dict[str, Any]]) -> None:
+def write_markdown(path: Path, report: dict[str, Any], predictions: list[dict[str, Any]], queue_predictions: list[dict[str, Any]]) -> None:
     lines = [
         "# Audio Judge v0",
         "",
@@ -230,6 +371,7 @@ def write_markdown(path: Path, report: dict[str, Any], predictions: list[dict[st
         f"Training rows: `{report['training']['rows']}`",
         f"Sessions: `{report['training']['sessions']}`",
         f"CV accuracy: `{report['evaluation']['cv_accuracy']}`",
+        f"Queue items: `{report['review_queue']['items']}`",
         "",
         "## Label Counts",
         "",
@@ -258,6 +400,24 @@ def write_markdown(path: Path, report: dict[str, Any], predictions: list[dict[st
         if stereo:
             lines.append(f"- Stereo: `{stereo}`")
         lines.append("")
+    lines.extend(["", "## Review Queue Shadow Predictions", ""])
+    for row in queue_predictions[:25]:
+        interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+        commands = row.get("commands") or {}
+        stereo = commands.get("stereo_clean_left_remote_right") or commands.get("stereo_mic_left_remote_right")
+        lines.extend(
+            [
+                f"### {row['session_id']} `{row['judge_label']}` {interval.get('start_time', '')}-{interval.get('end_time', '')}",
+                "",
+                f"- Confidence: `{row['judge_confidence']}`",
+                f"- Shadow action: `{row['shadow_action']}`",
+                f"- Audio review: `{row.get('audio_review_label')}` / `{row.get('audio_review_verdict')}`",
+                f"- Audit id: `{row.get('source_audit_id')}`",
+            ]
+        )
+        if stereo:
+            lines.append(f"- Stereo: `{stereo}`")
+        lines.append("")
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
@@ -276,6 +436,8 @@ def main() -> int:
     cv_accuracy = round(float(np.mean(cv_pred == labels)), 6)
     model.fit(features, labels)
     predictions = predict_rows(model, rows, features, args.min_confidence)
+    queue_rows = load_review_queue(args.operational_readiness)
+    queue_predictions = predict_queue(model, queue_rows, args.min_confidence)
     label_counts = Counter(str(label) for label in labels)
     judge_counts = Counter(row["judge_label"] for row in predictions)
     readiness = "experimental"
@@ -305,6 +467,7 @@ def main() -> int:
             **evaluation,
         },
         "judge_label_counts": dict(sorted(judge_counts.items())),
+        "review_queue": queue_summary(queue_predictions),
         "top_features": {label: top_features(model, label) for label in classes},
         "policy": {
             "min_confidence": args.min_confidence,
@@ -316,7 +479,8 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     write_json(out_dir / "audio_judge_v0_report.json", report)
     write_jsonl(out_dir / "audio_judge_v0_predictions.jsonl", predictions)
-    write_markdown(out_dir / "audio_judge_v0_report.md", report, predictions)
+    write_jsonl(out_dir / "audio_judge_v0_queue_predictions.jsonl", queue_predictions)
+    write_markdown(out_dir / "audio_judge_v0_report.md", report, predictions, queue_predictions)
     print(f"readiness: {readiness}")
     print(f"cv_accuracy: {cv_accuracy}")
     print(f"written: {out_dir / 'audio_judge_v0_report.json'}")

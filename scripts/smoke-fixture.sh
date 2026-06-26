@@ -640,6 +640,7 @@ EOF
   [[ -s "$judge_dir/audio_judge_v0_report.md" ]]
   jq -e '.schema == "murmurmark.audio_judge_v0_report/v1"' "$judge_dir/audio_judge_v0_report.json" >/dev/null
   jq -e '.policy.may_modify_transcript == false and .training.rows >= 2' "$judge_dir/audio_judge_v0_report.json" >/dev/null
+  jq -e '(.review_queue.remaining_human_review_items // 0) >= ((.review_queue.candidate_future_cleanup_items // 0) + (.review_queue.candidate_mark_only_items // 0))' "$judge_dir/audio_judge_v0_report.json" >/dev/null
 
   quality_dir="$workdir/session-quality"
   "$repo_root/scripts/report-session-quality.py" "$group_session" --out-dir "$quality_dir" >/dev/null

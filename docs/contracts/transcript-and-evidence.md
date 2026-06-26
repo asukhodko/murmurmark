@@ -476,6 +476,12 @@ sessions/_reports/audio-judge-v0/
   "policy": {
     "mode": "shadow_only",
     "may_modify_transcript": false
+  },
+  "review_queue": {
+    "items": 40,
+    "candidate_future_cleanup_items": 27,
+    "candidate_mark_only_items": 13,
+    "remaining_human_review_items": 40
   }
 }
 ```
@@ -483,6 +489,8 @@ sessions/_reports/audio-judge-v0/
 The model uses only numeric audio/text metrics, not `label`, `verdict`, readiness bucket, or free-text
 content as features. The labels are still silver labels derived from current local metrics, so v0 is a
 shadow judge for prioritisation and future cleanup experiments, not a human-quality audio oracle.
+`remaining_human_review_items` does not decrease for `drop_error` or `mark_only_error`; those classes
+remain review items until a separate cleanup profile applies stricter gates.
 
 Operational readiness combines the private session quality report and regression corpus evaluation:
 

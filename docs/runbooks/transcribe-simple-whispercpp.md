@@ -303,7 +303,8 @@ The evaluation script labels the corpus readiness for future work: silver cleanu
 silver keep negatives, mark-only regressions, and examples that need a stronger local audio judge.
 The audio judge v0 script trains a local shadow classifier on those silver labels using numeric
 audio/text metrics only. It reports leave-one-session-out validation and predictions, but never edits
-transcripts.
+transcripts. Queue predictions are conservative: `drop_error` and `mark_only_error` are candidates
+for a future cleanup profile, not automatic review-burden reduction.
 The operational readiness report answers whether the current pipeline is usable for medium-risk
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first.
