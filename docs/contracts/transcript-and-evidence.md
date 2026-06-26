@@ -845,6 +845,11 @@ valid for ordinary audio-review rows.
 `suggested_decision` is only a review hint. It never changes transcript output by itself and does not
 count as coverage. The reviewer must still copy the intended value into `decision`.
 
+`apply-review-decisions-batch.py --refresh-reports` extends the batch report with
+`refresh_reports[]`. Each row stores the command, return code, and output tails for the refreshed
+`session-quality`, `operational-readiness`, and `review-plan` commands. The batch command must fail
+if any refreshed report command fails, so stale readiness reports are not silently treated as current.
+
 The report includes coverage evidence:
 
 ```json

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA = "murmurmark.review_decisions_batch_report/v1"
 
 
@@ -39,6 +39,29 @@ def parse_args() -> argparse.Namespace:
         "--synthesize",
         action="store_true",
         help="Run synthesize-simple-extractive.py for every successfully reviewed session.",
+    )
+    parser.add_argument(
+        "--refresh-reports",
+        action="store_true",
+        help="After applying decisions, refresh session quality, operational readiness, and review plan reports.",
+    )
+    parser.add_argument("--session-quality-out-dir", type=Path, default=Path("sessions/_reports/session-quality"))
+    parser.add_argument("--operational-readiness-out-dir", type=Path, default=Path("sessions/_reports/operational-readiness"))
+    parser.add_argument("--review-plan-out-dir", type=Path, default=Path("sessions/_reports/review-plan"))
+    parser.add_argument(
+        "--corpus-evaluation",
+        type=Path,
+        default=Path("sessions/_reports/regression-corpus/regression_corpus_evaluation.json"),
+    )
+    parser.add_argument(
+        "--audio-judge",
+        type=Path,
+        default=Path("sessions/_reports/audio-judge-v0/audio_judge_v0_report.json"),
+    )
+    parser.add_argument(
+        "--audio-judge-queue",
+        type=Path,
+        default=Path("sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl"),
     )
     parser.add_argument(
         "--out",
@@ -125,6 +148,66 @@ def run_command(command: list[str]) -> dict[str, Any]:
     }
 
 
+def refresh_sessions_from_existing_report(out_dir: Path, fallback: list[Path]) -> list[Path]:
+    report = read_json(out_dir / "session_quality_report.json")
+    rows = report.get("sessions") if isinstance(report, dict) else None
+    if not isinstance(rows, list):
+        return fallback
+    sessions: list[Path] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        session = str(row.get("session") or "").strip()
+        if not session or session in seen:
+            continue
+        seen.add(session)
+        sessions.append(Path(session))
+    return sessions or fallback
+
+
+def refresh_reports(args: argparse.Namespace, repo_root: Path, sessions: list[Path]) -> list[dict[str, Any]]:
+    if not sessions:
+        return []
+    session_quality_out = args.session_quality_out_dir.expanduser()
+    operational_out = args.operational_readiness_out_dir.expanduser()
+    review_plan_out = args.review_plan_out_dir.expanduser()
+    refresh_sessions = refresh_sessions_from_existing_report(session_quality_out, sessions)
+    steps = [
+        [
+            sys.executable,
+            str(repo_root / "scripts/report-session-quality.py"),
+            *[str(session) for session in refresh_sessions],
+            "--out-dir",
+            str(session_quality_out),
+            "--write-session-readiness",
+        ],
+        [
+            sys.executable,
+            str(repo_root / "scripts/report-operational-readiness.py"),
+            "--session-quality",
+            str(session_quality_out / "session_quality_report.json"),
+            "--corpus-evaluation",
+            str(args.corpus_evaluation.expanduser()),
+            "--audio-judge",
+            str(args.audio_judge.expanduser()),
+            "--audio-judge-queue",
+            str(args.audio_judge_queue.expanduser()),
+            "--out-dir",
+            str(operational_out),
+        ],
+        [
+            sys.executable,
+            str(repo_root / "scripts/build-review-plan.py"),
+            "--operational-readiness",
+            str(operational_out / "operational_readiness_report.json"),
+            "--out-dir",
+            str(review_plan_out),
+        ],
+    ]
+    return [run_command(command) for command in steps]
+
+
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parents[1]
@@ -163,7 +246,7 @@ def main() -> int:
         coverage = review_report.get("coverage") if isinstance(review_report, dict) else {}
 
         synthesize_result: dict[str, Any] | None = None
-        if args.synthesize and apply_result["returncode"] == 0:
+        if (args.synthesize or args.refresh_reports) and apply_result["returncode"] == 0:
             synthesize_result = run_command(
                 [
                     sys.executable,
@@ -191,6 +274,10 @@ def main() -> int:
             }
         )
 
+    refresh_results: list[dict[str, Any]] = []
+    if args.refresh_reports:
+        refresh_results = refresh_reports(args, repo_root, sessions)
+
     failed = [
         row
         for row in results
@@ -198,6 +285,7 @@ def main() -> int:
         or row["apply"]["gates_passed"] is not True
         or (row.get("synthesize") and row["synthesize"]["returncode"] != 0)
     ]
+    failed_refresh = [row for row in refresh_results if row.get("returncode") != 0]
     report = {
         "schema": SCHEMA,
         "generator": {"name": "apply-review-decisions-batch", "version": SCRIPT_VERSION},
@@ -207,20 +295,30 @@ def main() -> int:
             "input_profile": args.input_profile,
             "output_profile": args.output_profile,
             "synthesize": args.synthesize,
+            "synthesize_effective": args.synthesize or args.refresh_reports,
+            "refresh_reports": args.refresh_reports,
+            "session_quality_out_dir": str(args.session_quality_out_dir),
+            "operational_readiness_out_dir": str(args.operational_readiness_out_dir),
+            "review_plan_out_dir": str(args.review_plan_out_dir),
         },
         "summary": {
             "session_count": len(results),
             "passed_sessions": len(results) - len(failed),
             "failed_sessions": len(failed),
+            "refresh_steps": len(refresh_results),
+            "failed_refresh_steps": len(failed_refresh),
         },
         "sessions": results,
+        "refresh_reports": refresh_results,
     }
     write_json(args.out.expanduser(), report)
 
     print(f"review_decisions_apply_report: {args.out}")
     print(f"sessions: {len(results)}")
     print(f"failed_sessions: {len(failed)}")
-    return 0 if not failed else 2
+    if args.refresh_reports:
+        print(f"failed_refresh_steps: {len(failed_refresh)}")
+    return 0 if not failed and not failed_refresh else 2
 
 
 if __name__ == "__main__":

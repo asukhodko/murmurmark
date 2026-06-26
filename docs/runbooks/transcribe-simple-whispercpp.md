@@ -466,6 +466,21 @@ if the duplicate covers only part of a longer `Me` utterance, the plan uses
 `check_unique_me_content` and suggests `needs_review`, because `drop_me` would remove the whole
 utterance. It does not edit `audit_cleanup_v1/v2/v3/v4`.
 
+After closing a review file, prefer:
+
+```bash
+.venv/bin/python scripts/apply-review-decisions-batch.py \
+  --decisions sessions/_reports/review-plan/review_decisions.jsonl \
+  --review-template sessions/_reports/review-plan/review_decisions.template.jsonl \
+  --synthesize \
+  --refresh-reports
+```
+
+`--refresh-reports` reruns extractive notes for reviewed sessions and then refreshes
+`session-quality`, `operational-readiness`, and the next `review-plan`. If an existing
+`session_quality_report.json` is present, the refresh keeps its full session set instead of
+shrinking the global report to only the sessions touched by the review file.
+
 ## Outputs
 
 ```text

@@ -795,13 +795,23 @@ EOF
   jq -e '.selected_transcript_profile == "reviewed_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
   jq -e '.selected_transcript_profile == "reviewed_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.reviewed_v1.json" >/dev/null
   batch_report="$workdir/review_decisions_apply_report.json"
+  batch_session_quality_dir="$workdir/batch-session-quality"
+  batch_operational_dir="$workdir/batch-operational-readiness"
+  batch_review_plan_dir="$workdir/batch-review-plan"
   "$repo_root/scripts/apply-review-decisions-batch.py" \
     --decisions "$review_decisions" \
     --review-template "$review_template" \
     --out "$batch_report" \
-    --synthesize >/dev/null
+    --synthesize \
+    --refresh-reports \
+    --session-quality-out-dir "$batch_session_quality_dir" \
+    --operational-readiness-out-dir "$batch_operational_dir" \
+    --review-plan-out-dir "$batch_review_plan_dir" >/dev/null
   [[ -s "$batch_report" ]]
-  jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.session_count == 1 and .summary.failed_sessions == 0' "$batch_report" >/dev/null
+  jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.session_count == 1 and .summary.failed_sessions == 0 and .summary.failed_refresh_steps == 0 and (.refresh_reports | length) == 3' "$batch_report" >/dev/null
+  [[ -s "$batch_session_quality_dir/session_quality_report.json" ]]
+  [[ -s "$batch_operational_dir/operational_readiness_report.json" ]]
+  [[ -s "$batch_review_plan_dir/review_plan.json" ]]
   pipeline_plan="$workdir/pipeline_run_report.json"
   "$repo_root/scripts/run-session-pipeline.py" "$group_session" \
     --plan-only \
