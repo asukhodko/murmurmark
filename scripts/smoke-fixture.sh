@@ -732,8 +732,8 @@ EOF
   review_decisions="$workdir/review_decisions.jsonl"
   review_template="$workdir/review_decisions.template.jsonl"
   cat >"$review_template" <<EOF
-{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source_audit_id":"arp_manual_review_keep","label":"uncertain","verdict":"needs_stronger_audio_judge","review_action":"classify_audio","suggested_decision":"keep_me","suggested_decision_confidence":"low","suggested_decision_reason":"fixture review cli default","me_utterance_ids":["utt_audio_uncertain_me"],"remote_utterance_ids":["utt_audio_uncertain_remote"],"utterance_ids":["utt_audio_uncertain_remote","utt_audio_uncertain_me"],"text":[{"id":"utt_audio_uncertain_remote","role":"remote","source_track":"remote","text":"Там есть спорный кусок."},{"id":"utt_audio_uncertain_me","role":"me","source_track":"mic","text":"Я уточню отдельно."}],"reviewer":"","notes":""}
-{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","allowed_decisions":["keep_me","needs_review","skip"],"session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","cluster_id":"review_cluster_local_001","source":"local_recall","source_audit_id":"local_recall_0001","label":"lost_me","verdict":"needs_stronger_audio_judge","review_action":"check_lost_local_speech","suggested_decision":"needs_review","suggested_decision_confidence":"medium","suggested_decision_reason":"fixture local recall row","me_utterance_ids":[],"remote_utterance_ids":[],"utterance_ids":[],"interval":{"start":13.0,"end":14.2,"duration_sec":1.2},"text":[{"id":"cand_mic_fixture_002","role":"Me","source_track":"local_recall","text":"Я понял."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 12.000 -t 3.200 \"$group_session/audio/mic/000001.caf\""},"reviewer":"","notes":""}
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source_audit_id":"arp_manual_review_keep","label":"uncertain","verdict":"needs_stronger_audio_judge","review_lane":"classify_audio","review_action":"classify_audio","suggested_decision":"keep_me","suggested_decision_confidence":"low","suggested_decision_reason":"fixture review cli default","me_utterance_ids":["utt_audio_uncertain_me"],"remote_utterance_ids":["utt_audio_uncertain_remote"],"utterance_ids":["utt_audio_uncertain_remote","utt_audio_uncertain_me"],"text":[{"id":"utt_audio_uncertain_remote","role":"remote","source_track":"remote","text":"Там есть спорный кусок."},{"id":"utt_audio_uncertain_me","role":"me","source_track":"mic","text":"Я уточню отдельно."}],"reviewer":"","notes":""}
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","allowed_decisions":["keep_me","needs_review","skip"],"session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","cluster_id":"review_cluster_local_001","source":"local_recall","source_audit_id":"local_recall_0001","label":"lost_me","verdict":"needs_stronger_audio_judge","review_lane":"check_local_recall","review_action":"check_lost_local_speech","suggested_decision":"needs_review","suggested_decision_confidence":"medium","suggested_decision_reason":"fixture local recall row","me_utterance_ids":[],"remote_utterance_ids":[],"utterance_ids":[],"interval":{"start":13.0,"end":14.2,"duration_sec":1.2},"text":[{"id":"cand_mic_fixture_002","role":"Me","source_track":"local_recall","text":"Я понял."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 12.000 -t 3.200 \"$group_session/audio/mic/000001.caf\""},"reviewer":"","notes":""}
 EOF
   review_cli_out="$workdir/review_decisions_cli.jsonl"
   review_cli_stdout="$workdir/review_decisions_cli_stdout.txt"
@@ -747,6 +747,16 @@ EOF
   rg -q 'utt_audio_uncertain_me' "$review_cli_stdout"
   rg -q 'Progress: reviewed=1/2, remaining=1' "$review_cli_stdout"
   rg -q 'Resume:' "$review_cli_stdout"
+  lane_cli_out="$workdir/review_decisions_lane.jsonl"
+  lane_cli_stdout="$workdir/review_decisions_lane_stdout.txt"
+  printf '\n' | "$repo_root/scripts/review-decisions-cli.py" \
+    --template "$review_template" \
+    --out "$lane_cli_out" \
+    --lane check_local_recall \
+    --no-play \
+    --limit 1 >"$lane_cli_stdout"
+  jq -s '.[0].decision == "todo" and .[1].decision == "needs_review"' "$lane_cli_out" >/dev/null
+  rg -q 'Progress: reviewed=1/1, remaining=0' "$lane_cli_stdout"
   local_cli_template="$workdir/review_decisions_local_only.template.jsonl"
   local_cli_out="$workdir/review_decisions_local_only.jsonl"
   local_cli_stdout="$workdir/review_decisions_local_only_stdout.txt"

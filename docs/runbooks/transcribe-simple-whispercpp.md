@@ -462,6 +462,15 @@ profile. Keep `--context-utterances 2` unless you need a shorter terminal view; 
 play that exact clip, or `p` to replay the preferred clip. At exit, the CLI prints review progress;
 when no `todo` rows remain it prints the batch command that applies decisions and refreshes
 readiness reports.
+To close only one lane, pass `--lane`, for example:
+
+```bash
+.venv/bin/python scripts/review-decisions-cli.py \
+  --template sessions/_reports/review-plan/review_decisions.template.jsonl \
+  --out sessions/_reports/review-plan/review_decisions.jsonl \
+  --lane fast_confirm_drop
+```
+
 `apply-review-decisions-batch.py` is the normal command after the review file is filled. It applies
 the same edited JSONL to every session mentioned in the review plan and can immediately regenerate
 extractive notes. Under the hood, `apply-review-decisions.py` writes a separate `reviewed_v1`

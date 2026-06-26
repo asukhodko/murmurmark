@@ -825,7 +825,10 @@ coverage and text-similarity signals.
 
 `review-decisions-cli.py` fills this template into `review_decisions.jsonl`. It preserves the same
 schema, updates `decision`, `status`, optional `reviewer`, and `reviewed_at`, and writes after every
-answered row so the review can be resumed.
+answered row so the review can be resumed. `--session` limits the walk to one or more sessions.
+`--lane` limits it to one or more `review_lane` values while still writing the complete output file,
+so a reviewer can close `fast_confirm_drop` first and return later for `check_unique_me_content` or
+`check_local_recall`.
 
 After review, `apply-review-decisions.py` consumes the edited decision file and writes a separate
 `reviewed_v1` transcript profile:

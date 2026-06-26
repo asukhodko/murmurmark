@@ -289,6 +289,8 @@ The generated plan also splits the queue into `review_lane` groups:
 `fast_confirm_drop`, `check_unique_me_content`, `check_local_recall`, `confirm_benign`, and
 `classify_audio`. Use those lanes to clear easy duplicate/noise checks first and leave meaning-heavy
 checks for a slower pass.
+To clear only the quickest lane, run the CLI with `--lane fast_confirm_drop`; the output file still
+keeps the full template, so later passes can continue with the remaining lanes.
 
 `scripts/review-decisions-cli.py` is the fastest way to fill that checklist. It walks through
 `review_decisions.template.jsonl`, plays the preferred stereo clip, shows the `Me`/`remote` texts and

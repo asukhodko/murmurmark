@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.5.0"
 SCHEMA = "murmurmark.review_decision/v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 SHORTCUTS = {
@@ -38,6 +38,7 @@ def parse_args() -> argparse.Namespace:
         help="Editable output decisions JSONL.",
     )
     parser.add_argument("--session", action="append", default=[], help="Optional session id/path filter. Can be repeated.")
+    parser.add_argument("--lane", action="append", default=[], help="Optional review_lane filter. Can be repeated.")
     parser.add_argument("--reviewer", default="", help="Reviewer name written to decided rows.")
     parser.add_argument("--command-key", default="stereo_clean_left_remote_right", help="Preferred afplay command key.")
     parser.add_argument("--context-utterances", type=int, default=2, help="Show this many transcript turns around the reviewed interval.")
@@ -124,6 +125,16 @@ def session_matches(row: dict[str, Any], filters: set[str]) -> bool:
     session_id = str(row.get("session_id") or "")
     candidates = {session, session_id, f"./{session}"}
     return bool(candidates & filters)
+
+
+def lane_matches(row: dict[str, Any], filters: set[str]) -> bool:
+    if not filters:
+        return True
+    return str(row.get("review_lane") or "") in filters
+
+
+def row_matches(row: dict[str, Any], session_filters: set[str], lane_filters: set[str]) -> bool:
+    return session_matches(row, session_filters) and lane_matches(row, lane_filters)
 
 
 def command_options(row: dict[str, Any], preferred_key: str) -> list[tuple[str, str]]:
@@ -344,14 +355,22 @@ def undecided(row: dict[str, Any]) -> bool:
     return str(row.get("decision") or "todo") in {"", "todo"}
 
 
-def print_progress_summary(rows: list[dict[str, Any]], out: Path, template: Path, filters: set[str]) -> None:
-    scoped = [row for row in rows if session_matches(row, filters)]
+def print_progress_summary(
+    rows: list[dict[str, Any]],
+    out: Path,
+    template: Path,
+    session_filters: set[str],
+    lane_filters: set[str],
+) -> None:
+    scoped = [row for row in rows if row_matches(row, session_filters, lane_filters)]
     counts = Counter(str(row.get("decision") or "todo") or "todo" for row in scoped)
     remaining = sum(1 for row in scoped if undecided(row))
     reviewed = len(scoped) - remaining
     print(f"Progress: reviewed={reviewed}/{len(scoped)}, remaining={remaining}, decisions={dict(sorted(counts.items()))}")
     if remaining:
-        filter_args = " ".join(f"--session {shlex.quote(value)}" for value in sorted(filters))
+        session_args = " ".join(f"--session {shlex.quote(value)}" for value in sorted(session_filters))
+        lane_args = " ".join(f"--lane {shlex.quote(value)}" for value in sorted(lane_filters))
+        filter_args = " ".join(arg for arg in (session_args, lane_args) if arg)
         filter_suffix = f" {filter_args}" if filter_args else ""
         print(
             f"Resume: {shlex.quote(str(Path(__file__)))} "
@@ -376,7 +395,12 @@ def main() -> int:
     existing_rows = read_jsonl(out) if out.exists() else []
     rows = merge_existing(template_rows, existing_rows)
     filters = {item.strip() for item in args.session if item.strip()}
-    indexes = [index for index, row in enumerate(rows) if session_matches(row, filters) and undecided(row)]
+    lane_filters = {item.strip() for item in args.lane if item.strip()}
+    indexes = [
+        index
+        for index, row in enumerate(rows)
+        if row_matches(row, filters, lane_filters) and undecided(row)
+    ]
     total = len(indexes)
     prompted = 0
     dialogue_cache: dict[tuple[str, str], list[dict[str, Any]]] = {}
@@ -384,7 +408,7 @@ def main() -> int:
     if not indexes:
         write_jsonl(out, rows)
         print(f"No undecided rows. Written: {out}")
-        print_progress_summary(rows, out, template, filters)
+        print_progress_summary(rows, out, template, filters, lane_filters)
         return 0
 
     for visible_index, row_index in enumerate(indexes, start=1):
@@ -399,7 +423,7 @@ def main() -> int:
             if decision is None:
                 write_jsonl(out, rows)
                 print(f"Stopped. Written: {out}")
-                print_progress_summary(rows, out, template, filters)
+                print_progress_summary(rows, out, template, filters, lane_filters)
                 return 0
             if decision == "play":
                 play_command(command)
@@ -423,11 +447,11 @@ def main() -> int:
         prompted += 1
         if args.limit and prompted >= args.limit:
             print(f"Limit reached. Written: {out}")
-            print_progress_summary(rows, out, template, filters)
+            print_progress_summary(rows, out, template, filters, lane_filters)
             return 0
 
     print(f"Done. Written: {out}")
-    print_progress_summary(rows, out, template, filters)
+    print_progress_summary(rows, out, template, filters, lane_filters)
     return 0
 
 
