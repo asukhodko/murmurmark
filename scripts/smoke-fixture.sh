@@ -498,7 +498,9 @@ EOF
     {id: "utt_audio_dup_remote", start: 20.0, end: 22.0, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Обновим pipeline.", quality: {needs_review: false}},
     {id: "utt_audio_dup_me", start: 20.1, end: 22.1, source_track: "mic", speaker_label: "Me", role: "Me", text: "Обновим pipeline.", quality: {needs_review: false}},
     {id: "utt_audio_uncertain_remote", start: 23.0, end: 25.0, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Там есть спорный кусок.", quality: {needs_review: false}},
-    {id: "utt_audio_uncertain_me", start: 23.1, end: 25.1, source_track: "mic", speaker_label: "Me", role: "Me", text: "Я уточню отдельно.", quality: {needs_review: false}}
+    {id: "utt_audio_uncertain_me", start: 23.1, end: 25.1, source_track: "mic", speaker_label: "Me", role: "Me", text: "Я уточню отдельно.", quality: {needs_review: false}},
+    {id: "utt_audio_judge_remote", start: 26.0, end: 28.0, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Релиз готов.", quality: {needs_review: false}},
+    {id: "utt_audio_judge_me", start: 26.1, end: 28.1, source_track: "mic", speaker_label: "Me", role: "Me", text: "Релиз готов.", quality: {needs_review: false}}
   ]' "$group_resolved/clean_dialogue.shadow_v2.json" >"$tmp_json"
   mv "$tmp_json" "$group_resolved/clean_dialogue.shadow_v2.json"
 
@@ -583,6 +585,7 @@ EOF
   cat >>"$group_session/derived/audit/audio-review-pack/audio_review_audit.jsonl" <<'EOF'
 {"schema":"murmurmark.audio_review_audit/v1","id":"arp_manual_v2_duplicate","session_id":"group-fixture","profile":"audit_cleanup_v1","interval":{"start":20.1,"end":22.1,"duration_sec":2.0,"start_time":"00:20","end_time":"00:22"},"source_reasons":["manual_v2_fixture"],"utterance_ids":["utt_audio_dup_remote","utt_audio_dup_me"],"utterances":[{"id":"utt_audio_dup_remote","role":"Colleagues","source_track":"remote","start":20.0,"end":22.0,"text":"Обновим pipeline.","needs_review":false},{"id":"utt_audio_dup_me","role":"Me","source_track":"mic","start":20.1,"end":22.1,"text":"Обновим pipeline.","needs_review":false}],"features":{"rms_db":{"remote":-20,"mic_raw":-32,"mic_clean":-60,"mic_role_masked":-65},"energy_delta_db":{"mic_clean_vs_raw":-28,"role_masked_vs_raw":-33},"xcorr":{"raw":{"max_corr":0.8},"clean":{"max_corr":0.1},"role_masked":{"max_corr":0.05}},"spectral_cosine":{"raw":0.9,"clean":0.2,"role_masked":0.1},"text":{"similarity":1.0,"sequence_ratio":1.0,"containment":1.0,"jaccard":1.0,"me_text":"Обновим pipeline.","remote_text":"Обновим pipeline."},"source_reasons":["manual_v2_fixture"]},"scores":{"local_support":10,"remote_similarity":95,"remote_duplicate":95,"remote_leak":0,"asr_noise":0,"double_talk":0,"timing_overlap":0,"lost_me":0,"likely_reliable":0},"classification":{"label":"remote_duplicate","verdict":"probable_transcript_error","confidence":0.94,"reason":"fixture","top_score":94,"second_score":10}}
 {"schema":"murmurmark.audio_review_audit/v1","id":"arp_manual_v2_uncertain","session_id":"group-fixture","profile":"audit_cleanup_v1","interval":{"start":23.1,"end":25.1,"duration_sec":2.0,"start_time":"00:23","end_time":"00:25"},"source_reasons":["manual_v2_fixture"],"utterance_ids":["utt_audio_uncertain_remote","utt_audio_uncertain_me"],"utterances":[{"id":"utt_audio_uncertain_remote","role":"Colleagues","source_track":"remote","start":23.0,"end":25.0,"text":"Там есть спорный кусок.","needs_review":false},{"id":"utt_audio_uncertain_me","role":"Me","source_track":"mic","start":23.1,"end":25.1,"text":"Я уточню отдельно.","needs_review":false}],"features":{"rms_db":{"remote":-30,"mic_raw":-36,"mic_clean":-35,"mic_role_masked":-35},"energy_delta_db":{"mic_clean_vs_raw":1,"role_masked_vs_raw":1},"xcorr":{"raw":{"max_corr":0.2},"clean":{"max_corr":0.2},"role_masked":{"max_corr":0.2}},"spectral_cosine":{"raw":0.3,"clean":0.3,"role_masked":0.3},"text":{"similarity":0.1,"sequence_ratio":0.1,"containment":0.0,"jaccard":0.0,"me_text":"Я уточню отдельно.","remote_text":"Там есть спорный кусок."},"source_reasons":["manual_v2_fixture"]},"scores":{"local_support":50,"remote_similarity":20,"remote_duplicate":0,"remote_leak":0,"asr_noise":0,"double_talk":0,"timing_overlap":0,"lost_me":0,"likely_reliable":0},"classification":{"label":"uncertain","verdict":"needs_stronger_audio_judge","confidence":0.5,"reason":"fixture","top_score":50,"second_score":45}}
+{"schema":"murmurmark.audio_review_audit/v1","id":"arp_manual_v3_judge_duplicate","session_id":"group-fixture","profile":"audit_cleanup_v1","interval":{"start":26.1,"end":28.1,"duration_sec":2.0,"start_time":"00:26","end_time":"00:28"},"source_reasons":["manual_v3_fixture"],"utterance_ids":["utt_audio_judge_remote","utt_audio_judge_me"],"utterances":[{"id":"utt_audio_judge_remote","role":"Colleagues","source_track":"remote","start":26.0,"end":28.0,"text":"Релиз готов.","needs_review":false},{"id":"utt_audio_judge_me","role":"Me","source_track":"mic","start":26.1,"end":28.1,"text":"Релиз готов.","needs_review":false}],"features":{"rms_db":{"remote":-20,"mic_raw":-32,"mic_clean":-60,"mic_role_masked":-65},"energy_delta_db":{"mic_clean_vs_raw":-28,"role_masked_vs_raw":-33},"xcorr":{"raw":{"max_corr":0.8},"clean":{"max_corr":0.1},"role_masked":{"max_corr":0.05}},"spectral_cosine":{"raw":0.9,"clean":0.2,"role_masked":0.1},"text":{"similarity":1.0,"sequence_ratio":1.0,"containment":1.0,"jaccard":1.0,"me_text":"Релиз готов.","remote_text":"Релиз готов."},"source_reasons":["manual_v3_fixture"]},"scores":{"local_support":10,"remote_similarity":95,"remote_duplicate":95,"remote_leak":0,"asr_noise":0,"double_talk":0,"timing_overlap":0,"lost_me":0,"likely_reliable":0},"classification":{"label":"remote_duplicate","verdict":"probable_transcript_error","confidence":0.78,"reason":"fixture low confidence until audio judge","top_score":78,"second_score":10}}
 EOF
 
   cleanup_v1_sha_before="$(shasum -a 256 "$cleanup_dialogue" | awk '{print $1}')"
@@ -605,12 +608,40 @@ EOF
   jq -e '.summary.audio_review_records >= 2 and .summary.audio_review_applied_patches >= 1' "$cleanup_v2_report" >/dev/null
   jq -e 'all(.utterances[]; .id != "utt_audio_dup_me")' "$cleanup_v2_dialogue" >/dev/null
   jq -e 'any(.utterances[]; .id == "utt_audio_uncertain_me" and (.quality.audit_cleanup.labels | index("uncertain")))' "$cleanup_v2_dialogue" >/dev/null
+  jq -e 'any(.utterances[]; .id == "utt_audio_judge_me")' "$cleanup_v2_dialogue" >/dev/null
   jq -e 'any(.utterances[]; .id == "utt_repeat_me")' "$cleanup_v2_dialogue" >/dev/null
   jq -e 'any(.utterances[]; .id == "utt_action_me")' "$cleanup_v2_dialogue" >/dev/null
   jq -s 'any(.[]; .target.utterance_id == "utt_audio_dup_me" and .evidence.source == "audio_review")' "$cleanup_v2_patches" >/dev/null
 
   "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" --transcript-profile audit_cleanup_v2 >/dev/null
   jq -e '.selected_transcript_profile == "audit_cleanup_v2"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v2.json" >/dev/null
+
+  judge_queue="$workdir/audio_judge_queue.jsonl"
+  cat >"$judge_queue" <<'EOF'
+{"schema":"murmurmark.audio_judge_v0_queue_prediction/v1","id":"queue_group-session_arp_manual_v3_judge_duplicate","session_id":"group-session","source_audit_id":"arp_manual_v3_judge_duplicate","audio_review_label":"remote_duplicate","audio_review_verdict":"probable_transcript_error","judge_label":"drop_error","judge_confidence":0.99,"probabilities":{"drop_error":0.99,"keep":0.0,"mark_only_error":0.0,"uncertain":0.01},"interval":{"start":26.1,"end":28.1,"duration_sec":2.0,"start_time":"00:26","end_time":"00:28"},"utterance_ids":["utt_audio_judge_remote","utt_audio_judge_me"],"commands":{},"shadow_action":"candidate_future_cleanup_review"}
+EOF
+
+  cleanup_v2_sha_before="$(shasum -a 256 "$cleanup_v2_dialogue" | awk '{print $1}')"
+  "$repo_root/scripts/apply-audit-cleanup.py" "$group_session" \
+    --input-profile audit_cleanup_v2 \
+    --output-profile audit_cleanup_v3 \
+    --mode conservative \
+    --audio-judge-queue "$judge_queue" >/dev/null
+  cleanup_v2_sha_after="$(shasum -a 256 "$cleanup_v2_dialogue" | awk '{print $1}')"
+  [[ "$cleanup_v2_sha_before" == "$cleanup_v2_sha_after" ]]
+
+  cleanup_v3_dialogue="$group_resolved/clean_dialogue.audit_cleanup_v3.json"
+  cleanup_v3_report="$group_session/derived/transcript-simple/whisper-cpp/audit-cleanup/audit_cleanup_report.audit_cleanup_v3.json"
+  cleanup_v3_patches="$group_session/derived/transcript-simple/whisper-cpp/audit-cleanup/audit_cleanup_patches.audit_cleanup_v3.jsonl"
+  [[ -s "$cleanup_v3_dialogue" ]]
+  [[ -s "$cleanup_v3_report" ]]
+  [[ -s "$cleanup_v3_patches" ]]
+  jq -e '.gates.passed == true' "$cleanup_v3_report" >/dev/null
+  jq -e '.summary.audio_judge_applied_patches >= 1' "$cleanup_v3_report" >/dev/null
+  jq -e 'all(.utterances[]; .id != "utt_audio_judge_me")' "$cleanup_v3_dialogue" >/dev/null
+  jq -s 'any(.[]; .target.utterance_id == "utt_audio_judge_me" and .evidence.source == "audio_judge")' "$cleanup_v3_patches" >/dev/null
+  "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" --transcript-profile auto >/dev/null
+  jq -e '.selected_transcript_profile == "audit_cleanup_v3"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
 
   corpus_dir="$workdir/regression-corpus"
   "$repo_root/scripts/build-regression-corpus.py" "$group_session" \

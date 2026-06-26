@@ -151,7 +151,18 @@ def session_duration_sec(session_json: dict[str, Any]) -> float | None:
 
 def selected_profile(session: Path) -> str:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
-    if (resolved / "quality_report.audit_cleanup_v3.json").exists() and (resolved / "clean_dialogue.audit_cleanup_v3.json").exists():
+    cleanup = session / "derived/transcript-simple/whisper-cpp/audit-cleanup"
+    cleanup_v3 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v3.json")
+    cleanup_v3_summary = cleanup_v3.get("summary") if isinstance(cleanup_v3, dict) else {}
+    cleanup_v3_gates = cleanup_v3.get("gates") if isinstance(cleanup_v3, dict) else {}
+    cleanup_v3_applied = safe_int(cleanup_v3_summary.get("applied_patches") if isinstance(cleanup_v3_summary, dict) else None) or 0
+    if (
+        (resolved / "quality_report.audit_cleanup_v3.json").exists()
+        and (resolved / "clean_dialogue.audit_cleanup_v3.json").exists()
+        and isinstance(cleanup_v3_gates, dict)
+        and cleanup_v3_gates.get("passed") is True
+        and cleanup_v3_applied > 0
+    ):
         return "audit_cleanup_v3"
     if (resolved / "quality_report.audit_cleanup_v2.json").exists() and (resolved / "clean_dialogue.audit_cleanup_v2.json").exists():
         return "audit_cleanup_v2"

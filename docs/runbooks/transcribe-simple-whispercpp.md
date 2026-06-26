@@ -247,6 +247,28 @@ drops whole `Me` utterances when audio review marks them as high-confidence `rem
 short `asr_noise`. `remote_leak`, `lost_me`, `uncertain`, `double_talk` and `timing_overlap` are
 kept and marked.
 
+## Audit Cleanup v3
+
+After building the regression corpus and audio judge, v3 can consume high-confidence queue
+predictions:
+
+```bash
+.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+  --input-profile audit_cleanup_v2 \
+  --output-profile audit_cleanup_v3 \
+  --mode conservative \
+  --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
+
+.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" \
+  --transcript-profile audit_cleanup_v3
+```
+
+`audit_cleanup_v3` is intentionally narrow. It uses the audio judge only as extra evidence over the
+existing audio-review record. A whole `Me` utterance can be dropped only when the judge predicts
+`drop_error` with high confidence and the original duplicate/noise safety gates still pass.
+`mark_only_error`, `uncertain`, `remote_leak`, `lost_me`, double-talk and timing overlap remain
+review/mark-only cases. If v3 applies no patches, automatic profile selection keeps using v2 or v1.
+
 ## Session Quality Report
 
 For a regression set or a batch of real meetings, build a private quality summary from existing
@@ -293,7 +315,8 @@ work:
 .venv/bin/python scripts/report-operational-readiness.py \
   --session-quality sessions/_reports/session-quality/session_quality_report.json \
   --corpus-evaluation sessions/_reports/regression-corpus/regression_corpus_evaluation.json \
-  --audio-judge sessions/_reports/audio-judge-v0/audio_judge_v0_report.json
+  --audio-judge sessions/_reports/audio-judge-v0/audio_judge_v0_report.json \
+  --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
 
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
@@ -309,7 +332,8 @@ silver keep negatives, mark-only regressions, and examples that need a stronger 
 The audio judge v0 script trains a local shadow classifier on those silver labels using numeric
 audio/text metrics only. It reports leave-one-session-out validation and predictions, but never edits
 transcripts. Queue predictions are conservative: `drop_error` and `mark_only_error` are candidates
-for a future cleanup profile, not automatic review-burden reduction.
+for cleanup/review work, not automatic review-burden reduction. `audit_cleanup_v3` consumes only
+high-confidence `drop_error` predictions that also pass the conservative cleanup gates.
 The operational readiness report answers whether the current pipeline is usable for medium-risk
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first. Its review queue is also

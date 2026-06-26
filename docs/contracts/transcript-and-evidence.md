@@ -492,6 +492,23 @@ shadow judge for prioritisation and future cleanup experiments, not a human-qual
 `remaining_human_review_items` does not decrease for `drop_error` or `mark_only_error`; those classes
 remain review items until a separate cleanup profile applies stricter gates.
 
+When an operational readiness report exists, `train-audio-judge-v0.py` may also write
+`audio_judge_v0_queue_predictions.jsonl`:
+
+```json
+{
+  "schema": "murmurmark.audio_judge_v0_queue_prediction/v1",
+  "session_id": "2026-06-26_11-15-50",
+  "source_audit_id": "arp_000068",
+  "audio_review_label": "remote_duplicate",
+  "judge_label": "drop_error",
+  "judge_confidence": 0.997627,
+  "shadow_action": "candidate_future_cleanup_review"
+}
+```
+
+These rows are shadow evidence. They do not modify a transcript by themselves.
+
 Operational readiness combines the private session quality report and regression corpus evaluation:
 
 ```text
@@ -521,9 +538,9 @@ sessions/_reports/operational-readiness/
     "audio_judge_readiness": "cleanup_shadow_candidate",
     "audio_judge_cv_accuracy": 0.901961,
     "audio_judge_review_queue": {
-      "items": 38,
-      "resolved_by_selected_profile_items": 2,
-      "remaining_human_review_items": 38
+      "items": 34,
+      "resolved_by_selected_profile_items": 6,
+      "remaining_human_review_items": 34
     },
     "review_queue_items": 40
   },
@@ -573,6 +590,19 @@ v2 usually uses `audit_cleanup_v1` as input and may drop only whole `Me` utteran
 `audio_review_audit.jsonl` classifies them as high-confidence `remote_duplicate` or short
 `asr_noise` with verdict `probable_transcript_error`. Other audio-review labels are mark-only:
 `remote_leak`, `lost_me`, `uncertain`, `double_talk` and `timing_overlap`.
+
+`audit_cleanup_v3` has the same artifact shape with the `audit_cleanup_v3` suffix. It usually uses
+`audit_cleanup_v2` as input and additionally reads
+`sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl`. v3 may drop a whole `Me`
+utterance only when:
+
+- the corresponding audio-review item is still active in the input profile;
+- the audio judge predicts `drop_error` with high confidence;
+- the audio-review label is a duplicate/noise class;
+- the existing text/local-support/marker/intentional-repeat safety gates pass.
+
+If v3 applies no patches, automatic synthesis and session-quality reporting should keep using v2 or
+v1 instead of promoting an empty v3 profile.
 
 Patch suggestions are dry-run only:
 

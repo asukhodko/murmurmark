@@ -117,7 +117,8 @@ work, build a corpus from existing audio-review audits:
 .venv/bin/python scripts/report-operational-readiness.py \
   --session-quality sessions/_reports/session-quality/session_quality_report.json \
   --corpus-evaluation sessions/_reports/regression-corpus/regression_corpus_evaluation.json \
-  --audio-judge sessions/_reports/audio-judge-v0/audio_judge_v0_report.json
+  --audio-judge sessions/_reports/audio-judge-v0/audio_judge_v0_report.json \
+  --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
 
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
@@ -243,6 +244,8 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/audit-audio-review-pack.py ./sessions/<session>
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v1 --output-profile audit_cleanup_v2
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v2
+.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v2 --output-profile audit_cleanup_v3 --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
+.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v3
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session>
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
 .venv/bin/python scripts/evaluate-regression-corpus.py
@@ -303,6 +306,13 @@ separate `audit_cleanup_v2` transcript profile. In v2, only high-confidence `rem
 short `asr_noise` `Me` utterances can be dropped. `remote_leak`, `lost_me`, `uncertain`,
 `double_talk` and `timing_overlap` are kept and marked for review.
 
+`audit_cleanup_v3` is the next conservative profile. It reads the selected cleanup profile plus
+`sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl`. It can drop additional
+whole `Me` utterances only when the local audio judge predicts `drop_error` with high confidence and
+the original audio-review/text/local-support safety gates still pass. If v3 applies no patches,
+`auto` synthesis and session-quality reporting keep using v2/v1 instead of promoting an empty v3
+profile.
+
 The quality report helper is `scripts/report-session-quality.py`. It reads existing derived JSON
 for one or more sessions and writes a private JSON/CSV/Markdown summary under
 `sessions/_reports/session-quality/` by default. It does not run ASR and does not modify session
@@ -321,7 +331,8 @@ silver keep negatives, mark-only regressions and examples that need a stronger a
 numeric audio/text metrics. It does not edit transcripts; it reports cross-session validation quality
 and candidate predictions for later cleanup experiments. Queue predictions stay conservative:
 `drop_error` and `mark_only_error` remain human-review items until a separate cleanup profile consumes
-them with its own gates.
+them with its own gates. `audit_cleanup_v3` is that first consuming profile, but it only accepts
+high-confidence `drop_error` candidates that also satisfy the existing cleanup safety checks.
 `scripts/report-operational-readiness.py` combines session quality, corpus readiness and audio-judge
 shadow readiness into a practical verdict such as `pilot_ready_with_review` for medium-risk working
 meetings. It also assigns per-session use gates such as `ready_for_notes` and `review_first`, then

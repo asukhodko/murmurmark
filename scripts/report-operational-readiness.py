@@ -317,7 +317,11 @@ def operational_verdict(
     verdicts = summary.get("by_verdict") if isinstance(summary.get("by_verdict"), dict) else {}
     risky_or_failed = safe_int(verdicts.get("risky")) + safe_int(verdicts.get("failed"))
     selected_profiles = summary.get("by_selected_profile") if isinstance(summary.get("by_selected_profile"), dict) else {}
-    cleanup_profiles = safe_int(selected_profiles.get("audit_cleanup_v1")) + safe_int(selected_profiles.get("audit_cleanup_v2"))
+    cleanup_profiles = (
+        safe_int(selected_profiles.get("audit_cleanup_v1"))
+        + safe_int(selected_profiles.get("audit_cleanup_v2"))
+        + safe_int(selected_profiles.get("audit_cleanup_v3"))
+    )
     cleanup_ratio = cleanup_profiles / session_count if session_count > 0 else 0.0
 
     burdens = [session_review_burden(row) for row in sessions]

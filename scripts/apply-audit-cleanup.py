@@ -145,6 +145,8 @@ HARMFUL_LABELS = {"probable_duplicate", "probable_remote_leak", "probable_asr_no
 BENIGN_LABELS = {"probable_double_talk", "probable_timing_overlap", "double_talk", "timing_overlap"}
 AUDIO_REVIEW_DROP_LABELS = {"remote_duplicate", "asr_noise"}
 AUDIO_REVIEW_MARK_LABELS = {"remote_leak", "lost_me", "uncertain", "double_talk", "timing_overlap"}
+AUDIO_JUDGE_DROP_LABELS = {"drop_error"}
+AUDIO_JUDGE_MARK_LABELS = {"mark_only_error"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -153,6 +155,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input-profile", default=INPUT_PROFILE_DEFAULT)
     parser.add_argument("--output-profile", default=OUTPUT_PROFILE_DEFAULT)
     parser.add_argument("--mode", choices=("dry-run", "conservative"), default="conservative")
+    parser.add_argument(
+        "--audio-judge-queue",
+        type=Path,
+        default=Path("sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl"),
+        help="Optional cross-session audio-judge queue predictions used only by audit_cleanup_v3.",
+    )
     return parser.parse_args()
 
 
@@ -444,6 +452,54 @@ def audio_review_by_me(records: list[dict[str, Any]], existing_ids: set[str]) ->
     return grouped
 
 
+def audio_judge_predictions_by_audit_id(predictions: list[dict[str, Any]], session_name: str) -> dict[str, dict[str, Any]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    for row in predictions:
+        if str(row.get("session_id") or "") != session_name:
+            continue
+        audit_id = str(row.get("source_audit_id") or "")
+        judge_label = str(row.get("judge_label") or "")
+        if not audit_id or judge_label not in AUDIO_JUDGE_DROP_LABELS | AUDIO_JUDGE_MARK_LABELS:
+            continue
+        by_id[audit_id] = row
+    return by_id
+
+
+def audio_judge_by_me(
+    audio_review_records: list[dict[str, Any]],
+    predictions: list[dict[str, Any]],
+    existing_ids: set[str],
+    session_name: str,
+) -> dict[str, list[dict[str, Any]]]:
+    predictions_by_audit = audio_judge_predictions_by_audit_id(predictions, session_name)
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in audio_review_records:
+        prediction = predictions_by_audit.get(str(row.get("id") or ""))
+        if not prediction:
+            continue
+        classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+        label = str(classification.get("label") or "")
+        if label not in AUDIO_REVIEW_DROP_LABELS and label not in AUDIO_REVIEW_MARK_LABELS:
+            continue
+        interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+        start = float(interval.get("start", 0.0) or 0.0)
+        end = float(interval.get("end", start) or start)
+        summaries = row.get("utterances") if isinstance(row.get("utterances"), list) else []
+        me_rows = [audio_review_summary_to_utterance(item, start, end) for item in summaries if isinstance(item, dict) and audio_review_role(item) == "me"]
+        remote_rows = [audio_review_summary_to_utterance(item, start, end) for item in summaries if isinstance(item, dict) and audio_review_role(item) == "remote"]
+        remote = remote_rows[0] if remote_rows else None
+        for me in me_rows:
+            utterance_id = str(me.get("id") or "")
+            if not utterance_id or utterance_id not in existing_ids:
+                continue
+            normalized = normalize_audio_review_record(row, me, remote)
+            normalized["source"] = "audio_judge"
+            normalized["audio_judge_prediction"] = prediction
+            normalized.setdefault("classification", {})["top_score"] = round(float(prediction.get("judge_confidence", 0.0) or 0.0) * 100.0, 3)
+            grouped.setdefault(utterance_id, []).append(normalized)
+    return grouped
+
+
 def unique_me_tokens(record: dict[str, Any]) -> set[str]:
     utterances = record.get("utterances") or {}
     me = utterances.get("me") or {}
@@ -675,12 +731,92 @@ def audio_review_gate(record: dict[str, Any], notes_ids: set[str]) -> tuple[bool
     return duplicate_safe or noise_safe, checks, action
 
 
+def audio_judge_gate(record: dict[str, Any], notes_ids: set[str]) -> tuple[bool, dict[str, Any], str]:
+    prediction = record.get("audio_judge_prediction") if isinstance(record.get("audio_judge_prediction"), dict) else {}
+    review_safe, review_checks, review_action = audio_review_gate(record, notes_ids)
+    classification = record.get("classification") or {}
+    scores = record.get("scores") or {}
+    features = record.get("features") or {}
+    text_features = features.get("text") or {}
+    interval = features.get("interval") or {}
+    me = ((record.get("utterances") or {}).get("me") or {})
+    label = str(classification.get("label") or "")
+    verdict = str(classification.get("verdict") or "")
+    judge_label = str(prediction.get("judge_label") or "")
+    judge_confidence = float(prediction.get("judge_confidence", 0.0) or 0.0)
+    local_support = float(scores.get("audio_review_local_support", scores.get("local_evidence", 0.0)) or 0.0)
+    duplicate_score = float(scores.get("audio_review_remote_duplicate", 0.0) or 0.0)
+    noise_score = float(scores.get("audio_review_asr_noise", 0.0) or 0.0)
+    similarity = float(text_features.get("similarity_max", 0.0) or 0.0)
+    containment = float(text_features.get("token_containment", 0.0) or 0.0)
+    coverage = float(interval.get("me_coverage", interval.get("time_overlap_ratio", 0.0)) or 0.0)
+    unique_tokens = unique_me_tokens(record)
+    unique_count = len(unique_tokens)
+    notes_impact = str(me.get("id")) in notes_ids
+    protected_marker = marker_is_protected(record, unique_count, notes_impact)
+    protected_repeat = intentional_repeat(record, unique_count)
+    duration_sec = float((record.get("audio_review") or {}).get("interval", {}).get("duration_sec", 0.0) or 0.0)
+    if duration_sec <= 0.0:
+        duration_sec = float(me.get("end", 0.0) or 0.0) - float(me.get("start", 0.0) or 0.0)
+    content_count = len(content_tokens(me.get("text")))
+    domain_count = len(domain_terms(me.get("text")))
+
+    common_ok = (
+        verdict == "probable_transcript_error"
+        and judge_label == "drop_error"
+        and judge_confidence >= 0.98
+        and not protected_marker
+        and not protected_repeat
+        and not (notes_impact and not (judge_confidence >= 0.995 and unique_count == 0))
+    )
+    judge_duplicate_safe = (
+        label == "remote_duplicate"
+        and common_ok
+        and duplicate_score >= 75.0
+        and local_support <= 60.0
+        and (similarity >= 0.60 or containment >= 0.65 or duplicate_score >= 90.0)
+        and coverage >= 0.45
+        and unique_count <= 2
+    )
+    judge_noise_safe = (
+        label == "asr_noise"
+        and common_ok
+        and noise_score >= 75.0
+        and local_support <= 45.0
+        and duration_sec <= 2.5
+        and content_count <= 3
+        and domain_count == 0
+        and not has_marker(me.get("text"))
+    )
+    safe = review_safe or judge_duplicate_safe or judge_noise_safe
+    action = "drop_me_duplicate" if label == "remote_duplicate" else "drop_me_noise" if label == "asr_noise" else "mark_audio_judge"
+    checks = {
+        **review_checks,
+        "source": "audio_judge",
+        "audio_judge_label": judge_label,
+        "audio_judge_confidence": judge_confidence,
+        "audio_judge_shadow_action": prediction.get("shadow_action"),
+        "audio_judge_common_gate_passed": common_ok,
+        "audio_judge_duplicate_gate_passed": judge_duplicate_safe,
+        "audio_judge_noise_gate_passed": judge_noise_safe,
+        "audio_review_gate_passed": review_safe,
+        "safe_to_drop_entire_utterance": safe,
+    }
+    if judge_label == "mark_only_error":
+        action = "mark_audio_judge"
+        checks["safe_to_drop_entire_utterance"] = False
+        return False, checks, action
+    return safe, checks, action
+
+
 def best_patch_for_utterance(utterance_id: str, rows: list[dict[str, Any]], notes_ids: set[str], patch_index: int) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     candidates: list[tuple[int, dict[str, Any], dict[str, Any], str]] = []
     rejected: list[dict[str, Any]] = []
     for record in rows:
         label = str((record.get("classification") or {}).get("label") or "")
-        if record.get("source") == "audio_review":
+        if record.get("source") == "audio_judge":
+            safe, checks, action = audio_judge_gate(record, notes_ids)
+        elif record.get("source") == "audio_review":
             safe, checks, action = audio_review_gate(record, notes_ids)
         elif label == "probable_duplicate":
             safe, checks = duplicate_gate(record, notes_ids)
@@ -766,6 +902,7 @@ def patch_payload(
             "speaker_state": features.get("speaker_state"),
             "interval": features.get("interval"),
             "audio_review": record.get("audio_review"),
+            "audio_judge": record.get("audio_judge_prediction"),
         },
         "safety_checks": checks,
     }
@@ -834,6 +971,8 @@ def quality_report(
         "rejected_patches": len(rejected),
         "audio_review_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_review"),
         "audio_review_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_review"),
+        "audio_judge_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_judge"),
+        "audio_judge_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_judge"),
         "dropped_me_duplicate_seconds": round(dropped_duplicate, 3),
         "dropped_me_noise_seconds": round(dropped_noise, 3),
         "audit_harmful_seconds_before": round(harmful_before, 3),
@@ -887,22 +1026,27 @@ def main() -> int:
         "audit_summary": audit_dir / "group_overlap_summary.json",
         "audio_review_audit": audio_review_dir / "audio_review_audit.jsonl",
         "audio_review_summary": audio_review_dir / "audio_review_summary.json",
+        "audio_judge_queue": args.audio_judge_queue,
     }
     for label, path in paths.items():
-        if label in {"simple", "report", "audio_review_audit", "audio_review_summary"}:
+        if label in {"simple", "report", "audio_review_audit", "audio_review_summary", "audio_judge_queue"}:
             continue
         if not path.exists():
             raise FileNotFoundError(f"missing {label}: {path}")
-    use_audio_review = args.output_profile == "audit_cleanup_v2"
+    use_audio_review = args.output_profile in {"audit_cleanup_v2", "audit_cleanup_v3"}
+    use_audio_judge = args.output_profile == "audit_cleanup_v3"
     if use_audio_review:
         for label in ("audio_review_audit", "audio_review_summary"):
             if not paths[label].exists():
                 raise FileNotFoundError(f"missing {label}: {paths[label]}")
+    if use_audio_judge and not paths["audio_judge_queue"].exists():
+        raise FileNotFoundError(f"missing audio_judge_queue: {paths['audio_judge_queue']}")
 
     dialogue = read_json(paths["dialogue"])
     input_quality = read_json(paths["quality"])
     audit_records = read_jsonl(paths["audit"])
     audio_review_records = read_jsonl(paths["audio_review_audit"]) if use_audio_review else []
+    audio_judge_predictions = read_jsonl(paths["audio_judge_queue"]) if use_audio_judge else []
     audit_summary = read_json(paths["audit_summary"])
     utterances = [row for row in dialogue.get("utterances", []) if isinstance(row, dict)]
     by_id = {str(row.get("id")): row for row in utterances}
@@ -910,6 +1054,9 @@ def main() -> int:
     grouped = audit_by_me(audit_records, set(by_id))
     if use_audio_review:
         for utterance_id, records in audio_review_by_me(audio_review_records, set(by_id)).items():
+            grouped.setdefault(utterance_id, []).extend(records)
+    if use_audio_judge:
+        for utterance_id, records in audio_judge_by_me(audio_review_records, audio_judge_predictions, set(by_id), session.name).items():
             grouped.setdefault(utterance_id, []).extend(records)
 
     applied: list[dict[str, Any]] = []
@@ -1043,6 +1190,7 @@ def main() -> int:
             key: rel(path, session)
             for key, path in paths.items()
             if path.exists() and (key not in {"audio_review_audit", "audio_review_summary"} or use_audio_review)
+            and (key != "audio_judge_queue" or use_audio_judge)
         },
         "summary": {
             "input_utterances": len(utterances),
@@ -1050,8 +1198,11 @@ def main() -> int:
             "applied_patches": len(applied),
             "rejected_patches": len(rejected),
             "audio_review_records": len(audio_review_records),
+            "audio_judge_predictions": len(audio_judge_predictions),
             "audio_review_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_review"),
             "audio_review_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_review"),
+            "audio_judge_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_judge"),
+            "audio_judge_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_judge"),
             "dropped_me_duplicate_seconds": output_quality["audit_cleanup"]["dropped_me_duplicate_seconds"],
             "dropped_me_noise_seconds": output_quality["audit_cleanup"]["dropped_me_noise_seconds"],
             "protected_intentional_repeat_count": output_quality["audit_cleanup"]["protected_intentional_repeat_count"],
