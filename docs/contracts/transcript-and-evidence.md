@@ -385,6 +385,9 @@ overlaps, group overlap audit and audit-cleanup rejections:
 
 The local audio review does not apply patches. Later stronger local audio judges should consume the
 same `review_pack_items.jsonl` and write their own verdicts instead of re-cutting clips.
+`likely_reliable` can be emitted with lower confidence when the best local metric class is already
+`likely_reliable`, the score is at least `65`, and the nearest competing error class is at least
+`10` points lower. This only lowers review priority; it is not an automatic transcript edit.
 
 Cross-session regression corpus is generated from audio review audits:
 

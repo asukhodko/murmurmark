@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA_REPORT = "murmurmark.regression_corpus_evaluation/v1"
 SCHEMA_ITEM = "murmurmark.regression_corpus_evaluation_item/v1"
 
@@ -82,6 +82,9 @@ def classify_item(item: dict[str, Any]) -> tuple[str, list[str]]:
         return "silver_keep_negative", reasons
     if label in BENIGN_LABELS and verdict == "likely_reliable" and confidence >= 0.85:
         reasons.append("high-confidence keep example")
+        return "silver_keep_negative", reasons
+    if label in BENIGN_LABELS and verdict == "likely_reliable" and confidence >= 0.65:
+        reasons.append("low-risk keep example")
         return "silver_keep_negative", reasons
     if label in MARK_ONLY_LABELS and verdict == "probable_transcript_error":
         reasons.append("harmful but not safe for whole-utterance deletion")

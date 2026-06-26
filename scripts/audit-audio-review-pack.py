@@ -17,7 +17,7 @@ from scipy import signal
 
 SCHEMA_AUDIT = "murmurmark.audio_review_audit/v1"
 SCHEMA_SUMMARY = "murmurmark.audio_review_summary/v1"
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SAMPLE_RATE = 16000
 EPS = 1e-9
 
@@ -358,6 +358,15 @@ def classify(scores: dict[str, int], missing_audio: bool) -> dict[str, Any]:
     ordered = sorted(((label, scores[label]) for label in labels), key=lambda item: item[1], reverse=True)
     top, top_score = ordered[0]
     second_score = ordered[1][1] if len(ordered) > 1 else 0
+    if top == "likely_reliable" and top_score >= 65 and top_score - second_score >= 10:
+        return {
+            "label": top,
+            "verdict": "likely_reliable",
+            "confidence": round(min(0.69, top_score / 100.0), 3),
+            "reason": "low-risk local metrics support the mic utterance",
+            "top_score": top_score,
+            "second_score": second_score,
+        }
     if top_score < 68 or top_score - second_score < 10:
         return {
             "label": "uncertain",

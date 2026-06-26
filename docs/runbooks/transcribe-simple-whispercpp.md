@@ -253,6 +253,9 @@ The pack is written under `derived/audit/audio-review-pack/`. It includes short 
 regions. The local audit classifies each item as likely reliable, probable transcript error, or
 needing a stronger local audio judge. It does not rewrite transcripts, Echo Guard outputs,
 synthesis files or raw `audio/*.caf`.
+Low-risk `likely_reliable` items can have confidence below `0.70` when local metrics support the mic
+utterance and competing error classes are clearly weaker. Treat this as review-priority reduction,
+not as proof that the transcript is perfect.
 
 ## Audit Cleanup v2
 

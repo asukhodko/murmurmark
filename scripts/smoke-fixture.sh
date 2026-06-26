@@ -403,6 +403,30 @@ then
 fi
 
 if [[ -n "$audit_python" ]]; then
+  "$audit_python" - "$repo_root/scripts/audit-audio-review-pack.py" <<'PY'
+import importlib.util
+import sys
+
+path = sys.argv[1]
+spec = importlib.util.spec_from_file_location("audio_review_audit", path)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+base = {
+    "remote_duplicate": 0,
+    "remote_leak": 0,
+    "asr_noise": 0,
+    "lost_me": 0,
+    "double_talk": 0,
+    "timing_overlap": 0,
+    "likely_reliable": 65,
+}
+assert module.classify(base, False)["verdict"] == "likely_reliable"
+competing = dict(base)
+competing["remote_leak"] = 60
+assert module.classify(competing, False)["verdict"] == "needs_stronger_audio_judge"
+PY
+
   group_session="$workdir/group-session"
   group_resolved="$group_session/derived/transcript-simple/whisper-cpp/resolved"
   mkdir -p \
