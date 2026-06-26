@@ -127,13 +127,10 @@ cp sessions/_reports/review-plan/review_decisions.template.jsonl \
   sessions/_reports/review-plan/review_decisions.jsonl
 # Edit every row in review_decisions.jsonl after listening to the listed clips.
 
-.venv/bin/python scripts/apply-review-decisions.py sessions/<session> \
+.venv/bin/python scripts/apply-review-decisions-batch.py \
   --decisions sessions/_reports/review-plan/review_decisions.jsonl \
-  --input-profile auto \
-  --output-profile reviewed_v1
-
-.venv/bin/python scripts/synthesize-simple-extractive.py sessions/<session> \
-  --transcript-profile reviewed_v1
+  --review-template sessions/_reports/review-plan/review_decisions.template.jsonl \
+  --synthesize
 
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
@@ -268,6 +265,7 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/train-audio-judge-v0.py
 .venv/bin/python scripts/report-operational-readiness.py
 .venv/bin/python scripts/build-review-plan.py
+.venv/bin/python scripts/apply-review-decisions-batch.py --decisions sessions/_reports/review-plan/review_decisions.jsonl --synthesize
 .venv/bin/python scripts/apply-review-decisions.py ./sessions/<session> --decisions sessions/_reports/review-plan/review_decisions.jsonl
 .venv/bin/python scripts/echo-guard-delay-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-fir-lab.py ./sessions/<session>
@@ -370,6 +368,8 @@ does not edit transcript profiles.
 writes a separate `reviewed_v1` profile and never changes the automatic cleanup profiles. The
 profile is eligible for `--transcript-profile auto` only when the review template has no remaining
 `todo` rows for that session; partial review stays as an audit artifact with failing gates.
+`scripts/apply-review-decisions-batch.py` applies the same edited file to every session mentioned in
+the review plan and can immediately regenerate extractive notes with `--synthesize`.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 

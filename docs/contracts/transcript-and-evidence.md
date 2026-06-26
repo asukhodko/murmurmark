@@ -651,6 +651,9 @@ derived/transcript-simple/whisper-cpp/review-decisions/
   review_decisions_applied.reviewed_v1.jsonl
   review_decisions_rejected.reviewed_v1.jsonl
   review_decisions_conflicts.reviewed_v1.jsonl
+
+sessions/_reports/review-plan/
+  review_decisions_apply_report.json
 ```
 
 `drop_me` removes whole reviewed `Me` utterances. `keep_me` keeps the utterance and can clear its
@@ -685,6 +688,31 @@ The report includes coverage evidence:
 ```
 
 Automatic cleanup profiles remain unchanged.
+
+`apply-review-decisions-batch.py` wraps the per-session command and writes
+`murmurmark.review_decisions_batch_report/v1`:
+
+```json
+{
+  "schema": "murmurmark.review_decisions_batch_report/v1",
+  "summary": {
+    "session_count": 6,
+    "passed_sessions": 6,
+    "failed_sessions": 0
+  },
+  "sessions": [
+    {
+      "session_id": "2026-06-26_11-15-50",
+      "apply": {
+        "returncode": 0,
+        "gates_passed": true,
+        "coverage_complete": true,
+        "coverage_ratio": 1.0
+      }
+    }
+  ]
+}
+```
 
 Session quality and operational readiness are profile-aware. They compare audio-review items with
 the selected `clean_dialogue*.json` profile and treat items whose `Me` utterance was removed by

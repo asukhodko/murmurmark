@@ -678,6 +678,14 @@ EOF
   "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" --transcript-profile auto >/dev/null
   jq -e '.selected_transcript_profile == "reviewed_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
   jq -e '.selected_transcript_profile == "reviewed_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.reviewed_v1.json" >/dev/null
+  batch_report="$workdir/review_decisions_apply_report.json"
+  "$repo_root/scripts/apply-review-decisions-batch.py" \
+    --decisions "$review_decisions" \
+    --review-template "$review_template" \
+    --out "$batch_report" \
+    --synthesize >/dev/null
+  [[ -s "$batch_report" ]]
+  jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.session_count == 1 and .summary.failed_sessions == 0' "$batch_report" >/dev/null
 
   corpus_dir="$workdir/regression-corpus"
   "$repo_root/scripts/build-regression-corpus.py" "$group_session" \

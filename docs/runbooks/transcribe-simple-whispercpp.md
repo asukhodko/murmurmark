@@ -325,13 +325,10 @@ cp sessions/_reports/review-plan/review_decisions.template.jsonl \
   sessions/_reports/review-plan/review_decisions.jsonl
 # Edit every row in review_decisions.jsonl after listening to the listed clips.
 
-.venv/bin/python scripts/apply-review-decisions.py sessions/<session> \
+.venv/bin/python scripts/apply-review-decisions-batch.py \
   --decisions sessions/_reports/review-plan/review_decisions.jsonl \
-  --input-profile auto \
-  --output-profile reviewed_v1
-
-.venv/bin/python scripts/synthesize-simple-extractive.py sessions/<session> \
-  --transcript-profile reviewed_v1
+  --review-template sessions/_reports/review-plan/review_decisions.template.jsonl \
+  --synthesize
 
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
@@ -357,12 +354,14 @@ profile-aware: already-resolved cleanup items are not shown as remaining work.
 `build-review-plan.py` turns that queue into a compact checklist. Use it when a session is
 `review_first`: listen to the listed stereo clips, decide whether each `Me` candidate is leaked
 remote speech, real local speech, or unclear, then keep unclear cases marked for review.
-`apply-review-decisions.py` consumes the edited decision JSONL and writes a separate `reviewed_v1`
-profile. It can drop whole reviewed `Me` utterances, clear review flags for confirmed local speech,
-or keep an item marked `needs_review`. `reviewed_v1` gates pass only when the corresponding
-`review_decisions.template.jsonl` rows for that session are all closed with `drop_me`, `keep_me`,
-`needs_review`, or `skip`; a partial file is written for audit but is not selected by `auto`. It does
-not edit `audit_cleanup_v1/v2/v3`.
+`apply-review-decisions-batch.py` is the normal command after the review file is filled. It applies
+the same edited JSONL to every session mentioned in the review plan and can immediately regenerate
+extractive notes. Under the hood, `apply-review-decisions.py` writes a separate `reviewed_v1`
+profile for each session. It can drop whole reviewed `Me` utterances, clear review flags for
+confirmed local speech, or keep an item marked `needs_review`. `reviewed_v1` gates pass only when
+the corresponding `review_decisions.template.jsonl` rows for that session are all closed with
+`drop_me`, `keep_me`, `needs_review`, or `skip`; a partial file is written for audit but is not
+selected by `auto`. It does not edit `audit_cleanup_v1/v2/v3`.
 
 ## Outputs
 
