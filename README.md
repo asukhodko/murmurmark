@@ -282,6 +282,9 @@ actual listening time, keeps ready-to-run `afplay`/`ffplay` commands, and gives 
 whether each `Me` candidate should be dropped, kept, or left as `needs_review`. Local-recall items
 are audit-only review rows: they can clear or keep the local-recall risk, but they do not insert
 missing text into the transcript. The plan itself is audit-only and does not edit transcript profiles.
+For `remote_duplicate`, `drop_me` is suggested only when the duplicate covers enough of the whole
+`Me` utterance. If the overlap is only a slice of a longer local utterance, the row is marked
+`check_unique_me_content` and the safe default is `needs_review`.
 
 `scripts/review-decisions-cli.py` is the fastest way to fill that checklist. It walks through
 `review_decisions.template.jsonl`, plays the preferred stereo clip, shows the `Me`/`remote` texts and

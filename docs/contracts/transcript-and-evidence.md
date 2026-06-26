@@ -768,6 +768,11 @@ The review plan is audit-only. It does not create new audio clips and does not m
 It groups nearby suspicious intervals, keeps the original `afplay` commands, and gives a small
 decision protocol: drop leaked `Me`, keep real local speech, or leave unclear cases as
 `needs_review`.
+`remote_duplicate` suggestions are coverage-aware. `drop_me` is suggested only when the suspicious
+interval covers enough of the whole `Me` utterance. Partial duplicates keep
+`allowed_decisions: ["drop_me", "keep_me", "needs_review", "skip"]`, but the hint becomes
+`needs_review` with `review_action: "check_unique_me_content"` and `review_features` records the
+coverage and text-similarity signals.
 
 `review_decisions.template.jsonl` contains editable `murmurmark.review_decision/v1` rows:
 
@@ -783,6 +788,12 @@ decision protocol: drop leaked `Me`, keep real local speech, or leave unclear ca
   "suggested_decision": "drop_me",
   "suggested_decision_confidence": "high",
   "suggested_decision_reason": "probable leaked remote duplicate; confirm by listening before changing decision",
+  "review_features": {
+    "me_overlap_coverage": 0.91,
+    "text_similarity": 0.88,
+    "token_containment": 1.0,
+    "likely_partial_me_utterance": false
+  },
   "me_utterance_ids": ["utt_000271"],
   "remote_utterance_ids": ["utt_000269"],
   "commands": {

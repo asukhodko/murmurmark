@@ -853,6 +853,8 @@ EOF
   jq -s 'all(.[]; (.primary_command | type) == "string")' "$review_plan_dir/review_plan_clusters.jsonl" >/dev/null
   jq -s 'all(.[]; .schema == "murmurmark.review_decision/v1" and .decision == "todo" and (.me_utterance_ids | type) == "array" and (.suggested_decision | IN("drop_me", "keep_me", "needs_review")))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .suggested_decision == "drop_me" and .decision == "todo")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
+  jq -s 'all(.[]; .label != "remote_duplicate" or .suggested_decision != "drop_me" or ((.review_features.me_overlap_coverage // 0) >= 0.6))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
+  jq -s 'all(.[]; .label != "remote_duplicate" or ((.review_features.me_overlap_coverage // 0) >= 0.55) or .suggested_decision == "needs_review")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .label == "lost_me" and .review_action == "check_lost_local_speech")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
 fi
 

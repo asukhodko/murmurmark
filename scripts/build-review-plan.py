@@ -75,8 +75,20 @@ def compact_text(text: Any, limit: int = 180) -> str:
     return value[: limit - 1].rstrip() + "..."
 
 
-def review_action(label: str, verdict: str) -> str:
-    if label in {"remote_duplicate", "asr_noise"} and verdict == "probable_transcript_error":
+def duplicate_drop_hint_allowed(item: dict[str, Any] | None) -> bool:
+    features = item.get("review_features") if isinstance(item, dict) and isinstance(item.get("review_features"), dict) else {}
+    coverage = safe_float(features.get("me_overlap_coverage"))
+    similarity = safe_float(features.get("text_similarity"))
+    containment = safe_float(features.get("token_containment"))
+    return coverage >= 0.60 and (similarity >= 0.75 or containment >= 0.75)
+
+
+def review_action(label: str, verdict: str, item: dict[str, Any] | None = None) -> str:
+    if label == "remote_duplicate" and verdict == "probable_transcript_error":
+        if not duplicate_drop_hint_allowed(item):
+            return "check_unique_me_content"
+        return "confirm_drop_or_keep_me"
+    if label == "asr_noise" and verdict == "probable_transcript_error":
         return "confirm_drop_or_keep_me"
     if label == "remote_leak":
         return "check_unique_me_content"
@@ -89,14 +101,31 @@ def review_action(label: str, verdict: str) -> str:
     return "classify_audio"
 
 
-def suggested_decision(label: str, verdict: str, confidence: float) -> dict[str, Any]:
-    if label in {"remote_duplicate", "asr_noise"} and verdict == "probable_transcript_error":
+def suggested_decision(label: str, verdict: str, confidence: float, item: dict[str, Any] | None = None) -> dict[str, Any]:
+    if label == "remote_duplicate" and verdict == "probable_transcript_error":
+        if not duplicate_drop_hint_allowed(item):
+            features = item.get("review_features") if isinstance(item, dict) and isinstance(item.get("review_features"), dict) else {}
+            coverage = safe_float(features.get("me_overlap_coverage"))
+            return {
+                "suggested_decision": "needs_review",
+                "suggested_decision_confidence": "medium",
+                "suggested_decision_reason": (
+                    "remote duplicate covers only part of the Me utterance"
+                    f" (coverage {coverage:.2f}); check unique local content before dropping"
+                ),
+            }
         level = "high" if confidence >= 0.9 else "medium"
-        reason = "probable leaked remote duplicate" if label == "remote_duplicate" else "probable short ASR noise"
         return {
             "suggested_decision": "drop_me",
             "suggested_decision_confidence": level,
-            "suggested_decision_reason": f"{reason}; confirm by listening before changing decision",
+            "suggested_decision_reason": "probable leaked remote duplicate; confirm by listening before changing decision",
+        }
+    if label == "asr_noise" and verdict == "probable_transcript_error":
+        level = "high" if confidence >= 0.9 else "medium"
+        return {
+            "suggested_decision": "drop_me",
+            "suggested_decision_confidence": level,
+            "suggested_decision_reason": "probable short ASR noise; confirm by listening before changing decision",
         }
     if label == "remote_leak":
         return {
@@ -164,7 +193,7 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
         and (str(row.get("source_track") or "").lower() == "remote" or str(row.get("role") or "").lower() == "remote")
         and row.get("id")
     ]
-    suggestion = suggested_decision(label, verdict, confidence)
+    suggestion = suggested_decision(label, verdict, confidence, item)
     return {
         "session_id": item.get("session_id"),
         "session": item.get("session"),
@@ -174,7 +203,7 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
         "verdict": verdict,
         "confidence": round(confidence, 6),
         "severity": severity(label, verdict, confidence),
-        "review_action": review_action(label, verdict),
+        "review_action": review_action(label, verdict, item),
         **suggestion,
         "priority_score": safe_float(item.get("priority_score")),
         "interval": {
@@ -187,6 +216,7 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
         "utterance_ids": item.get("utterance_ids") if isinstance(item.get("utterance_ids"), list) else [],
         "me_utterance_ids": me_ids,
         "remote_utterance_ids": remote_ids,
+        "review_features": item.get("review_features") if isinstance(item.get("review_features"), dict) else {},
         "text": item.get("text") if isinstance(item.get("text"), list) else [],
         "commands": item.get("commands") if isinstance(item.get("commands"), dict) else {},
     }
@@ -318,6 +348,7 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
             "Listen to stereo_clean_left_remote_right first.",
             "Use suggested_decision as a hint only; it does not count until copied to decision.",
             "If Me contains only leaked remote speech, mark drop_me.",
+            "If the duplicate covers only part of a longer Me utterance, do not drop it blindly; check unique local content.",
             "If Me contains real local speech or intentional repeat, mark keep_me.",
             "If the case is unclear, keep the transcript item and mark needs_review.",
         ],
@@ -360,6 +391,7 @@ def decision_template_rows(plan: dict[str, Any]) -> list[dict[str, Any]]:
                     "suggested_decision_confidence": item.get("suggested_decision_confidence"),
                     "suggested_decision_reason": item.get("suggested_decision_reason"),
                     "interval": item.get("interval"),
+                    "review_features": item.get("review_features") if isinstance(item.get("review_features"), dict) else {},
                     "me_utterance_ids": item.get("me_utterance_ids") or [],
                     "remote_utterance_ids": item.get("remote_utterance_ids") or [],
                     "utterance_ids": item.get("utterance_ids") or [],
@@ -425,6 +457,11 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
             )
             if item.get("suggested_decision_reason"):
                 lines.append(f"  - suggestion: {item.get('suggested_decision_reason')}")
+            features = item.get("review_features") if isinstance(item.get("review_features"), dict) else {}
+            if features.get("likely_partial_me_utterance"):
+                lines.append(
+                    "  - safety: partial Me utterance; do not drop the whole utterance unless listening confirms no unique local speech"
+                )
             for text in (item.get("text") or [])[:2]:
                 if not isinstance(text, dict):
                     continue

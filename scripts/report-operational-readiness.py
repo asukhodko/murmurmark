@@ -216,6 +216,37 @@ def compact_review_item(session: dict[str, Any], row: dict[str, Any]) -> dict[st
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
     utterances = row.get("utterances") if isinstance(row.get("utterances"), list) else []
     commands = row.get("commands") if isinstance(row.get("commands"), dict) else {}
+    features = row.get("features") if isinstance(row.get("features"), dict) else {}
+    text_features = features.get("text") if isinstance(features.get("text"), dict) else {}
+    me_rows = [
+        item
+        for item in utterances
+        if isinstance(item, dict)
+        and (str(item.get("source_track") or "").lower() == "mic" or str(item.get("role") or "").lower() == "me")
+    ]
+    remote_rows = [
+        item
+        for item in utterances
+        if isinstance(item, dict)
+        and (str(item.get("source_track") or "").lower() == "remote" or str(item.get("role") or "").lower() in {"remote", "colleagues"})
+    ]
+
+    def utterance_duration(item: dict[str, Any] | None) -> float:
+        if not isinstance(item, dict):
+            return 0.0
+        return max(0.0, safe_float(item.get("end")) - safe_float(item.get("start")))
+
+    def interval_coverage(item: dict[str, Any] | None) -> float:
+        duration = utterance_duration(item)
+        if duration <= 0.0 or not isinstance(item, dict):
+            return 0.0
+        start = max(safe_float(interval.get("start")), safe_float(item.get("start")))
+        end = min(safe_float(interval.get("end")), safe_float(item.get("end")))
+        return max(0.0, end - start) / duration
+
+    me_row = me_rows[0] if me_rows else None
+    remote_row = remote_rows[0] if remote_rows else None
+    me_coverage = interval_coverage(me_row)
     return {
         "session_id": session.get("session_id"),
         "session": session.get("session"),
@@ -226,6 +257,16 @@ def compact_review_item(session: dict[str, Any], row: dict[str, Any]) -> dict[st
         "priority_score": review_priority(row),
         "interval": interval,
         "utterance_ids": row.get("utterance_ids", []),
+        "review_features": {
+            "me_overlap_coverage": round(me_coverage, 6),
+            "remote_overlap_coverage": round(interval_coverage(remote_row), 6),
+            "me_utterance_duration_sec": round(utterance_duration(me_row), 3),
+            "remote_utterance_duration_sec": round(utterance_duration(remote_row), 3),
+            "text_similarity": round(safe_float(text_features.get("similarity")), 6),
+            "token_containment": round(safe_float(text_features.get("containment")), 6),
+            "sequence_ratio": round(safe_float(text_features.get("sequence_ratio")), 6),
+            "likely_partial_me_utterance": bool(0.0 < me_coverage < 0.55),
+        },
         "text": [
             {
                 "id": item.get("id"),
