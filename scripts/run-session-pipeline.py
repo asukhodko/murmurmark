@@ -5,6 +5,7 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -226,17 +227,25 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
 
 
 def run_step(item: dict[str, Any], repo_root: Path, plan_only: bool) -> dict[str, Any]:
-    result = {**item, "status": "planned" if plan_only else "pending"}
+    started_at = datetime.now(timezone.utc).isoformat()
+    started = time.monotonic()
+    result = {**item, "status": "planned" if plan_only else "pending", "started_at": started_at}
     if not item["enabled"]:
         result["status"] = "skipped"
+        result["finished_at"] = datetime.now(timezone.utc).isoformat()
+        result["duration_sec"] = 0.0
         return result
     if plan_only:
+        result["finished_at"] = datetime.now(timezone.utc).isoformat()
+        result["duration_sec"] = 0.0
         return result
     completed = subprocess.run(item["command"], cwd=repo_root, text=True, capture_output=True, check=False)
     result.update(
         {
             "status": "passed" if completed.returncode == 0 else "failed",
             "returncode": completed.returncode,
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "duration_sec": round(time.monotonic() - started, 3),
             "stdout_tail": completed.stdout[-4000:],
             "stderr_tail": completed.stderr[-4000:],
         }
@@ -255,7 +264,13 @@ def main() -> int:
     final_status = "passed"
 
     for item in steps:
-        print(f"{'[plan]' if args.plan_only else '[run]'} {item['name']}")
+        if not item["enabled"]:
+            prefix = "[skip]"
+        elif args.plan_only:
+            prefix = "[plan]"
+        else:
+            prefix = "[run]"
+        print(f"{prefix} {item['name']}")
         result = run_step(item, repo_root, args.plan_only)
         results.append(result)
         if result["status"] == "failed":

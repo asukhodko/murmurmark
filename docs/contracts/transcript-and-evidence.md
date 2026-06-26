@@ -537,6 +537,9 @@ derived/pipeline-run/
     {
       "name": "transcribe_current",
       "status": "passed",
+      "started_at": "2026-06-26T22:18:05.434622+00:00",
+      "finished_at": "2026-06-26T22:18:42.120000+00:00",
+      "duration_sec": 36.685,
       "command": ["python", "scripts/transcribe-simple-whispercpp.py", "sessions/..."]
     }
   ]
