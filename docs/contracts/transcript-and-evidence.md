@@ -386,6 +386,40 @@ overlaps, group overlap audit and audit-cleanup rejections:
 The local audio review does not apply patches. Later stronger local audio judges should consume the
 same `review_pack_items.jsonl` and write their own verdicts instead of re-cutting clips.
 
+Cross-session regression corpus is generated from audio review audits:
+
+```text
+sessions/_reports/regression-corpus/
+  regression_corpus_manifest.json
+  regression_corpus_summary.json
+  regression_corpus_items.jsonl
+  regression_corpus.md
+  clips/
+```
+
+`regression_corpus_items.jsonl` rows use `murmurmark.regression_corpus_item/v1`:
+
+```json
+{
+  "schema": "murmurmark.regression_corpus_item/v1",
+  "id": "rc_000001",
+  "session_id": "2026-06-26_11-15-50",
+  "source_audit_id": "arp_000042",
+  "profile": "audit_cleanup_v2",
+  "label": "remote_duplicate",
+  "verdict": "probable_transcript_error",
+  "confidence": 0.94,
+  "target_use": ["cleanup_regression", "auto_drop_gate"],
+  "utterance_ids": ["utt_000123", "utt_000124"],
+  "clips": {
+    "mic_raw": "sessions/_reports/regression-corpus/clips/2026-06-26_11-15-50/rc_000001_mic_raw.wav"
+  }
+}
+```
+
+The corpus is private generated data. It is for regression tests, agent review and future local
+audio-judge development. It must not become a tracked fixture when it contains real meeting audio.
+
 `audit_cleanup_v2` consumes the audio review audit as an extra evidence layer. It writes the same
 profile-shaped transcript artifacts as v1, but with the `audit_cleanup_v2` suffix:
 

@@ -97,6 +97,19 @@ For a regression set or several real meetings, build a private quality summary u
 less sessions/_reports/session-quality/session_quality_report.md
 ```
 
+To turn audited sessions into a reusable private regression set for future cleanup and audio-judge
+work, build a corpus from existing audio-review audits:
+
+```bash
+.venv/bin/python scripts/build-regression-corpus.py \
+  sessions/<session-1> \
+  sessions/<session-2> \
+  --per-label 16 \
+  --max-items 160
+
+less sessions/_reports/regression-corpus/regression_corpus.md
+```
+
 ### End-to-End From a New Recording
 
 This is the current practical path from a new local recording to the best available transcript candidate.
@@ -216,6 +229,7 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v1 --output-profile audit_cleanup_v2
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v2
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session>
+.venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-delay-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-fir-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-local-subtract-lab.py ./sessions/<session> --start-sec <seconds>
@@ -275,6 +289,12 @@ The quality report helper is `scripts/report-session-quality.py`. It reads exist
 for one or more sessions and writes a private JSON/CSV/Markdown summary under
 `sessions/_reports/session-quality/` by default. It does not run ASR and does not modify session
 audio or transcript artifacts.
+
+`scripts/build-regression-corpus.py` collects high-value examples from existing
+`audio_review_audit.jsonl` files across sessions. It balances examples by label, copies the already
+cut audio-review clips into `sessions/_reports/regression-corpus/clips/`, and writes JSONL, JSON and
+Markdown reports. The corpus is meant for future agent-driven cleanup checks and for a stronger local
+audio judge. It is private generated data and does not modify sessions or raw audio.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 

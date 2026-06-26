@@ -266,6 +266,25 @@ JSON, CSV and Markdown under `sessions/_reports/session-quality/` by default, wh
 together with `sessions/`. It does not run ASR, does not rewrite transcripts and does not touch raw
 `audio/mic/*.caf` or `audio/remote/*.caf`.
 
+## Regression Corpus
+
+Use the already-audited sessions to build a private corpus for future cleanup and local audio-judge
+work:
+
+```bash
+.venv/bin/python scripts/build-regression-corpus.py \
+  sessions/<session-1> \
+  sessions/<session-2> \
+  --per-label 16 \
+  --max-items 160
+
+less sessions/_reports/regression-corpus/regression_corpus.md
+```
+
+The script reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, balances examples by
+label, and copies existing review clips under `sessions/_reports/regression-corpus/clips/`. It is
+audit-only: no transcript profile, Echo Guard artifact or raw `audio/*.caf` file is modified.
+
 ## Outputs
 
 ```text

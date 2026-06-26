@@ -611,6 +611,19 @@ EOF
 
   "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" --transcript-profile audit_cleanup_v2 >/dev/null
   jq -e '.selected_transcript_profile == "audit_cleanup_v2"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v2.json" >/dev/null
+
+  corpus_dir="$workdir/regression-corpus"
+  "$repo_root/scripts/build-regression-corpus.py" "$group_session" \
+    --out-dir "$corpus_dir" \
+    --per-label 4 \
+    --max-items 12 >/dev/null
+  [[ -s "$corpus_dir/regression_corpus_manifest.json" ]]
+  [[ -s "$corpus_dir/regression_corpus_summary.json" ]]
+  [[ -s "$corpus_dir/regression_corpus_items.jsonl" ]]
+  [[ -s "$corpus_dir/regression_corpus.md" ]]
+  jq -e '.schema == "murmurmark.regression_corpus_summary/v1"' "$corpus_dir/regression_corpus_summary.json" >/dev/null
+  jq -e '.item_count >= 2 and .skipped_sessions == []' "$corpus_dir/regression_corpus_summary.json" >/dev/null
+  jq -s 'any(.[]; .label == "remote_duplicate") and any(.[]; .label == "uncertain")' "$corpus_dir/regression_corpus_items.jsonl" >/dev/null
 fi
 
 empty_session="$workdir/empty-session"
