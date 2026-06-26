@@ -125,7 +125,7 @@ work, build a corpus from existing audio-review audits:
 
 cp sessions/_reports/review-plan/review_decisions.template.jsonl \
   sessions/_reports/review-plan/review_decisions.jsonl
-# Edit review_decisions.jsonl after listening to the listed clips.
+# Edit every row in review_decisions.jsonl after listening to the listed clips.
 
 .venv/bin/python scripts/apply-review-decisions.py sessions/<session> \
   --decisions sessions/_reports/review-plan/review_decisions.jsonl \
@@ -367,7 +367,9 @@ does not edit transcript profiles.
 `scripts/apply-review-decisions.py` closes the manual review loop. Copy
 `review_decisions.template.jsonl` to `review_decisions.jsonl`, listen to the listed clips, fill each
 `decision` as `drop_me`, `keep_me`, `needs_review`, or `skip`, then apply it to a session. The script
-writes a separate `reviewed_v1` profile and never changes the automatic cleanup profiles.
+writes a separate `reviewed_v1` profile and never changes the automatic cleanup profiles. The
+profile is eligible for `--transcript-profile auto` only when the review template has no remaining
+`todo` rows for that session; partial review stays as an audit artifact with failing gates.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 

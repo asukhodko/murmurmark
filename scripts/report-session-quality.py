@@ -405,8 +405,17 @@ def review_decision_metrics(review_report: dict[str, Any] | None) -> dict[str, A
     gates = review_report.get("gates") if isinstance(review_report, dict) else None
     if not isinstance(gates, dict):
         gates = {}
+    coverage = review_report.get("coverage") if isinstance(review_report, dict) else None
+    if not isinstance(coverage, dict):
+        coverage = {}
     return {
         "review_decisions_gates_passed": gates.get("passed"),
+        "review_scope_complete": coverage.get("complete"),
+        "review_scope_required_rows": safe_int(coverage.get("required_rows")),
+        "review_scope_closed_rows": safe_int(coverage.get("closed_rows")),
+        "review_scope_coverage_ratio": round_or_none(coverage.get("coverage_ratio"), 6),
+        "review_scope_missing_rows": safe_int(coverage.get("missing_rows")),
+        "review_scope_pending_rows": safe_int(coverage.get("pending_rows")),
         "review_decisions_applied": safe_int(summary.get("applied_decision_rows")),
         "review_decisions_rejected": safe_int(summary.get("rejected_decision_rows")),
         "review_decisions_conflicts": safe_int(summary.get("conflict_count")),
@@ -683,6 +692,10 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "applied_patches",
         "dropped_me_duplicate_seconds",
         "dropped_me_noise_seconds",
+        "review_scope_complete",
+        "review_scope_required_rows",
+        "review_scope_closed_rows",
+        "review_scope_coverage_ratio",
         "review_decisions_applied",
         "review_decisions_dropped_me",
         "review_decisions_dropped_me_seconds",

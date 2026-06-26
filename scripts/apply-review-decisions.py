@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 OUTPUT_PROFILE_DEFAULT = "reviewed_v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
+OPEN_DECISIONS = {"", "todo"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -25,6 +26,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--input-profile", default="auto")
     parser.add_argument("--output-profile", default=OUTPUT_PROFILE_DEFAULT)
+    parser.add_argument(
+        "--review-template",
+        type=Path,
+        help="Review decision template used as the required coverage scope. Defaults to the template next to --decisions, then sessions/_reports/review-plan/review_decisions.template.jsonl.",
+    )
+    parser.add_argument(
+        "--allow-partial-review",
+        action="store_true",
+        help="Allow gates to pass without proving that every template row for this session was decided.",
+    )
     return parser.parse_args()
 
 
@@ -190,20 +201,136 @@ def existing_profile(session: Path) -> str:
     return "current"
 
 
+def normalize_decision(row: dict[str, Any]) -> dict[str, Any]:
+    decision = str(row.get("decision") or row.get("status") or "").strip()
+    normalized = {**row, "decision": decision}
+    if decision not in VALID_DECISIONS:
+        normalized["_invalid"] = True
+    return normalized
+
+
 def decisions_for_session(path: Path, session: Path) -> list[dict[str, Any]]:
     rows = read_jsonl(path)
     selected: list[dict[str, Any]] = []
     for row in rows:
         if str(row.get("session_id") or "") != session.name:
             continue
-        decision = str(row.get("decision") or row.get("status") or "").strip()
-        if decision not in VALID_DECISIONS:
-            selected.append({**row, "decision": decision, "_invalid": True})
-            continue
-        if decision in {"", "todo", "skip"}:
-            continue
-        selected.append({**row, "decision": decision})
+        selected.append(normalize_decision(row))
     return selected
+
+
+def candidate_template_paths(args: argparse.Namespace) -> list[Path]:
+    if args.review_template:
+        return [args.review_template.expanduser()]
+    return [
+        args.decisions.expanduser().with_name("review_decisions.template.jsonl"),
+        Path("sessions/_reports/review-plan/review_decisions.template.jsonl"),
+    ]
+
+
+def template_for_session(args: argparse.Namespace, session: Path) -> tuple[list[dict[str, Any]], Path | None]:
+    for path in candidate_template_paths(args):
+        if not path.exists():
+            continue
+        rows = [normalize_decision(row) for row in read_jsonl(path) if str(row.get("session_id") or "") == session.name]
+        if rows:
+            return rows, path
+    return [], None
+
+
+def review_row_key(row: dict[str, Any]) -> str:
+    source_id = str(row.get("source_audit_id") or "").strip()
+    if source_id:
+        return f"source:{source_id}"
+    cluster_id = str(row.get("cluster_id") or "").strip()
+    if cluster_id:
+        return f"cluster:{cluster_id}"
+    utterance_ids = row.get("utterance_ids")
+    if isinstance(utterance_ids, list) and utterance_ids:
+        return "utterances:" + ",".join(str(item) for item in utterance_ids)
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    start = interval.get("start")
+    end = interval.get("end")
+    label = row.get("label")
+    return f"interval:{start}:{end}:{label}:{normalize_text(row.get('text'))[:80]}"
+
+
+def review_coverage(
+    all_decisions: list[dict[str, Any]],
+    template_rows: list[dict[str, Any]],
+    template_path: Path | None,
+    allow_partial_review: bool,
+) -> dict[str, Any]:
+    decision_by_key: dict[str, dict[str, Any]] = {}
+    duplicates: list[str] = []
+    for row in all_decisions:
+        key = review_row_key(row)
+        if key in decision_by_key:
+            duplicates.append(key)
+            continue
+        decision_by_key[key] = row
+
+    missing: list[dict[str, Any]] = []
+    pending: list[dict[str, Any]] = []
+    for row in template_rows:
+        key = review_row_key(row)
+        decided = decision_by_key.get(key)
+        if not decided:
+            missing.append({**row, "review_key": key, "reason": "missing_decision_row"})
+            continue
+        if str(decided.get("decision") or "") in OPEN_DECISIONS:
+            pending.append({**decided, "review_key": key, "reason": "decision_still_todo"})
+
+    if template_rows:
+        required_rows = len(template_rows)
+        closed_rows = required_rows - len(missing) - len(pending)
+        complete = len(missing) == 0 and len(pending) == 0
+        status = "complete" if complete else "incomplete"
+    elif allow_partial_review:
+        required_rows = len(all_decisions)
+        closed_rows = sum(1 for row in all_decisions if str(row.get("decision") or "") not in OPEN_DECISIONS)
+        complete = True
+        status = "partial_allowed"
+    else:
+        required_rows = 0
+        closed_rows = 0
+        complete = False
+        status = "missing_template_scope"
+
+    return {
+        "schema": "murmurmark.review_coverage/v1",
+        "status": status,
+        "complete": complete,
+        "allow_partial_review": allow_partial_review,
+        "template_path": str(template_path) if template_path else None,
+        "required_rows": required_rows,
+        "closed_rows": closed_rows,
+        "coverage_ratio": round(closed_rows / max(1, required_rows), 6),
+        "missing_rows": len(missing),
+        "pending_rows": len(pending),
+        "duplicate_decision_keys": sorted(set(duplicates)),
+        "missing_examples": [
+            {
+                "review_key": row.get("review_key"),
+                "source_audit_id": row.get("source_audit_id"),
+                "cluster_id": row.get("cluster_id"),
+                "utterance_ids": row.get("utterance_ids"),
+                "reason": row.get("reason"),
+            }
+            for row in missing[:10]
+        ],
+        "pending_examples": [
+            {
+                "review_key": row.get("review_key"),
+                "source_audit_id": row.get("source_audit_id"),
+                "cluster_id": row.get("cluster_id"),
+                "utterance_ids": row.get("utterance_ids"),
+                "decision": row.get("decision"),
+                "reason": row.get("reason"),
+            }
+            for row in pending[:10]
+        ],
+    }
 
 
 def decision_me_ids(row: dict[str, Any]) -> list[str]:
@@ -241,14 +368,17 @@ def main() -> int:
     session = args.session.expanduser().resolve()
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     review_dir = session / "derived/transcript-simple/whisper-cpp/review-decisions"
-    decisions = decisions_for_session(args.decisions, session)
+    decisions = decisions_for_session(args.decisions.expanduser(), session)
+    template_rows, template_path = template_for_session(args, session)
+    coverage = review_coverage(decisions, template_rows, template_path, args.allow_partial_review)
     invalid_decisions = [row for row in decisions if row.get("_invalid")]
-    valid_decisions = [row for row in decisions if not row.get("_invalid")]
+    profile_decisions = [row for row in decisions if not row.get("_invalid") and row.get("decision") not in OPEN_DECISIONS]
+    valid_decisions = [row for row in profile_decisions if row.get("decision") != "skip"]
     input_profile = args.input_profile
     if input_profile == "auto":
-        input_profile = selected_profile_from_decisions(valid_decisions) or existing_profile(session)
+        input_profile = selected_profile_from_decisions(profile_decisions) or existing_profile(session)
         if input_profile == args.output_profile:
-            input_profile = selected_profile_from_decisions(valid_decisions) or "audit_cleanup_v2"
+            input_profile = selected_profile_from_decisions(profile_decisions) or "audit_cleanup_v2"
 
     input_suffix = suffix(input_profile)
     output_suffix = suffix(args.output_profile)
@@ -319,6 +449,9 @@ def main() -> int:
         "input_profile": input_profile,
         "output_profile": args.output_profile,
         "decision_rows": len(decisions),
+        "closed_decision_rows": sum(1 for row in decisions if str(row.get("decision") or "") not in OPEN_DECISIONS),
+        "skipped_decision_rows": sum(1 for row in decisions if row.get("decision") == "skip"),
+        "pending_decision_rows": sum(1 for row in decisions if str(row.get("decision") or "") in OPEN_DECISIONS),
         "applied_decision_rows": len(applied),
         "rejected_decision_rows": len(rejected),
         "conflict_count": len(conflicts),
@@ -326,10 +459,14 @@ def main() -> int:
         "dropped_me_seconds": round(sum(safe_float(by_id[item].get("end")) - safe_float(by_id[item].get("start")) for item in dropped_ids), 3),
         "kept_me_decisions": sum(1 for row in applied if row.get("decision") == "keep_me"),
         "needs_review_decisions": sum(1 for row in applied if row.get("decision") == "needs_review"),
+        "review_scope_complete": coverage["complete"],
+        "review_scope_required_rows": coverage["required_rows"],
+        "review_scope_closed_rows": coverage["closed_rows"],
+        "review_scope_coverage_ratio": coverage["coverage_ratio"],
     }
     output_quality = quality_report(input_quality, output_utterances, overlaps, review_summary)
     gates = {
-        "passed": not invalid_decisions and not conflicts,
+        "passed": not invalid_decisions and not conflicts and coverage["complete"],
         "hard_failures": [],
         "warnings": [],
     }
@@ -337,8 +474,14 @@ def main() -> int:
         gates["hard_failures"].append("invalid_decisions")
     if conflicts:
         gates["hard_failures"].append("conflicting_decisions")
+    if not coverage["complete"]:
+        gates["hard_failures"].append("incomplete_review_scope")
     if not valid_decisions:
         gates["warnings"].append("no_review_decisions_applied")
+    if coverage["status"] == "partial_allowed":
+        gates["warnings"].append("partial_review_scope_allowed")
+    if coverage["duplicate_decision_keys"]:
+        gates["warnings"].append("duplicate_decision_keys")
 
     output_dialogue = {
         "schema": "murmurmark.clean_dialogue/v1",
@@ -370,6 +513,7 @@ def main() -> int:
             "quality_report": rel(quality_path, session),
         },
         "summary": review_summary,
+        "coverage": coverage,
         "gates": gates,
     }
 

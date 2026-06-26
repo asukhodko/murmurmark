@@ -655,7 +655,36 @@ derived/transcript-simple/whisper-cpp/review-decisions/
 
 `drop_me` removes whole reviewed `Me` utterances. `keep_me` keeps the utterance and can clear its
 review flag. `needs_review` keeps the utterance marked for review. Conflicting decisions fail the
-`reviewed_v1` gates. Automatic cleanup profiles remain unchanged.
+`reviewed_v1` gates. Coverage is also a hard gate: every template row for that session must be
+closed with `drop_me`, `keep_me`, `needs_review`, or `skip`. If a row is missing or still `todo`,
+the script still writes audit artifacts, but `review_decisions_report.reviewed_v1.json.gates.passed`
+is `false` and `--transcript-profile auto` must not select `reviewed_v1`.
+
+The report includes coverage evidence:
+
+```json
+{
+  "schema": "murmurmark.review_decisions_report/v1",
+  "coverage": {
+    "schema": "murmurmark.review_coverage/v1",
+    "status": "complete",
+    "complete": true,
+    "template_path": "sessions/_reports/review-plan/review_decisions.template.jsonl",
+    "required_rows": 6,
+    "closed_rows": 6,
+    "coverage_ratio": 1.0,
+    "missing_rows": 0,
+    "pending_rows": 0
+  },
+  "gates": {
+    "passed": true,
+    "hard_failures": [],
+    "warnings": []
+  }
+}
+```
+
+Automatic cleanup profiles remain unchanged.
 
 Session quality and operational readiness are profile-aware. They compare audio-review items with
 the selected `clean_dialogue*.json` profile and treat items whose `Me` utterance was removed by

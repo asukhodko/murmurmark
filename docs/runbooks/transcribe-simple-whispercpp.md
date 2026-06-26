@@ -323,7 +323,7 @@ work:
 
 cp sessions/_reports/review-plan/review_decisions.template.jsonl \
   sessions/_reports/review-plan/review_decisions.jsonl
-# Edit review_decisions.jsonl after listening to the listed clips.
+# Edit every row in review_decisions.jsonl after listening to the listed clips.
 
 .venv/bin/python scripts/apply-review-decisions.py sessions/<session> \
   --decisions sessions/_reports/review-plan/review_decisions.jsonl \
@@ -359,7 +359,10 @@ profile-aware: already-resolved cleanup items are not shown as remaining work.
 remote speech, real local speech, or unclear, then keep unclear cases marked for review.
 `apply-review-decisions.py` consumes the edited decision JSONL and writes a separate `reviewed_v1`
 profile. It can drop whole reviewed `Me` utterances, clear review flags for confirmed local speech,
-or keep an item marked `needs_review`. It does not edit `audit_cleanup_v1/v2/v3`.
+or keep an item marked `needs_review`. `reviewed_v1` gates pass only when the corresponding
+`review_decisions.template.jsonl` rows for that session are all closed with `drop_me`, `keep_me`,
+`needs_review`, or `skip`; a partial file is written for audit but is not selected by `auto`. It does
+not edit `audit_cleanup_v1/v2/v3`.
 
 ## Outputs
 
