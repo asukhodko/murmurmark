@@ -278,12 +278,18 @@ work:
   --per-label 16 \
   --max-items 160
 
+.venv/bin/python scripts/evaluate-regression-corpus.py \
+  --corpus-dir sessions/_reports/regression-corpus
+
 less sessions/_reports/regression-corpus/regression_corpus.md
+less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
 ```
 
 The script reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, balances examples by
 label, and copies existing review clips under `sessions/_reports/regression-corpus/clips/`. It is
 audit-only: no transcript profile, Echo Guard artifact or raw `audio/*.caf` file is modified.
+The evaluation script labels the corpus readiness for future work: silver cleanup positives,
+silver keep negatives, mark-only regressions, and examples that need a stronger local audio judge.
 
 ## Outputs
 

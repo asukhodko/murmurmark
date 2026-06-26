@@ -394,6 +394,9 @@ sessions/_reports/regression-corpus/
   regression_corpus_summary.json
   regression_corpus_items.jsonl
   regression_corpus.md
+  regression_corpus_evaluation.json
+  regression_corpus_evaluation_items.jsonl
+  regression_corpus_evaluation.md
   clips/
 ```
 
@@ -419,6 +422,20 @@ sessions/_reports/regression-corpus/
 
 The corpus is private generated data. It is for regression tests, agent review and future local
 audio-judge development. It must not become a tracked fixture when it contains real meeting audio.
+
+`regression_corpus_evaluation.json` uses `murmurmark.regression_corpus_evaluation/v1`. It reports
+readiness buckets:
+
+```text
+silver_cleanup_positive
+silver_keep_negative
+weak_cleanup_positive
+mark_only_regression
+needs_audio_judge
+```
+
+These buckets are not human truth labels. They are silver labels derived from current local metrics
+and are suitable for no-regression checks and prioritising future audio-judge work.
 
 `audit_cleanup_v2` consumes the audio review audit as an extra evidence layer. It writes the same
 profile-shaped transcript artifacts as v1, but with the `audit_cleanup_v2` suffix:

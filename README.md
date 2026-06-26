@@ -107,7 +107,11 @@ work, build a corpus from existing audio-review audits:
   --per-label 16 \
   --max-items 160
 
+.venv/bin/python scripts/evaluate-regression-corpus.py \
+  --corpus-dir sessions/_reports/regression-corpus
+
 less sessions/_reports/regression-corpus/regression_corpus.md
+less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
 ```
 
 ### End-to-End From a New Recording
@@ -230,6 +234,7 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v2
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session>
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
+.venv/bin/python scripts/evaluate-regression-corpus.py
 .venv/bin/python scripts/echo-guard-delay-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-fir-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-local-subtract-lab.py ./sessions/<session> --start-sec <seconds>
@@ -295,6 +300,8 @@ audio or transcript artifacts.
 cut audio-review clips into `sessions/_reports/regression-corpus/clips/`, and writes JSONL, JSON and
 Markdown reports. The corpus is meant for future agent-driven cleanup checks and for a stronger local
 audio judge. It is private generated data and does not modify sessions or raw audio.
+`scripts/evaluate-regression-corpus.py` then buckets the corpus into silver cleanup positives,
+silver keep negatives, mark-only regressions and examples that need a stronger audio judge.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 

@@ -624,6 +624,12 @@ EOF
   jq -e '.schema == "murmurmark.regression_corpus_summary/v1"' "$corpus_dir/regression_corpus_summary.json" >/dev/null
   jq -e '.item_count >= 2 and .skipped_sessions == []' "$corpus_dir/regression_corpus_summary.json" >/dev/null
   jq -s 'any(.[]; .label == "remote_duplicate") and any(.[]; .label == "uncertain")' "$corpus_dir/regression_corpus_items.jsonl" >/dev/null
+  "$repo_root/scripts/evaluate-regression-corpus.py" --corpus-dir "$corpus_dir" >/dev/null
+  [[ -s "$corpus_dir/regression_corpus_evaluation.json" ]]
+  [[ -s "$corpus_dir/regression_corpus_evaluation_items.jsonl" ]]
+  [[ -s "$corpus_dir/regression_corpus_evaluation.md" ]]
+  jq -e '.schema == "murmurmark.regression_corpus_evaluation/v1"' "$corpus_dir/regression_corpus_evaluation.json" >/dev/null
+  jq -e '.by_readiness_bucket.silver_cleanup_positive.count >= 1 and .by_readiness_bucket.needs_audio_judge.count >= 1' "$corpus_dir/regression_corpus_evaluation.json" >/dev/null
 fi
 
 empty_session="$workdir/empty-session"
