@@ -342,9 +342,9 @@ work:
 .venv/bin/python scripts/build-review-plan.py \
   --operational-readiness sessions/_reports/operational-readiness/operational_readiness_report.json
 
-cp sessions/_reports/review-plan/review_decisions.template.jsonl \
-  sessions/_reports/review-plan/review_decisions.jsonl
-# Edit every row in review_decisions.jsonl after listening to the listed clips.
+.venv/bin/python scripts/review-decisions-cli.py \
+  --template sessions/_reports/review-plan/review_decisions.template.jsonl \
+  --out sessions/_reports/review-plan/review_decisions.jsonl
 
 .venv/bin/python scripts/apply-review-decisions-batch.py \
   --decisions sessions/_reports/review-plan/review_decisions.jsonl \
@@ -376,6 +376,8 @@ profile-aware: already-resolved cleanup items are not shown as remaining work.
 `build-review-plan.py` turns that queue into a compact checklist. Use it when a session is
 `review_first`: listen to the listed stereo clips, decide whether each `Me` candidate is leaked
 remote speech, real local speech, or unclear, then keep unclear cases marked for review.
+`review-decisions-cli.py` is the normal way to fill the checklist: it plays each preferred clip,
+shows the transcript rows, and writes `review_decisions.jsonl` after every answer.
 `apply-review-decisions-batch.py` is the normal command after the review file is filled. It applies
 the same edited JSONL to every session mentioned in the review plan and can immediately regenerate
 extractive notes. Under the hood, `apply-review-decisions.py` writes a separate `reviewed_v1`
@@ -384,7 +386,7 @@ confirmed local speech, or keep an item marked `needs_review`. `reviewed_v1` gat
 the corresponding `review_decisions.template.jsonl` rows for that session are all closed with
 `drop_me`, `keep_me`, `needs_review`, or `skip`; a partial file is written for audit but is not
 selected by `auto`. The template includes `suggested_decision` hints, but they are not applied until
-the reviewer explicitly edits `decision`. It does not edit `audit_cleanup_v1/v2/v3`.
+the reviewer explicitly edits `decision`. It does not edit `audit_cleanup_v1/v2/v3/v4`.
 
 ## Outputs
 

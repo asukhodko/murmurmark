@@ -639,6 +639,10 @@ decision protocol: drop leaked `Me`, keep real local speech, or leave unclear ca
 }
 ```
 
+`review-decisions-cli.py` fills this template into `review_decisions.jsonl`. It preserves the same
+schema, updates `decision`, `status`, optional `reviewer`, and `reviewed_at`, and writes after every
+answered row so the review can be resumed.
+
 After review, `apply-review-decisions.py` consumes the edited decision file and writes a separate
 `reviewed_v1` transcript profile:
 

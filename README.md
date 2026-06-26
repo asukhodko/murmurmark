@@ -123,9 +123,9 @@ work, build a corpus from existing audio-review audits:
 .venv/bin/python scripts/build-review-plan.py \
   --operational-readiness sessions/_reports/operational-readiness/operational_readiness_report.json
 
-cp sessions/_reports/review-plan/review_decisions.template.jsonl \
-  sessions/_reports/review-plan/review_decisions.jsonl
-# Edit every row in review_decisions.jsonl after listening to the listed clips.
+.venv/bin/python scripts/review-decisions-cli.py \
+  --template sessions/_reports/review-plan/review_decisions.template.jsonl \
+  --out sessions/_reports/review-plan/review_decisions.jsonl
 
 .venv/bin/python scripts/apply-review-decisions-batch.py \
   --decisions sessions/_reports/review-plan/review_decisions.jsonl \
@@ -267,6 +267,7 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/train-audio-judge-v0.py
 .venv/bin/python scripts/report-operational-readiness.py
 .venv/bin/python scripts/build-review-plan.py
+.venv/bin/python scripts/review-decisions-cli.py --template sessions/_reports/review-plan/review_decisions.template.jsonl --out sessions/_reports/review-plan/review_decisions.jsonl
 .venv/bin/python scripts/apply-review-decisions-batch.py --decisions sessions/_reports/review-plan/review_decisions.jsonl --synthesize
 .venv/bin/python scripts/apply-review-decisions.py ./sessions/<session> --decisions sessions/_reports/review-plan/review_decisions.jsonl
 .venv/bin/python scripts/echo-guard-delay-lab.py ./sessions/<session>
@@ -368,9 +369,14 @@ actual listening time, keeps ready-to-run `afplay` commands, and gives a small p
 whether each `Me` candidate should be dropped, kept, or left as `needs_review`. It is audit-only and
 does not edit transcript profiles.
 
-`scripts/apply-review-decisions.py` closes the manual review loop. Copy
-`review_decisions.template.jsonl` to `review_decisions.jsonl`, listen to the listed clips, fill each
-`decision` as `drop_me`, `keep_me`, `needs_review`, or `skip`, then apply it to a session. The script
+`scripts/review-decisions-cli.py` is the fastest way to fill that checklist. It walks through
+`review_decisions.template.jsonl`, plays the preferred stereo clip, shows the `Me`/`remote` texts and
+writes `review_decisions.jsonl` after every answer. `Enter` accepts `suggested_decision`; `d`, `k`,
+`r` and `s` mean `drop_me`, `keep_me`, `needs_review` and `skip`.
+
+`scripts/apply-review-decisions.py` closes the manual review loop. After the CLI or a manual edit has
+filled each `decision` as `drop_me`, `keep_me`, `needs_review`, or `skip`, apply the decisions to a
+session. The script
 writes a separate `reviewed_v1` profile and never changes the automatic cleanup profiles. The
 profile is eligible for `--transcript-profile auto` only when the review template has no remaining
 `todo` rows for that session; partial review stays as an audit artifact with failing gates.

@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import shlex
+import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+
+SCRIPT_VERSION = "0.1.0"
+SCHEMA = "murmurmark.review_decision/v1"
+VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
+SHORTCUTS = {
+    "d": "drop_me",
+    "k": "keep_me",
+    "r": "needs_review",
+    "s": "skip",
+}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Fill MurmurMark review decisions by walking through review-plan clips.")
+    parser.add_argument(
+        "--template",
+        type=Path,
+        default=Path("sessions/_reports/review-plan/review_decisions.template.jsonl"),
+        help="Input review_decisions.template.jsonl.",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path("sessions/_reports/review-plan/review_decisions.jsonl"),
+        help="Editable output decisions JSONL.",
+    )
+    parser.add_argument("--session", action="append", default=[], help="Optional session id/path filter. Can be repeated.")
+    parser.add_argument("--reviewer", default="", help="Reviewer name written to decided rows.")
+    parser.add_argument("--command-key", default="stereo_clean_left_remote_right", help="Preferred afplay command key.")
+    parser.add_argument("--no-play", action="store_true", help="Do not auto-play clips before prompting.")
+    parser.add_argument("--limit", type=int, default=0, help="Stop after this many prompted rows. 0 means no limit.")
+    return parser.parse_args()
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as file:
+        for line in file:
+            line = line.strip()
+            if not line:
+                continue
+            value = json.loads(line)
+            if isinstance(value, dict):
+                rows.append(value)
+    return rows
+
+
+def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as file:
+        for row in rows:
+            file.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def normalize_text(value: Any) -> str:
+    return " ".join(str(value or "").lower().replace("ё", "е").split())
+
+
+def review_row_key(row: dict[str, Any]) -> str:
+    source_id = str(row.get("source_audit_id") or "").strip()
+    if source_id:
+        return f"source:{source_id}"
+    cluster_id = str(row.get("cluster_id") or "").strip()
+    if cluster_id:
+        return f"cluster:{cluster_id}"
+    utterance_ids = row.get("utterance_ids")
+    if isinstance(utterance_ids, list) and utterance_ids:
+        return "utterances:" + ",".join(str(item) for item in utterance_ids)
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    return f"interval:{interval.get('start')}:{interval.get('end')}:{row.get('label')}:{normalize_text(row.get('text'))[:80]}"
+
+
+def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    existing_by_key = {review_row_key(row): row for row in existing_rows}
+    merged: list[dict[str, Any]] = []
+    for row in template_rows:
+        existing = existing_by_key.get(review_row_key(row))
+        if existing:
+            merged.append({**row, **existing})
+        else:
+            merged.append(dict(row))
+    return merged
+
+
+def session_matches(row: dict[str, Any], filters: set[str]) -> bool:
+    if not filters:
+        return True
+    session = str(row.get("session") or "")
+    session_id = str(row.get("session_id") or "")
+    candidates = {session, session_id, f"./{session}"}
+    return bool(candidates & filters)
+
+
+def selected_command(row: dict[str, Any], preferred_key: str) -> str:
+    commands = row.get("commands") if isinstance(row.get("commands"), dict) else {}
+    for key in (
+        preferred_key,
+        "stereo_clean_left_remote_right",
+        "stereo_mic_left_remote_right",
+        "mic_raw",
+        "remote",
+    ):
+        command = commands.get(key)
+        if command:
+            return str(command)
+    return ""
+
+
+def play_command(command: str) -> None:
+    if not command:
+        print("No audio command for this row.")
+        return
+    print(f"$ {command}")
+    completed = subprocess.run(shlex.split(command), check=False)
+    if completed.returncode != 0:
+        print(f"playback exited with {completed.returncode}")
+
+
+def compact(value: Any, limit: int = 180) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "..."
+
+
+def print_row(row: dict[str, Any], index: int, total: int) -> None:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    print()
+    print(f"[{index}/{total}] {row.get('session_id')} {interval.get('start_time')}..{interval.get('end_time')}")
+    print(
+        f"label={row.get('label')} verdict={row.get('verdict')} confidence={row.get('confidence')} "
+        f"action={row.get('review_action')}"
+    )
+    if row.get("suggested_decision"):
+        print(
+            f"suggested={row.get('suggested_decision')} "
+            f"({row.get('suggested_decision_confidence')}) - {row.get('suggested_decision_reason')}"
+        )
+    for item in row.get("text") or []:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role") or item.get("source_track") or "?"
+        print(f"- {role} {item.get('id')}: {compact(item.get('text'))}")
+
+
+def prompt_decision(row: dict[str, Any]) -> str | None:
+    suggested = str(row.get("suggested_decision") or "").strip()
+    default_hint = f"Enter={suggested}" if suggested in {"drop_me", "keep_me", "needs_review"} else "Enter=skip"
+    prompt = f"Decision [d=drop, k=keep, r=needs_review, s=skip, p=play, n=todo, q=quit, {default_hint}]: "
+    while True:
+        answer = input(prompt).strip().lower()
+        if answer == "":
+            return suggested if suggested in {"drop_me", "keep_me", "needs_review"} else "skip"
+        if answer in SHORTCUTS:
+            return SHORTCUTS[answer]
+        if answer in {"n", "todo"}:
+            return "todo"
+        if answer in {"q", "quit"}:
+            return None
+        if answer in {"p", "play"}:
+            return "play"
+        if answer in VALID_DECISIONS:
+            return answer
+        print("Unknown answer.")
+
+
+def undecided(row: dict[str, Any]) -> bool:
+    return str(row.get("decision") or "todo") in {"", "todo"}
+
+
+def main() -> int:
+    args = parse_args()
+    template = args.template.expanduser()
+    out = args.out.expanduser()
+    if not template.exists():
+        raise SystemExit(f"missing template: {template}")
+    template_rows = read_jsonl(template)
+    existing_rows = read_jsonl(out) if out.exists() else []
+    rows = merge_existing(template_rows, existing_rows)
+    filters = {item.strip() for item in args.session if item.strip()}
+    indexes = [index for index, row in enumerate(rows) if session_matches(row, filters) and undecided(row)]
+    total = len(indexes)
+    prompted = 0
+
+    if not indexes:
+        write_jsonl(out, rows)
+        print(f"No undecided rows. Written: {out}")
+        return 0
+
+    for visible_index, row_index in enumerate(indexes, start=1):
+        row = rows[row_index]
+        command = selected_command(row, args.command_key)
+        print_row(row, visible_index, total)
+        if command and not args.no_play:
+            play_command(command)
+        while True:
+            decision = prompt_decision(row)
+            if decision is None:
+                write_jsonl(out, rows)
+                print(f"Stopped. Written: {out}")
+                return 0
+            if decision == "play":
+                play_command(command)
+                continue
+            break
+        row["decision"] = decision
+        row["status"] = "reviewed" if decision != "todo" else "todo"
+        if decision != "todo":
+            row["reviewed_at"] = datetime.now(timezone.utc).isoformat()
+            if args.reviewer:
+                row["reviewer"] = args.reviewer
+        rows[row_index] = row
+        write_jsonl(out, rows)
+        prompted += 1
+        if args.limit and prompted >= args.limit:
+            print(f"Limit reached. Written: {out}")
+            return 0
+
+    print(f"Done. Written: {out}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
