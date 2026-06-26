@@ -844,6 +844,8 @@ example, they must not accept `drop_me` on `source: "local_recall"` rows even th
 valid for ordinary audio-review rows.
 The CLI may also render nearby transcript context from `clean_dialogue.<input_profile>.json`. This
 context is display-only and must not change the decision schema or coverage accounting.
+It may expose numbered playback shortcuts for commands already present in the review row; those
+shortcuts are UI-only and must not alter the row schema.
 `suggested_decision` is only a review hint. It never changes transcript output by itself and does not
 count as coverage. The reviewer must still copy the intended value into `decision`.
 

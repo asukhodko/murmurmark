@@ -292,7 +292,8 @@ writes `review_decisions.jsonl` after every answer. `Enter` accepts `suggested_d
 `r` and `s` mean `drop_me`, `keep_me`, `needs_review` and `skip`. The CLI respects
 `allowed_decisions`, so `d=drop_me` is not accepted for audit-only local-recall rows. It also shows
 nearby transcript turns from the reviewed profile, which helps distinguish leaked remote speech from
-real local replies.
+real local replies. When a row has several clips, the CLI prints `audio=1:...` shortcuts; type the
+number to play that specific track without leaving the review flow.
 
 `scripts/apply-review-decisions.py` closes the manual review loop. After the CLI or a manual edit has
 filled each `decision` as `drop_me`, `keep_me`, `needs_review`, or `skip`, apply the decisions to a

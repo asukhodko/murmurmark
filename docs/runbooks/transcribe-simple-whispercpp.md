@@ -452,7 +452,9 @@ unclear cases marked for review.
 shows the transcript rows, respects each row's `allowed_decisions`, and writes
 `review_decisions.jsonl` after every answer. It also prints nearby turns from the reviewed transcript
 profile. Keep `--context-utterances 2` unless you need a shorter terminal view; use
-`--context-utterances 0` to hide context.
+`--context-utterances 0` to hide context. When several clips are available, the CLI prints
+`audio=1:stereo_clean_left_remote_right, 2:stereo_mic_left_remote_right, ...`; type the number to
+play that exact clip, or `p` to replay the preferred clip.
 `apply-review-decisions-batch.py` is the normal command after the review file is filled. It applies
 the same edited JSONL to every session mentioned in the review plan and can immediately regenerate
 extractive notes. Under the hood, `apply-review-decisions.py` writes a separate `reviewed_v1`

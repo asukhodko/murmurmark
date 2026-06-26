@@ -125,19 +125,26 @@ def session_matches(row: dict[str, Any], filters: set[str]) -> bool:
     return bool(candidates & filters)
 
 
-def selected_command(row: dict[str, Any], preferred_key: str) -> str:
+def command_options(row: dict[str, Any], preferred_key: str) -> list[tuple[str, str]]:
     commands = row.get("commands") if isinstance(row.get("commands"), dict) else {}
+    options: list[tuple[str, str]] = []
+    seen: set[str] = set()
     for key in (
         preferred_key,
         "stereo_clean_left_remote_right",
         "stereo_mic_left_remote_right",
         "mic_raw",
         "remote",
+        "mic_clean",
+        "mic_role_masked",
     ):
+        if key in seen:
+            continue
+        seen.add(key)
         command = commands.get(key)
         if command:
-            return str(command)
-    return ""
+            options.append((key, str(command)))
+    return options
 
 
 def allowed_decisions(row: dict[str, Any]) -> set[str]:
@@ -248,7 +255,14 @@ def print_context(row: dict[str, Any], cache: dict[tuple[str, str], list[dict[st
         )
 
 
-def print_row(row: dict[str, Any], index: int, total: int, cache: dict[tuple[str, str], list[dict[str, Any]]], context_count: int) -> None:
+def print_row(
+    row: dict[str, Any],
+    index: int,
+    total: int,
+    cache: dict[tuple[str, str], list[dict[str, Any]]],
+    context_count: int,
+    preferred_key: str,
+) -> None:
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
     print()
     print(f"[{index}/{total}] {row.get('session_id')} {interval.get('start_time')}..{interval.get('end_time')}")
@@ -262,6 +276,9 @@ def print_row(row: dict[str, Any], index: int, total: int, cache: dict[tuple[str
             f"suggested={row.get('suggested_decision')} "
             f"({row.get('suggested_decision_confidence')}) - {row.get('suggested_decision_reason')}"
         )
+    options = command_options(row, preferred_key)
+    if options:
+        print("audio=" + ", ".join(f"{index + 1}:{key}" for index, (key, _command) in enumerate(options)))
     for item in row.get("text") or []:
         if not isinstance(item, dict):
             continue
@@ -270,8 +287,9 @@ def print_row(row: dict[str, Any], index: int, total: int, cache: dict[tuple[str
     print_context(row, cache, context_count)
 
 
-def prompt_decision(row: dict[str, Any]) -> str | None:
+def prompt_decision(row: dict[str, Any], preferred_key: str) -> str | None:
     allowed = allowed_decisions(row)
+    command_count = len(command_options(row, preferred_key))
     suggested = str(row.get("suggested_decision") or "").strip()
     if suggested in allowed:
         default = suggested
@@ -288,7 +306,7 @@ def prompt_decision(row: dict[str, Any]) -> str | None:
     ]
     prompt = (
         "Decision ["
-        + ", ".join(shortcuts + ["p=play", "n=todo", "q=quit", f"Enter={default}"])
+        + ", ".join(shortcuts + ["p=play", "1..n=play audio", "n=todo", "q=quit", f"Enter={default}"])
         + "]: "
     )
     while True:
@@ -307,6 +325,12 @@ def prompt_decision(row: dict[str, Any]) -> str | None:
             return None
         if answer in {"p", "play"}:
             return "play"
+        if answer.isdigit():
+            selected = int(answer)
+            if 1 <= selected <= command_count:
+                return f"play:{selected}"
+            print("Unknown audio command number.")
+            continue
         if answer in VALID_DECISIONS:
             if answer not in allowed:
                 print(f"Decision {answer} is not allowed for this row.")
@@ -341,18 +365,26 @@ def main() -> int:
 
     for visible_index, row_index in enumerate(indexes, start=1):
         row = rows[row_index]
-        command = selected_command(row, args.command_key)
-        print_row(row, visible_index, total, dialogue_cache, args.context_utterances)
+        command_options_for_row = command_options(row, args.command_key)
+        command = command_options_for_row[0][1] if command_options_for_row else ""
+        print_row(row, visible_index, total, dialogue_cache, args.context_utterances, args.command_key)
         if command and not args.no_play:
             play_command(command)
         while True:
-            decision = prompt_decision(row)
+            decision = prompt_decision(row, args.command_key)
             if decision is None:
                 write_jsonl(out, rows)
                 print(f"Stopped. Written: {out}")
                 return 0
             if decision == "play":
                 play_command(command)
+                continue
+            if isinstance(decision, str) and decision.startswith("play:"):
+                selected = int(decision.split(":", 1)[1])
+                if 1 <= selected <= len(command_options_for_row):
+                    play_command(command_options_for_row[selected - 1][1])
+                else:
+                    print("Unknown audio command number.")
                 continue
             break
         row["decision"] = decision
