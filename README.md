@@ -297,7 +297,8 @@ filled each `decision` as `drop_me`, `keep_me`, `needs_review`, or `skip`, apply
 session. The script
 writes a separate `reviewed_v1` profile and never changes the automatic cleanup profiles. The
 profile is eligible for `--transcript-profile auto` only when the review template has no remaining
-`todo` rows for that session; partial review stays as an audit artifact with failing gates.
+`todo` rows for that session and every row respects `allowed_decisions`; partial or invalid review
+stays as an audit artifact with failing gates.
 For local-recall rows, `drop_me` is invalid because there is no transcript utterance to drop.
 `keep_me` or `skip` closes the local-recall risk as checked; `needs_review` keeps it blocking.
 The template also includes `suggested_decision` hints such as `drop_me` for probable duplicates, but

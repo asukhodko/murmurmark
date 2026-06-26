@@ -459,9 +459,9 @@ confirmed local speech, close checked local-recall rows, or keep an item marked 
 Local-recall rows are audit-only: they do not add missing words to the transcript, and `drop_me` is
 not a valid decision for them. `reviewed_v1` gates pass only when
 the corresponding `review_decisions.template.jsonl` rows for that session are all closed with
-`drop_me`, `keep_me`, `needs_review`, or `skip`; a partial file is written for audit but is not
-selected by `auto`. The template includes `suggested_decision` hints, but they are not applied until
-the reviewer explicitly edits `decision`. For `remote_duplicate`, those hints are coverage-aware:
+an allowed `drop_me`, `keep_me`, `needs_review`, or `skip`; a partial or invalid file is written for
+audit but is not selected by `auto`. The template includes `suggested_decision` hints, but they are
+not applied until the reviewer explicitly edits `decision`. For `remote_duplicate`, those hints are coverage-aware:
 if the duplicate covers only part of a longer `Me` utterance, the plan uses
 `check_unique_me_content` and suggests `needs_review`, because `drop_me` would remove the whole
 utterance. It does not edit `audit_cleanup_v1/v2/v3/v4`.

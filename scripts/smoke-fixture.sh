@@ -751,6 +751,18 @@ EOF
     --no-play \
     --limit 1 >/dev/null
   jq -s '.[0].decision == "needs_review" and (.[0].allowed_decisions | index("drop_me") | not)' "$local_cli_out" >/dev/null
+  invalid_allowed_decisions="$workdir/review_decisions_invalid_allowed.jsonl"
+  jq -c '.decision = "drop_me" | .status = "reviewed"' "$local_cli_template" >"$invalid_allowed_decisions"
+  if "$repo_root/scripts/apply-review-decisions.py" "$group_session" \
+    --decisions "$invalid_allowed_decisions" \
+    --review-template "$local_cli_template" \
+    --input-profile auto \
+    --output-profile reviewed_invalid_allowed_v1 >/dev/null; then
+    echo "invalid allowed_decisions unexpectedly passed" >&2
+    exit 1
+  fi
+  jq -e '.gates.passed == false and (.gates.hard_failures | index("invalid_decisions"))' \
+    "$group_session/derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_invalid_allowed_v1.json" >/dev/null
   partial_review_decisions="$workdir/review_decisions_partial.jsonl"
   cp "$review_template" "$partial_review_decisions"
   if "$repo_root/scripts/apply-review-decisions.py" "$group_session" \

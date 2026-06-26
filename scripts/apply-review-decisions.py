@@ -211,6 +211,12 @@ def normalize_decision(row: dict[str, Any]) -> dict[str, Any]:
     normalized = {**row, "decision": decision}
     if decision not in VALID_DECISIONS:
         normalized["_invalid"] = True
+        normalized["_invalid_reason"] = "unknown_decision"
+    allowed_values = row.get("allowed_decisions")
+    allowed = {str(value) for value in allowed_values} if isinstance(allowed_values, list) else set()
+    if decision not in OPEN_DECISIONS and allowed and decision not in allowed:
+        normalized["_invalid"] = True
+        normalized["_invalid_reason"] = "decision_not_allowed_for_row"
     if is_local_recall_decision(normalized) and decision == "drop_me":
         normalized["_invalid"] = True
         normalized["_invalid_reason"] = "drop_me_is_not_supported_for_local_recall"

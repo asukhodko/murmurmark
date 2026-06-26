@@ -839,8 +839,9 @@ For `source: "local_recall"` rows, `drop_me` is invalid because the row points t
 island, not a transcript utterance. `keep_me` and `skip` close that local-recall risk as checked;
 `needs_review` keeps it in the readiness burden. These rows are recorded in
 `review_decisions_applied.reviewed_v1.jsonl` with `review_effect: "audit_only_local_recall"`.
-`review-decisions-cli.py` must honor `allowed_decisions`; for example, it must not accept `drop_me`
-on `source: "local_recall"` rows even though `drop_me` is valid for ordinary audio-review rows.
+`review-decisions-cli.py` and `apply-review-decisions.py` must honor `allowed_decisions`; for
+example, they must not accept `drop_me` on `source: "local_recall"` rows even though `drop_me` is
+valid for ordinary audio-review rows.
 `suggested_decision` is only a review hint. It never changes transcript output by itself and does not
 count as coverage. The reviewer must still copy the intended value into `decision`.
 
