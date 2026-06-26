@@ -20,7 +20,7 @@ SAMPLE_RATE = 16000
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build local audio clips for suspicious transcript regions.")
     parser.add_argument("session", type=Path)
-    parser.add_argument("--profile", default="audit_cleanup_v1", choices=["auto", "current", "shadow_v2", "audit_cleanup_v1"])
+    parser.add_argument("--profile", default="audit_cleanup_v1", choices=["auto", "current", "shadow_v2", "audit_cleanup_v1", "audit_cleanup_v2"])
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--min-overlap-sec", type=float, default=0.5)
     parser.add_argument("--padding-sec", type=float, default=3.0)
@@ -92,7 +92,7 @@ def resolve_profile(session: Path, requested: str) -> str:
     if requested != "auto":
         return requested
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
-    for candidate in ("audit_cleanup_v1", "shadow_v2", "current"):
+    for candidate in ("audit_cleanup_v2", "audit_cleanup_v1", "shadow_v2", "current"):
         if (resolved / f"clean_dialogue{suffix(candidate)}.json").exists():
             return candidate
     return "current"
@@ -106,6 +106,26 @@ def transcript_paths(session: Path, profile: str) -> dict[str, Path]:
         "overlaps": resolved / f"overlaps{suffix(profile)}.json",
         "repair_comparison": resolved / "repair_comparison.json",
     }
+
+
+def cleanup_rejections_path(session: Path, profile: str) -> Path | None:
+    if not profile.startswith("audit_cleanup_"):
+        return None
+    path = (
+        session
+        / "derived/transcript-simple/whisper-cpp/audit-cleanup"
+        / f"audit_cleanup_rejected_patches.{profile}.jsonl"
+    )
+    return path if path.exists() else None
+
+
+def synthesis_review_items_path(session: Path, profile: str) -> Path | None:
+    out_dir = session / "derived/synthesis-simple/extractive"
+    profile_path = out_dir / f"review_items{suffix(profile)}.jsonl"
+    if profile != "current":
+        return profile_path if profile_path.exists() else None
+    path = out_dir / "review_items.jsonl"
+    return path if path.exists() else None
 
 
 def source_paths(session: Path) -> dict[str, Path]:
@@ -248,10 +268,16 @@ def add_group_audit(items: dict[tuple[Any, ...], dict[str, Any]], rows: list[dic
         end = float(interval.get("end", start) or start)
         refs = row.get("utterances") if isinstance(row.get("utterances"), dict) else {}
         ids = []
+        me_id = ""
         for side in ("me", "remote"):
             value = refs.get(side) if isinstance(refs.get(side), dict) else {}
             if value.get("id"):
-                ids.append(str(value["id"]))
+                item_id = str(value["id"])
+                ids.append(item_id)
+                if side == "me":
+                    me_id = item_id
+        if me_id and me_id not in by_id:
+            continue
         utterances = [by_id[item_id] for item_id in ids if item_id in by_id]
         if len(utterances) < len(ids):
             for side in ("me", "remote"):
@@ -485,15 +511,16 @@ def main() -> int:
     overlaps = (read_json(paths["overlaps"]) or {}).get("overlaps")
     add_overlaps(items_by_key, overlaps if isinstance(overlaps, list) else [], by_id, args.min_overlap_sec)
     add_group_audit(items_by_key, read_jsonl(session / "derived/audit/group-overlaps/group_overlap_audit.jsonl"), by_id)
-    cleanup_dir = session / "derived/transcript-simple/whisper-cpp/audit-cleanup"
+    cleanup_rejections = cleanup_rejections_path(session, profile)
+    synthesis_review_items = synthesis_review_items_path(session, profile)
     add_cleanup_rejections(
         items_by_key,
-        read_jsonl(cleanup_dir / "audit_cleanup_rejected_patches.audit_cleanup_v1.jsonl"),
+        read_jsonl(cleanup_rejections) if cleanup_rejections else [],
         by_id,
     )
     add_synthesis_review_items(
         items_by_key,
-        read_jsonl(session / "derived/synthesis-simple/extractive/review_items.jsonl"),
+        read_jsonl(synthesis_review_items) if synthesis_review_items else [],
         by_id,
     )
 

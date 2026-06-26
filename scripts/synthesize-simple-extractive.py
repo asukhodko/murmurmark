@@ -522,7 +522,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("session", type=Path)
     parser.add_argument(
         "--transcript-profile",
-        choices=("auto", "current", "shadow_v2", "audit_cleanup_v1"),
+        choices=("auto", "current", "shadow_v2", "audit_cleanup_v1", "audit_cleanup_v2"),
         default="auto",
         help="Transcript artifact profile to synthesize from.",
     )
@@ -614,23 +614,24 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         comparison, error = read_json(comparison_path)
         if error is None and isinstance(comparison, dict):
             repair_comparison = comparison
-        cleanup_paths = source_profile_paths(resolved_dir, "audit_cleanup_v1")
-        cleanup_report, cleanup_error = read_json(cleanup_paths["audit_cleanup_report"])
-        if (
-            cleanup_paths["clean_dialogue"].exists()
-            and cleanup_error is None
-            and isinstance(cleanup_report, dict)
-            and isinstance(cleanup_report.get("gates"), dict)
-            and cleanup_report["gates"].get("passed") is True
-        ):
-            return "audit_cleanup_v1", cleanup_paths, repair_comparison, risk_items
+        for cleanup_profile in ("audit_cleanup_v2", "audit_cleanup_v1"):
+            cleanup_paths = source_profile_paths(resolved_dir, cleanup_profile)
+            cleanup_report, cleanup_error = read_json(cleanup_paths["audit_cleanup_report"])
+            if (
+                cleanup_paths["clean_dialogue"].exists()
+                and cleanup_error is None
+                and isinstance(cleanup_report, dict)
+                and isinstance(cleanup_report.get("gates"), dict)
+                and cleanup_report["gates"].get("passed") is True
+            ):
+                return cleanup_profile, cleanup_paths, repair_comparison, risk_items
         shadow_paths = source_profile_paths(resolved_dir, "shadow_v2")
         if shadow_paths["clean_dialogue"].exists() and repair_comparison and repair_comparison.get("passed") is True:
             return "shadow_v2", shadow_paths, repair_comparison, risk_items
         return "current", source_profile_paths(resolved_dir, "current"), repair_comparison, risk_items
 
-    if requested_profile == "audit_cleanup_v1":
-        paths = source_profile_paths(resolved_dir, "audit_cleanup_v1")
+    if requested_profile in {"audit_cleanup_v1", "audit_cleanup_v2"}:
+        paths = source_profile_paths(resolved_dir, requested_profile)
         comparison, error = read_json(paths["repair_comparison"])
         if error is None and isinstance(comparison, dict):
             repair_comparison = comparison
@@ -645,7 +646,7 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
                     "reason": "audit cleanup profile was requested but cleanup gates did not pass",
                 }
             )
-        return "audit_cleanup_v1", paths, repair_comparison, risk_items
+        return requested_profile, paths, repair_comparison, risk_items
 
     if requested_profile == "shadow_v2":
         paths = source_profile_paths(resolved_dir, "shadow_v2")
@@ -778,7 +779,7 @@ def verdict_from_metrics(
     if int(metrics["golden_phrase_fail_count"]) > 0:
         items.append({"type": "golden_phrase_failures", "severity": "high", "reason": "configured golden phrase checks failed"})
 
-    if selected_profile == "audit_cleanup_v1" and "audit_harmful_seconds_after" in metrics:
+    if selected_profile in {"audit_cleanup_v1", "audit_cleanup_v2"} and "audit_harmful_seconds_after" in metrics:
         duration = max(1.0, float(metrics.get("meeting_duration_sec", 0.0) or 0.0))
         harmful = float(metrics.get("audit_harmful_seconds_after", 0.0) or 0.0)
         review = float(metrics.get("audit_review_seconds", 0.0) or 0.0)
@@ -1923,17 +1924,20 @@ def main() -> int:
     write_notes_markdown(out_dir / "notes.md", verdict_payload, evidence)
     write_jsonl(out_dir / "review_items.jsonl", review_items)
     profile_aliases: dict[str, str] = {}
-    if selected_profile == "audit_cleanup_v1":
+    if selected_profile in {"audit_cleanup_v1", "audit_cleanup_v2"}:
+        profile_suffix = selected_profile
         profile_aliases = {
-            "quality_verdict": "quality_verdict.audit_cleanup_v1.json",
-            "quality_verdict_markdown": "quality_verdict.audit_cleanup_v1.md",
-            "notes_markdown": "notes.audit_cleanup_v1.md",
-            "evidence_notes": "evidence_notes.audit_cleanup_v1.json",
+            "quality_verdict": f"quality_verdict.{profile_suffix}.json",
+            "quality_verdict_markdown": f"quality_verdict.{profile_suffix}.md",
+            "notes_markdown": f"notes.{profile_suffix}.md",
+            "evidence_notes": f"evidence_notes.{profile_suffix}.json",
+            "review_items": f"review_items.{profile_suffix}.jsonl",
         }
         write_json(out_dir / profile_aliases["quality_verdict"], verdict_payload)
         write_quality_markdown(out_dir / profile_aliases["quality_verdict_markdown"], verdict_payload)
         write_json(out_dir / profile_aliases["evidence_notes"], evidence)
         write_notes_markdown(out_dir / profile_aliases["notes_markdown"], verdict_payload, evidence)
+        write_jsonl(out_dir / profile_aliases["review_items"], review_items)
     write_json(
         out_dir / "synthesis_manifest.json",
         {

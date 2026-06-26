@@ -293,6 +293,10 @@ def score_item(item: dict[str, Any], features: dict[str, Any]) -> dict[str, int]
     remote_duplicate = 0
     if text_sim >= 0.75 and remote_similarity >= 50 and local_support < 60:
         remote_duplicate = max(remote_duplicate, 82)
+    if text_sim >= 0.85 and remote_similarity >= 55 and local_support <= 55:
+        remote_duplicate = max(remote_duplicate, 92)
+    if text_sim >= 0.95 and remote_similarity >= 55 and local_support <= 55:
+        remote_duplicate = max(remote_duplicate, 96)
     if group == "probable_duplicate" and (group_conf or 0.0) >= 0.85:
         remote_duplicate = max(remote_duplicate, int(round((group_conf or 0.85) * 100)))
 

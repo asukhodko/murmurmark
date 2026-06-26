@@ -386,6 +386,29 @@ overlaps, group overlap audit and audit-cleanup rejections:
 The local audio review does not apply patches. Later stronger local audio judges should consume the
 same `review_pack_items.jsonl` and write their own verdicts instead of re-cutting clips.
 
+`audit_cleanup_v2` consumes the audio review audit as an extra evidence layer. It writes the same
+profile-shaped transcript artifacts as v1, but with the `audit_cleanup_v2` suffix:
+
+```text
+derived/transcript-simple/whisper-cpp/resolved/
+  clean_dialogue.audit_cleanup_v2.json
+  transcript.audit_cleanup_v2.md
+  transcript.simple.audit_cleanup_v2.json
+  quality_report.audit_cleanup_v2.json
+  overlaps.audit_cleanup_v2.json
+
+derived/transcript-simple/whisper-cpp/audit-cleanup/
+  audit_cleanup_report.audit_cleanup_v2.json
+  audit_cleanup_patches.audit_cleanup_v2.jsonl
+  audit_cleanup_rejected_patches.audit_cleanup_v2.jsonl
+  audit_cleanup_diff.audit_cleanup_v2.json
+```
+
+v2 usually uses `audit_cleanup_v1` as input and may drop only whole `Me` utterances when
+`audio_review_audit.jsonl` classifies them as high-confidence `remote_duplicate` or short
+`asr_noise` with verdict `probable_transcript_error`. Other audio-review labels are mark-only:
+`remote_leak`, `lost_me`, `uncertain`, `double_talk` and `timing_overlap`.
+
 Patch suggestions are dry-run only:
 
 ```json

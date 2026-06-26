@@ -71,12 +71,19 @@ jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' 
 
 .venv/bin/python scripts/audit-audio-review-pack.py "$SESSION"
 
+.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+  --input-profile audit_cleanup_v1 \
+  --output-profile audit_cleanup_v2 \
+  --mode conservative
+
+.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile audit_cleanup_v2
+
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.shadow_v2.md"
 less "$SESSION/derived/audit/group-overlaps/group_overlap_review.md"
 less "$SESSION/derived/audit/audio-review-pack/audio_review_report.md"
-less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v1.md"
-less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.md"
-less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md"
+less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v2.md"
+less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v2.md"
+less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v2.md"
 ```
 
 For a regression set or several real meetings, build a private quality summary under the ignored
@@ -160,12 +167,19 @@ jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' 
 
 .venv/bin/python scripts/audit-audio-review-pack.py "$SESSION"
 
+.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+  --input-profile audit_cleanup_v1 \
+  --output-profile audit_cleanup_v2 \
+  --mode conservative
+
+.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile audit_cleanup_v2
+
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.shadow_v2.md"
 less "$SESSION/derived/audit/group-overlaps/group_overlap_review.md"
 less "$SESSION/derived/audit/audio-review-pack/audio_review_report.md"
-less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v1.md"
-less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.md"
-less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md"
+less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v2.md"
+less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v2.md"
+less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v2.md"
 ```
 
 `transcript.md` is the stable baseline output. `transcript.shadow_v2.md` is the current best candidate when `repair_comparison.json` passes. The shadow profile does not replace the baseline transcript; it writes separate audit and comparison artifacts so changes can be checked before promotion.
@@ -199,6 +213,8 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v1
 .venv/bin/python scripts/build-audio-review-pack.py ./sessions/<session> --profile audit_cleanup_v1 --write-clips
 .venv/bin/python scripts/audit-audio-review-pack.py ./sessions/<session>
+.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v1 --output-profile audit_cleanup_v2
+.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v2
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-delay-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-fir-lab.py ./sessions/<session>
@@ -248,6 +264,12 @@ rejections, cuts local comparison clips under `derived/audit/audio-review-pack/`
 with local audio/text metrics. The output separates likely reliable regions, probable transcript errors
 and regions that should go to a stronger local audio judge. It is audit-only and never edits transcript
 profiles or raw capture.
+
+`audit_cleanup_v2` is the conservative cleanup profile that consumes the audio review audit. It reads
+`audit_cleanup_v1` plus `derived/audit/audio-review-pack/audio_review_audit.jsonl`, then writes a
+separate `audit_cleanup_v2` transcript profile. In v2, only high-confidence `remote_duplicate` and
+short `asr_noise` `Me` utterances can be dropped. `remote_leak`, `lost_me`, `uncertain`,
+`double_talk` and `timing_overlap` are kept and marked for review.
 
 The quality report helper is `scripts/report-session-quality.py`. It reads existing derived JSON
 for one or more sessions and writes a private JSON/CSV/Markdown summary under

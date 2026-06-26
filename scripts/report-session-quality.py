@@ -151,6 +151,8 @@ def session_duration_sec(session_json: dict[str, Any]) -> float | None:
 
 def selected_profile(session: Path) -> str:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    if (resolved / "quality_report.audit_cleanup_v2.json").exists() and (resolved / "clean_dialogue.audit_cleanup_v2.json").exists():
+        return "audit_cleanup_v2"
     if (resolved / "quality_report.audit_cleanup_v1.json").exists() and (resolved / "clean_dialogue.audit_cleanup_v1.json").exists():
         return "audit_cleanup_v1"
     if (resolved / "quality_report.shadow_v2.json").exists() and (resolved / "clean_dialogue.shadow_v2.json").exists():
@@ -178,9 +180,14 @@ def stage_status(session: Path) -> dict[str, bool]:
         "audit_cleanup_v1": (resolved / "quality_report.audit_cleanup_v1.json").exists()
         and (resolved / "clean_dialogue.audit_cleanup_v1.json").exists()
         and (cleanup / "audit_cleanup_report.audit_cleanup_v1.json").exists(),
+        "audit_cleanup_v2": (resolved / "quality_report.audit_cleanup_v2.json").exists()
+        and (resolved / "clean_dialogue.audit_cleanup_v2.json").exists()
+        and (cleanup / "audit_cleanup_report.audit_cleanup_v2.json").exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
+        "synthesis_audit_cleanup_v2": (synthesis / "quality_verdict.audit_cleanup_v2.json").exists()
+        and (synthesis / "evidence_notes.audit_cleanup_v2.json").exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
         and (audio_review / "review_pack_items.jsonl").exists(),
         "audio_review_audit": (audio_review / "audio_review_summary.json").exists()
@@ -340,7 +347,7 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
     verdict = row.get("verdict")
     if verdict in {"risky", "failed"}:
         flags.append(f"verdict:{verdict}")
-    if row.get("selected_profile") != "audit_cleanup_v1":
+    if row.get("selected_profile") not in {"audit_cleanup_v1", "audit_cleanup_v2"}:
         flags.append("no_audit_cleanup_profile")
     missing = row.get("missing_artifacts") or []
     if missing:
@@ -382,7 +389,11 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     group_summary = read_json(session / "derived/audit/group-overlaps/group_overlap_summary.json")
     audio_summary = read_json(session / "derived/audit/audio-review-pack/audio_review_summary.json")
     local_fir = read_json(session / "derived/preprocess/echo/local_fir_report.json")
-    cleanup_report = read_json(session / "derived/transcript-simple/whisper-cpp/audit-cleanup/audit_cleanup_report.audit_cleanup_v1.json")
+    cleanup_report = (
+        read_json(session / "derived/transcript-simple/whisper-cpp/audit-cleanup" / f"audit_cleanup_report{suffix(profile)}.json")
+        if profile in {"audit_cleanup_v1", "audit_cleanup_v2"}
+        else None
+    )
     session_json = read_json(session / "session.json") or {}
 
     metrics = verdict.get("metrics") if isinstance(verdict, dict) else None

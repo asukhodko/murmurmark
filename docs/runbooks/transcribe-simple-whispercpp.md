@@ -224,6 +224,29 @@ regions. The local audit classifies each item as likely reliable, probable trans
 needing a stronger local audio judge. It does not rewrite transcripts, Echo Guard outputs,
 synthesis files or raw `audio/*.caf`.
 
+## Audit Cleanup v2
+
+After audio review, build a second cleanup profile:
+
+```bash
+.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+  --input-profile audit_cleanup_v1 \
+  --output-profile audit_cleanup_v2 \
+  --mode conservative
+
+.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" \
+  --transcript-profile audit_cleanup_v2
+
+less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v2.md"
+less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v2.md"
+less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v2.md"
+```
+
+`audit_cleanup_v2` keeps v1 intact and reads `audio_review_audit.jsonl` as extra evidence. It only
+drops whole `Me` utterances when audio review marks them as high-confidence `remote_duplicate` or
+short `asr_noise`. `remote_leak`, `lost_me`, `uncertain`, `double_talk` and `timing_overlap` are
+kept and marked.
+
 ## Session Quality Report
 
 For a regression set or a batch of real meetings, build a private quality summary from existing

@@ -142,7 +142,9 @@ WEAK_NOISE_PHRASES = {
     "окей",
 }
 HARMFUL_LABELS = {"probable_duplicate", "probable_remote_leak", "probable_asr_noise"}
-BENIGN_LABELS = {"probable_double_talk", "probable_timing_overlap"}
+BENIGN_LABELS = {"probable_double_talk", "probable_timing_overlap", "double_talk", "timing_overlap"}
+AUDIO_REVIEW_DROP_LABELS = {"remote_duplicate", "asr_noise"}
+AUDIO_REVIEW_MARK_LABELS = {"remote_leak", "lost_me", "uncertain", "double_talk", "timing_overlap"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -326,14 +328,119 @@ def selected_note_ids(session: Path) -> set[str]:
     return ids
 
 
-def audit_by_me(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+def audit_by_me(records: list[dict[str, Any]], existing_ids: set[str] | None = None) -> dict[str, list[dict[str, Any]]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
     for record in records:
         me = ((record.get("utterances") or {}).get("me") or {})
         utterance_id = str(me.get("id") or "")
         if not utterance_id:
             continue
+        if existing_ids is not None and utterance_id not in existing_ids:
+            continue
+        record.setdefault("source", "group_overlap")
         grouped.setdefault(utterance_id, []).append(record)
+    return grouped
+
+
+def audio_review_role(row: dict[str, Any]) -> str:
+    role = str(row.get("role") or row.get("speaker_label") or "").lower()
+    source = str(row.get("source_track") or "").lower()
+    if role == "me" or source == "mic":
+        return "me"
+    if "colleague" in role or source == "remote":
+        return "remote"
+    return role or source
+
+
+def audio_review_summary_to_utterance(row: dict[str, Any], fallback_start: float, fallback_end: float) -> dict[str, Any]:
+    role = audio_review_role(row)
+    return {
+        "id": str(row.get("id") or ""),
+        "role": "Me" if role == "me" else "Colleagues" if role == "remote" else row.get("role", "Unknown"),
+        "speaker_label": "Me" if role == "me" else "Colleagues" if role == "remote" else row.get("role", "Unknown"),
+        "source_track": "mic" if role == "me" else "remote" if role == "remote" else row.get("source_track"),
+        "start": float(row.get("start", fallback_start) or fallback_start),
+        "end": float(row.get("end", fallback_end) or fallback_end),
+        "text": str(row.get("text") or ""),
+        "quality": {"needs_review": bool(row.get("needs_review"))},
+    }
+
+
+def normalize_audio_review_record(row: dict[str, Any], me_row: dict[str, Any], remote_row: dict[str, Any] | None) -> dict[str, Any]:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    start = float(interval.get("start", me_row.get("start", 0.0)) or 0.0)
+    end = float(interval.get("end", me_row.get("end", start)) or start)
+    duration_sec = max(0.0, end - start)
+    features = row.get("features") if isinstance(row.get("features"), dict) else {}
+    text_features = features.get("text") if isinstance(features.get("text"), dict) else {}
+    scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    me_duration = max(0.001, float(me_row.get("end", end) or end) - float(me_row.get("start", start) or start))
+    coverage = min(1.0, duration_sec / me_duration)
+    remote = remote_row or {"id": "", "start": start, "end": end, "text": "", "quality": {}}
+    label = str(classification.get("label") or "")
+    top_score = scores.get(label, classification.get("top_score", 0))
+    return {
+        "id": str(row.get("id") or ""),
+        "source": "audio_review",
+        "utterances": {"me": me_row, "remote": remote},
+        "classification": {
+            "label": label,
+            "verdict": classification.get("verdict"),
+            "confidence": classification.get("confidence", 0.0),
+            "top_score": top_score,
+            "second_score": classification.get("second_score", 0),
+            "action_suggestion": classification.get("label"),
+        },
+        "scores": {
+            "local_evidence": scores.get("local_support", 0),
+            "audio_review_local_support": scores.get("local_support", 0),
+            "audio_review_remote_similarity": scores.get("remote_similarity", 0),
+            "audio_review_remote_duplicate": scores.get("remote_duplicate", 0),
+            "audio_review_remote_leak": scores.get("remote_leak", 0),
+            "audio_review_asr_noise": scores.get("asr_noise", 0),
+            "audio_review_lost_me": scores.get("lost_me", 0),
+            "text_duplicate": max(float(scores.get("remote_duplicate", 0) or 0), float(text_features.get("similarity", 0.0) or 0.0) * 100.0),
+        },
+        "features": {
+            "text": {
+                "similarity_max": text_features.get("similarity", 0.0),
+                "token_containment": text_features.get("containment", 0.0),
+                "sequence_ratio": text_features.get("sequence_ratio", 0.0),
+                "me_text": text_features.get("me_text", me_row.get("text")),
+                "remote_text": text_features.get("remote_text", remote.get("text")),
+            },
+            "speaker_state": {},
+            "interval": {
+                "me_coverage": round(coverage, 6),
+                "time_overlap_ratio": round(coverage, 6),
+                "near_boundary": True,
+            },
+            "audio_review": features,
+        },
+        "audio_review": row,
+    }
+
+
+def audio_review_by_me(records: list[dict[str, Any]], existing_ids: set[str]) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in records:
+        classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+        label = str(classification.get("label") or "")
+        if label not in AUDIO_REVIEW_DROP_LABELS and label not in AUDIO_REVIEW_MARK_LABELS:
+            continue
+        interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+        start = float(interval.get("start", 0.0) or 0.0)
+        end = float(interval.get("end", start) or start)
+        summaries = row.get("utterances") if isinstance(row.get("utterances"), list) else []
+        me_rows = [audio_review_summary_to_utterance(item, start, end) for item in summaries if isinstance(item, dict) and audio_review_role(item) == "me"]
+        remote_rows = [audio_review_summary_to_utterance(item, start, end) for item in summaries if isinstance(item, dict) and audio_review_role(item) == "remote"]
+        remote = remote_rows[0] if remote_rows else None
+        for me in me_rows:
+            utterance_id = str(me.get("id") or "")
+            if not utterance_id or utterance_id not in existing_ids:
+                continue
+            grouped.setdefault(utterance_id, []).append(normalize_audio_review_record(row, me, remote))
     return grouped
 
 
@@ -489,12 +596,93 @@ def noise_gate(record: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
     return safe, checks
 
 
+def audio_review_gate(record: dict[str, Any], notes_ids: set[str]) -> tuple[bool, dict[str, Any], str]:
+    classification = record.get("classification") or {}
+    scores = record.get("scores") or {}
+    features = record.get("features") or {}
+    text_features = features.get("text") or {}
+    interval = features.get("interval") or {}
+    me = ((record.get("utterances") or {}).get("me") or {})
+    label = str(classification.get("label") or "")
+    verdict = str(classification.get("verdict") or "")
+    confidence = float(classification.get("confidence", 0.0) or 0.0)
+    local_support = float(scores.get("audio_review_local_support", scores.get("local_evidence", 0.0)) or 0.0)
+    duplicate_score = float(scores.get("audio_review_remote_duplicate", 0.0) or 0.0)
+    noise_score = float(scores.get("audio_review_asr_noise", 0.0) or 0.0)
+    similarity = float(text_features.get("similarity_max", 0.0) or 0.0)
+    containment = float(text_features.get("token_containment", 0.0) or 0.0)
+    coverage = float(interval.get("me_coverage", interval.get("time_overlap_ratio", 0.0)) or 0.0)
+    unique_tokens = unique_me_tokens(record)
+    unique_count = len(unique_tokens)
+    notes_impact = str(me.get("id")) in notes_ids
+    protected_marker = marker_is_protected(record, unique_count, notes_impact)
+    protected_repeat = intentional_repeat(record, unique_count)
+    duration_sec = float((record.get("audio_review") or {}).get("interval", {}).get("duration_sec", 0.0) or 0.0)
+    if duration_sec <= 0.0:
+        duration_sec = float(me.get("end", 0.0) or 0.0) - float(me.get("start", 0.0) or 0.0)
+    content_count = len(content_tokens(me.get("text")))
+    domain_count = len(domain_terms(me.get("text")))
+
+    common_ok = (
+        verdict == "probable_transcript_error"
+        and confidence >= 0.90
+        and not protected_marker
+        and not protected_repeat
+        and not (notes_impact and not (confidence >= 0.96 and unique_count == 0))
+    )
+    duplicate_safe = (
+        label == "remote_duplicate"
+        and common_ok
+        and duplicate_score >= 85.0
+        and local_support <= 55.0
+        and (similarity >= 0.72 or containment >= 0.75)
+        and coverage >= 0.50
+        and unique_count <= 2
+    )
+    noise_safe = (
+        label == "asr_noise"
+        and common_ok
+        and noise_score >= 85.0
+        and local_support <= 45.0
+        and duration_sec <= 2.5
+        and content_count <= 3
+        and domain_count == 0
+        and not has_marker(me.get("text"))
+    )
+    action = "drop_me_duplicate" if label == "remote_duplicate" else "drop_me_noise" if label == "asr_noise" else "mark_audio_review"
+    checks = {
+        "source": "audio_review",
+        "label": label,
+        "audio_review_verdict": verdict,
+        "classification_confidence": confidence,
+        "audio_review_duplicate_score": duplicate_score,
+        "audio_review_noise_score": noise_score,
+        "audio_review_local_support": local_support,
+        "text_similarity_max": similarity,
+        "token_containment": containment,
+        "me_utterance_overlap_coverage": coverage,
+        "duration_sec": round(max(0.0, duration_sec), 3),
+        "content_token_count": content_count,
+        "domain_term_count": domain_count,
+        "unique_me_content_token_count": unique_count,
+        "unique_me_content_tokens": sorted(unique_tokens),
+        "notes_impact": notes_impact,
+        "has_protected_action_decision_risk_marker": protected_marker,
+        "intentional_repeat_candidate": protected_repeat,
+        "common_gate_passed": common_ok,
+        "safe_to_drop_entire_utterance": duplicate_safe or noise_safe,
+    }
+    return duplicate_safe or noise_safe, checks, action
+
+
 def best_patch_for_utterance(utterance_id: str, rows: list[dict[str, Any]], notes_ids: set[str], patch_index: int) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     candidates: list[tuple[int, dict[str, Any], dict[str, Any], str]] = []
     rejected: list[dict[str, Any]] = []
     for record in rows:
         label = str((record.get("classification") or {}).get("label") or "")
-        if label == "probable_duplicate":
+        if record.get("source") == "audio_review":
+            safe, checks, action = audio_review_gate(record, notes_ids)
+        elif label == "probable_duplicate":
             safe, checks = duplicate_gate(record, notes_ids)
             action = "drop_me_duplicate"
         elif label == "probable_asr_noise":
@@ -508,8 +696,13 @@ def best_patch_for_utterance(utterance_id: str, rows: list[dict[str, Any]], note
                 "probable_timing_overlap": "mark_timing_overlap",
                 "probable_remote_leak": "mark_remote_leak",
                 "needs_human_review": "needs_review",
+                "remote_leak": "mark_remote_leak",
+                "lost_me": "mark_lost_me",
+                "uncertain": "needs_audio_judge",
+                "double_talk": "mark_double_talk",
+                "timing_overlap": "mark_timing_overlap",
             }.get(label, "needs_review")
-        score = int((record.get("classification") or {}).get("top_score", 0) or 0)
+        score = int(float((record.get("classification") or {}).get("top_score", 0) or 0))
         if safe:
             candidates.append((score, record, checks, action))
         else:
@@ -564,12 +757,15 @@ def patch_payload(
         },
         "audit_overlap_ids": [record.get("id")],
         "evidence": {
+            "source": record.get("source", "group_overlap"),
             "label": classification.get("label"),
+            "verdict": classification.get("verdict"),
             "classification_confidence": classification.get("confidence"),
             "scores": scores,
             "text": features.get("text"),
             "speaker_state": features.get("speaker_state"),
             "interval": features.get("interval"),
+            "audio_review": record.get("audio_review"),
         },
         "safety_checks": checks,
     }
@@ -594,9 +790,9 @@ def mark_quality(utterance: dict[str, Any], record: dict[str, Any], action: str,
         audit["actions"].append(action)
     if label in BENIGN_LABELS:
         quality["overlap_type"] = label
-    elif label == "needs_human_review":
+    elif label in {"needs_human_review", "uncertain", "lost_me", "remote_duplicate", "asr_noise", "remote_leak"}:
         quality["needs_review"] = True
-        quality["overlap_type"] = "needs_human_review"
+        quality["overlap_type"] = label
     elif label == "probable_remote_leak":
         quality["overlap_type"] = "probable_remote_leak"
 
@@ -636,6 +832,8 @@ def quality_report(
         "profile": output_profile,
         "applied_patches": len(applied),
         "rejected_patches": len(rejected),
+        "audio_review_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_review"),
+        "audio_review_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_review"),
         "dropped_me_duplicate_seconds": round(dropped_duplicate, 3),
         "dropped_me_noise_seconds": round(dropped_noise, 3),
         "audit_harmful_seconds_before": round(harmful_before, 3),
@@ -675,6 +873,7 @@ def main() -> int:
     session = args.session.expanduser().resolve()
     resolved = session / "derived" / "transcript-simple" / "whisper-cpp" / "resolved"
     audit_dir = session / "derived" / "audit" / "group-overlaps"
+    audio_review_dir = session / "derived" / "audit" / "audio-review-pack"
     cleanup_dir = session / "derived" / "transcript-simple" / "whisper-cpp" / "audit-cleanup"
     input_suffix = suffix(args.input_profile)
     output_suffix = suffix(args.output_profile)
@@ -686,21 +885,32 @@ def main() -> int:
         "report": resolved / f"transcribe_simple_report{input_suffix}.json",
         "audit": audit_dir / "group_overlap_audit.jsonl",
         "audit_summary": audit_dir / "group_overlap_summary.json",
+        "audio_review_audit": audio_review_dir / "audio_review_audit.jsonl",
+        "audio_review_summary": audio_review_dir / "audio_review_summary.json",
     }
     for label, path in paths.items():
-        if label in {"simple", "report"}:
+        if label in {"simple", "report", "audio_review_audit", "audio_review_summary"}:
             continue
         if not path.exists():
             raise FileNotFoundError(f"missing {label}: {path}")
+    use_audio_review = args.output_profile == "audit_cleanup_v2"
+    if use_audio_review:
+        for label in ("audio_review_audit", "audio_review_summary"):
+            if not paths[label].exists():
+                raise FileNotFoundError(f"missing {label}: {paths[label]}")
 
     dialogue = read_json(paths["dialogue"])
     input_quality = read_json(paths["quality"])
     audit_records = read_jsonl(paths["audit"])
+    audio_review_records = read_jsonl(paths["audio_review_audit"]) if use_audio_review else []
     audit_summary = read_json(paths["audit_summary"])
     utterances = [row for row in dialogue.get("utterances", []) if isinstance(row, dict)]
     by_id = {str(row.get("id")): row for row in utterances}
     notes_ids = selected_note_ids(session)
-    grouped = audit_by_me(audit_records)
+    grouped = audit_by_me(audit_records, set(by_id))
+    if use_audio_review:
+        for utterance_id, records in audio_review_by_me(audio_review_records, set(by_id)).items():
+            grouped.setdefault(utterance_id, []).extend(records)
 
     applied: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
@@ -741,6 +951,13 @@ def main() -> int:
                 "probable_timing_overlap": "kept_mark_timing_overlap",
                 "probable_remote_leak": "kept_mark_remote_leak",
                 "needs_human_review": "kept_needs_review",
+                "remote_duplicate": "kept_needs_review",
+                "asr_noise": "kept_needs_review",
+                "remote_leak": "kept_mark_remote_leak",
+                "lost_me": "kept_mark_lost_me",
+                "uncertain": "kept_needs_audio_judge",
+                "double_talk": "kept_mark_double_talk",
+                "timing_overlap": "kept_mark_timing_overlap",
             }.get(label)
             if action:
                 mark_quality(new_row, record, action, args.output_profile)
@@ -822,12 +1039,19 @@ def main() -> int:
         "output_profile": args.output_profile,
         "mode": args.mode,
         "generator": {"name": "apply-audit-cleanup", "version": SCRIPT_VERSION},
-        "inputs": {key: rel(path, session) for key, path in paths.items() if path.exists()},
+        "inputs": {
+            key: rel(path, session)
+            for key, path in paths.items()
+            if path.exists() and (key not in {"audio_review_audit", "audio_review_summary"} or use_audio_review)
+        },
         "summary": {
             "input_utterances": len(utterances),
             "output_utterances": len(output_utterances),
             "applied_patches": len(applied),
             "rejected_patches": len(rejected),
+            "audio_review_records": len(audio_review_records),
+            "audio_review_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_review"),
+            "audio_review_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_review"),
             "dropped_me_duplicate_seconds": output_quality["audit_cleanup"]["dropped_me_duplicate_seconds"],
             "dropped_me_noise_seconds": output_quality["audit_cleanup"]["dropped_me_noise_seconds"],
             "protected_intentional_repeat_count": output_quality["audit_cleanup"]["protected_intentional_repeat_count"],
