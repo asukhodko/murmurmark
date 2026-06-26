@@ -482,6 +482,17 @@ afplay sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_dr
 less sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.md
 ```
 
+Then copy decisions from the pack back into the full review file:
+
+```bash
+.venv/bin/python scripts/apply-review-lane-pack-decisions.py \
+  sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.json \
+  --answers dddddddddd \
+  --out sessions/_reports/review-plan/review_decisions.jsonl
+```
+
+Answer shortcuts are `d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.` or `n=todo`.
+
 `apply-review-decisions-batch.py` is the normal command after the review file is filled. It applies
 the same edited JSONL to every session mentioned in the review plan and can immediately regenerate
 extractive notes. Under the hood, `apply-review-decisions.py` writes a separate `reviewed_v1`

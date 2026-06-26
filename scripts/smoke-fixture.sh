@@ -766,6 +766,14 @@ EOF
   [[ -s "$lane_pack_dir/review_lane_pack.check_local_recall.json" ]]
   [[ -s "$lane_pack_dir/review_lane_pack.check_local_recall.md" ]]
   jq -e '.schema == "murmurmark.review_lane_pack/v1" and .summary.item_count == 1 and .items[0].source_audit_id == "local_recall_0001"' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
+  lane_pack_apply_out="$workdir/review_decisions_lane_pack_apply.jsonl"
+  "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
+    "$lane_pack_dir/review_lane_pack.check_local_recall.json" \
+    --template "$review_template" \
+    --out "$lane_pack_apply_out" \
+    --answers k >/dev/null
+  jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "lane_pack"' "$lane_pack_apply_out" >/dev/null
+  jq -e '.schema == "murmurmark.review_lane_pack_apply_report/v1" and .summary.reviewed_count == 1 and .summary.rejected_count == 0' "$workdir/review_lane_pack_apply_report.json" >/dev/null
   local_cli_template="$workdir/review_decisions_local_only.template.jsonl"
   local_cli_out="$workdir/review_decisions_local_only.jsonl"
   local_cli_stdout="$workdir/review_decisions_local_only_stdout.txt"

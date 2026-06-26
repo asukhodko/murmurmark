@@ -293,6 +293,8 @@ To clear only the quickest lane, run the CLI with `--lane fast_confirm_drop`; th
 keeps the full template, so later passes can continue with the remaining lanes.
 For faster listening, `scripts/build-review-lane-pack.py --lane fast_confirm_drop` creates a single
 WAV plus a Markdown index under `sessions/_reports/review-plan/lane-packs/`.
+After listening to that pack, `scripts/apply-review-lane-pack-decisions.py` can copy a compact answer
+string such as `ddddkddrdd` back into `review_decisions.jsonl`.
 
 `scripts/review-decisions-cli.py` is the fastest way to fill that checklist. It walks through
 `review_decisions.template.jsonl`, plays the preferred stereo clip, shows the `Me`/`remote` texts and

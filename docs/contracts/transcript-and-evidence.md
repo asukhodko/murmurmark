@@ -867,6 +867,26 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
 ```
 
 Lane packs are listening aids only. They do not mark decisions and do not modify transcript profiles.
+`apply-review-lane-pack-decisions.py` applies explicit reviewer answers for a lane pack back into
+the complete `review_decisions.jsonl`. It accepts a compact answer string in pack order:
+`d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.`/`n`/`t=todo`. The script validates
+each answer against `allowed_decisions`, writes `review_source: "lane_pack"`, and emits
+`review_lane_pack_apply_report.json`:
+
+```json
+{
+  "schema": "murmurmark.review_lane_pack_apply_report/v1",
+  "lane": "fast_confirm_drop",
+  "summary": {
+    "manifest_items": 10,
+    "answer_count": 10,
+    "applied_count": 10,
+    "rejected_count": 0,
+    "reviewed_count": 10,
+    "todo_count": 0
+  }
+}
+```
 
 After review, `apply-review-decisions.py` consumes the edited decision file and writes a separate
 `reviewed_v1` transcript profile:
