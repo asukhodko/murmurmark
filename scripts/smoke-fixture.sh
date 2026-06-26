@@ -630,6 +630,18 @@ EOF
   [[ -s "$corpus_dir/regression_corpus_evaluation.md" ]]
   jq -e '.schema == "murmurmark.regression_corpus_evaluation/v1"' "$corpus_dir/regression_corpus_evaluation.json" >/dev/null
   jq -e '.by_readiness_bucket.silver_cleanup_positive.count >= 1 and .by_readiness_bucket.needs_audio_judge.count >= 1' "$corpus_dir/regression_corpus_evaluation.json" >/dev/null
+
+  quality_dir="$workdir/session-quality"
+  "$repo_root/scripts/report-session-quality.py" "$group_session" --out-dir "$quality_dir" >/dev/null
+  readiness_dir="$workdir/operational-readiness"
+  "$repo_root/scripts/report-operational-readiness.py" \
+    --session-quality "$quality_dir/session_quality_report.json" \
+    --corpus-evaluation "$corpus_dir/regression_corpus_evaluation.json" \
+    --out-dir "$readiness_dir" >/dev/null
+  [[ -s "$readiness_dir/operational_readiness_report.json" ]]
+  [[ -s "$readiness_dir/operational_readiness_report.md" ]]
+  jq -e '.schema == "murmurmark.operational_readiness_report/v1"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.operational_verdict | IN("not_ready", "pilot_ready_with_review", "medium_risk_ready")' "$readiness_dir/operational_readiness_report.json" >/dev/null
 fi
 
 empty_session="$workdir/empty-session"

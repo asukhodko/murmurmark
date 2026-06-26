@@ -281,8 +281,13 @@ work:
 .venv/bin/python scripts/evaluate-regression-corpus.py \
   --corpus-dir sessions/_reports/regression-corpus
 
+.venv/bin/python scripts/report-operational-readiness.py \
+  --session-quality sessions/_reports/session-quality/session_quality_report.json \
+  --corpus-evaluation sessions/_reports/regression-corpus/regression_corpus_evaluation.json
+
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
+less sessions/_reports/operational-readiness/operational_readiness_report.md
 ```
 
 The script reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, balances examples by
@@ -290,6 +295,8 @@ label, and copies existing review clips under `sessions/_reports/regression-corp
 audit-only: no transcript profile, Echo Guard artifact or raw `audio/*.caf` file is modified.
 The evaluation script labels the corpus readiness for future work: silver cleanup positives,
 silver keep negatives, mark-only regressions, and examples that need a stronger local audio judge.
+The operational readiness report answers whether the current pipeline is usable for medium-risk
+working meetings, and how much manual review remains.
 
 ## Outputs
 

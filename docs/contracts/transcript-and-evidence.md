@@ -444,6 +444,34 @@ overlap audit marked it as `probable_timing_overlap`.
 Readiness buckets are not human truth labels. They are silver labels derived from current local
 metrics and are suitable for no-regression checks and prioritising future audio-judge work.
 
+Operational readiness combines the private session quality report and regression corpus evaluation:
+
+```text
+sessions/_reports/operational-readiness/
+  operational_readiness_report.json
+  operational_readiness_report.md
+```
+
+`operational_readiness_report.json` uses `murmurmark.operational_readiness_report/v1`:
+
+```json
+{
+  "schema": "murmurmark.operational_readiness_report/v1",
+  "operational_verdict": "pilot_ready_with_review",
+  "scope": "local tool for medium-risk working meetings",
+  "blockers": [],
+  "warnings": ["some_sessions_need_manual_review_before_use"],
+  "summary": {
+    "session_count": 10,
+    "total_review_burden_ratio": 0.030003,
+    "corpus_readiness": "useful_for_audio_judge_v0"
+  }
+}
+```
+
+The operational verdict is not a transcript correctness proof. It is a use-readiness summary for
+piloting MurmurMark on medium-risk meetings with explicit review burden and warnings.
+
 `audit_cleanup_v2` consumes the audio review audit as an extra evidence layer. It writes the same
 profile-shaped transcript artifacts as v1, but with the `audit_cleanup_v2` suffix:
 
