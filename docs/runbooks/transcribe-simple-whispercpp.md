@@ -454,7 +454,9 @@ shows the transcript rows, and writes `review_decisions.jsonl` after every answe
 the same edited JSONL to every session mentioned in the review plan and can immediately regenerate
 extractive notes. Under the hood, `apply-review-decisions.py` writes a separate `reviewed_v1`
 profile for each session. It can drop whole reviewed `Me` utterances, clear review flags for
-confirmed local speech, or keep an item marked `needs_review`. `reviewed_v1` gates pass only when
+confirmed local speech, close checked local-recall rows, or keep an item marked `needs_review`.
+Local-recall rows are audit-only: they do not add missing words to the transcript, and `drop_me` is
+not a valid decision for them. `reviewed_v1` gates pass only when
 the corresponding `review_decisions.template.jsonl` rows for that session are all closed with
 `drop_me`, `keep_me`, `needs_review`, or `skip`; a partial file is written for audit but is not
 selected by `auto`. The template includes `suggested_decision` hints, but they are not applied until

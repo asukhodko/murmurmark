@@ -279,8 +279,9 @@ when the current audio-review audit has since reclassified that item as reliable
 `scripts/build-review-plan.py` turns that operational review queue into a compact working checklist
 under `sessions/_reports/review-plan/`. It groups nearby risky intervals by session, estimates the
 actual listening time, keeps ready-to-run `afplay`/`ffplay` commands, and gives a small protocol for deciding
-whether each `Me` candidate should be dropped, kept, or left as `needs_review`. It is audit-only and
-does not edit transcript profiles.
+whether each `Me` candidate should be dropped, kept, or left as `needs_review`. Local-recall items
+are audit-only review rows: they can clear or keep the local-recall risk, but they do not insert
+missing text into the transcript. The plan itself is audit-only and does not edit transcript profiles.
 
 `scripts/review-decisions-cli.py` is the fastest way to fill that checklist. It walks through
 `review_decisions.template.jsonl`, plays the preferred stereo clip, shows the `Me`/`remote` texts and
@@ -293,6 +294,8 @@ session. The script
 writes a separate `reviewed_v1` profile and never changes the automatic cleanup profiles. The
 profile is eligible for `--transcript-profile auto` only when the review template has no remaining
 `todo` rows for that session; partial review stays as an audit artifact with failing gates.
+For local-recall rows, `drop_me` is invalid because there is no transcript utterance to drop.
+`keep_me` or `skip` closes the local-recall risk as checked; `needs_review` keeps it blocking.
 The template also includes `suggested_decision` hints such as `drop_me` for probable duplicates, but
 they are never applied until the `decision` field is edited explicitly.
 `scripts/apply-review-decisions-batch.py` applies the same edited file to every session mentioned in

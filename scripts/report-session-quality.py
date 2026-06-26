@@ -547,7 +547,7 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
     }
 
 
-def local_recall_metrics(local_recall: dict[str, Any] | None) -> dict[str, Any]:
+def local_recall_metrics(local_recall: dict[str, Any] | None, review_report: dict[str, Any] | None = None) -> dict[str, Any]:
     if not isinstance(local_recall, dict):
         return {
             "local_recall_audit_status": "missing",
@@ -561,6 +561,26 @@ def local_recall_metrics(local_recall: dict[str, Any] | None) -> dict[str, Any]:
             "local_recall_recommended_next_step": "run_local_recall_audit",
         }
     summary = local_recall.get("summary") if isinstance(local_recall.get("summary"), dict) else {}
+    review_summary = review_report.get("summary") if isinstance(review_report, dict) and isinstance(review_report.get("summary"), dict) else {}
+    review_gates = review_report.get("gates") if isinstance(review_report, dict) and isinstance(review_report.get("gates"), dict) else {}
+    if review_gates.get("passed") is True and safe_int(review_summary.get("local_recall_decision_rows")):
+        possible_lost_seconds = round_or_none(review_summary.get("local_recall_remaining_possible_lost_me_seconds"))
+        needs_review_seconds = round_or_none(review_summary.get("local_recall_remaining_needs_review_seconds"))
+        possible_lost_count = safe_int(review_summary.get("local_recall_remaining_possible_lost_me_count"))
+        needs_review_count = safe_int(review_summary.get("local_recall_remaining_needs_review_count"))
+        meaningful_seconds = round_or_none(review_summary.get("local_recall_remaining_review_seconds"))
+        blocking = bool((meaningful_seconds or 0.0) > 0.0)
+        return {
+            "local_recall_audit_status": local_recall.get("status"),
+            "local_recall_missing_island_count": safe_int(summary.get("audited_missing_island_count")),
+            "local_recall_possible_lost_me_count": possible_lost_count,
+            "local_recall_possible_lost_me_seconds": possible_lost_seconds,
+            "local_recall_needs_review_count": needs_review_count,
+            "local_recall_needs_review_seconds": needs_review_seconds,
+            "local_recall_meaningful_review_seconds": meaningful_seconds,
+            "local_recall_blocking_low_local_recall": blocking,
+            "local_recall_recommended_next_step": "local_recall_reviewed_clear" if not blocking else "review_local_recall_items",
+        }
     return {
         "local_recall_audit_status": local_recall.get("status"),
         "local_recall_missing_island_count": safe_int(summary.get("audited_missing_island_count")),
@@ -733,7 +753,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(cleanup_metrics(quality, cleanup_report))
     row.update(review_decision_metrics(review_report))
     row.update(audio_review_metrics(audio_summary, session, profile))
-    row.update(local_recall_metrics(local_recall))
+    row.update(local_recall_metrics(local_recall, review_report))
     row["risk_flags"] = risk_flags(row)
     add_use_gate(row)
     return row

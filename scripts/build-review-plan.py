@@ -149,7 +149,8 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
     verdict = str(item.get("verdict") or "unknown")
     confidence = safe_float(item.get("confidence"))
     text_rows = item.get("text") if isinstance(item.get("text"), list) else []
-    me_ids = [
+    is_local_recall = str(item.get("source") or "") == "local_recall"
+    me_ids = [] if is_local_recall else [
         str(row.get("id"))
         for row in text_rows
         if isinstance(row, dict)
@@ -167,6 +168,7 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "session_id": item.get("session_id"),
         "session": item.get("session"),
+        "source": item.get("source") or "audio_review",
         "source_audit_id": item.get("source_audit_id"),
         "label": label,
         "verdict": verdict,
@@ -333,16 +335,22 @@ def decision_template_rows(plan: dict[str, Any]) -> list[dict[str, Any]]:
         for item in cluster.get("items") or []:
             if not isinstance(item, dict):
                 continue
+            allowed_decisions = (
+                ["keep_me", "needs_review", "skip"]
+                if item.get("source") == "local_recall"
+                else ["drop_me", "keep_me", "needs_review", "skip"]
+            )
             rows.append(
                 {
                     "schema": "murmurmark.review_decision/v1",
                     "status": "todo",
                     "decision": "todo",
-                    "allowed_decisions": ["drop_me", "keep_me", "needs_review", "skip"],
+                    "allowed_decisions": allowed_decisions,
                     "session_id": session_id,
                     "session": cluster.get("session"),
                     "input_profile": session_row.get("selected_profile"),
                     "cluster_id": cluster.get("id"),
+                    "source": item.get("source") or "audio_review",
                     "source_audit_id": item.get("source_audit_id"),
                     "label": item.get("label"),
                     "verdict": item.get("verdict"),

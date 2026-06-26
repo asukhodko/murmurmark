@@ -211,7 +211,17 @@ def normalize_decision(row: dict[str, Any]) -> dict[str, Any]:
     normalized = {**row, "decision": decision}
     if decision not in VALID_DECISIONS:
         normalized["_invalid"] = True
+    if is_local_recall_decision(normalized) and decision == "drop_me":
+        normalized["_invalid"] = True
+        normalized["_invalid_reason"] = "drop_me_is_not_supported_for_local_recall"
     return normalized
+
+
+def is_local_recall_decision(row: dict[str, Any]) -> bool:
+    source = str(row.get("source") or "").strip()
+    label = str(row.get("label") or "").strip()
+    source_id = str(row.get("source_audit_id") or "").strip()
+    return source == "local_recall" or source_id.startswith("local_recall_") or label in {"lost_me", "local_recall_needs_review"}
 
 
 def decisions_for_session(path: Path, session: Path) -> list[dict[str, Any]]:
@@ -378,7 +388,11 @@ def main() -> int:
     coverage = review_coverage(decisions, template_rows, template_path, args.allow_partial_review)
     invalid_decisions = [row for row in decisions if row.get("_invalid")]
     profile_decisions = [row for row in decisions if not row.get("_invalid") and row.get("decision") not in OPEN_DECISIONS]
-    valid_decisions = [row for row in profile_decisions if row.get("decision") != "skip"]
+    valid_decisions = [
+        row
+        for row in profile_decisions
+        if row.get("decision") != "skip" or is_local_recall_decision(row)
+    ]
     input_profile = args.input_profile
     if input_profile == "auto":
         input_profile = selected_profile_from_decisions(profile_decisions) or existing_profile(session)
@@ -397,8 +411,12 @@ def main() -> int:
     by_id = {str(row.get("id")): row for row in utterances}
 
     per_utterance: dict[str, list[dict[str, Any]]] = {}
+    audit_only_applied: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
     for row in valid_decisions:
+        if is_local_recall_decision(row):
+            audit_only_applied.append({**row, "review_effect": "audit_only_local_recall"})
+            continue
         me_ids = decision_me_ids(row)
         if not me_ids:
             rejected.append({**row, "reason": "missing_me_utterance_id"})
@@ -449,6 +467,16 @@ def main() -> int:
         output_utterances.append(new_row)
 
     overlaps = build_overlaps(output_utterances)
+    applied_all = applied + audit_only_applied
+    local_recall_rows = [row for row in audit_only_applied if is_local_recall_decision(row)]
+    local_recall_cleared = [row for row in local_recall_rows if row.get("decision") in {"keep_me", "skip"}]
+    local_recall_remaining = [row for row in local_recall_rows if row.get("decision") == "needs_review"]
+    local_recall_possible_lost_remaining = [
+        row for row in local_recall_remaining if str(row.get("label") or "") == "lost_me"
+    ]
+    local_recall_review_remaining = [
+        row for row in local_recall_remaining if str(row.get("label") or "") == "local_recall_needs_review"
+    ]
     review_summary = {
         "schema": "murmurmark.review_decisions_summary/v1",
         "input_profile": input_profile,
@@ -457,13 +485,40 @@ def main() -> int:
         "closed_decision_rows": sum(1 for row in decisions if str(row.get("decision") or "") not in OPEN_DECISIONS),
         "skipped_decision_rows": sum(1 for row in decisions if row.get("decision") == "skip"),
         "pending_decision_rows": sum(1 for row in decisions if str(row.get("decision") or "") in OPEN_DECISIONS),
-        "applied_decision_rows": len(applied),
+        "applied_decision_rows": len(applied_all),
+        "transcript_applied_decision_rows": len(applied),
+        "audit_only_applied_decision_rows": len(audit_only_applied),
         "rejected_decision_rows": len(rejected),
         "conflict_count": len(conflicts),
         "dropped_me_utterances": len(dropped_ids),
         "dropped_me_seconds": round(sum(safe_float(by_id[item].get("end")) - safe_float(by_id[item].get("start")) for item in dropped_ids), 3),
         "kept_me_decisions": sum(1 for row in applied if row.get("decision") == "keep_me"),
         "needs_review_decisions": sum(1 for row in applied if row.get("decision") == "needs_review"),
+        "local_recall_decision_rows": len(local_recall_rows),
+        "local_recall_cleared_decisions": len(local_recall_cleared),
+        "local_recall_needs_review_decisions": len(local_recall_remaining),
+        "local_recall_remaining_possible_lost_me_count": len(local_recall_possible_lost_remaining),
+        "local_recall_remaining_needs_review_count": len(local_recall_review_remaining),
+        "local_recall_reviewed_seconds": round(
+            sum(safe_float((row.get("interval") or {}).get("duration_sec")) for row in local_recall_rows),
+            3,
+        ),
+        "local_recall_cleared_seconds": round(
+            sum(safe_float((row.get("interval") or {}).get("duration_sec")) for row in local_recall_cleared),
+            3,
+        ),
+        "local_recall_remaining_review_seconds": round(
+            sum(safe_float((row.get("interval") or {}).get("duration_sec")) for row in local_recall_remaining),
+            3,
+        ),
+        "local_recall_remaining_possible_lost_me_seconds": round(
+            sum(safe_float((row.get("interval") or {}).get("duration_sec")) for row in local_recall_possible_lost_remaining),
+            3,
+        ),
+        "local_recall_remaining_needs_review_seconds": round(
+            sum(safe_float((row.get("interval") or {}).get("duration_sec")) for row in local_recall_review_remaining),
+            3,
+        ),
         "review_scope_complete": coverage["complete"],
         "review_scope_required_rows": coverage["required_rows"],
         "review_scope_closed_rows": coverage["closed_rows"],
@@ -528,13 +583,13 @@ def main() -> int:
     write_json(resolved / f"transcript.simple{output_suffix}.json", simple_payload)
     write_markdown(resolved / f"transcript{output_suffix}.md", output_utterances, transcript_report.get("model"), transcript_report.get("language"))
     write_json(review_dir / f"review_decisions_report{output_suffix}.json", report)
-    write_jsonl(review_dir / f"review_decisions_applied{output_suffix}.jsonl", applied)
+    write_jsonl(review_dir / f"review_decisions_applied{output_suffix}.jsonl", applied_all)
     write_jsonl(review_dir / f"review_decisions_rejected{output_suffix}.jsonl", rejected)
     write_jsonl(review_dir / f"review_decisions_conflicts{output_suffix}.jsonl", conflicts)
 
     print(f"review_decisions_report: {review_dir / f'review_decisions_report{output_suffix}.json'}")
     print(f"clean_dialogue: {resolved / f'clean_dialogue{output_suffix}.json'}")
-    print(f"applied_decision_rows: {len(applied)}")
+    print(f"applied_decision_rows: {len(applied_all)}")
     print(f"dropped_me_utterances: {len(dropped_ids)}")
     print(f"gates_passed: {gates['passed']}")
     return 0 if gates["passed"] else 2

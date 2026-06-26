@@ -824,6 +824,10 @@ review flag. `needs_review` keeps the utterance marked for review. Conflicting d
 closed with `drop_me`, `keep_me`, `needs_review`, or `skip`. If a row is missing or still `todo`,
 the script still writes audit artifacts, but `review_decisions_report.reviewed_v1.json.gates.passed`
 is `false` and `--transcript-profile auto` must not select `reviewed_v1`.
+For `source: "local_recall"` rows, `drop_me` is invalid because the row points to a timeline-repair
+island, not a transcript utterance. `keep_me` and `skip` close that local-recall risk as checked;
+`needs_review` keeps it in the readiness burden. These rows are recorded in
+`review_decisions_applied.reviewed_v1.jsonl` with `review_effect: "audit_only_local_recall"`.
 `suggested_decision` is only a review hint. It never changes transcript output by itself and does not
 count as coverage. The reviewer must still copy the intended value into `decision`.
 

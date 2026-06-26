@@ -733,6 +733,7 @@ EOF
   review_template="$workdir/review_decisions.template.jsonl"
   cat >"$review_template" <<EOF
 {"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source_audit_id":"arp_manual_review_keep","label":"uncertain","verdict":"needs_stronger_audio_judge","review_action":"classify_audio","suggested_decision":"keep_me","suggested_decision_confidence":"low","suggested_decision_reason":"fixture review cli default","me_utterance_ids":["utt_audio_uncertain_me"],"remote_utterance_ids":["utt_audio_uncertain_remote"],"utterance_ids":["utt_audio_uncertain_remote","utt_audio_uncertain_me"],"text":[{"id":"utt_audio_uncertain_remote","role":"remote","source_track":"remote","text":"Там есть спорный кусок."},{"id":"utt_audio_uncertain_me","role":"me","source_track":"mic","text":"Я уточню отдельно."}],"reviewer":"","notes":""}
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","allowed_decisions":["keep_me","needs_review","skip"],"session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","cluster_id":"review_cluster_local_001","source":"local_recall","source_audit_id":"local_recall_0001","label":"lost_me","verdict":"needs_stronger_audio_judge","review_action":"check_lost_local_speech","suggested_decision":"needs_review","suggested_decision_confidence":"medium","suggested_decision_reason":"fixture local recall row","me_utterance_ids":[],"remote_utterance_ids":[],"utterance_ids":[],"interval":{"start":13.0,"end":14.2,"duration_sec":1.2},"text":[{"id":"cand_mic_fixture_002","role":"Me","source_track":"local_recall","text":"Я понял."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 12.000 -t 3.200 \"$group_session/audio/mic/000001.caf\""},"reviewer":"","notes":""}
 EOF
   review_cli_out="$workdir/review_decisions_cli.jsonl"
   printf '\n' | "$repo_root/scripts/review-decisions-cli.py" \
@@ -756,6 +757,7 @@ EOF
 
   cat >"$review_decisions" <<EOF
 {"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source_audit_id":"arp_manual_review_keep","label":"uncertain","verdict":"needs_stronger_audio_judge","review_action":"classify_audio","me_utterance_ids":["utt_audio_uncertain_me"],"remote_utterance_ids":["utt_audio_uncertain_remote"],"utterance_ids":["utt_audio_uncertain_remote","utt_audio_uncertain_me"],"text":[{"id":"utt_audio_uncertain_remote","role":"remote","source_track":"remote","text":"Там есть спорный кусок."},{"id":"utt_audio_uncertain_me","role":"me","source_track":"mic","text":"Я уточню отдельно."}],"reviewer":"smoke","notes":"confirmed local speech"}
+{"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","allowed_decisions":["keep_me","needs_review","skip"],"session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","cluster_id":"review_cluster_local_001","source":"local_recall","source_audit_id":"local_recall_0001","label":"lost_me","verdict":"needs_stronger_audio_judge","review_action":"check_lost_local_speech","me_utterance_ids":[],"remote_utterance_ids":[],"utterance_ids":[],"interval":{"start":13.0,"end":14.2,"duration_sec":1.2},"text":[{"id":"cand_mic_fixture_002","role":"Me","source_track":"local_recall","text":"Я понял."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 12.000 -t 3.200 \"$group_session/audio/mic/000001.caf\""},"reviewer":"smoke","notes":"local recall checked as harmless"}
 EOF
   "$repo_root/scripts/apply-review-decisions.py" "$group_session" \
     --decisions "$review_decisions" \
@@ -766,7 +768,7 @@ EOF
   reviewed_report="$group_session/derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_v1.json"
   [[ -s "$reviewed_dialogue" ]]
   [[ -s "$reviewed_report" ]]
-  jq -e '.gates.passed == true and .coverage.complete == true and .summary.applied_decision_rows == 1' "$reviewed_report" >/dev/null
+  jq -e '.gates.passed == true and .coverage.complete == true and .summary.applied_decision_rows == 2 and .summary.audit_only_applied_decision_rows == 1 and .summary.local_recall_cleared_decisions == 1' "$reviewed_report" >/dev/null
   jq -e 'any(.utterances[]; .id == "utt_audio_uncertain_me" and .quality.human_review.decisions[0] == "keep_me")' "$reviewed_dialogue" >/dev/null
   "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" --transcript-profile auto >/dev/null
   jq -e '.selected_transcript_profile == "reviewed_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
