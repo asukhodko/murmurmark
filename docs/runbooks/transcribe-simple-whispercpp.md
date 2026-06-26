@@ -361,7 +361,8 @@ profile for each session. It can drop whole reviewed `Me` utterances, clear revi
 confirmed local speech, or keep an item marked `needs_review`. `reviewed_v1` gates pass only when
 the corresponding `review_decisions.template.jsonl` rows for that session are all closed with
 `drop_me`, `keep_me`, `needs_review`, or `skip`; a partial file is written for audit but is not
-selected by `auto`. It does not edit `audit_cleanup_v1/v2/v3`.
+selected by `auto`. The template includes `suggested_decision` hints, but they are not applied until
+the reviewer explicitly edits `decision`. It does not edit `audit_cleanup_v1/v2/v3`.
 
 ## Outputs
 

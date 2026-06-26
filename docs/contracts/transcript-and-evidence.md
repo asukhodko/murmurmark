@@ -601,6 +601,7 @@ sessions/_reports/review-plan/
           "source_audit_id": "arp_000020",
           "label": "remote_duplicate",
           "review_action": "confirm_drop_or_keep_me",
+          "suggested_decision": "drop_me",
           "utterance_ids": ["utt_000269", "utt_000271"]
         }
       ]
@@ -625,6 +626,9 @@ decision protocol: drop leaked `Me`, keep real local speech, or leave unclear ca
   "session_id": "2026-06-26_11-15-50",
   "input_profile": "audit_cleanup_v3",
   "source_audit_id": "arp_000020",
+  "suggested_decision": "drop_me",
+  "suggested_decision_confidence": "high",
+  "suggested_decision_reason": "probable leaked remote duplicate; confirm by listening before changing decision",
   "me_utterance_ids": ["utt_000271"],
   "remote_utterance_ids": ["utt_000269"],
   "commands": {
@@ -662,6 +666,8 @@ review flag. `needs_review` keeps the utterance marked for review. Conflicting d
 closed with `drop_me`, `keep_me`, `needs_review`, or `skip`. If a row is missing or still `todo`,
 the script still writes audit artifacts, but `review_decisions_report.reviewed_v1.json.gates.passed`
 is `false` and `--transcript-profile auto` must not select `reviewed_v1`.
+`suggested_decision` is only a review hint. It never changes transcript output by itself and does not
+count as coverage. The reviewer must still copy the intended value into `decision`.
 
 The report includes coverage evidence:
 

@@ -368,6 +368,8 @@ does not edit transcript profiles.
 writes a separate `reviewed_v1` profile and never changes the automatic cleanup profiles. The
 profile is eligible for `--transcript-profile auto` only when the review template has no remaining
 `todo` rows for that session; partial review stays as an audit artifact with failing gates.
+The template also includes `suggested_decision` hints such as `drop_me` for probable duplicates, but
+they are never applied until the `decision` field is edited explicitly.
 `scripts/apply-review-decisions-batch.py` applies the same edited file to every session mentioned in
 the review plan and can immediately regenerate extractive notes with `--synthesize`.
 

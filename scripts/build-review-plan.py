@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA = "murmurmark.review_plan/v1"
 
 
@@ -87,6 +87,40 @@ def review_action(label: str, verdict: str) -> str:
     return "classify_audio"
 
 
+def suggested_decision(label: str, verdict: str, confidence: float) -> dict[str, Any]:
+    if label in {"remote_duplicate", "asr_noise"} and verdict == "probable_transcript_error":
+        level = "high" if confidence >= 0.9 else "medium"
+        reason = "probable leaked remote duplicate" if label == "remote_duplicate" else "probable short ASR noise"
+        return {
+            "suggested_decision": "drop_me",
+            "suggested_decision_confidence": level,
+            "suggested_decision_reason": f"{reason}; confirm by listening before changing decision",
+        }
+    if label == "remote_leak":
+        return {
+            "suggested_decision": "needs_review",
+            "suggested_decision_confidence": "medium",
+            "suggested_decision_reason": "remote leak may still contain unique local speech; check before dropping",
+        }
+    if label == "lost_me":
+        return {
+            "suggested_decision": "needs_review",
+            "suggested_decision_confidence": "medium",
+            "suggested_decision_reason": "possible missing local speech requires manual classification",
+        }
+    if label in {"double_talk", "timing_overlap"}:
+        return {
+            "suggested_decision": "keep_me",
+            "suggested_decision_confidence": "low",
+            "suggested_decision_reason": "likely benign overlap; confirm local speech before clearing review",
+        }
+    return {
+        "suggested_decision": "needs_review",
+        "suggested_decision_confidence": "low",
+        "suggested_decision_reason": "unclear audio-review class",
+    }
+
+
 def severity(label: str, verdict: str, confidence: float) -> str:
     if verdict == "probable_transcript_error" and label in {"remote_duplicate", "asr_noise"}:
         return "high"
@@ -121,6 +155,7 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
         and (str(row.get("source_track") or "").lower() == "remote" or str(row.get("role") or "").lower() == "remote")
         and row.get("id")
     ]
+    suggestion = suggested_decision(label, verdict, confidence)
     return {
         "session_id": item.get("session_id"),
         "session": item.get("session"),
@@ -130,6 +165,7 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
         "confidence": round(confidence, 6),
         "severity": severity(label, verdict, confidence),
         "review_action": review_action(label, verdict),
+        **suggestion,
         "priority_score": safe_float(item.get("priority_score")),
         "interval": {
             "start": round(start, 3),
@@ -270,6 +306,7 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
         "clusters": clusters,
         "review_protocol": [
             "Listen to stereo_clean_left_remote_right first.",
+            "Use suggested_decision as a hint only; it does not count until copied to decision.",
             "If Me contains only leaked remote speech, mark drop_me.",
             "If Me contains real local speech or intentional repeat, mark keep_me.",
             "If the case is unclear, keep the transcript item and mark needs_review.",
@@ -303,6 +340,9 @@ def decision_template_rows(plan: dict[str, Any]) -> list[dict[str, Any]]:
                     "verdict": item.get("verdict"),
                     "confidence": item.get("confidence"),
                     "review_action": item.get("review_action"),
+                    "suggested_decision": item.get("suggested_decision"),
+                    "suggested_decision_confidence": item.get("suggested_decision_confidence"),
+                    "suggested_decision_reason": item.get("suggested_decision_reason"),
                     "interval": item.get("interval"),
                     "me_utterance_ids": item.get("me_utterance_ids") or [],
                     "remote_utterance_ids": item.get("remote_utterance_ids") or [],
@@ -365,8 +405,10 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
             lines.append(
                 f"- `{item.get('source_audit_id')}` `{item.get('label')}` "
                 f"{item.get('interval', {}).get('start_time')}-{item.get('interval', {}).get('end_time')} "
-                f"action `{item.get('review_action')}`"
+                f"action `{item.get('review_action')}`, suggestion `{item.get('suggested_decision')}`"
             )
+            if item.get("suggested_decision_reason"):
+                lines.append(f"  - suggestion: {item.get('suggested_decision_reason')}")
             for text in (item.get("text") or [])[:2]:
                 if not isinstance(text, dict):
                     continue
