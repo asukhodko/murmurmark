@@ -219,7 +219,9 @@ It collects suspicious transcript regions from `needs_review`, overlaps, group-o
 rejections, cuts local comparison clips under `derived/audit/audio-review-pack/`, then classifies them
 with local audio/text metrics. The output separates likely reliable regions, probable transcript errors
 and regions that should go to a stronger local audio judge. It is audit-only and never edits transcript
-profiles or raw capture.
+profiles or raw capture. When local metrics disagree only between benign explanations such as
+double-talk, timing overlap and reliable local speech, the audit treats the item as likely reliable
+instead of sending it to the stronger-judge queue.
 
 `audit_cleanup_v2` is the conservative cleanup profile that consumes the audio review audit. It reads
 `audit_cleanup_v1` plus `derived/audit/audio-review-pack/audio_review_audit.jsonl`, then writes a
@@ -268,7 +270,8 @@ writes a promotion plan and a short review queue with concrete `afplay` commands
 highest-priority audio-review clips. The promotion plan explains what still blocks
 `medium_risk_ready`: unresolved warnings, sessions not ready for notes, and the remaining review
 minutes. The queue is filtered through the selected transcript profile, so already-dropped `Me`
-utterances do not stay in the operational review list.
+utterances do not stay in the operational review list. It also ignores stale audio-judge queue rows
+when the current audio-review audit has since reclassified that item as reliable.
 
 `scripts/build-review-plan.py` turns that operational review queue into a compact working checklist
 under `sessions/_reports/review-plan/`. It groups nearby risky intervals by session, estimates the

@@ -425,6 +425,10 @@ assert module.classify(base, False)["verdict"] == "likely_reliable"
 competing = dict(base)
 competing["remote_leak"] = 60
 assert module.classify(competing, False)["verdict"] == "needs_stronger_audio_judge"
+benign_tie = dict(base)
+benign_tie["likely_reliable"] = 75
+benign_tie["timing_overlap"] = 75
+assert module.classify(benign_tie, False)["verdict"] == "likely_reliable"
 PY
 
   group_session="$workdir/group-session"

@@ -590,11 +590,13 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
         flags.append("unrepaired_long_mic_crossings")
     if safe_int(row.get("golden_phrase_fail_count")):
         flags.append("golden_phrase_fail")
+    if row.get("local_recall_blocking_low_local_recall") is True:
+        flags.append("local_recall_possible_lost_me")
     recall = safe_float(row.get("local_only_island_recall"))
     if recall is not None and recall < 0.9:
         if row.get("local_recall_audit_status") != "ok":
             flags.append("low_local_recall")
-        elif row.get("local_recall_blocking_low_local_recall") is True:
+        elif row.get("local_recall_blocking_low_local_recall") is True and "local_recall_possible_lost_me" not in flags:
             flags.append("low_local_recall")
     needs_ratio = safe_float(row.get("needs_review_ratio"))
     if needs_ratio is not None and needs_ratio > 0.12:

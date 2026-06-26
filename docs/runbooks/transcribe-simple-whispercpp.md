@@ -370,6 +370,11 @@ Audio-review metrics in this report are profile-aware. The script reads the sele
 removed by cleanup. The raw audio-review totals remain useful for debugging, but the operational
 review burden should follow the adjusted counters.
 
+Audio-review classification is conservative about errors but does not over-escalate benign ties.
+If the strongest explanations are all benign, for example timing overlap versus double-talk versus
+reliable local speech, and no error class is strong, the item is treated as `likely_reliable` instead
+of `needs_stronger_audio_judge`.
+
 Local-recall metrics are also audited. If `local_only_island_recall < 0.9` but the audit finds only
 short or weak unrecovered islands, the warning stays visible in `local_recall_review.md` and no
 longer blocks `ready_for_notes`. Possible lost `Me` speech still keeps the session in `review_first`.
@@ -433,6 +438,8 @@ The operational readiness report answers whether the current pipeline is usable 
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first. Its review queue is also
 profile-aware: already-resolved cleanup items are not shown as remaining work.
+Stale audio-judge queue rows are also ignored when the current audio-review audit has reclassified
+the source item as reliable.
 Its `promotion_plan` section explains the current delta to `medium_risk_ready`: unresolved warnings,
 sessions not ready for notes, remaining review minutes, and the next action class.
 `build-review-plan.py` turns that queue into a compact checklist. Use it when a session is

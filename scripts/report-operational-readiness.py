@@ -367,8 +367,10 @@ def active_audio_judge_queue_summary(sessions: list[dict[str, Any]], predictions
         return None
     sessions_by_id = {str(row.get("session_id")): row for row in sessions}
     me_ids_by_session: dict[str, set[str]] = {}
+    audit_rows_by_session: dict[str, dict[str, dict[str, Any]]] = {}
     active: list[dict[str, Any]] = []
     resolved = 0
+    resolved_by_current_audio_review = 0
     for row in predictions:
         session_id = str(row.get("session_id") or "")
         session = sessions_by_id.get(session_id)
@@ -378,11 +380,32 @@ def active_audio_judge_queue_summary(sessions: list[dict[str, Any]], predictions
         profile = str(session.get("selected_profile") or "")
         if session_id not in me_ids_by_session:
             me_ids_by_session[session_id] = selected_me_ids(session_path, profile)
+        if session_id not in audit_rows_by_session:
+            audit_path = session_path / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
+            audit_rows_by_session[session_id] = {
+                str(item.get("id") or ""): item
+                for item in read_jsonl(audit_path)
+                if isinstance(item, dict) and item.get("id")
+            }
         selected_ids = me_ids_by_session[session_id]
         utterance_ids = {str(item) for item in row.get("utterance_ids", []) or []}
         if selected_ids and not (utterance_ids & selected_ids):
             resolved += 1
             continue
+        current_audit = audit_rows_by_session[session_id].get(str(row.get("source_audit_id") or ""))
+        if current_audit:
+            current_classification = (
+                current_audit.get("classification")
+                if isinstance(current_audit.get("classification"), dict)
+                else {}
+            )
+            current_verdict = str(current_classification.get("verdict") or "")
+            if selected_ids and not active_audio_review_row(current_audit, selected_ids):
+                resolved += 1
+                continue
+            if current_verdict not in {"probable_transcript_error", "needs_stronger_audio_judge"}:
+                resolved_by_current_audio_review += 1
+                continue
         active.append(row)
     by_label: dict[str, int] = {}
     by_action: dict[str, int] = {}
@@ -397,6 +420,7 @@ def active_audio_judge_queue_summary(sessions: list[dict[str, Any]], predictions
     return {
         "items": len(active),
         "resolved_by_selected_profile_items": resolved,
+        "resolved_by_current_audio_review_items": resolved_by_current_audio_review,
         "by_judge_label": dict(sorted(by_label.items())),
         "by_shadow_action": dict(sorted(by_action.items())),
         "candidate_review_reduction_items": remove_candidates,

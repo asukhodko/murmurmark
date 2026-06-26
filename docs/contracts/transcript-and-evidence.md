@@ -427,6 +427,9 @@ same `review_pack_items.jsonl` and write their own verdicts instead of re-cuttin
 `likely_reliable` can be emitted with lower confidence when the best local metric class is already
 `likely_reliable`, the score is at least `65`, and the nearest competing error class is at least
 `10` points lower. This only lowers review priority; it is not an automatic transcript edit.
+`likely_reliable` can also be emitted for benign ties when `double_talk`, `timing_overlap` and/or
+local reliability are the strongest classes and all error classes stay below `60`. This avoids
+escalating expected group-call timing overlap to a stronger judge.
 
 Cross-session regression corpus is generated from audio review audits:
 

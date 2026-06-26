@@ -358,6 +358,17 @@ def classify(scores: dict[str, int], missing_audio: bool) -> dict[str, Any]:
     ordered = sorted(((label, scores[label]) for label in labels), key=lambda item: item[1], reverse=True)
     top, top_score = ordered[0]
     second_score = ordered[1][1] if len(ordered) > 1 else 0
+    error_score = max(scores[label] for label in ("remote_duplicate", "remote_leak", "asr_noise", "lost_me"))
+    benign_score = max(scores[label] for label in ("double_talk", "timing_overlap", "likely_reliable"))
+    if benign_score >= 70 and error_score < 60:
+        return {
+            "label": "likely_reliable",
+            "verdict": "likely_reliable",
+            "confidence": round(min(0.74, benign_score / 100.0), 3),
+            "reason": "benign local metrics tie without a strong error class",
+            "top_score": top_score,
+            "second_score": second_score,
+        }
     if top == "likely_reliable" and top_score >= 65 and top_score - second_score >= 10:
         return {
             "label": top,
