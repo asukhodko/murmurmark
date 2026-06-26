@@ -19,6 +19,7 @@ SHORTCUTS = {
     "r": "needs_review",
     "s": "skip",
 }
+DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -117,6 +118,14 @@ def selected_command(row: dict[str, Any], preferred_key: str) -> str:
     return ""
 
 
+def allowed_decisions(row: dict[str, Any]) -> set[str]:
+    values = row.get("allowed_decisions")
+    if not isinstance(values, list) or not values:
+        return set(DEFAULT_ALLOWED_DECISIONS)
+    allowed = {str(value) for value in values if str(value) in DEFAULT_ALLOWED_DECISIONS}
+    return allowed or set(DEFAULT_ALLOWED_DECISIONS)
+
+
 def play_command(command: str) -> None:
     if not command:
         print("No audio command for this row.")
@@ -142,6 +151,7 @@ def print_row(row: dict[str, Any], index: int, total: int) -> None:
         f"label={row.get('label')} verdict={row.get('verdict')} confidence={row.get('confidence')} "
         f"action={row.get('review_action')}"
     )
+    print(f"allowed={', '.join(sorted(allowed_decisions(row)))}")
     if row.get("suggested_decision"):
         print(
             f"suggested={row.get('suggested_decision')} "
@@ -155,15 +165,36 @@ def print_row(row: dict[str, Any], index: int, total: int) -> None:
 
 
 def prompt_decision(row: dict[str, Any]) -> str | None:
+    allowed = allowed_decisions(row)
     suggested = str(row.get("suggested_decision") or "").strip()
-    default_hint = f"Enter={suggested}" if suggested in {"drop_me", "keep_me", "needs_review"} else "Enter=skip"
-    prompt = f"Decision [d=drop, k=keep, r=needs_review, s=skip, p=play, n=todo, q=quit, {default_hint}]: "
+    if suggested in allowed:
+        default = suggested
+    elif "needs_review" in allowed:
+        default = "needs_review"
+    elif "skip" in allowed:
+        default = "skip"
+    else:
+        default = sorted(allowed)[0]
+    shortcuts = [
+        f"{key}={value}"
+        for key, value in SHORTCUTS.items()
+        if value in allowed
+    ]
+    prompt = (
+        "Decision ["
+        + ", ".join(shortcuts + ["p=play", "n=todo", "q=quit", f"Enter={default}"])
+        + "]: "
+    )
     while True:
         answer = input(prompt).strip().lower()
         if answer == "":
-            return suggested if suggested in {"drop_me", "keep_me", "needs_review"} else "skip"
+            return default
         if answer in SHORTCUTS:
-            return SHORTCUTS[answer]
+            decision = SHORTCUTS[answer]
+            if decision in allowed:
+                return decision
+            print(f"Decision {decision} is not allowed for this row.")
+            continue
         if answer in {"n", "todo"}:
             return "todo"
         if answer in {"q", "quit"}:
@@ -171,6 +202,9 @@ def prompt_decision(row: dict[str, Any]) -> str | None:
         if answer in {"p", "play"}:
             return "play"
         if answer in VALID_DECISIONS:
+            if answer not in allowed:
+                print(f"Decision {answer} is not allowed for this row.")
+                continue
             return answer
         print("Unknown answer.")
 

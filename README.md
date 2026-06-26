@@ -289,7 +289,8 @@ For `remote_duplicate`, `drop_me` is suggested only when the duplicate covers en
 `scripts/review-decisions-cli.py` is the fastest way to fill that checklist. It walks through
 `review_decisions.template.jsonl`, plays the preferred stereo clip, shows the `Me`/`remote` texts and
 writes `review_decisions.jsonl` after every answer. `Enter` accepts `suggested_decision`; `d`, `k`,
-`r` and `s` mean `drop_me`, `keep_me`, `needs_review` and `skip`.
+`r` and `s` mean `drop_me`, `keep_me`, `needs_review` and `skip`. The CLI respects
+`allowed_decisions`, so `d=drop_me` is not accepted for audit-only local-recall rows.
 
 `scripts/apply-review-decisions.py` closes the manual review loop. After the CLI or a manual edit has
 filled each `decision` as `drop_me`, `keep_me`, `needs_review`, or `skip`, apply the decisions to a

@@ -742,6 +742,15 @@ EOF
     --no-play \
     --limit 1 >/dev/null
   jq -s '.[0].decision == "keep_me" and .[0].status == "reviewed"' "$review_cli_out" >/dev/null
+  local_cli_template="$workdir/review_decisions_local_only.template.jsonl"
+  local_cli_out="$workdir/review_decisions_local_only.jsonl"
+  tail -n 1 "$review_template" >"$local_cli_template"
+  printf 'd\n\n' | "$repo_root/scripts/review-decisions-cli.py" \
+    --template "$local_cli_template" \
+    --out "$local_cli_out" \
+    --no-play \
+    --limit 1 >/dev/null
+  jq -s '.[0].decision == "needs_review" and (.[0].allowed_decisions | index("drop_me") | not)' "$local_cli_out" >/dev/null
   partial_review_decisions="$workdir/review_decisions_partial.jsonl"
   cp "$review_template" "$partial_review_decisions"
   if "$repo_root/scripts/apply-review-decisions.py" "$group_session" \
