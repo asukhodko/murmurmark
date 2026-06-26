@@ -309,7 +309,9 @@ audio judge. It is private generated data and does not modify sessions or raw au
 `scripts/evaluate-regression-corpus.py` then buckets the corpus into silver cleanup positives,
 silver keep negatives, mark-only regressions and examples that need a stronger audio judge.
 `scripts/report-operational-readiness.py` combines session quality and corpus readiness into a
-practical verdict such as `pilot_ready_with_review` for medium-risk working meetings.
+practical verdict such as `pilot_ready_with_review` for medium-risk working meetings. It also assigns
+per-session use gates such as `ready_for_notes` and `review_first`, then writes a short review queue
+with concrete `afplay` commands for the highest-priority audio-review clips.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 

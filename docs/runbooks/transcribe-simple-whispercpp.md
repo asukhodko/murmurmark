@@ -296,7 +296,8 @@ audit-only: no transcript profile, Echo Guard artifact or raw `audio/*.caf` file
 The evaluation script labels the corpus readiness for future work: silver cleanup positives,
 silver keep negatives, mark-only regressions, and examples that need a stronger local audio judge.
 The operational readiness report answers whether the current pipeline is usable for medium-risk
-working meetings, and how much manual review remains.
+working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
+`review_first`, and which audio-review clips should be checked first.
 
 ## Outputs
 

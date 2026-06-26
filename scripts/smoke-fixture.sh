@@ -642,6 +642,9 @@ EOF
   [[ -s "$readiness_dir/operational_readiness_report.md" ]]
   jq -e '.schema == "murmurmark.operational_readiness_report/v1"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.operational_verdict | IN("not_ready", "pilot_ready_with_review", "medium_risk_ready")' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.summary.use_gates | type == "object"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e 'all(.session_review_burden[]; (.use_gate | type) == "string")' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.review_queue | type == "array"' "$readiness_dir/operational_readiness_report.json" >/dev/null
 fi
 
 empty_session="$workdir/empty-session"

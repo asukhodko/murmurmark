@@ -463,14 +463,32 @@ sessions/_reports/operational-readiness/
   "warnings": ["some_sessions_need_manual_review_before_use"],
   "summary": {
     "session_count": 10,
+    "use_gates": {
+      "ready_for_notes": 4,
+      "review_first": 5,
+      "pipeline_incomplete_review_first": 1
+    },
     "total_review_burden_ratio": 0.030003,
-    "corpus_readiness": "useful_for_audio_judge_v0"
-  }
+    "corpus_readiness": "useful_for_audio_judge_v0",
+    "review_queue_items": 40
+  },
+  "review_queue": [
+    {
+      "session_id": "2026-06-26_11-15-50",
+      "source_audit_id": "arp_000020",
+      "label": "remote_duplicate",
+      "verdict": "probable_transcript_error",
+      "commands": {
+        "stereo_clean_left_remote_right": "afplay sessions/.../clip.wav"
+      }
+    }
+  ]
 }
 ```
 
 The operational verdict is not a transcript correctness proof. It is a use-readiness summary for
-piloting MurmurMark on medium-risk meetings with explicit review burden and warnings.
+piloting MurmurMark on medium-risk meetings with explicit review burden, per-session use gates and a
+prioritised review queue.
 
 `audit_cleanup_v2` consumes the audio review audit as an extra evidence layer. It writes the same
 profile-shaped transcript artifacts as v1, but with the `audit_cleanup_v2` suffix:
