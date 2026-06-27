@@ -22,6 +22,7 @@ CLEANUP_PROFILES = {
     "audit_cleanup_v4",
     "audit_cleanup_v5",
     "audit_cleanup_v6",
+    "order_repair_v1",
     "reviewed_v1",
     "agent_reviewed_v1",
 }
@@ -177,6 +178,7 @@ def selected_profile(session: Path) -> str:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     cleanup = session / "derived/transcript-simple/whisper-cpp/audit-cleanup"
     review_decisions = session / "derived/transcript-simple/whisper-cpp/review-decisions"
+    order_repair = session / "derived/transcript-simple/whisper-cpp/order-repair"
     reviewed = read_json(review_decisions / "review_decisions_report.reviewed_v1.json")
     reviewed_gates = reviewed.get("gates") if isinstance(reviewed, dict) else {}
     if (
@@ -195,6 +197,15 @@ def selected_profile(session: Path) -> str:
         and agent_gates.get("passed") is True
     ):
         return "agent_reviewed_v1"
+    order_repair_v1 = read_json(order_repair / "transcript_order_repair_report.order_repair_v1.json")
+    order_repair_gates = order_repair_v1.get("gates") if isinstance(order_repair_v1, dict) else {}
+    if (
+        (resolved / "quality_report.order_repair_v1.json").exists()
+        and (resolved / "clean_dialogue.order_repair_v1.json").exists()
+        and isinstance(order_repair_gates, dict)
+        and order_repair_gates.get("passed") is True
+    ):
+        return "order_repair_v1"
     cleanup_v6 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v6.json")
     cleanup_v6_summary = cleanup_v6.get("summary") if isinstance(cleanup_v6, dict) else {}
     cleanup_v6_gates = cleanup_v6.get("gates") if isinstance(cleanup_v6, dict) else {}
@@ -261,6 +272,7 @@ def stage_status(session: Path) -> dict[str, bool]:
     review_decisions = session / "derived/transcript-simple/whisper-cpp/review-decisions"
     audio_review = session / "derived/audit/audio-review-pack"
     order_audit = session / "derived/audit/order"
+    order_repair = session / "derived/transcript-simple/whisper-cpp/order-repair"
     return {
         "capture": (session / "session.json").exists()
         and (session / "audio/mic/000001.caf").exists()
@@ -300,6 +312,9 @@ def stage_status(session: Path) -> dict[str, bool]:
         "suggested_review_v1": (resolved / "quality_report.suggested_review_v1.json").exists()
         and (resolved / "clean_dialogue.suggested_review_v1.json").exists()
         and (review_decisions / "review_decisions_report.suggested_review_v1.json").exists(),
+        "order_repair_v1": (resolved / "quality_report.order_repair_v1.json").exists()
+        and (resolved / "clean_dialogue.order_repair_v1.json").exists()
+        and (order_repair / "transcript_order_repair_report.order_repair_v1.json").exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
@@ -319,6 +334,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (synthesis / "evidence_notes.agent_reviewed_v1.json").exists(),
         "synthesis_suggested_review_v1": (synthesis / "quality_verdict.suggested_review_v1.json").exists()
         and (synthesis / "evidence_notes.suggested_review_v1.json").exists(),
+        "synthesis_order_repair_v1": (synthesis / "quality_verdict.order_repair_v1.json").exists()
+        and (synthesis / "evidence_notes.order_repair_v1.json").exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
         and (audio_review / "review_pack_items.jsonl").exists(),
         "audio_review_audit": (audio_review / "audio_review_summary.json").exists()

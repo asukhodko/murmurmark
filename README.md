@@ -237,6 +237,9 @@ exist under `sessions/_reports/`.
 `murmurmark audit order` finds long `Me` turns that cross a `Colleagues` turn and continue after it:
 these are the main remaining risk for wrong reply order in an otherwise readable transcript. Blocking
 order risks are included in readiness review burden and block export until reviewed.
+`murmurmark repair order` writes a separate `order_repair_v1` profile for the narrow safe case where
+the long `Me` turn can be split by its saved source ASR segments. It never edits baseline/shadow
+profiles; if the split is not safe, it marks the affected utterance for review instead.
 `murmurmark corpus order` aggregates those audits across the corpus and writes the current list of
 chronology regression candidates under `sessions/_reports/transcript-order/`; corpus gates read this
 report and fail if a complete session still has blocking chronology risk.
@@ -273,6 +276,7 @@ murmurmark audit local-recall ./sessions/<session> --profile shadow_v2
 murmurmark audit order ./sessions/<session> --profile auto
 murmurmark audit group-overlaps ./sessions/<session> --profile shadow_v2 --write-clips
 murmurmark audit audio-review ./sessions/<session> --profile audit_cleanup_v2 --write-clips
+murmurmark repair order ./sessions/<session> --input-profile auto --output-profile order_repair_v1
 murmurmark review plan
 murmurmark review first-lane
 murmurmark review latest --lane fast_confirm_drop
@@ -319,6 +323,8 @@ murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v4
 murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v5
 murmurmark cleanup ./sessions/<session> --input-profile audit_cleanup_v5 --output-profile audit_cleanup_v6
 murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v6
+murmurmark repair order ./sessions/<session> --input-profile auto --output-profile order_repair_v1
+murmurmark synthesize ./sessions/<session> --transcript-profile order_repair_v1
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session> --write-session-readiness
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
 .venv/bin/python scripts/evaluate-regression-corpus.py
@@ -407,6 +413,15 @@ The transcript order audit reads `clean_dialogue` and `overlaps`, then writes
 tail after that remote turn. Those regions are the most likely places where the Markdown may show a
 local reaction before the remote phrase that caused it. The audit is report-only and does not edit
 transcript profiles.
+
+`murmurmark repair order` is the first explicit repair layer for those regions. It wraps
+`scripts/apply-transcript-order-repair.py`, reads the selected dialogue profile plus saved
+`candidate_utterances*.json` and `raw_segments*.json`, and writes only `order_repair_v1` artifacts
+under `derived/transcript-simple/whisper-cpp/resolved/` and `order-repair/`. v1 applies only one
+mechanical edit: split a long `Me` utterance into before/after `Me` utterances when source ASR
+segments sit cleanly around the `Colleagues` turn. If source segments are missing, overlap text has
+unique local content, or one `Me` utterance has several order risks, the original utterance is kept
+and marked `quality.transcript_order_repair.status = needs_review`.
 
 Audit-informed cleanup is `murmurmark cleanup`. It wraps `scripts/apply-audit-cleanup.py`, reads
 `clean_dialogue.shadow_v2.json` and the group overlap audit, then writes only `audit_cleanup_v1`

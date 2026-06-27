@@ -712,6 +712,36 @@ EOF
     local_only_island_recall: 1.0,
     meeting_duration_sec: 12.0
   }' >"$order_resolved/quality_report.shadow_v2.json"
+  jq -n '{
+    schema: "murmurmark.raw_segments/v1",
+    session: "order-fixture",
+    segments: [
+      {id: "raw_order_mic_001", source_track: "mic", start: 0.0, end: 2.5, text: "Я рассказываю план", token_avg_prob: 0.95, token_low_prob_ratio: 0.0},
+      {id: "raw_order_mic_002", source_track: "mic", start: 3.1, end: 4.8, text: "Надо сначала проверить логи.", token_avg_prob: 0.82, token_low_prob_ratio: 0.1},
+      {id: "raw_order_mic_003", source_track: "mic", start: 5.3, end: 9.0, text: "и добавляю хвост после него", token_avg_prob: 0.94, token_low_prob_ratio: 0.0},
+      {id: "raw_order_remote_001", source_track: "remote", start: 3.0, end: 5.0, text: "Надо сначала проверить логи.", token_avg_prob: 0.96, token_low_prob_ratio: 0.0}
+    ]
+  }' >"$order_resolved/raw_segments.shadow_v2.json"
+  jq -n '{
+    schema: "murmurmark.candidate_utterances/v1",
+    session: "order-fixture",
+    candidates: [
+      {
+        id: "cand_order_mic_001",
+        source_track: "mic",
+        initial_role: "me",
+        speaker_label: "Me",
+        start: 0.0,
+        end: 9.0,
+        text_raw: "Я рассказываю план потом слушаю ответ и добавляю хвост после него.",
+        source_segments: ["raw_order_mic_001", "raw_order_mic_002", "raw_order_mic_003"]
+      }
+    ]
+  }' >"$order_resolved/candidate_utterances.shadow_v2.json"
+  tmp_order_dialogue="$order_resolved/clean_dialogue.shadow_v2.tmp.json"
+  jq '(.utterances[] | select(.id == "utt_order_me") | .source_candidate_id) = "cand_order_mic_001"' \
+    "$order_resolved/clean_dialogue.shadow_v2.json" >"$tmp_order_dialogue"
+  mv "$tmp_order_dialogue" "$order_resolved/clean_dialogue.shadow_v2.json"
   cat >"$order_resolved/transcript.shadow_v2.md" <<'EOF'
 # Simple Transcript
 
@@ -733,6 +763,26 @@ EOF
   [[ -s "$order_session/derived/audit/order/transcript_order_review.md" ]]
   jq -e '.schema == "murmurmark.transcript_order_audit/v1" and .summary.probable_order_risk_count == 1 and .summary.blocking_order_risk == true' "$order_summary" >/dev/null
   jq -s 'any(.[]; .label == "probable_order_risk" and .features.me_wraps_remote == true and .features.post_remote_tail_sec == 4)' "$order_session/derived/audit/order/transcript_order_items.jsonl" >/dev/null
+  order_repair_cli_output="$("$bin" repair order "$order_session" --input-profile shadow_v2 --output-profile order_repair_v1)"
+  echo "$order_repair_cli_output" | grep -q '^repair:$'
+  echo "$order_repair_cli_output" | grep -q '  kind: transcript_order'
+  echo "$order_repair_cli_output" | grep -q '  applied_repairs: 1'
+  echo "$order_repair_cli_output" | grep -q '  unrepaired_order_risks: 0'
+  jq -e '.gates.passed == true and .summary.applied_repairs == 1 and .summary.split_utterances_created == 2' \
+    "$order_session/derived/transcript-simple/whisper-cpp/order-repair/transcript_order_repair_report.order_repair_v1.json" >/dev/null
+  jq -e '
+    [.utterances[].id] as $ids |
+    ($ids | index("utt_order_me") | not) and
+    ($ids | index("utt_order_me__order_pre_1")) and
+    ($ids | index("utt_order_remote")) and
+    ($ids | index("utt_order_me__order_post_1")) and
+    (($ids | index("utt_order_me__order_pre_1")) < ($ids | index("utt_order_remote"))) and
+    (($ids | index("utt_order_remote")) < ($ids | index("utt_order_me__order_post_1")))
+  ' "$order_resolved/clean_dialogue.order_repair_v1.json" >/dev/null
+  "$repo_root/scripts/synthesize-simple-extractive.py" "$order_session" \
+    --transcript-profile order_repair_v1 >/dev/null
+  jq -e '.selected_transcript_profile == "order_repair_v1" and .verdict != "failed"' \
+    "$order_session/derived/synthesis-simple/extractive/quality_verdict.order_repair_v1.json" >/dev/null
 
   order_operational="$workdir/order-operational-readiness.json"
   python3 - "$order_operational" "$order_session" <<'PY'

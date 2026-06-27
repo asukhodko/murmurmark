@@ -39,6 +39,8 @@ struct MurmurMark {
                 try AuditCommands.audit(args)
             case "cleanup":
                 try CleanupCommands.cleanup(args)
+            case "repair":
+                try RepairCommands.repair(args)
             case "synthesize":
                 try SynthesisCommands.synthesize(args)
             case "notes":
@@ -100,6 +102,8 @@ struct MurmurMark {
           murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
                              [--mode conservative] [--sessions-root ./sessions]
+          murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
+                                [--mode conservative] [--sessions-root ./sessions]
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
           murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
           murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
@@ -135,6 +139,7 @@ struct MurmurMark {
           review wraps the current review-plan, agent-review, review CLI, progress and apply scripts.
           audit wraps the transcript order, local recall, group overlap and audio-review audit scripts through the project Python runtime.
           cleanup wraps conservative audit cleanup profiles.
+          repair wraps explicit structural transcript repairs into separate profiles.
           synthesize refreshes deterministic extractive notes and quality verdict.
           notes prints or streams the selected notes/verdict artifacts.
           transcript prints or streams the selected transcript path.
@@ -1192,6 +1197,57 @@ enum CleanupCommands {
     }
 }
 
+enum RepairCommands {
+    static func repair(_ args: [String]) throws {
+        if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+
+        var remaining = args
+        let subcommand = remaining.removeFirst()
+        guard subcommand == "order" else {
+            throw CLIError("unknown repair command: \(subcommand)")
+        }
+        guard !remaining.isEmpty else {
+            throw CLIError("repair order requires a session path or latest")
+        }
+        let target = remaining.removeFirst()
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        fflush(stdout)
+
+        let status = try Tooling.runPathAllowingExitCodes(
+            try PythonRuntime.resolve(),
+            [try script("apply-transcript-order-repair.py").path, session.path] + remaining,
+            allowedExitCodes: [0, 2]
+        )
+        try RepairPrinter.printOrderSummary(session: session, args: remaining)
+        if status != 0 {
+            throw CLIError("order repair gates did not pass; inspect transcript_order_repair_report before promoting the profile")
+        }
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("repair script not found: \(url.path)")
+        }
+        return url
+    }
+
+    private static func printHelp() {
+        print("""
+        usage: murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
+                                     [--mode conservative] [--sessions-root ./sessions]
+
+        Writes a separate transcript profile with conservative transcript-order repairs.
+        If repair gates fail, artifacts are still written and summarized, but the command exits non-zero.
+        """)
+    }
+}
+
 enum SynthesisCommands {
     static func synthesize(_ args: [String]) throws {
         if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
@@ -1558,6 +1614,85 @@ enum CleanupPrinter {
             return value.doubleValue
         }
         if let value = value as? String, let parsed = Double(value) {
+            return parsed
+        }
+        return 0
+    }
+
+    private static func compactJSON(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return "\(value)"
+        }
+        return text
+    }
+}
+
+enum RepairPrinter {
+    static func printOrderSummary(session: URL, args: [String]) throws {
+        let profile = ArgumentEditing.peekOption("output-profile", in: args) ?? "order_repair_v1"
+        let suffix = profile == "current" ? "" : ".\(profile)"
+        let repairDir = session.appendingPathComponent("derived/transcript-simple/whisper-cpp/order-repair")
+        let reportURL = repairDir.appendingPathComponent("transcript_order_repair_report\(suffix).json")
+        guard FileManager.default.fileExists(atPath: reportURL.path) else {
+            print("")
+            print("repair:")
+            print("  kind: transcript_order")
+            print("  report: missing")
+            print("  expected: \(PathDisplay.display(reportURL))")
+            return
+        }
+
+        let payload = try JSONFiles.object(reportURL)
+        let summary = dict(payload["summary"])
+        let gates = dict(payload["gates"])
+        print("")
+        print("repair:")
+        print("  kind: transcript_order")
+        print("  report: \(PathDisplay.display(reportURL))")
+        print("  input_profile: \(string(payload["input_profile"]) ?? "unknown")")
+        print("  output_profile: \(string(payload["output_profile"]) ?? profile)")
+        print("  applied_repairs: \(int(summary["applied_repairs"]))")
+        print("  split_utterances_created: \(int(summary["split_utterances_created"]))")
+        print("  unrepaired_order_risks: \(int(summary["unrepaired_order_risks"]))")
+        print("  gates_passed: \(bool(gates["passed"]))")
+        if let warnings = gates["warnings"] as? [Any], !warnings.isEmpty {
+            print("  warnings: \(compactJSON(warnings))")
+        }
+        print("  next:")
+        print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
+        print("    murmurmark transcript \(PathDisplay.display(session)) --profile \(profile)")
+        print("    murmurmark report \(PathDisplay.display(session))")
+    }
+
+    private static func dict(_ value: Any?) -> [String: Any] {
+        value as? [String: Any] ?? [:]
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
+    }
+
+    private static func bool(_ value: Any?) -> Bool {
+        if let value = value as? Bool {
+            return value
+        }
+        if let value = value as? String {
+            return ["true", "yes", "1"].contains(value.lowercased())
+        }
+        return false
+    }
+
+    private static func int(_ value: Any?) -> Int {
+        if let value = value as? Int {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return value.intValue
+        }
+        if let value = value as? String, let parsed = Int(value) {
             return parsed
         }
         return 0

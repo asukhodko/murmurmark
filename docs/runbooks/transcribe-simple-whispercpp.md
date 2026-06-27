@@ -259,6 +259,26 @@ transcript profiles. `probable_order_risk` means a long `Me` turn wraps a `Colle
 tail after it; this is included in session readiness review burden and should go to review before
 using the transcript for precise chronology.
 
+For the narrow safe case where the long `Me` turn can be split by saved source ASR segments, build an
+explicit repair profile:
+
+```bash
+murmurmark repair order "$SESSION" \
+  --input-profile auto \
+  --output-profile order_repair_v1
+
+murmurmark synthesize "$SESSION" --transcript-profile order_repair_v1
+less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.order_repair_v1.md"
+jq '.summary, .gates' \
+  "$SESSION/derived/transcript-simple/whisper-cpp/order-repair/transcript_order_repair_report.order_repair_v1.json"
+```
+
+`order_repair_v1` does not rewrite baseline, `shadow_v2`, cleanup or reviewed profiles. It only
+replaces one risky `Me` utterance with before/after `Me` utterances when the source mic ASR segments
+sit cleanly around the remote turn and the dropped overlap text is covered by the remote transcript.
+Otherwise it keeps the original utterance and marks `quality.transcript_order_repair.status =
+needs_review`.
+
 For corpus work, aggregate order risks after the usual session-quality report:
 
 ```bash
@@ -992,6 +1012,7 @@ audit_cleanup_v1..v6 -> audit-cleaned dialogue, marked risky if cleanup gates fa
 reviewed_v1 -> human-reviewed dialogue, marked risky if review gates failed
 agent_reviewed_v1 -> agent-reviewed dialogue, marked risky if review gates failed
 suggested_review_v1 -> machine-suggested review candidate, explicit only, never selected by auto
+order_repair_v1 -> explicit transcript-order repair candidate, marked risky if order repair gates failed
 ```
 
 The script writes a quality verdict and a conservative `notes.md`. The v3 notes path is extractive

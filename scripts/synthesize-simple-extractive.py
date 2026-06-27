@@ -536,6 +536,7 @@ def parse_args() -> argparse.Namespace:
             "reviewed_v1",
             "agent_reviewed_v1",
             "suggested_review_v1",
+            "order_repair_v1",
         ),
         default="auto",
         help="Transcript artifact profile to synthesize from.",
@@ -624,6 +625,7 @@ def source_profile_paths(resolved_dir: Path, requested_profile: str) -> dict[str
         "repair_comparison": resolved_dir / "repair_comparison.json",
         "audit_cleanup_report": resolved_dir.parent / "audit-cleanup" / f"audit_cleanup_report{suffix}.json",
         "review_decisions_report": resolved_dir.parent / "review-decisions" / f"review_decisions_report{suffix}.json",
+        "order_repair_report": resolved_dir.parent / "order-repair" / f"transcript_order_repair_report{suffix}.json",
     }
 
 
@@ -755,6 +757,24 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
                 }
             )
         return "suggested_review_v1", paths, repair_comparison, risk_items
+
+    if requested_profile == "order_repair_v1":
+        paths = source_profile_paths(resolved_dir, "order_repair_v1")
+        comparison, error = read_json(paths["repair_comparison"])
+        if error is None and isinstance(comparison, dict):
+            repair_comparison = comparison
+        order_report, order_error = read_json(paths["order_repair_report"])
+        if order_error is not None:
+            risk_items.append({"type": "missing_transcript_order_repair_report", "severity": "high", "reason": order_error})
+        elif not isinstance(order_report, dict) or not isinstance(order_report.get("gates"), dict) or order_report["gates"].get("passed") is not True:
+            risk_items.append(
+                {
+                    "type": "transcript_order_repair_gates_failed",
+                    "severity": "high",
+                    "reason": "order repair profile was requested but order repair gates did not pass",
+                }
+            )
+        return "order_repair_v1", paths, repair_comparison, risk_items
 
     if requested_profile == "shadow_v2":
         paths = source_profile_paths(resolved_dir, "shadow_v2")
@@ -2157,6 +2177,8 @@ def main() -> int:
         inputs["audit_cleanup_report"] = rel(paths["audit_cleanup_report"], session)
     if paths.get("review_decisions_report") and paths["review_decisions_report"].exists():
         inputs["review_decisions_report"] = rel(paths["review_decisions_report"], session)
+    if paths.get("order_repair_report") and paths["order_repair_report"].exists():
+        inputs["order_repair_report"] = rel(paths["order_repair_report"], session)
 
     verdict_payload = {
         "schema": "murmurmark.quality_verdict/v1",
@@ -2189,7 +2211,18 @@ def main() -> int:
     write_notes_markdown(out_dir / "notes.md", verdict_payload, evidence)
     write_jsonl(out_dir / "review_items.jsonl", review_items)
     profile_aliases: dict[str, str] = {}
-    if selected_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6", "reviewed_v1", "agent_reviewed_v1", "suggested_review_v1"}:
+    if selected_profile in {
+        "audit_cleanup_v1",
+        "audit_cleanup_v2",
+        "audit_cleanup_v3",
+        "audit_cleanup_v4",
+        "audit_cleanup_v5",
+        "audit_cleanup_v6",
+        "reviewed_v1",
+        "agent_reviewed_v1",
+        "suggested_review_v1",
+        "order_repair_v1",
+    }:
         profile_suffix = selected_profile
         profile_aliases = {
             "quality_verdict": f"quality_verdict.{profile_suffix}.json",

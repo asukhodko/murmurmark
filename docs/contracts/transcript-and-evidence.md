@@ -454,6 +454,63 @@ the remote phrase that triggered it.
 `check-corpus-gates.py` as `transcript.no_blocking_order_risk`. The operational readiness report
 also includes such items in the review queue under lane `check_transcript_order`.
 
+### Transcript Order Repair
+
+`murmurmark repair order` is an explicit structural repair step. It writes a separate
+`order_repair_v1` profile and never modifies baseline, `shadow_v2`, cleanup or reviewed profiles.
+The v1 repair is deliberately narrow: it may split one long `Me` utterance into before/after `Me`
+utterances only when saved mic ASR source segments sit cleanly before and after the crossed remote
+turn. Overlap segments are dropped only when their content is covered by the remote utterance and
+does not contain protected action/decision/risk markers or unique local content.
+
+Profile outputs:
+
+```text
+derived/transcript-simple/whisper-cpp/resolved/
+  clean_dialogue.order_repair_v1.json
+  transcript.order_repair_v1.md
+  transcript.simple.order_repair_v1.json
+  quality_report.order_repair_v1.json
+  overlaps.order_repair_v1.json
+
+derived/transcript-simple/whisper-cpp/order-repair/
+  transcript_order_repair_report.order_repair_v1.json
+  transcript_order_repair_patches.order_repair_v1.jsonl
+  transcript_order_repair_rejected.order_repair_v1.jsonl
+```
+
+`transcript_order_repair_report.order_repair_v1.json` uses
+`murmurmark.transcript_order_repair_report/v1`:
+
+```json
+{
+  "schema": "murmurmark.transcript_order_repair_report/v1",
+  "input_profile": "shadow_v2",
+  "output_profile": "order_repair_v1",
+  "summary": {
+    "order_risk_items": 1,
+    "applied_repairs": 1,
+    "split_utterances_created": 2,
+    "removed_original_me_utterances": 1,
+    "marked_needs_review": 0,
+    "unrepaired_order_risks": 0
+  },
+  "gates": {
+    "passed": true,
+    "hard_failures": [],
+    "warnings": []
+  }
+}
+```
+
+Applied patches use `murmurmark.transcript_order_repair_patch/v1` and record the source audit id,
+original `Me` id, remote id, created utterance ids and dropped overlap segment ids. Rejected patches
+use `murmurmark.transcript_order_repair_rejection/v1` and must include a machine-readable reason.
+When repair cannot be applied safely, the original utterance remains in the output profile and gets
+`quality.transcript_order_repair.status = "needs_review"` plus `quality.needs_review = true`.
+Synthesis accepts `--transcript-profile order_repair_v1` explicitly and treats failed repair gates as
+a high-severity selection risk.
+
 `murmurmark corpus order` aggregates per-session order audits into:
 
 ```text

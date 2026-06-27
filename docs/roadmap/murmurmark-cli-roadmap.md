@@ -37,7 +37,9 @@ UI App не является обязательной частью roadmap. Он
 - `corpus-regression` — текущий контур: корпус сессий, пересборка, baseline thresholds,
   out-of-fold оценка audio judge и явные review/export blockers.
 - `review-loop` — ближайший этап: удобный CLI-review спорных участков; ручный workspace review и агентный `review agent` уже есть.
-- `quality-hardening` — ближайший этап: улучшение качества transcript без смены топологии.
+- `quality-hardening` — ближайший этап: улучшение качества transcript без смены топологии; первый
+  явный `order_repair_v1` уже чинит только те order-risk регионы, которые безопасно режутся по
+  сохранённым source ASR segments.
 - `evidence-notes` и `export-workflows` — пользовательские артефакты; базовый export готов, дальше нужны vault/docs/Jira proposals.
 - `retention-policy` и `packaging` — приватность, хранение raw audio, release layout, provider payload manifest и readiness gate; перед публикацией нужен публичный security contact.
 - `future-heavy-local`, `future-llm-synthesis`, `future-ui-app` — дальние ветки.
