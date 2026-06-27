@@ -32,6 +32,7 @@ def parse_args() -> argparse.Namespace:
             "audit_cleanup_v3",
             "audit_cleanup_v4",
             "audit_cleanup_v5",
+            "audit_cleanup_v6",
         ],
     )
     parser.add_argument("--out-dir", type=Path, default=None)
@@ -105,7 +106,7 @@ def resolve_profile(session: Path, requested: str) -> str:
     if requested != "auto":
         return requested
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
-    for candidate in ("audit_cleanup_v5", "audit_cleanup_v4", "audit_cleanup_v3", "audit_cleanup_v2", "audit_cleanup_v1", "shadow_v2", "current"):
+    for candidate in ("audit_cleanup_v6", "audit_cleanup_v5", "audit_cleanup_v4", "audit_cleanup_v3", "audit_cleanup_v2", "audit_cleanup_v1", "shadow_v2", "current"):
         if (resolved / f"clean_dialogue{suffix(candidate)}.json").exists():
             return candidate
     return "current"

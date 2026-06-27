@@ -159,6 +159,8 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v4
 .venv/bin/python scripts/apply-suggested-cleanup.py
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v5
+.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v5 --output-profile audit_cleanup_v6
+.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v6
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session> --write-session-readiness
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
 .venv/bin/python scripts/evaluate-regression-corpus.py
@@ -279,6 +281,9 @@ Use it after `scripts/report-suggested-review-shadow.py`:
 ```
 
 `auto` synthesis may select v5 when its cleanup gates pass and it applied at least one patch.
+`audit_cleanup_v6` is the next conservative pass after a fresh audio-review pack has been rebuilt
+for v5. It reuses the existing audio-review cleanup gates over `audit_cleanup_v5`; it does not use
+the suggested-review shadow directly and does not add new ASR or audio-judge rules.
 `scripts/report-operational-readiness.py` combines session quality, corpus readiness and audio-judge
 shadow readiness into a practical verdict such as `pilot_ready_with_review` for medium-risk working
 meetings. It also assigns per-session use gates such as `ready_for_notes` and `review_first`, then
@@ -359,6 +364,8 @@ For comparison, the suggested answer sheets can be applied into a separate shado
 
 .venv/bin/python scripts/report-suggested-review-shadow.py
 .venv/bin/python scripts/apply-suggested-cleanup.py
+.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v5 --output-profile audit_cleanup_v6
+.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v6
 ```
 
 `suggested_review_v1` is generated from machine suggestions only. It is useful for measuring the

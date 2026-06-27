@@ -20,6 +20,7 @@ CLEANUP_PROFILES = {
     "audit_cleanup_v3",
     "audit_cleanup_v4",
     "audit_cleanup_v5",
+    "audit_cleanup_v6",
     "reviewed_v1",
 }
 
@@ -183,6 +184,18 @@ def selected_profile(session: Path) -> str:
         and reviewed_gates.get("passed") is True
     ):
         return "reviewed_v1"
+    cleanup_v6 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v6.json")
+    cleanup_v6_summary = cleanup_v6.get("summary") if isinstance(cleanup_v6, dict) else {}
+    cleanup_v6_gates = cleanup_v6.get("gates") if isinstance(cleanup_v6, dict) else {}
+    cleanup_v6_applied = safe_int(cleanup_v6_summary.get("applied_patches") if isinstance(cleanup_v6_summary, dict) else None) or 0
+    if (
+        (resolved / "quality_report.audit_cleanup_v6.json").exists()
+        and (resolved / "clean_dialogue.audit_cleanup_v6.json").exists()
+        and isinstance(cleanup_v6_gates, dict)
+        and cleanup_v6_gates.get("passed") is True
+        and cleanup_v6_applied > 0
+    ):
+        return "audit_cleanup_v6"
     cleanup_v5 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v5.json")
     cleanup_v5_summary = cleanup_v5.get("summary") if isinstance(cleanup_v5, dict) else {}
     cleanup_v5_gates = cleanup_v5.get("gates") if isinstance(cleanup_v5, dict) else {}
@@ -261,6 +274,9 @@ def stage_status(session: Path) -> dict[str, bool]:
         "audit_cleanup_v5": (resolved / "quality_report.audit_cleanup_v5.json").exists()
         and (resolved / "clean_dialogue.audit_cleanup_v5.json").exists()
         and (cleanup / "audit_cleanup_report.audit_cleanup_v5.json").exists(),
+        "audit_cleanup_v6": (resolved / "quality_report.audit_cleanup_v6.json").exists()
+        and (resolved / "clean_dialogue.audit_cleanup_v6.json").exists()
+        and (cleanup / "audit_cleanup_report.audit_cleanup_v6.json").exists(),
         "reviewed_v1": (resolved / "quality_report.reviewed_v1.json").exists()
         and (resolved / "clean_dialogue.reviewed_v1.json").exists()
         and (review_decisions / "review_decisions_report.reviewed_v1.json").exists(),
@@ -278,6 +294,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (synthesis / "evidence_notes.audit_cleanup_v4.json").exists(),
         "synthesis_audit_cleanup_v5": (synthesis / "quality_verdict.audit_cleanup_v5.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v5.json").exists(),
+        "synthesis_audit_cleanup_v6": (synthesis / "quality_verdict.audit_cleanup_v6.json").exists()
+        and (synthesis / "evidence_notes.audit_cleanup_v6.json").exists(),
         "synthesis_reviewed_v1": (synthesis / "quality_verdict.reviewed_v1.json").exists()
         and (synthesis / "evidence_notes.reviewed_v1.json").exists(),
         "synthesis_suggested_review_v1": (synthesis / "quality_verdict.suggested_review_v1.json").exists()
@@ -713,7 +731,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     )
     cleanup_report = (
         read_json(session / "derived/transcript-simple/whisper-cpp/audit-cleanup" / f"audit_cleanup_report{suffix(profile)}.json")
-        if profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5"}
+        if profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6"}
         else None
     )
     review_report = (

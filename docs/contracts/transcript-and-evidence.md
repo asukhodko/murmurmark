@@ -1233,6 +1233,13 @@ It may apply patches only for sessions classified as `promising_shadow_candidate
 report added new `needs_review` items. v5 is a cleanup profile, not a reviewed profile:
 `suggested_review_v1` remains explicit-only and is never selected by `auto`.
 
+`audit_cleanup_v6` has the same artifact shape with the `audit_cleanup_v6` suffix. It usually uses
+`audit_cleanup_v5` as input after rebuilding `audio_review_audit.jsonl` for that profile. v6 reuses
+the normal audio-review cleanup gates: only high-confidence `remote_duplicate` and short `asr_noise`
+whole `Me` utterances can be dropped, while `remote_leak`, `lost_me`, `uncertain`, double-talk and
+timing overlap stay mark-only. v6 must not consume `suggested_review_v1` directly and must not use
+audio-judge queue predictions.
+
 Patch suggestions are dry-run only:
 
 ```json

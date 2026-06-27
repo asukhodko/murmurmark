@@ -1061,7 +1061,7 @@ def main() -> int:
             continue
         if not path.exists():
             raise FileNotFoundError(f"missing {label}: {path}")
-    use_audio_review = args.output_profile in {"audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4"}
+    use_audio_review = args.output_profile in {"audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v6"}
     use_audio_judge = args.output_profile in {"audit_cleanup_v3", "audit_cleanup_v4"}
     if use_audio_review:
         for label in ("audio_review_audit", "audio_review_summary"):
