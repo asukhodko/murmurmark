@@ -319,7 +319,8 @@ jq -n '{
     {id: "utt_simple_014", start: 176.0, end: 179.0, role: "Me", speaker_label: "Me", source_track: "mic", text: "Давайте перейдем к следующему блоку.", quality: {needs_review: false}},
     {id: "utt_simple_015", start: 184.0, end: 187.0, role: "Me", speaker_label: "Me", source_track: "mic", text: "Давайте проголосуем.", quality: {needs_review: false}},
     {id: "utt_simple_016", start: 196.0, end: 202.0, role: "Me", speaker_label: "Me", source_track: "mic", text: "Нужно добавить задачу на алерты.", quality: {needs_review: false}},
-    {id: "utt_simple_017", start: 212.0, end: 218.0, role: "Colleagues", speaker_label: "Colleagues", source_track: "remote", text: "Решили оставить ретро раз в две недели.", quality: {needs_review: false}}
+    {id: "utt_simple_017", start: 212.0, end: 218.0, role: "Colleagues", speaker_label: "Colleagues", source_track: "remote", text: "Решили оставить ретро раз в две недели.", quality: {needs_review: false}},
+    {id: "utt_simple_018", start: 228.0, end: 234.0, role: "Me", speaker_label: "Me", source_track: "mic", text: "Надо срочно проверить Kubernetes deploy pipeline.", quality: {needs_review: true, transcript_order_review: {status: "needs_review", profile: "reviewed_v1", decisions: ["needs_review"], source_audit_ids: ["order_fixture_001"]}}}
   ]
 }' >"$simple_resolved/clean_dialogue.json"
 jq -n '{schema: "murmurmark.simple_transcript/v1", utterances: []}' >"$simple_resolved/transcript.simple.json"
@@ -336,8 +337,8 @@ cat >"$simple_resolved/transcript.md" <<'EOF'
 EOF
 jq -n '{
   schema: "murmurmark.simple_transcript_quality/v1",
-  utterances: 17,
-  needs_review_count: 0,
+  utterances: 18,
+  needs_review_count: 1,
   cross_role_overlap_gt2_count: 1,
   cross_role_overlap_gt2_seconds: 3,
   remote_duplicate_in_me_seconds: 0,
@@ -404,10 +405,13 @@ jq -e 'all(.selected.actions[]; (((.display_text | contains("Давайте пе
 jq -e 'any(.selected.actions[]; .display_text | contains("Нужно добавить задачу на алерты"))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
 jq -e 'any(.selected.decisions[]; .display_text | contains("Решили оставить ретро"))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
 jq -e 'all(.selected.outline_blocks[].representatives[]?; (((.text | contains("Давайте перейдем")) or (.text | contains("Давайте проголосуем"))) | not))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
+jq -e 'any(.candidates[]; (.display_text | contains("Надо срочно проверить")) and .status == "hidden" and (.features.quality_flags | index("transcript_order_review:needs_review")) and any(.features.review_sources[]?; .key == "transcript_order_review" and .status == "needs_review"))' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
+jq -s 'any(.[]; .type == "utterance_transcript_order_review" and (.utterance_ids | index("utt_simple_018")) and (.source_audit_ids | index("order_fixture_001")))' "$session/derived/synthesis-simple/extractive/review_items.jsonl" >/dev/null
 grep -q 'utt_simple_003' "$session/derived/synthesis-simple/extractive/notes.md"
 grep -q 'utt_simple_006' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -q 'Надо подумать' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -q 'Вопрос по Kubernetes' "$session/derived/synthesis-simple/extractive/notes.md"
+! grep -q 'Надо срочно проверить' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -q 'Давайте перейдем к следующему блоку' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -q 'Давайте проголосуем' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -Eq '^### .*: (если|есть|меня|потому)(, (если|есть|меня|потому))*$' "$session/derived/synthesis-simple/extractive/notes.md"

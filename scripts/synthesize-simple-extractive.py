@@ -1008,6 +1008,40 @@ def row_quality_review_sources(row: dict[str, Any]) -> list[dict[str, Any]]:
     return sources
 
 
+def unresolved_review_sources(row: dict[str, Any]) -> list[dict[str, Any]]:
+    return [source for source in row_quality_review_sources(row) if source.get("status") == "needs_review"]
+
+
+def apply_unresolved_review_penalty(candidate: dict[str, Any], row: dict[str, Any], score: int, penalty: int = 12) -> int:
+    sources = unresolved_review_sources(row)
+    if not sources:
+        return score
+    keys = sorted({str(source.get("key")) for source in sources if source.get("key")})
+    existing = candidate["features"].get("review_sources")
+    merged = existing if isinstance(existing, list) else []
+    seen = {
+        (
+            str(source.get("key")),
+            str(source.get("status")),
+            ",".join(str(item) for item in source.get("source_audit_ids", [])),
+        )
+        for source in merged
+        if isinstance(source, dict)
+    }
+    for source in sources:
+        signature = (
+            str(source.get("key")),
+            str(source.get("status")),
+            ",".join(str(item) for item in source.get("source_audit_ids", [])),
+        )
+        if signature not in seen:
+            merged.append(source)
+            seen.add(signature)
+    candidate["features"]["review_sources"] = merged
+    candidate["penalties"].append(f"unresolved review source: {', '.join(keys)}")
+    return score - penalty
+
+
 def context_ids(utterances: list[dict[str, Any]], index: int) -> list[str]:
     ids: list[str] = []
     for neighbor in (index - 1, index + 1):
@@ -1121,6 +1155,7 @@ def candidate_base(
             "objects": [],
             "domain_terms": domain_terms(row.get("text")),
             "quality_flags": row_quality_flags(row),
+            "review_sources": row_quality_review_sources(row),
         },
         "reasons": [],
         "penalties": [],
@@ -1269,6 +1304,7 @@ def score_action(row: dict[str, Any], index: int, utterances: list[dict[str, Any
     else:
         score -= 15
         candidate["penalties"].append("utterance needs review")
+    score = apply_unresolved_review_penalty(candidate, row, score)
 
     abstract_hits = phrase_matches(text, ABSTRACT_ACTION_PATTERNS)
     if abstract_hits:
@@ -1339,6 +1375,7 @@ def score_explicit_decision(row: dict[str, Any], index: int, utterances: list[di
     else:
         score -= 15
         candidate["penalties"].append("utterance needs review")
+    score = apply_unresolved_review_penalty(candidate, row, score)
     if "?" in text:
         score -= 20
         candidate["penalties"].append("question-like")
@@ -1406,6 +1443,8 @@ def score_proposal_decision(
         if row.get("quality", {}).get("needs_review") or neighbor.get("quality", {}).get("needs_review"):
             score -= 15
             candidate["penalties"].append("some evidence utterance needs review")
+        score = apply_unresolved_review_penalty(candidate, row, score)
+        score = apply_unresolved_review_penalty(candidate, neighbor, score)
         candidate["score"] = score
         return finalize_candidate(candidate, DEFAULT_RULES["thresholds"])
     return None
@@ -1445,6 +1484,7 @@ def score_risk(row: dict[str, Any], index: int, utterances: list[dict[str, Any]]
     else:
         score -= 10
         candidate["penalties"].append("utterance needs review")
+    score = apply_unresolved_review_penalty(candidate, row, score)
     candidate["score"] = score
     return finalize_candidate(candidate, DEFAULT_RULES["thresholds"])
 
@@ -1490,6 +1530,7 @@ def score_open_question(
     else:
         score -= 10
         candidate["penalties"].append("utterance needs review")
+    score = apply_unresolved_review_penalty(candidate, row, score)
     candidate["score"] = score
     return finalize_candidate(candidate, DEFAULT_RULES["thresholds"])
 
@@ -1565,6 +1606,10 @@ def salience_score(row: dict[str, Any]) -> tuple[int, list[str], list[str]]:
     else:
         score -= 12
         penalties.append("needs_review")
+    sources = unresolved_review_sources(row)
+    if sources:
+        score -= 10
+        penalties.append("unresolved_review_source")
     if is_filler_utterance(text):
         score -= 35
         penalties.append("filler")

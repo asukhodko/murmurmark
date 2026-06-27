@@ -97,7 +97,10 @@ decisions/actions/risks/open questions with utterance IDs. Every item that looks
 action remains `needs_review` until a human confirms it. The complete scored candidate list lives in
 `evidence_notes.json`. Since generator `0.3.0`, meeting facilitation and process phrases such as
 `let's move to the next block` or `let's vote` are kept as hidden candidates in JSON, but are not
-shown as decisions or actions in Markdown.
+shown as decisions or actions in Markdown. Unresolved review sources such as
+`transcript_order_review:needs_review` are also copied to candidate features and penalized before
+Markdown selection, so risky evidence is easier to audit and less likely to appear as a confident
+top item.
 
 `evidence_notes.json` v2:
 

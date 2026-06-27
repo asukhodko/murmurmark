@@ -1003,7 +1003,9 @@ clean_dialogue.json
 
 Markdown shows only selected top items. `evidence_notes.json` keeps all candidates, including weak
 actions, process discussions and meeting facilitation hidden from Markdown. The script does not
-invent owners, deadlines or decisions.
+invent owners, deadlines or decisions. If a candidate uses an utterance with unresolved review
+metadata, such as `transcript_order_review:needs_review`, the source is written into candidate
+features and the item is penalized before Markdown selection.
 
 Useful checks:
 

@@ -43,6 +43,8 @@ The output is intentionally extractive:
 - potential decisions, actions, risks and open questions are scored rule candidates with evidence IDs;
 - Markdown shows only selected top items, while `evidence_notes.json` keeps the full candidate audit;
 - meeting facilitation and process phrases are hidden from Markdown but kept as candidates for audit;
+- unresolved review sources such as transcript-order checks are copied into candidate features and
+  penalized before Markdown selection;
 - every selected or candidate item is marked `needs_review`;
 - unsupported claims are not generated.
 
