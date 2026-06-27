@@ -277,6 +277,8 @@ utterances do not stay in the operational review list. It also ignores stale aud
 when the current audio-review audit has since reclassified that item as reliable.
 The report also includes `Review Queue Strategy`: lane counts, the first lane to close, and the
 estimated queue remaining after that first lane.
+`scripts/build-review-workspace.py` can then build all remaining lane packs plus one
+`review_workspace.md` index for the reviewer.
 
 `scripts/build-review-plan.py` turns that operational review queue into a compact working checklist
 under `sessions/_reports/review-plan/`. It groups nearby risky intervals by session, estimates the

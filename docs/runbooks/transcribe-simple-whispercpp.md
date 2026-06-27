@@ -484,6 +484,13 @@ afplay sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_dr
 less sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.md
 ```
 
+To prepare all remaining lanes at once:
+
+```bash
+.venv/bin/python scripts/build-review-workspace.py
+less sessions/_reports/review-plan/review_workspace.md
+```
+
 Then copy decisions from the pack back into the full review file:
 
 ```bash

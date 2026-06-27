@@ -889,6 +889,38 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
 ```
 
 Lane packs are listening aids only. They do not mark decisions and do not modify transcript profiles.
+`build-review-workspace.py` builds all currently-open lane packs and writes:
+
+```text
+sessions/_reports/review-plan/
+  review_workspace.json
+  review_workspace.md
+```
+
+The JSON uses `murmurmark.review_workspace/v1`:
+
+```json
+{
+  "schema": "murmurmark.review_workspace/v1",
+  "lane_counts": [
+    {
+      "lane": "fast_confirm_drop",
+      "template_rows": 10
+    }
+  ],
+  "lanes": [
+    {
+      "lane": "fast_confirm_drop",
+      "status": "ok",
+      "items": 10,
+      "audio": "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav"
+    }
+  ]
+}
+```
+
+The workspace is a reviewer index only. It does not write decisions; use
+`apply-review-lane-pack-decisions.py` or `review-decisions-cli.py` for that.
 `apply-review-lane-pack-decisions.py` applies explicit reviewer answers for a lane pack back into
 the complete `review_decisions.jsonl`. It accepts a compact answer string in pack order:
 `d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.`/`n`/`t=todo`. The script validates
