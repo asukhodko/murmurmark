@@ -210,7 +210,8 @@ nodes:
     notes: |
       Набор реальных сессий, пересборка, сравнение метрик и no-regression gates.
       Базовые команды corpus build/process/evaluate/train-audio-judge/report уже доступны;
-      следующий слой — строгие gates и пороги no-regression.
+      базовый corpus gate уже проверяет hard-инварианты. Следующий слой — более строгие
+      no-regression thresholds и review/export blockers.
 
   corpus-add-command:
     title: "corpus add"
@@ -232,9 +233,9 @@ nodes:
     title: "Regression gates"
     kind: task
     parent: corpus-regression
-    status: next
+    status: done
     effort: 5
-    notes: "Пороговые проверки: lost Me, harmful duplicate seconds, review burden, notes stability."
+    notes: "murmurmark corpus gate проверяет coverage, transcript-инварианты, corpus readiness, audio judge и review burden."
 
   corpus-audio-judge-refresh:
     title: "Audio judge evaluation"
@@ -250,7 +251,7 @@ nodes:
     parent: corpus-regression
     status: next
     effort: 5
-    notes: "Зафиксировать минимальные требования для изменения default/auto профилей."
+    notes: "Уточнить пороги для изменения default/auto профилей, notes stability и export blockers."
 
   review-loop:
     title: "Review loop"
@@ -773,7 +774,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "corpus CLI, review loop и audio judge уже защищают от части регрессий; нужны более строгие gates."
-          next_sync_goal: "Сделать повторяемые corpus gates и review/export blockers."
+          next_sync_goal: "Уточнить no-regression thresholds и review/export blockers."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

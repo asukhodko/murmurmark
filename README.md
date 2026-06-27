@@ -66,6 +66,8 @@ work, build a corpus from existing audio-review audits:
 
 .build/debug/murmurmark corpus train-audio-judge
 
+.build/debug/murmurmark corpus gate
+
 .build/debug/murmurmark review plan
 ```
 
@@ -74,6 +76,10 @@ For the normal full refresh, use one command:
 ```bash
 .build/debug/murmurmark corpus process all --per-label 16 --max-items 160
 ```
+
+`corpus gate` writes `sessions/_reports/corpus-gates/corpus_gates_report.*`.
+`passed_with_warnings` means the hard no-regression gates are green, but some historical sessions or
+review queues still need cleanup before the whole repository is operationally ready.
 
 The lower-level scripts remain available for debugging specific files:
 
@@ -188,6 +194,7 @@ swift run murmurmark list-apps
 .build/debug/murmurmark corpus build ./sessions/<session> --per-label 16 --max-items 160
 .build/debug/murmurmark corpus evaluate
 .build/debug/murmurmark corpus train-audio-judge
+.build/debug/murmurmark corpus gate
 .build/debug/murmurmark corpus report
 .build/debug/murmurmark preprocess ./sessions/<session> --echo diagnostic
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine linear_baseline

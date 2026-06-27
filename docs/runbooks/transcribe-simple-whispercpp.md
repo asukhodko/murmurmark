@@ -411,6 +411,8 @@ work:
 
 .build/debug/murmurmark corpus train-audio-judge
 
+.build/debug/murmurmark corpus gate
+
 .build/debug/murmurmark review plan
 .build/debug/murmurmark review latest --lane fast_confirm_drop
 .build/debug/murmurmark review progress
@@ -428,6 +430,11 @@ For a full refresh with all sessions under `./sessions`, use:
 ```bash
 .build/debug/murmurmark corpus process all --per-label 16 --max-items 160
 ```
+
+`corpus gate` reads the generated session-quality, regression-corpus, audio-judge and operational
+readiness JSON reports, then writes `sessions/_reports/corpus-gates/corpus_gates_report.json` and
+`.md`. `passed` or `passed_with_warnings` exits successfully. `failed` exits non-zero unless
+`--no-fail` is used.
 
 The script reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, balances examples by
 label, and copies existing review clips under `sessions/_reports/regression-corpus/clips/`. It is

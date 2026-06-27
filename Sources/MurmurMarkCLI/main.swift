@@ -79,6 +79,7 @@ struct MurmurMark {
           murmurmark corpus build all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus evaluate
           murmurmark corpus train-audio-judge
+          murmurmark corpus gate
           murmurmark corpus report [--sessions-root ./sessions]
           murmurmark preprocess ./session [--echo diagnostic|clean] [--echo-engine linear_baseline|local_fir|speexdsp|webrtc-apm]
                               [--echo-policy preserve_local|role_safe|strict_silence]
@@ -95,7 +96,7 @@ struct MurmurMark {
           process runs the current post-recording pipeline and prints the readiness summary.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review wraps the current review-plan, review CLI, progress and apply scripts.
-          corpus wraps regression-corpus, audio-judge and operational-readiness scripts.
+          corpus wraps regression-corpus, audio-judge, corpus gates and operational-readiness scripts.
         """)
     }
 }
@@ -359,10 +360,12 @@ enum CorpusCommands {
             try evaluate(extraArgs: [])
             try trainAudioJudge(extraArgs: [])
             try operationalReadiness()
+            try gates(extraArgs: [])
             try CorpusPrinter.printSessionQuality()
             try CorpusPrinter.printBuild()
             try CorpusPrinter.printEvaluation()
             try CorpusPrinter.printAudioJudge()
+            try CorpusPrinter.printGates()
             try CorpusPrinter.printOperationalReadiness()
         case "build":
             if ArgumentEditing.hasHelpFlag(forwarded) {
@@ -393,6 +396,14 @@ enum CorpusCommands {
             let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/audio-judge-v0")
             try trainAudioJudge(extraArgs: forwarded)
             try CorpusPrinter.printAudioJudge(outDir: outDir)
+        case "gate":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("check-corpus-gates.py").path] + forwarded)
+                return
+            }
+            let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/corpus-gates")
+            try gates(extraArgs: forwarded)
+            try CorpusPrinter.printGates(outDir: outDir)
         case "report":
             guard forwarded.isEmpty else { throw CLIError("corpus report only supports --sessions-root") }
             try PipelineCommands.report(["corpus", "--sessions-root", sessionsRoot.path])
@@ -429,6 +440,13 @@ enum CorpusCommands {
         let python = try PythonRuntime.resolve()
         try Tooling.runPath(python, [
             try script("train-audio-judge-v0.py").path,
+        ] + extraArgs)
+    }
+
+    private static func gates(extraArgs: [String]) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("check-corpus-gates.py").path,
         ] + extraArgs)
     }
 
@@ -472,6 +490,7 @@ enum CorpusCommands {
           3. evaluate-regression-corpus.py
           4. train-audio-judge-v0.py
           5. report-operational-readiness.py
+          6. check-corpus-gates.py
 
         Options:
           --sessions-root PATH  Sessions directory for all/latest. Default: sessions
@@ -3337,17 +3356,34 @@ enum CorpusPrinter {
         }
     }
 
+    static func printGates(outDir: URL = PathURLs.fileURL("sessions/_reports/corpus-gates")) throws {
+        let url = outDir.appendingPathComponent("corpus_gates_report.json")
+        let payload = try JSONFiles.object(url)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        print("")
+        print("corpus_gates:")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("corpus_gates_report.md")))")
+        print("  status: \(string(payload["status"]) ?? "unknown")")
+        print("  failed_gates: \(int(payload["failed_gate_count"]) ?? 0)")
+        print("  warnings: \(int(payload["warning_count"]) ?? 0)")
+        print("  complete_pipeline_count: \(int(summary["complete_pipeline_count"]) ?? 0)")
+        print("  ready_for_notes: \(int(summary["ready_for_notes"]) ?? 0)")
+        print("  review_first: \(int(summary["review_first"]) ?? 0)")
+    }
+
     static func printOperationalReadiness() throws {
         let url = PathURLs.fileURL("sessions/_reports/operational-readiness/operational_readiness_report.json")
         let payload = try JSONFiles.object(url)
         let summary = payload["summary"] as? [String: Any] ?? [:]
+        let useGates = summary["use_gates"] as? [String: Any] ?? [:]
+        let reviewSeconds = double(summary["total_review_burden_sec"]) ?? 0
         print("")
         print("operational_readiness:")
         print("  report: sessions/_reports/operational-readiness/operational_readiness_report.md")
-        print("  verdict: \(string(summary["verdict"]) ?? "unknown")")
-        print("  sessions_ready_for_notes: \(int(summary["sessions_ready_for_notes"]) ?? 0)")
-        print("  sessions_review_first: \(int(summary["sessions_review_first"]) ?? 0)")
-        print("  review_minutes: \(double(summary["review_minutes"]) ?? 0)")
+        print("  verdict: \(string(payload["operational_verdict"]) ?? "unknown")")
+        print("  sessions_ready_for_notes: \(int(useGates["ready_for_notes"]) ?? 0)")
+        print("  sessions_review_first: \(int(useGates["review_first"]) ?? 0)")
+        print(String(format: "  review_minutes: %.2f", reviewSeconds / 60))
         print("  next: murmurmark review plan")
     }
 
