@@ -8,6 +8,25 @@ The repository now contains a first minimal Swift CLI plus local transcript and 
 
 ## Current CLI
 
+### Local Install
+
+For normal use, install a local wrapper once:
+
+```bash
+cd murmurmark
+
+scripts/install-local.sh
+export PATH="$HOME/.local/bin:$PATH"
+
+murmurmark doctor
+murmurmark config print
+```
+
+The wrapper points `MURMURMARK_HOME` at this checkout, so `murmurmark process`,
+`murmurmark report`, `murmurmark review`, `murmurmark corpus` and `murmurmark export`
+can be run from any directory. During development, `.build/debug/murmurmark` and
+`swift run murmurmark ...` still work.
+
 ### End-to-End From an Existing Recording
 
 Use this when the session directory already exists and raw recording is complete.
@@ -18,13 +37,12 @@ cd murmurmark
 SESSION=./sessions/<session>
 
 git pull
-swift build
-.build/debug/murmurmark process "$SESSION" --force-asr
+murmurmark process "$SESSION" --force-asr
 
-.build/debug/murmurmark report "$SESSION"
+murmurmark report "$SESSION"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
-.build/debug/murmurmark export "$SESSION" --format markdown --include-json
+murmurmark export "$SESSION" --format markdown --include-json
 
 PROFILE="$(jq -r '.selected_transcript_profile' "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json")"
 case "$PROFILE" in
@@ -45,7 +63,7 @@ Local defaults come from `murmurmark.config.json` when it exists:
 ```bash
 cp murmurmark.config.example.json murmurmark.config.json
 $EDITOR murmurmark.config.json
-.build/debug/murmurmark config print
+murmurmark config print
 ```
 
 Explicit CLI flags still win over config values.
@@ -54,7 +72,7 @@ For a regression set or several real meetings, build a private quality summary u
 `sessions/_reports/` tree:
 
 ```bash
-.build/debug/murmurmark corpus report
+murmurmark corpus report
 
 less sessions/_reports/session-quality/session_quality_report.md
 ```
@@ -63,25 +81,25 @@ To turn audited sessions into a reusable private regression set for future clean
 work, build a corpus from existing audio-review audits:
 
 ```bash
-.build/debug/murmurmark corpus build \
+murmurmark corpus build \
   sessions/<session-1> \
   sessions/<session-2> \
   --per-label 16 \
   --max-items 160
 
-.build/debug/murmurmark corpus evaluate
+murmurmark corpus evaluate
 
-.build/debug/murmurmark corpus train-audio-judge
+murmurmark corpus train-audio-judge
 
-.build/debug/murmurmark corpus gate
+murmurmark corpus gate
 
-.build/debug/murmurmark review plan
+murmurmark review plan
 ```
 
 For the normal full refresh, use one command:
 
 ```bash
-.build/debug/murmurmark corpus process all --per-label 16 --max-items 160
+murmurmark corpus process all --per-label 16 --max-items 160
 ```
 
 `corpus gate` writes `sessions/_reports/corpus-gates/corpus_gates_report.*`.
@@ -130,17 +148,16 @@ The `record` command keeps running until `Ctrl-C`; the following commands contin
 cd murmurmark
 
 git pull
-swift build
-.build/debug/murmurmark doctor
-.build/debug/murmurmark config print
+murmurmark doctor
+murmurmark config print
 
-.build/debug/murmurmark record --target-bundle system
+murmurmark record --target-bundle system
 
-.build/debug/murmurmark process latest
+murmurmark process latest
 
-.build/debug/murmurmark latest
-SESSION="$(.build/debug/murmurmark latest | sed -E 's/^SESSION="(.*)"$/\1/')"
-.build/debug/murmurmark report "$SESSION"
+murmurmark latest
+SESSION="$(murmurmark latest | sed -E 's/^SESSION="(.*)"$/\1/')"
+murmurmark report "$SESSION"
 less "$SESSION/derived/readiness/session_readiness.md"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
@@ -182,27 +199,27 @@ duplicate or ASR-noise classification. It never edits `shadow_v2`.
 swift build
 swift run murmurmark doctor
 swift run murmurmark list-apps
-.build/debug/murmurmark record --target-bundle system
-.build/debug/murmurmark latest
-.build/debug/murmurmark config print
-.build/debug/murmurmark process latest
-.build/debug/murmurmark process ./sessions/<session> --force-asr
-.build/debug/murmurmark process ./sessions/<session> --plan-only --skip-build
-.build/debug/murmurmark report ./sessions/<session>
-.build/debug/murmurmark report latest
-.build/debug/murmurmark report corpus
-.build/debug/murmurmark review plan
-.build/debug/murmurmark review latest --lane fast_confirm_drop
-.build/debug/murmurmark review progress
-.build/debug/murmurmark review apply
-.build/debug/murmurmark corpus process all --per-label 16 --max-items 160
-.build/debug/murmurmark corpus build ./sessions/<session> --per-label 16 --max-items 160
-.build/debug/murmurmark corpus evaluate
-.build/debug/murmurmark corpus train-audio-judge
-.build/debug/murmurmark corpus gate
-.build/debug/murmurmark corpus report
-.build/debug/murmurmark export ./sessions/<session> --format markdown --include-json
-.build/debug/murmurmark export ./sessions/<session> --format obsidian
+murmurmark record --target-bundle system
+murmurmark latest
+murmurmark config print
+murmurmark process latest
+murmurmark process ./sessions/<session> --force-asr
+murmurmark process ./sessions/<session> --plan-only --skip-build
+murmurmark report ./sessions/<session>
+murmurmark report latest
+murmurmark report corpus
+murmurmark review plan
+murmurmark review latest --lane fast_confirm_drop
+murmurmark review progress
+murmurmark review apply
+murmurmark corpus process all --per-label 16 --max-items 160
+murmurmark corpus build ./sessions/<session> --per-label 16 --max-items 160
+murmurmark corpus evaluate
+murmurmark corpus train-audio-judge
+murmurmark corpus gate
+murmurmark corpus report
+murmurmark export ./sessions/<session> --format markdown --include-json
+murmurmark export ./sessions/<session> --format obsidian
 .build/debug/murmurmark preprocess ./sessions/<session> --echo diagnostic
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine linear_baseline
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine local_fir
@@ -503,7 +520,10 @@ Before recording, macOS must allow the terminal or Codex app to use Screen & Sys
 
 For the first real run, use [docs/runbooks/first-recording.md](docs/runbooks/first-recording.md).
 
-For real work, run `swift build` once and then use `.build/debug/murmurmark record --target-bundle system`. Without `--duration`, recording runs until `Ctrl-C`. Without `--out`, every recording gets a unique directory under `./sessions`, so previous sessions are not overwritten.
+For real work, install the local wrapper with `scripts/install-local.sh` and then use
+`murmurmark record --target-bundle system`. Without `--duration`, recording runs until `Ctrl-C`.
+Without `--out`, every recording gets a unique directory under `./sessions`, so previous sessions
+are not overwritten.
 
 Before trying cleanup on a real speaker-bleed session, run the [Echo Guard delay lab](docs/runbooks/echo-guard-lab.md). If delay confidence is unstable, do not trust cleanup output yet; use transcript-level suppression and keep raw mic for ASR fallback.
 

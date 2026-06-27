@@ -13,7 +13,9 @@ Use this runbook to prove that a fresh machine can record a minimal MurmurMark s
 Run:
 
 ```bash
-swift run murmurmark doctor
+scripts/install-local.sh
+export PATH="$HOME/.local/bin:$PATH"
+murmurmark doctor
 ```
 
 Expected before permissions are granted:
@@ -64,9 +66,10 @@ For real meetings, build once and run the binary directly:
 
 ```bash
 cd murmurmark
-swift build
-.build/debug/murmurmark doctor
-.build/debug/murmurmark record --target-bundle system
+scripts/install-local.sh
+export PATH="$HOME/.local/bin:$PATH"
+murmurmark doctor
+murmurmark record --target-bundle system
 ```
 
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
@@ -84,11 +87,11 @@ Use that printed path for inspection and export:
 ```bash
 SESSION=./sessions/<session>
 
-.build/debug/murmurmark inspect "$SESSION"
-.build/debug/murmurmark preprocess "$SESSION" --echo diagnostic
-.build/debug/murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir
-.build/debug/murmurmark inspect "$SESSION" --echo
-.build/debug/murmurmark export-audio "$SESSION"
+murmurmark inspect "$SESSION"
+murmurmark preprocess "$SESSION" --echo diagnostic
+murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir
+murmurmark inspect "$SESSION" --echo
+murmurmark export-audio "$SESSION"
 afplay "$SESSION/audio/mic/000001.caf"
 afplay "$SESSION/audio/remote/000001.caf"
 afplay "$SESSION/derived/preprocess/audio/mic_role_preview.wav"
@@ -114,7 +117,7 @@ If Echo Guard has already run, `derived/asr/mic.wav` is exported from `derived/p
 After a transcript exists at `derived/transcript/resolved/transcript.rich.json`, run the transcript-level Echo Guard pass:
 
 ```bash
-.build/debug/murmurmark reconcile-transcript "$SESSION"
+murmurmark reconcile-transcript "$SESSION"
 ```
 
 It marks mic utterances that look like delayed copies of remote speech and updates `derived/transcript/resolved/quality_report.json`.
@@ -122,7 +125,7 @@ It marks mic utterances that look like delayed copies of remote speech and updat
 If you need a fixed directory for a planned test, pass `--out` explicitly:
 
 ```bash
-.build/debug/murmurmark record --out ./sessions/my-test --target-bundle system
+murmurmark record --out ./sessions/my-test --target-bundle system
 ```
 
 MurmurMark refuses to write into a non-empty output directory.

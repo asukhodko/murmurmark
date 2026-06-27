@@ -506,18 +506,19 @@ nodes:
     kind: phase
     parent: murmurmark-cli
     deps: [cli-orchestration, review-loop, export-workflows]
-    status: later
+    status: current
     effort: 18
     notes: |
       Установка, релизы, doctor, документация и готовность репозитория к открытой публикации.
+      Минимальный локальный install wrapper уже есть; полноценный release layout остаётся будущим слоем.
 
   packaging-install-update:
     title: "Install/update flow"
     kind: task
     parent: packaging
-    status: later
+    status: done
     effort: 4
-    notes: "Понятная установка CLI, моделей и локальных зависимостей."
+    notes: "scripts/install-local.sh ставит локальную команду murmurmark и фиксирует MURMURMARK_HOME для запуска из любого каталога."
 
   packaging-release-layout:
     title: "Release layout"
@@ -761,12 +762,12 @@ x:
           next_sync_goal: "Не ломать baseline и использовать готовую основу как regression corpus."
       next-cli:
         title: "Единый CLI"
-        scope_nodes: [cli-orchestration]
+        scope_nodes: [cli-orchestration, packaging]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "process/latest/report/review/corpus/export/config уже работают как нормальные команды."
-          next_sync_goal: "Собрать install/package defaults и retention/export policy."
+          sync_note: "process/latest/report/review/corpus/export/config и локальная установка уже работают как нормальные команды."
+          next_sync_goal: "Довести doctor health checks, release layout и retention/export policy."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]

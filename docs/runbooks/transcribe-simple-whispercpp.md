@@ -24,16 +24,22 @@ the list of possible causes when comparing results.
 
 ## Recommended Flow
 
+Install the local CLI wrapper once:
+
+```bash
+scripts/install-local.sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 Start from a completed session and run the current full post-recording pipeline:
 
 ```bash
 SESSION=./sessions/<session>
 
-swift build
-.build/debug/murmurmark config print
-.build/debug/murmurmark process "$SESSION"
+murmurmark config print
+murmurmark process "$SESSION"
 
-.build/debug/murmurmark report "$SESSION"
+murmurmark report "$SESSION"
 less "$SESSION/derived/readiness/session_readiness.md"
 ```
 
@@ -48,9 +54,9 @@ to rebuild repair, cleanup, synthesis and reports from cached ASR JSON.
 For the usual record-then-process flow:
 
 ```bash
-.build/debug/murmurmark record --target-bundle system
-.build/debug/murmurmark process latest
-.build/debug/murmurmark report latest
+murmurmark record --target-bundle system
+murmurmark process latest
+murmurmark report latest
 ```
 
 Read `derived/readiness/session_readiness.md` before using a meeting result. It contains:

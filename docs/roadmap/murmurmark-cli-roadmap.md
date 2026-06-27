@@ -19,18 +19,19 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 5. `murmurmark corpus process all` — готов базовый контур качества по корпусу.
 6. `murmurmark corpus gate` — готов базовый no-regression gate.
 7. `murmurmark export SESSION --format markdown|obsidian` — готов базовый пользовательский output-блок.
+8. `scripts/install-local.sh` — готов минимальный локальный install wrapper для команды `murmurmark`.
 
 UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
 
 ## Крупные направления
 
 - `foundation-done` — уже готовая основа: capture, Echo Guard, whisper.cpp, repair/audit, agent_reviewed_v1, notes, readiness.
-- `cli-orchestration` — текущий фокус: единые команды process/report/review/corpus/export/config; следующий слой packaging и defaults.
+- `cli-orchestration` — текущий фокус: единые команды process/report/review/corpus/export/config; минимальная локальная установка уже готова.
 - `corpus-regression` — текущий контур: корпус сессий, пересборка, сравнение метрик, базовый gate; следующий слой — строгие no-regression thresholds.
 - `review-loop` — ближайший этап: удобный CLI-review спорных участков.
 - `quality-hardening` — ближайший этап: улучшение качества transcript без смены топологии.
 - `evidence-notes` и `export-workflows` — пользовательские артефакты; базовый export готов, дальше нужны vault/docs/Jira proposals.
-- `retention-policy` и `packaging` — приватность, хранение raw audio, установка и готовность к open source.
+- `retention-policy` и `packaging` — приватность, хранение raw audio, release layout, doctor checks и готовность к open source.
 - `future-heavy-local`, `future-llm-synthesis`, `future-ui-app` — дальние ветки.
 
 ## Проверка

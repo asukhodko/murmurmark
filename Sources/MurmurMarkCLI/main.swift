@@ -10,6 +10,7 @@ let murmurmarkVersion = "0.1.0"
 struct MurmurMark {
     static func main() async {
         do {
+            try RuntimeHome.apply()
             var args = Array(CommandLine.arguments.dropFirst())
             guard let command = args.first else {
                 printHelp()
@@ -3224,6 +3225,25 @@ enum PathURLs {
         }
         return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent(path)
+    }
+}
+
+enum RuntimeHome {
+    static func apply() throws {
+        guard let value = ProcessInfo.processInfo.environment["MURMURMARK_HOME"],
+              !value.isEmpty
+        else {
+            return
+        }
+
+        let url = PathURLs.fileURL(value).standardizedFileURL
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            throw CLIError("MURMURMARK_HOME is not a directory: \(url.path)")
+        }
+        guard FileManager.default.changeCurrentDirectoryPath(url.path) else {
+            throw CLIError("failed to change directory to MURMURMARK_HOME: \(url.path)")
+        }
     }
 }
 
