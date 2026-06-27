@@ -117,10 +117,13 @@ Retention is explicit and local:
 
 ```bash
 murmurmark retention plan "$SESSION"
-less "$SESSION/derived/retention/retention_plan.json"
 murmurmark retention payload "$SESSION"
+less "$SESSION/derived/retention/retention_plan.json"
 less "$SESSION/derived/retention/provider_payload_manifest.json"
 ```
+
+Both commands print a short handoff summary: selected plan or payload manifest, raw-audio action
+counts, blockers/warnings, and the next safe command.
 
 The tracked default policy is [examples/retention-policy.local-first.json](examples/retention-policy.local-first.json).
 It keeps raw audio, forbids copying raw audio to export bundles and disables external providers.

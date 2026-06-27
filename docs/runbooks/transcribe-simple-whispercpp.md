@@ -85,6 +85,9 @@ less "$SESSION/derived/retention/retention_plan.json"
 less "$SESSION/derived/retention/provider_payload_manifest.json"
 ```
 
+The CLI prints a compact summary after each retention command, including action counts,
+blockers/warnings and the next safe command. The JSON files remain the source of truth.
+
 The default policy keeps raw audio and records that raw audio is not copied into export bundles.
 Destructive raw deletion requires an explicit policy, `retention apply`, a successful export manifest,
 and `--confirm-delete-raw`.

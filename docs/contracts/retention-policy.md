@@ -77,6 +77,16 @@ SESSION/derived/retention/retention_plan.json
 
 Schema: `murmurmark.retention_plan/v1`.
 
+The CLI also prints a human-readable summary with:
+
+- plan path;
+- mode, raw-audio file count and planned action counts;
+- `can_apply` and `applied`;
+- export manifest and audit-log paths when known;
+- warnings and the next safe command.
+
+The JSON plan is the authoritative artifact; the CLI summary is only a handoff view.
+
 The plan records:
 
 - selected policy;
@@ -106,6 +116,9 @@ SESSION/derived/retention/provider_payload_manifest.json
 Schema: `murmurmark.provider_payload_manifest/v1`.
 
 The manifest is an inventory and gate. It does not send data.
+The CLI summary prints the manifest path, status, provider, payload counts, `sends_data`,
+`raw_audio_included`, blockers/warnings and a reminder to inspect the manifest before any
+external handoff.
 
 Default local-first policy produces:
 

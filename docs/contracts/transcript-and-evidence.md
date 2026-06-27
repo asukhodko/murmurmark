@@ -756,11 +756,14 @@ SESSION/derived/retention/retention_plan.json
 
 The plan uses `murmurmark.retention_plan/v1`. See
 [retention-policy.md](retention-policy.md) for policy, plan and audit-event schemas.
+The CLI prints a compact handoff summary after writing the plan, but the JSON file remains the
+source of truth.
 
 `murmurmark retention payload SESSION` writes
 `SESSION/derived/retention/provider_payload_manifest.json` using
 `murmurmark.provider_payload_manifest/v1`. It inventories export files for possible external
-handoff, records policy blockers and never sends data by itself.
+handoff, records policy blockers and never sends data by itself. Its CLI summary repeats the
+payload status, blockers and `raw_audio_included`/`sends_data` flags for quick review.
 
 ## Local CLI Config
 

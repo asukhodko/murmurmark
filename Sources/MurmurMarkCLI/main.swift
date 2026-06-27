@@ -962,6 +962,7 @@ enum RetentionCommands {
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
         try Tooling.runPath(try PythonRuntime.resolve(), command)
+        try RetentionPrinter.printSummary(mode: mode, session: session, args: remaining)
     }
 
     private static func script(_ mode: String) throws -> URL {
@@ -985,6 +986,163 @@ enum RetentionCommands {
         and --confirm-delete-raw is present.
         Payload mode writes SESSION/derived/retention/provider_payload_manifest.json and sends nothing.
         """)
+    }
+}
+
+enum RetentionPrinter {
+    static func printSummary(mode: String, session: URL, args: [String]) throws {
+        if mode == "payload" {
+            try printPayload(session: session, args: args)
+        } else {
+            try printPlan(session: session, args: args)
+        }
+    }
+
+    private static func printPlan(session: URL, args: [String]) throws {
+        let planURL = outputURL(
+            option: "out",
+            in: args,
+            defaultURL: session.appendingPathComponent("derived/retention/retention_plan.json")
+        )
+        guard FileManager.default.fileExists(atPath: planURL.path) else {
+            print("")
+            print("retention:")
+            print("  plan: missing")
+            print("  expected: \(PathDisplay.display(planURL))")
+            return
+        }
+
+        let payload = try JSONFiles.object(planURL)
+        let actions = payload["actions"] as? [[String: Any]] ?? []
+        let warnings = payload["warnings"] as? [Any] ?? []
+        let export = payload["export_manifest"] as? [String: Any] ?? [:]
+        let auditLog = string(payload["audit_log"]).map(PathURLs.fileURL)
+        let actionCounts = count(actions, by: "planned_action")
+        let appliedCounts = count(actions, by: "applied_action")
+        let exportManifest = exportPath(from: export)
+
+        print("")
+        print("retention:")
+        print("  plan: \(PathDisplay.display(planURL))")
+        print("  mode: \(string(payload["mode"]) ?? "unknown")")
+        print("  raw_audio_files: \(actions.count)")
+        print("  actions: \(compactJSON(actionCounts))")
+        if !appliedCounts.isEmpty {
+            print("  applied_actions: \(compactJSON(appliedCounts))")
+        }
+        print("  can_apply: \(bool(payload["can_apply"]))")
+        print("  applied: \(bool(payload["applied"]))")
+        if let exportManifest {
+            print("  export_manifest: \(PathDisplay.display(exportManifest))")
+        }
+        if let auditLog {
+            print("  audit_log: \(PathDisplay.display(auditLog))")
+        }
+        if !warnings.isEmpty {
+            print("  warnings: \(compactJSON(warnings))")
+        }
+        print("  next:")
+        if let exportManifest {
+            print("    murmurmark retention payload \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(exportManifest))")
+        } else {
+            print("    murmurmark export \(PathDisplay.display(session)) --format markdown --include-json")
+        }
+    }
+
+    private static func printPayload(session: URL, args: [String]) throws {
+        let manifestURL = outputURL(
+            option: "out",
+            in: args,
+            defaultURL: session.appendingPathComponent("derived/retention/provider_payload_manifest.json")
+        )
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+            print("")
+            print("retention_payload:")
+            print("  manifest: missing")
+            print("  expected: \(PathDisplay.display(manifestURL))")
+            return
+        }
+
+        let payload = try JSONFiles.object(manifestURL)
+        let blockers = payload["blockers"] as? [Any] ?? []
+        let warnings = payload["warnings"] as? [Any] ?? []
+        let export = payload["export_manifest"] as? [String: Any] ?? [:]
+
+        print("")
+        print("retention_payload:")
+        print("  manifest: \(PathDisplay.display(manifestURL))")
+        print("  status: \(string(payload["status"]) ?? "unknown")")
+        print("  provider: \(string(payload["provider"]) ?? "unknown")")
+        print("  payload_files: \(int(payload["payload_file_count"]))")
+        print("  payload_bytes: \(int(payload["payload_bytes"]))")
+        print("  sends_data: \(bool(payload["sends_data"]))")
+        print("  raw_audio_included: \(bool(payload["raw_audio_included"]))")
+        if let exportManifest = exportPath(from: export) {
+            print("  export_manifest: \(PathDisplay.display(exportManifest))")
+        }
+        if !blockers.isEmpty {
+            print("  blockers: \(compactJSON(blockers))")
+        }
+        if !warnings.isEmpty {
+            print("  warnings: \(compactJSON(warnings))")
+        }
+        print("  next:")
+        print("    inspect \(PathDisplay.display(manifestURL)) before any external handoff")
+    }
+
+    private static func outputURL(option: String, in args: [String], defaultURL: URL) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption(option, in: args) ?? defaultURL.path)
+    }
+
+    private static func exportPath(from payload: [String: Any]) -> URL? {
+        guard let path = string(payload["path"]), !path.isEmpty else { return nil }
+        return PathURLs.fileURL(path)
+    }
+
+    private static func count(_ items: [[String: Any]], by key: String) -> [String: Int] {
+        var result: [String: Int] = [:]
+        for item in items {
+            guard let value = string(item[key]), !value.isEmpty else { continue }
+            result[value, default: 0] += 1
+        }
+        return result
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
+    }
+
+    private static func bool(_ value: Any?) -> Bool {
+        if let value = value as? Bool {
+            return value
+        }
+        if let value = value as? String {
+            return ["true", "yes", "1"].contains(value.lowercased())
+        }
+        return false
+    }
+
+    private static func int(_ value: Any?) -> Int {
+        if let value = value as? Int {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return value.intValue
+        }
+        if let value = value as? String, let parsed = Int(value) {
+            return parsed
+        }
+        return 0
+    }
+
+    private static func compactJSON(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return "\(value)"
+        }
+        return text
     }
 }
 
