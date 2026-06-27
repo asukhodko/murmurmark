@@ -4882,13 +4882,23 @@ enum ReviewPrinter {
     static func printApply(report: URL) throws {
         let payload = try JSONFiles.object(report)
         let summary = payload["summary"] as? [String: Any] ?? [:]
+        let sessions = payload["sessions"] as? [[String: Any]] ?? []
+        let failedSessions = int(summary["failed_sessions"]) ?? 0
+        let failedRefreshSteps = int(summary["failed_refresh_steps"]) ?? 0
         print("")
         print("review_apply:")
         print("  report: \(PathDisplay.display(report))")
         print("  sessions: \(int(summary["session_count"]) ?? 0)")
         print("  passed_sessions: \(int(summary["passed_sessions"]) ?? 0)")
-        print("  failed_sessions: \(int(summary["failed_sessions"]) ?? 0)")
-        print("  failed_refresh_steps: \(int(summary["failed_refresh_steps"]) ?? 0)")
+        print("  failed_sessions: \(failedSessions)")
+        print("  failed_refresh_steps: \(failedRefreshSteps)")
+        if failedSessions > 0 || failedRefreshSteps > 0 {
+            print("  next: less \(PathDisplay.display(report))")
+        } else if let session = singleAppliedSession(sessions) {
+            print("  next: murmurmark report \(session)")
+        } else if !sessions.isEmpty {
+            print("  next: murmurmark report corpus")
+        }
     }
 
     static func printAgentBuild(report: URL) throws {
@@ -4959,6 +4969,11 @@ enum ReviewPrinter {
         if let value = value as? Bool { return value }
         if let text = value as? String { return ["true", "yes", "1"].contains(text.lowercased()) }
         return nil
+    }
+
+    private static func singleAppliedSession(_ sessions: [[String: Any]]) -> String? {
+        let names = sessions.compactMap { string($0["session"]) }.filter { !$0.isEmpty }
+        return names.count == 1 ? names[0] : nil
     }
 
     private static func string(_ value: Any?) -> String? {

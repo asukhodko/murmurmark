@@ -736,7 +736,8 @@ less sessions/_reports/review-plan/review_decisions_progress.md
 `apply-review-decisions-batch.py` is the normal command after the review file is filled. It applies
 the same edited JSONL to every session mentioned in the review plan and can immediately regenerate
 extractive notes. Under the hood, `apply-review-decisions.py` writes a separate `reviewed_v1`
-profile for each session. It can drop whole reviewed `Me` utterances, clear review flags for
+profile for each session. The CLI wrapper prints the next `murmurmark report ...` command after a
+successful apply. It can drop whole reviewed `Me` utterances, clear review flags for
 confirmed local speech, close checked local-recall rows, or keep an item marked `needs_review`.
 Local-recall rows are audit-only: they do not add missing words to the transcript, and `drop_me` is
 not a valid decision for them. `reviewed_v1` gates pass only when

@@ -1399,6 +1399,7 @@ PY
     --review-plan-out-dir "$agent_review_dir/review-plan")"
   echo "$agent_review_output" | grep -q '^agent_review:$'
   echo "$agent_review_output" | grep -q '^review_apply:$'
+  echo "$agent_review_output" | grep -q '^  next: murmurmark report '
   [[ -s "$agent_review_dir/review_decisions.agent_reviewed_v1.jsonl" ]]
   [[ -s "$agent_review_dir/review_decisions.agent_reviewed_v1.template.jsonl" ]]
   [[ -s "$agent_review_dir/agent_review_report.agent_reviewed_v1.json" ]]
