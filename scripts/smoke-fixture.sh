@@ -667,6 +667,29 @@ EOF
       {left_utterance_id: "utt_order_short_me", right_utterance_id: "utt_order_short_remote", left_role: "Me", right_role: "Colleagues", start: 10.2, end: 10.8, duration_sec: 0.6, type: "short_timing_overlap", text_similarity: 0.1}
     ]
   }' >"$order_resolved/overlaps.shadow_v2.json"
+  jq -n '{
+    schema: "murmurmark.simple_transcript_quality/v1",
+    utterances: 4,
+    needs_review_count: 0,
+    cross_role_overlap_gt2_count: 0,
+    cross_role_overlap_gt2_seconds: 0,
+    remote_duplicate_in_me_seconds: 0,
+    unrepaired_long_mic_crossings_count: 0,
+    golden_phrase_fail_count: 0,
+    local_only_island_recall: 1.0,
+    meeting_duration_sec: 12.0
+  }' >"$order_resolved/quality_report.shadow_v2.json"
+  cat >"$order_resolved/transcript.shadow_v2.md" <<'EOF'
+# Simple Transcript
+
+## 00:00 Me
+
+Я рассказываю план потом слушаю ответ и добавляю хвост после него.
+
+## 00:03 Colleagues
+
+Надо сначала проверить логи.
+EOF
   order_cli_output="$("$bin" audit order "$order_session" --profile shadow_v2)"
   echo "$order_cli_output" | grep -q '^audit:$'
   echo "$order_cli_output" | grep -q '  kind: transcript_order'
@@ -677,6 +700,77 @@ EOF
   [[ -s "$order_session/derived/audit/order/transcript_order_review.md" ]]
   jq -e '.schema == "murmurmark.transcript_order_audit/v1" and .summary.probable_order_risk_count == 1 and .summary.blocking_order_risk == true' "$order_summary" >/dev/null
   jq -s 'any(.[]; .label == "probable_order_risk" and .features.me_wraps_remote == true and .features.post_remote_tail_sec == 4)' "$order_session/derived/audit/order/transcript_order_items.jsonl" >/dev/null
+
+  order_operational="$workdir/order-operational-readiness.json"
+  python3 - "$order_operational" "$order_session" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+session = Path(sys.argv[2])
+rows = [
+    json.loads(line)
+    for line in (session / "derived/audit/order/transcript_order_items.jsonl").read_text(encoding="utf-8").splitlines()
+    if line.strip()
+]
+item = next(row for row in rows if row["label"] == "probable_order_risk")
+out.write_text(
+    json.dumps(
+        {
+            "schema": "murmurmark.operational_readiness_report/v1",
+            "review_queue": [
+                {
+                    "session_id": session.name,
+                    "session": str(session),
+                    "source_audit_id": item["item_id"],
+                    "source": "transcript_order",
+                    "label": item["label"],
+                    "verdict": "needs_transcript_order_review",
+                    "confidence": item["confidence"],
+                    "priority_score": 105.0,
+                    "interval": item["interval"],
+                    "utterance_ids": [item["utterances"]["me"]["id"], item["utterances"]["remote"]["id"]],
+                    "review_features": item["features"],
+                    "text": [
+                        {"id": item["utterances"]["me"]["id"], "role": "Me", "source_track": "mic", "text": item["utterances"]["me"]["text"]},
+                        {"id": item["utterances"]["remote"]["id"], "role": "Colleagues", "source_track": "remote", "text": item["utterances"]["remote"]["text"]},
+                    ],
+                    "commands": {"review": f"less \"{session}/derived/audit/order/transcript_order_review.md\""},
+                }
+            ],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
+  order_review_plan_dir="$workdir/order-review-plan"
+  "$repo_root/scripts/build-review-plan.py" \
+    --operational-readiness "$order_operational" \
+    --out-dir "$order_review_plan_dir" >/dev/null
+  jq -s 'any(.[]; .source == "transcript_order" and .review_lane == "check_transcript_order" and (.allowed_decisions | index("drop_me") | not))' \
+    "$order_review_plan_dir/review_decisions.template.jsonl" >/dev/null
+  "$repo_root/scripts/build-review-lane-pack.py" \
+    --template "$order_review_plan_dir/review_decisions.template.jsonl" \
+    --lane check_transcript_order \
+    --out-dir "$order_review_plan_dir/lane-packs" >/dev/null
+  jq -e '.summary.item_count == 1 and .summary.skipped_count == 0 and .items[0].command_key == "review"' \
+    "$order_review_plan_dir/lane-packs/review_lane_pack.check_transcript_order.json" >/dev/null
+  jq -c '.decision = "keep_me" | .status = "reviewed"' \
+    "$order_review_plan_dir/review_decisions.template.jsonl" >"$order_review_plan_dir/review_decisions.jsonl"
+  "$repo_root/scripts/apply-review-decisions.py" "$order_session" \
+    --decisions "$order_review_plan_dir/review_decisions.jsonl" \
+    --review-template "$order_review_plan_dir/review_decisions.template.jsonl" \
+    --input-profile shadow_v2 \
+    --output-profile reviewed_v1 >/dev/null
+  jq -e '.gates.passed == true and .summary.audit_only_applied_decision_rows == 1 and .summary.transcript_order_cleared_decisions == 1' \
+    "$order_session/derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_v1.json" >/dev/null
+  "$repo_root/scripts/report-session-quality.py" "$order_session" --out-dir "$workdir/order-session-quality" >/dev/null
+  jq -e '.sessions[0].selected_profile == "reviewed_v1" and .sessions[0].transcript_order_blocking_order_risk == false and .sessions[0].transcript_order_review_seconds == 0' \
+    "$workdir/order-session-quality/session_quality_report.json" >/dev/null
 
   group_overlap_cli_output="$("$bin" audit group-overlaps "$group_session" \
     --profile shadow_v2 \

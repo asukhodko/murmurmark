@@ -1107,8 +1107,11 @@ decision protocol: drop leaked `Me`, keep real local speech, or leave unclear ca
 `needs_review`.
 `review_lane` is a workflow hint, not a decision. `fast_confirm_drop` rows are the quickest duplicate
 or ASR-noise checks, `check_unique_me_content` rows need a content check before any drop,
-`check_local_recall` rows are audit-only possible missing-local-speech checks, `confirm_benign` rows
-usually clear harmless overlap, and `classify_audio` rows have no safe shortcut.
+`check_local_recall` rows are audit-only possible missing-local-speech checks,
+`check_transcript_order` rows are audit-only chronology checks, `confirm_benign` rows usually clear
+harmless overlap, and `classify_audio` rows have no safe shortcut.
+Transcript-order rows allow only `keep_me`, `needs_review` and `skip`; they never allow `drop_me`,
+never move utterances and never edit transcript text.
 `remote_duplicate` suggestions are coverage-aware. `drop_me` is suggested only when the suspicious
 interval covers enough of the whole `Me` utterance. Partial duplicates keep
 `allowed_decisions: ["drop_me", "keep_me", "needs_review", "skip"]`, but the hint becomes

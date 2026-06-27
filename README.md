@@ -486,8 +486,8 @@ the suggested-review shadow directly and does not add new ASR or audio-judge rul
 `scripts/report-operational-readiness.py` combines session quality, corpus readiness and audio-judge
 shadow readiness into a practical verdict such as `pilot_ready_with_review` for medium-risk working
 meetings. It also assigns per-session use gates such as `ready_for_notes` and `review_first`, then
-writes a promotion plan and a short review queue with concrete `afplay` commands for the
-highest-priority audio-review clips. The promotion plan explains what still blocks
+writes a promotion plan and a short review queue with concrete `afplay` commands for audio checks
+and report links for transcript-order checks. The promotion plan explains what still blocks
 `medium_risk_ready`: unresolved warnings, sessions not ready for notes, and the remaining review
 minutes. The queue is filtered through the selected transcript profile, so already-dropped `Me`
 utterances do not stay in the operational review list. It also ignores stale audio-judge queue rows
@@ -502,12 +502,15 @@ under `sessions/_reports/review-plan/`. It groups nearby risky intervals by sess
 actual listening time, keeps ready-to-run `afplay`/`ffplay` commands, and gives a small protocol for deciding
 whether each `Me` candidate should be dropped, kept, or left as `needs_review`. Local-recall items
 are audit-only review rows: they can clear or keep the local-recall risk, but they do not insert
-missing text into the transcript. The plan itself is audit-only and does not edit transcript profiles.
+missing text into the transcript. Transcript-order rows are also audit-only: they can clear or keep
+the chronology risk, but they do not move utterances or edit text. The plan itself is audit-only and
+does not edit transcript profiles.
 For `remote_duplicate`, `drop_me` is suggested only when the duplicate covers enough of the whole
 `Me` utterance. If the overlap is only a slice of a longer local utterance, the row is marked
 `check_unique_me_content` and the safe default is `needs_review`.
 The generated plan also splits the queue into `review_lane` groups:
-`fast_confirm_drop`, `check_unique_me_content`, `check_local_recall`, `confirm_benign`, and
+`fast_confirm_drop`, `check_unique_me_content`, `check_local_recall`, `check_transcript_order`,
+`confirm_benign`, and
 `classify_audio`. Use those lanes to clear easy duplicate/noise checks first and leave meaning-heavy
 checks for a slower pass.
 To clear only the quickest lane, run the CLI with `--lane fast_confirm_drop`; the output file still

@@ -554,11 +554,12 @@ Its `Review Queue Strategy` section groups the remaining queue into lanes and sh
 lane to close, usually `fast_confirm_drop`, plus the estimated queue that remains after that lane.
 `build-review-plan.py` turns that queue into a compact checklist. Use it when a session is
 `review_first`: listen to the listed stereo clips or local-recall mic snippets, decide whether each
-`Me` candidate is leaked remote speech, real local speech, lost local speech, or unclear, then keep
+`Me` candidate is leaked remote speech, real local speech, lost local speech, order-risk, or unclear, then keep
 unclear cases marked for review.
 The plan also assigns each row a `review_lane`: `fast_confirm_drop` for likely duplicate/noise rows,
 `check_unique_me_content` for partial duplicates and leaks, `check_local_recall` for possible missing
-local speech, `confirm_benign` for likely harmless overlap, and `classify_audio` for anything else.
+local speech, `check_transcript_order` for chronology-risk rows, `confirm_benign` for likely harmless
+overlap, and `classify_audio` for anything else.
 Close `fast_confirm_drop` first; it gives the largest cleanup with the least judgment. Keep the
 other lanes conservative unless the audio is clear.
 `review-decisions-cli.py` is the normal way to fill the checklist: it plays each preferred clip,

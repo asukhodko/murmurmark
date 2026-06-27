@@ -17,6 +17,7 @@ LANE_ORDER = [
     "fast_confirm_drop",
     "check_unique_me_content",
     "check_local_recall",
+    "check_transcript_order",
     "confirm_benign",
     "classify_audio",
 ]

@@ -228,6 +228,9 @@ def normalize_decision(row: dict[str, Any]) -> dict[str, Any]:
     if is_local_recall_decision(normalized) and decision == "drop_me":
         normalized["_invalid"] = True
         normalized["_invalid_reason"] = "drop_me_is_not_supported_for_local_recall"
+    if is_transcript_order_decision(normalized) and decision == "drop_me":
+        normalized["_invalid"] = True
+        normalized["_invalid_reason"] = "drop_me_is_not_supported_for_transcript_order"
     return normalized
 
 
@@ -236,6 +239,13 @@ def is_local_recall_decision(row: dict[str, Any]) -> bool:
     label = str(row.get("label") or "").strip()
     source_id = str(row.get("source_audit_id") or "").strip()
     return source == "local_recall" or source_id.startswith("local_recall_") or label in {"lost_me", "local_recall_needs_review"}
+
+
+def is_transcript_order_decision(row: dict[str, Any]) -> bool:
+    source = str(row.get("source") or "").strip()
+    label = str(row.get("label") or "").strip()
+    source_id = str(row.get("source_audit_id") or "").strip()
+    return source == "transcript_order" or source_id.startswith("order_") or label in {"probable_order_risk", "transcript_order_needs_review"}
 
 
 def decisions_for_session(path: Path, session: Path) -> list[dict[str, Any]]:
@@ -413,7 +423,7 @@ def main() -> int:
     valid_decisions = [
         row
         for row in profile_decisions
-        if row.get("decision") != "skip" or is_local_recall_decision(row)
+        if row.get("decision") != "skip" or is_local_recall_decision(row) or is_transcript_order_decision(row)
     ]
     input_profile = args.input_profile
     if input_profile == "auto":
@@ -438,6 +448,9 @@ def main() -> int:
     for row in valid_decisions:
         if is_local_recall_decision(row):
             audit_only_applied.append({**row, "review_effect": "audit_only_local_recall"})
+            continue
+        if is_transcript_order_decision(row):
+            audit_only_applied.append({**row, "review_effect": "audit_only_transcript_order"})
             continue
         me_ids = decision_me_ids(row)
         if not me_ids:
@@ -500,6 +513,12 @@ def main() -> int:
     local_recall_review_remaining = [
         row for row in local_recall_remaining if str(row.get("label") or "") == "local_recall_needs_review"
     ]
+    transcript_order_rows = [row for row in audit_only_applied if is_transcript_order_decision(row)]
+    transcript_order_cleared = [row for row in transcript_order_rows if row.get("decision") in {"keep_me", "skip"}]
+    transcript_order_remaining = [row for row in transcript_order_rows if row.get("decision") == "needs_review"]
+    transcript_order_risk_remaining = [
+        row for row in transcript_order_remaining if str(row.get("label") or "") == "probable_order_risk"
+    ]
     review_summary = {
         "schema": "murmurmark.review_decisions_summary/v1",
         "review_mode": "agent" if args.output_profile.startswith("agent_reviewed") else "human",
@@ -541,6 +560,26 @@ def main() -> int:
         ),
         "local_recall_remaining_needs_review_seconds": round(
             sum(safe_float((row.get("interval") or {}).get("duration_sec")) for row in local_recall_review_remaining),
+            3,
+        ),
+        "transcript_order_decision_rows": len(transcript_order_rows),
+        "transcript_order_cleared_decisions": len(transcript_order_cleared),
+        "transcript_order_needs_review_decisions": len(transcript_order_remaining),
+        "transcript_order_remaining_probable_order_risk_count": len(transcript_order_risk_remaining),
+        "transcript_order_reviewed_seconds": round(
+            sum(safe_float((row.get("interval") or {}).get("duration_sec")) for row in transcript_order_rows),
+            3,
+        ),
+        "transcript_order_cleared_seconds": round(
+            sum(safe_float((row.get("interval") or {}).get("duration_sec")) for row in transcript_order_cleared),
+            3,
+        ),
+        "transcript_order_remaining_review_seconds": round(
+            sum(safe_float((row.get("interval") or {}).get("duration_sec")) for row in transcript_order_remaining),
+            3,
+        ),
+        "transcript_order_remaining_probable_order_risk_seconds": round(
+            sum(safe_float((row.get("interval") or {}).get("duration_sec")) for row in transcript_order_risk_remaining),
             3,
         ),
         "review_scope_complete": coverage["complete"],

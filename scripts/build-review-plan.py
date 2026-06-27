@@ -25,6 +25,10 @@ REVIEW_LANES = {
         "title": "Check local recall",
         "description": "Possible missing local speech from the mic candidate stream. Usually short, but it can affect meaning.",
     },
+    "check_transcript_order": {
+        "title": "Check transcript order",
+        "description": "Long Me turn crosses a Colleagues turn. Check chronology before relying on reply order.",
+    },
     "confirm_benign": {
         "title": "Confirm benign overlap",
         "description": "Likely double-talk or timing overlap. Confirm and keep Me when local speech is real.",
@@ -119,6 +123,8 @@ def review_action(label: str, verdict: str, item: dict[str, Any] | None = None) 
         return "check_lost_local_speech"
     if label == "local_recall_needs_review":
         return "check_local_recall_island"
+    if label in {"probable_order_risk", "transcript_order_needs_review"}:
+        return "check_transcript_order"
     if label in {"double_talk", "timing_overlap"}:
         return "confirm_benign_overlap"
     return "classify_audio"
@@ -168,6 +174,12 @@ def suggested_decision(label: str, verdict: str, confidence: float, item: dict[s
             "suggested_decision_confidence": "low",
             "suggested_decision_reason": "unrecovered local-only island needs a quick local speech check",
         }
+    if label in {"probable_order_risk", "transcript_order_needs_review"}:
+        return {
+            "suggested_decision": "needs_review",
+            "suggested_decision_confidence": "medium",
+            "suggested_decision_reason": "chronology risk must be checked before export; keep_me clears it only after review",
+        }
     if label in {"double_talk", "timing_overlap"}:
         return {
             "suggested_decision": "keep_me",
@@ -184,6 +196,8 @@ def suggested_decision(label: str, verdict: str, confidence: float, item: dict[s
 def review_lane(source: str, label: str, action: str, suggestion: dict[str, Any]) -> str:
     if source == "local_recall" or label in {"lost_me", "local_recall_needs_review"}:
         return "check_local_recall"
+    if source == "transcript_order" or action == "check_transcript_order":
+        return "check_transcript_order"
     if suggestion.get("suggested_decision") == "drop_me" and action == "confirm_drop_or_keep_me":
         return "fast_confirm_drop"
     if action == "check_unique_me_content":
@@ -198,6 +212,8 @@ def severity(label: str, verdict: str, confidence: float) -> str:
         return "high"
     if verdict == "probable_transcript_error":
         return "medium"
+    if label == "probable_order_risk":
+        return "high"
     if confidence >= 0.8:
         return "medium"
     return "low"
@@ -214,6 +230,7 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
     confidence = safe_float(item.get("confidence"))
     text_rows = item.get("text") if isinstance(item.get("text"), list) else []
     is_local_recall = str(item.get("source") or "") == "local_recall"
+    is_transcript_order = str(item.get("source") or "") == "transcript_order"
     source = str(item.get("source") or "audio_review")
     me_ids = [] if is_local_recall else [
         str(row.get("id"))
@@ -226,7 +243,10 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
         str(row.get("id"))
         for row in text_rows
         if isinstance(row, dict)
-        and (str(row.get("source_track") or "").lower() == "remote" or str(row.get("role") or "").lower() == "remote")
+        and (
+            str(row.get("source_track") or "").lower() == "remote"
+            or str(row.get("role") or "").lower() in {"remote", "colleagues"}
+        )
         and row.get("id")
     ]
     action = review_action(label, verdict, item)
@@ -258,6 +278,7 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
         "review_features": item.get("review_features") if isinstance(item.get("review_features"), dict) else {},
         "text": item.get("text") if isinstance(item.get("text"), list) else [],
         "commands": item.get("commands") if isinstance(item.get("commands"), dict) else {},
+        "allowed_decisions": ["keep_me", "needs_review", "skip"] if is_transcript_order else item.get("allowed_decisions"),
     }
 
 
@@ -420,11 +441,12 @@ def decision_template_rows(plan: dict[str, Any]) -> list[dict[str, Any]]:
         for item in cluster.get("items") or []:
             if not isinstance(item, dict):
                 continue
-            allowed_decisions = (
-                ["keep_me", "needs_review", "skip"]
-                if item.get("source") == "local_recall"
-                else ["drop_me", "keep_me", "needs_review", "skip"]
-            )
+            if isinstance(item.get("allowed_decisions"), list) and item.get("allowed_decisions"):
+                allowed_decisions = item["allowed_decisions"]
+            elif item.get("source") in {"local_recall", "transcript_order"}:
+                allowed_decisions = ["keep_me", "needs_review", "skip"]
+            else:
+                allowed_decisions = ["drop_me", "keep_me", "needs_review", "skip"]
             rows.append(
                 {
                     "schema": "murmurmark.review_decision/v1",

@@ -382,12 +382,14 @@ def main() -> int:
         has_silence = make_silence(silence_wav, args.silence_sec)
         for index, row in enumerate(selected, start=1):
             command_choice = command_for_row(row, args.command_key)
-            if command_choice is None:
+            is_text_only = str(row.get("source") or "") == "transcript_order"
+            if command_choice is None and not is_text_only:
                 skipped.append({"source_audit_id": row.get("source_audit_id"), "reason": "missing_audio_command"})
                 continue
-            command_key, command = command_choice
+            command_key, command = command_choice if command_choice is not None else ("review", str((row.get("commands") or {}).get("review") or ""))
             tmp_wav = tmp_dir / f"clip_{index:04d}.wav"
-            if not render_command(command, tmp_wav):
+            rendered = make_silence(tmp_wav, 0.25) if is_text_only else render_command(command, tmp_wav)
+            if not rendered:
                 skipped.append({"source_audit_id": row.get("source_audit_id"), "reason": "render_failed", "command": command})
                 continue
             duration = probe_duration(tmp_wav)

@@ -730,7 +730,7 @@ def local_recall_metrics(local_recall: dict[str, Any] | None, review_report: dic
     }
 
 
-def transcript_order_metrics(order_audit: dict[str, Any] | None) -> dict[str, Any]:
+def transcript_order_metrics(order_audit: dict[str, Any] | None, review_report: dict[str, Any] | None = None) -> dict[str, Any]:
     if not isinstance(order_audit, dict):
         return {
             "transcript_order_audit_status": "missing",
@@ -744,6 +744,24 @@ def transcript_order_metrics(order_audit: dict[str, Any] | None) -> dict[str, An
             "transcript_order_recommended_next_step": "run_transcript_order_audit",
         }
     summary = order_audit.get("summary") if isinstance(order_audit.get("summary"), dict) else {}
+    review_summary = review_report.get("summary") if isinstance(review_report, dict) and isinstance(review_report.get("summary"), dict) else {}
+    review_gates = review_report.get("gates") if isinstance(review_report, dict) and isinstance(review_report.get("gates"), dict) else {}
+    if review_gates.get("passed") is True and safe_int(review_summary.get("transcript_order_decision_rows")):
+        risk_count = safe_int(review_summary.get("transcript_order_remaining_probable_order_risk_count"))
+        risk_seconds = round_or_none(review_summary.get("transcript_order_remaining_probable_order_risk_seconds")) or 0.0
+        review_seconds = round_or_none(review_summary.get("transcript_order_remaining_review_seconds")) or 0.0
+        blocking = bool(risk_seconds > 0.0 or review_seconds >= 10.0)
+        return {
+            "transcript_order_audit_status": order_audit.get("status"),
+            "transcript_order_audited_overlap_count": safe_int(summary.get("audited_overlap_count")),
+            "transcript_order_probable_order_risk_count": risk_count,
+            "transcript_order_probable_order_risk_seconds": risk_seconds,
+            "transcript_order_needs_review_count": safe_int(review_summary.get("transcript_order_needs_review_decisions")),
+            "transcript_order_needs_review_seconds": review_seconds,
+            "transcript_order_review_seconds": round(risk_seconds + review_seconds, 3),
+            "transcript_order_blocking_order_risk": blocking,
+            "transcript_order_recommended_next_step": "transcript_order_reviewed_clear" if not blocking else "review_transcript_order_items",
+        }
     risk_seconds = round_or_none(summary.get("probable_order_risk_seconds")) or 0.0
     needs_review_seconds = round_or_none(summary.get("needs_review_seconds")) or 0.0
     review_seconds = round(risk_seconds + needs_review_seconds, 3)
@@ -1023,7 +1041,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(review_decision_metrics(review_report))
     row.update(audio_review_metrics(audio_summary, session, profile))
     row.update(local_recall_metrics(local_recall, review_report))
-    row.update(transcript_order_metrics(order_audit))
+    row.update(transcript_order_metrics(order_audit, review_report))
     row["risk_flags"] = risk_flags(row)
     add_use_gate(row)
     return row
