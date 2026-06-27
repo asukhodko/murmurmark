@@ -3750,6 +3750,8 @@ enum ReadinessPrinter {
         let recommendation = string(payload["recommendation"]) ?? "unknown"
         let profile = string(payload["selected_profile"]) ?? "unknown"
         let verdict = string(payload["verdict"]) ?? "unknown"
+        let nextCommands = payload["next_commands"] as? [[String: Any]]
+            ?? fallbackNextCommands(gate: gate, session: session, payload: payload)
         let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0) * 100
 
@@ -3766,6 +3768,16 @@ enum ReadinessPrinter {
             if let path = outputPath(key, outputs: outputs) {
                 let target = path.hasPrefix("/") ? URL(fileURLWithPath: path) : session.appendingPathComponent(path)
                 print("    \(key): \(PathDisplay.display(target))")
+            }
+        }
+        print("  next:")
+        if nextCommands.isEmpty {
+            print("    none")
+        } else {
+            for item in nextCommands {
+                guard let command = string(item["command"]), !command.isEmpty else { continue }
+                let label = string(item["label"]) ?? string(item["id"]) ?? "next"
+                print("    \(command) — \(label)")
             }
         }
     }
@@ -3791,6 +3803,50 @@ enum ReadinessPrinter {
         guard let item = outputs[key] as? [String: Any] else { return nil }
         guard (item["exists"] as? Bool) == true else { return nil }
         return item["path"] as? String
+    }
+
+    private static func fallbackNextCommands(gate: String, session: URL, payload: [String: Any]) -> [[String: Any]] {
+        let exportBlockers = payload["export_blockers"] as? [Any] ?? []
+        let reviewBlockers = payload["review_blockers"] as? [Any] ?? []
+        let sessionPath = PathDisplay.display(session)
+        if gate.hasPrefix("pipeline_incomplete") || exportBlockers.contains(where: { String(describing: $0) == "pipeline_incomplete" }) {
+            return [
+                [
+                    "label": "Run or refresh the full post-recording pipeline.",
+                    "command": "murmurmark process \(sessionPath)",
+                ],
+            ]
+        }
+        if !reviewBlockers.isEmpty || !exportBlockers.isEmpty || gate == "review_first" {
+            return [
+                [
+                    "label": "Build the review queue for flagged regions.",
+                    "command": "murmurmark review plan",
+                ],
+                [
+                    "label": "Review this session's queued items.",
+                    "command": "murmurmark review \(sessionPath)",
+                ],
+            ]
+        }
+        if gate == "ready_for_notes" {
+            return [
+                [
+                    "label": "Export a local Markdown handoff bundle.",
+                    "command": "murmurmark export \(sessionPath) --format markdown --include-json",
+                ],
+                [
+                    "label": "Inspect local retention/privacy actions.",
+                    "command": "murmurmark retention plan \(sessionPath)",
+                ],
+            ]
+        }
+        return [
+            [
+                "label": "Inspect readiness details before using this session.",
+                "command": "less \(sessionPath)/derived/readiness/session_readiness.md",
+            ],
+        ]
     }
 
     private static func string(_ value: Any?) -> String? {

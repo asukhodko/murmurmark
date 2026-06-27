@@ -181,7 +181,7 @@ nodes:
     deps: [cli-report-command]
     status: done
     effort: 4
-    notes: "process/report печатают gate, выбранный профиль, verdict, review burden и основные output paths."
+    notes: "process/report печатают gate, выбранный профиль, verdict, review burden, next commands и основные output paths."
 
   cli-config-model-prompt:
     title: "Consistent config/model/prompt handling"
@@ -268,7 +268,7 @@ nodes:
     parent: corpus-regression
     status: done
     effort: 3
-    notes: "session_readiness.json пишет use_gate_reasons, review_blockers и export_blockers; export использует export_blockers как машинный gate."
+    notes: "session_readiness.json пишет use_gate_reasons, review_blockers, export_blockers и next_commands; export использует export_blockers как машинный gate."
 
   review-loop:
     title: "Review loop"

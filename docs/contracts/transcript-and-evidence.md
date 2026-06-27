@@ -809,6 +809,18 @@ Explicit command-line flags override config values.
   "review_blockers": ["risk:audio_review_probable_errors"],
   "export_blockers": ["risk:audio_review_probable_errors"],
   "warnings": [],
+  "next_commands": [
+    {
+      "id": "review_plan",
+      "label": "Build the review queue for flagged regions.",
+      "command": "murmurmark review plan"
+    },
+    {
+      "id": "review_session",
+      "label": "Review this session's queued items.",
+      "command": "murmurmark review sessions/2026-06-26_15-32-02"
+    }
+  ],
   "metrics": {
     "review_burden_sec": 42.5,
     "review_burden_ratio": 0.031,
@@ -840,7 +852,8 @@ Explicit command-line flags override config values.
 
 `session_readiness.md` is the human-readable view of the same object and should be opened before
 the transcript or notes. `export_blockers` is the machine-readable default export gate. `review_blockers`
-is the list a review workflow should close before a medium-risk handoff.
+is the list a review workflow should close before a medium-risk handoff. `next_commands` is
+informational CLI guidance for the current state; gates and blockers remain the source of truth.
 
 Operational readiness combines the private session quality report and regression corpus evaluation:
 

@@ -70,6 +70,9 @@ Read `derived/readiness/session_readiness.md` before using a meeting result. It 
 - `do_not_use_without_manual_review`: the transcript is too risky for unattended use;
 - `pipeline_incomplete`: rerun the full pipeline before judging the session.
 
+It also contains `Next Commands`: the shortest CLI path from the current state, such as rerunning
+`murmurmark process`, opening the review loop, exporting Markdown, or planning retention.
+
 After export, keep a retention plan with the session:
 
 ```bash
@@ -399,7 +402,8 @@ together with `sessions/`. It does not run ASR, does not rewrite transcripts and
 
 With `--write-session-readiness`, the script also writes
 `SESSION/derived/readiness/session_readiness.json` and `.md` for each input session. This is the
-short per-meeting use gate for day-to-day work.
+short per-meeting use gate for day-to-day work. The JSON includes `next_commands`; the Markdown view
+prints the same commands under `Next Commands`.
 
 Audio-review metrics in this report are profile-aware. The script reads the selected
 `clean_dialogue*.json` profile and excludes audio-review items whose `Me` utterance has already been

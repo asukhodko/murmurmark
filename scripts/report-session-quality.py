@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import shlex
 import statistics
 from collections import Counter
 from datetime import datetime, timezone
@@ -1206,6 +1207,68 @@ def readiness_recommendation(gate: str) -> str:
     return "do_not_use_without_manual_review"
 
 
+def command_path(path: Path) -> str:
+    if not path.is_absolute():
+        return shlex.quote(str(path))
+    try:
+        display = path.resolve().relative_to(Path.cwd().resolve())
+    except ValueError:
+        display = path
+    return shlex.quote(str(display))
+
+
+def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str, str]]:
+    session_arg = command_path(session)
+    gate = str(row.get("use_gate") or "pipeline_incomplete")
+    export_blockers = row.get("export_blockers") or []
+    review_blockers = row.get("review_blockers") or []
+
+    if gate.startswith("pipeline_incomplete") or "pipeline_incomplete" in export_blockers:
+        return [
+            {
+                "id": "process_session",
+                "label": "Run or refresh the full post-recording pipeline.",
+                "command": f"murmurmark process {session_arg}",
+            }
+        ]
+
+    if review_blockers or export_blockers or gate == "review_first":
+        return [
+            {
+                "id": "review_plan",
+                "label": "Build the review queue for flagged regions.",
+                "command": "murmurmark review plan",
+            },
+            {
+                "id": "review_session",
+                "label": "Review this session's queued items.",
+                "command": f"murmurmark review {session_arg}",
+            },
+        ]
+
+    if gate == "ready_for_notes":
+        return [
+            {
+                "id": "export_markdown",
+                "label": "Export a local Markdown handoff bundle.",
+                "command": f"murmurmark export {session_arg} --format markdown --include-json",
+            },
+            {
+                "id": "retention_plan",
+                "label": "Inspect local retention/privacy actions.",
+                "command": f"murmurmark retention plan {session_arg}",
+            },
+        ]
+
+    return [
+        {
+            "id": "open_readiness",
+            "label": "Inspect readiness details before using this session.",
+            "command": f"less {command_path(session / 'derived/readiness/session_readiness.md')}",
+        }
+    ]
+
+
 def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
     out_dir = session / "derived/readiness"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1228,6 +1291,7 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         "review_blockers": row.get("review_blockers") or [],
         "export_blockers": row.get("export_blockers") or [],
         "warnings": row.get("readiness_warnings") or [],
+        "next_commands": readiness_next_commands(session, row),
         "metrics": {
             "meeting_duration_sec": row.get("meeting_duration_sec"),
             "review_burden_sec": row.get("review_burden_sec"),
@@ -1294,6 +1358,13 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
                 f"- `{reason.get('id')}` / `{reason.get('severity')}`: {reason.get('message')} "
                 f"(value `{fmt(reason.get('value'))}`)"
             )
+    lines.extend(["", "## Next Commands", ""])
+    next_commands = payload.get("next_commands") or []
+    if next_commands:
+        for item in next_commands:
+            lines.append(f"- `{item['command']}` — {item['label']}")
+    else:
+        lines.append("- none")
     lines.extend(["", "## Metrics", ""])
     for key, value in payload["metrics"].items():
         lines.append(f"- `{key}`: `{fmt(value)}`")

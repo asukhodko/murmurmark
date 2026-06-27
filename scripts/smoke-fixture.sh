@@ -395,6 +395,9 @@ jq -e '.sessions[0].use_gate == "pipeline_incomplete"' "$session/derived/session
 jq -e '.schema == "murmurmark.session_readiness/v1" and .use_gate == "pipeline_incomplete"' "$session/derived/readiness/session_readiness.json" >/dev/null
 jq -e '(.export_blockers | index("pipeline_incomplete")) and (.review_blockers | index("pipeline_incomplete"))' "$session/derived/readiness/session_readiness.json" >/dev/null
 jq -e 'any(.use_gate_reasons[]; .id == "pipeline_incomplete" and .severity == "block")' "$session/derived/readiness/session_readiness.json" >/dev/null
+jq -e 'any(.next_commands[]; .id == "process_session" and (.command | contains("murmurmark process")))' "$session/derived/readiness/session_readiness.json" >/dev/null
+rg -n 'Next Commands' "$session/derived/readiness/session_readiness.md" >/dev/null
+rg -n 'murmurmark process' "$session/derived/readiness/session_readiness.md" >/dev/null
 export_block_dir="$workdir/export-blocked"
 if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >/dev/null 2>&1; then
   echo "expected export to block incomplete session" >&2
