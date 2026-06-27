@@ -20,15 +20,18 @@ murmurmark doctor
 
 Expected before permissions are granted:
 
-- `ffmpeg` points to an executable path;
+- `ffmpeg`, `ffprobe`, `whisper-cli`, Python and required Python modules are found;
+- the configured whisper.cpp model exists;
 - `microphone permission` is `ok` or clearly reports the missing state;
 - `screen/system audio permission` is `ok` or clearly reports that access is missing.
+- `readiness` is `ok` or `usable_with_warnings` when only optional checks are missing.
 
 If screen or system audio access is missing, grant it in macOS privacy settings for the terminal application or Codex app that launches the CLI. On current macOS versions the setting may appear as either `Screen & System Audio Recording` or screen recording/system audio capture wording.
 
 If microphone access is missing, grant microphone access to the same launching application.
 
-Re-run `doctor` after changing permissions.
+Re-run `doctor` after changing permissions. Use `murmurmark doctor --strict` when a setup script
+should fail on missing required dependencies.
 
 ## Short Recording
 

@@ -29,6 +29,7 @@ Install the local CLI wrapper once:
 ```bash
 scripts/install-local.sh
 export PATH="$HOME/.local/bin:$PATH"
+murmurmark doctor
 ```
 
 Start from a completed session and run the current full post-recording pipeline:
@@ -45,6 +46,8 @@ less "$SESSION/derived/readiness/session_readiness.md"
 
 Copy `murmurmark.config.example.json` to `murmurmark.config.json` when you want local defaults for
 model, language, prompt and export. Explicit command-line flags override config values.
+`murmurmark doctor` reports the selected config and model path, so run it after changing local
+defaults.
 
 `murmurmark process` calls the current runner: Echo Guard, export/transcription, shadow timeline repair, local-recall audit,
 group-overlap audit, audio-review audit, `audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. `audit_cleanup_v5` is a separate batch step after the suggested-review shadow report. Use

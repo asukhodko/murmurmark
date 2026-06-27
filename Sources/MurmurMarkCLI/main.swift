@@ -20,7 +20,7 @@ struct MurmurMark {
 
             switch command {
             case "doctor":
-                try await Commands.doctor()
+                try await Commands.doctor(args)
             case "list-apps":
                 Commands.listApps()
             case "list-audio-devices":
@@ -67,7 +67,7 @@ struct MurmurMark {
         MurmurMark \(murmurmarkVersion)
 
         Usage:
-          murmurmark doctor
+          murmurmark doctor [--strict]
           murmurmark list-apps
           murmurmark list-audio-devices
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
@@ -112,27 +112,73 @@ struct MurmurMark {
 }
 
 enum Commands {
-    static func doctor() async throws {
+    static func doctor(_ args: [String]) async throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            DoctorChecks.printHelp()
+            return
+        }
+        let strict = args.contains("--strict")
+        let unknown = args.filter { $0 != "--strict" }
+        guard unknown.isEmpty else {
+            throw CLIError("doctor only supports --strict")
+        }
+
+        var report = DoctorReport()
         print("murmurmark: \(murmurmarkVersion)")
+        print("home: \(FileManager.default.currentDirectoryPath)")
+        if let runtimeHome = ProcessInfo.processInfo.environment["MURMURMARK_HOME"], !runtimeHome.isEmpty {
+            print("MURMURMARK_HOME: \(runtimeHome)")
+        }
+        print("executable: \(ExecutablePath.current())")
         print("macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)")
         print("swift capture backend: screencapturekit_system")
-        print("ffmpeg: \(Tooling.which("ffmpeg") ?? "not found")")
+        DoctorChecks.checkLocalConfig(&report)
+        DoctorChecks.checkExecutable("ffmpeg", required: true, report: &report)
+        DoctorChecks.checkExecutable("ffprobe", required: true, report: &report)
+        DoctorChecks.checkExecutable("whisper-cli", required: true, report: &report)
+        DoctorChecks.checkExecutable("jq", required: false, report: &report)
+        DoctorChecks.checkExecutable("swiftlint", required: false, report: &report)
+        DoctorChecks.checkScripts(&report)
+        DoctorChecks.checkPython(&report)
+        DoctorChecks.checkWhisperModel(&report)
 
         do {
             let content = try await SCShareableContent.current
-            print("screen/system audio permission: ok")
+            report.check(.passed, "screen/system audio permission", "ok")
             print("shareable displays: \(content.displays.count)")
             print("shareable applications: \(content.applications.count)")
         } catch {
-            print("screen/system audio permission: not granted or blocked")
+            report.check(
+                .fail,
+                "screen/system audio permission",
+                "not granted or blocked",
+                hint: "grant Screen & System Audio Recording to the terminal or Codex app, then run record again"
+            )
             print("screen/system audio detail: \(error.localizedDescription)")
-            print("hint: grant Screen & System Audio Recording to the terminal or Codex app, then run record again")
         }
 
         let microphoneStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-        print("microphone permission: \(PermissionTexts.microphone(microphoneStatus))")
+        let microphoneText = PermissionTexts.microphone(microphoneStatus)
+        switch microphoneStatus {
+        case .authorized:
+            report.check(.passed, "microphone permission", microphoneText)
+        case .notDetermined:
+            report.check(
+                .warn,
+                "microphone permission",
+                microphoneText,
+                hint: "run a recording once or grant microphone access in macOS privacy settings"
+            )
+        default:
+            report.check(.fail, "microphone permission", microphoneText, hint: "grant microphone access to the terminal or Codex app")
+        }
         print("microphones: \(AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone], mediaType: .audio, position: .unspecified).devices.count)")
+        print("readiness: \(report.readiness)")
+        print("checks: ok=\(report.passed) warnings=\(report.warnings) failures=\(report.failures)")
         print("status: doctor completed")
+        if strict && report.failures > 0 {
+            throw CLIError("doctor strict failed: \(report.failures) required checks failed")
+        }
     }
 
     static func listApps() {
@@ -177,6 +223,184 @@ enum Commands {
             channelCount: channelCount
         )
         try await recorder.run()
+    }
+}
+
+enum DoctorSeverity {
+    case passed
+    case warn
+    case fail
+
+    var label: String {
+        switch self {
+        case .passed:
+            "ok"
+        case .warn:
+            "warn"
+        case .fail:
+            "fail"
+        }
+    }
+}
+
+struct DoctorReport {
+    var passed = 0
+    var warnings = 0
+    var failures = 0
+
+    var readiness: String {
+        if failures > 0 {
+            return "blocked"
+        }
+        if warnings > 0 {
+            return "usable_with_warnings"
+        }
+        return "ok"
+    }
+
+    mutating func check(_ severity: DoctorSeverity, _ name: String, _ detail: String, hint: String? = nil) {
+        switch severity {
+        case .passed:
+            passed += 1
+        case .warn:
+            warnings += 1
+        case .fail:
+            failures += 1
+        }
+
+        print("[\(severity.label)] \(name): \(detail)")
+        if let hint, !hint.isEmpty {
+            print("      hint: \(hint)")
+        }
+    }
+}
+
+enum DoctorChecks {
+    static let defaultModel = "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
+    static let requiredPythonModules = ["numpy", "scipy", "soundfile", "librosa", "sklearn"]
+
+    static func printHelp() {
+        print("""
+        usage: murmurmark doctor [--strict]
+
+        Checks local readiness for recording and the current CLI pipeline:
+          macOS permissions, ffmpeg/ffprobe, whisper.cpp, Python runtime,
+          required Python modules, local model, config and core scripts.
+
+        By default doctor reports failures but exits 0.
+        With --strict it exits non-zero when required checks fail.
+        """)
+    }
+
+    static func checkExecutable(_ name: String, required: Bool, report: inout DoctorReport) {
+        if let path = Tooling.which(name) {
+            report.check(.passed, name, path)
+        } else if required {
+            report.check(.fail, name, "not found in PATH", hint: installHint(for: name))
+        } else {
+            report.check(.warn, name, "not found in PATH", hint: installHint(for: name))
+        }
+    }
+
+    static func checkLocalConfig(_ report: inout DoctorReport) {
+        do {
+            let config = try MurmurMarkConfig.load(from: nil)
+            if let url = config.url {
+                report.check(.passed, "config", PathDisplay.display(url))
+            } else {
+                report.check(
+                    .warn,
+                    "config",
+                    "murmurmark.config.json not found",
+                    hint: "copy murmurmark.config.example.json when you want local defaults"
+                )
+            }
+        } catch {
+            report.check(.fail, "config", error.localizedDescription, hint: "fix or remove murmurmark.config.json")
+        }
+    }
+
+    static func checkScripts(_ report: inout DoctorReport) {
+        for path in [
+            "scripts/run-session-pipeline.py",
+            "scripts/transcribe-simple-whispercpp.py",
+            "scripts/synthesize-simple-extractive.py",
+            "scripts/report-session-quality.py",
+        ] {
+            let url = PathURLs.fileURL(path)
+            if FileManager.default.fileExists(atPath: url.path) {
+                report.check(.passed, path, "found")
+            } else {
+                report.check(.fail, path, "missing", hint: "run doctor from the repository or install with scripts/install-local.sh")
+            }
+        }
+    }
+
+    static func checkPython(_ report: inout DoctorReport) {
+        do {
+            let python = try PythonRuntime.resolve()
+            let version = (try? Tooling.runPathCapturing(python, ["--version"]).trimmedSingleLine()) ?? "version unknown"
+            report.check(.passed, "python", "\(python.path) (\(version))")
+
+            let moduleCode = """
+            import importlib.util
+            mods = \(pythonList(requiredPythonModules))
+            missing = [m for m in mods if importlib.util.find_spec(m) is None]
+            print(",".join(missing))
+            """
+            let missing = (try Tooling.runPathCapturing(python, ["-c", moduleCode])).trimmedSingleLine()
+            if missing.isEmpty {
+                report.check(.passed, "python modules", requiredPythonModules.joined(separator: ", "))
+            } else {
+                report.check(.fail, "python modules", "missing: \(missing)", hint: "install project Python dependencies into .venv")
+            }
+        } catch {
+            report.check(.fail, "python", error.localizedDescription, hint: "create .venv or set MURMURMARK_PYTHON")
+        }
+    }
+
+    static func checkWhisperModel(_ report: inout DoctorReport) {
+        let model = configuredModelPath()
+        let url = PathURLs.fileURL(model)
+        if FileManager.default.fileExists(atPath: url.path) {
+            report.check(.passed, "whisper model", PathDisplay.display(url))
+        } else {
+            report.check(
+                .fail,
+                "whisper model",
+                "not found: \(url.path)",
+                hint: "download a multilingual whisper.cpp model or set transcription.model in murmurmark.config.json"
+            )
+        }
+    }
+
+    private static func configuredModelPath() -> String {
+        guard let config = try? MurmurMarkConfig.load(from: nil),
+              let value = config.section("transcription")["model"] as? String,
+              !value.isEmpty
+        else {
+            return defaultModel
+        }
+        return value
+    }
+
+    private static func pythonList(_ values: [String]) -> String {
+        "[" + values.map { "'\($0)'" }.joined(separator: ",") + "]"
+    }
+
+    private static func installHint(for executable: String) -> String {
+        switch executable {
+        case "ffmpeg", "ffprobe":
+            "brew install ffmpeg"
+        case "whisper-cli":
+            "brew install whisper-cpp"
+        case "jq":
+            "brew install jq"
+        case "swiftlint":
+            "brew install swiftlint"
+        default:
+            "install \(executable) and make sure it is in PATH"
+        }
     }
 }
 
@@ -3259,6 +3483,14 @@ enum PathDisplay {
             return String(path.dropFirst(root.count + 1))
         }
         return path
+    }
+}
+
+extension String {
+    func trimmedSingleLine() -> String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isNewline)
+            .joined(separator: " ")
     }
 }
 

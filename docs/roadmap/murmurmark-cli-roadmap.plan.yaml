@@ -510,7 +510,8 @@ nodes:
     effort: 18
     notes: |
       Установка, релизы, doctor, документация и готовность репозитория к открытой публикации.
-      Минимальный локальный install wrapper уже есть; полноценный release layout остаётся будущим слоем.
+      Минимальный локальный install wrapper и расширенный doctor уже есть;
+      полноценный release layout остаётся будущим слоем.
 
   packaging-install-update:
     title: "Install/update flow"
@@ -532,9 +533,9 @@ nodes:
     title: "Doctor health checks"
     kind: task
     parent: packaging
-    status: later
+    status: done
     effort: 4
-    notes: "Проверки macOS permissions, ffmpeg, whisper.cpp, модели, Python окружения и путей."
+    notes: "doctor проверяет macOS permissions, ffmpeg/ffprobe, whisper-cli, модель, Python окружение, модули, config и core scripts."
 
   packaging-open-source-readiness:
     title: "Open-source readiness"
@@ -767,7 +768,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "process/latest/report/review/corpus/export/config и локальная установка уже работают как нормальные команды."
-          next_sync_goal: "Довести doctor health checks, release layout и retention/export policy."
+          next_sync_goal: "Довести release layout и retention/export policy."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]
