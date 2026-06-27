@@ -375,7 +375,8 @@ Markdown export writes `index.md`, `quality_verdict.md`, `notes.md`, `transcript
 frontmatter Markdown note plus the same manifest. Export blocks sessions whose
 `derived/readiness/session_readiness.json` contains `export_blockers`, so incomplete pipelines,
 hard quality failures and unfinished review do not silently become finished artifacts. `--force`
-keeps the blockers in `export_manifest.json` and is meant for debugging.
+keeps the blockers in `export_manifest.json` and is meant for debugging. After a successful export,
+the CLI prints the manifest path, key output files and the matching retention commands.
 
 `murmurmark audit` wraps the local audit scripts through the project Python runtime. `murmurmark audit
 local-recall`, `murmurmark audit group-overlaps` and `murmurmark audit audio-review` are the normal

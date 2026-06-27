@@ -495,6 +495,8 @@ reports and must not be committed when it is built from real meetings.
 per-session readiness, copies the Markdown verdict, notes and transcript into `exports/private/`,
 and writes `export_manifest.json`. It blocks sessions with readiness `export_blockers` by default;
 use `murmurmark review plan` first when review is required, or pass `--force` only for debugging.
+After a successful export, the CLI prints the manifest path, key output files and the retention
+commands that should use the same manifest.
 
 The script reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, balances examples by
 label, and copies existing review clips under `sessions/_reports/regression-corpus/clips/`. It is

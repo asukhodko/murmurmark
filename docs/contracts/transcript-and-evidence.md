@@ -740,7 +740,8 @@ Obsidian format writes one frontmatter Markdown note plus `export_manifest.json`
 Default export blocks sessions whose `session_readiness.json` contains `export_blockers`, including
 review-required sessions, incomplete pipeline and hard quality failures. `--force` may create an
 export for debugging, but the manifest still records blockers, warnings and the readiness payload
-used.
+used. The Swift CLI reads the resulting `export_manifest.json` after successful export and prints a
+short handoff summary with output files and retention commands.
 
 ## Retention Plan
 

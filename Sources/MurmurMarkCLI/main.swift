@@ -913,10 +913,12 @@ enum ExportCommands {
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
+        let effectiveArgs = config.exportDefaults(unless: forwarded) + forwarded
         try Tooling.runPath(try PythonRuntime.resolve(), [
             try script().path,
             session.path,
-        ] + config.exportDefaults(unless: forwarded) + forwarded)
+        ] + effectiveArgs)
+        try ExportPrinter.printManifest(session: session, outDir: exportOutDir(from: effectiveArgs))
     }
 
     private static func script() throws -> URL {
@@ -925,6 +927,10 @@ enum ExportCommands {
             throw CLIError("export script not found: \(url.path)")
         }
         return url
+    }
+
+    private static func exportOutDir(from args: [String]) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: args) ?? "exports/private")
     }
 }
 
@@ -4067,6 +4073,77 @@ enum ReviewPrinter {
         if let number = value as? NSNumber { return number.intValue }
         if let text = value as? String { return Int(text) }
         return nil
+    }
+
+    private static func compactJSON(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return "\(value)"
+        }
+        return text
+    }
+}
+
+enum ExportPrinter {
+    static func printManifest(session: URL, outDir: URL) throws {
+        let manifestURL = outDir
+            .appendingPathComponent(session.lastPathComponent)
+            .appendingPathComponent("export_manifest.json")
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+            print("")
+            print("export_manifest: missing")
+            print("  expected: \(PathDisplay.display(manifestURL))")
+            return
+        }
+        let payload = try JSONFiles.object(manifestURL)
+        let files = payload["files"] as? [String: Any] ?? [:]
+        let status = string(payload["status"]) ?? "unknown"
+        let profile = string(payload["selected_profile"]) ?? "unknown"
+        let format = string(payload["format"]) ?? "unknown"
+        let verdict = string(payload["verdict"]) ?? "unknown"
+        let useGate = string(payload["use_gate"]) ?? "unknown"
+        let blockers = payload["blockers"] as? [Any] ?? []
+        let warnings = payload["warnings"] as? [Any] ?? []
+
+        print("")
+        print("export:")
+        print("  manifest: \(PathDisplay.display(manifestURL))")
+        print("  status: \(status)")
+        print("  profile: \(profile)")
+        print("  format: \(format)")
+        print("  verdict: \(verdict)")
+        print("  use_gate: \(useGate)")
+        print("  files: \(files.count)")
+        if !blockers.isEmpty {
+            print("  blockers: \(compactJSON(blockers))")
+        }
+        if !warnings.isEmpty {
+            print("  warnings: \(compactJSON(warnings))")
+        }
+        print("  open:")
+        for key in ["index", "obsidian_note", "quality_verdict_md", "notes_md", "transcript_md"] {
+            if let path = exportedPath(key, files: files) {
+                print("    \(key): \(PathDisplay.display(path))")
+            }
+        }
+        print("  next:")
+        print("    murmurmark retention plan \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(manifestURL))")
+        print("    murmurmark retention payload \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(manifestURL))")
+    }
+
+    private static func exportedPath(_ key: String, files: [String: Any]) -> URL? {
+        guard let item = files[key] as? [String: Any],
+              let path = item["path"] as? String
+        else {
+            return nil
+        }
+        return PathURLs.fileURL(path)
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
     }
 
     private static func compactJSON(_ value: Any) -> String {

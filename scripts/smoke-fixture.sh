@@ -316,6 +316,18 @@ jq -n '{
     {id: "utt_simple_017", start: 212.0, end: 218.0, role: "Colleagues", speaker_label: "Colleagues", source_track: "remote", text: "Решили оставить ретро раз в две недели.", quality: {needs_review: false}}
   ]
 }' >"$simple_resolved/clean_dialogue.json"
+jq -n '{schema: "murmurmark.simple_transcript/v1", utterances: []}' >"$simple_resolved/transcript.simple.json"
+cat >"$simple_resolved/transcript.md" <<'EOF'
+# Simple Transcript
+
+## 00:10 Me
+
+Надо проверить логи деплоя в GitLab.
+
+## 03:32 Colleagues
+
+Решили оставить ретро раз в две недели.
+EOF
 jq -n '{
   schema: "murmurmark.simple_transcript_quality/v1",
   utterances: 17,
@@ -427,6 +439,13 @@ fi
 jq -e '.status == "blocked" and (.blockers | index("pipeline_incomplete")) and (.readiness.export_blockers | index("pipeline_incomplete"))' \
   "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
 jq -e '.next | contains("murmurmark process")' "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
+export_force_dir="$workdir/export-forced"
+export_stdout="$workdir/export_forced_stdout.txt"
+"$bin" export "$session" --force --out-dir "$export_force_dir" --include-json >"$export_stdout"
+[[ -s "$export_force_dir/$(basename "$session")/export_manifest.json" ]]
+rg -n '^export:|manifest:|retention plan|retention payload' "$export_stdout" >/dev/null
+jq -e '.schema == "murmurmark.export_manifest/v1" and (.status | startswith("exported")) and (.files.transcript_md.path | type == "string")' \
+  "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
 
 audit_python=""
 if [[ -x "$repo_root/.venv/bin/python" ]] && "$repo_root/.venv/bin/python" - <<'PY' >/dev/null 2>&1
