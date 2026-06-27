@@ -969,6 +969,11 @@ Explicit command-line flags override config values.
     "review_burden_ratio": 0.031,
     "audio_review_probable_error_count": 2,
     "audio_review_stronger_judge_count": 6,
+    "synthesis_review_item_count": 12,
+    "synthesis_review_item_seconds": 74.2,
+    "synthesis_review_top_types": [
+      {"type": "utterance_transcript_order_review", "count": 2, "seconds": 13.4}
+    ],
     "local_only_island_recall": 0.875,
     "local_recall_recommended_next_step": "local_recall_risk_explained",
     "transcript_order_probable_order_risk_count": 0,

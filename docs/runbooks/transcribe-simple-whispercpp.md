@@ -456,7 +456,7 @@ less sessions/_reports/session-quality/session_quality_report.md
 ```
 
 The report reads `quality_report*.json`, Echo Guard `local_fir_report.json`, local recall audit, group overlap audit,
-audit cleanup, synthesis verdicts, evidence note counts and audio review audit summaries. It writes
+audit cleanup, synthesis verdicts, synthesis `review_summary`, evidence note counts and audio review audit summaries. It writes
 JSON, CSV and Markdown under `sessions/_reports/session-quality/` by default, which is ignored
 together with `sessions/`. It does not run ASR, does not rewrite transcripts and does not touch raw
 `audio/mic/*.caf` or `audio/remote/*.caf`.

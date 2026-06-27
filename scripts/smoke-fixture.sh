@@ -432,15 +432,18 @@ grep -q 'utt_simple_006' "$session/derived/synthesis-simple/extractive/notes.md"
 [[ -s "$session/derived/readiness/session_readiness.md" ]]
 jq -e '.schema == "murmurmark.session_quality_report/v1"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
 jq -e '.summary.session_count == 1' "$session/derived/session-quality/session_quality_report.json" >/dev/null
+jq -e '.summary.total_synthesis_review_items >= 1 and .sessions[0].synthesis_review_item_count >= 1 and .sessions[0].synthesis_review_items_by_type.utterance_transcript_order_review.count == 1' "$session/derived/session-quality/session_quality_report.json" >/dev/null
 jq -e '.sessions[0].label == "smoke fixture"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
 jq -e '.sessions[0].pipeline_status == "partial"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
 jq -e '.sessions[0].use_gate == "pipeline_incomplete"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
 jq -e '.schema == "murmurmark.session_readiness/v1" and .use_gate == "pipeline_incomplete"' "$session/derived/readiness/session_readiness.json" >/dev/null
+jq -e '.metrics.synthesis_review_item_count >= 1 and any(.metrics.synthesis_review_top_types[]; .type == "utterance_transcript_order_review")' "$session/derived/readiness/session_readiness.json" >/dev/null
 jq -e '(.export_blockers | index("pipeline_incomplete")) and (.review_blockers | index("pipeline_incomplete"))' "$session/derived/readiness/session_readiness.json" >/dev/null
 jq -e 'any(.use_gate_reasons[]; .id == "pipeline_incomplete" and .severity == "block")' "$session/derived/readiness/session_readiness.json" >/dev/null
 jq -e 'any(.next_commands[]; .id == "process_session" and (.command | contains("murmurmark process")))' "$session/derived/readiness/session_readiness.json" >/dev/null
 rg -n 'Next Commands' "$session/derived/readiness/session_readiness.md" >/dev/null
 rg -n 'murmurmark process' "$session/derived/readiness/session_readiness.md" >/dev/null
+rg -n 'Synthesis Review|utterance_transcript_order_review' "$session/derived/session-quality/session_quality_report.md" >/dev/null
 python3 - "$repo_root" <<'PY'
 import importlib.util
 from pathlib import Path

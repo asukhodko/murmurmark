@@ -482,6 +482,31 @@ def hidden_facilitation_count(evidence: dict[str, Any] | None) -> int:
     return sum(1 for item in candidates if isinstance(item, dict) and item.get("subtype") == "meeting_facilitation" and item.get("status") == "hidden")
 
 
+def synthesis_review_metrics(verdict: dict[str, Any] | None) -> dict[str, Any]:
+    summary = verdict.get("review_summary") if isinstance(verdict, dict) and isinstance(verdict.get("review_summary"), dict) else {}
+    by_type = summary.get("by_type") if isinstance(summary.get("by_type"), dict) else {}
+    by_severity = summary.get("by_severity") if isinstance(summary.get("by_severity"), dict) else {}
+    top_types: list[dict[str, Any]] = []
+    for item_type, bucket in by_type.items():
+        if not isinstance(bucket, dict):
+            continue
+        top_types.append(
+            {
+                "type": str(item_type),
+                "count": safe_int(bucket.get("count")) or 0,
+                "seconds": round_or_none(bucket.get("seconds")) or 0.0,
+            }
+        )
+    top_types.sort(key=lambda item: (-int(item["count"]), str(item["type"])))
+    return {
+        "synthesis_review_item_count": safe_int(summary.get("review_item_count")),
+        "synthesis_review_item_seconds": round_or_none(summary.get("review_item_seconds")),
+        "synthesis_review_items_by_type": by_type,
+        "synthesis_review_items_by_severity": by_severity,
+        "synthesis_review_top_types": top_types[:5],
+    }
+
+
 def cleanup_metrics(quality: dict[str, Any] | None, cleanup_report: dict[str, Any] | None) -> dict[str, Any]:
     nested = quality.get("audit_cleanup") if isinstance(quality, dict) else None
     if not isinstance(nested, dict):
@@ -1039,6 +1064,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(group_metrics(group_summary))
     row.update(cleanup_metrics(quality, cleanup_report))
     row.update(review_decision_metrics(review_report))
+    row.update(synthesis_review_metrics(verdict))
     row.update(audio_review_metrics(audio_summary, session, profile))
     row.update(local_recall_metrics(local_recall, review_report))
     row.update(transcript_order_metrics(order_audit, review_report))
@@ -1054,6 +1080,7 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
     durations = [value for value in durations if value is not None]
     risk_rows = [row for row in rows if row.get("risk_flags")]
     complete = sum(1 for row in rows if row.get("pipeline_status") == "complete")
+    synthesis_review_seconds = sum(safe_float(row.get("synthesis_review_item_seconds")) or 0.0 for row in rows)
     return {
         "session_count": len(rows),
         "complete_pipeline_count": complete,
@@ -1064,6 +1091,8 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "by_verdict": dict(sorted(verdicts.items())),
         "by_selected_profile": dict(sorted(profiles.items())),
         "sessions_with_suggested_review_v1": sum(1 for row in rows if row.get("suggested_review_v1_available")),
+        "total_synthesis_review_items": sum(safe_int(row.get("synthesis_review_item_count")) or 0 for row in rows),
+        "total_synthesis_review_seconds": round(synthesis_review_seconds, 3),
         "sessions_with_risk_flags": len(risk_rows),
         "top_risk_sessions": [
             {"session_id": row["session_id"], "label": row["label"], "risk_flags": row["risk_flags"]}
@@ -1089,6 +1118,9 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "meeting_duration_sec",
         "review_burden_sec",
         "review_burden_ratio",
+        "synthesis_review_item_count",
+        "synthesis_review_item_seconds",
+        "synthesis_review_top_types",
         "utterances",
         "needs_review_count",
         "needs_review_ratio",
@@ -1147,6 +1179,15 @@ def fmt(value: Any, missing: str = "n/a") -> str:
     return str(value)
 
 
+def fmt_review_top_types(row: dict[str, Any]) -> str:
+    items = row.get("synthesis_review_top_types") if isinstance(row.get("synthesis_review_top_types"), list) else []
+    rendered = []
+    for item in items[:3]:
+        if isinstance(item, dict):
+            rendered.append(f"{item.get('type')}={item.get('count')}")
+    return ", ".join(rendered) if rendered else "0"
+
+
 def write_markdown(path: Path, payload: dict[str, Any]) -> None:
     rows = payload["sessions"]
     lines = [
@@ -1162,12 +1203,13 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         f"- Verdicts: `{json.dumps(payload['summary']['by_verdict'], ensure_ascii=False, sort_keys=True)}`",
         f"- Profiles: `{json.dumps(payload['summary']['by_selected_profile'], ensure_ascii=False, sort_keys=True)}`",
         f"- Suggested review shadow profiles: `{payload['summary'].get('sessions_with_suggested_review_v1', 0)}`",
+        f"- Synthesis review items: `{payload['summary'].get('total_synthesis_review_items', 0)}` / `{payload['summary'].get('total_synthesis_review_seconds', 0.0)}` sec",
         f"- Sessions with risk flags: `{payload['summary']['sessions_with_risk_flags']}`",
         "",
         "## Sessions",
         "",
-        "| Session | Label | Gate | Status | Profile | Verdict | Min | Review % | Utterances | Needs Review | Local Recall | Local Audit | Order Audit | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
-        "|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---|---|",
+        "| Session | Label | Gate | Status | Profile | Verdict | Min | Review % | Synthesis Review | Utterances | Needs Review | Local Recall | Local Audit | Order Audit | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
+        "|---|---|---|---|---|---:|---:|---:|---|---:|---:|---:|---|---|---:|---:|---:|---:|---|---|",
     ]
     for row in rows:
         duration = safe_float(row.get("meeting_duration_sec"))
@@ -1200,6 +1242,7 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
                     fmt(row.get("verdict")),
                     fmt(round(duration / 60.0, 1) if duration is not None else None),
                     fmt((safe_float(row.get("review_burden_ratio")) or 0.0) * 100.0),
+                    f"{fmt(row.get('synthesis_review_item_count'), '0')} / {fmt(row.get('synthesis_review_item_seconds'), '0')}s; {fmt_review_top_types(row)}",
                     fmt(row.get("utterances")),
                     fmt(row.get("needs_review_count")),
                     fmt(row.get("local_only_island_recall")),
@@ -1397,6 +1440,9 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "meeting_duration_sec": row.get("meeting_duration_sec"),
             "review_burden_sec": row.get("review_burden_sec"),
             "review_burden_ratio": row.get("review_burden_ratio"),
+            "synthesis_review_item_count": row.get("synthesis_review_item_count"),
+            "synthesis_review_item_seconds": row.get("synthesis_review_item_seconds"),
+            "synthesis_review_top_types": row.get("synthesis_review_top_types"),
             "audio_review_probable_error_count": row.get("audio_review_probable_error_count"),
             "audio_review_probable_error_seconds": row.get("audio_review_probable_error_seconds"),
             "audio_review_stronger_judge_count": row.get("audio_review_stronger_judge_count"),
