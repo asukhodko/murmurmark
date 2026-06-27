@@ -198,7 +198,7 @@ nodes:
     deps: [readiness-single-output]
     status: done
     effort: 2
-    notes: "Создаёт локальный Markdown/Obsidian bundle и блокирует review_first сессии без --force."
+    notes: "Создаёт локальный Markdown/Obsidian bundle и блокирует сессии с readiness export_blockers без --force."
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -212,7 +212,7 @@ nodes:
       Базовые команды corpus build/process/evaluate/train-audio-judge/report уже доступны;
       corpus gate уже проверяет hard-инварианты и может сравнивать будущие прогоны
       с локальным baseline snapshot. Audio judge evaluation пишет out-of-fold audit;
-      следующий слой — review/export blockers.
+      session readiness теперь явно разделяет review_blockers и export_blockers.
 
   corpus-add-command:
     title: "corpus add"
@@ -253,6 +253,14 @@ nodes:
     status: done
     effort: 5
     notes: "check-corpus-gates.py поддерживает --write-baseline и --baseline; baseline ловит регрессии по готовым сессиям, use_gate, review burden, local recall, corpus size и audio judge."
+
+  corpus-review-export-blockers:
+    title: "Review/export blockers"
+    kind: task
+    parent: corpus-regression
+    status: done
+    effort: 3
+    notes: "session_readiness.json пишет use_gate_reasons, review_blockers и export_blockers; export использует export_blockers как машинный gate."
 
   review-loop:
     title: "Review loop"

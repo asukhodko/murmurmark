@@ -708,14 +708,20 @@ Obsidian format writes one frontmatter Markdown note plus `export_manifest.json`
   "use_gate": "ready_for_notes",
   "blockers": [],
   "warnings": ["quality_verdict:usable_with_review"],
+  "readiness": {
+    "use_gate": "ready_for_notes",
+    "export_blockers": []
+  },
   "files": {
     "transcript_md": {"path": "exports/private/.../transcript.md", "bytes": 12345}
   }
 }
 ```
 
-Default export blocks sessions whose readiness is `review_first`. `--force` may create an export for
-debugging, but the manifest still records blockers and warnings.
+Default export blocks sessions whose `session_readiness.json` contains `export_blockers`, including
+review-required sessions, incomplete pipeline and hard quality failures. `--force` may create an
+export for debugging, but the manifest still records blockers, warnings and the readiness payload
+used.
 
 ## Retention Plan
 
@@ -772,6 +778,18 @@ Explicit command-line flags override config values.
   "recommendation": "review_flagged_audio_before_using_for_medium_risk_work",
   "selected_profile": "audit_cleanup_v4",
   "verdict": "usable_with_review",
+  "risk_flags": ["audio_review_probable_errors"],
+  "use_gate_reasons": [
+    {
+      "id": "risk:audio_review_probable_errors",
+      "severity": "review",
+      "message": "Session quality report raised a risk flag.",
+      "value": "audio_review_probable_errors"
+    }
+  ],
+  "review_blockers": ["risk:audio_review_probable_errors"],
+  "export_blockers": ["risk:audio_review_probable_errors"],
+  "warnings": [],
   "metrics": {
     "review_burden_sec": 42.5,
     "review_burden_ratio": 0.031,
@@ -802,7 +820,8 @@ Explicit command-line flags override config values.
 - `pipeline_incomplete_review_first`: cleanup/synthesis profiles are missing or not selected yet.
 
 `session_readiness.md` is the human-readable view of the same object and should be opened before
-the transcript or notes.
+the transcript or notes. `export_blockers` is the machine-readable default export gate. `review_blockers`
+is the list a review workflow should close before a medium-risk handoff.
 
 Operational readiness combines the private session quality report and regression corpus evaluation:
 

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.4.0"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -772,6 +772,78 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
     return flags
 
 
+def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
+    reasons: list[dict[str, Any]] = []
+    pipeline_status = row.get("pipeline_status")
+    if pipeline_status != "complete":
+        reasons.append(
+            {
+                "id": "pipeline_incomplete",
+                "severity": "block",
+                "message": "The post-recording pipeline is incomplete.",
+                "value": pipeline_status,
+            }
+        )
+    verdict = row.get("verdict")
+    if verdict in {"failed", "risky"}:
+        reasons.append(
+            {
+                "id": f"quality_verdict_{verdict}",
+                "severity": "block",
+                "message": "The quality verdict is not safe for unattended use.",
+                "value": verdict,
+            }
+        )
+    profile = row.get("selected_profile")
+    if profile not in CLEANUP_PROFILES:
+        reasons.append(
+            {
+                "id": "missing_cleanup_profile",
+                "severity": "review",
+                "message": "No reviewed or audit-cleaned transcript profile is selected.",
+                "value": profile,
+            }
+        )
+
+    duration = safe_float(row.get("meeting_duration_sec")) or 0.0
+    burden = safe_float(row.get("review_burden_sec")) or 0.0
+    ratio = burden / duration if duration > 0 else 0.0
+    if ratio > 0.08:
+        reasons.append(
+            {
+                "id": "review_burden_too_high",
+                "severity": "block",
+                "message": "Too much of the meeting remains in review-required regions.",
+                "value": round(ratio, 6),
+                "threshold": 0.08,
+            }
+        )
+    elif ratio > 0.025:
+        reasons.append(
+            {
+                "id": "review_burden_requires_review",
+                "severity": "review",
+                "message": "Review burden is above the ready-for-notes threshold.",
+                "value": round(ratio, 6),
+                "threshold": 0.025,
+            }
+        )
+
+    for flag in row.get("risk_flags") or []:
+        severity = "block" if flag.startswith("verdict:") else "review"
+        if flag in {"unrepaired_long_mic_crossings", "golden_phrase_fail", "high_needs_review_ratio"}:
+            severity = "block"
+        reasons.append(
+            {
+                "id": f"risk:{flag}",
+                "severity": severity,
+                "message": "Session quality report raised a risk flag.",
+                "value": flag,
+            }
+        )
+    return reasons
+
+
 def session_use_gate(row: dict[str, Any]) -> str:
     if row.get("pipeline_status") != "complete":
         return "pipeline_incomplete"
@@ -800,6 +872,15 @@ def add_use_gate(row: dict[str, Any]) -> None:
     row["review_burden_sec"] = round(burden, 3)
     row["review_burden_ratio"] = round(burden / duration, 6) if duration > 0 else 0.0
     row["use_gate"] = session_use_gate(row)
+    reasons = use_gate_reasons(row)
+    row["use_gate_reasons"] = reasons
+    row["review_blockers"] = [reason["id"] for reason in reasons if reason.get("severity") in {"review", "block"}]
+    row["export_blockers"] = (
+        []
+        if row["use_gate"] == "ready_for_notes"
+        else [reason["id"] for reason in reasons if reason.get("severity") in {"review", "block"}] or [row["use_gate"]]
+    )
+    row["readiness_warnings"] = [reason["id"] for reason in reasons if reason.get("severity") == "warning"]
 
 
 def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
@@ -984,6 +1065,8 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "audio_review_probable_error_count",
         "audio_review_stronger_judge_count",
         "risk_flags",
+        "review_blockers",
+        "export_blockers",
         "missing_artifacts",
     ]
     with path.open("w", encoding="utf-8", newline="") as file:
@@ -1141,6 +1224,10 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         "verdict": row.get("verdict"),
         "pipeline_status": row.get("pipeline_status"),
         "risk_flags": row.get("risk_flags") or [],
+        "use_gate_reasons": row.get("use_gate_reasons") or [],
+        "review_blockers": row.get("review_blockers") or [],
+        "export_blockers": row.get("export_blockers") or [],
+        "warnings": row.get("readiness_warnings") or [],
         "metrics": {
             "meeting_duration_sec": row.get("meeting_duration_sec"),
             "review_burden_sec": row.get("review_burden_sec"),
@@ -1188,6 +1275,25 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         lines.extend(f"- `{flag}`" for flag in flags)
     else:
         lines.append("- none")
+    lines.extend(["", "## Review Blockers", ""])
+    review_blockers = row.get("review_blockers") or []
+    if review_blockers:
+        lines.extend(f"- `{item}`" for item in review_blockers)
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Export Blockers", ""])
+    export_blockers = row.get("export_blockers") or []
+    if export_blockers:
+        lines.extend(f"- `{item}`" for item in export_blockers)
+    else:
+        lines.append("- none")
+    if payload["use_gate_reasons"]:
+        lines.extend(["", "## Gate Reasons", ""])
+        for reason in payload["use_gate_reasons"]:
+            lines.append(
+                f"- `{reason.get('id')}` / `{reason.get('severity')}`: {reason.get('message')} "
+                f"(value `{fmt(reason.get('value'))}`)"
+            )
     lines.extend(["", "## Metrics", ""])
     for key, value in payload["metrics"].items():
         lines.append(f"- `{key}`: `{fmt(value)}`")

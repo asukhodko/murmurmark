@@ -487,8 +487,8 @@ reports and must not be committed when it is built from real meetings.
 
 `murmurmark export` is the user-facing handoff. It reads the selected transcript profile from
 per-session readiness, copies the Markdown verdict, notes and transcript into `exports/private/`,
-and writes `export_manifest.json`. It blocks `review_first` sessions by default; use
-`murmurmark review plan` first, or pass `--force` only for debugging.
+and writes `export_manifest.json`. It blocks sessions with readiness `export_blockers` by default;
+use `murmurmark review plan` first when review is required, or pass `--force` only for debugging.
 
 The script reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, balances examples by
 label, and copies existing review clips under `sessions/_reports/regression-corpus/clips/`. It is

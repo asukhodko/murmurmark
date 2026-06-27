@@ -370,8 +370,10 @@ The first synthesis bridge is `scripts/synthesize-simple-extractive.py`. It read
 `murmurmark export` creates a local user-facing bundle under ignored `exports/private/` by default.
 Markdown export writes `index.md`, `quality_verdict.md`, `notes.md`, `transcript.md` and
 `export_manifest.json`; `--include-json` also copies evidence JSON. Obsidian export writes one
-frontmatter Markdown note plus the same manifest. Export blocks `review_first` sessions unless
-`--force` is passed, so unfinished review does not silently become a finished artifact.
+frontmatter Markdown note plus the same manifest. Export blocks sessions whose
+`derived/readiness/session_readiness.json` contains `export_blockers`, so incomplete pipelines,
+hard quality failures and unfinished review do not silently become finished artifacts. `--force`
+keeps the blockers in `export_manifest.json` and is meant for debugging.
 
 The group overlap audit is `scripts/audit-group-overlaps.py`. It reads transcript overlaps, Echo Guard `speaker_state.jsonl`, and local audio derivatives, then writes `derived/audit/group-overlaps/`. It separates likely harmful `Me` duplicates or remote leakage from expected group-call double-talk and timing overlap. This is audit-only: no transcript, Echo Guard output, synthesis output, or `quality_verdict` is modified.
 

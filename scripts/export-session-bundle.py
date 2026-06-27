@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA_MANIFEST = "murmurmark.export_manifest/v1"
 
 
@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--format", choices=["markdown", "obsidian"], default="markdown")
     parser.add_argument("--profile", default="auto", help="auto, current, or an explicit transcript profile.")
     parser.add_argument("--out-dir", type=Path, default=Path("exports/private"))
-    parser.add_argument("--force", action="store_true", help="Export even when readiness says review_first.")
+    parser.add_argument("--force", action="store_true", help="Export even when readiness has export blockers.")
     parser.add_argument("--include-json", action="store_true", help="Copy evidence JSON files into the export bundle.")
     return parser.parse_args()
 
@@ -106,6 +106,7 @@ def source_paths(session: Path, profile: str) -> dict[str, Path]:
         "quality_verdict_json": synthesis / f"quality_verdict{suffix(profile)}.json",
         "evidence_notes_json": synthesis / f"evidence_notes{suffix(profile)}.json",
         "review_items_jsonl": synthesis / f"review_items{suffix(profile)}.jsonl",
+        "session_readiness_json": session / "derived/readiness/session_readiness.json",
         "session_readiness_md": session / "derived/readiness/session_readiness.md",
         "session_quality_json": session / "derived/readiness/session-quality/session_quality_report.json",
     }
@@ -130,17 +131,36 @@ def readiness_blockers(
     paths: dict[str, Path],
     quality: dict[str, Any] | None,
     verdict: dict[str, Any] | None,
+    readiness: dict[str, Any] | None,
 ) -> tuple[list[str], list[str]]:
     blockers: list[str] = []
     warnings: list[str] = []
-    for key in ("transcript_md", "notes_md", "quality_verdict_md", "quality_verdict_json"):
+    required_outputs = (
+        "transcript_md",
+        "notes_md",
+        "quality_verdict_md",
+        "quality_verdict_json",
+        "session_readiness_md",
+    )
+    for key in required_outputs:
         if not paths[key].exists():
             blockers.append(f"missing:{key}")
+    if readiness:
+        for item in readiness.get("export_blockers") or []:
+            item = str(item)
+            if item and item not in blockers:
+                blockers.append(item)
+        for item in readiness.get("warnings") or []:
+            item = str(item)
+            if item:
+                warnings.append(f"readiness:{item}")
+    else:
+        blockers.append("missing_session_readiness_json")
     if quality:
         if quality.get("pipeline_status") != "complete":
             blockers.append("pipeline_not_complete")
         use_gate = quality.get("use_gate")
-        if use_gate == "review_first":
+        if use_gate == "review_first" and not readiness:
             blockers.append("session_requires_review")
         elif use_gate and use_gate != "ready_for_notes":
             warnings.append(f"use_gate:{use_gate}")
@@ -249,7 +269,8 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
     sid = session_id(session)
     profile, quality, verdict = resolve_profile(session, args.profile)
     paths = source_paths(session, profile)
-    blockers, warnings = readiness_blockers(paths, quality, verdict)
+    readiness = read_json(paths["session_readiness_json"])
+    blockers, warnings = readiness_blockers(paths, quality, verdict, readiness)
     if blockers and not args.force:
         manifest = {
             "schema": SCHEMA_MANIFEST,
@@ -261,6 +282,7 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
             "format": args.format,
             "blockers": blockers,
             "warnings": warnings,
+            "readiness": readiness,
             "next": "run `murmurmark review plan` and close review blockers, or rerun export with --force for debugging",
         }
         args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -296,14 +318,23 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
         files["obsidian_note"] = {"path": str(obsidian), "bytes": obsidian.stat().st_size}
 
     if args.include_json:
-        for key in ("quality_verdict_json", "evidence_notes_json", "transcript_json", "clean_dialogue_json", "quality_report_json", "review_items_jsonl", "session_quality_json"):
+        for key in (
+            "quality_verdict_json",
+            "evidence_notes_json",
+            "transcript_json",
+            "clean_dialogue_json",
+            "quality_report_json",
+            "review_items_jsonl",
+            "session_readiness_json",
+            "session_quality_json",
+        ):
             if paths[key].exists():
                 files[key] = copy_file(paths[key], out_dir / paths[key].name)
 
     manifest = {
         "schema": SCHEMA_MANIFEST,
         "generator": {"name": "export-session-bundle", "version": SCRIPT_VERSION},
-        "status": "exported_with_warnings" if warnings else "exported",
+        "status": "exported_forced_with_blockers" if blockers else ("exported_with_warnings" if warnings else "exported"),
         "session_id": sid,
         "session": str(session),
         "requested_profile": args.profile,
@@ -313,6 +344,7 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
         "use_gate": (quality or {}).get("use_gate"),
         "blockers": blockers,
         "warnings": warnings,
+        "readiness": readiness,
         "files": files,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }

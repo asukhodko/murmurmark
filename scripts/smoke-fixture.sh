@@ -393,6 +393,16 @@ jq -e '.sessions[0].label == "smoke fixture"' "$session/derived/session-quality/
 jq -e '.sessions[0].pipeline_status == "partial"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
 jq -e '.sessions[0].use_gate == "pipeline_incomplete"' "$session/derived/session-quality/session_quality_report.json" >/dev/null
 jq -e '.schema == "murmurmark.session_readiness/v1" and .use_gate == "pipeline_incomplete"' "$session/derived/readiness/session_readiness.json" >/dev/null
+jq -e '(.export_blockers | index("pipeline_incomplete")) and (.review_blockers | index("pipeline_incomplete"))' "$session/derived/readiness/session_readiness.json" >/dev/null
+jq -e 'any(.use_gate_reasons[]; .id == "pipeline_incomplete" and .severity == "block")' "$session/derived/readiness/session_readiness.json" >/dev/null
+export_block_dir="$workdir/export-blocked"
+if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >/dev/null 2>&1; then
+  echo "expected export to block incomplete session" >&2
+  exit 1
+fi
+[[ -s "$export_block_dir/$(basename "$session").export_blocked.json" ]]
+jq -e '.status == "blocked" and (.blockers | index("pipeline_incomplete")) and (.readiness.export_blockers | index("pipeline_incomplete"))' \
+  "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
 
 audit_python=""
 if [[ -x "$repo_root/.venv/bin/python" ]] && "$repo_root/.venv/bin/python" - <<'PY' >/dev/null 2>&1
