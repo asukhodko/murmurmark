@@ -778,6 +778,18 @@ PY
     --out-dir "$order_review_plan_dir/lane-packs" >/dev/null
   jq -e '.summary.item_count == 1 and .summary.skipped_count == 0 and .items[0].command_key == "review"' \
     "$order_review_plan_dir/lane-packs/review_lane_pack.check_transcript_order.json" >/dev/null
+  jq -c '.decision = "needs_review" | .status = "reviewed"' \
+    "$order_review_plan_dir/review_decisions.template.jsonl" >"$order_review_plan_dir/review_decisions_needs_review.jsonl"
+  "$repo_root/scripts/apply-review-decisions.py" "$order_session" \
+    --decisions "$order_review_plan_dir/review_decisions_needs_review.jsonl" \
+    --review-template "$order_review_plan_dir/review_decisions.template.jsonl" \
+    --input-profile shadow_v2 \
+    --output-profile reviewed_v1 >/dev/null
+  "$repo_root/scripts/synthesize-simple-extractive.py" "$order_session" \
+    --transcript-profile reviewed_v1 >/dev/null
+  jq -s '
+    any(.[]; .type == "utterance_transcript_order_review" and (.source_audit_ids | index("order_0001")))
+  ' "$order_session/derived/synthesis-simple/extractive/review_items.reviewed_v1.jsonl" >/dev/null
   jq -c '.decision = "keep_me" | .status = "reviewed"' \
     "$order_review_plan_dir/review_decisions.template.jsonl" >"$order_review_plan_dir/review_decisions.jsonl"
   "$repo_root/scripts/apply-review-decisions.py" "$order_session" \

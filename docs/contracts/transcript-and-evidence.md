@@ -161,6 +161,13 @@ Candidate items are extractive and auditable:
 }
 ```
 
+`quality_flags` contains boolean quality keys such as `needs_review` and nested review statuses such
+as `transcript_order_review:needs_review` or `transcript_order_review:cleared`.
+`review_items.jsonl` should use the more specific nested source when available; for example,
+`quality.transcript_order_review.status == "needs_review"` becomes an
+`utterance_transcript_order_review` item with `source_audit_ids`, instead of only a generic
+`utterance_needs_review` row.
+
 Topic blocks are time ranges with representative utterances chosen by salience:
 
 ```json

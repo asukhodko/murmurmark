@@ -980,7 +980,32 @@ def row_quality_flags(row: dict[str, Any]) -> list[str]:
         for key, value in quality.items():
             if value is True:
                 flags.append(str(key))
+            elif isinstance(value, dict) and value.get("status"):
+                flags.append(f"{key}:{value.get('status')}")
     return sorted(flags)
+
+
+def row_quality_review_sources(row: dict[str, Any]) -> list[dict[str, Any]]:
+    quality = row.get("quality")
+    if not isinstance(quality, dict):
+        return []
+    sources: list[dict[str, Any]] = []
+    for key, value in quality.items():
+        if not isinstance(value, dict):
+            continue
+        status = str(value.get("status") or "").strip()
+        if not status:
+            continue
+        sources.append(
+            {
+                "key": key,
+                "status": status,
+                "profile": value.get("profile"),
+                "decisions": value.get("decisions") if isinstance(value.get("decisions"), list) else [],
+                "source_audit_ids": value.get("source_audit_ids") if isinstance(value.get("source_audit_ids"), list) else [],
+            }
+        )
+    return sources
 
 
 def context_ids(utterances: list[dict[str, Any]], index: int) -> list[str]:
@@ -1770,17 +1795,34 @@ def build_review_items(
     for index, row in enumerate(utterances):
         quality = row.get("quality") if isinstance(row, dict) else {}
         if isinstance(quality, dict) and quality.get("needs_review"):
-            rows.append(
-                {
-                    "type": "utterance_needs_review",
-                    "severity": "medium",
-                    "start": row.get("start"),
-                    "end": row.get("end"),
-                    "utterance_ids": [utterance_id(row, index)],
-                    "reason": "utterance quality.needs_review is true",
-                    "text": clean_text(row.get("text"), limit=360),
-                }
-            )
+            detailed_sources = [source for source in row_quality_review_sources(row) if source.get("status") == "needs_review"]
+            if detailed_sources:
+                for source in detailed_sources:
+                    rows.append(
+                        {
+                            "type": f"utterance_{source['key']}",
+                            "severity": "medium",
+                            "start": row.get("start"),
+                            "end": row.get("end"),
+                            "utterance_ids": [utterance_id(row, index)],
+                            "reason": f"{source['key']} status needs_review",
+                            "source_audit_ids": source.get("source_audit_ids", []),
+                            "decisions": source.get("decisions", []),
+                            "text": clean_text(row.get("text"), limit=360),
+                        }
+                    )
+            else:
+                rows.append(
+                    {
+                        "type": "utterance_needs_review",
+                        "severity": "medium",
+                        "start": row.get("start"),
+                        "end": row.get("end"),
+                        "utterance_ids": [utterance_id(row, index)],
+                        "reason": "utterance quality.needs_review is true",
+                        "text": clean_text(row.get("text"), limit=360),
+                    }
+                )
 
     for overlap in overlaps:
         if not isinstance(overlap, dict) or "duration_sec" not in overlap:
