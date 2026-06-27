@@ -18,6 +18,14 @@ export PATH="$HOME/.local/bin:$PATH"
 murmurmark doctor
 ```
 
+To verify the release layout instead of the working checkout:
+
+```bash
+scripts/build-release-bundle.sh
+BUNDLE="$(find dist/release-bundles -maxdepth 1 -type d -name 'murmurmark-*' | sort | tail -1)"
+MURMURMARK_PYTHON="$PWD/.venv/bin/python" "$BUNDLE/bin/murmurmark" doctor --strict
+```
+
 Expected before permissions are granted:
 
 - `ffmpeg`, `ffprobe`, `whisper-cli`, Python and required Python modules are found;

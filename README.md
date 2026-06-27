@@ -32,6 +32,23 @@ can be run from any directory. During development, `.build/debug/murmurmark` and
 permissions. It reports warnings without failing by default; use `murmurmark doctor --strict` in
 automation when required checks must fail the command.
 
+### Local Release Bundle
+
+To create an inspectable local bundle from tracked project files:
+
+```bash
+scripts/build-release-bundle.sh
+
+BUNDLE="$(find dist/release-bundles -maxdepth 1 -type d -name 'murmurmark-*' | sort | tail -1)"
+MURMURMARK_PYTHON="$PWD/.venv/bin/python" "$BUNDLE/bin/murmurmark" doctor --strict
+cat "$BUNDLE/release-manifest.json"
+```
+
+The bundle contains the release binary, wrapper, scripts, docs, examples, helper sources,
+`murmurmark.config.example.json` and a manifest. It intentionally excludes `sessions/`,
+`exports/private/`, raw audio, `.venv`, models, weights and `murmurmark.config.json`.
+See [docs/contracts/release-bundle.md](docs/contracts/release-bundle.md).
+
 ### End-to-End From an Existing Recording
 
 Use this when the session directory already exists and raw recording is complete.
@@ -204,6 +221,7 @@ duplicate or ASR-noise classification. It never edits `shadow_v2`.
 swift build
 swift run murmurmark doctor
 swift run murmurmark doctor --strict
+scripts/build-release-bundle.sh
 swift run murmurmark list-apps
 murmurmark record --target-bundle system
 murmurmark latest

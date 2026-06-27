@@ -21,6 +21,7 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 7. `murmurmark export SESSION --format markdown|obsidian` — готов базовый пользовательский output-блок.
 8. `scripts/install-local.sh` — готов минимальный локальный install wrapper для команды `murmurmark`.
 9. `murmurmark doctor` — готов расширенный health check локальной установки и pipeline-зависимостей.
+10. `scripts/build-release-bundle.sh` — готов локальный release layout с manifest и без приватных данных.
 
 UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
 

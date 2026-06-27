@@ -510,8 +510,7 @@ nodes:
     effort: 18
     notes: |
       Установка, релизы, doctor, документация и готовность репозитория к открытой публикации.
-      Минимальный локальный install wrapper и расширенный doctor уже есть;
-      полноценный release layout остаётся будущим слоем.
+      Минимальный локальный install wrapper, расширенный doctor и локальный release bundle уже есть.
 
   packaging-install-update:
     title: "Install/update flow"
@@ -525,9 +524,9 @@ nodes:
     title: "Release layout"
     kind: task
     parent: packaging
-    status: later
+    status: done
     effort: 4
-    notes: "Что входит в релиз, что скачивается отдельно, какие профили стабильны."
+    notes: "scripts/build-release-bundle.sh собирает bin/libexec/scripts/docs/examples/tools и release-manifest.json без приватных данных."
 
   packaging-doctor:
     title: "Doctor health checks"
@@ -768,7 +767,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "process/latest/report/review/corpus/export/config и локальная установка уже работают как нормальные команды."
-          next_sync_goal: "Довести release layout и retention/export policy."
+          next_sync_goal: "Довести retention/export policy и open-source readiness."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]
