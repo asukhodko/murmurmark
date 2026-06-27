@@ -9,8 +9,9 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA_REPORT = "murmurmark.corpus_gates_report/v1"
+SCHEMA_BASELINE = "murmurmark.corpus_gates_baseline/v1"
 
 DEFAULT_CORPUS_READINESS = {
     "partial_cleanup_regression_ready",
@@ -53,6 +54,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-session-review-burden-ratio", type=float, default=0.05)
     parser.add_argument("--max-operational-review-queue-items", type=int, default=80)
     parser.add_argument("--max-audio-judge-remaining-review-items", type=int, default=80)
+    parser.add_argument("--baseline", type=Path, help="Compare current corpus metrics with a saved baseline.")
+    parser.add_argument("--write-baseline", type=Path, help="Write a baseline snapshot from the current inputs.")
+    parser.add_argument("--max-complete-sessions-drop", type=int, default=0)
+    parser.add_argument("--max-ready-for-notes-drop", type=int, default=0)
+    parser.add_argument("--max-review-first-increase", type=int, default=0)
+    parser.add_argument("--max-corpus-items-drop", type=int, default=0)
+    parser.add_argument("--max-audio-judge-rows-drop", type=int, default=0)
+    parser.add_argument("--max-audio-judge-cv-accuracy-drop", type=float, default=0.03)
+    parser.add_argument("--max-total-review-burden-ratio-increase", type=float, default=0.005)
+    parser.add_argument("--max-session-review-burden-ratio-increase", type=float, default=0.01)
+    parser.add_argument("--max-local-recall-drop", type=float, default=0.05)
+    parser.add_argument("--max-audio-judge-review-queue-increase", type=int, default=10)
+    parser.add_argument("--max-operational-review-queue-increase", type=int, default=10)
     parser.add_argument("--allowed-corpus-readiness", default=",".join(sorted(DEFAULT_CORPUS_READINESS)))
     parser.add_argument("--strict-warnings", action="store_true", help="Treat warnings as failures.")
     parser.add_argument("--no-fail", action="store_true", help="Always exit 0 after writing the report.")
@@ -131,6 +145,266 @@ def session_ids(rows: list[dict[str, Any]]) -> list[str]:
     return [str(row.get("session_id") or row.get("label") or "?") for row in rows]
 
 
+def session_rank(use_gate: Any) -> int:
+    return {
+        "ready_for_notes": 3,
+        "review_first": 2,
+        "pipeline_incomplete_review_first": 1,
+        "pipeline_incomplete": 0,
+    }.get(str(use_gate or ""), 0)
+
+
+def build_baseline_snapshot(
+    *,
+    args: argparse.Namespace,
+    complete: list[dict[str, Any]],
+    ready_for_notes: int,
+    review_first: int,
+    incomplete: int,
+    total_review_burden_ratio: float,
+    corpus_item_count: int,
+    corpus_session_count: int,
+    corpus_readiness: str,
+    audio_rows: int,
+    audio_sessions: int,
+    cv_accuracy: float,
+    audio_remaining: int,
+    operational_verdict: str,
+    operational_queue: int,
+) -> dict[str, Any]:
+    sessions: dict[str, dict[str, Any]] = {}
+    for row in complete:
+        session_id = str(row.get("session_id") or row.get("label") or "")
+        if not session_id:
+            continue
+        sessions[session_id] = {
+            "session_id": session_id,
+            "selected_profile": row.get("selected_profile"),
+            "use_gate": row.get("use_gate"),
+            "review_burden_ratio": round(safe_float(row.get("review_burden_ratio")), 6),
+            "review_burden_sec": round(safe_float(row.get("review_burden_sec")), 3),
+            "meeting_duration_sec": round(safe_float(row.get("meeting_duration_sec")), 3),
+            "local_only_island_recall": (
+                round(safe_float(row.get("local_only_island_recall")), 6)
+                if row.get("local_only_island_recall") is not None
+                else None
+            ),
+            "unrepaired_long_mic_crossings_count": safe_int(row.get("unrepaired_long_mic_crossings_count")),
+            "golden_phrase_fail_count": safe_int(row.get("golden_phrase_fail_count")),
+        }
+    return {
+        "schema": SCHEMA_BASELINE,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generator": {"name": "check-corpus-gates", "version": SCRIPT_VERSION},
+        "source_inputs": {
+            "session_quality": str(args.session_quality),
+            "corpus_evaluation": str(args.corpus_evaluation),
+            "audio_judge": str(args.audio_judge),
+            "operational_readiness": str(args.operational_readiness),
+        },
+        "metrics": {
+            "complete_pipeline_count": len(complete),
+            "ready_for_notes": ready_for_notes,
+            "review_first": review_first,
+            "incomplete_sessions": incomplete,
+            "total_review_burden_ratio": round(total_review_burden_ratio, 6),
+            "corpus_readiness": corpus_readiness or None,
+            "corpus_item_count": corpus_item_count,
+            "corpus_session_count": corpus_session_count,
+            "audio_judge_rows": audio_rows,
+            "audio_judge_sessions": audio_sessions,
+            "audio_judge_cv_accuracy": round(cv_accuracy, 6),
+            "audio_judge_remaining_review_items": audio_remaining,
+            "operational_verdict": operational_verdict or None,
+            "operational_review_queue_items": operational_queue,
+        },
+        "sessions": sessions,
+    }
+
+
+def compare_baseline(
+    checks: list[dict[str, Any]],
+    *,
+    baseline: dict[str, Any] | None,
+    current: dict[str, Any],
+    args: argparse.Namespace,
+) -> None:
+    if args.baseline is None:
+        return
+    check(
+        checks,
+        "baseline.valid",
+        isinstance(baseline, dict) and baseline.get("schema") == SCHEMA_BASELINE,
+        observed=str(args.baseline),
+        threshold=SCHEMA_BASELINE,
+        message="baseline snapshot exists and uses the expected schema",
+    )
+    if not isinstance(baseline, dict) or baseline.get("schema") != SCHEMA_BASELINE:
+        return
+
+    baseline_metrics = baseline.get("metrics") if isinstance(baseline.get("metrics"), dict) else {}
+    current_metrics = current.get("metrics") if isinstance(current.get("metrics"), dict) else {}
+
+    def int_metric(metric: str) -> tuple[int, int]:
+        return safe_int(current_metrics.get(metric)), safe_int(baseline_metrics.get(metric))
+
+    def float_metric(metric: str) -> tuple[float, float]:
+        return safe_float(current_metrics.get(metric)), safe_float(baseline_metrics.get(metric))
+
+    current_complete, baseline_complete = int_metric("complete_pipeline_count")
+    check(
+        checks,
+        "baseline.complete_sessions_not_lower",
+        current_complete >= baseline_complete - args.max_complete_sessions_drop,
+        observed=current_complete,
+        threshold=f">= baseline {baseline_complete} - {args.max_complete_sessions_drop}",
+        message="complete pipeline session count does not regress from baseline",
+    )
+    current_ready, baseline_ready = int_metric("ready_for_notes")
+    check(
+        checks,
+        "baseline.ready_for_notes_not_lower",
+        current_ready >= baseline_ready - args.max_ready_for_notes_drop,
+        observed=current_ready,
+        threshold=f">= baseline {baseline_ready} - {args.max_ready_for_notes_drop}",
+        message="ready_for_notes session count does not regress from baseline",
+    )
+    current_review_first, baseline_review_first = int_metric("review_first")
+    check(
+        checks,
+        "baseline.review_first_not_higher",
+        current_review_first <= baseline_review_first + args.max_review_first_increase,
+        observed=current_review_first,
+        threshold=f"<= baseline {baseline_review_first} + {args.max_review_first_increase}",
+        message="review_first session count does not grow from baseline",
+    )
+    current_corpus_items, baseline_corpus_items = int_metric("corpus_item_count")
+    check(
+        checks,
+        "baseline.corpus_items_not_lower",
+        current_corpus_items >= baseline_corpus_items - args.max_corpus_items_drop,
+        observed=current_corpus_items,
+        threshold=f">= baseline {baseline_corpus_items} - {args.max_corpus_items_drop}",
+        message="regression corpus item count does not regress from baseline",
+    )
+    current_audio_rows, baseline_audio_rows = int_metric("audio_judge_rows")
+    check(
+        checks,
+        "baseline.audio_judge_rows_not_lower",
+        current_audio_rows >= baseline_audio_rows - args.max_audio_judge_rows_drop,
+        observed=current_audio_rows,
+        threshold=f">= baseline {baseline_audio_rows} - {args.max_audio_judge_rows_drop}",
+        message="audio judge training row count does not regress from baseline",
+    )
+    current_cv, baseline_cv = float_metric("audio_judge_cv_accuracy")
+    check(
+        checks,
+        "baseline.audio_judge_cv_not_lower",
+        current_cv >= baseline_cv - args.max_audio_judge_cv_accuracy_drop,
+        observed=round(current_cv, 6),
+        threshold=f">= baseline {round(baseline_cv, 6)} - {args.max_audio_judge_cv_accuracy_drop}",
+        message="audio judge validation accuracy does not drop beyond the allowed budget",
+    )
+    current_review_ratio, baseline_review_ratio = float_metric("total_review_burden_ratio")
+    check(
+        checks,
+        "baseline.total_review_burden_not_higher",
+        current_review_ratio <= baseline_review_ratio + args.max_total_review_burden_ratio_increase,
+        observed=round(current_review_ratio, 6),
+        threshold=f"<= baseline {round(baseline_review_ratio, 6)} + {args.max_total_review_burden_ratio_increase}",
+        message="total review burden does not grow beyond the allowed budget",
+    )
+    current_audio_queue, baseline_audio_queue = int_metric("audio_judge_remaining_review_items")
+    check(
+        checks,
+        "baseline.audio_judge_queue_not_higher",
+        current_audio_queue <= baseline_audio_queue + args.max_audio_judge_review_queue_increase,
+        observed=current_audio_queue,
+        threshold=f"<= baseline {baseline_audio_queue} + {args.max_audio_judge_review_queue_increase}",
+        message="audio judge review queue does not grow beyond the allowed budget",
+    )
+    current_operational_queue, baseline_operational_queue = int_metric("operational_review_queue_items")
+    check(
+        checks,
+        "baseline.operational_queue_not_higher",
+        current_operational_queue <= baseline_operational_queue + args.max_operational_review_queue_increase,
+        observed=current_operational_queue,
+        threshold=f"<= baseline {baseline_operational_queue} + {args.max_operational_review_queue_increase}",
+        message="operational review queue does not grow beyond the allowed budget",
+    )
+
+    baseline_sessions = baseline.get("sessions") if isinstance(baseline.get("sessions"), dict) else {}
+    current_sessions = current.get("sessions") if isinstance(current.get("sessions"), dict) else {}
+    missing_session_ids = sorted(str(key) for key in baseline_sessions if key not in current_sessions)
+    check(
+        checks,
+        "baseline.sessions_still_complete",
+        not missing_session_ids,
+        observed=len(missing_session_ids),
+        threshold="0 missing baseline sessions",
+        message="sessions present in the baseline still have complete pipeline reports",
+        details=missing_session_ids[:20],
+    )
+
+    use_gate_bad: list[str] = []
+    local_recall_bad: list[str] = []
+    review_burden_bad: list[str] = []
+    hard_invariant_bad: list[str] = []
+    for session_id, base_row in baseline_sessions.items():
+        cur_row = current_sessions.get(session_id)
+        if not isinstance(base_row, dict) or not isinstance(cur_row, dict):
+            continue
+        if session_rank(cur_row.get("use_gate")) < session_rank(base_row.get("use_gate")):
+            use_gate_bad.append(str(session_id))
+        base_recall = base_row.get("local_only_island_recall")
+        cur_recall = cur_row.get("local_only_island_recall")
+        if base_recall is not None and cur_recall is not None:
+            if safe_float(cur_recall) < safe_float(base_recall) - args.max_local_recall_drop:
+                local_recall_bad.append(str(session_id))
+        if safe_float(cur_row.get("review_burden_ratio")) > safe_float(base_row.get("review_burden_ratio")) + args.max_session_review_burden_ratio_increase:
+            review_burden_bad.append(str(session_id))
+        if safe_int(cur_row.get("unrepaired_long_mic_crossings_count")) > safe_int(base_row.get("unrepaired_long_mic_crossings_count")):
+            hard_invariant_bad.append(str(session_id))
+        if safe_int(cur_row.get("golden_phrase_fail_count")) > safe_int(base_row.get("golden_phrase_fail_count")):
+            hard_invariant_bad.append(str(session_id))
+    check(
+        checks,
+        "baseline.session_use_gate_not_worse",
+        not use_gate_bad,
+        observed=len(use_gate_bad),
+        threshold="0 sessions",
+        message="no baseline session has a worse use gate",
+        details=use_gate_bad[:20],
+    )
+    check(
+        checks,
+        "baseline.session_local_recall_not_lower",
+        not local_recall_bad,
+        observed=len(local_recall_bad),
+        threshold=f"0 sessions below baseline - {args.max_local_recall_drop}",
+        message="no baseline session loses too much local recall",
+        details=local_recall_bad[:20],
+    )
+    check(
+        checks,
+        "baseline.session_review_burden_not_higher",
+        not review_burden_bad,
+        observed=len(review_burden_bad),
+        threshold=f"0 sessions above baseline + {args.max_session_review_burden_ratio_increase}",
+        message="no baseline session has a large review burden increase",
+        details=review_burden_bad[:20],
+    )
+    check(
+        checks,
+        "baseline.session_hard_invariants_not_worse",
+        not hard_invariant_bad,
+        observed=len(set(hard_invariant_bad)),
+        threshold="0 sessions",
+        message="no baseline session regresses on golden phrases or unrepaired long crossings",
+        details=sorted(set(hard_invariant_bad))[:20],
+    )
+
+
 def build_report(args: argparse.Namespace) -> dict[str, Any]:
     allowed_readiness = {item.strip() for item in str(args.allowed_corpus_readiness).split(",") if item.strip()}
     session_quality = read_json(args.session_quality)
@@ -157,6 +431,17 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "max_session_review_burden_ratio": args.max_session_review_burden_ratio,
         "max_operational_review_queue_items": args.max_operational_review_queue_items,
         "max_audio_judge_remaining_review_items": args.max_audio_judge_remaining_review_items,
+        "max_complete_sessions_drop": args.max_complete_sessions_drop,
+        "max_ready_for_notes_drop": args.max_ready_for_notes_drop,
+        "max_review_first_increase": args.max_review_first_increase,
+        "max_corpus_items_drop": args.max_corpus_items_drop,
+        "max_audio_judge_rows_drop": args.max_audio_judge_rows_drop,
+        "max_audio_judge_cv_accuracy_drop": args.max_audio_judge_cv_accuracy_drop,
+        "max_total_review_burden_ratio_increase": args.max_total_review_burden_ratio_increase,
+        "max_session_review_burden_ratio_increase": args.max_session_review_burden_ratio_increase,
+        "max_local_recall_drop": args.max_local_recall_drop,
+        "max_audio_judge_review_queue_increase": args.max_audio_judge_review_queue_increase,
+        "max_operational_review_queue_increase": args.max_operational_review_queue_increase,
         "allowed_corpus_readiness": sorted(allowed_readiness),
     }
 
@@ -381,6 +666,26 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         message="operational readiness still has blockers outside hard corpus gates",
     )
 
+    baseline_snapshot = build_baseline_snapshot(
+        args=args,
+        complete=complete,
+        ready_for_notes=ready_for_notes,
+        review_first=review_first,
+        incomplete=incomplete,
+        total_review_burden_ratio=total_review_burden_ratio,
+        corpus_item_count=corpus_item_count,
+        corpus_session_count=corpus_session_count,
+        corpus_readiness=corpus_readiness,
+        audio_rows=audio_rows,
+        audio_sessions=audio_sessions,
+        cv_accuracy=cv_accuracy,
+        audio_remaining=audio_remaining,
+        operational_verdict=operational_verdict,
+        operational_queue=operational_queue,
+    )
+    baseline = read_json(args.baseline) if args.baseline else None
+    compare_baseline(checks, baseline=baseline, current=baseline_snapshot, args=args)
+
     failed = [item for item in checks if item["status"] == "fail"]
     warnings = [item for item in checks if item["status"] == "warn"]
     status = "failed" if failed or (args.strict_warnings and warnings) else ("passed_with_warnings" if warnings else "passed")
@@ -394,6 +699,10 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "warning_count": len(warnings),
         "inputs": inputs,
         "thresholds": thresholds,
+        "baseline": {
+            "input": str(args.baseline) if args.baseline else None,
+            "write_path": str(args.write_baseline) if args.write_baseline else None,
+        },
         "summary": {
             "complete_pipeline_count": len(complete),
             "ready_for_notes": ready_for_notes,
@@ -413,6 +722,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "operational_warnings": operational_warnings,
         },
         "checks": checks,
+        "baseline_snapshot": baseline_snapshot,
     }
 
 
@@ -465,10 +775,14 @@ def main() -> int:
     markdown_path = out_dir / "corpus_gates_report.md"
     write_json(json_path, report)
     write_markdown(markdown_path, report)
+    if args.write_baseline:
+        write_json(args.write_baseline, report["baseline_snapshot"])
     print(f"status: {report['status']}")
     print(f"failed_gates: {report['failed_gate_count']}")
     print(f"warnings: {report['warning_count']}")
     print(f"written: {json_path}")
+    if args.write_baseline:
+        print(f"baseline: {args.write_baseline}")
     if report["status"] == "failed" and not args.no_fail:
         return 1
     return 0

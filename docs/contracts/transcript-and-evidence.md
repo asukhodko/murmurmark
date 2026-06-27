@@ -558,6 +558,55 @@ When an operational readiness report exists, `train-audio-judge-v0.py` may also 
 
 These rows are shadow evidence. They do not modify a transcript by themselves.
 
+Corpus gates are generated after session quality, corpus evaluation, audio judge and operational
+readiness reports:
+
+```text
+sessions/_reports/corpus-gates/
+  corpus_gates_report.json
+  corpus_gates_report.md
+  baseline.local.json
+```
+
+`corpus_gates_report.json` uses `murmurmark.corpus_gates_report/v1`:
+
+```json
+{
+  "schema": "murmurmark.corpus_gates_report/v1",
+  "status": "passed_with_warnings",
+  "failed_gate_count": 0,
+  "warning_count": 3,
+  "thresholds": {
+    "min_complete_sessions": 3,
+    "max_total_review_burden_ratio": 0.03,
+    "max_audio_judge_cv_accuracy_drop": 0.03
+  },
+  "baseline": {
+    "input": "sessions/_reports/corpus-gates/baseline.local.json",
+    "write_path": null
+  },
+  "summary": {
+    "complete_pipeline_count": 10,
+    "ready_for_notes": 6,
+    "audio_judge_cv_accuracy": 0.970297,
+    "total_review_burden_ratio": 0.007082
+  },
+  "checks": [
+    {
+      "id": "baseline.ready_for_notes_not_lower",
+      "status": "pass",
+      "severity": "fail",
+      "observed": 6,
+      "threshold": ">= baseline 6 - 0"
+    }
+  ]
+}
+```
+
+`baseline.local.json` uses `murmurmark.corpus_gates_baseline/v1`. It is a private generated snapshot
+of aggregate metrics and per-session gates used by `check-corpus-gates.py --baseline`. A baseline
+built from real meeting sessions must stay under ignored `sessions/_reports/`.
+
 The post-recording runner writes a per-session execution manifest:
 
 ```text

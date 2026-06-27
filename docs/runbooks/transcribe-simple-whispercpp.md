@@ -436,6 +436,10 @@ work:
 .build/debug/murmurmark corpus train-audio-judge
 
 .build/debug/murmurmark corpus gate
+.build/debug/murmurmark corpus gate \
+  --write-baseline sessions/_reports/corpus-gates/baseline.local.json
+.build/debug/murmurmark corpus gate \
+  --baseline sessions/_reports/corpus-gates/baseline.local.json
 
 .build/debug/murmurmark review plan
 .build/debug/murmurmark review latest --lane fast_confirm_drop
@@ -460,6 +464,25 @@ For a full refresh with all sessions under `./sessions`, use:
 readiness JSON reports, then writes `sessions/_reports/corpus-gates/corpus_gates_report.json` and
 `.md`. `passed` or `passed_with_warnings` exits successfully. `failed` exits non-zero unless
 `--no-fail` is used.
+
+For risky algorithm changes, first save a private local baseline:
+
+```bash
+.build/debug/murmurmark corpus gate \
+  --write-baseline sessions/_reports/corpus-gates/baseline.local.json
+```
+
+Then compare future corpus refreshes with it:
+
+```bash
+.build/debug/murmurmark corpus gate \
+  --baseline sessions/_reports/corpus-gates/baseline.local.json
+```
+
+The baseline check catches drops in complete or `ready_for_notes` sessions, growth in `review_first`,
+review burden increases, audio judge training/accuracy regressions, lost baseline sessions and
+per-session drops in local recall or use gate. The baseline file lives under ignored generated
+reports and must not be committed when it is built from real meetings.
 
 `murmurmark export` is the user-facing handoff. It reads the selected transcript profile from
 per-session readiness, copies the Markdown verdict, notes and transcript into `exports/private/`,

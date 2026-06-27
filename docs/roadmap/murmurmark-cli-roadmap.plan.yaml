@@ -210,8 +210,8 @@ nodes:
     notes: |
       Набор реальных сессий, пересборка, сравнение метрик и no-regression gates.
       Базовые команды corpus build/process/evaluate/train-audio-judge/report уже доступны;
-      базовый corpus gate уже проверяет hard-инварианты. Следующий слой — более строгие
-      no-regression thresholds и review/export blockers.
+      corpus gate уже проверяет hard-инварианты и может сравнивать будущие прогоны
+      с локальным baseline snapshot. Следующий слой — оценка audio judge и review/export blockers.
 
   corpus-add-command:
     title: "corpus add"
@@ -249,9 +249,9 @@ nodes:
     title: "No-regression thresholds"
     kind: task
     parent: corpus-regression
-    status: next
+    status: done
     effort: 5
-    notes: "Уточнить пороги для изменения default/auto профилей, notes stability и export blockers."
+    notes: "check-corpus-gates.py поддерживает --write-baseline и --baseline; baseline ловит регрессии по готовым сессиям, use_gate, review burden, local recall, corpus size и audio judge."
 
   review-loop:
     title: "Review loop"
@@ -776,8 +776,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "corpus CLI, review loop и audio judge уже защищают от части регрессий; нужны более строгие gates."
-          next_sync_goal: "Уточнить no-regression thresholds и review/export blockers."
+          sync_note: "corpus CLI, review loop, audio judge и baseline thresholds уже защищают от части регрессий."
+          next_sync_goal: "Оценить audio judge на корпусе и уточнить review/export blockers."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

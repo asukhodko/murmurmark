@@ -987,6 +987,48 @@ EOF
   jq -e '.promotion_plan.review_queue_strategy.after_first_lane_estimate.remaining_items | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'any(.review_queue[]; .source == "local_recall" and .label == "lost_me")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'all(.review_queue[]; .source_audit_id != "arp_manual_v2_duplicate")' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  gates_dir="$workdir/corpus-gates"
+  gate_args=(
+    --session-quality "$quality_dir/session_quality_report.json"
+    --corpus-evaluation "$corpus_dir/regression_corpus_evaluation.json"
+    --audio-judge "$judge_dir/audio_judge_v0_report.json"
+    --operational-readiness "$readiness_dir/operational_readiness_report.json"
+    --min-complete-sessions 1
+    --min-ready-for-notes 0
+    --min-corpus-sessions 1
+    --min-corpus-items 2
+    --min-audio-judge-rows 2
+    --min-audio-judge-cv-accuracy 0
+    --max-total-review-burden-ratio 1
+    --max-session-review-burden-ratio 1
+    --max-operational-review-queue-items 99
+    --max-audio-judge-remaining-review-items 99
+  )
+  "$repo_root/scripts/check-corpus-gates.py" \
+    "${gate_args[@]}" \
+    --out-dir "$gates_dir" \
+    --write-baseline "$gates_dir/baseline.json" \
+    --no-fail >/dev/null
+  [[ -s "$gates_dir/corpus_gates_report.json" ]]
+  [[ -s "$gates_dir/baseline.json" ]]
+  jq -e '.schema == "murmurmark.corpus_gates_baseline/v1"' "$gates_dir/baseline.json" >/dev/null
+  "$repo_root/scripts/check-corpus-gates.py" \
+    "${gate_args[@]}" \
+    --out-dir "$gates_dir/with-baseline" \
+    --baseline "$gates_dir/baseline.json" \
+    --no-fail >/dev/null
+  jq -e 'all(.checks[] | select(.id | startswith("baseline.")); .status == "pass")' \
+    "$gates_dir/with-baseline/corpus_gates_report.json" >/dev/null
+  jq '.metrics.ready_for_notes = 99' "$gates_dir/baseline.json" >"$gates_dir/baseline_bad.json"
+  if "$repo_root/scripts/check-corpus-gates.py" \
+    "${gate_args[@]}" \
+    --out-dir "$gates_dir/with-bad-baseline" \
+    --baseline "$gates_dir/baseline_bad.json" >/dev/null 2>&1; then
+    echo "expected corpus gate to fail against bad baseline" >&2
+    exit 1
+  fi
+  jq -e 'any(.checks[]; .id == "baseline.ready_for_notes_not_lower" and .status == "fail")' \
+    "$gates_dir/with-bad-baseline/corpus_gates_report.json" >/dev/null
   review_plan_dir="$workdir/review-plan"
   "$repo_root/scripts/build-review-plan.py" \
     --operational-readiness "$readiness_dir/operational_readiness_report.json" \

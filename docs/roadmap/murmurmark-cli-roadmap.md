@@ -17,7 +17,7 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 3. `murmurmark report SESSION` и `murmurmark report corpus` — готово.
 4. `murmurmark review SESSION` — готов базовый CLI-контур.
 5. `murmurmark corpus process all` — готов базовый контур качества по корпусу.
-6. `murmurmark corpus gate` — готов базовый no-regression gate.
+6. `murmurmark corpus gate` — готов no-regression gate с локальным baseline-сравнением.
 7. `murmurmark export SESSION --format markdown|obsidian` — готов базовый пользовательский output-блок.
 8. `scripts/install-local.sh` — готов минимальный локальный install wrapper для команды `murmurmark`.
 9. `murmurmark doctor` — готов расширенный health check локальной установки и pipeline-зависимостей.
@@ -32,7 +32,7 @@ UI App не является обязательной частью roadmap. Он
 
 - `foundation-done` — уже готовая основа: capture, Echo Guard, whisper.cpp, repair/audit, agent_reviewed_v1, notes, readiness.
 - `cli-orchestration` — текущий фокус: единые команды process/report/review/corpus/export/config; минимальная локальная установка уже готова.
-- `corpus-regression` — текущий контур: корпус сессий, пересборка, сравнение метрик, базовый gate; следующий слой — строгие no-regression thresholds.
+- `corpus-regression` — текущий контур: корпус сессий, пересборка, сравнение метрик, baseline thresholds; следующий слой — оценка audio judge на корпусе.
 - `review-loop` — ближайший этап: удобный CLI-review спорных участков.
 - `quality-hardening` — ближайший этап: улучшение качества transcript без смены топологии.
 - `evidence-notes` и `export-workflows` — пользовательские артефакты; базовый export готов, дальше нужны vault/docs/Jira proposals.

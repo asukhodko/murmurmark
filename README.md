@@ -143,6 +143,12 @@ murmurmark corpus train-audio-judge
 
 murmurmark corpus gate
 
+murmurmark corpus gate \
+  --write-baseline sessions/_reports/corpus-gates/baseline.local.json
+
+murmurmark corpus gate \
+  --baseline sessions/_reports/corpus-gates/baseline.local.json
+
 murmurmark review plan
 ```
 
@@ -155,6 +161,8 @@ murmurmark corpus process all --per-label 16 --max-items 160
 `corpus gate` writes `sessions/_reports/corpus-gates/corpus_gates_report.*`.
 `passed_with_warnings` means the hard no-regression gates are green, but some historical sessions or
 review queues still need cleanup before the whole repository is operationally ready.
+The optional baseline is private generated state under ignored `sessions/_reports/`.
+Use it before risky cleanup or ASR changes to catch regressions against the current corpus.
 
 The lower-level scripts remain available for debugging specific files:
 
@@ -271,6 +279,8 @@ murmurmark corpus build ./sessions/<session> --per-label 16 --max-items 160
 murmurmark corpus evaluate
 murmurmark corpus train-audio-judge
 murmurmark corpus gate
+murmurmark corpus gate --write-baseline sessions/_reports/corpus-gates/baseline.local.json
+murmurmark corpus gate --baseline sessions/_reports/corpus-gates/baseline.local.json
 murmurmark corpus report
 murmurmark export ./sessions/<session> --format markdown --include-json
 murmurmark export ./sessions/<session> --format obsidian
