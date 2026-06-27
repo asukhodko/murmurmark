@@ -8,7 +8,7 @@ They are local files. They may contain sensitive names and should follow the sam
 
 ```text
 domain-packs/
-  backend-platform/
+  example-domain/
     domain.md
     glossary.yaml
     participants.yaml
@@ -26,8 +26,8 @@ Human-readable domain briefing:
 
 ```text
 Команда занимается backend/platform engineering.
-Типичные темы: reliability, observability, incident review, deployment pipeline,
-RAG services, latency, SLO/SLA/SLI, Kubernetes, PostgreSQL, ClickHouse, Kafka.
+Типичные темы: reliability, incident review, deployment pipeline,
+latency, SLO/SLA/SLI, Kubernetes, PostgreSQL.
 
 Речь обычно русская, но названия технологий, аббревиатуры и сервисы часто
 произносятся или пишутся на английском.
@@ -39,7 +39,7 @@ RAG services, latency, SLO/SLA/SLI, Kubernetes, PostgreSQL, ClickHouse, Kafka.
 
 ```yaml
 schema: murmurmark.glossary/v1
-domain: backend-platform
+domain: example-domain
 language_profile:
   - ru
   - en

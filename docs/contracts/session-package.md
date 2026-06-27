@@ -191,7 +191,7 @@ Created after capture when pipeline handoff is requested.
   },
   "meeting_context": {
     "language": ["ru", "en"],
-    "domain_profile": "backend-platform",
+    "domain_profile": "example-domain",
     "glossary": "domain_pack/glossary.yaml"
   },
   "steps": [

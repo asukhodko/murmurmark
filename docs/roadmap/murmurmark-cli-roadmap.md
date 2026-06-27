@@ -25,7 +25,7 @@ UI App не является обязательной частью roadmap. Он
 ## Крупные направления
 
 - `foundation-done` — уже готовая основа: capture, Echo Guard, whisper.cpp, repair/audit, agent_reviewed_v1, notes, readiness.
-- `cli-orchestration` — текущий фокус: единые команды process/report/review/export и следующий слой config/model/prompt.
+- `cli-orchestration` — текущий фокус: единые команды process/report/review/corpus/export/config; следующий слой packaging и defaults.
 - `corpus-regression` — текущий контур: корпус сессий, пересборка, сравнение метрик, базовый gate; следующий слой — строгие no-regression thresholds.
 - `review-loop` — ближайший этап: удобный CLI-review спорных участков.
 - `quality-hardening` — ближайший этап: улучшение качества transcript без смены топологии.

@@ -16,14 +16,10 @@ Use this when the session directory already exists and raw recording is complete
 cd murmurmark
 
 SESSION=./sessions/<session>
-MODEL="$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 
 git pull
 swift build
-.build/debug/murmurmark process "$SESSION" \
-  --model "$MODEL" \
-  --language ru \
-  --force-asr
+.build/debug/murmurmark process "$SESSION" --force-asr
 
 .build/debug/murmurmark report "$SESSION"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
@@ -43,6 +39,16 @@ less "$TRANSCRIPT"
 Use `--force-asr` when you want a cold rerun from the raw `CAF` tracks. Omit it for the normal
 incremental path, where cached raw ASR JSON is reused when its model, language, prompt and windowing
 metadata still match.
+
+Local defaults come from `murmurmark.config.json` when it exists:
+
+```bash
+cp murmurmark.config.example.json murmurmark.config.json
+$EDITOR murmurmark.config.json
+.build/debug/murmurmark config print
+```
+
+Explicit CLI flags still win over config values.
 
 For a regression set or several real meetings, build a private quality summary under the ignored
 `sessions/_reports/` tree:
@@ -123,17 +129,14 @@ The `record` command keeps running until `Ctrl-C`; the following commands contin
 ```bash
 cd murmurmark
 
-MODEL="$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
-
 git pull
 swift build
 .build/debug/murmurmark doctor
+.build/debug/murmurmark config print
 
 .build/debug/murmurmark record --target-bundle system
 
-.build/debug/murmurmark process latest \
-  --model "$MODEL" \
-  --language ru
+.build/debug/murmurmark process latest
 
 .build/debug/murmurmark latest
 SESSION="$(.build/debug/murmurmark latest | sed -E 's/^SESSION="(.*)"$/\1/')"
@@ -181,8 +184,9 @@ swift run murmurmark doctor
 swift run murmurmark list-apps
 .build/debug/murmurmark record --target-bundle system
 .build/debug/murmurmark latest
-.build/debug/murmurmark process latest --model "$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
-.build/debug/murmurmark process ./sessions/<session> --model "$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin" --force-asr
+.build/debug/murmurmark config print
+.build/debug/murmurmark process latest
+.build/debug/murmurmark process ./sessions/<session> --force-asr
 .build/debug/murmurmark process ./sessions/<session> --plan-only --skip-build
 .build/debug/murmurmark report ./sessions/<session>
 .build/debug/murmurmark report latest
@@ -210,9 +214,9 @@ swift run murmurmark list-apps
 .build/debug/murmurmark inspect ./sessions/<session> --echo
 .build/debug/murmurmark export-audio ./sessions/<session>
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session>
-.venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --prompt-file examples/domain-packs/backend-platform/whisper-prompt.ru.txt
+.venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --prompt-file domain-packs/<domain>/whisper-prompt.ru.txt
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --repair-profile shadow_v2 --skip-export --skip-transcribe
-.venv/bin/python scripts/run-session-pipeline.py ./sessions/<session> --model "$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
+.venv/bin/python scripts/run-session-pipeline.py ./sessions/<session>
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile auto
 .venv/bin/python scripts/audit-local-recall.py ./sessions/<session> --profile shadow_v2
 .venv/bin/python scripts/audit-group-overlaps.py ./sessions/<session> --profile shadow_v2 --write-clips

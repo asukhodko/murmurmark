@@ -27,8 +27,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--prompt-file",
         type=Path,
-        default=Path("examples/domain-packs/backend-platform/whisper-prompt.ru.txt"),
-        help="Optional whisper prompt file. Ignored when the file does not exist.",
+        default=None,
+        help="Optional whisper prompt file. Ignored when omitted or when the file does not exist.",
     )
     parser.add_argument("--murmurmark-bin", type=Path, default=Path(".build/debug/murmurmark"))
     parser.add_argument(
@@ -76,8 +76,8 @@ def rel(path: Path, base: Path) -> str:
         return str(path)
 
 
-def add_prompt(command: list[str], prompt_file: Path) -> list[str]:
-    if prompt_file.exists():
+def add_prompt(command: list[str], prompt_file: Path | None) -> list[str]:
+    if prompt_file and prompt_file.exists():
         return command + ["--prompt-file", str(prompt_file)]
     return command
 
@@ -308,7 +308,7 @@ def main() -> int:
         "inputs": {
             "model": str(args.model),
             "language": args.language,
-            "prompt_file": str(args.prompt_file) if args.prompt_file.exists() else None,
+            "prompt_file": str(args.prompt_file) if args.prompt_file and args.prompt_file.exists() else None,
             "audio_judge_queue": str(args.audio_judge_queue) if args.audio_judge_queue.exists() else None,
         },
         "outputs": {

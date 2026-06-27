@@ -28,16 +28,17 @@ Start from a completed session and run the current full post-recording pipeline:
 
 ```bash
 SESSION=./sessions/<session>
-MODEL="$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 
 swift build
-.build/debug/murmurmark process "$SESSION" \
-  --model "$MODEL" \
-  --language ru
+.build/debug/murmurmark config print
+.build/debug/murmurmark process "$SESSION"
 
 .build/debug/murmurmark report "$SESSION"
 less "$SESSION/derived/readiness/session_readiness.md"
 ```
+
+Copy `murmurmark.config.example.json` to `murmurmark.config.json` when you want local defaults for
+model, language, prompt and export. Explicit command-line flags override config values.
 
 `murmurmark process` calls the current runner: Echo Guard, export/transcription, shadow timeline repair, local-recall audit,
 group-overlap audit, audio-review audit, `audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. `audit_cleanup_v5` is a separate batch step after the suggested-review shadow report. Use
@@ -48,7 +49,7 @@ For the usual record-then-process flow:
 
 ```bash
 .build/debug/murmurmark record --target-bundle system
-.build/debug/murmurmark process latest --model "$MODEL" --language ru
+.build/debug/murmurmark process latest
 .build/debug/murmurmark report latest
 ```
 
@@ -74,11 +75,9 @@ Run simple transcription:
 
 ```bash
 MODEL="$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
-ASR_PROMPT="examples/domain-packs/backend-platform/whisper-prompt.ru.txt"
 
 scripts/transcribe-simple-whispercpp.py "$SESSION" \
   --model "$MODEL" \
-  --prompt-file "$ASR_PROMPT" \
   --language ru
 ```
 
@@ -108,16 +107,15 @@ Default ASR settings:
 mic loudnorm is intentionally not enabled because it can amplify residual remote bleed in the cleaned
 mic track.
 
-For backend/platform calls, pass the compact domain prompt file:
+For domain-specific calls, pass a compact local prompt file:
 
 ```bash
-ASR_PROMPT="examples/domain-packs/backend-platform/whisper-prompt.ru.txt"
+ASR_PROMPT="domain-packs/<domain>/whisper-prompt.ru.txt"
+scripts/transcribe-simple-whispercpp.py "$SESSION" --model "$MODEL" --language ru --prompt-file "$ASR_PROMPT"
 ```
 
-The prompt is derived from the local domain pack and terms observed in current MurmurMark sessions:
-Kubernetes, staging, throttling/logging vocabulary, internal names, people names, and recurring
-work/health terms. It is intentionally short because `whisper.cpp` uses it as ASR context, not as a
-post-processing dictionary.
+The prompt is derived from a local domain pack. It is intentionally short because `whisper.cpp` uses
+it as ASR context, not as a post-processing dictionary.
 
 To reproduce the old whole-track mode:
 

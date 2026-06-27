@@ -1,0 +1,15 @@
+{
+  "schema": "murmurmark.config/v1",
+  "transcription": {
+    "model": "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin",
+    "language": "ru",
+    "prompt_file": null
+  },
+  "export": {
+    "format": "markdown",
+    "profile": "auto",
+    "out_dir": "exports/private",
+    "include_json": true,
+    "force": false
+  }
+}

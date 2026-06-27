@@ -578,7 +578,7 @@ derived/readiness/
   "inputs": {
     "model": "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin",
     "language": "ru",
-    "prompt_file": "examples/domain-packs/backend-platform/whisper-prompt.ru.txt"
+    "prompt_file": "domain-packs/example-domain/whisper-prompt.ru.txt"
   },
   "outputs": {
     "quality_verdict": "derived/synthesis-simple/extractive/quality_verdict.json",
@@ -646,6 +646,32 @@ Obsidian format writes one frontmatter Markdown note plus `export_manifest.json`
 
 Default export blocks sessions whose readiness is `review_first`. `--force` may create an export for
 debugging, but the manifest still records blockers and warnings.
+
+## Local CLI Config
+
+`murmurmark.config.json` uses `murmurmark.config/v1`. It is local and ignored by git. The tracked
+`murmurmark.config.example.json` documents safe defaults.
+
+```json
+{
+  "schema": "murmurmark.config/v1",
+  "transcription": {
+    "model": "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin",
+    "language": "ru",
+    "prompt_file": null
+  },
+  "export": {
+    "format": "markdown",
+    "profile": "auto",
+    "out_dir": "exports/private",
+    "include_json": true,
+    "force": false
+  }
+}
+```
+
+`murmurmark process` reads `transcription.*`. `murmurmark export` reads `export.*`.
+Explicit command-line flags override config values.
 
 `session_readiness.json` uses `murmurmark.session_readiness/v1`:
 

@@ -26,6 +26,7 @@ weights/
 # Local ASR prompts can contain workspace-specific vocabulary.
 examples/domain-packs/*/whisper-prompt*.txt
 examples/domain-packs/*/glossary.yaml
+murmurmark.config.json
 
 # Local app/runtime state.
 .build/

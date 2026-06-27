@@ -179,9 +179,9 @@ nodes:
     title: "Consistent config/model/prompt handling"
     kind: task
     parent: cli-orchestration
-    status: next
+    status: done
     effort: 5
-    notes: "Одинаковая настройка модели, доменного prompt, путей и профилей во всех командах."
+    notes: "murmurmark.config.json задаёт model/language/prompt/export defaults; явные CLI-флаги имеют приоритет."
 
   cli-pipeline-plan-mode:
     title: "Dry-run и plan mode"
@@ -765,8 +765,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "process/latest/report/review/export уже работают как нормальные команды; следующий разрыв — config/model/prompt."
-          next_sync_goal: "Собрать единый config для модели, prompt, профилей и export defaults."
+          sync_note: "process/latest/report/review/corpus/export/config уже работают как нормальные команды."
+          next_sync_goal: "Собрать install/package defaults и retention/export policy."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]

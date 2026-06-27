@@ -38,6 +38,8 @@ struct MurmurMark {
                 try CorpusCommands.corpus(args)
             case "export":
                 try ExportCommands.export(args)
+            case "config":
+                try ConfigCommands.config(args)
             case "preprocess":
                 try Commands.preprocess(args)
             case "reconcile-transcript":
@@ -85,6 +87,7 @@ struct MurmurMark {
           murmurmark corpus report [--sessions-root ./sessions]
           murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
                              [--include-json] [--force] [--sessions-root ./sessions]
+          murmurmark config print [--config murmurmark.config.json]
           murmurmark preprocess ./session [--echo diagnostic|clean] [--echo-engine linear_baseline|local_fir|speexdsp|webrtc-apm]
                               [--echo-policy preserve_local|role_safe|strict_silence]
           murmurmark reconcile-transcript ./session [--in ./transcript.rich.json] [--out ./transcript.rich.json]
@@ -102,6 +105,7 @@ struct MurmurMark {
           review wraps the current review-plan, review CLI, progress and apply scripts.
           corpus wraps regression-corpus, audio-judge, corpus gates and operational-readiness scripts.
           export creates a local user-facing Markdown or Obsidian bundle and blocks review-first sessions by default.
+          config shows local defaults loaded by process/export.
         """)
     }
 }
@@ -189,6 +193,7 @@ enum PipelineCommands {
     static func process(_ args: [String]) throws {
         guard let target = args.first else { throw CLIError("process requires a session path or latest") }
         var forwarded = Array(args.dropFirst())
+        let config = try MurmurMarkConfig.load(from: ArgumentEditing.takeOption("config", from: &forwarded))
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         let python = try PythonRuntime.resolve()
@@ -198,6 +203,7 @@ enum PipelineCommands {
         }
 
         var command = [script.path, session.path]
+        command += config.processDefaults(unless: forwarded)
         if !ArgumentEditing.hasOption("murmurmark-bin", in: forwarded) {
             command += ["--murmurmark-bin", ExecutablePath.current()]
         }
@@ -515,6 +521,7 @@ enum ExportCommands {
         }
         guard let target = args.first else { throw CLIError("export requires a session path or latest") }
         var forwarded = Array(args.dropFirst())
+        let config = try MurmurMarkConfig.load(from: ArgumentEditing.takeOption("config", from: &forwarded))
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         print("SESSION=\"\(PathDisplay.display(session))\"")
@@ -522,7 +529,7 @@ enum ExportCommands {
         try Tooling.runPath(try PythonRuntime.resolve(), [
             try script().path,
             session.path,
-        ] + forwarded)
+        ] + config.exportDefaults(unless: forwarded) + forwarded)
     }
 
     private static func script() throws -> URL {
@@ -531,6 +538,159 @@ enum ExportCommands {
             throw CLIError("export script not found: \(url.path)")
         }
         return url
+    }
+}
+
+enum ConfigCommands {
+    static func config(_ args: [String]) throws {
+        if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+        let subcommand = args.first ?? "print"
+        var forwarded = Array(args.dropFirst())
+        switch subcommand {
+        case "print":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                printHelp()
+                return
+            }
+            let config = try MurmurMarkConfig.load(from: ArgumentEditing.takeOption("config", from: &forwarded))
+            guard forwarded.isEmpty else { throw CLIError("config print only supports --config") }
+            ConfigPrinter.print(config)
+        default:
+            throw CLIError("unknown config command: \(subcommand)")
+        }
+    }
+
+    private static func printHelp() {
+        print("""
+        usage: murmurmark config print [--config murmurmark.config.json]
+
+        Config lookup order:
+          1. --config PATH
+          2. MURMURMARK_CONFIG
+          3. ./murmurmark.config.json when it exists
+
+        Local config is ignored by git. Start from:
+          cp murmurmark.config.example.json murmurmark.config.json
+        """)
+    }
+}
+
+struct MurmurMarkConfig {
+    let url: URL?
+    let raw: [String: Any]
+
+    var loaded: Bool {
+        url != nil
+    }
+
+    static func load(from explicitPath: String?) throws -> MurmurMarkConfig {
+        if let explicitPath {
+            let url = PathURLs.fileURL(explicitPath)
+            return try loadRequired(url)
+        }
+        if let env = ProcessInfo.processInfo.environment["MURMURMARK_CONFIG"], !env.isEmpty {
+            return try loadRequired(PathURLs.fileURL(env))
+        }
+        let local = PathURLs.fileURL("murmurmark.config.json")
+        if FileManager.default.fileExists(atPath: local.path) {
+            return try loadRequired(local)
+        }
+        return MurmurMarkConfig(url: nil, raw: [:])
+    }
+
+    private static func loadRequired(_ url: URL) throws -> MurmurMarkConfig {
+        let raw = try JSONFiles.object(url)
+        if let schema = raw["schema"] as? String, schema != "murmurmark.config/v1" {
+            throw CLIError("unsupported config schema: \(schema)")
+        }
+        return MurmurMarkConfig(url: url, raw: raw)
+    }
+
+    func processDefaults(unless args: [String]) -> [String] {
+        var defaults: [String] = []
+        appendString(section: "transcription", key: "model", option: "model", unless: args, to: &defaults, expandHomePath: true)
+        appendString(section: "transcription", key: "language", option: "language", unless: args, to: &defaults)
+        appendString(section: "transcription", key: "prompt_file", option: "prompt-file", unless: args, to: &defaults, expandHomePath: true)
+        return defaults
+    }
+
+    func exportDefaults(unless args: [String]) -> [String] {
+        var defaults: [String] = []
+        appendString(section: "export", key: "format", option: "format", unless: args, to: &defaults)
+        appendString(section: "export", key: "profile", option: "profile", unless: args, to: &defaults)
+        appendString(section: "export", key: "out_dir", option: "out-dir", unless: args, to: &defaults, expandHomePath: true)
+        appendFlag(section: "export", key: "include_json", option: "include-json", unless: args, to: &defaults)
+        appendFlag(section: "export", key: "force", option: "force", unless: args, to: &defaults)
+        return defaults
+    }
+
+    func section(_ name: String) -> [String: Any] {
+        raw[name] as? [String: Any] ?? [:]
+    }
+
+    private func string(section sectionName: String, key: String) -> String? {
+        guard let value = section(sectionName)[key] as? String else { return nil }
+        return value.isEmpty ? nil : value
+    }
+
+    private func bool(section sectionName: String, key: String) -> Bool {
+        if let value = section(sectionName)[key] as? Bool {
+            return value
+        }
+        if let value = section(sectionName)[key] as? String {
+            return ["true", "yes", "1"].contains(value.lowercased())
+        }
+        return false
+    }
+
+    private func appendString(
+        section sectionName: String,
+        key: String,
+        option: String,
+        unless args: [String],
+        to defaults: inout [String],
+        expandHomePath: Bool = false
+    ) {
+        guard !ArgumentEditing.hasOption(option, in: args), let value = string(section: sectionName, key: key) else { return }
+        defaults += ["--\(option)", expandHomePath ? expandHome(value) : value]
+    }
+
+    private func appendFlag(section sectionName: String, key: String, option: String, unless args: [String], to defaults: inout [String]) {
+        guard !ArgumentEditing.hasOption(option, in: args), bool(section: sectionName, key: key) else { return }
+        defaults.append("--\(option)")
+    }
+
+    private func expandHome(_ value: String) -> String {
+        value.hasPrefix("~") ? PathURLs.fileURL(value).path : value
+    }
+}
+
+enum ConfigPrinter {
+    static func print(_ config: MurmurMarkConfig) {
+        Swift.print("config:")
+        if let url = config.url {
+            Swift.print("  path: \(PathDisplay.display(url))")
+            Swift.print("  loaded: true")
+        } else {
+            Swift.print("  path: murmurmark.config.json")
+            Swift.print("  loaded: false")
+            Swift.print("  next: cp murmurmark.config.example.json murmurmark.config.json")
+        }
+        Swift.print("  transcription: \(compactJSON(config.section("transcription")))")
+        Swift.print("  export: \(compactJSON(config.section("export")))")
+    }
+
+    private static func compactJSON(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return "{}"
+        }
+        return text
     }
 }
 
@@ -3052,6 +3212,13 @@ struct Options {
 
 enum PathURLs {
     static func fileURL(_ path: String) -> URL {
+        if path == "~" {
+            return FileManager.default.homeDirectoryForCurrentUser
+        }
+        if path.hasPrefix("~/") {
+            return FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(String(path.dropFirst(2)))
+        }
         if path.hasPrefix("/") {
             return URL(fileURLWithPath: path)
         }
