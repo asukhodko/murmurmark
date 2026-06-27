@@ -750,7 +750,9 @@ profile for each session. The CLI wrapper prints the next `murmurmark report ...
 successful apply. It can drop whole reviewed `Me` utterances, clear review flags for
 confirmed local speech, close checked local-recall rows, or keep an item marked `needs_review`.
 Local-recall rows are audit-only: they do not add missing words to the transcript, and `drop_me` is
-not a valid decision for them. `reviewed_v1` gates pass only when
+not a valid decision for them. Transcript-order rows are audit-only for timeline content: review can
+clear or keep the chronology risk and records `quality.transcript_order_review` on affected
+utterances, but it does not move utterances or edit text. `reviewed_v1` gates pass only when
 the corresponding `review_decisions.template.jsonl` rows for that session are all closed with
 an allowed `drop_me`, `keep_me`, `needs_review`, or `skip`; a partial or invalid file is written for
 audit but is not selected by `auto`. The template includes `suggested_decision` hints, but they are

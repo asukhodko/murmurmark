@@ -384,6 +384,48 @@ def decision_me_ids(row: dict[str, Any]) -> list[str]:
     return out
 
 
+def decision_utterance_ids(row: dict[str, Any]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def add(value: Any) -> None:
+        utterance_id = str(value or "").strip()
+        if utterance_id and utterance_id not in seen:
+            seen.add(utterance_id)
+            out.append(utterance_id)
+
+    for key in ("utterance_ids", "me_utterance_ids", "remote_utterance_ids"):
+        values = row.get(key)
+        if isinstance(values, list):
+            for value in values:
+                add(value)
+
+    for item in row.get("text") or []:
+        if isinstance(item, dict):
+            add(item.get("id"))
+
+    return out
+
+
+def add_review_quality(row: dict[str, Any], key: str, rows: list[dict[str, Any]], output_profile: str) -> None:
+    if not rows:
+        return
+    quality = row.setdefault("quality", {})
+    if not isinstance(quality, dict):
+        quality = {}
+        row["quality"] = quality
+    decisions = sorted({str(item.get("decision") or "") for item in rows if item.get("decision")})
+    needs_review = "needs_review" in decisions
+    quality[key] = {
+        "profile": output_profile,
+        "status": "needs_review" if needs_review else "cleared",
+        "decisions": decisions,
+        "source_audit_ids": sorted({str(item.get("source_audit_id")) for item in rows if item.get("source_audit_id")}),
+    }
+    if needs_review:
+        quality["needs_review"] = True
+
+
 def quality_report(
     input_quality: dict[str, Any],
     utterances: list[dict[str, Any]],
@@ -443,6 +485,7 @@ def main() -> int:
     by_id = {str(row.get("id")): row for row in utterances}
 
     per_utterance: dict[str, list[dict[str, Any]]] = {}
+    transcript_order_by_utterance: dict[str, list[dict[str, Any]]] = {}
     audit_only_applied: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
     for row in valid_decisions:
@@ -451,6 +494,9 @@ def main() -> int:
             continue
         if is_transcript_order_decision(row):
             audit_only_applied.append({**row, "review_effect": "audit_only_transcript_order"})
+            for utterance_id in decision_utterance_ids(row):
+                if utterance_id in by_id:
+                    transcript_order_by_utterance.setdefault(utterance_id, []).append(row)
             continue
         me_ids = decision_me_ids(row)
         if not me_ids:
@@ -484,6 +530,7 @@ def main() -> int:
             continue
         new_row = copy.deepcopy(row)
         rows = per_utterance.get(utterance_id, [])
+        order_rows = transcript_order_by_utterance.get(utterance_id, [])
         if rows:
             decisions_set = {str(item.get("decision")) for item in rows}
             quality = new_row.setdefault("quality", {})
@@ -500,6 +547,7 @@ def main() -> int:
                 quality["needs_review"] = True
             elif decisions_set == {"keep_me"}:
                 quality["needs_review"] = False
+        add_review_quality(new_row, "transcript_order_review", order_rows, args.output_profile)
         output_utterances.append(new_row)
 
     overlaps = build_overlaps(output_utterances)

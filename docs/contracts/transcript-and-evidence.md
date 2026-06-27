@@ -1409,6 +1409,11 @@ For `source: "local_recall"` rows, `drop_me` is invalid because the row points t
 island, not a transcript utterance. `keep_me` and `skip` close that local-recall risk as checked;
 `needs_review` keeps it in the readiness burden. These rows are recorded in
 `review_decisions_applied.reviewed_v1.jsonl` with `review_effect: "audit_only_local_recall"`.
+For `source: "transcript_order"` rows, `drop_me` is also invalid. `keep_me` and `skip` close the
+chronology risk as checked; `needs_review` keeps it in the readiness burden. These rows are recorded
+with `review_effect: "audit_only_transcript_order"` and are mirrored into
+`quality.transcript_order_review` on affected utterances. This metadata may mark the utterance as
+still needing review, but it must not move utterances, split text, or edit timestamps.
 `review-decisions-cli.py` and `apply-review-decisions.py` must honor `allowed_decisions`; for
 example, they must not accept `drop_me` on `source: "local_recall"` rows even though `drop_me` is
 valid for ordinary audio-review rows.

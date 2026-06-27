@@ -501,9 +501,10 @@ under `sessions/_reports/review-plan/`. It groups nearby risky intervals by sess
 actual listening time, keeps ready-to-run `afplay`/`ffplay` commands, and gives a small protocol for deciding
 whether each `Me` candidate should be dropped, kept, or left as `needs_review`. Local-recall items
 are audit-only review rows: they can clear or keep the local-recall risk, but they do not insert
-missing text into the transcript. Transcript-order rows are also audit-only: they can clear or keep
-the chronology risk, but they do not move utterances or edit text. The plan itself is audit-only and
-does not edit transcript profiles.
+missing text into the transcript. Transcript-order rows are also audit-only for timeline content:
+they can clear or keep the chronology risk, and `apply-review-decisions.py` records the result in
+`quality.transcript_order_review` on affected utterances, but it does not move utterances or edit
+text. The plan itself is audit-only and does not edit transcript profiles.
 For `remote_duplicate`, `drop_me` is suggested only when the duplicate covers enough of the whole
 `Me` utterance. If the overlap is only a slice of a longer local utterance, the row is marked
 `check_unique_me_content` and the safe default is `needs_review`.

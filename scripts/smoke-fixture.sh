@@ -787,6 +787,9 @@ PY
     --output-profile reviewed_v1 >/dev/null
   jq -e '.gates.passed == true and .summary.audit_only_applied_decision_rows == 1 and .summary.transcript_order_cleared_decisions == 1' \
     "$order_session/derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_v1.json" >/dev/null
+  jq -e '
+    [.utterances[] | select(.quality.transcript_order_review.status == "cleared")] | length == 2
+  ' "$order_session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.reviewed_v1.json" >/dev/null
   "$repo_root/scripts/report-session-quality.py" "$order_session" --out-dir "$workdir/order-session-quality" >/dev/null
   jq -e '.sessions[0].selected_profile == "reviewed_v1" and .sessions[0].transcript_order_blocking_order_risk == false and .sessions[0].transcript_order_review_seconds == 0' \
     "$workdir/order-session-quality/session_quality_report.json" >/dev/null
