@@ -213,8 +213,9 @@ The group overlap audit is `scripts/audit-group-overlaps.py`. It reads transcrip
 The local recall audit is `scripts/audit-local-recall.py`. It reads timeline-repair examples and
 Echo Guard `speaker_state.jsonl`, then writes `derived/audit/local-recall/`. Its job is to explain
 low `local_only_island_recall`: short or weak unrecovered islands are recorded as low-risk evidence,
-while stronger unrecovered local speech stays as a blocking `low_local_recall` risk. It never edits
-transcripts.
+and islands whose text is already covered by the remote transcript are treated as low-risk content
+coverage rather than missing meeting content. Stronger unrecovered local speech stays as a blocking
+`low_local_recall` risk. It never edits transcripts.
 
 Audit-informed cleanup is `scripts/apply-audit-cleanup.py`. It reads `clean_dialogue.shadow_v2.json` and the group overlap audit, then writes only `audit_cleanup_v1` artifacts under `derived/transcript-simple/whisper-cpp/resolved/` and `derived/transcript-simple/whisper-cpp/audit-cleanup/`. In conservative mode it may drop whole `Me` utterances only when they are high-confidence remote duplicates or short unsupported ASR noise. Double-talk, timing overlap, remote leak, and human-review regions are kept and marked.
 
@@ -246,6 +247,8 @@ for one or more sessions and writes a private JSON/CSV/Markdown summary under
 audio or transcript artifacts. Audio-review counters are computed against the selected transcript
 profile: if `audit_cleanup_v2` already removed a duplicate `Me` utterance, that audio-review item is
 counted as resolved by cleanup and no longer inflates the remaining review burden.
+Review seconds are measured as a union of active intervals per verdict, so duplicate audit rows for
+the same utterance do not inflate the use gate.
 Low local recall is also profile-aware enough for use gates: if `audit-local-recall.py` explains the
 unrecovered islands as short or weak, the recall warning is kept in the audit report but does not
 block `ready_for_notes`; possible lost `Me` speech still blocks the gate.

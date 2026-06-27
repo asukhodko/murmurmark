@@ -174,6 +174,9 @@ less "$SESSION/derived/audit/local-recall/local_recall_review.md"
 The audit reads only timeline-repair examples and Echo Guard `speaker_state.jsonl`. It writes under
 `derived/audit/local-recall/`, does not edit transcripts, and is used by
 `report-session-quality.py` to decide whether low local recall should block `ready_for_notes`.
+If an unrecovered local island is already covered by nearby remote transcript text, the audit labels
+it `likely_harmless_remote_covered`: content is preserved, and the remaining risk is attribution,
+not missing meeting substance.
 
 ## Group Overlap Audit
 
@@ -369,6 +372,8 @@ Audio-review metrics in this report are profile-aware. The script reads the sele
 `clean_dialogue*.json` profile and excludes audio-review items whose `Me` utterance has already been
 removed by cleanup. The raw audio-review totals remain useful for debugging, but the operational
 review burden should follow the adjusted counters.
+Adjusted audio-review seconds are union durations per verdict. This avoids double-counting multiple
+audit rows that point to the same suspicious utterance or overlapping interval.
 
 Audio-review classification is conservative about errors but does not over-escalate benign ties.
 If the strongest explanations are all benign, for example timing overlap versus double-talk versus

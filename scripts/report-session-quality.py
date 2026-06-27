@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -377,6 +377,22 @@ def audio_review_me_ids(row: dict[str, Any]) -> set[str]:
     return ids
 
 
+def union_seconds(intervals: list[tuple[float, float]]) -> float:
+    normalized = sorted((start, end) for start, end in intervals if end > start)
+    if not normalized:
+        return 0.0
+    total = 0.0
+    current_start, current_end = normalized[0]
+    for start, end in normalized[1:]:
+        if start <= current_end:
+            current_end = max(current_end, end)
+            continue
+        total += current_end - current_start
+        current_start, current_end = start, end
+    total += current_end - current_start
+    return round(total, 3)
+
+
 def active_audio_review_row(row: dict[str, Any], selected_me_ids: set[str]) -> bool:
     classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
     label = str(classification.get("label") or "")
@@ -526,30 +542,35 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
 
     if audit_rows:
         buckets = {
-            "likely_reliable": {"count": 0, "seconds": 0.0},
-            "probable_error": {"count": 0, "seconds": 0.0},
-            "needs_stronger_audio_judge": {"count": 0, "seconds": 0.0},
+            "likely_reliable": {"count": 0, "intervals": []},
+            "probable_error": {"count": 0, "intervals": []},
+            "needs_stronger_audio_judge": {"count": 0, "intervals": []},
         }
         resolved_count = 0
-        resolved_seconds = 0.0
+        resolved_intervals: list[tuple[float, float]] = []
         active_count = 0
-        active_seconds = 0.0
+        active_intervals: list[tuple[float, float]] = []
         for row in audit_rows:
             interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+            start = safe_float(interval.get("start"))
+            end = safe_float(interval.get("end"))
             seconds = safe_float(interval.get("duration_sec")) or 0.0
+            if start is None or end is None or end <= start:
+                start = 0.0
+                end = max(0.0, seconds)
             if not active_audio_review_row(row, selected_me_ids):
                 resolved_count += 1
-                resolved_seconds += seconds
+                resolved_intervals.append((start, end))
                 continue
             active_count += 1
-            active_seconds += seconds
+            active_intervals.append((start, end))
             classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
             verdict = str(classification.get("verdict") or "")
             if verdict == "probable_transcript_error":
                 verdict = "probable_error"
             if verdict in buckets:
                 buckets[verdict]["count"] += 1
-                buckets[verdict]["seconds"] += seconds
+                buckets[verdict]["intervals"].append((start, end))
 
         raw_error = audio_summary.get("probable_error") if isinstance(audio_summary.get("probable_error"), dict) else {}
         raw_stronger = (
@@ -559,15 +580,15 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
         )
         return {
             "audio_review_items": active_count,
-            "audio_review_seconds": round(active_seconds, 3),
+            "audio_review_seconds": union_seconds(active_intervals),
             "audio_review_reliable_count": buckets["likely_reliable"]["count"],
-            "audio_review_reliable_seconds": round(buckets["likely_reliable"]["seconds"], 3),
+            "audio_review_reliable_seconds": union_seconds(buckets["likely_reliable"]["intervals"]),
             "audio_review_probable_error_count": buckets["probable_error"]["count"],
-            "audio_review_probable_error_seconds": round(buckets["probable_error"]["seconds"], 3),
+            "audio_review_probable_error_seconds": union_seconds(buckets["probable_error"]["intervals"]),
             "audio_review_stronger_judge_count": buckets["needs_stronger_audio_judge"]["count"],
-            "audio_review_stronger_judge_seconds": round(buckets["needs_stronger_audio_judge"]["seconds"], 3),
+            "audio_review_stronger_judge_seconds": union_seconds(buckets["needs_stronger_audio_judge"]["intervals"]),
             "audio_review_resolved_by_cleanup_count": resolved_count,
-            "audio_review_resolved_by_cleanup_seconds": round(resolved_seconds, 3),
+            "audio_review_resolved_by_cleanup_seconds": union_seconds(resolved_intervals),
             "audio_review_raw_probable_error_count": safe_int(raw_error.get("count")),
             "audio_review_raw_probable_error_seconds": round_or_none(raw_error.get("seconds")),
             "audio_review_raw_stronger_judge_count": safe_int(raw_stronger.get("count")),

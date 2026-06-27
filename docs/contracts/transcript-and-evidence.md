@@ -349,10 +349,14 @@ derived/audit/local-recall/
 - `likely_harmless_short`
 - `likely_harmless_weak_audio`
 - `likely_harmless_remote_guard`
+- `likely_harmless_remote_covered`
 
 The audit reads timeline-repair examples and Echo Guard `speaker_state.jsonl`; it does not read or
 modify raw capture. Session quality gates may ignore low local recall only when this audit says
 `blocking_low_local_recall: false`. Possible lost local speech remains a blocking risk.
+`likely_harmless_remote_covered` means the unrecovered local island text is already covered by a
+nearby remote candidate, so the audit treats it as preserved content rather than missing meeting
+substance.
 
 The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
 and writes under:

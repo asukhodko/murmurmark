@@ -11,7 +11,7 @@ from typing import Any
 
 SCHEMA_AUDIT = "murmurmark.local_recall_audit/v1"
 SCHEMA_ITEM = "murmurmark.local_recall_item/v1"
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 
 
 def parse_args() -> argparse.Namespace:
@@ -145,6 +145,14 @@ def content_tokens(text: Any) -> list[str]:
     return [token for token in normalize_text(text).split() if token not in stop and len(token) > 2]
 
 
+def token_containment(left: Any, right: Any) -> float:
+    left_tokens = set(content_tokens(left))
+    if not left_tokens:
+        return 0.0
+    right_tokens = set(content_tokens(right))
+    return len(left_tokens & right_tokens) / max(1, len(left_tokens))
+
+
 def has_work_marker(text: Any) -> bool:
     value = normalize_text(text)
     markers = (
@@ -238,16 +246,19 @@ def covered_by_child(island: tuple[int, int], children: list[dict[str, Any]]) ->
     return covered / duration >= 0.5
 
 
-def classify_item(duration_sec: float, parent_text: str, state: dict[str, Any]) -> tuple[str, str, float]:
+def classify_item(duration_sec: float, parent_text: str, state: dict[str, Any], remote_overlap_text: str) -> tuple[str, str, float]:
     local_ratio = float(state.get("local_only_ratio", 0.0) or 0.0)
     double_ratio = float(state.get("double_talk_ratio", 0.0) or 0.0)
     remote_ratio = float(state.get("remote_active_ratio", 0.0) or 0.0)
     mic_db = float(state.get("mic_db_mean", -120.0) or -120.0)
     token_count = len(content_tokens(parent_text))
     marker = has_work_marker(parent_text)
+    remote_coverage = token_containment(parent_text, remote_overlap_text)
 
     if duration_sec < 0.55:
         return "likely_harmless_short", "local island is shorter than 550 ms", 0.74
+    if token_count >= 3 and remote_coverage >= 0.70:
+        return "likely_harmless_remote_covered", "unrecovered local island text is already covered by remote transcript", 0.82
     if local_ratio >= 0.55 and mic_db > -52.0 and duration_sec >= 1.2:
         confidence = 0.84 if marker or token_count >= 4 else 0.78
         return "possible_lost_me", "strong local-only evidence was not recovered as a Me utterance", confidence
@@ -283,8 +294,9 @@ def audit_items(examples: list[dict[str, Any]], speaker_states: list[dict[str, A
             duration_sec = max(0.0, (end_ms - start_ms) / 1000.0)
             parent_text = str(example.get("parent_text") or "")
             state = state_summary(speaker_states, start_ms, end_ms)
-            label, reason, confidence = classify_item(duration_sec, parent_text, state)
             remote_overlaps = example.get("remote_overlaps") if isinstance(example.get("remote_overlaps"), list) else []
+            remote_overlap_text = " ".join(str(row.get("text") or "") for row in remote_overlaps if isinstance(row, dict))
+            label, reason, confidence = classify_item(duration_sec, parent_text, state, remote_overlap_text)
             items.append(
                 {
                     "schema": SCHEMA_ITEM,
@@ -304,7 +316,8 @@ def audit_items(examples: list[dict[str, Any]], speaker_states: list[dict[str, A
                     "parent_has_work_marker": has_work_marker(parent_text),
                     "state": state,
                     "matched_remote_candidate_ids": [str(row.get("candidate_id")) for row in remote_overlaps if isinstance(row, dict)],
-                    "remote_overlap_text_sample": " ".join(str(row.get("text") or "") for row in remote_overlaps if isinstance(row, dict))[:280],
+                    "remote_overlap_text_sample": remote_overlap_text[:280],
+                    "remote_overlap_text_containment": round(token_containment(parent_text, remote_overlap_text), 6),
                 }
             )
             index += 1
