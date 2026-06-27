@@ -1153,6 +1153,32 @@ EOF
   jq -s 'all(.[]; .label != "remote_duplicate" or .suggested_decision != "drop_me" or ((.review_features.me_overlap_coverage // 0) >= 0.6))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'all(.[]; .label != "remote_duplicate" or ((.review_features.me_overlap_coverage // 0) >= 0.55) or .suggested_decision == "needs_review")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .label == "lost_me" and .review_action == "check_lost_local_speech")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
+
+  agent_review_dir="$workdir/agent-review"
+  mkdir -p "$agent_review_dir"
+  agent_review_output="$("$bin" review agent \
+    --session-quality "$quality_dir/session_quality_report.json" \
+    --audio-judge-queue "$judge_dir/audio_judge_v0_queue_predictions.jsonl" \
+    --corpus-evaluation "$corpus_dir/regression_corpus_evaluation.json" \
+    --audio-judge "$judge_dir/audio_judge_v0_report.json" \
+    --out "$agent_review_dir/review_decisions.agent_reviewed_v1.jsonl" \
+    --template-out "$agent_review_dir/review_decisions.agent_reviewed_v1.template.jsonl" \
+    --report "$agent_review_dir/agent_review_report.agent_reviewed_v1.json" \
+    --apply-report "$agent_review_dir/review_decisions_apply.agent_reviewed_v1.json" \
+    --session-quality-out-dir "$agent_review_dir/session-quality" \
+    --operational-readiness-out-dir "$agent_review_dir/operational-readiness" \
+    --review-plan-out-dir "$agent_review_dir/review-plan")"
+  echo "$agent_review_output" | grep -q '^agent_review:$'
+  echo "$agent_review_output" | grep -q '^review_apply:$'
+  [[ -s "$agent_review_dir/review_decisions.agent_reviewed_v1.jsonl" ]]
+  [[ -s "$agent_review_dir/review_decisions.agent_reviewed_v1.template.jsonl" ]]
+  [[ -s "$agent_review_dir/agent_review_report.agent_reviewed_v1.json" ]]
+  [[ -s "$agent_review_dir/review_decisions_apply.agent_reviewed_v1.json" ]]
+  [[ -s "$agent_review_dir/session-quality/session_quality_report.json" ]]
+  [[ -s "$agent_review_dir/operational-readiness/operational_readiness_report.json" ]]
+  [[ -s "$agent_review_dir/review-plan/review_plan.json" ]]
+  jq -e '.schema == "murmurmark.agent_review_decisions/v1"' "$agent_review_dir/agent_review_report.agent_reviewed_v1.json" >/dev/null
+  jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.failed_sessions == 0 and .summary.failed_refresh_steps == 0' "$agent_review_dir/review_decisions_apply.agent_reviewed_v1.json" >/dev/null
 fi
 
 empty_session="$workdir/empty-session"

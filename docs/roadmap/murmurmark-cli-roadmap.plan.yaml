@@ -285,11 +285,11 @@ nodes:
     parent: murmurmark-cli
     deps: [cli-orchestration, corpus-regression]
     status: current
-    effort: 22
+    effort: 24
     notes: |
       Удобный review CLI для спорных мест. Базовые plan/progress/apply и интерактивный
-      review SESSION/latest уже доступны. Workspace review доступен через CLI, readiness
-      и blocked export ведут к workspace next commands. Следующий слой — сужение
+      review SESSION/latest уже доступны. Workspace review и агентный review agent доступны
+      через CLI, readiness и blocked export ведут к workspace next commands. Следующий слой — сужение
       оставшейся review queue и полировка reviewed export handoff.
 
   cli-review-command:
@@ -323,6 +323,15 @@ nodes:
     status: done
     effort: 4
     notes: "Применение review decisions в отдельный профиль без изменения baseline."
+
+  review-agent-command:
+    title: "murmurmark review agent"
+    kind: task
+    parent: review-loop
+    deps: [review-apply-decisions, corpus-audio-judge-refresh]
+    status: done
+    effort: 2
+    notes: "CLI-команда строит безопасные agent_reviewed_v1 decisions, применяет профиль, запускает synthesis и обновляет session-quality/readiness/review-plan отчёты."
 
   review-burden-report:
     title: "Review burden report"

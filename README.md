@@ -153,6 +153,7 @@ murmurmark corpus gate \
   --baseline sessions/_reports/corpus-gates/baseline.local.json
 
 murmurmark review plan
+murmurmark review agent
 ```
 
 For the normal full refresh, use one command:
@@ -173,16 +174,6 @@ The lower-level scripts remain available for debugging specific files:
 .venv/bin/python scripts/report-operational-readiness.py
 
 .venv/bin/python scripts/build-review-plan.py
-
-.venv/bin/python scripts/build-agent-review-decisions.py
-
-.venv/bin/python scripts/apply-review-decisions-batch.py \
-  --decisions sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.jsonl \
-  --review-template sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.template.jsonl \
-  --output-profile agent_reviewed_v1 \
-  --synthesize \
-  --refresh-reports \
-  --out sessions/_reports/review-plan/review_decisions_apply.agent_reviewed_v1.json
 
 .venv/bin/python scripts/review-decisions-cli.py \
   --template sessions/_reports/review-plan/review_decisions.template.jsonl \
@@ -329,8 +320,7 @@ murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v6
 .venv/bin/python scripts/train-audio-judge-v0.py
 .venv/bin/python scripts/report-operational-readiness.py
 .venv/bin/python scripts/build-review-plan.py
-.venv/bin/python scripts/build-agent-review-decisions.py
-.venv/bin/python scripts/apply-review-decisions-batch.py --decisions sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.jsonl --review-template sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.template.jsonl --output-profile agent_reviewed_v1 --synthesize --refresh-reports --out sessions/_reports/review-plan/review_decisions_apply.agent_reviewed_v1.json
+murmurmark review agent
 .venv/bin/python scripts/review-decisions-cli.py --template sessions/_reports/review-plan/review_decisions.template.jsonl --out sessions/_reports/review-plan/review_decisions.jsonl
 .venv/bin/python scripts/apply-review-decisions-batch.py --decisions sessions/_reports/review-plan/review_decisions.jsonl --synthesize
 .venv/bin/python scripts/apply-review-decisions.py ./sessions/<session> --decisions sessions/_reports/review-plan/review_decisions.jsonl
@@ -525,8 +515,8 @@ the whole `review_workspace.json` in one validated pass and then refreshes revie
 `scripts/report-review-decisions-progress.py` then shows how much of the queue is actually closed
 before running the heavier batch apply.
 
-`scripts/build-agent-review-decisions.py` is the automatic medium-risk layer. It reads the current
-session-quality report, audio-review audit rows and the audio-judge queue, then writes a reduced
+`murmurmark review agent` is the automatic medium-risk layer. It reads the current session-quality
+report, audio-review audit rows and the audio-judge queue, then writes and applies a reduced
 agent review scope under `sessions/_reports/review-plan/`. The scope contains only rows that the
 rules can close without listening: whole-utterance `drop_me` for very clear remote duplicates or
 ASR noise, and `keep_me` for strong local-support cases that no longer need human review. It writes
@@ -534,15 +524,7 @@ ASR noise, and `keep_me` for strong local-support cases that no longer need huma
 changes raw CAF files, Echo Guard outputs, ASR output or existing cleanup profiles.
 
 ```bash
-.venv/bin/python scripts/build-agent-review-decisions.py
-
-.venv/bin/python scripts/apply-review-decisions-batch.py \
-  --decisions sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.jsonl \
-  --review-template sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.template.jsonl \
-  --output-profile agent_reviewed_v1 \
-  --synthesize \
-  --refresh-reports \
-  --out sessions/_reports/review-plan/review_decisions_apply.agent_reviewed_v1.json
+murmurmark review agent
 ```
 
 The normal manual review loop is available through the Swift CLI:

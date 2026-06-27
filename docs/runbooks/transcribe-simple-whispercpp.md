@@ -665,15 +665,7 @@ only rows that are safe without listening. It writes `agent_reviewed_v1`; this p
 `auto` after `reviewed_v1` and before automatic cleanup profiles when its gates pass.
 
 ```bash
-.venv/bin/python scripts/build-agent-review-decisions.py
-
-.venv/bin/python scripts/apply-review-decisions-batch.py \
-  --decisions sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.jsonl \
-  --review-template sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.template.jsonl \
-  --output-profile agent_reviewed_v1 \
-  --synthesize \
-  --refresh-reports \
-  --out sessions/_reports/review-plan/review_decisions_apply.agent_reviewed_v1.json
+murmurmark review agent
 ```
 
 Use it as a medium-risk automation layer, not as proof that every remaining questionable phrase is

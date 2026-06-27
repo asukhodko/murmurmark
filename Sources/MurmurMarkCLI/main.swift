@@ -87,6 +87,7 @@ struct MurmurMark {
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
           murmurmark review plan|progress|apply
+          murmurmark review agent [--session-quality sessions/_reports/session-quality/session_quality_report.json]
           murmurmark review workspace [build|apply] [--session latest|./session]
           murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
           murmurmark audit local-recall ./session|latest [--profile shadow_v2] [--sessions-root ./sessions]
@@ -123,7 +124,7 @@ struct MurmurMark {
           Without --out, recording creates a unique directory under ./sessions.
           process runs the current post-recording pipeline and prints the readiness summary.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
-          review wraps the current review-plan, review CLI, progress and apply scripts.
+          review wraps the current review-plan, agent-review, review CLI, progress and apply scripts.
           audit wraps the local recall, group overlap and audio-review audit scripts through the project Python runtime.
           cleanup wraps conservative audit cleanup profiles.
           synthesize refreshes deterministic extractive notes and quality verdict.
@@ -535,6 +536,12 @@ enum ReviewCommands {
             }
             try apply(forwarded)
             try ReviewPrinter.printApply(report: PathURLs.fileURL("sessions/_reports/review-plan/review_decisions_apply_report.json"))
+        case "agent":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                printAgentHelp()
+                return
+            }
+            try agent(forwarded)
         case "workspace":
             try workspace(forwarded, sessionsRoot: sessionsRoot)
         default:
@@ -650,6 +657,76 @@ enum ReviewCommands {
         ])
     }
 
+    private static func agent(_ args: [String]) throws {
+        var forwarded = args
+        let sessionQuality = ArgumentEditing.takeOption("session-quality", from: &forwarded)
+            ?? "sessions/_reports/session-quality/session_quality_report.json"
+        let audioJudgeQueue = ArgumentEditing.takeOption("audio-judge-queue", from: &forwarded)
+            ?? "sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl"
+        let corpusEvaluation = ArgumentEditing.takeOption("corpus-evaluation", from: &forwarded)
+            ?? "sessions/_reports/regression-corpus/regression_corpus_evaluation.json"
+        let audioJudge = ArgumentEditing.takeOption("audio-judge", from: &forwarded)
+            ?? "sessions/_reports/audio-judge-v0/audio_judge_v0_report.json"
+        let decisions = ArgumentEditing.takeOption("out", from: &forwarded)
+            ?? "sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.jsonl"
+        let template = ArgumentEditing.takeOption("template-out", from: &forwarded)
+            ?? "sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.template.jsonl"
+        let report = ArgumentEditing.takeOption("report", from: &forwarded)
+            ?? "sessions/_reports/review-plan/agent_review_report.agent_reviewed_v1.json"
+        let applyReport = ArgumentEditing.takeOption("apply-report", from: &forwarded)
+            ?? "sessions/_reports/review-plan/review_decisions_apply.agent_reviewed_v1.json"
+        let outputProfile = ArgumentEditing.takeOption("output-profile", from: &forwarded)
+            ?? "agent_reviewed_v1"
+        let sessionQualityOutDir = ArgumentEditing.takeOption("session-quality-out-dir", from: &forwarded)
+            ?? "sessions/_reports/session-quality"
+        let operationalReadinessOutDir = ArgumentEditing.takeOption("operational-readiness-out-dir", from: &forwarded)
+            ?? "sessions/_reports/operational-readiness"
+        let reviewPlanOutDir = ArgumentEditing.takeOption("review-plan-out-dir", from: &forwarded)
+            ?? "sessions/_reports/review-plan"
+        let noApply = ArgumentEditing.takeFlag("no-apply", from: &forwarded)
+        guard forwarded.isEmpty else {
+            throw CLIError("unknown review agent option(s): \(forwarded.joined(separator: " "))")
+        }
+
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("build-agent-review-decisions.py").path,
+            "--session-quality", sessionQuality,
+            "--audio-judge-queue", audioJudgeQueue,
+            "--out", decisions,
+            "--template-out", template,
+            "--report", report,
+        ])
+        try ReviewPrinter.printAgentBuild(report: PathURLs.fileURL(report))
+        guard !noApply else {
+            return
+        }
+
+        let status = try Tooling.runPathAllowingExitCodes(
+            python,
+            [
+                try script("apply-review-decisions-batch.py").path,
+                "--decisions", decisions,
+                "--review-template", template,
+                "--output-profile", outputProfile,
+                "--synthesize",
+                "--refresh-reports",
+                "--out", applyReport,
+                "--session-quality-out-dir", sessionQualityOutDir,
+                "--operational-readiness-out-dir", operationalReadinessOutDir,
+                "--review-plan-out-dir", reviewPlanOutDir,
+                "--corpus-evaluation", corpusEvaluation,
+                "--audio-judge", audioJudge,
+                "--audio-judge-queue", audioJudgeQueue,
+            ],
+            allowedExitCodes: [0, 2]
+        )
+        try ReviewPrinter.printApply(report: PathURLs.fileURL(applyReport))
+        if status != 0 {
+            throw CLIError("agent review apply did not pass; inspect \(PathDisplay.display(PathURLs.fileURL(applyReport)))")
+        }
+    }
+
     private static func apply(_ args: [String]) throws {
         let python = try PythonRuntime.resolve()
         try Tooling.runPath(python, [
@@ -667,6 +744,30 @@ enum ReviewCommands {
             throw CLIError("review script not found: \(url.path)")
         }
         return url
+    }
+
+    private static func printAgentHelp() {
+        print("""
+        usage: murmurmark review agent [options]
+
+        Builds conservative agent_reviewed_v1 decisions from existing session-quality and audio-judge
+        reports, applies them as a separate reviewed profile, synthesizes notes and refreshes reports.
+
+        Options:
+          --session-quality PATH   Default: sessions/_reports/session-quality/session_quality_report.json
+          --audio-judge-queue PATH Default: sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
+          --corpus-evaluation PATH Default: sessions/_reports/regression-corpus/regression_corpus_evaluation.json
+          --audio-judge PATH       Default: sessions/_reports/audio-judge-v0/audio_judge_v0_report.json
+          --out PATH               Decisions JSONL. Default: sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.jsonl
+          --template-out PATH      Template JSONL. Default: sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.template.jsonl
+          --report PATH            Build report JSON. Default: sessions/_reports/review-plan/agent_review_report.agent_reviewed_v1.json
+          --apply-report PATH      Apply report JSON. Default: sessions/_reports/review-plan/review_decisions_apply.agent_reviewed_v1.json
+          --output-profile NAME    Default: agent_reviewed_v1
+          --session-quality-out-dir PATH
+          --operational-readiness-out-dir PATH
+          --review-plan-out-dir PATH
+          --no-apply               Only build decisions and template.
+        """)
     }
 }
 
@@ -4304,6 +4405,13 @@ enum ArgumentEditing {
         return value
     }
 
+    static func takeFlag(_ key: String, from args: inout [String]) -> Bool {
+        let flag = "--\(key)"
+        guard let index = args.firstIndex(of: flag) else { return false }
+        args.remove(at: index)
+        return true
+    }
+
     static func peekOption(_ key: String, in args: [String]) -> String? {
         let flag = "--\(key)"
         guard let index = args.firstIndex(of: flag), index + 1 < args.count else { return nil }
@@ -4562,6 +4670,27 @@ enum ReviewPrinter {
         print("  passed_sessions: \(int(summary["passed_sessions"]) ?? 0)")
         print("  failed_sessions: \(int(summary["failed_sessions"]) ?? 0)")
         print("  failed_refresh_steps: \(int(summary["failed_refresh_steps"]) ?? 0)")
+    }
+
+    static func printAgentBuild(report: URL) throws {
+        let payload = try JSONFiles.object(report)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        let outputs = payload["outputs"] as? [String: Any] ?? [:]
+        print("")
+        print("agent_review:")
+        print("  report: \(PathDisplay.display(report))")
+        print("  profile: \(string(payload["profile"]) ?? "agent_reviewed_v1")")
+        print("  decision_rows: \(int(summary["decision_rows"]) ?? 0)")
+        print("  rejected_candidate_rows: \(int(summary["rejected_candidate_rows"]) ?? 0)")
+        if let byDecision = summary["by_decision"] {
+            print("  by_decision: \(compactJSON(byDecision))")
+        }
+        if let decisions = string(outputs["decisions"]) {
+            print("  decisions: \(PathDisplay.display(PathURLs.fileURL(decisions)))")
+        }
+        if let template = string(outputs["template"]) {
+            print("  template: \(PathDisplay.display(PathURLs.fileURL(template)))")
+        }
     }
 
     static func printWorkspace(outDir: URL = PathURLs.fileURL("sessions/_reports/review-plan")) throws {
