@@ -223,7 +223,8 @@ group-overlap audit, audio-review audit,
 and extractive synthesis, then writes
 `derived/pipeline-run/pipeline_run_report.json` and `derived/readiness/session_readiness.md`.
 Read `session_readiness.md` first: it gives the session use gate, selected profile, review burden,
-next CLI commands, and links to the transcript, notes, quality verdict and audio-review report.
+synthesis review item summary, next CLI commands, and links to the transcript, notes, quality
+verdict and audio-review report.
 For `review_first` sessions, those next commands point to `murmurmark review plan`,
 `murmurmark review first-lane --session ...`, `murmurmark review workspace --session ...`,
 `murmurmark review workspace apply`, and `murmurmark review apply`.

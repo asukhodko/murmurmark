@@ -1339,6 +1339,29 @@ enum ReviewSummaryPrinter {
         }
     }
 
+    static func printSynthesisReviewMetrics(_ metrics: [String: Any], indent: String) {
+        guard let count = int(metrics["synthesis_review_item_count"]) else {
+            return
+        }
+        let seconds = double(metrics["synthesis_review_item_seconds"]) ?? 0.0
+        print("\(indent)synthesis_review_items: \(count) / \(String(format: "%.2f", seconds))s")
+
+        let rows = metrics["synthesis_review_top_types"] as? [Any] ?? []
+        let rendered = rows.prefix(5).compactMap { item -> String? in
+            guard let row = item as? [String: Any],
+                  let type = row["type"] as? String,
+                  !type.isEmpty
+            else {
+                return nil
+            }
+            let count = int(row["count"]) ?? 0
+            return "\(type)=\(count)"
+        }.joined(separator: ", ")
+        if !rendered.isEmpty {
+            print("\(indent)synthesis_review_types: \(rendered)")
+        }
+    }
+
     private static func sortedTypeBuckets(_ byType: [String: Any]) -> [(name: String, count: Int)] {
         byType.compactMap { key, value in
             let bucket = value as? [String: Any] ?? [:]
@@ -4937,6 +4960,7 @@ enum ReadinessPrinter {
         print("  selected_profile: \(profile)")
         print("  verdict: \(verdict)")
         print(String(format: "  review_burden: %.2f min / %.2f%%", reviewSeconds / 60, reviewRatio))
+        ReviewSummaryPrinter.printSynthesisReviewMetrics(metrics, indent: "  ")
         print("  open:")
         for key in ["transcript", "notes", "quality_verdict", "audio_review_report", "local_recall_review", "transcript_order_review"] {
             if let path = outputPath(key, outputs: outputs) {

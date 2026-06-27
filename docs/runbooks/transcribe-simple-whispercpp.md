@@ -83,6 +83,10 @@ It also contains `Next Commands`: the shortest CLI path from the current state, 
 retention. For `review_first`, the command chain ends with `murmurmark review apply` after the
 workspace answers have been closed.
 
+`murmurmark report SESSION` prints the same selected profile, verdict, review burden and synthesis
+review item summary, so the terminal output is enough to see whether notes still depend on risky
+utterances before opening the Markdown files.
+
 After export, keep a retention plan with the session:
 
 ```bash
