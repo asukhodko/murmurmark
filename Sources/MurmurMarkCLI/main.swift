@@ -685,8 +685,10 @@ enum AuditCommands {
         switch subcommand {
         case "local-recall":
             try Tooling.runPath(python, [try script("audit-local-recall.py").path, session.path] + remaining)
+            try AuditPrinter.printLocalRecall(session: session, args: remaining)
         case "group-overlaps":
             try Tooling.runPath(python, [try script("audit-group-overlaps.py").path, session.path] + remaining)
+            try AuditPrinter.printGroupOverlaps(session: session)
         case "audio-review":
             let packArgs = defaulted(remaining, option: "profile", value: "audit_cleanup_v2")
             let packDir = ArgumentEditing.peekOption("out-dir", in: packArgs)
@@ -696,6 +698,7 @@ enum AuditCommands {
                 auditArgs += ["--pack-dir", packDir, "--out-dir", packDir]
             }
             try Tooling.runPath(python, auditArgs)
+            try AuditPrinter.printAudioReview(session: session, args: packArgs)
         default:
             throw CLIError("unknown audit command: \(subcommand)")
         }
@@ -732,6 +735,149 @@ enum AuditCommands {
         Extra options are forwarded to the underlying audit script; for audio-review they are
         forwarded to the pack builder, then the pack audit runs over the resulting directory.
         """)
+    }
+}
+
+enum AuditPrinter {
+    static func printLocalRecall(session: URL, args: [String]) throws {
+        let outDir = outputDir(args: args, defaultURL: session.appendingPathComponent("derived/audit/local-recall"))
+        let auditURL = outDir.appendingPathComponent("local_recall_audit.json")
+        guard FileManager.default.fileExists(atPath: auditURL.path) else {
+            printMissing(kind: "local_recall", expected: auditURL)
+            return
+        }
+        let payload = try JSONFiles.object(auditURL)
+        let summary = dict(payload["summary"])
+
+        print("")
+        print("audit:")
+        print("  kind: local_recall")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("local_recall_review.md")))")
+        print("  profile: \(string(payload["profile"]) ?? "unknown")")
+        print("  missing_islands: \(int(summary["audited_missing_island_count"]))")
+        print(
+            String(
+                format: "  possible_lost_me: %d / %.2fs",
+                int(summary["possible_lost_me_count"]),
+                double(summary["possible_lost_me_seconds"])
+            )
+        )
+        print(
+            String(
+                format: "  needs_review: %d / %.2fs",
+                int(summary["needs_review_count"]),
+                double(summary["needs_review_seconds"])
+            )
+        )
+        print("  recommendation: \(string(summary["recommended_next_step"]) ?? "unknown")")
+        print("  next: less \(PathDisplay.display(outDir.appendingPathComponent("local_recall_review.md")))")
+    }
+
+    static func printGroupOverlaps(session: URL) throws {
+        let outDir = session.appendingPathComponent("derived/audit/group-overlaps")
+        let summaryURL = outDir.appendingPathComponent("group_overlap_summary.json")
+        guard FileManager.default.fileExists(atPath: summaryURL.path) else {
+            printMissing(kind: "group_overlaps", expected: summaryURL)
+            return
+        }
+        let payload = try JSONFiles.object(summaryURL)
+        let classified = dict(payload["classified"])
+        let harmful = dict(payload["harmful"])
+        let benign = dict(payload["benign_or_expected"])
+        let review = dict(payload["review"])
+        let adjustment = dict(payload["recommended_verdict_adjustment"])
+
+        print("")
+        print("audit:")
+        print("  kind: group_overlaps")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("group_overlap_review.md")))")
+        print("  profile: \(string(payload["profile"]) ?? "unknown")")
+        print(
+            String(
+                format: "  overlaps: %d / %.2fs",
+                int(classified["total_overlap_count"]),
+                double(classified["total_overlap_seconds"])
+            )
+        )
+        print(String(format: "  harmful: %.2fs", double(harmful["seconds"])))
+        print(String(format: "  benign_or_expected: %.2fs", double(benign["seconds"])))
+        print(String(format: "  needs_review: %d / %.2fs", int(review["count"]), double(review["seconds"])))
+        if let verdict = string(adjustment["new"]) {
+            print("  recommended_verdict: \(verdict) (informational)")
+        }
+        print("  next: less \(PathDisplay.display(outDir.appendingPathComponent("group_overlap_review.md")))")
+    }
+
+    static func printAudioReview(session: URL, args: [String]) throws {
+        let outDir = outputDir(args: args, defaultURL: session.appendingPathComponent("derived/audit/audio-review-pack"))
+        let summaryURL = outDir.appendingPathComponent("audio_review_summary.json")
+        guard FileManager.default.fileExists(atPath: summaryURL.path) else {
+            printMissing(kind: "audio_review", expected: summaryURL)
+            return
+        }
+        let payload = try JSONFiles.object(summaryURL)
+        let pack = dict(payload["input_pack"])
+        let probable = dict(payload["probable_error"])
+        let stronger = dict(payload["needs_stronger_audio_judge"])
+        let reliable = dict(payload["likely_reliable"])
+
+        print("")
+        print("audit:")
+        print("  kind: audio_review")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("audio_review_report.md")))")
+        print("  profile: \(string(pack["profile"]) ?? "unknown")")
+        print("  items: \(int(payload["items"]))")
+        print(String(format: "  probable_error: %d / %.2fs", int(probable["count"]), double(probable["seconds"])))
+        print(String(format: "  likely_reliable: %d / %.2fs", int(reliable["count"]), double(reliable["seconds"])))
+        print(String(format: "  needs_stronger_audio_judge: %d / %.2fs", int(stronger["count"]), double(stronger["seconds"])))
+        print("  recommendation: \(string(payload["recommended_next_step"]) ?? "unknown")")
+        print("  next: less \(PathDisplay.display(outDir.appendingPathComponent("audio_review_report.md")))")
+    }
+
+    private static func outputDir(args: [String], defaultURL: URL) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: args) ?? defaultURL.path)
+    }
+
+    private static func printMissing(kind: String, expected: URL) {
+        print("")
+        print("audit:")
+        print("  kind: \(kind)")
+        print("  summary: missing")
+        print("  expected: \(PathDisplay.display(expected))")
+    }
+
+    private static func dict(_ value: Any?) -> [String: Any] {
+        value as? [String: Any] ?? [:]
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
+    }
+
+    private static func int(_ value: Any?) -> Int {
+        if let value = value as? Int {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return value.intValue
+        }
+        if let value = value as? String, let parsed = Int(value) {
+            return parsed
+        }
+        return 0
+    }
+
+    private static func double(_ value: Any?) -> Double {
+        if let value = value as? Double {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return value.doubleValue
+        }
+        if let value = value as? String, let parsed = Double(value) {
+            return parsed
+        }
+        return 0
     }
 }
 

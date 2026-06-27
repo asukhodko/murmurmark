@@ -229,6 +229,9 @@ derived/audit/group-overlaps/
   clips/
 ```
 
+`murmurmark audit group-overlaps` prints a compact CLI summary after writing these files: profile,
+total overlap seconds, harmful seconds, benign/expected seconds, review seconds and the report path.
+
 `group_overlap_summary.json` v1:
 
 ```json
@@ -325,6 +328,9 @@ derived/audit/local-recall/
   local_recall_review.md
 ```
 
+`murmurmark audit local-recall` prints a compact CLI summary after writing these files: profile,
+missing-island count, possible lost local speech, review seconds, recommendation and report path.
+
 `local_recall_audit.json` uses `murmurmark.local_recall_audit/v1`:
 
 ```json
@@ -391,6 +397,10 @@ derived/audit/audio-review-pack/
   audio_review_report.md
   clips/
 ```
+
+`murmurmark audit audio-review` prints a compact CLI summary after writing these files: profile,
+item count, likely reliable seconds, probable transcript error seconds, stronger-audio-judge demand
+and report path.
 
 `review_pack_items.jsonl` contains suspicious regions collected from `needs_review`, transcript
 overlaps, group overlap audit and audit-cleanup rejections:

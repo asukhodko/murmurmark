@@ -516,6 +516,18 @@ PY
   ffmpeg -y -hide_banner -loglevel error \
     -f lavfi -i 'aevalsrc=0.12*sin(2*PI*600*t)*between(t\,0\,3)+0.18*sin(2*PI*1000*t)*between(t\,5\,8)+0.18*sin(2*PI*900*t)*between(t\,13\,14.2):s=16000:d=16' \
     -c:a pcm_s16le "$group_session/audio/mic/000001.caf"
+  jq -n '{
+    schema: "murmurmark.session/v1",
+    session_id: "group-fixture",
+    status: "completed",
+    capture_mode: "fixture",
+    created_at: "2026-01-01T00:00:00Z",
+    files: {
+      mic: [{path: "audio/mic/000001.caf"}],
+      remote: [{path: "audio/remote/000001.caf"}]
+    },
+    health: {summary: "ok", warnings: []}
+  }' >"$group_session/session.json"
   ffmpeg -y -hide_banner -loglevel error \
     -f lavfi -i 'aevalsrc=0.18*sin(2*PI*1000*t)*between(t\,5\,8)+0.18*sin(2*PI*900*t)*between(t\,13\,14.2):s=16000:d=16' \
     -c:a pcm_s16le "$group_session/derived/preprocess/audio/mic_clean_local_fir.wav"
@@ -590,7 +602,10 @@ EOF
 {"action":"drop","parent_candidate_id":"cand_mic_fixture_boundary","parent_start_ms":15000,"parent_end_ms":19000,"parent_text":"короткий граничный хвост","remote_overlaps":[{"candidate_id":"cand_remote_boundary","start_ms":14000,"end_ms":14750,"guarded_start_ms":13750,"guarded_end_ms":15000,"overlap_ms":0,"guarded_overlap_ms":0,"text":"удаленная фраза"}],"local_intervals":[[15000,15650]],"local_islands":[[15000,15650]],"children":[]}
 EOF
 
-  "$repo_root/scripts/audit-local-recall.py" "$group_session" --profile shadow_v2 >/dev/null
+  local_recall_cli_output="$("$bin" audit local-recall "$group_session" --profile shadow_v2)"
+  echo "$local_recall_cli_output" | grep -q '^audit:$'
+  echo "$local_recall_cli_output" | grep -q '  kind: local_recall'
+  echo "$local_recall_cli_output" | grep -q '  missing_islands: 2'
   local_recall_summary="$group_session/derived/audit/local-recall/local_recall_audit.json"
   [[ -s "$local_recall_summary" ]]
   [[ -s "$group_session/derived/audit/local-recall/local_recall_items.jsonl" ]]
@@ -601,12 +616,15 @@ EOF
   jq -s 'any(.[]; .label == "possible_lost_me")' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
   jq -s 'any(.[]; .label == "likely_harmless_boundary_fragment" and .boundary.boundary_fragment == true)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
 
-  "$audit_python" "$repo_root/scripts/audit-group-overlaps.py" "$group_session" \
+  group_overlap_cli_output="$("$bin" audit group-overlaps "$group_session" \
     --profile shadow_v2 \
     --min-overlap-sec 0.5 \
     --review-threshold-sec 2.0 \
     --write-clips \
-    --max-clips 10 >/dev/null
+    --max-clips 10)"
+  echo "$group_overlap_cli_output" | grep -q '^audit:$'
+  echo "$group_overlap_cli_output" | grep -q '  kind: group_overlaps'
+  echo "$group_overlap_cli_output" | grep -q '  overlaps: 4 /'
 
   group_audit="$group_session/derived/audit/group-overlaps/group_overlap_audit.jsonl"
   group_summary="$group_session/derived/audit/group-overlaps/group_overlap_summary.json"
@@ -699,11 +717,13 @@ EOF
   "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" --transcript-profile audit_cleanup_v1 >/dev/null
   jq -e '.selected_transcript_profile == "audit_cleanup_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json" >/dev/null
 
-  "$repo_root/scripts/build-audio-review-pack.py" "$group_session" \
+  audio_review_cli_output="$("$bin" audit audio-review "$group_session" \
     --profile audit_cleanup_v1 \
     --write-clips \
-    --max-items 20 >/dev/null
-  "$audit_python" "$repo_root/scripts/audit-audio-review-pack.py" "$group_session" >/dev/null
+    --max-items 20)"
+  echo "$audio_review_cli_output" | grep -q '^audit:$'
+  echo "$audio_review_cli_output" | grep -q '  kind: audio_review'
+  echo "$audio_review_cli_output" | grep -q '  items:'
   review_pack="$group_session/derived/audit/audio-review-pack/review_pack_items.jsonl"
   review_summary="$group_session/derived/audit/audio-review-pack/audio_review_summary.json"
   [[ -s "$review_pack" ]]

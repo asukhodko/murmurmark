@@ -212,6 +212,9 @@ jq '.summary' "$SESSION/derived/audit/local-recall/local_recall_audit.json"
 less "$SESSION/derived/audit/local-recall/local_recall_review.md"
 ```
 
+The CLI prints a compact summary with missing-island counts, possible lost local speech,
+review seconds and the next report to inspect.
+
 The audit reads only timeline-repair examples and Echo Guard `speaker_state.jsonl`. It writes under
 `derived/audit/local-recall/`, does not edit transcripts, and is used by
 `report-session-quality.py` to decide whether low local recall should block `ready_for_notes`.
@@ -241,6 +244,9 @@ jq '{classified, harmful, benign_or_expected, review, recommended_verdict_adjust
 
 less "$SESSION/derived/audit/group-overlaps/group_overlap_review.md"
 ```
+
+The CLI summary shows total overlap, harmful seconds, benign/expected seconds, review seconds and
+the informational verdict adjustment.
 
 The audit reads transcript overlaps, Echo Guard speaker state, and local audio artifacts. It writes
 only under `derived/audit/group-overlaps/` and does not change `transcript.md`, `transcript.shadow_v2.md`,
@@ -309,6 +315,9 @@ jq '{items, likely_reliable, probable_error, needs_stronger_audio_judge, recomme
 
 less "$SESSION/derived/audit/audio-review-pack/audio_review_report.md"
 ```
+
+The CLI summary shows item counts, likely reliable seconds, probable transcript errors, stronger
+audio-judge demand and the next report to inspect.
 
 The pack is written under `derived/audit/audio-review-pack/`. It includes short `mic_raw`,
 `remote`, `mic_clean`, `mic_role_masked` and stereo comparison clips for suspicious transcript

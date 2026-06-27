@@ -172,7 +172,7 @@ nodes:
     parent: cli-orchestration
     status: done
     effort: 3
-    notes: "Обёртка над local-recall, group-overlaps и audio-review audit scripts через проектный Python runtime."
+    notes: "Обёртка над local-recall, group-overlaps и audio-review audit scripts через проектный Python runtime; после запуска печатает короткую handoff-сводку."
 
   readiness-single-output:
     title: "Единая читаемая сводка готовности"
