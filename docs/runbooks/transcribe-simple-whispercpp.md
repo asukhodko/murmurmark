@@ -508,6 +508,14 @@ Then copy decisions from the answer sheet back into the full review file:
   --out sessions/_reports/review-plan/review_decisions.jsonl
 ```
 
+If several lane answer sheets have been edited, apply the whole workspace instead:
+
+```bash
+.venv/bin/python scripts/apply-review-workspace-decisions.py \
+  --workspace sessions/_reports/review-plan/review_workspace.json \
+  --out sessions/_reports/review-plan/review_decisions.jsonl
+```
+
 Answer shortcuts are `d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.` or `n=todo`.
 Before applying decisions to transcripts, check progress and validation:
 

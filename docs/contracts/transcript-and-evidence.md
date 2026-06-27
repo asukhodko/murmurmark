@@ -955,6 +955,33 @@ each answer against `allowed_decisions`, writes `review_source: "lane_pack"`, an
 }
 ```
 
+`apply-review-workspace-decisions.py` applies every lane answer sheet referenced by
+`review_workspace.json` into one `review_decisions.jsonl`. It validates item counts, answer
+shortcuts and `allowed_decisions`; with `--require-complete` it fails if any workspace answer is
+still `todo`. It writes:
+
+```text
+sessions/_reports/review-plan/
+  review_workspace_apply_report.json
+```
+
+The JSON uses `murmurmark.review_workspace_apply_report/v1`:
+
+```json
+{
+  "schema": "murmurmark.review_workspace_apply_report/v1",
+  "summary": {
+    "lane_count": 3,
+    "reviewed_count": 10,
+    "workspace_todo_count": 30,
+    "skipped_count": 0,
+    "rejected_count": 0,
+    "remaining_rows": 30,
+    "ready_for_batch_apply": false
+  }
+}
+```
+
 `report-review-decisions-progress.py` summarizes the current edited review file before applying it:
 
 ```text

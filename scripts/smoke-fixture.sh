@@ -781,14 +781,22 @@ EOF
   [[ -s "$answer_sheet" ]]
   grep -q '^answers=\.$' "$answer_sheet"
   grep -q -- '--answers-file' "$review_workspace_dir/review_workspace.md"
-  filled_answer_sheet="$workdir/review_lane_answers.check_local_recall.filled.txt"
-  sed 's/^answers=.*/answers=k/' "$answer_sheet" >"$filled_answer_sheet"
+  sed 's/^answers=.*/answers=k/' "$answer_sheet" >"$answer_sheet.tmp"
+  mv "$answer_sheet.tmp" "$answer_sheet"
+  workspace_apply_out="$workdir/review_decisions_workspace_apply.jsonl"
+  "$repo_root/scripts/apply-review-workspace-decisions.py" \
+    --workspace "$review_workspace_dir/review_workspace.json" \
+    --template "$review_template" \
+    --out "$workspace_apply_out" \
+    --report "$workdir/review_workspace_apply_report.json" >/dev/null
+  jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "workspace_answer_sheet"' "$workspace_apply_out" >/dev/null
+  jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .summary.reviewed_count == 1 and .summary.remaining_rows == 1 and .summary.workspace_todo_count == 0 and .summary.rejected_count == 0' "$workdir/review_workspace_apply_report.json" >/dev/null
   lane_pack_apply_out="$workdir/review_decisions_lane_pack_apply.jsonl"
   "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
     "$review_workspace_dir/lane-packs/review_lane_pack.check_local_recall.json" \
     --template "$review_template" \
     --out "$lane_pack_apply_out" \
-    --answers-file "$filled_answer_sheet" >/dev/null
+    --answers-file "$answer_sheet" >/dev/null
   jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "lane_pack"' "$lane_pack_apply_out" >/dev/null
   jq -e '.schema == "murmurmark.review_lane_pack_apply_report/v1" and .summary.reviewed_count == 1 and .summary.rejected_count == 0' "$workdir/review_lane_pack_apply_report.json" >/dev/null
   "$repo_root/scripts/report-review-decisions-progress.py" \

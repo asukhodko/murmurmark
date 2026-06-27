@@ -366,6 +366,18 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
             "remaining_minutes": round(max(0.0, total_seconds - fast_seconds) / 60.0, 2),
         },
         "commands": {
+            "build_review_workspace": (
+                ".venv/bin/python scripts/build-review-workspace.py"
+                if review_queue
+                else None
+            ),
+            "apply_review_workspace": (
+                ".venv/bin/python scripts/apply-review-workspace-decisions.py "
+                "--workspace sessions/_reports/review-plan/review_workspace.json "
+                "--out sessions/_reports/review-plan/review_decisions.jsonl"
+                if review_queue
+                else None
+            ),
             "build_first_lane_pack": (
                 ".venv/bin/python scripts/build-review-lane-pack.py --lane fast_confirm_drop"
                 if fast_items
@@ -862,10 +874,17 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 f"| `{row.get('lane')}` | {row.get('items')} | {safe_float(row.get('seconds')):.2f} | `{row.get('labels')}` |"
             )
         commands = strategy.get("commands") if isinstance(strategy.get("commands"), dict) else {}
+        workspace_cmd = commands.get("build_review_workspace")
+        apply_workspace_cmd = commands.get("apply_review_workspace")
         build_cmd = commands.get("build_first_lane_pack")
         review_cmd = commands.get("review_first_lane")
-        if build_cmd or review_cmd:
+        if workspace_cmd or apply_workspace_cmd or build_cmd or review_cmd:
             lines.extend(["", "```bash"])
+            if workspace_cmd:
+                lines.append(str(workspace_cmd))
+                lines.append("# edit sessions/_reports/review-plan/lane-packs/review_lane_answers.<lane>.txt")
+            if apply_workspace_cmd:
+                lines.append(str(apply_workspace_cmd))
             if build_cmd:
                 lines.append(str(build_cmd))
             if review_cmd:
