@@ -1274,6 +1274,9 @@ enum NotesCommands {
                 print("  \(key): \(PathDisplay.display(item))")
             }
         }
+        if let verdictPayload = try? JSONFiles.object(verdictJSONPath(session: session, profile: resolvedProfile)) {
+            ReviewSummaryPrinter.printReviewSummary(verdictPayload["review_summary"], indent: "  ")
+        }
         print("  selected: \(kind)")
         print("  next: less \(PathDisplay.display(url))")
     }
@@ -1303,6 +1306,12 @@ enum NotesCommands {
         ]
     }
 
+    private static func verdictJSONPath(session: URL, profile: String) -> URL {
+        let outDir = session.appendingPathComponent("derived/synthesis-simple/extractive")
+        let suffix = profile == "current" ? "" : ".\(profile)"
+        return outDir.appendingPathComponent("quality_verdict\(suffix).json")
+    }
+
     private static func printHelp() {
         print("""
         usage: murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence]
@@ -1310,6 +1319,65 @@ enum NotesCommands {
 
         Prints paths to local synthesis artifacts. Use --cat to stream one artifact to stdout.
         """)
+    }
+}
+
+enum ReviewSummaryPrinter {
+    static func printReviewSummary(_ value: Any?, indent: String) {
+        let summary = value as? [String: Any] ?? [:]
+        guard !summary.isEmpty else {
+            return
+        }
+        let count = int(summary["review_item_count"]) ?? 0
+        let seconds = double(summary["review_item_seconds"]) ?? 0.0
+        print("\(indent)review_items: \(count) / \(String(format: "%.2f", seconds))s")
+        let byType = summary["by_type"] as? [String: Any] ?? [:]
+        let topTypes = sortedTypeBuckets(byType).prefix(5)
+        if !topTypes.isEmpty {
+            let rendered = topTypes.map { "\($0.name)=\($0.count)" }.joined(separator: ", ")
+            print("\(indent)review_item_types: \(rendered)")
+        }
+    }
+
+    private static func sortedTypeBuckets(_ byType: [String: Any]) -> [(name: String, count: Int)] {
+        byType.compactMap { key, value in
+            let bucket = value as? [String: Any] ?? [:]
+            guard let count = int(bucket["count"]) else {
+                return nil
+            }
+            return (name: key, count: count)
+        }.sorted { left, right in
+            if left.count != right.count {
+                return left.count > right.count
+            }
+            return left.name < right.name
+        }
+    }
+
+    private static func int(_ value: Any?) -> Int? {
+        if let value = value as? Int {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return value.intValue
+        }
+        if let value = value as? String {
+            return Int(value)
+        }
+        return nil
+    }
+
+    private static func double(_ value: Any?) -> Double? {
+        if let value = value as? Double {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return value.doubleValue
+        }
+        if let value = value as? String {
+            return Double(value)
+        }
+        return nil
     }
 }
 
@@ -1507,6 +1575,7 @@ enum SynthesisPrinter {
         print("  selected_profile: \(profile)")
         print("  verdict: \(string(payload["verdict"]) ?? "unknown")")
         print("  risk_items: \(riskItems.count)")
+        ReviewSummaryPrinter.printReviewSummary(payload["review_summary"], indent: "  ")
         if let needsReview = intOptional(metrics["needs_review_count"]) {
             print("  needs_review_count: \(needsReview)")
         }

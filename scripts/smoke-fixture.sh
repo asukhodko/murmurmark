@@ -374,6 +374,8 @@ notes_output="$("$bin" notes "$session")"
 echo "$notes_output" | grep -q '^notes:$'
 echo "$notes_output" | grep -q '  notes: '
 echo "$notes_output" | grep -q '  verdict: '
+echo "$notes_output" | grep -q '  review_items: '
+echo "$notes_output" | grep -q '  review_item_types: .*utterance_transcript_order_review=1'
 notes_path_only="$("$bin" notes "$session" --path-only)"
 [[ "$notes_path_only" == */derived/synthesis-simple/extractive/notes.md ]]
 "$bin" notes "$session" --cat | grep -q '# Extractive Notes'
@@ -917,6 +919,7 @@ EOF
   synthesize_cli_output="$("$bin" synthesize "$group_session" --transcript-profile audit_cleanup_v1)"
   echo "$synthesize_cli_output" | grep -q '^synthesis:$'
   echo "$synthesize_cli_output" | grep -q '  selected_profile: audit_cleanup_v1'
+  echo "$synthesize_cli_output" | grep -q '  review_items: '
   jq -e '.selected_transcript_profile == "audit_cleanup_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json" >/dev/null
   "$bin" notes "$group_session" --profile audit_cleanup_v1 --path-only | grep -q '/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md$'
   "$bin" notes "$group_session" --profile audit_cleanup_v1 --kind verdict --cat | grep -q '# Quality Verdict'

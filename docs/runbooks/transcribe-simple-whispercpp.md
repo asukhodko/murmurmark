@@ -1005,7 +1005,9 @@ Markdown shows only selected top items. `evidence_notes.json` keeps all candidat
 actions, process discussions and meeting facilitation hidden from Markdown. The script does not
 invent owners, deadlines or decisions. If a candidate uses an utterance with unresolved review
 metadata, such as `transcript_order_review:needs_review`, the source is written into candidate
-features and the item is penalized before Markdown selection.
+features and the item is penalized before Markdown selection. The `murmurmark synthesize` and
+`murmurmark notes` command summaries print the remaining `review_items` count and top review item
+types, so this is visible without opening JSON.
 
 Useful checks:
 

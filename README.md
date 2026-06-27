@@ -372,7 +372,8 @@ dialogue profile, writes `quality_verdict.json`/`.md`, and creates extractive `n
 not call an LLM and does not infer facts beyond quoted utterances. Its v3 notes path builds topic
 blocks, scores action/decision/risk/question candidates, hides meeting facilitation from Markdown,
 shows only selected top items, and keeps every hidden weak/process/facilitation candidate in
-`evidence_notes.json`.
+`evidence_notes.json`. The `murmurmark synthesize` and `murmurmark notes` CLI handoffs also print
+the remaining `review_items` count and the main review item types from `quality_verdict.json`.
 
 `murmurmark export` creates a local user-facing bundle under ignored `exports/private/` by default.
 Markdown export writes `index.md`, `quality_verdict.md`, `notes.md`, `transcript.md` and
