@@ -189,7 +189,7 @@ with the baseline artifacts.
 Build the local extractive synthesis package directly from the best safe transcript profile:
 
 ```bash
-scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile auto
+murmurmark synthesize "$SESSION" --transcript-profile auto
 
 jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
   "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json"
@@ -270,7 +270,7 @@ When the group audit shows high-confidence duplicate `Me` utterances or short un
 noise, apply the conservative cleanup profile:
 
 ```bash
-.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+murmurmark cleanup "$SESSION" \
   --input-profile shadow_v2 \
   --output-profile audit_cleanup_v1 \
   --mode conservative
@@ -287,7 +287,7 @@ utterances.
 Then build synthesis from the cleanup profile:
 
 ```bash
-.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile audit_cleanup_v1
+murmurmark synthesize "$SESSION" --transcript-profile audit_cleanup_v1
 
 jq '{verdict, selected_transcript_profile, metrics, risk_items: (.risk_items | length)}' \
   "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json"
@@ -333,12 +333,12 @@ not as proof that the transcript is perfect.
 After audio review, build a second cleanup profile:
 
 ```bash
-.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+murmurmark cleanup "$SESSION" \
   --input-profile audit_cleanup_v1 \
   --output-profile audit_cleanup_v2 \
   --mode conservative
 
-.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" \
+murmurmark synthesize "$SESSION" \
   --transcript-profile audit_cleanup_v2
 
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v2.md"
@@ -357,13 +357,13 @@ After building the regression corpus and audio judge, v3 can consume high-confid
 predictions:
 
 ```bash
-.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+murmurmark cleanup "$SESSION" \
   --input-profile audit_cleanup_v2 \
   --output-profile audit_cleanup_v3 \
   --mode conservative \
   --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
 
-.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" \
+murmurmark synthesize "$SESSION" \
   --transcript-profile audit_cleanup_v3
 ```
 
@@ -379,13 +379,13 @@ v4 is a narrow follow-up over v3. It keeps the same audio-judge queue, but allow
 `drop_error` confidence threshold only for strong remote duplicates:
 
 ```bash
-.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+murmurmark cleanup "$SESSION" \
   --input-profile audit_cleanup_v3 \
   --output-profile audit_cleanup_v4 \
   --mode conservative \
   --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
 
-.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" \
+murmurmark synthesize "$SESSION" \
   --transcript-profile audit_cleanup_v4
 ```
 
@@ -650,11 +650,11 @@ After rebuilding an audio-review pack for `audit_cleanup_v5`, run one more conse
 when fresh audio-review rows expose additional safe duplicates:
 
 ```bash
-.venv/bin/python scripts/apply-audit-cleanup.py "$SESSION" \
+murmurmark cleanup "$SESSION" \
   --input-profile audit_cleanup_v5 \
   --output-profile audit_cleanup_v6
 
-.venv/bin/python scripts/synthesize-simple-extractive.py "$SESSION" --transcript-profile audit_cleanup_v6
+murmurmark synthesize "$SESSION" --transcript-profile audit_cleanup_v6
 ```
 
 `audit_cleanup_v6` reuses the same audio-review gates as v2 over the v5 transcript. It is not a

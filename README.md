@@ -253,10 +253,10 @@ steps for already audited sessions, usually run after the private regression and
 exist under `sessions/_reports/`.
 `murmurmark audit group-overlaps` classifies `Me`/`Colleagues` timeline overlaps into harmful, benign
 and review buckets, writes listenable clips, and does not change transcripts or quality verdicts by itself.
-`scripts/apply-audit-cleanup.py` is the conservative cleanup over audit evidence. It writes separate
+`murmurmark cleanup` is the conservative cleanup over audit evidence. It writes separate
 `audit_cleanup_*` profiles and only drops whole `Me` utterances when the audit strongly supports remote
 duplicate or ASR-noise classification. It never edits `shadow_v2`.
-`scripts/synthesize-simple-extractive.py` then selects or accepts a dialogue profile, writes a quality verdict, and creates local extractive notes where every item cites utterance IDs.
+`murmurmark synthesize` then selects or accepts a dialogue profile, writes a quality verdict, and creates local extractive notes where every item cites utterance IDs.
 
 ### Command Reference
 
@@ -310,19 +310,19 @@ murmurmark retention apply ./sessions/<session> --policy ./policy.json --confirm
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --prompt-file domain-packs/<domain>/whisper-prompt.ru.txt
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --repair-profile shadow_v2 --skip-export --skip-transcribe
 .venv/bin/python scripts/run-session-pipeline.py ./sessions/<session>
-.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile auto
-.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile shadow_v2 --output-profile audit_cleanup_v1
-.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v1
-.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v1 --output-profile audit_cleanup_v2
-.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v2
-.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v2 --output-profile audit_cleanup_v3 --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
-.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v3
-.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v3 --output-profile audit_cleanup_v4 --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
-.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v4
+murmurmark synthesize ./sessions/<session> --transcript-profile auto
+murmurmark cleanup ./sessions/<session> --input-profile shadow_v2 --output-profile audit_cleanup_v1
+murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v1
+murmurmark cleanup ./sessions/<session> --input-profile audit_cleanup_v1 --output-profile audit_cleanup_v2
+murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v2
+murmurmark cleanup ./sessions/<session> --input-profile audit_cleanup_v2 --output-profile audit_cleanup_v3 --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
+murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v3
+murmurmark cleanup ./sessions/<session> --input-profile audit_cleanup_v3 --output-profile audit_cleanup_v4 --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
+murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v4
 .venv/bin/python scripts/apply-suggested-cleanup.py
-.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v5
-.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v5 --output-profile audit_cleanup_v6
-.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v6
+murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v5
+murmurmark cleanup ./sessions/<session> --input-profile audit_cleanup_v5 --output-profile audit_cleanup_v6
+murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v6
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session> --write-session-readiness
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
 .venv/bin/python scripts/evaluate-regression-corpus.py
@@ -370,7 +370,14 @@ For `local_fir`, `--echo-policy preserve_local` is the default because it avoids
 
 The temporary transcription bridge is `scripts/transcribe-simple-whispercpp.py`. It runs `export-audio`, prepares ASR-only speech-band `mic` audio and normalized `remote` audio, calls local `whisper-cli` on short overlapping windows, creates raw segment and candidate JSON, runs timeline repair plus role reconciliation, then writes `clean_dialogue.json`, `role_decisions.json`, `overlaps.json`, `quality_report.json`, `timeline_repair_report.json`, `transcript.md` and `transcript.simple.json` under `derived/transcript-simple/whisper-cpp/resolved/`. ASR preparation never changes raw capture. See [docs/runbooks/transcribe-simple-whispercpp.md](docs/runbooks/transcribe-simple-whispercpp.md).
 
-The first synthesis bridge is `scripts/synthesize-simple-extractive.py`. It reads only transcript-derived JSON, chooses the best safe dialogue profile, writes `quality_verdict.json`/`.md`, and creates extractive `notes.md` plus `evidence_notes.json` and `review_items.jsonl` under `derived/synthesis-simple/extractive/`. It does not call an LLM and does not infer facts beyond quoted utterances. Its v3 notes path builds topic blocks, scores action/decision/risk/question candidates, hides meeting facilitation from Markdown, shows only selected top items, and keeps every hidden weak/process/facilitation candidate in `evidence_notes.json`.
+The first synthesis bridge is `murmurmark synthesize`. It wraps
+`scripts/synthesize-simple-extractive.py`, reads only transcript-derived JSON, chooses the best safe
+dialogue profile, writes `quality_verdict.json`/`.md`, and creates extractive `notes.md` plus
+`evidence_notes.json` and `review_items.jsonl` under `derived/synthesis-simple/extractive/`. It does
+not call an LLM and does not infer facts beyond quoted utterances. Its v3 notes path builds topic
+blocks, scores action/decision/risk/question candidates, hides meeting facilitation from Markdown,
+shows only selected top items, and keeps every hidden weak/process/facilitation candidate in
+`evidence_notes.json`.
 
 `murmurmark export` creates a local user-facing bundle under ignored `exports/private/` by default.
 Markdown export writes `index.md`, `quality_verdict.md`, `notes.md`, `transcript.md` and
@@ -397,7 +404,12 @@ coverage rather than missing meeting content. Short islands that sit exactly on 
 guard boundaries are labelled as likely harmless boundary fragments, while stronger unrecovered
 local speech stays as a blocking `low_local_recall` risk. It never edits transcripts.
 
-Audit-informed cleanup is `scripts/apply-audit-cleanup.py`. It reads `clean_dialogue.shadow_v2.json` and the group overlap audit, then writes only `audit_cleanup_v1` artifacts under `derived/transcript-simple/whisper-cpp/resolved/` and `derived/transcript-simple/whisper-cpp/audit-cleanup/`. In conservative mode it may drop whole `Me` utterances only when they are high-confidence remote duplicates or short unsupported ASR noise. Double-talk, timing overlap, remote leak, and human-review regions are kept and marked.
+Audit-informed cleanup is `murmurmark cleanup`. It wraps `scripts/apply-audit-cleanup.py`, reads
+`clean_dialogue.shadow_v2.json` and the group overlap audit, then writes only `audit_cleanup_v1`
+artifacts under `derived/transcript-simple/whisper-cpp/resolved/` and
+`derived/transcript-simple/whisper-cpp/audit-cleanup/`. In conservative mode it may drop whole `Me`
+utterances only when they are high-confidence remote duplicates or short unsupported ASR noise.
+Double-talk, timing overlap, remote leak, and human-review regions are kept and marked.
 
 The audio review layer is available through `murmurmark audit audio-review`.
 It collects suspicious transcript regions from `needs_review`, overlaps, group-overlap audit and cleanup

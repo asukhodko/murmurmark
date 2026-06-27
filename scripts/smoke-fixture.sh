@@ -686,10 +686,14 @@ EOF
 EOF
 
   shadow_dialogue_sha_before="$(shasum -a 256 "$group_resolved/clean_dialogue.shadow_v2.json" | awk '{print $1}')"
-  "$repo_root/scripts/apply-audit-cleanup.py" "$group_session" \
+  cleanup_cli_output="$("$bin" cleanup "$group_session" \
     --input-profile shadow_v2 \
     --output-profile audit_cleanup_v1 \
-    --mode conservative >/dev/null
+    --mode conservative)"
+  echo "$cleanup_cli_output" | grep -q '^cleanup:$'
+  echo "$cleanup_cli_output" | grep -q '  output_profile: audit_cleanup_v1'
+  echo "$cleanup_cli_output" | grep -q '  applied_patches: 2'
+  echo "$cleanup_cli_output" | grep -q '  gates_passed: true'
   shadow_dialogue_sha_after="$(shasum -a 256 "$group_resolved/clean_dialogue.shadow_v2.json" | awk '{print $1}')"
   [[ "$shadow_dialogue_sha_before" == "$shadow_dialogue_sha_after" ]]
 
@@ -714,7 +718,9 @@ EOF
   jq -s 'any(.[]; .target.utterance_id == "utt_repeat_me" and .safety_checks.intentional_repeat_candidate == true)' "$cleanup_rejected" >/dev/null
   jq -s 'any(.[]; .target.utterance_id == "utt_action_me" and .safety_checks.has_protected_action_decision_risk_marker == true)' "$cleanup_rejected" >/dev/null
 
-  "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" --transcript-profile audit_cleanup_v1 >/dev/null
+  synthesize_cli_output="$("$bin" synthesize "$group_session" --transcript-profile audit_cleanup_v1)"
+  echo "$synthesize_cli_output" | grep -q '^synthesis:$'
+  echo "$synthesize_cli_output" | grep -q '  selected_profile: audit_cleanup_v1'
   jq -e '.selected_transcript_profile == "audit_cleanup_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json" >/dev/null
 
   audio_review_cli_output="$("$bin" audit audio-review "$group_session" \

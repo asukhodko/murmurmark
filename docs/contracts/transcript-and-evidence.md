@@ -1444,6 +1444,12 @@ Blocking local-recall items are emitted into the operational review queue as `lo
 `local_recall_needs_review` items. These rows may not have transcript utterance IDs yet; they carry
 the timeline-repair parent candidate and a short `ffplay` command for the mic capture.
 
+`murmurmark cleanup SESSION` is the normal CLI entry point for audit-informed cleanup profiles. It
+wraps `scripts/apply-audit-cleanup.py`, forwards profile and mode options, writes the same JSON
+artifacts as the script, then prints a compact summary with applied/rejected patches, dropped
+seconds, harmful seconds after cleanup, gates and next commands. If cleanup gates fail, the JSON
+artifacts are still authoritative, but the command exits non-zero after printing the summary.
+
 `audit_cleanup_v2` consumes the audio review audit as an extra evidence layer. It writes the same
 profile-shaped transcript artifacts as v1, but with the `audit_cleanup_v2` suffix:
 
@@ -1864,7 +1870,11 @@ Correction records are audit evidence. Do not overwrite them silently.
 }
 ```
 
-Synthesis must read this report before producing notes.
+Synthesis must read this report before producing notes. `murmurmark synthesize SESSION` is the normal
+CLI entry point for the deterministic extractive synthesis layer. It wraps
+`scripts/synthesize-simple-extractive.py`, writes the same `quality_verdict`, `notes`,
+`evidence_notes` and `review_items` artifacts, then prints the selected profile, verdict, risk count
+and next commands.
 
 ## `synthesis_policy.yaml`
 

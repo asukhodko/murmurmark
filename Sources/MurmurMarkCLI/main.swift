@@ -37,6 +37,10 @@ struct MurmurMark {
                 try ReviewCommands.review(args)
             case "audit":
                 try AuditCommands.audit(args)
+            case "cleanup":
+                try CleanupCommands.cleanup(args)
+            case "synthesize":
+                try SynthesisCommands.synthesize(args)
             case "corpus":
                 try CorpusCommands.corpus(args)
             case "export":
@@ -88,6 +92,9 @@ struct MurmurMark {
           murmurmark audit local-recall ./session|latest [--profile shadow_v2] [--sessions-root ./sessions]
           murmurmark audit group-overlaps ./session|latest [--profile shadow_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
+          murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
+                             [--mode conservative] [--sessions-root ./sessions]
+          murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
           murmurmark corpus process all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus build all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus evaluate
@@ -118,6 +125,8 @@ struct MurmurMark {
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review wraps the current review-plan, review CLI, progress and apply scripts.
           audit wraps the local recall, group overlap and audio-review audit scripts through the project Python runtime.
+          cleanup wraps conservative audit cleanup profiles.
+          synthesize refreshes deterministic extractive notes and quality verdict.
           corpus wraps regression-corpus, audio-judge, corpus gates and operational-readiness scripts.
           export creates a local user-facing Markdown or Obsidian bundle and blocks readiness export blockers by default.
           retention plans or applies local retention policy; raw deletion requires apply plus --confirm-delete-raw.
@@ -878,6 +887,247 @@ enum AuditPrinter {
             return parsed
         }
         return 0
+    }
+}
+
+enum CleanupCommands {
+    static func cleanup(_ args: [String]) throws {
+        if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+
+        var remaining = args
+        let target = remaining.removeFirst()
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        fflush(stdout)
+
+        let status = try Tooling.runPathAllowingExitCodes(
+            try PythonRuntime.resolve(),
+            [try script().path, session.path] + remaining,
+            allowedExitCodes: [0, 2]
+        )
+        try CleanupPrinter.printSummary(session: session, args: remaining)
+        if status != 0 {
+            throw CLIError("cleanup gates did not pass; inspect audit_cleanup_report before promoting the profile")
+        }
+    }
+
+    private static func script() throws -> URL {
+        let url = PathURLs.fileURL("scripts/apply-audit-cleanup.py")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("cleanup script not found: \(url.path)")
+        }
+        return url
+    }
+
+    private static func printHelp() {
+        print("""
+        usage: murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
+                                     [--mode conservative] [--sessions-root ./sessions]
+
+        Runs scripts/apply-audit-cleanup.py and writes a separate transcript profile.
+        If cleanup gates fail, artifacts are still written and summarized, but the command exits non-zero.
+        """)
+    }
+}
+
+enum SynthesisCommands {
+    static func synthesize(_ args: [String]) throws {
+        if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+
+        var remaining = args
+        let target = remaining.removeFirst()
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        fflush(stdout)
+        try Tooling.runPath(try PythonRuntime.resolve(), [try script().path, session.path] + remaining)
+        try SynthesisPrinter.printSummary(session: session)
+    }
+
+    private static func script() throws -> URL {
+        let url = PathURLs.fileURL("scripts/synthesize-simple-extractive.py")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("synthesis script not found: \(url.path)")
+        }
+        return url
+    }
+
+    private static func printHelp() {
+        print("""
+        usage: murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
+
+        Runs scripts/synthesize-simple-extractive.py and refreshes deterministic notes,
+        evidence_notes and quality_verdict under derived/synthesis-simple/extractive/.
+        """)
+    }
+}
+
+enum CleanupPrinter {
+    static func printSummary(session: URL, args: [String]) throws {
+        let profile = ArgumentEditing.peekOption("output-profile", in: args) ?? "audit_cleanup_v1"
+        let suffix = profile == "current" ? "" : ".\(profile)"
+        let cleanupDir = session.appendingPathComponent("derived/transcript-simple/whisper-cpp/audit-cleanup")
+        let reportURL = cleanupDir.appendingPathComponent("audit_cleanup_report\(suffix).json")
+        guard FileManager.default.fileExists(atPath: reportURL.path) else {
+            print("")
+            print("cleanup:")
+            print("  report: missing")
+            print("  expected: \(PathDisplay.display(reportURL))")
+            return
+        }
+
+        let payload = try JSONFiles.object(reportURL)
+        let summary = dict(payload["summary"])
+        let gates = dict(payload["gates"])
+
+        print("")
+        print("cleanup:")
+        print("  report: \(PathDisplay.display(reportURL))")
+        print("  input_profile: \(string(payload["input_profile"]) ?? "unknown")")
+        print("  output_profile: \(string(payload["output_profile"]) ?? profile)")
+        print("  applied_patches: \(int(summary["applied_patches"]))")
+        print("  rejected_patches: \(int(summary["rejected_patches"]))")
+        print(String(format: "  dropped_me_duplicate: %.2fs", double(summary["dropped_me_duplicate_seconds"])))
+        print(String(format: "  dropped_me_noise: %.2fs", double(summary["dropped_me_noise_seconds"])))
+        print(String(format: "  harmful_after: %.2fs", double(summary["audit_harmful_seconds_after"])))
+        print("  gates_passed: \(bool(gates["passed"]))")
+        if let warnings = gates["warnings"] as? [Any], !warnings.isEmpty {
+            print("  warnings: \(compactJSON(warnings))")
+        }
+        print("  next:")
+        print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
+        print("    murmurmark report \(PathDisplay.display(session))")
+    }
+
+    private static func dict(_ value: Any?) -> [String: Any] {
+        value as? [String: Any] ?? [:]
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
+    }
+
+    private static func bool(_ value: Any?) -> Bool {
+        if let value = value as? Bool {
+            return value
+        }
+        if let value = value as? String {
+            return ["true", "yes", "1"].contains(value.lowercased())
+        }
+        return false
+    }
+
+    private static func int(_ value: Any?) -> Int {
+        if let value = value as? Int {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return value.intValue
+        }
+        if let value = value as? String, let parsed = Int(value) {
+            return parsed
+        }
+        return 0
+    }
+
+    private static func double(_ value: Any?) -> Double {
+        if let value = value as? Double {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return value.doubleValue
+        }
+        if let value = value as? String, let parsed = Double(value) {
+            return parsed
+        }
+        return 0
+    }
+
+    private static func compactJSON(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return "\(value)"
+        }
+        return text
+    }
+}
+
+enum SynthesisPrinter {
+    static func printSummary(session: URL) throws {
+        let outDir = session.appendingPathComponent("derived/synthesis-simple/extractive")
+        let verdictURL = outDir.appendingPathComponent("quality_verdict.json")
+        guard FileManager.default.fileExists(atPath: verdictURL.path) else {
+            print("")
+            print("synthesis:")
+            print("  quality_verdict: missing")
+            print("  expected: \(PathDisplay.display(verdictURL))")
+            return
+        }
+
+        let payload = try JSONFiles.object(verdictURL)
+        let metrics = dict(payload["metrics"])
+        let riskItems = payload["risk_items"] as? [Any] ?? []
+        let profile = string(payload["selected_transcript_profile"]) ?? "unknown"
+
+        print("")
+        print("synthesis:")
+        print("  quality_verdict: \(PathDisplay.display(verdictURL))")
+        print("  notes: \(PathDisplay.display(outDir.appendingPathComponent("notes.md")))")
+        print("  selected_profile: \(profile)")
+        print("  verdict: \(string(payload["verdict"]) ?? "unknown")")
+        print("  risk_items: \(riskItems.count)")
+        if let needsReview = intOptional(metrics["needs_review_count"]) {
+            print("  needs_review_count: \(needsReview)")
+        }
+        if let overlapSeconds = doubleOptional(metrics["cross_role_overlap_gt2_seconds"]) {
+            print(String(format: "  cross_role_overlap_gt2_seconds: %.2f", overlapSeconds))
+        }
+        print("  next:")
+        print("    murmurmark report \(PathDisplay.display(session))")
+        print("    murmurmark export \(PathDisplay.display(session)) --format markdown --include-json")
+    }
+
+    private static func dict(_ value: Any?) -> [String: Any] {
+        value as? [String: Any] ?? [:]
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
+    }
+
+    private static func intOptional(_ value: Any?) -> Int? {
+        if let value = value as? Int {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return value.intValue
+        }
+        if let value = value as? String {
+            return Int(value)
+        }
+        return nil
+    }
+
+    private static func doubleOptional(_ value: Any?) -> Double? {
+        if let value = value as? Double {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return value.doubleValue
+        }
+        if let value = value as? String {
+            return Double(value)
+        }
+        return nil
     }
 }
 
@@ -4703,6 +4953,13 @@ enum Tooling {
     }
 
     static func runPath(_ executable: URL, _ arguments: [String]) throws {
+        let status = try runPathAllowingExitCodes(executable, arguments, allowedExitCodes: [0])
+        guard status == 0 else {
+            throw CLIError("\(executable.lastPathComponent) exited with \(status)")
+        }
+    }
+
+    static func runPathAllowingExitCodes(_ executable: URL, _ arguments: [String], allowedExitCodes: Set<Int32>) throws -> Int32 {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
             throw CLIError("executable not found: \(executable.path)")
         }
@@ -4711,9 +4968,10 @@ enum Tooling {
         process.arguments = arguments
         try process.run()
         process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
+        guard allowedExitCodes.contains(process.terminationStatus) else {
             throw CLIError("\(executable.lastPathComponent) exited with \(process.terminationStatus)")
         }
+        return process.terminationStatus
     }
 
     static func runPathCapturing(_ executable: URL, _ arguments: [String]) throws -> String {
