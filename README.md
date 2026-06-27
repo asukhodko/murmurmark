@@ -75,8 +75,8 @@ git pull
 murmurmark process "$SESSION" --force-asr
 
 murmurmark report "$SESSION"
-less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
-less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+murmurmark notes "$SESSION" --kind verdict
+murmurmark notes "$SESSION"
 murmurmark transcript "$SESSION"
 murmurmark export "$SESSION" --format markdown --include-json
 murmurmark retention plan "$SESSION"
@@ -209,8 +209,8 @@ murmurmark latest
 SESSION="$(murmurmark latest | sed -E 's/^SESSION="(.*)"$/\1/')"
 murmurmark report "$SESSION"
 less "$SESSION/derived/readiness/session_readiness.md"
-less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
-less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+murmurmark notes "$SESSION" --kind verdict
+murmurmark notes "$SESSION"
 murmurmark transcript "$SESSION"
 murmurmark retention plan "$SESSION"
 less "$(murmurmark transcript "$SESSION" --path-only)"
@@ -265,6 +265,8 @@ murmurmark process ./sessions/<session> --plan-only --skip-build
 murmurmark report ./sessions/<session>
 murmurmark report latest
 murmurmark report corpus
+murmurmark notes ./sessions/<session>
+murmurmark notes latest --kind verdict --path-only
 murmurmark transcript ./sessions/<session>
 murmurmark transcript latest --path-only
 murmurmark audit local-recall ./sessions/<session> --profile shadow_v2

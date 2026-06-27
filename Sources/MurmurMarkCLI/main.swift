@@ -41,6 +41,8 @@ struct MurmurMark {
                 try CleanupCommands.cleanup(args)
             case "synthesize":
                 try SynthesisCommands.synthesize(args)
+            case "notes":
+                try NotesCommands.notes(args)
             case "transcript":
                 try TranscriptCommands.transcript(args)
             case "corpus":
@@ -99,6 +101,7 @@ struct MurmurMark {
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
                              [--mode conservative] [--sessions-root ./sessions]
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
+          murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--path-only|--cat]
           murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
           murmurmark corpus process all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus build all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
@@ -133,6 +136,7 @@ struct MurmurMark {
           audit wraps the transcript order, local recall, group overlap and audio-review audit scripts through the project Python runtime.
           cleanup wraps conservative audit cleanup profiles.
           synthesize refreshes deterministic extractive notes and quality verdict.
+          notes prints or streams the selected notes/verdict artifacts.
           transcript prints or streams the selected transcript path.
           corpus wraps regression-corpus, audio-judge, corpus gates and operational-readiness scripts.
           export creates a local user-facing Markdown or Obsidian bundle and blocks readiness export blockers by default.
@@ -1223,6 +1227,73 @@ enum SynthesisCommands {
     }
 }
 
+enum NotesCommands {
+    static func notes(_ args: [String]) throws {
+        if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+
+        var remaining = args
+        let target = remaining.removeFirst()
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let kind = ArgumentEditing.takeOption("kind", from: &remaining) ?? "notes"
+        let pathOnly = ArgumentEditing.takeFlag("path-only", from: &remaining)
+        let cat = ArgumentEditing.takeFlag("cat", from: &remaining)
+        guard remaining.isEmpty else {
+            throw CLIError("unknown notes option(s): \(remaining.joined(separator: " "))")
+        }
+
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        let paths = artifactPaths(session: session)
+        guard let url = paths[kind] else {
+            throw CLIError("unknown notes kind: \(kind)")
+        }
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("notes artifact not found: \(PathDisplay.display(url)); run `murmurmark synthesize \(PathDisplay.display(session))`")
+        }
+
+        if cat {
+            let data = try Data(contentsOf: url)
+            FileHandle.standardOutput.write(data)
+            return
+        }
+        if pathOnly {
+            print(PathDisplay.display(url))
+            return
+        }
+
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        print("")
+        print("notes:")
+        for key in ["verdict", "notes", "review-items", "evidence"] {
+            if let item = paths[key], FileManager.default.fileExists(atPath: item.path) {
+                print("  \(key): \(PathDisplay.display(item))")
+            }
+        }
+        print("  selected: \(kind)")
+        print("  next: less \(PathDisplay.display(url))")
+    }
+
+    private static func artifactPaths(session: URL) -> [String: URL] {
+        let outDir = session.appendingPathComponent("derived/synthesis-simple/extractive")
+        return [
+            "notes": outDir.appendingPathComponent("notes.md"),
+            "verdict": outDir.appendingPathComponent("quality_verdict.md"),
+            "review-items": outDir.appendingPathComponent("review_items.jsonl"),
+            "evidence": outDir.appendingPathComponent("evidence_notes.json"),
+        ]
+    }
+
+    private static func printHelp() {
+        print("""
+        usage: murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--path-only|--cat] [--sessions-root ./sessions]
+
+        Prints paths to local synthesis artifacts. Use --cat to stream one artifact to stdout.
+        """)
+    }
+}
+
 enum TranscriptCommands {
     static func transcript(_ args: [String]) throws {
         if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
@@ -1424,6 +1495,8 @@ enum SynthesisPrinter {
             print(String(format: "  cross_role_overlap_gt2_seconds: %.2f", overlapSeconds))
         }
         print("  next:")
+        print("    murmurmark notes \(PathDisplay.display(session))")
+        print("    murmurmark transcript \(PathDisplay.display(session))")
         print("    murmurmark report \(PathDisplay.display(session))")
         print("    murmurmark export \(PathDisplay.display(session)) --format markdown --include-json")
     }

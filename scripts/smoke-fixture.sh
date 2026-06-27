@@ -368,6 +368,15 @@ jq -n '{
 [[ -s "$session/derived/synthesis-simple/extractive/review_items.jsonl" ]]
 jq -e '.schema == "murmurmark.quality_verdict/v1"' "$session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
 jq -e '.verdict == "usable_with_review"' "$session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
+notes_output="$("$bin" notes "$session")"
+echo "$notes_output" | grep -q '^notes:$'
+echo "$notes_output" | grep -q '  notes: '
+echo "$notes_output" | grep -q '  verdict: '
+notes_path_only="$("$bin" notes "$session" --path-only)"
+[[ "$notes_path_only" == */derived/synthesis-simple/extractive/notes.md ]]
+"$bin" notes "$session" --cat | grep -q '# Extractive Notes'
+"$bin" notes "$session" --kind verdict --cat | grep -q '# Quality Verdict'
+"$bin" notes latest --sessions-root "$workdir" --kind verdict --path-only | grep -q '/derived/synthesis-simple/extractive/quality_verdict.md$'
 transcript_output="$("$bin" transcript "$session")"
 echo "$transcript_output" | grep -q '^transcript:$'
 echo "$transcript_output" | grep -q '  profile: current'

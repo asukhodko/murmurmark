@@ -195,8 +195,9 @@ murmurmark synthesize "$SESSION" --transcript-profile auto
 jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
   "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json"
 
-less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
-less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+murmurmark notes "$SESSION" --kind verdict
+murmurmark notes "$SESSION"
+murmurmark notes "$SESSION" --path-only
 murmurmark transcript "$SESSION"
 less "$(murmurmark transcript "$SESSION" --path-only)"
 ```
