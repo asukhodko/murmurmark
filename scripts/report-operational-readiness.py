@@ -172,8 +172,9 @@ def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
     probable_error = safe_float(session.get("audio_review_probable_error_seconds"))
     stronger_judge = safe_float(session.get("audio_review_stronger_judge_seconds"))
     local_recall = safe_float(session.get("local_recall_meaningful_review_seconds"))
+    transcript_order = safe_float(session.get("transcript_order_review_seconds"))
     harmful = safe_float(session.get("audit_harmful_seconds_after"))
-    burden = probable_error + stronger_judge + local_recall
+    burden = probable_error + stronger_judge + local_recall + transcript_order
     ratio = burden / duration if duration > 0 else 0.0
     row = {
         "session_id": session.get("session_id"),
@@ -189,6 +190,9 @@ def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
         "local_recall_meaningful_review_seconds": round(local_recall, 3),
         "local_recall_possible_lost_me_seconds": round(safe_float(session.get("local_recall_possible_lost_me_seconds")), 3),
         "local_recall_needs_review_seconds": round(safe_float(session.get("local_recall_needs_review_seconds")), 3),
+        "transcript_order_review_seconds": round(transcript_order, 3),
+        "transcript_order_probable_order_risk_seconds": round(safe_float(session.get("transcript_order_probable_order_risk_seconds")), 3),
+        "transcript_order_needs_review_seconds": round(safe_float(session.get("transcript_order_needs_review_seconds")), 3),
         "audit_harmful_seconds_after": round(harmful, 3),
         "risk_flags": session.get("risk_flags") or [],
     }
@@ -319,6 +323,8 @@ def review_lane(item: dict[str, Any]) -> str:
     verdict = str(item.get("verdict") or "")
     if source == "local_recall" or label in {"lost_me", "local_recall_needs_review"}:
         return "check_local_recall"
+    if source == "transcript_order" or label in {"probable_order_risk"}:
+        return "check_transcript_order"
     if label == "remote_duplicate" and verdict == "probable_transcript_error":
         return "fast_confirm_drop" if duplicate_drop_hint_allowed(item) else "check_unique_me_content"
     if label == "asr_noise" and verdict == "probable_transcript_error":
@@ -335,6 +341,7 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
         "fast_confirm_drop",
         "check_unique_me_content",
         "check_local_recall",
+        "check_transcript_order",
         "confirm_benign",
         "classify_audio",
     ]
@@ -468,6 +475,21 @@ def local_recall_review_priority(row: dict[str, Any]) -> float:
     return round(score, 3)
 
 
+def transcript_order_review_priority(row: dict[str, Any]) -> float:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    features = row.get("features") if isinstance(row.get("features"), dict) else {}
+    label = str(row.get("label") or "")
+    duration = safe_float(interval.get("duration_sec"))
+    confidence = safe_float(row.get("confidence"))
+    post_tail = safe_float(features.get("post_remote_tail_sec"))
+    score = duration + confidence * 10.0 + post_tail
+    if label == "probable_order_risk":
+        score += 95.0
+    elif label == "needs_review":
+        score += 70.0
+    return round(score, 3)
+
+
 def compact_local_recall_item(session: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
     start = safe_float(row.get("start_sec"))
     end = safe_float(row.get("end_sec"))
@@ -519,6 +541,45 @@ def compact_local_recall_item(session: dict[str, Any], row: dict[str, Any]) -> d
     }
 
 
+def compact_transcript_order_item(session: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    utterances = row.get("utterances") if isinstance(row.get("utterances"), dict) else {}
+    me = utterances.get("me") if isinstance(utterances.get("me"), dict) else {}
+    remote = utterances.get("remote") if isinstance(utterances.get("remote"), dict) else {}
+    session_path = str(session.get("session") or "")
+    return {
+        "session_id": session.get("session_id"),
+        "session": session.get("session"),
+        "source_audit_id": row.get("item_id"),
+        "source": "transcript_order",
+        "label": row.get("label"),
+        "verdict": "needs_transcript_order_review",
+        "confidence": row.get("confidence"),
+        "priority_score": transcript_order_review_priority(row),
+        "interval": interval,
+        "utterance_ids": [item for item in [me.get("id"), remote.get("id")] if item],
+        "review_features": row.get("features") if isinstance(row.get("features"), dict) else {},
+        "text": [
+            {
+                "id": me.get("id"),
+                "role": "Me",
+                "source_track": "mic",
+                "text": me.get("text"),
+            },
+            {
+                "id": remote.get("id"),
+                "role": "Colleagues",
+                "source_track": "remote",
+                "text": remote.get("text"),
+            },
+        ],
+        "commands": {
+            "review": f"less \"{session_path}/derived/audit/order/transcript_order_review.md\"",
+        },
+        "reason": row.get("reason"),
+    }
+
+
 def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     by_session = {str(session.get("session_id")): session for session in sessions}
@@ -548,6 +609,12 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
             if label not in {"possible_lost_me", "needs_review"}:
                 continue
             rows.append(compact_local_recall_item(session, row))
+        order_path = session_path / "derived/audit/order/transcript_order_items.jsonl"
+        for row in read_jsonl(order_path):
+            label = str(row.get("label") or "")
+            if label not in {"probable_order_risk", "needs_review"}:
+                continue
+            rows.append(compact_transcript_order_item(session, row))
     rows.sort(key=lambda item: (-safe_float(item.get("priority_score")), str(item.get("session_id") or "")))
     return rows[: max(0, max_items)]
 

@@ -191,6 +191,8 @@ def build_baseline_snapshot(
             ),
             "unrepaired_long_mic_crossings_count": safe_int(row.get("unrepaired_long_mic_crossings_count")),
             "golden_phrase_fail_count": safe_int(row.get("golden_phrase_fail_count")),
+            "transcript_order_probable_order_risk_count": safe_int(row.get("transcript_order_probable_order_risk_count")),
+            "transcript_order_needs_review_count": safe_int(row.get("transcript_order_needs_review_count")),
         }
     return {
         "schema": SCHEMA_BASELINE,
@@ -367,6 +369,10 @@ def compare_baseline(
             hard_invariant_bad.append(str(session_id))
         if safe_int(cur_row.get("golden_phrase_fail_count")) > safe_int(base_row.get("golden_phrase_fail_count")):
             hard_invariant_bad.append(str(session_id))
+        if safe_int(cur_row.get("transcript_order_probable_order_risk_count")) > safe_int(
+            base_row.get("transcript_order_probable_order_risk_count")
+        ):
+            hard_invariant_bad.append(str(session_id))
     check(
         checks,
         "baseline.session_use_gate_not_worse",
@@ -400,7 +406,7 @@ def compare_baseline(
         not hard_invariant_bad,
         observed=len(set(hard_invariant_bad)),
         threshold="0 sessions",
-        message="no baseline session regresses on golden phrases or unrepaired long crossings",
+        message="no baseline session regresses on golden phrases, unrepaired long crossings or transcript order risks",
         details=sorted(set(hard_invariant_bad))[:20],
     )
 
@@ -518,6 +524,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         row for row in complete if safe_int(row.get("unrepaired_long_mic_crossings_count")) > 0
     ]
     golden_bad = [row for row in complete if safe_int(row.get("golden_phrase_fail_count")) > 0]
+    transcript_order_bad = [
+        row for row in complete if row.get("transcript_order_blocking_order_risk") is True
+    ]
     local_recall_bad = [
         row for row in complete if safe_float(row.get("local_only_island_recall"), 1.0) < args.min_local_recall
     ]
@@ -541,6 +550,15 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         threshold="0 sessions",
         message="no complete session has failed golden phrase checks",
         details=session_ids(golden_bad),
+    )
+    check(
+        checks,
+        "transcript.no_blocking_order_risk",
+        not transcript_order_bad,
+        observed=len(transcript_order_bad),
+        threshold="0 sessions",
+        message="no complete session has blocking transcript order risk",
+        details=session_ids(transcript_order_bad),
     )
     check(
         checks,

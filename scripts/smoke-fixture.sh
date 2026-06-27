@@ -435,6 +435,13 @@ ids = [item["id"] for item in commands]
 assert ids == ["review_plan", "review_workspace", "review_workspace_apply", "review_apply"], ids
 assert any("murmurmark review workspace --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review apply" == item["command"] for item in commands)
+order_commands = module.readiness_next_commands(
+    Path("sessions/order-session"),
+    {"use_gate": "review_first", "review_blockers": ["risk:transcript_order_risk"], "risk_flags": ["transcript_order_risk"]},
+)
+order_ids = [item["id"] for item in order_commands]
+assert order_ids[0] == "inspect_transcript_order", order_ids
+assert "transcript_order_review.md" in order_commands[0]["command"], order_commands[0]
 PY
 export_block_dir="$workdir/export-blocked"
 if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >/dev/null 2>&1; then
@@ -618,6 +625,10 @@ EOF
   jq -s 'any(.[]; .label == "possible_lost_me")' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
   jq -s 'any(.[]; .label == "likely_harmless_ack_fragment" and .parent_is_acknowledgement == true)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
   jq -s 'any(.[]; .label == "likely_harmless_boundary_fragment" and .boundary.boundary_fragment == true)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
+
+  "$bin" audit order "$group_session" --profile shadow_v2 >/dev/null
+  jq -e '.schema == "murmurmark.transcript_order_audit/v1" and .status == "ok" and .summary.probable_order_risk_count == 0' \
+    "$group_session/derived/audit/order/transcript_order_audit.json" >/dev/null
 
   order_session="$workdir/order-session"
   order_resolved="$order_session/derived/transcript-simple/whisper-cpp/resolved"
@@ -1129,6 +1140,7 @@ EOF
   quality_dir="$workdir/session-quality"
   "$repo_root/scripts/report-session-quality.py" "$group_session" --out-dir "$quality_dir" >/dev/null
   jq -e '.sessions[0].audio_review_resolved_by_cleanup_count >= 1' "$quality_dir/session_quality_report.json" >/dev/null
+  jq -e '.sessions[0].stages.transcript_order_audit == true and .sessions[0].transcript_order_probable_order_risk_count == 0' "$quality_dir/session_quality_report.json" >/dev/null
   readiness_dir="$workdir/operational-readiness"
   "$repo_root/scripts/report-operational-readiness.py" \
     --session-quality "$quality_dir/session_quality_report.json" \

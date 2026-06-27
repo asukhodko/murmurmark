@@ -429,6 +429,11 @@ modify transcript profiles. `probable_order_risk` means a long `Me` turn wraps a
 and continues after it, which is the main known pattern for Markdown showing a local reaction before
 the remote phrase that triggered it.
 
+`report-session-quality.py` reads this audit. Blocking order risk contributes to
+`review_burden_sec`, adds `risk:transcript_order_risk` to readiness blockers, and is checked by
+`check-corpus-gates.py` as `transcript.no_blocking_order_risk`. The operational readiness report
+also includes such items in the review queue under lane `check_transcript_order`.
+
 The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
 and writes under:
 
@@ -694,6 +699,13 @@ sessions/_reports/corpus-gates/
       "severity": "fail",
       "observed": 6,
       "threshold": ">= baseline 6 - 0"
+    },
+    {
+      "id": "transcript.no_blocking_order_risk",
+      "status": "pass",
+      "severity": "fail",
+      "observed": 0,
+      "threshold": "0 sessions"
     }
   ]
 }
@@ -897,7 +909,9 @@ Explicit command-line flags override config values.
     "audio_review_probable_error_count": 2,
     "audio_review_stronger_judge_count": 6,
     "local_only_island_recall": 0.875,
-    "local_recall_recommended_next_step": "local_recall_risk_explained"
+    "local_recall_recommended_next_step": "local_recall_risk_explained",
+    "transcript_order_probable_order_risk_count": 0,
+    "transcript_order_review_seconds": 0.0
   },
   "outputs": {
     "transcript": {
@@ -906,6 +920,10 @@ Explicit command-line flags override config values.
     },
     "notes": {
       "path": "derived/synthesis-simple/extractive/notes.audit_cleanup_v4.md",
+      "exists": true
+    },
+    "transcript_order_review": {
+      "path": "derived/audit/order/transcript_order_review.md",
       "exists": true
     }
   }

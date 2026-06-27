@@ -230,6 +230,12 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
         ),
         step("synthesize_auto", [py, str(repo_root / "scripts/synthesize-simple-extractive.py"), str(session), "--transcript-profile", "auto"]),
         step(
+            "audit_transcript_order",
+            [py, str(repo_root / "scripts/audit-transcript-order.py"), str(session), "--profile", "auto"],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+        ),
+        step(
             "session_readiness",
             [
                 py,

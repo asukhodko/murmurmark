@@ -91,6 +91,7 @@ struct MurmurMark {
           murmurmark review workspace [build|apply] [--session latest|./session]
           murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
           murmurmark audit local-recall ./session|latest [--profile shadow_v2] [--sessions-root ./sessions]
+          murmurmark audit order ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit group-overlaps ./session|latest [--profile shadow_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
@@ -125,7 +126,7 @@ struct MurmurMark {
           process runs the current post-recording pipeline and prints the readiness summary.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review wraps the current review-plan, agent-review, review CLI, progress and apply scripts.
-          audit wraps the local recall, group overlap and audio-review audit scripts through the project Python runtime.
+          audit wraps the transcript order, local recall, group overlap and audio-review audit scripts through the project Python runtime.
           cleanup wraps conservative audit cleanup profiles.
           synthesize refreshes deterministic extractive notes and quality verdict.
           corpus wraps regression-corpus, audio-judge, corpus gates and operational-readiness scripts.
@@ -4540,7 +4541,7 @@ enum ReadinessPrinter {
         print("  verdict: \(verdict)")
         print(String(format: "  review_burden: %.2f min / %.2f%%", reviewSeconds / 60, reviewRatio))
         print("  open:")
-        for key in ["transcript", "notes", "quality_verdict", "audio_review_report", "local_recall_review"] {
+        for key in ["transcript", "notes", "quality_verdict", "audio_review_report", "local_recall_review", "transcript_order_review"] {
             if let path = outputPath(key, outputs: outputs) {
                 let target = path.hasPrefix("/") ? URL(fileURLWithPath: path) : session.appendingPathComponent(path)
                 print("    \(key): \(PathDisplay.display(target))")

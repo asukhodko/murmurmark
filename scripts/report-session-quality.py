@@ -260,6 +260,7 @@ def stage_status(session: Path) -> dict[str, bool]:
     cleanup = session / "derived/transcript-simple/whisper-cpp/audit-cleanup"
     review_decisions = session / "derived/transcript-simple/whisper-cpp/review-decisions"
     audio_review = session / "derived/audit/audio-review-pack"
+    order_audit = session / "derived/audit/order"
     return {
         "capture": (session / "session.json").exists()
         and (session / "audio/mic/000001.caf").exists()
@@ -270,6 +271,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (resolved / "clean_dialogue.shadow_v2.json").exists()
         and (resolved / "repair_comparison.json").exists(),
         "group_overlap_audit": (session / "derived/audit/group-overlaps/group_overlap_summary.json").exists(),
+        "transcript_order_audit": (order_audit / "transcript_order_audit.json").exists()
+        and (order_audit / "transcript_order_items.jsonl").exists(),
         "audit_cleanup_v1": (resolved / "quality_report.audit_cleanup_v1.json").exists()
         and (resolved / "clean_dialogue.audit_cleanup_v1.json").exists()
         and (cleanup / "audit_cleanup_report.audit_cleanup_v1.json").exists(),
@@ -330,6 +333,7 @@ def missing_artifacts(status: dict[str, bool]) -> list[str]:
         "transcript_current",
         "transcript_shadow_v2",
         "group_overlap_audit",
+        "transcript_order_audit",
         "audit_cleanup_v1",
         "synthesis_audit_cleanup_v1",
         "audio_review_pack",
@@ -726,6 +730,36 @@ def local_recall_metrics(local_recall: dict[str, Any] | None, review_report: dic
     }
 
 
+def transcript_order_metrics(order_audit: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(order_audit, dict):
+        return {
+            "transcript_order_audit_status": "missing",
+            "transcript_order_audited_overlap_count": None,
+            "transcript_order_probable_order_risk_count": None,
+            "transcript_order_probable_order_risk_seconds": None,
+            "transcript_order_needs_review_count": None,
+            "transcript_order_needs_review_seconds": None,
+            "transcript_order_review_seconds": None,
+            "transcript_order_blocking_order_risk": None,
+            "transcript_order_recommended_next_step": "run_transcript_order_audit",
+        }
+    summary = order_audit.get("summary") if isinstance(order_audit.get("summary"), dict) else {}
+    risk_seconds = round_or_none(summary.get("probable_order_risk_seconds")) or 0.0
+    needs_review_seconds = round_or_none(summary.get("needs_review_seconds")) or 0.0
+    review_seconds = round(risk_seconds + needs_review_seconds, 3)
+    return {
+        "transcript_order_audit_status": order_audit.get("status"),
+        "transcript_order_audited_overlap_count": safe_int(summary.get("audited_overlap_count")),
+        "transcript_order_probable_order_risk_count": safe_int(summary.get("probable_order_risk_count")),
+        "transcript_order_probable_order_risk_seconds": round_or_none(summary.get("probable_order_risk_seconds")),
+        "transcript_order_needs_review_count": safe_int(summary.get("needs_review_count")),
+        "transcript_order_needs_review_seconds": round_or_none(summary.get("needs_review_seconds")),
+        "transcript_order_review_seconds": review_seconds,
+        "transcript_order_blocking_order_risk": summary.get("blocking_order_risk"),
+        "transcript_order_recommended_next_step": summary.get("recommended_next_step"),
+    }
+
+
 def risk_flags(row: dict[str, Any]) -> list[str]:
     flags: list[str] = []
     verdict = row.get("verdict")
@@ -746,6 +780,8 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
         flags.append("golden_phrase_fail")
     if row.get("local_recall_blocking_low_local_recall") is True:
         flags.append("local_recall_possible_lost_me")
+    if row.get("transcript_order_blocking_order_risk") is True:
+        flags.append("transcript_order_risk")
     recall = safe_float(row.get("local_only_island_recall"))
     if recall is not None and recall < 0.9:
         if row.get("local_recall_audit_status") != "ok":
@@ -832,7 +868,7 @@ def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
 
     for flag in row.get("risk_flags") or []:
         severity = "block" if flag.startswith("verdict:") else "review"
-        if flag in {"unrepaired_long_mic_crossings", "golden_phrase_fail", "high_needs_review_ratio"}:
+        if flag in {"unrepaired_long_mic_crossings", "golden_phrase_fail", "high_needs_review_ratio", "transcript_order_risk"}:
             severity = "block"
         reasons.append(
             {
@@ -869,7 +905,8 @@ def add_use_gate(row: dict[str, Any]) -> None:
     probable_error = safe_float(row.get("audio_review_probable_error_seconds")) or 0.0
     stronger_judge = safe_float(row.get("audio_review_stronger_judge_seconds")) or 0.0
     local_recall_review = safe_float(row.get("local_recall_meaningful_review_seconds")) or 0.0
-    burden = probable_error + stronger_judge + local_recall_review
+    transcript_order_review = safe_float(row.get("transcript_order_review_seconds")) or 0.0
+    burden = probable_error + stronger_judge + local_recall_review + transcript_order_review
     row["review_burden_sec"] = round(burden, 3)
     row["review_burden_ratio"] = round(burden / duration, 6) if duration > 0 else 0.0
     row["use_gate"] = session_use_gate(row)
@@ -893,6 +930,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     group_summary = read_json(session / "derived/audit/group-overlaps/group_overlap_summary.json")
     audio_summary = read_json(session / "derived/audit/audio-review-pack/audio_review_summary.json")
     local_recall = read_json(session / "derived/audit/local-recall/local_recall_audit.json")
+    order_audit = read_json(session / "derived/audit/order/transcript_order_audit.json")
     local_fir = read_json(session / "derived/preprocess/echo/local_fir_report.json")
     suggested_report = read_json(
         session / "derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.suggested_review_v1.json"
@@ -985,6 +1023,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(review_decision_metrics(review_report))
     row.update(audio_review_metrics(audio_summary, session, profile))
     row.update(local_recall_metrics(local_recall, review_report))
+    row.update(transcript_order_metrics(order_audit))
     row["risk_flags"] = risk_flags(row)
     add_use_gate(row)
     return row
@@ -1040,6 +1079,11 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "local_recall_missing_island_count",
         "local_recall_possible_lost_me_seconds",
         "local_recall_needs_review_seconds",
+        "transcript_order_recommended_next_step",
+        "transcript_order_probable_order_risk_count",
+        "transcript_order_probable_order_risk_seconds",
+        "transcript_order_needs_review_seconds",
+        "transcript_order_review_seconds",
         "cross_role_overlap_gt2_seconds",
         "remote_duplicate_in_me_seconds",
         "audit_harmful_seconds_after",
@@ -1104,8 +1148,8 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         "",
         "## Sessions",
         "",
-        "| Session | Label | Gate | Status | Profile | Verdict | Min | Review % | Utterances | Needs Review | Local Recall | Local Audit | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
-        "|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---|---|",
+        "| Session | Label | Gate | Status | Profile | Verdict | Min | Review % | Utterances | Needs Review | Local Recall | Local Audit | Order Audit | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
+        "|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---|---|",
     ]
     for row in rows:
         duration = safe_float(row.get("meeting_duration_sec"))
@@ -1120,6 +1164,11 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
             f"{fmt(row.get('local_recall_recommended_next_step'))}; "
             f"lost/review {fmt(row.get('local_recall_possible_lost_me_seconds'), '0')}/"
             f"{fmt(row.get('local_recall_needs_review_seconds'), '0')}s"
+        )
+        order_audit = (
+            f"{fmt(row.get('transcript_order_recommended_next_step'))}; "
+            f"risk/review {fmt(row.get('transcript_order_probable_order_risk_seconds'), '0')}/"
+            f"{fmt(row.get('transcript_order_needs_review_seconds'), '0')}s"
         )
         lines.append(
             "| "
@@ -1137,6 +1186,7 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
                     fmt(row.get("needs_review_count")),
                     fmt(row.get("local_only_island_recall")),
                     local_audit,
+                    order_audit,
                     fmt(row.get("audit_harmful_seconds_after")),
                     fmt(row.get("audit_review_seconds")),
                     audio_review,
@@ -1158,12 +1208,17 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         lines.append("- Build and audit audio review packs for:")
         for row in missing_audio_review:
             lines.append(f"  - `{row['session_id']}`: {row['label']}")
+    missing_order_audit = [row for row in rows if "transcript_order_audit" in (row.get("missing_artifacts") or [])]
+    if missing_order_audit:
+        lines.append("- Run transcript order audit for:")
+        for row in missing_order_audit:
+            lines.append(f"  - `{row['session_id']}`: {row['label']}")
     risky = [row for row in rows if row.get("risk_flags")]
     if risky:
         lines.append("- Review sessions with risk flags before using notes as working memory:")
         for row in risky[:10]:
             lines.append(f"  - `{row['session_id']}`: {', '.join(row['risk_flags'])}")
-    if not missing_cleanup and not risky:
+    if not missing_cleanup and not missing_audio_review and not missing_order_audit and not risky:
         lines.append("- No immediate structural gaps detected.")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -1181,6 +1236,7 @@ def readiness_outputs(session: Path, profile: str) -> dict[str, Any]:
         "review_items": synthesis / f"review_items{suffix(profile)}.jsonl",
         "audio_review_report": session / "derived/audit/audio-review-pack/audio_review_report.md",
         "local_recall_review": session / "derived/audit/local-recall/local_recall_review.md",
+        "transcript_order_review": session / "derived/audit/order/transcript_order_review.md",
         "pipeline_run_report": session / "derived/pipeline-run/pipeline_run_report.json",
     }
     if profile == "current":
@@ -1233,28 +1289,40 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
         ]
 
     if review_blockers or export_blockers or gate == "review_first":
-        return [
-            {
-                "id": "review_plan",
-                "label": "Build the review queue for flagged regions.",
-                "command": "murmurmark review plan",
-            },
-            {
-                "id": "review_workspace",
-                "label": "Build lane packs and answer sheets for this session.",
-                "command": f"murmurmark review workspace --session {session_arg}",
-            },
-            {
-                "id": "review_workspace_apply",
-                "label": "Apply edited review workspace answers.",
-                "command": "murmurmark review workspace apply",
-            },
-            {
-                "id": "review_apply",
-                "label": "Apply closed review decisions and refresh reports when progress is ready.",
-                "command": "murmurmark review apply",
-            },
-        ]
+        commands: list[dict[str, str]] = []
+        if "transcript_order_risk" in (row.get("risk_flags") or []):
+            commands.append(
+                {
+                    "id": "inspect_transcript_order",
+                    "label": "Inspect chronology-risk regions before relying on reply order.",
+                    "command": f"less {command_path(session / 'derived/audit/order/transcript_order_review.md')}",
+                }
+            )
+        commands.extend(
+            [
+                {
+                    "id": "review_plan",
+                    "label": "Build the review queue for flagged regions.",
+                    "command": "murmurmark review plan",
+                },
+                {
+                    "id": "review_workspace",
+                    "label": "Build lane packs and answer sheets for this session.",
+                    "command": f"murmurmark review workspace --session {session_arg}",
+                },
+                {
+                    "id": "review_workspace_apply",
+                    "label": "Apply edited review workspace answers.",
+                    "command": "murmurmark review workspace apply",
+                },
+                {
+                    "id": "review_apply",
+                    "label": "Apply closed review decisions and refresh reports when progress is ready.",
+                    "command": "murmurmark review apply",
+                },
+            ]
+        )
+        return commands
 
     if gate == "ready_for_notes":
         return [

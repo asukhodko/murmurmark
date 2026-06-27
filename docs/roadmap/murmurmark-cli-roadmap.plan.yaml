@@ -390,7 +390,7 @@ nodes:
     parent: quality-hardening
     status: current
     effort: 5
-    notes: "murmurmark audit order уже выявляет длинные Me-блоки поверх remote; следующий шаг — расширить корпусные кейсы и review/apply контур для таких регионов."
+    notes: "murmurmark audit order уже выявляет длинные Me-блоки поверх remote и входит в process/session-quality/corpus gates; следующий шаг — расширить review/apply контур для таких регионов."
 
   quality-boundary-repair:
     title: "Start/end boundary repair"

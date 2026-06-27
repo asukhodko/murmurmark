@@ -50,8 +50,9 @@ model, language, prompt and export. Explicit command-line flags override config 
 `murmurmark doctor` reports the selected config and model path, so run it after changing local
 defaults.
 
-`murmurmark process` calls the current runner: Echo Guard, export/transcription, shadow timeline repair, local-recall audit,
-group-overlap audit, audio-review audit, `audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. `audit_cleanup_v5` is a separate batch step after the suggested-review shadow report. Use
+`murmurmark process` calls the current runner: Echo Guard, export/transcription, shadow timeline repair,
+local-recall audit, transcript-order audit, group-overlap audit, audio-review audit,
+`audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. `audit_cleanup_v5` is a separate batch step after the suggested-review shadow report. Use
 `--force-asr` when you need to regenerate Whisper output, and `--reuse-asr-cache` when you only want
 to rebuild repair, cleanup, synthesis and reports from cached ASR JSON.
 
@@ -241,7 +242,8 @@ less "$SESSION/derived/audit/order/transcript_order_review.md"
 
 The audit reads `clean_dialogue` and `overlaps`, writes under `derived/audit/order/`, and never edits
 transcript profiles. `probable_order_risk` means a long `Me` turn wraps a `Colleagues` turn and has a
-tail after it; this should go to review before using the transcript for precise chronology.
+tail after it; this is included in session readiness review burden and should go to review before
+using the transcript for precise chronology.
 
 ## Group Overlap Audit
 

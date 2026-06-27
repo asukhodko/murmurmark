@@ -228,7 +228,8 @@ less "$TRANSCRIPT"
 
 `murmurmark process` is the normal post-recording command; internally it calls
 `scripts/run-session-pipeline.py`. The runner calls Echo Guard,
-whisper.cpp transcription, shadow timeline repair, local-recall audit, group-overlap audit, audio-review audit,
+whisper.cpp transcription, shadow timeline repair, local-recall audit, transcript-order audit,
+group-overlap audit, audio-review audit,
 `audit_cleanup_v1/v2`, optionally `audit_cleanup_v3/v4` when the local audio-judge queue exists,
 and extractive synthesis, then writes
 `derived/pipeline-run/pipeline_run_report.json` and `derived/readiness/session_readiness.md`.
@@ -244,7 +245,8 @@ or `transcript.audit_cleanup_v2.md` are separate candidates; the selected profil
 steps for already audited sessions, usually run after the private regression and audio-judge reports
 exist under `sessions/_reports/`.
 `murmurmark audit order` finds long `Me` turns that cross a `Colleagues` turn and continue after it:
-these are the main remaining risk for wrong reply order in an otherwise readable transcript.
+these are the main remaining risk for wrong reply order in an otherwise readable transcript. Blocking
+order risks are included in readiness review burden and block export until reviewed.
 `murmurmark audit group-overlaps` classifies `Me`/`Colleagues` timeline overlaps into harmful, benign
 and review buckets, writes listenable clips, and does not change transcripts or quality verdicts by itself.
 `murmurmark cleanup` is the conservative cleanup over audit evidence. It writes separate
@@ -383,7 +385,7 @@ keeps the blockers in `export_manifest.json` and is meant for debugging. After a
 the CLI prints the manifest path, key output files and the matching retention commands.
 
 `murmurmark audit` wraps the local audit scripts through the project Python runtime. `murmurmark audit
-local-recall`, `murmurmark audit group-overlaps` and `murmurmark audit audio-review` are the normal
+local-recall`, `murmurmark audit order`, `murmurmark audit group-overlaps` and `murmurmark audit audio-review` are the normal
 entry points; direct Python script calls remain useful for debugging.
 After every audit run, the CLI prints a compact handoff summary with the profile, key counters,
 recommendation and the report to open next.
