@@ -414,23 +414,10 @@ work:
   --corpus-dir sessions/_reports/regression-corpus \
   --out-dir sessions/_reports/audio-judge-v0
 
-.venv/bin/python scripts/report-operational-readiness.py \
-  --session-quality sessions/_reports/session-quality/session_quality_report.json \
-  --corpus-evaluation sessions/_reports/regression-corpus/regression_corpus_evaluation.json \
-  --audio-judge sessions/_reports/audio-judge-v0/audio_judge_v0_report.json \
-  --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
-
-.venv/bin/python scripts/build-review-plan.py \
-  --operational-readiness sessions/_reports/operational-readiness/operational_readiness_report.json
-
-.venv/bin/python scripts/review-decisions-cli.py \
-  --template sessions/_reports/review-plan/review_decisions.template.jsonl \
-  --out sessions/_reports/review-plan/review_decisions.jsonl
-
-.venv/bin/python scripts/apply-review-decisions-batch.py \
-  --decisions sessions/_reports/review-plan/review_decisions.jsonl \
-  --review-template sessions/_reports/review-plan/review_decisions.template.jsonl \
-  --synthesize
+.build/debug/murmurmark review plan
+.build/debug/murmurmark review latest --lane fast_confirm_drop
+.build/debug/murmurmark review progress
+.build/debug/murmurmark review apply
 
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
@@ -479,6 +466,12 @@ play that exact clip, or `p` to replay the preferred clip. At exit, the CLI prin
 when no `todo` rows remain it prints the batch command that applies decisions and refreshes
 readiness reports.
 To close only one lane, pass `--lane`, for example:
+
+```bash
+.build/debug/murmurmark review latest --lane fast_confirm_drop
+```
+
+The lower-level equivalent is:
 
 ```bash
 .venv/bin/python scripts/review-decisions-cli.py \

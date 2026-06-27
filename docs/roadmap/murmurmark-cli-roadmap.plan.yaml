@@ -256,25 +256,26 @@ nodes:
     kind: phase
     parent: murmurmark-cli
     deps: [cli-orchestration, corpus-regression]
-    status: next
+    status: current
     effort: 22
     notes: |
-      Удобный review CLI для спорных мест. Цель — не прятать неопределённость,
-      а быстро превращать её в решения, патчи и regression material.
+      Удобный review CLI для спорных мест. Базовые plan/progress/apply и интерактивный
+      review SESSION/latest уже доступны; следующий слой — полировка review workspace
+      и связка с export/readiness.
 
   cli-review-command:
     title: "murmurmark review SESSION"
     kind: task
     parent: review-loop
-    status: next
+    status: done
     effort: 5
-    notes: "Открывает review queue по transcript, overlaps, lost Me, duplicate, notes evidence."
+    notes: "Открывает review queue по transcript, overlaps, lost Me, duplicate и audio-review evidence."
 
   review-lane-filtering:
     title: "Lane-based review"
     kind: task
     parent: review-loop
-    status: next
+    status: done
     effort: 4
     notes: "Фильтры по дорожкам: harmful duplicate, lost Me, uncertain, notes evidence, export blockers."
 
@@ -282,7 +283,7 @@ nodes:
     title: "Hotkeys и progress"
     kind: task
     parent: review-loop
-    status: next
+    status: done
     effort: 3
     notes: "Быстрые решения: accept/drop/mark/retry/skip и сохранение прогресса."
 
@@ -290,7 +291,7 @@ nodes:
     title: "Apply decisions"
     kind: task
     parent: review-loop
-    status: next
+    status: done
     effort: 4
     notes: "Применение review decisions в отдельный профиль без изменения baseline."
 
@@ -298,7 +299,7 @@ nodes:
     title: "Review burden report"
     kind: task
     parent: review-loop
-    status: next
+    status: done
     effort: 3
     notes: "Сколько минут/реплик требуют проверки, что блокирует export, что можно игнорировать."
 
@@ -306,7 +307,7 @@ nodes:
     title: "Unresolved risky items остаются явными"
     kind: task
     parent: review-loop
-    status: next
+    status: done
     effort: 3
     notes: "Ни один рискованный участок не исчезает молча из итогового отчёта."
 
@@ -762,16 +763,16 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "process/latest/report/readiness уже работают как нормальные команды; следующий разрыв — review/export/config."
-          next_sync_goal: "Собрать review/export команды и единый config для модели/prompt."
+          sync_note: "process/latest/report/review уже работают как нормальные команды; следующий разрыв — export/config."
+          next_sync_goal: "Собрать export-команду и единый config для модели/prompt."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Корпус, review loop и audio judge должны защищать от регрессий."
-          next_sync_goal: "Сделать повторяемые corpus gates и review burden report."
+          sync_note: "Корпус, review loop и audio judge уже защищают от части регрессий; нужны более строгие gates."
+          next_sync_goal: "Сделать повторяемые corpus gates и review/export blockers."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

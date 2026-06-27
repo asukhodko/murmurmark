@@ -32,6 +32,8 @@ struct MurmurMark {
                 try PipelineCommands.process(args)
             case "report":
                 try PipelineCommands.report(args)
+            case "review":
+                try ReviewCommands.review(args)
             case "preprocess":
                 try Commands.preprocess(args)
             case "reconcile-transcript":
@@ -69,6 +71,8 @@ struct MurmurMark {
                                 [--reuse-asr-cache] [--plan-only] [--sessions-root ./sessions]
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
+          murmurmark review plan|progress|apply
+          murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
           murmurmark preprocess ./session [--echo diagnostic|clean] [--echo-engine linear_baseline|local_fir|speexdsp|webrtc-apm]
                               [--echo-policy preserve_local|role_safe|strict_silence]
           murmurmark reconcile-transcript ./session [--in ./transcript.rich.json] [--out ./transcript.rich.json]
@@ -83,6 +87,7 @@ struct MurmurMark {
           Without --out, recording creates a unique directory under ./sessions.
           process runs the current post-recording pipeline and prints the readiness summary.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
+          review wraps the current review-plan, review CLI, progress and apply scripts.
         """)
     }
 }
@@ -223,6 +228,103 @@ enum PipelineCommands {
             "--write-session-readiness",
         ])
         try ReadinessPrinter.printSession(session)
+    }
+}
+
+enum ReviewCommands {
+    static func review(_ args: [String]) throws {
+        guard let target = args.first else { throw CLIError("review requires plan, progress, apply, a session path, or latest") }
+        var forwarded = Array(args.dropFirst())
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
+
+        switch target {
+        case "plan":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("build-review-plan.py").path] + forwarded)
+                return
+            }
+            try buildPlan(extraArgs: forwarded)
+            try ReviewPrinter.printPlan()
+        case "progress":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-review-decisions-progress.py").path] + forwarded)
+                return
+            }
+            guard forwarded.isEmpty else { throw CLIError("review progress only accepts --help") }
+            try runProgress()
+            try ReviewPrinter.printProgress()
+        case "apply":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-decisions-batch.py").path] + forwarded)
+                return
+            }
+            try apply(forwarded)
+            try ReviewPrinter.printApply(report: PathURLs.fileURL("sessions/_reports/review-plan/review_decisions_apply_report.json"))
+        default:
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("review-decisions-cli.py").path] + forwarded)
+                return
+            }
+            let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+            try ensurePlanExists()
+            let python = try PythonRuntime.resolve()
+            let script = try script("review-decisions-cli.py")
+            let command = [
+                script.path,
+                "--template", "sessions/_reports/review-plan/review_decisions.template.jsonl",
+                "--out", "sessions/_reports/review-plan/review_decisions.jsonl",
+                "--session", session.lastPathComponent,
+            ] + forwarded
+            print("SESSION=\"\(PathDisplay.display(session))\"")
+            fflush(stdout)
+            try Tooling.runPath(python, command)
+            try runProgress()
+            try ReviewPrinter.printProgress()
+        }
+    }
+
+    private static func buildPlan(extraArgs: [String]) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("report-operational-readiness.py").path,
+        ])
+        try Tooling.runPath(python, [
+            try script("build-review-plan.py").path,
+        ] + extraArgs)
+    }
+
+    private static func ensurePlanExists() throws {
+        let template = PathURLs.fileURL("sessions/_reports/review-plan/review_decisions.template.jsonl")
+        if !FileManager.default.fileExists(atPath: template.path) {
+            try buildPlan(extraArgs: [])
+        }
+    }
+
+    private static func runProgress() throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("report-review-decisions-progress.py").path,
+            "--decisions", "sessions/_reports/review-plan/review_decisions.jsonl",
+        ])
+    }
+
+    private static func apply(_ args: [String]) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("apply-review-decisions-batch.py").path,
+            "--decisions", "sessions/_reports/review-plan/review_decisions.jsonl",
+            "--review-template", "sessions/_reports/review-plan/review_decisions.template.jsonl",
+            "--synthesize",
+            "--refresh-reports",
+        ] + args)
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("review script not found: \(url.path)")
+        }
+        return url
     }
 }
 
@@ -2800,6 +2902,10 @@ enum ArgumentEditing {
         }
         return value
     }
+
+    static func hasHelpFlag(_ args: [String]) -> Bool {
+        args.contains("--help") || args.contains("-h")
+    }
 }
 
 enum SessionResolver {
@@ -2909,6 +3015,85 @@ enum ReadinessPrinter {
 
     private static func string(_ value: Any?) -> String? {
         value as? String
+    }
+
+    private static func double(_ value: Any?) -> Double? {
+        if let number = value as? NSNumber { return number.doubleValue }
+        if let text = value as? String { return Double(text) }
+        return nil
+    }
+
+    private static func int(_ value: Any?) -> Int? {
+        if let number = value as? NSNumber { return number.intValue }
+        if let text = value as? String { return Int(text) }
+        return nil
+    }
+
+    private static func compactJSON(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return "\(value)"
+        }
+        return text
+    }
+}
+
+enum ReviewPrinter {
+    static func printPlan() throws {
+        let url = PathURLs.fileURL("sessions/_reports/review-plan/review_plan.json")
+        let payload = try JSONFiles.object(url)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        print("")
+        print("review_plan:")
+        print("  report: sessions/_reports/review-plan/review_plan.md")
+        print("  clusters: \(int(summary["cluster_count"]) ?? 0)")
+        print("  raw_items: \(int(summary["raw_item_count"]) ?? 0)")
+        print("  sessions_with_review: \(int(summary["sessions_with_review"]) ?? 0)")
+        print("  estimated_listen_minutes: \(double(summary["estimated_listen_minutes"]) ?? 0)")
+        if let lanes = summary["by_review_lane"] as? [String: Any] {
+            print("  by_lane: \(compactJSON(lanes))")
+        }
+        print("  next: murmurmark review latest --lane fast_confirm_drop")
+    }
+
+    static func printProgress() throws {
+        let url = PathURLs.fileURL("sessions/_reports/review-plan/review_decisions_progress.json")
+        let payload = try JSONFiles.object(url)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        print("")
+        print("review_progress:")
+        print("  report: sessions/_reports/review-plan/review_decisions_progress.md")
+        print("  reviewed: \(int(summary["reviewed"]) ?? 0)/\(int(summary["total"]) ?? 0)")
+        print("  remaining: \(int(summary["remaining"]) ?? 0)")
+        print("  remaining_minutes: \(double(summary["remaining_minutes"]) ?? 0)")
+        print("  invalid_rows: \(int(summary["invalid_rows"]) ?? 0)")
+        print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
+        if let decisions = summary["decisions"] as? [String: Any] {
+            print("  decisions: \(compactJSON(decisions))")
+        }
+        if bool(summary["ready_for_batch_apply"]) == true {
+            print("  next: murmurmark review apply")
+        }
+    }
+
+    static func printApply(report: URL) throws {
+        let payload = try JSONFiles.object(report)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        print("")
+        print("review_apply:")
+        print("  report: \(PathDisplay.display(report))")
+        print("  sessions: \(int(summary["session_count"]) ?? 0)")
+        print("  passed_sessions: \(int(summary["passed_sessions"]) ?? 0)")
+        print("  failed_sessions: \(int(summary["failed_sessions"]) ?? 0)")
+        print("  failed_refresh_steps: \(int(summary["failed_refresh_steps"]) ?? 0)")
+    }
+
+    private static func bool(_ value: Any?) -> Bool? {
+        if let value = value as? Bool { return value }
+        if let text = value as? String { return ["true", "yes", "1"].contains(text.lowercased()) }
+        return nil
     }
 
     private static func double(_ value: Any?) -> Double? {

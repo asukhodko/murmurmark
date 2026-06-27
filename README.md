@@ -178,6 +178,10 @@ swift run murmurmark list-apps
 .build/debug/murmurmark report ./sessions/<session>
 .build/debug/murmurmark report latest
 .build/debug/murmurmark report corpus
+.build/debug/murmurmark review plan
+.build/debug/murmurmark review latest --lane fast_confirm_drop
+.build/debug/murmurmark review progress
+.build/debug/murmurmark review apply
 .build/debug/murmurmark preprocess ./sessions/<session> --echo diagnostic
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine linear_baseline
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine local_fir
@@ -397,6 +401,18 @@ changes raw CAF files, Echo Guard outputs, ASR output or existing cleanup profil
   --refresh-reports \
   --out sessions/_reports/review-plan/review_decisions_apply.agent_reviewed_v1.json
 ```
+
+The normal manual review loop is available through the Swift CLI:
+
+```bash
+.build/debug/murmurmark review plan
+.build/debug/murmurmark review latest --lane fast_confirm_drop
+.build/debug/murmurmark review progress
+.build/debug/murmurmark review apply
+```
+
+Use the Python scripts directly only when debugging a specific review file, lane pack, or batch
+application edge case.
 
 `scripts/review-decisions-cli.py` is the fastest way to fill that checklist. It walks through
 `review_decisions.template.jsonl`, plays the preferred stereo clip, shows the `Me`/`remote` texts and

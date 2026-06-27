@@ -15,7 +15,7 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 1. `murmurmark process SESSION` — готово.
 2. `murmurmark process latest` — готово.
 3. `murmurmark report SESSION` и `murmurmark report corpus` — готово.
-4. `murmurmark review SESSION` — следующий крупный CLI-блок.
+4. `murmurmark review SESSION` — готов базовый CLI-контур.
 5. `murmurmark export SESSION --format markdown|obsidian` — следующий пользовательский output-блок.
 
 UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
