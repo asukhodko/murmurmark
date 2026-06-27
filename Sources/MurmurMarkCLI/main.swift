@@ -41,6 +41,8 @@ struct MurmurMark {
                 try CleanupCommands.cleanup(args)
             case "synthesize":
                 try SynthesisCommands.synthesize(args)
+            case "transcript":
+                try TranscriptCommands.transcript(args)
             case "corpus":
                 try CorpusCommands.corpus(args)
             case "export":
@@ -97,6 +99,7 @@ struct MurmurMark {
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
                              [--mode conservative] [--sessions-root ./sessions]
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
+          murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
           murmurmark corpus process all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus build all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus evaluate
@@ -130,6 +133,7 @@ struct MurmurMark {
           audit wraps the transcript order, local recall, group overlap and audio-review audit scripts through the project Python runtime.
           cleanup wraps conservative audit cleanup profiles.
           synthesize refreshes deterministic extractive notes and quality verdict.
+          transcript prints or streams the selected transcript path.
           corpus wraps regression-corpus, audio-judge, corpus gates and operational-readiness scripts.
           export creates a local user-facing Markdown or Obsidian bundle and blocks readiness export blockers by default.
           retention plans or applies local retention policy; raw deletion requires apply plus --confirm-delete-raw.
@@ -1215,6 +1219,84 @@ enum SynthesisCommands {
 
         Runs scripts/synthesize-simple-extractive.py and refreshes deterministic notes,
         evidence_notes and quality_verdict under derived/synthesis-simple/extractive/.
+        """)
+    }
+}
+
+enum TranscriptCommands {
+    static func transcript(_ args: [String]) throws {
+        if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+
+        var remaining = args
+        let target = remaining.removeFirst()
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let requestedProfile = ArgumentEditing.takeOption("profile", from: &remaining) ?? "auto"
+        let pathOnly = ArgumentEditing.takeFlag("path-only", from: &remaining)
+        let cat = ArgumentEditing.takeFlag("cat", from: &remaining)
+        guard remaining.isEmpty else {
+            throw CLIError("unknown transcript option(s): \(remaining.joined(separator: " "))")
+        }
+
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        let profile = try selectedProfile(requestedProfile, session: session)
+        let url = transcriptURL(profile: profile, session: session)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("transcript not found: \(PathDisplay.display(url)); run `murmurmark process \(PathDisplay.display(session))`")
+        }
+
+        if cat {
+            let data = try Data(contentsOf: url)
+            FileHandle.standardOutput.write(data)
+            return
+        }
+        if pathOnly {
+            print(PathDisplay.display(url))
+            return
+        }
+
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        print("")
+        print("transcript:")
+        print("  profile: \(profile)")
+        print("  path: \(PathDisplay.display(url))")
+        print("  next: less \(PathDisplay.display(url))")
+    }
+
+    private static func selectedProfile(_ requested: String, session: URL) throws -> String {
+        if requested != "auto" {
+            return requested
+        }
+        let verdict = session.appendingPathComponent("derived/synthesis-simple/extractive/quality_verdict.json")
+        if FileManager.default.fileExists(atPath: verdict.path) {
+            let payload = try JSONFiles.object(verdict)
+            if let profile = payload["selected_transcript_profile"] as? String, !profile.isEmpty {
+                return profile
+            }
+        }
+        let current = transcriptURL(profile: "current", session: session)
+        if FileManager.default.fileExists(atPath: current.path) {
+            return "current"
+        }
+        throw CLIError("selected transcript profile is unknown; run `murmurmark synthesize \(PathDisplay.display(session))`")
+    }
+
+    private static func transcriptURL(profile: String, session: URL) -> URL {
+        let resolved = session.appendingPathComponent("derived/transcript-simple/whisper-cpp/resolved")
+        if profile == "current" {
+            return resolved.appendingPathComponent("transcript.md")
+        }
+        return resolved.appendingPathComponent("transcript.\(profile).md")
+    }
+
+    private static func printHelp() {
+        print("""
+        usage: murmurmark transcript ./session|latest [--profile auto|current|NAME] [--path-only|--cat] [--sessions-root ./sessions]
+
+        Resolves the selected transcript profile from quality_verdict.json and prints the transcript path.
+        Use --cat to stream Markdown to stdout.
         """)
     }
 }

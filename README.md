@@ -77,18 +77,11 @@ murmurmark process "$SESSION" --force-asr
 murmurmark report "$SESSION"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+murmurmark transcript "$SESSION"
 murmurmark export "$SESSION" --format markdown --include-json
 murmurmark retention plan "$SESSION"
 murmurmark retention payload "$SESSION"
-
-PROFILE="$(jq -r '.selected_transcript_profile' "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json")"
-case "$PROFILE" in
-  current) TRANSCRIPT="$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.md" ;;
-  *) TRANSCRIPT="$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.$PROFILE.md" ;;
-esac
-echo "PROFILE=\"$PROFILE\""
-echo "TRANSCRIPT=\"$TRANSCRIPT\""
-less "$TRANSCRIPT"
+less "$(murmurmark transcript "$SESSION" --path-only)"
 ```
 
 Use `--force-asr` when you want a cold rerun from the raw `CAF` tracks. Omit it for the normal
@@ -218,16 +211,9 @@ murmurmark report "$SESSION"
 less "$SESSION/derived/readiness/session_readiness.md"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+murmurmark transcript "$SESSION"
 murmurmark retention plan "$SESSION"
-
-PROFILE="$(jq -r '.selected_transcript_profile' "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json")"
-case "$PROFILE" in
-  current) TRANSCRIPT="$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.md" ;;
-  *) TRANSCRIPT="$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.$PROFILE.md" ;;
-esac
-echo "PROFILE=\"$PROFILE\""
-echo "TRANSCRIPT=\"$TRANSCRIPT\""
-less "$TRANSCRIPT"
+less "$(murmurmark transcript "$SESSION" --path-only)"
 ```
 
 `murmurmark process` is the normal post-recording command; internally it calls
@@ -279,6 +265,8 @@ murmurmark process ./sessions/<session> --plan-only --skip-build
 murmurmark report ./sessions/<session>
 murmurmark report latest
 murmurmark report corpus
+murmurmark transcript ./sessions/<session>
+murmurmark transcript latest --path-only
 murmurmark audit local-recall ./sessions/<session> --profile shadow_v2
 murmurmark audit order ./sessions/<session> --profile auto
 murmurmark audit group-overlaps ./sessions/<session> --profile shadow_v2 --write-clips

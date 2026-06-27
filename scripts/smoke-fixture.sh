@@ -368,6 +368,14 @@ jq -n '{
 [[ -s "$session/derived/synthesis-simple/extractive/review_items.jsonl" ]]
 jq -e '.schema == "murmurmark.quality_verdict/v1"' "$session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
 jq -e '.verdict == "usable_with_review"' "$session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
+transcript_output="$("$bin" transcript "$session")"
+echo "$transcript_output" | grep -q '^transcript:$'
+echo "$transcript_output" | grep -q '  profile: current'
+echo "$transcript_output" | grep -q '  next: less '
+transcript_path_only="$("$bin" transcript "$session" --path-only)"
+[[ "$transcript_path_only" == */derived/transcript-simple/whisper-cpp/resolved/transcript.md ]]
+"$bin" transcript latest --sessions-root "$workdir" --path-only | grep -q '/derived/transcript-simple/whisper-cpp/resolved/transcript.md$'
+"$bin" transcript "$session" --cat | grep -q '# Simple Transcript'
 jq -e '.schema == "murmurmark.evidence_notes/v2"' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
 jq -e 'any(.selected.actions[]; (.display_text | contains("Надо проверить логи деплоя")) and .score >= 70)' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null
 jq -e 'any(.candidates[]; .subtype == "process_discussion" and (.display_text | contains("Надо понимать")) and .status == "hidden")' "$session/derived/synthesis-simple/extractive/evidence_notes.json" >/dev/null

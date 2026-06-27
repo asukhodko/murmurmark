@@ -197,6 +197,8 @@ jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' 
 
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+murmurmark transcript "$SESSION"
+less "$(murmurmark transcript "$SESSION" --path-only)"
 ```
 
 ## Local Recall Audit
