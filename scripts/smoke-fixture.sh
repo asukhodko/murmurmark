@@ -398,6 +398,25 @@ jq -e 'any(.use_gate_reasons[]; .id == "pipeline_incomplete" and .severity == "b
 jq -e 'any(.next_commands[]; .id == "process_session" and (.command | contains("murmurmark process")))' "$session/derived/readiness/session_readiness.json" >/dev/null
 rg -n 'Next Commands' "$session/derived/readiness/session_readiness.md" >/dev/null
 rg -n 'murmurmark process' "$session/derived/readiness/session_readiness.md" >/dev/null
+python3 - "$repo_root" <<'PY'
+import importlib.util
+from pathlib import Path
+import sys
+
+repo_root = Path(sys.argv[1])
+module_path = repo_root / "scripts/report-session-quality.py"
+spec = importlib.util.spec_from_file_location("report_session_quality", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+spec.loader.exec_module(module)
+commands = module.readiness_next_commands(
+    Path("sessions/review-session"),
+    {"use_gate": "review_first", "review_blockers": ["risk:audio_review_probable_errors"]},
+)
+ids = [item["id"] for item in commands]
+assert ids == ["review_plan", "review_workspace", "review_workspace_apply"], ids
+assert any("murmurmark review workspace --session sessions/review-session" == item["command"] for item in commands)
+PY
 export_block_dir="$workdir/export-blocked"
 if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >/dev/null 2>&1; then
   echo "expected export to block incomplete session" >&2
@@ -406,6 +425,7 @@ fi
 [[ -s "$export_block_dir/$(basename "$session").export_blocked.json" ]]
 jq -e '.status == "blocked" and (.blockers | index("pipeline_incomplete")) and (.readiness.export_blockers | index("pipeline_incomplete"))' \
   "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
+jq -e '.next | contains("murmurmark process")' "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
 
 audit_python=""
 if [[ -x "$repo_root/.venv/bin/python" ]] && "$repo_root/.venv/bin/python" - <<'PY' >/dev/null 2>&1

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -49,6 +50,16 @@ def rel(path: Path, base: Path) -> str:
         return str(path.relative_to(base))
     except ValueError:
         return str(path)
+
+
+def command_path(path: Path) -> str:
+    if not path.is_absolute():
+        return shlex.quote(str(path))
+    try:
+        display = path.resolve().relative_to(Path.cwd().resolve())
+    except ValueError:
+        display = path
+    return shlex.quote(str(display))
 
 
 def session_id(session: Path) -> str:
@@ -179,6 +190,27 @@ def readiness_blockers(
     return blockers, warnings
 
 
+def blocked_export_next(session: Path, readiness: dict[str, Any] | None, blockers: list[str]) -> str:
+    commands: list[str] = []
+    if readiness:
+        for item in readiness.get("next_commands") or []:
+            if isinstance(item, dict) and item.get("command"):
+                commands.append(str(item["command"]))
+    if commands:
+        rendered = "; ".join(f"`{command}`" for command in commands)
+        return f"{rendered}; rerun export after blockers are closed, or use --force only for debugging"
+
+    session_arg = command_path(session)
+    if "pipeline_incomplete" in blockers or any(str(item).startswith("missing:") for item in blockers):
+        return f"run `murmurmark process {session_arg}` and rerun export, or use --force only for debugging"
+    return (
+        "`murmurmark review plan`; "
+        f"`murmurmark review workspace --session {session_arg}`; "
+        "`murmurmark review workspace apply`; "
+        "then rerun export, or use --force only for debugging"
+    )
+
+
 def copy_file(src: Path, dst: Path) -> dict[str, Any]:
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dst)
@@ -283,7 +315,7 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
             "blockers": blockers,
             "warnings": warnings,
             "readiness": readiness,
-            "next": "run `murmurmark review plan` and close review blockers, or rerun export with --force for debugging",
+            "next": blocked_export_next(session, readiness, blockers),
         }
         args.out_dir.mkdir(parents=True, exist_ok=True)
         blocked_path = args.out_dir / f"{session.name}.export_blocked.json"

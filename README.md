@@ -239,6 +239,8 @@ and extractive synthesis, then writes
 `derived/pipeline-run/pipeline_run_report.json` and `derived/readiness/session_readiness.md`.
 Read `session_readiness.md` first: it gives the session use gate, selected profile, review burden,
 next CLI commands, and links to the transcript, notes, quality verdict and audio-review report.
+For `review_first` sessions, those next commands point to `murmurmark review plan`,
+`murmurmark review workspace --session ...`, and `murmurmark review workspace apply`.
 `transcript.md` is the stable baseline output. Profile transcripts such as `transcript.shadow_v2.md`
 or `transcript.audit_cleanup_v2.md` are separate candidates; the selected profile is written to
 `quality_verdict.json`.

@@ -279,8 +279,9 @@ nodes:
     effort: 22
     notes: |
       Удобный review CLI для спорных мест. Базовые plan/progress/apply и интерактивный
-      review SESSION/latest уже доступны. Workspace review теперь тоже доступен через CLI;
-      следующий слой — связка review workspace с export/readiness.
+      review SESSION/latest уже доступны. Workspace review доступен через CLI, readiness
+      и blocked export ведут к workspace next commands. Следующий слой — сужение
+      оставшейся review queue и полировка reviewed export handoff.
 
   cli-review-command:
     title: "murmurmark review SESSION"

@@ -71,7 +71,7 @@ Read `derived/readiness/session_readiness.md` before using a meeting result. It 
 - `pipeline_incomplete`: rerun the full pipeline before judging the session.
 
 It also contains `Next Commands`: the shortest CLI path from the current state, such as rerunning
-`murmurmark process`, opening the review loop, exporting Markdown, or planning retention.
+`murmurmark process`, building a review workspace, exporting Markdown, or planning retention.
 
 After export, keep a retention plan with the session:
 

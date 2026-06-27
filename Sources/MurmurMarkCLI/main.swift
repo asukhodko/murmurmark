@@ -3892,8 +3892,12 @@ enum ReadinessPrinter {
                     "command": "murmurmark review plan",
                 ],
                 [
-                    "label": "Review this session's queued items.",
-                    "command": "murmurmark review \(sessionPath)",
+                    "label": "Build lane packs and answer sheets for this session.",
+                    "command": "murmurmark review workspace --session \(sessionPath)",
+                ],
+                [
+                    "label": "Apply edited review workspace answers.",
+                    "command": "murmurmark review workspace apply",
                 ],
             ]
         }
@@ -3959,7 +3963,9 @@ enum ReviewPrinter {
         if let lanes = summary["by_review_lane"] as? [String: Any] {
             print("  by_lane: \(compactJSON(lanes))")
         }
-        print("  next: murmurmark review latest --lane fast_confirm_drop")
+        print("  next:")
+        print("    murmurmark review workspace")
+        print("    murmurmark review latest --lane fast_confirm_drop")
     }
 
     static func printProgress() throws {

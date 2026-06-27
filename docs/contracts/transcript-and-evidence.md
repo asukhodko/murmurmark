@@ -816,9 +816,14 @@ Explicit command-line flags override config values.
       "command": "murmurmark review plan"
     },
     {
-      "id": "review_session",
-      "label": "Review this session's queued items.",
-      "command": "murmurmark review sessions/2026-06-26_15-32-02"
+      "id": "review_workspace",
+      "label": "Build lane packs and answer sheets for this session.",
+      "command": "murmurmark review workspace --session sessions/2026-06-26_15-32-02"
+    },
+    {
+      "id": "review_workspace_apply",
+      "label": "Apply edited review workspace answers.",
+      "command": "murmurmark review workspace apply"
     }
   ],
   "metrics": {
