@@ -66,6 +66,7 @@ less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 murmurmark export "$SESSION" --format markdown --include-json
 murmurmark retention plan "$SESSION"
+murmurmark retention payload "$SESSION"
 
 PROFILE="$(jq -r '.selected_transcript_profile' "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json")"
 case "$PROFILE" in
@@ -105,6 +106,8 @@ Retention is explicit and local:
 ```bash
 murmurmark retention plan "$SESSION"
 less "$SESSION/derived/retention/retention_plan.json"
+murmurmark retention payload "$SESSION"
+less "$SESSION/derived/retention/provider_payload_manifest.json"
 ```
 
 The tracked default policy is [examples/retention-policy.local-first.json](examples/retention-policy.local-first.json).
@@ -259,6 +262,7 @@ murmurmark corpus report
 murmurmark export ./sessions/<session> --format markdown --include-json
 murmurmark export ./sessions/<session> --format obsidian
 murmurmark retention plan ./sessions/<session>
+murmurmark retention payload ./sessions/<session>
 murmurmark retention apply ./sessions/<session> --policy ./policy.json --confirm-delete-raw
 .build/debug/murmurmark preprocess ./sessions/<session> --echo diagnostic
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine linear_baseline

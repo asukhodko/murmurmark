@@ -144,6 +144,8 @@ Implemented policy flow:
 
 - `murmurmark retention plan SESSION` writes a content-free retention plan under
   `SESSION/derived/retention/`;
+- `murmurmark retention payload SESSION` writes a provider payload manifest under
+  `SESSION/derived/retention/` and sends nothing;
 - the default tracked policy is `examples/retention-policy.local-first.json`;
 - default policy keeps raw audio, forbids copying raw audio into export bundles and disables
   external providers;

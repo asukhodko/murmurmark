@@ -75,12 +75,16 @@ After export, keep a retention plan with the session:
 ```bash
 murmurmark export "$SESSION" --format markdown --include-json
 murmurmark retention plan "$SESSION"
+murmurmark retention payload "$SESSION"
 less "$SESSION/derived/retention/retention_plan.json"
+less "$SESSION/derived/retention/provider_payload_manifest.json"
 ```
 
 The default policy keeps raw audio and records that raw audio is not copied into export bundles.
 Destructive raw deletion requires an explicit policy, `retention apply`, a successful export manifest,
 and `--confirm-delete-raw`.
+The default provider payload manifest is blocked because external providers are disabled by the
+local-first policy. This is expected.
 
 ## Low-Level Transcription
 

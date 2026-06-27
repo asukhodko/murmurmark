@@ -468,8 +468,7 @@ nodes:
     notes: |
       Управление raw audio и приватностью: что хранится, что удаляется,
       что может покинуть локальную машину и с каким manifest.
-      Базовая локальная policy, retention plan и guarded raw deletion уже есть;
-      provider payload manifests остаются будущим слоем.
+      Базовая локальная policy, retention plan, provider payload manifest и guarded raw deletion уже есть.
 
   retention-policy-file:
     title: "Retention policy file"
@@ -491,9 +490,9 @@ nodes:
     title: "Payload manifest для внешних провайдеров"
     kind: task
     parent: retention-policy
-    status: later
+    status: done
     effort: 4
-    notes: "Если когда-либо используется облако, manifest показывает точный payload."
+    notes: "murmurmark retention payload пишет provider_payload_manifest.json, блокирует local-first policy и показывает candidate files без отправки данных."
 
   retention-audit-events:
     title: "Audit events без content leakage"
@@ -769,7 +768,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "process/latest/report/review/corpus/export/config и локальная установка уже работают как нормальные команды."
-          next_sync_goal: "Довести provider payload manifests и open-source readiness."
+          next_sync_goal: "Довести open-source readiness."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]

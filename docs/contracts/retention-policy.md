@@ -89,6 +89,71 @@ The plan records:
 
 Plan mode never deletes files.
 
+## Provider Payload Manifest
+
+Command:
+
+```bash
+murmurmark retention payload SESSION
+```
+
+Output:
+
+```text
+SESSION/derived/retention/provider_payload_manifest.json
+```
+
+Schema: `murmurmark.provider_payload_manifest/v1`.
+
+The manifest is an inventory and gate. It does not send data.
+
+Default local-first policy produces:
+
+```json
+{
+  "schema": "murmurmark.provider_payload_manifest/v1",
+  "status": "blocked",
+  "blockers": ["external_providers_disabled_by_policy"],
+  "payload_files": [],
+  "raw_audio_included": false,
+  "sends_data": false
+}
+```
+
+If a policy enables external providers and the export manifest is successful,
+the manifest lists candidate payload files from the export bundle with bytes,
+SHA-256 hashes and content classes. Raw audio files are always blockers in v1.
+
+Required fields:
+
+```json
+{
+  "schema": "murmurmark.provider_payload_manifest/v1",
+  "status": "ready_for_review",
+  "provider": "provider-name",
+  "purpose": "reviewed_export_handoff",
+  "policy": {
+    "external_providers": {
+      "allow": true,
+      "raw_audio_allowed": false,
+      "require_payload_manifest": true
+    }
+  },
+  "export_manifest": {},
+  "blockers": [],
+  "warnings": [],
+  "candidate_files": [],
+  "payload_files": [],
+  "payload_file_count": 0,
+  "payload_bytes": 0,
+  "raw_audio_included": false,
+  "sends_data": false
+}
+```
+
+`status: ready_for_review` means the payload inventory is policy-compatible.
+It is not approval to upload automatically.
+
 ## Apply
 
 Command:

@@ -661,6 +661,11 @@ SESSION/derived/retention/retention_plan.json
 The plan uses `murmurmark.retention_plan/v1`. See
 [retention-policy.md](retention-policy.md) for policy, plan and audit-event schemas.
 
+`murmurmark retention payload SESSION` writes
+`SESSION/derived/retention/provider_payload_manifest.json` using
+`murmurmark.provider_payload_manifest/v1`. It inventories export files for possible external
+handoff, records policy blockers and never sends data by itself.
+
 ## Local CLI Config
 
 `murmurmark.config.json` uses `murmurmark.config/v1`. It is local and ignored by git. The tracked

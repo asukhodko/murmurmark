@@ -93,6 +93,8 @@ struct MurmurMark {
           murmurmark retention plan|apply ./session|latest [--policy examples/retention-policy.local-first.json]
                              [--export-manifest ./exports/private/session/export_manifest.json]
                              [--confirm-delete-raw] [--sessions-root ./sessions]
+          murmurmark retention payload ./session|latest [--policy examples/retention-policy.local-first.json]
+                             [--export-manifest ./exports/private/session/export_manifest.json] [--provider name]
           murmurmark config print [--config murmurmark.config.json]
           murmurmark preprocess ./session [--echo diagnostic|clean] [--echo-engine linear_baseline|local_fir|speexdsp|webrtc-apm]
                               [--echo-policy preserve_local|role_safe|strict_silence]
@@ -333,6 +335,7 @@ enum DoctorChecks {
             "scripts/synthesize-simple-extractive.py",
             "scripts/report-session-quality.py",
             "scripts/apply-retention-policy.py",
+            "scripts/build-provider-payload-manifest.py",
         ] {
             let url = PathURLs.fileURL(path)
             if FileManager.default.fileExists(atPath: url.path) {
@@ -782,8 +785,8 @@ enum RetentionCommands {
 
         var remaining = args
         let mode = remaining.removeFirst()
-        guard mode == "plan" || mode == "apply" else {
-            throw CLIError("retention requires plan or apply")
+        guard ["plan", "apply", "payload"].contains(mode) else {
+            throw CLIError("retention requires plan, apply, or payload")
         }
         guard let target = remaining.first else {
             throw CLIError("retention \(mode) requires a session path or latest")
@@ -792,7 +795,7 @@ enum RetentionCommands {
 
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
-        var command = [try script().path, session.path]
+        var command = [try script(mode).path, session.path]
         if mode == "apply" {
             command.append("--apply")
         }
@@ -803,8 +806,9 @@ enum RetentionCommands {
         try Tooling.runPath(try PythonRuntime.resolve(), command)
     }
 
-    private static func script() throws -> URL {
-        let url = PathURLs.fileURL("scripts/apply-retention-policy.py")
+    private static func script(_ mode: String) throws -> URL {
+        let scriptName = mode == "payload" ? "build-provider-payload-manifest.py" : "apply-retention-policy.py"
+        let url = PathURLs.fileURL("scripts/\(scriptName)")
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CLIError("retention script not found: \(url.path)")
         }
@@ -816,10 +820,12 @@ enum RetentionCommands {
         usage:
           murmurmark retention plan ./session|latest [--policy ./policy.json] [--export-manifest ./export_manifest.json]
           murmurmark retention apply ./session|latest --confirm-delete-raw [--policy ./policy.json] [--export-manifest ./export_manifest.json]
+          murmurmark retention payload ./session|latest [--policy ./policy.json] [--export-manifest ./export_manifest.json] [--provider name]
 
         Plan mode writes SESSION/derived/retention/retention_plan.json and does not delete files.
         Apply mode can delete raw CAF only when the policy requests it, export manifest is successful,
         and --confirm-delete-raw is present.
+        Payload mode writes SESSION/derived/retention/provider_payload_manifest.json and sends nothing.
         """)
     }
 }

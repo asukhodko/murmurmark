@@ -213,6 +213,17 @@ echo "$selected_export_output" | grep -q 'exporting mic from derived/preprocess/
 [[ -s "$session/derived/asr-selected/mic.wav" ]]
 [[ -s "$session/derived/asr-selected/remote.wav" ]]
 
+"$bin" retention plan "$session" >/dev/null
+[[ -s "$session/derived/retention/retention_plan.json" ]]
+jq -e '.schema == "murmurmark.retention_plan/v1"' "$session/derived/retention/retention_plan.json" >/dev/null
+jq -e '.policy.external_providers.allow == false' "$session/derived/retention/retention_plan.json" >/dev/null
+jq -e 'all(.actions[]; .planned_action == "keep_raw_audio")' "$session/derived/retention/retention_plan.json" >/dev/null
+
+"$bin" retention payload "$session" >/dev/null
+[[ -s "$session/derived/retention/provider_payload_manifest.json" ]]
+jq -e '.schema == "murmurmark.provider_payload_manifest/v1"' "$session/derived/retention/provider_payload_manifest.json" >/dev/null
+jq -e '.status == "blocked" and .sends_data == false and .raw_audio_included == false' "$session/derived/retention/provider_payload_manifest.json" >/dev/null
+
 mkdir -p "$session/derived/transcript/resolved"
 jq -n '{
   schema: "murmurmark.transcript/v1",

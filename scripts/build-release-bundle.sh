@@ -99,6 +99,7 @@ done
 # the same bundle layout during development.
 copy_file "scripts/build-release-bundle.sh"
 copy_file "scripts/apply-retention-policy.py"
+copy_file "scripts/build-provider-payload-manifest.py"
 copy_file "examples/retention-policy.local-first.json"
 copy_file "docs/contracts/retention-policy.md"
 
