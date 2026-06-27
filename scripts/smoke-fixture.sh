@@ -753,6 +753,7 @@ PY
     --out-dir "$order_review_plan_dir" >/dev/null
   jq -s 'any(.[]; .source == "transcript_order" and .review_lane == "check_transcript_order" and (.allowed_decisions | index("drop_me") | not))' \
     "$order_review_plan_dir/review_decisions.template.jsonl" >/dev/null
+  grep -q '`check_transcript_order`' "$order_review_plan_dir/review_plan.md"
   "$repo_root/scripts/build-review-lane-pack.py" \
     --template "$order_review_plan_dir/review_decisions.template.jsonl" \
     --lane check_transcript_order \
@@ -1361,6 +1362,8 @@ PY
   [[ -s "$review_plan_dir/review_plan_clusters.jsonl" ]]
   [[ -s "$review_plan_dir/review_decisions.template.jsonl" ]]
   jq -e '.schema == "murmurmark.review_plan/v1" and .summary.cluster_count >= 1' "$review_plan_dir/review_plan.json" >/dev/null
+  jq -e '(.review_queue_strategy.first_recommended_lane | type) == "string"' "$review_plan_dir/review_plan.json" >/dev/null
+  grep -q 'Recommended First Lane' "$review_plan_dir/review_plan.md"
   jq -s 'all(.[]; (.primary_command | type) == "string")' "$review_plan_dir/review_plan_clusters.jsonl" >/dev/null
   jq -s 'all(.[]; .schema == "murmurmark.review_decision/v1" and .decision == "todo" and (.me_utterance_ids | type) == "array" and (.suggested_decision | IN("drop_me", "keep_me", "needs_review")))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .suggested_decision == "drop_me" and .decision == "todo")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null

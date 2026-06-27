@@ -391,6 +391,8 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
         }
         for lane in sorted(by_lane)
     }
+    promotion = report.get("promotion_plan") if isinstance(report.get("promotion_plan"), dict) else {}
+    review_queue_strategy = promotion.get("review_queue_strategy") if isinstance(promotion.get("review_queue_strategy"), dict) else {}
     return {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -416,6 +418,7 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
             "by_review_lane": dict(sorted(by_lane.items())),
             "by_session": dict(sorted(by_session.items())),
         },
+        "review_queue_strategy": review_queue_strategy,
         "review_lanes": lanes,
         "session_review_burden": sessions,
         "clusters": clusters,
@@ -503,6 +506,26 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
     for item in plan.get("review_protocol") or []:
         lines.append(f"- {item}")
 
+    strategy = plan.get("review_queue_strategy") if isinstance(plan.get("review_queue_strategy"), dict) else {}
+    if strategy:
+        commands = strategy.get("commands") if isinstance(strategy.get("commands"), dict) else {}
+        after_first = (
+            strategy.get("after_first_lane_estimate")
+            if isinstance(strategy.get("after_first_lane_estimate"), dict)
+            else {}
+        )
+        lines.extend(
+            [
+                "",
+                "## Recommended First Lane",
+                "",
+                f"- Lane: `{strategy.get('first_recommended_lane')}`",
+                f"- After first lane: `{after_first.get('remaining_items')}` items",
+            ]
+        )
+        if commands.get("build_first_lane_pack"):
+            lines.extend(["", "```bash", str(commands["build_first_lane_pack"]), "```"])
+
     lanes = plan.get("review_lanes") if isinstance(plan.get("review_lanes"), dict) else {}
     if lanes:
         lines.extend(
@@ -520,6 +543,7 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
             "fast_confirm_drop",
             "check_unique_me_content",
             "check_local_recall",
+            "check_transcript_order",
             "confirm_benign",
             "classify_audio",
         ]

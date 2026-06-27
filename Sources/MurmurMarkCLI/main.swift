@@ -4706,6 +4706,9 @@ enum ReviewPrinter {
         let url = PathURLs.fileURL("sessions/_reports/review-plan/review_plan.json")
         let payload = try JSONFiles.object(url)
         let summary = payload["summary"] as? [String: Any] ?? [:]
+        let strategy = payload["review_queue_strategy"] as? [String: Any] ?? [:]
+        let commands = strategy["commands"] as? [String: Any] ?? [:]
+        let firstLane = string(strategy["first_recommended_lane"]) ?? "fast_confirm_drop"
         print("")
         print("review_plan:")
         print("  report: sessions/_reports/review-plan/review_plan.md")
@@ -4716,9 +4719,13 @@ enum ReviewPrinter {
         if let lanes = summary["by_review_lane"] as? [String: Any] {
             print("  by_lane: \(compactJSON(lanes))")
         }
+        print("  first_lane: \(firstLane)")
         print("  next:")
         print("    murmurmark review workspace")
-        print("    murmurmark review latest --lane fast_confirm_drop")
+        print("    murmurmark review latest --lane \(firstLane)")
+        if let buildFirstLanePack = string(commands["build_first_lane_pack"]) {
+            print("    \(buildFirstLanePack)")
+        }
     }
 
     static func printProgress() throws {

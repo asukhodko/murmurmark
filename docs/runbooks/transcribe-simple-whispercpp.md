@@ -584,8 +584,9 @@ The plan also assigns each row a `review_lane`: `fast_confirm_drop` for likely d
 `check_unique_me_content` for partial duplicates and leaks, `check_local_recall` for possible missing
 local speech, `check_transcript_order` for chronology-risk rows, `confirm_benign` for likely harmless
 overlap, and `classify_audio` for anything else.
-Close `fast_confirm_drop` first; it gives the largest cleanup with the least judgment. Keep the
-other lanes conservative unless the audio is clear.
+Close the plan's `first_recommended_lane` first; it is usually `fast_confirm_drop`, but can change as
+the review queue changes. Keep the other lanes conservative unless the audio or chronology evidence
+is clear.
 `review-decisions-cli.py` is the normal way to fill the checklist: it plays each preferred clip,
 shows the transcript rows, respects each row's `allowed_decisions`, and writes
 `review_decisions.jsonl` after every answer. It also prints nearby turns from the reviewed transcript

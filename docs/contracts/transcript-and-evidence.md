@@ -1107,7 +1107,18 @@ sessions/_reports/review-plan/
     },
     "by_review_lane": {
       "fast_confirm_drop": 10,
-      "check_unique_me_content": 20
+      "check_unique_me_content": 20,
+      "check_transcript_order": 2
+    }
+  },
+  "review_queue_strategy": {
+    "first_recommended_lane": "fast_confirm_drop",
+    "after_first_lane_estimate": {
+      "remaining_items": 38,
+      "remaining_minutes": 1.93
+    },
+    "commands": {
+      "build_first_lane_pack": ".venv/bin/python scripts/build-review-lane-pack.py --lane fast_confirm_drop"
     }
   },
   "review_lanes": {
