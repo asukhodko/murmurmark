@@ -4743,6 +4743,10 @@ enum ReadinessPrinter {
                     "command": "murmurmark review plan",
                 ],
                 [
+                    "label": "Build the recommended first review lane pack.",
+                    "command": "murmurmark review first-lane --session \(sessionPath)",
+                ],
+                [
                     "label": "Build lane packs and answer sheets for this session.",
                     "command": "murmurmark review workspace --session \(sessionPath)",
                 ],

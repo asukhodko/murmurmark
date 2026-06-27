@@ -447,7 +447,7 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
                 else None
             ),
             "build_first_lane_pack": (
-                ".venv/bin/python scripts/build-review-lane-pack.py --lane fast_confirm_drop"
+                "murmurmark review first-lane"
                 if fast_items
                 else None
             ),

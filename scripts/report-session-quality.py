@@ -1324,6 +1324,11 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
                     "command": "murmurmark review plan",
                 },
                 {
+                    "id": "review_first_lane",
+                    "label": "Build the recommended first review lane pack.",
+                    "command": f"murmurmark review first-lane --session {session_arg}",
+                },
+                {
                     "id": "review_workspace",
                     "label": "Build lane packs and answer sheets for this session.",
                     "command": f"murmurmark review workspace --session {session_arg}",

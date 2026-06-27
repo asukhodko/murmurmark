@@ -432,7 +432,8 @@ commands = module.readiness_next_commands(
     {"use_gate": "review_first", "review_blockers": ["risk:audio_review_probable_errors"]},
 )
 ids = [item["id"] for item in commands]
-assert ids == ["review_plan", "review_workspace", "review_workspace_apply", "review_apply"], ids
+assert ids == ["review_plan", "review_first_lane", "review_workspace", "review_workspace_apply", "review_apply"], ids
+assert any("murmurmark review first-lane --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review workspace --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review apply" == item["command"] for item in commands)
 order_commands = module.readiness_next_commands(
