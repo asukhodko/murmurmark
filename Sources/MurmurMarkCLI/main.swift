@@ -83,6 +83,7 @@ struct MurmurMark {
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
           murmurmark review plan|progress|apply
+          murmurmark review workspace [build|apply] [--session latest|./session]
           murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
           murmurmark audit local-recall ./session|latest [--profile shadow_v2] [--sessions-root ./sessions]
           murmurmark audit group-overlaps ./session|latest [--profile shadow_v2] [--write-clips] [--sessions-root ./sessions]
@@ -525,6 +526,8 @@ enum ReviewCommands {
             }
             try apply(forwarded)
             try ReviewPrinter.printApply(report: PathURLs.fileURL("sessions/_reports/review-plan/review_decisions_apply_report.json"))
+        case "workspace":
+            try workspace(forwarded, sessionsRoot: sessionsRoot)
         default:
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("review-decisions-cli.py").path] + forwarded)
@@ -556,6 +559,71 @@ enum ReviewCommands {
         try Tooling.runPath(python, [
             try script("build-review-plan.py").path,
         ] + extraArgs)
+    }
+
+    private static func workspace(_ args: [String], sessionsRoot: URL) throws {
+        var forwarded = args
+        let mode: String
+        if let first = forwarded.first, ["build", "apply"].contains(first) {
+            mode = first
+            forwarded.removeFirst()
+        } else {
+            mode = "build"
+        }
+
+        switch mode {
+        case "build":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("build-review-workspace.py").path] + forwarded)
+                return
+            }
+            if !ArgumentEditing.hasOption("template", in: forwarded) {
+                try ensurePlanExists()
+            }
+            try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
+            try Tooling.runPath(try PythonRuntime.resolve(), [try script("build-review-workspace.py").path] + forwarded)
+            try ReviewPrinter.printWorkspace(outDir: workspaceOutDir(from: forwarded))
+        case "apply":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-workspace-decisions.py").path] + forwarded)
+                return
+            }
+            try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-workspace-decisions.py").path] + forwarded)
+            if !ArgumentEditing.hasOption("dry-run", in: forwarded) {
+                try ReviewPrinter.printWorkspaceApply(report: workspaceApplyReport(from: forwarded))
+                let defaultDecisions = PathURLs.fileURL("sessions/_reports/review-plan/review_decisions.jsonl")
+                if workspaceDecisionsOut(from: forwarded).standardizedFileURL.path == defaultDecisions.standardizedFileURL.path {
+                    try runProgress()
+                    try ReviewPrinter.printProgress()
+                }
+            }
+        default:
+            throw CLIError("unknown review workspace mode: \(mode)")
+        }
+    }
+
+    private static func rewriteLatestSessionFilters(in args: inout [String], sessionsRoot: URL) throws {
+        var index = 0
+        while index < args.count {
+            if args[index] == "--session", index + 1 < args.count, args[index + 1] == "latest" {
+                args[index + 1] = try SessionResolver.latest(in: sessionsRoot).lastPathComponent
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+    }
+
+    private static func workspaceOutDir(from args: [String]) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: args) ?? "sessions/_reports/review-plan")
+    }
+
+    private static func workspaceApplyReport(from args: [String]) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("report", in: args) ?? "sessions/_reports/review-plan/review_workspace_apply_report.json")
+    }
+
+    private static func workspaceDecisionsOut(from args: [String]) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("out", in: args) ?? "sessions/_reports/review-plan/review_decisions.jsonl")
     }
 
     private static func ensurePlanExists() throws {
@@ -3926,10 +3994,57 @@ enum ReviewPrinter {
         print("  failed_refresh_steps: \(int(summary["failed_refresh_steps"]) ?? 0)")
     }
 
+    static func printWorkspace(outDir: URL = PathURLs.fileURL("sessions/_reports/review-plan")) throws {
+        let url = outDir.appendingPathComponent("review_workspace.json")
+        let payload = try JSONFiles.object(url)
+        let lanes = payload["lanes"] as? [[String: Any]] ?? []
+        let okLanes = lanes.filter { string($0["status"]) == "ok" }
+        let itemCount = okLanes.reduce(0) { $0 + (int($1["items"]) ?? 0) }
+        let durationSeconds = okLanes.reduce(0.0) { $0 + (double($1["duration_sec"]) ?? 0) }
+        var byLane: [String: Int] = [:]
+        for lane in okLanes {
+            if let name = string(lane["lane"]) {
+                byLane[name] = int(lane["items"]) ?? 0
+            }
+        }
+
+        print("")
+        print("review_workspace:")
+        print("  index: \(PathDisplay.display(outDir.appendingPathComponent("review_workspace.md")))")
+        print("  lanes: \(lanes.count)")
+        print("  ok_lanes: \(okLanes.count)")
+        print("  items: \(itemCount)")
+        print(String(format: "  listen_minutes: %.2f", durationSeconds / 60))
+        print("  by_lane: \(compactJSON(byLane))")
+        print("  next: edit lane answer sheets, then `murmurmark review workspace apply`")
+    }
+
+    static func printWorkspaceApply(report: URL) throws {
+        let payload = try JSONFiles.object(report)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        print("")
+        print("review_workspace_apply:")
+        print("  report: \(PathDisplay.display(report))")
+        print("  lanes: \(int(summary["lane_count"]) ?? 0)")
+        print("  reviewed: \(int(summary["reviewed_count"]) ?? 0)")
+        print("  remaining: \(int(summary["remaining_rows"]) ?? 0)")
+        print("  rejected: \(int(summary["rejected_count"]) ?? 0)")
+        print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
+        if bool(summary["ready_for_batch_apply"]) == true {
+            print("  next: murmurmark review apply")
+        } else {
+            print("  next: murmurmark review progress")
+        }
+    }
+
     private static func bool(_ value: Any?) -> Bool? {
         if let value = value as? Bool { return value }
         if let text = value as? String { return ["true", "yes", "1"].contains(text.lowercased()) }
         return nil
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
     }
 
     private static func double(_ value: Any?) -> Double? {

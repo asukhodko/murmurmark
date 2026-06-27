@@ -832,6 +832,23 @@ EOF
     --report "$workdir/review_workspace_apply_report.json" >/dev/null
   jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "workspace_answer_sheet"' "$workspace_apply_out" >/dev/null
   jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .summary.reviewed_count == 1 and .summary.remaining_rows == 1 and .summary.workspace_todo_count == 0 and .summary.rejected_count == 0' "$workdir/review_workspace_apply_report.json" >/dev/null
+  cli_review_workspace_dir="$workdir/review_workspace_cli"
+  "$repo_root/.build/debug/murmurmark" review workspace \
+    --template "$review_template" \
+    --out-dir "$cli_review_workspace_dir" >/dev/null
+  [[ -s "$cli_review_workspace_dir/review_workspace.json" ]]
+  jq -e '.schema == "murmurmark.review_workspace/v1" and any(.lanes[]; .lane == "check_local_recall" and .status == "ok")' "$cli_review_workspace_dir/review_workspace.json" >/dev/null
+  cli_answer_sheet="$cli_review_workspace_dir/lane-packs/review_lane_answers.check_local_recall.txt"
+  sed 's/^answers=.*/answers=k/' "$cli_answer_sheet" >"$cli_answer_sheet.tmp"
+  mv "$cli_answer_sheet.tmp" "$cli_answer_sheet"
+  cli_workspace_apply_out="$workdir/review_decisions_workspace_cli_apply.jsonl"
+  "$repo_root/.build/debug/murmurmark" review workspace apply \
+    --workspace "$cli_review_workspace_dir/review_workspace.json" \
+    --template "$review_template" \
+    --out "$cli_workspace_apply_out" \
+    --report "$workdir/review_workspace_cli_apply_report.json" >/dev/null
+  jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "workspace_answer_sheet"' "$cli_workspace_apply_out" >/dev/null
+  jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .summary.reviewed_count == 1 and .summary.remaining_rows == 1' "$workdir/review_workspace_cli_apply_report.json" >/dev/null
   lane_pack_apply_out="$workdir/review_decisions_lane_pack_apply.jsonl"
   "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
     "$review_workspace_dir/lane-packs/review_lane_pack.check_local_recall.json" \

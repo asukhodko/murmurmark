@@ -1120,7 +1120,7 @@ means `todo`; it is not applied until `apply-review-lane-pack-decisions.py` is r
 `.suggested.txt` sheet mirrors existing `suggested_decision` values that are allowed for each row.
 It is a review aid, not a transcript edit by itself.
 Lane packs do not modify transcript profiles.
-`build-review-workspace.py` builds all currently-open lane packs and writes:
+`murmurmark review workspace` builds all currently-open lane packs and writes:
 
 ```text
 sessions/_reports/review-plan/
@@ -1155,7 +1155,8 @@ The JSON uses `murmurmark.review_workspace/v1`:
 
 The workspace is a reviewer index only. It writes lane answer sheets with `answers=...` placeholders,
 where `.` means `todo`. It does not write decisions; use
-`apply-review-lane-pack-decisions.py` or `review-decisions-cli.py` for that.
+`murmurmark review workspace apply`, `apply-review-lane-pack-decisions.py`, or
+`review-decisions-cli.py` for that.
 `apply-review-lane-pack-decisions.py` applies explicit reviewer answers for a lane pack back into
 the complete `review_decisions.jsonl`. It accepts either `--answers` with a compact answer string in
 pack order, or `--answers-file` pointing to a text file with an `answers=...` line:
@@ -1178,7 +1179,7 @@ each answer against `allowed_decisions`, writes `review_source: "lane_pack"`, an
 }
 ```
 
-`apply-review-workspace-decisions.py` applies every lane answer sheet referenced by
+`murmurmark review workspace apply` applies every lane answer sheet referenced by
 `review_workspace.json` into one `review_decisions.jsonl`. It validates item counts, answer
 shortcuts and `allowed_decisions`; with `--answers-source suggested` it reads
 `suggested_answer_sheet` instead of the manual `answer_sheet`, and with `--require-complete` it fails

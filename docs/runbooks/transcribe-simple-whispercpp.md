@@ -551,9 +551,7 @@ The lower-level equivalent is:
 If the lane contains many short clips, build a single listening pack first:
 
 ```bash
-.venv/bin/python scripts/build-review-lane-pack.py \
-  --template sessions/_reports/review-plan/review_decisions.template.jsonl \
-  --lane fast_confirm_drop
+.build/debug/murmurmark review workspace --session latest
 
 afplay sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav
 less sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.md
@@ -563,7 +561,7 @@ $EDITOR sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confir
 To prepare all remaining lanes at once:
 
 ```bash
-.venv/bin/python scripts/build-review-workspace.py
+.build/debug/murmurmark review workspace
 less sessions/_reports/review-plan/review_workspace.md
 ```
 
@@ -592,26 +590,20 @@ Then copy decisions from the answer sheet back into the full review file:
 If several lane answer sheets have been edited, apply the whole workspace instead:
 
 ```bash
-.venv/bin/python scripts/apply-review-workspace-decisions.py \
-  --workspace sessions/_reports/review-plan/review_workspace.json \
-  --out sessions/_reports/review-plan/review_decisions.jsonl
+.build/debug/murmurmark review workspace apply
 ```
 
 To estimate what the generated suggestions would do without writing decisions:
 
 ```bash
-.venv/bin/python scripts/apply-review-workspace-decisions.py \
-  --workspace sessions/_reports/review-plan/review_workspace.json \
-  --answers-source suggested \
-  --dry-run
+.build/debug/murmurmark review workspace apply --answers-source suggested --dry-run
 ```
 
 To materialize those suggestions as a separate shadow transcript for comparison, write a suggested
 decisions file and build `suggested_review_v1`:
 
 ```bash
-.venv/bin/python scripts/apply-review-workspace-decisions.py \
-  --workspace sessions/_reports/review-plan/review_workspace.json \
+.build/debug/murmurmark review workspace apply \
   --answers-source suggested \
   --out sessions/_reports/review-plan/review_decisions.suggested.jsonl
 

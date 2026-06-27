@@ -470,7 +470,7 @@ utterances do not stay in the operational review list. It also ignores stale aud
 when the current audio-review audit has since reclassified that item as reliable.
 The report also includes `Review Queue Strategy`: lane counts, the first lane to close, and the
 estimated queue remaining after that first lane.
-`scripts/build-review-workspace.py` can then build all remaining lane packs, editable answer sheets
+`murmurmark review workspace` can then build all remaining lane packs, editable answer sheets
 and one `review_workspace.md` index for the reviewer.
 
 `scripts/build-review-plan.py` turns that operational review queue into a compact working checklist
@@ -488,15 +488,19 @@ The generated plan also splits the queue into `review_lane` groups:
 checks for a slower pass.
 To clear only the quickest lane, run the CLI with `--lane fast_confirm_drop`; the output file still
 keeps the full template, so later passes can continue with the remaining lanes.
-For faster listening, `scripts/build-review-lane-pack.py --lane fast_confirm_drop` creates a single
+For faster listening, `murmurmark review workspace` builds lane packs for all remaining lanes:
+one WAV, a Markdown index and an editable answer sheet per lane under
+`sessions/_reports/review-plan/lane-packs/`. Use `--session latest` or `--session ./sessions/<id>`
+to focus the workspace on one session.
+For one-off debugging, `scripts/build-review-lane-pack.py --lane fast_confirm_drop` creates a single
 WAV, a Markdown index and an editable answer sheet under `sessions/_reports/review-plan/lane-packs/`.
 After listening to that pack, edit the generated `review_lane_answers.<lane>.txt` file and let
 `scripts/apply-review-lane-pack-decisions.py --answers-file` copy those answers back into
 `review_decisions.jsonl`.
 Each lane also has `review_lane_answers.<lane>.suggested.txt`; use it as a review aid, not as a
 silent replacement for listening when the meeting is medium-risk.
-When several lane answer sheets are edited, `scripts/apply-review-workspace-decisions.py` applies
-the whole `review_workspace.json` in one validated pass.
+When several lane answer sheets are edited, `murmurmark review workspace apply` applies
+the whole `review_workspace.json` in one validated pass and then refreshes review progress.
 `scripts/report-review-decisions-progress.py` then shows how much of the queue is actually closed
 before running the heavier batch apply.
 
@@ -524,7 +528,9 @@ The normal manual review loop is available through the Swift CLI:
 
 ```bash
 .build/debug/murmurmark review plan
+.build/debug/murmurmark review workspace
 .build/debug/murmurmark review latest --lane fast_confirm_drop
+.build/debug/murmurmark review workspace apply
 .build/debug/murmurmark review progress
 .build/debug/murmurmark review apply
 ```
@@ -557,8 +563,7 @@ they are never applied until the `decision` field is edited explicitly.
 For comparison, the suggested answer sheets can be applied into a separate shadow profile:
 
 ```bash
-.venv/bin/python scripts/apply-review-workspace-decisions.py \
-  --workspace sessions/_reports/review-plan/review_workspace.json \
+.build/debug/murmurmark review workspace apply \
   --answers-source suggested \
   --out sessions/_reports/review-plan/review_decisions.suggested.jsonl
 
