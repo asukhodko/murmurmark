@@ -403,6 +403,11 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
                 if review_queue
                 else None
             ),
+            "report_suggested_review_shadow": (
+                ".venv/bin/python scripts/report-suggested-review-shadow.py"
+                if review_queue
+                else None
+            ),
             "build_first_lane_pack": (
                 ".venv/bin/python scripts/build-review-lane-pack.py --lane fast_confirm_drop"
                 if fast_items
@@ -908,9 +913,19 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         dry_run_suggested_cmd = commands.get("dry_run_suggested_workspace")
         apply_suggested_cmd = commands.get("apply_suggested_workspace")
         build_suggested_profile_cmd = commands.get("build_suggested_review_profile")
+        report_suggested_cmd = commands.get("report_suggested_review_shadow")
         build_cmd = commands.get("build_first_lane_pack")
         review_cmd = commands.get("review_first_lane")
-        if workspace_cmd or apply_workspace_cmd or dry_run_suggested_cmd or apply_suggested_cmd or build_suggested_profile_cmd or build_cmd or review_cmd:
+        if (
+            workspace_cmd
+            or apply_workspace_cmd
+            or dry_run_suggested_cmd
+            or apply_suggested_cmd
+            or build_suggested_profile_cmd
+            or report_suggested_cmd
+            or build_cmd
+            or review_cmd
+        ):
             lines.extend(["", "```bash"])
             if workspace_cmd:
                 lines.append(str(workspace_cmd))
@@ -923,6 +938,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 lines.append(str(apply_suggested_cmd))
             if build_suggested_profile_cmd:
                 lines.append(str(build_suggested_profile_cmd))
+            if report_suggested_cmd:
+                lines.append(str(report_suggested_cmd))
             if build_cmd:
                 lines.append(str(build_cmd))
             if review_cmd:

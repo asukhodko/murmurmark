@@ -1083,11 +1083,20 @@ derived/synthesis-simple/extractive/
   notes.suggested_review_v1.md
   evidence_notes.suggested_review_v1.json
   review_items.suggested_review_v1.jsonl
+
+sessions/_reports/review-plan/
+  review_decisions_apply.suggested_review_v1.json
+
+sessions/_reports/suggested-review-shadow/
+  suggested_review_shadow_report.json
+  suggested_review_shadow_report.md
 ```
 
 `suggested_review_v1` is explicit-only. `--transcript-profile auto` must never select it, and
 session readiness must not count it as a human-reviewed profile. It exists to compare machine
-suggestions against the trusted cleanup and manual-review paths.
+suggestions against the trusted cleanup and manual-review paths. The shadow report compares core
+quality metrics against the selected profile and may classify a session as `do_not_promote` even
+when the suggested profile gates pass.
 
 `apply-review-decisions-batch.py --refresh-reports` extends the batch report with
 `refresh_reports[]`. Each row stores the command, return code, and output tails for the refreshed

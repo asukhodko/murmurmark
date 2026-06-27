@@ -343,11 +343,14 @@ For comparison, the suggested answer sheets can be applied into a separate shado
   --output-profile suggested_review_v1 \
   --synthesize \
   --out sessions/_reports/review-plan/review_decisions_apply.suggested_review_v1.json
+
+.venv/bin/python scripts/report-suggested-review-shadow.py
 ```
 
 `suggested_review_v1` is generated from machine suggestions only. It is useful for measuring the
 next cleanup candidate, but it is not selected by `--transcript-profile auto` and is not equivalent
-to `reviewed_v1`.
+to `reviewed_v1`. The shadow report writes `sessions/_reports/suggested-review-shadow/` and should
+show no `risky` or `failed` suggested sessions before these rules are considered for promotion.
 `scripts/apply-review-decisions-batch.py` applies the same edited file to every session mentioned in
 the review plan and can immediately regenerate extractive notes with `--synthesize`. Use
 `--refresh-reports` when the review is closed: it also refreshes session quality,
