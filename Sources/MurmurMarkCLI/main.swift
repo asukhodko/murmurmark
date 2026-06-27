@@ -101,7 +101,7 @@ struct MurmurMark {
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
                              [--mode conservative] [--sessions-root ./sessions]
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
-          murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--path-only|--cat]
+          murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
           murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
           murmurmark corpus process all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus build all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
@@ -1238,6 +1238,7 @@ enum NotesCommands {
         let target = remaining.removeFirst()
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
         let kind = ArgumentEditing.takeOption("kind", from: &remaining) ?? "notes"
+        let profile = ArgumentEditing.takeOption("profile", from: &remaining) ?? "auto"
         let pathOnly = ArgumentEditing.takeFlag("path-only", from: &remaining)
         let cat = ArgumentEditing.takeFlag("cat", from: &remaining)
         guard remaining.isEmpty else {
@@ -1245,7 +1246,8 @@ enum NotesCommands {
         }
 
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
-        let paths = artifactPaths(session: session)
+        let resolvedProfile = try selectedProfile(profile, session: session)
+        let paths = artifactPaths(session: session, profile: resolvedProfile)
         guard let url = paths[kind] else {
             throw CLIError("unknown notes kind: \(kind)")
         }
@@ -1266,6 +1268,7 @@ enum NotesCommands {
         print("SESSION=\"\(PathDisplay.display(session))\"")
         print("")
         print("notes:")
+        print("  profile: \(resolvedProfile)")
         for key in ["verdict", "notes", "review-items", "evidence"] {
             if let item = paths[key], FileManager.default.fileExists(atPath: item.path) {
                 print("  \(key): \(PathDisplay.display(item))")
@@ -1275,19 +1278,35 @@ enum NotesCommands {
         print("  next: less \(PathDisplay.display(url))")
     }
 
-    private static func artifactPaths(session: URL) -> [String: URL] {
+    private static func selectedProfile(_ requested: String, session: URL) throws -> String {
+        if requested != "auto" {
+            return requested
+        }
+        let verdict = session.appendingPathComponent("derived/synthesis-simple/extractive/quality_verdict.json")
+        if FileManager.default.fileExists(atPath: verdict.path) {
+            let payload = try JSONFiles.object(verdict)
+            if let profile = payload["selected_transcript_profile"] as? String, !profile.isEmpty {
+                return profile
+            }
+        }
+        return "current"
+    }
+
+    private static func artifactPaths(session: URL, profile: String) -> [String: URL] {
         let outDir = session.appendingPathComponent("derived/synthesis-simple/extractive")
+        let suffix = profile == "current" ? "" : ".\(profile)"
         return [
-            "notes": outDir.appendingPathComponent("notes.md"),
-            "verdict": outDir.appendingPathComponent("quality_verdict.md"),
-            "review-items": outDir.appendingPathComponent("review_items.jsonl"),
-            "evidence": outDir.appendingPathComponent("evidence_notes.json"),
+            "notes": outDir.appendingPathComponent("notes\(suffix).md"),
+            "verdict": outDir.appendingPathComponent("quality_verdict\(suffix).md"),
+            "review-items": outDir.appendingPathComponent("review_items\(suffix).jsonl"),
+            "evidence": outDir.appendingPathComponent("evidence_notes\(suffix).json"),
         ]
     }
 
     private static func printHelp() {
         print("""
-        usage: murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--path-only|--cat] [--sessions-root ./sessions]
+        usage: murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence]
+                                [--profile auto|current|NAME] [--path-only|--cat] [--sessions-root ./sessions]
 
         Prints paths to local synthesis artifacts. Use --cat to stream one artifact to stdout.
         """)

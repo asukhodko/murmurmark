@@ -337,8 +337,8 @@ jq '{verdict, selected_transcript_profile, metrics, risk_items: (.risk_items | l
   "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json"
 
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v1.md"
-less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.md"
-less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md"
+murmurmark notes "$SESSION" --profile audit_cleanup_v1 --kind verdict
+murmurmark notes "$SESSION" --profile audit_cleanup_v1
 ```
 
 `--transcript-profile auto` also chooses `audit_cleanup_v1` when the cleanup report exists and its
@@ -386,8 +386,8 @@ murmurmark synthesize "$SESSION" \
   --transcript-profile audit_cleanup_v2
 
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v2.md"
-less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v2.md"
-less "$SESSION/derived/synthesis-simple/extractive/notes.audit_cleanup_v2.md"
+murmurmark notes "$SESSION" --profile audit_cleanup_v2 --kind verdict
+murmurmark notes "$SESSION" --profile audit_cleanup_v2
 ```
 
 `audit_cleanup_v2` keeps v1 intact and reads `audio_review_audit.jsonl` as extra evidence. It only

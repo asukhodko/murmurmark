@@ -897,6 +897,8 @@ EOF
   echo "$synthesize_cli_output" | grep -q '^synthesis:$'
   echo "$synthesize_cli_output" | grep -q '  selected_profile: audit_cleanup_v1'
   jq -e '.selected_transcript_profile == "audit_cleanup_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json" >/dev/null
+  "$bin" notes "$group_session" --profile audit_cleanup_v1 --path-only | grep -q '/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md$'
+  "$bin" notes "$group_session" --profile audit_cleanup_v1 --kind verdict --cat | grep -q '# Quality Verdict'
 
   audio_review_cli_output="$("$bin" audit audio-review "$group_session" \
     --profile audit_cleanup_v1 \
