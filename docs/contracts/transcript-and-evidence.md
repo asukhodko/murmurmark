@@ -469,6 +469,12 @@ the path to the per-session review Markdown. This report is read-only: it does n
 decisions or transcript profiles. Its purpose is to keep chronology-risk examples visible as a
 corpus regression queue.
 
+`check-corpus-gates.py` reads this aggregate report via `--transcript-order` (default:
+`sessions/_reports/transcript-order/transcript_order_corpus_report.json`). It warns when the report
+has missing order audits and fails `transcript_order.no_complete_blocking_sessions` when a complete
+session still has blocking chronology risk. `murmurmark corpus process` builds the aggregate order
+report before running corpus gates.
+
 The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
 and writes under:
 

@@ -257,6 +257,9 @@ less sessions/_reports/transcript-order/transcript_order_corpus_report.md
 This report is the practical list of chronology regression candidates. Complete sessions with
 blocking order risk fail `check-corpus-gates.py` through `transcript.no_blocking_order_risk`; partial
 historical sessions remain visible as review material without blocking the complete-session gate.
+`check-corpus-gates.py` also reads the aggregate report itself and fails
+`transcript_order.no_complete_blocking_sessions` if any complete session remains blocked by
+chronology risk.
 
 ## Group Overlap Audit
 

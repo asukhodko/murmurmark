@@ -1299,14 +1299,14 @@ enum CorpusCommands {
             try evaluate(extraArgs: [])
             try trainAudioJudge(extraArgs: [])
             try operationalReadiness()
-            try gates(extraArgs: [])
             try transcriptOrder(sessions: [], extraArgs: [])
+            try gates(extraArgs: [])
             try CorpusPrinter.printSessionQuality()
             try CorpusPrinter.printBuild()
             try CorpusPrinter.printEvaluation()
             try CorpusPrinter.printAudioJudge()
-            try CorpusPrinter.printGates()
             try CorpusPrinter.printTranscriptOrder()
+            try CorpusPrinter.printGates()
             try CorpusPrinter.printOperationalReadiness()
         case "build":
             if ArgumentEditing.hasHelpFlag(forwarded) {
@@ -1464,8 +1464,8 @@ enum CorpusCommands {
           3. evaluate-regression-corpus.py
           4. train-audio-judge-v0.py
           5. report-operational-readiness.py
-          6. check-corpus-gates.py
-          7. report-transcript-order-corpus.py
+          6. report-transcript-order-corpus.py
+          7. check-corpus-gates.py
 
         Options:
           --sessions-root PATH  Sessions directory for all/latest. Default: sessions

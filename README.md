@@ -248,7 +248,8 @@ exist under `sessions/_reports/`.
 these are the main remaining risk for wrong reply order in an otherwise readable transcript. Blocking
 order risks are included in readiness review burden and block export until reviewed.
 `murmurmark corpus order` aggregates those audits across the corpus and writes the current list of
-chronology regression candidates under `sessions/_reports/transcript-order/`.
+chronology regression candidates under `sessions/_reports/transcript-order/`; corpus gates read this
+report and fail if a complete session still has blocking chronology risk.
 `murmurmark audit group-overlaps` classifies `Me`/`Colleagues` timeline overlaps into harmful, benign
 and review buckets, writes listenable clips, and does not change transcripts or quality verdicts by itself.
 `murmurmark cleanup` is the conservative cleanup over audit evidence. It writes separate

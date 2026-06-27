@@ -42,6 +42,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("sessions/_reports/operational-readiness/operational_readiness_report.json"),
     )
+    parser.add_argument(
+        "--transcript-order",
+        type=Path,
+        default=Path("sessions/_reports/transcript-order/transcript_order_corpus_report.json"),
+    )
     parser.add_argument("--out-dir", type=Path, default=Path("sessions/_reports/corpus-gates"))
     parser.add_argument("--min-complete-sessions", type=int, default=3)
     parser.add_argument("--min-ready-for-notes", type=int, default=1)
@@ -203,6 +208,7 @@ def build_baseline_snapshot(
             "corpus_evaluation": str(args.corpus_evaluation),
             "audio_judge": str(args.audio_judge),
             "operational_readiness": str(args.operational_readiness),
+            "transcript_order": str(args.transcript_order),
         },
         "metrics": {
             "complete_pipeline_count": len(complete),
@@ -417,6 +423,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     corpus = read_json(args.corpus_evaluation)
     audio_judge = read_json(args.audio_judge)
     operational = read_json(args.operational_readiness)
+    transcript_order = read_json(args.transcript_order)
 
     checks: list[dict[str, Any]] = []
     inputs = {
@@ -424,6 +431,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "corpus_evaluation": str(args.corpus_evaluation),
         "audio_judge": str(args.audio_judge),
         "operational_readiness": str(args.operational_readiness),
+        "transcript_order": str(args.transcript_order),
     }
     thresholds = {
         "min_complete_sessions": args.min_complete_sessions,
@@ -657,6 +665,29 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     operational_queue = safe_int(operational_summary.get("review_queue_items"))
     operational_blockers = operational.get("blockers") if isinstance(operational, dict) and isinstance(operational.get("blockers"), list) else []
     operational_warnings = operational.get("warnings") if isinstance(operational, dict) and isinstance(operational.get("warnings"), list) else []
+    order_summary = transcript_order.get("summary") if isinstance(transcript_order, dict) else {}
+    order_summary = order_summary if isinstance(order_summary, dict) else {}
+    order_missing_audits = safe_int(order_summary.get("missing_order_audit_count"))
+    order_complete_blocking = safe_int(order_summary.get("complete_blocking_session_count"))
+    order_audited_sessions = safe_int(order_summary.get("audited_session_count"))
+    order_session_count = safe_int(order_summary.get("session_count"))
+    check(
+        checks,
+        "transcript_order.audits_complete",
+        order_missing_audits == 0,
+        severity="warn",
+        observed=order_missing_audits,
+        threshold="0 missing order audits",
+        message="transcript order corpus report covers every session in its scope",
+    )
+    check(
+        checks,
+        "transcript_order.no_complete_blocking_sessions",
+        order_complete_blocking == 0,
+        observed=order_complete_blocking,
+        threshold="0 complete sessions",
+        message="no complete session has blocking transcript order risk in the corpus order report",
+    )
     check(
         checks,
         "operational.review_queue_items",
@@ -738,6 +769,10 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "operational_review_queue_items": operational_queue,
             "operational_blockers": operational_blockers,
             "operational_warnings": operational_warnings,
+            "transcript_order_audited_sessions": order_audited_sessions,
+            "transcript_order_session_count": order_session_count,
+            "transcript_order_missing_audits": order_missing_audits,
+            "transcript_order_complete_blocking_sessions": order_complete_blocking,
         },
         "checks": checks,
         "baseline_snapshot": baseline_snapshot,
