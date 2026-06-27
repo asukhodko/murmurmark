@@ -243,6 +243,8 @@ or `transcript.audit_cleanup_v2.md` are separate candidates; the selected profil
 `audit_cleanup_v5/v6` are not part of the normal single-session runner. They are corpus/review-plan
 steps for already audited sessions, usually run after the private regression and audio-judge reports
 exist under `sessions/_reports/`.
+`murmurmark audit order` finds long `Me` turns that cross a `Colleagues` turn and continue after it:
+these are the main remaining risk for wrong reply order in an otherwise readable transcript.
 `murmurmark audit group-overlaps` classifies `Me`/`Colleagues` timeline overlaps into harmful, benign
 and review buckets, writes listenable clips, and does not change transcripts or quality verdicts by itself.
 `murmurmark cleanup` is the conservative cleanup over audit evidence. It writes separate
@@ -269,6 +271,7 @@ murmurmark report ./sessions/<session>
 murmurmark report latest
 murmurmark report corpus
 murmurmark audit local-recall ./sessions/<session> --profile shadow_v2
+murmurmark audit order ./sessions/<session> --profile auto
 murmurmark audit group-overlaps ./sessions/<session> --profile shadow_v2 --write-clips
 murmurmark audit audio-review ./sessions/<session> --profile audit_cleanup_v2 --write-clips
 murmurmark review plan
@@ -395,6 +398,12 @@ coverage rather than missing meeting content. Short islands that sit exactly on 
 guard boundaries are labelled as likely harmless boundary fragments. Short acknowledgement-only
 islands such as `понял` or `окей` are also low-risk audit evidence, while stronger unrecovered local
 speech stays as a blocking `low_local_recall` risk. It never edits transcripts.
+
+The transcript order audit reads `clean_dialogue` and `overlaps`, then writes
+`derived/audit/order/`. It highlights long `Me` turns that wrap a `Colleagues` turn and have a
+tail after that remote turn. Those regions are the most likely places where the Markdown may show a
+local reaction before the remote phrase that caused it. The audit is report-only and does not edit
+transcript profiles.
 
 Audit-informed cleanup is `murmurmark cleanup`. It wraps `scripts/apply-audit-cleanup.py`, reads
 `clean_dialogue.shadow_v2.json` and the group overlap audit, then writes only `audit_cleanup_v1`

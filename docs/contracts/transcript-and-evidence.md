@@ -386,6 +386,49 @@ as "понял" or "окей" without work markers or unique meeting content. `l
 means the missing island is short and sits on a known timeline boundary, so it is tracked as low-risk
 boundary timing noise rather than a lost local turn.
 
+The transcript order audit explains remaining chronology risk from long `Me` utterances crossing
+remote turns. It is audit-only and writes under:
+
+```text
+derived/audit/order/
+  transcript_order_audit.json
+  transcript_order_items.jsonl
+  transcript_order_review.md
+```
+
+`murmurmark audit order` prints a compact CLI summary after writing these files: profile, audited
+overlaps, probable order-risk seconds, review seconds, recommendation and report path.
+
+`transcript_order_audit.json` uses `murmurmark.transcript_order_audit/v1`:
+
+```json
+{
+  "schema": "murmurmark.transcript_order_audit/v1",
+  "profile": "shadow_v2",
+  "status": "ok",
+  "summary": {
+    "audited_overlap_count": 8,
+    "probable_order_risk_count": 1,
+    "probable_order_risk_seconds": 2.4,
+    "blocking_order_risk": true,
+    "recommended_next_step": "review_transcript_order_items"
+  }
+}
+```
+
+`transcript_order_items.jsonl` uses `murmurmark.transcript_order_item/v1`. Labels are:
+
+- `probable_order_risk`
+- `needs_review`
+- `probable_duplicate`
+- `likely_timing_overlap`
+- `possible_double_talk`
+
+The audit reads `clean_dialogue*.json` and `overlaps*.json`; it does not read audio and does not
+modify transcript profiles. `probable_order_risk` means a long `Me` turn wraps a `Colleagues` turn
+and continues after it, which is the main known pattern for Markdown showing a local reaction before
+the remote phrase that triggered it.
+
 The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
 and writes under:
 

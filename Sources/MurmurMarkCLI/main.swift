@@ -351,6 +351,7 @@ enum DoctorChecks {
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/synthesize-simple-extractive.py",
             "scripts/audit-local-recall.py",
+            "scripts/audit-transcript-order.py",
             "scripts/audit-group-overlaps.py",
             "scripts/build-audio-review-pack.py",
             "scripts/audit-audio-review-pack.py",
@@ -796,6 +797,9 @@ enum AuditCommands {
         case "local-recall":
             try Tooling.runPath(python, [try script("audit-local-recall.py").path, session.path] + remaining)
             try AuditPrinter.printLocalRecall(session: session, args: remaining)
+        case "order":
+            try Tooling.runPath(python, [try script("audit-transcript-order.py").path, session.path] + remaining)
+            try AuditPrinter.printOrder(session: session, args: remaining)
         case "group-overlaps":
             try Tooling.runPath(python, [try script("audit-group-overlaps.py").path, session.path] + remaining)
             try AuditPrinter.printGroupOverlaps(session: session)
@@ -833,11 +837,13 @@ enum AuditCommands {
         print("""
         usage:
           murmurmark audit local-recall ./session|latest [--profile shadow_v2] [--sessions-root ./sessions]
+          murmurmark audit order ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit group-overlaps ./session|latest [--profile shadow_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
 
         Audit commands are local-only wrappers over existing Python scripts:
           local-recall    runs audit-local-recall.py
+          order           runs audit-transcript-order.py
           group-overlaps  runs audit-group-overlaps.py
           audio-review    runs build-audio-review-pack.py, then audit-audio-review-pack.py
 
@@ -916,6 +922,40 @@ enum AuditPrinter {
             print("  recommended_verdict: \(verdict) (informational)")
         }
         print("  next: less \(PathDisplay.display(outDir.appendingPathComponent("group_overlap_review.md")))")
+    }
+
+    static func printOrder(session: URL, args: [String]) throws {
+        let outDir = outputDir(args: args, defaultURL: session.appendingPathComponent("derived/audit/order"))
+        let auditURL = outDir.appendingPathComponent("transcript_order_audit.json")
+        guard FileManager.default.fileExists(atPath: auditURL.path) else {
+            printMissing(kind: "transcript_order", expected: auditURL)
+            return
+        }
+        let payload = try JSONFiles.object(auditURL)
+        let summary = dict(payload["summary"])
+
+        print("")
+        print("audit:")
+        print("  kind: transcript_order")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("transcript_order_review.md")))")
+        print("  profile: \(string(payload["profile"]) ?? "unknown")")
+        print("  overlaps: \(int(summary["audited_overlap_count"]))")
+        print(
+            String(
+                format: "  probable_order_risk: %d / %.2fs",
+                int(summary["probable_order_risk_count"]),
+                double(summary["probable_order_risk_seconds"])
+            )
+        )
+        print(
+            String(
+                format: "  needs_review: %d / %.2fs",
+                int(summary["needs_review_count"]),
+                double(summary["needs_review_seconds"])
+            )
+        )
+        print("  recommendation: \(string(summary["recommended_next_step"]) ?? "unknown")")
+        print("  next: less \(PathDisplay.display(outDir.appendingPathComponent("transcript_order_review.md")))")
     }
 
     static func printAudioReview(session: URL, args: [String]) throws {

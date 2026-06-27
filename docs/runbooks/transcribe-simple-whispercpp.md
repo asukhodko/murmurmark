@@ -226,6 +226,23 @@ inflate the review queue unless other local-speech evidence is strong. Short ack
 islands such as `понял` or `окей` are labelled `likely_harmless_ack_fragment`; they remain visible
 for audit, but do not become blocking lost-speech evidence by themselves.
 
+## Transcript Order Audit
+
+Wrong order is usually not a global sort problem. It appears when a long `Me` utterance crosses a
+remote reply and continues after it, so the final Markdown can show a local reaction before the
+remote phrase that caused it. Run the order audit to find those regions explicitly:
+
+```bash
+murmurmark audit order "$SESSION" --profile auto
+
+jq '.summary' "$SESSION/derived/audit/order/transcript_order_audit.json"
+less "$SESSION/derived/audit/order/transcript_order_review.md"
+```
+
+The audit reads `clean_dialogue` and `overlaps`, writes under `derived/audit/order/`, and never edits
+transcript profiles. `probable_order_risk` means a long `Me` turn wraps a `Colleagues` turn and has a
+tail after it; this should go to review before using the transcript for precise chronology.
+
 ## Group Overlap Audit
 
 For group calls, `remote_duplicate_in_me_seconds` can overstate the real damage. Some overlap is

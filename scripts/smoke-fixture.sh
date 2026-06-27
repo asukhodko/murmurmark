@@ -619,6 +619,54 @@ EOF
   jq -s 'any(.[]; .label == "likely_harmless_ack_fragment" and .parent_is_acknowledgement == true)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
   jq -s 'any(.[]; .label == "likely_harmless_boundary_fragment" and .boundary.boundary_fragment == true)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
 
+  order_session="$workdir/order-session"
+  order_resolved="$order_session/derived/transcript-simple/whisper-cpp/resolved"
+  mkdir -p "$order_resolved"
+  jq -n '{
+    schema: "murmurmark.session/v1",
+    session_id: "order-fixture",
+    created_at: "2026-06-22T16:00:00.000Z",
+    ended_at: "2026-06-22T16:00:12.000Z",
+    app_version: "0.1.0",
+    capture_mode: "fixture",
+    status: "completed",
+    target: {kind: "system_audio", bundle_id: null, display_name: "Fixture", pid_strategy: "fixture"},
+    microphone: {device_uid: "default", display_name: "Fixture Mic", capture_backend: "fixture"},
+    remote_audio: {backend: "fixture", sample_rate: 48000, channels: 1, format: "caf:lpcm"},
+    mic_audio: {backend: "fixture", sample_rate: 48000, channels: 1, format: "caf:lpcm"},
+    privacy: {network_allowed_during_capture: false, telemetry: false, raw_audio_retention: "fixture"},
+    files: {mic: [], remote: []},
+    health: {summary: "ok", warnings: []}
+  }' >"$order_session/session.json"
+  jq -n '{
+    schema: "murmurmark.clean_dialogue/v1",
+    session: "order-fixture",
+    utterances: [
+      {id: "utt_order_me", start: 0.0, end: 9.0, source_track: "mic", speaker_label: "Me", role: "Me", text: "Я рассказываю план потом слушаю ответ и добавляю хвост после него.", quality: {needs_review: false}},
+      {id: "utt_order_remote", start: 3.0, end: 5.0, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Надо сначала проверить логи.", quality: {needs_review: false}},
+      {id: "utt_order_short_me", start: 10.0, end: 10.8, source_track: "mic", speaker_label: "Me", role: "Me", text: "Окей.", quality: {needs_review: false}},
+      {id: "utt_order_short_remote", start: 10.2, end: 11.0, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Проверим.", quality: {needs_review: false}}
+    ]
+  }' >"$order_resolved/clean_dialogue.shadow_v2.json"
+  jq -n '{
+    schema: "murmurmark.transcript_overlaps/v1",
+    session: "order-fixture",
+    overlaps: [
+      {left_utterance_id: "utt_order_me", right_utterance_id: "utt_order_remote", left_role: "Me", right_role: "Colleagues", start: 3.0, end: 5.0, duration_sec: 2.0, type: "possible_double_talk_or_timing", text_similarity: 0.1},
+      {left_utterance_id: "utt_order_short_me", right_utterance_id: "utt_order_short_remote", left_role: "Me", right_role: "Colleagues", start: 10.2, end: 10.8, duration_sec: 0.6, type: "short_timing_overlap", text_similarity: 0.1}
+    ]
+  }' >"$order_resolved/overlaps.shadow_v2.json"
+  order_cli_output="$("$bin" audit order "$order_session" --profile shadow_v2)"
+  echo "$order_cli_output" | grep -q '^audit:$'
+  echo "$order_cli_output" | grep -q '  kind: transcript_order'
+  echo "$order_cli_output" | grep -q '  probable_order_risk: 1 / 2.00s'
+  order_summary="$order_session/derived/audit/order/transcript_order_audit.json"
+  [[ -s "$order_summary" ]]
+  [[ -s "$order_session/derived/audit/order/transcript_order_items.jsonl" ]]
+  [[ -s "$order_session/derived/audit/order/transcript_order_review.md" ]]
+  jq -e '.schema == "murmurmark.transcript_order_audit/v1" and .summary.probable_order_risk_count == 1 and .summary.blocking_order_risk == true' "$order_summary" >/dev/null
+  jq -s 'any(.[]; .label == "probable_order_risk" and .features.me_wraps_remote == true and .features.post_remote_tail_sec == 4)' "$order_session/derived/audit/order/transcript_order_items.jsonl" >/dev/null
+
   group_overlap_cli_output="$("$bin" audit group-overlaps "$group_session" \
     --profile shadow_v2 \
     --min-overlap-sec 0.5 \

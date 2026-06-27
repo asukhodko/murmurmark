@@ -172,7 +172,7 @@ nodes:
     parent: cli-orchestration
     status: done
     effort: 3
-    notes: "Обёртка над local-recall, group-overlaps и audio-review audit scripts через проектный Python runtime; после запуска печатает короткую handoff-сводку."
+    notes: "Обёртка над order, local-recall, group-overlaps и audio-review audit scripts через проектный Python runtime; после запуска печатает короткую handoff-сводку."
 
   cli-cleanup-synthesis-command:
     title: "murmurmark cleanup и synthesize"
@@ -388,9 +388,9 @@ nodes:
     title: "Transcript order regression cases"
     kind: task
     parent: quality-hardening
-    status: next
+    status: current
     effort: 5
-    notes: "Корпусные кейсы на неверный порядок реплик и длинные Me-блоки поверх remote."
+    notes: "murmurmark audit order уже выявляет длинные Me-блоки поверх remote; следующий шаг — расширить корпусные кейсы и review/apply контур для таких регионов."
 
   quality-boundary-repair:
     title: "Start/end boundary repair"
