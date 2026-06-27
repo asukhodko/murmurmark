@@ -1253,6 +1253,49 @@ EOF
   jq -e '.promotion_plan.review_queue_strategy.after_first_lane_estimate.remaining_items | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'any(.review_queue[]; .source == "local_recall" and .label == "lost_me")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'all(.review_queue[]; .source_audit_id != "arp_manual_v2_duplicate")' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  python3 - "$repo_root" <<'PY'
+import importlib.util
+from collections import Counter
+from pathlib import Path
+import sys
+
+repo_root = Path(sys.argv[1])
+module_path = repo_root / "scripts/report-operational-readiness.py"
+spec = importlib.util.spec_from_file_location("report_operational_readiness", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+spec.loader.exec_module(module)
+
+def item(source, label, verdict, score, idx):
+    return {
+        "session_id": "fixture",
+        "source": source,
+        "source_audit_id": f"{source}_{label}_{idx}",
+        "label": label,
+        "verdict": verdict,
+        "priority_score": score,
+        "interval": {"start": idx * 10, "end": idx * 10 + 1, "duration_sec": 1},
+        "review_features": {
+            "me_overlap_coverage": 0.9,
+            "text_similarity": 0.9,
+            "token_containment": 0.9,
+        },
+    }
+
+rows = []
+rows.extend(item("audio_review", "remote_leak", "needs_stronger_audio_judge", 180 - idx, idx) for idx in range(20))
+rows.extend(item("audio_review", "remote_duplicate", "probable_transcript_error", 90 - idx, idx) for idx in range(3))
+rows.extend(item("local_recall", "lost_me", "needs_stronger_audio_judge", 80 - idx, idx) for idx in range(3))
+rows.extend(item("transcript_order", "probable_order_risk", "needs_transcript_order_review", 70, 1) for _ in range(1))
+rows.extend(item("transcript_order", "needs_review", "needs_transcript_order_review", 60 - idx, idx + 2) for idx in range(4))
+selected = module.select_review_queue(sorted(rows, key=module.review_queue_sort_key), 8)
+lanes = Counter(module.review_lane(row) for row in selected)
+assert lanes["fast_confirm_drop"] == 2, lanes
+assert lanes["check_unique_me_content"] == 2, lanes
+assert lanes["check_local_recall"] == 2, lanes
+assert lanes["check_transcript_order"] == 2, lanes
+assert any(row["label"] == "probable_order_risk" for row in selected), selected
+PY
   gates_dir="$workdir/corpus-gates"
   gate_args=(
     --session-quality "$quality_dir/session_quality_report.json"

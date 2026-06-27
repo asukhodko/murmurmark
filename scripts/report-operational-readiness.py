@@ -484,7 +484,7 @@ def transcript_order_review_priority(row: dict[str, Any]) -> float:
     post_tail = safe_float(features.get("post_remote_tail_sec"))
     score = duration + confidence * 10.0 + post_tail
     if label == "probable_order_risk":
-        score += 95.0
+        score += 220.0
     elif label == "needs_review":
         score += 70.0
     return round(score, 3)
@@ -580,6 +580,67 @@ def compact_transcript_order_item(session: dict[str, Any], row: dict[str, Any]) 
     }
 
 
+def review_queue_sort_key(item: dict[str, Any]) -> tuple[float, str, str]:
+    return (
+        -safe_float(item.get("priority_score")),
+        str(item.get("session_id") or ""),
+        str(item.get("source_audit_id") or ""),
+    )
+
+
+def review_item_key(item: dict[str, Any]) -> str:
+    interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
+    return "|".join(
+        [
+            str(item.get("session_id") or ""),
+            str(item.get("source") or ""),
+            str(item.get("source_audit_id") or ""),
+            str(item.get("label") or ""),
+            str(interval.get("start") or ""),
+            str(interval.get("end") or ""),
+        ]
+    )
+
+
+def select_review_queue(rows: list[dict[str, Any]], max_items: int) -> list[dict[str, Any]]:
+    limit = max(0, max_items)
+    if limit == 0:
+        return []
+
+    # Keep important lanes visible without letting one audit class consume the whole queue.
+    lane_reserve = {
+        "fast_confirm_drop": 2,
+        "check_unique_me_content": 2,
+        "check_local_recall": 2,
+        "check_transcript_order": 2,
+    }
+    selected: list[dict[str, Any]] = []
+    selected_keys: set[str] = set()
+
+    def add(item: dict[str, Any]) -> None:
+        if len(selected) >= limit:
+            return
+        key = review_item_key(item)
+        if key in selected_keys:
+            return
+        selected.append(item)
+        selected_keys.add(key)
+
+    for lane, lane_limit in lane_reserve.items():
+        before = len(selected)
+        for item in rows:
+            if review_lane(item) == lane:
+                add(item)
+            if len(selected) - before >= lane_limit:
+                break
+
+    for item in rows:
+        add(item)
+
+    selected.sort(key=review_queue_sort_key)
+    return selected[:limit]
+
+
 def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     by_session = {str(session.get("session_id")): session for session in sessions}
@@ -615,8 +676,8 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
             if label not in {"probable_order_risk", "needs_review"}:
                 continue
             rows.append(compact_transcript_order_item(session, row))
-    rows.sort(key=lambda item: (-safe_float(item.get("priority_score")), str(item.get("session_id") or "")))
-    return rows[: max(0, max_items)]
+    rows.sort(key=review_queue_sort_key)
+    return select_review_queue(rows, max_items)
 
 
 def review_queue_minutes(items: list[dict[str, Any]]) -> float:
