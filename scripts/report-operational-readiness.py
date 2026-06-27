@@ -374,7 +374,8 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
             "review_first_lane": (
                 ".venv/bin/python scripts/apply-review-lane-pack-decisions.py "
                 "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.json "
-                "--answers <answers> --out sessions/_reports/review-plan/review_decisions.jsonl"
+                "--answers-file sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt "
+                "--out sessions/_reports/review-plan/review_decisions.jsonl"
                 if fast_items
                 else None
             ),

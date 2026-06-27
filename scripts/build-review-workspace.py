@@ -167,7 +167,7 @@ def build_lane_pack(
     manifest = read_json(manifest_path)
     summary = manifest.get("summary") if isinstance(manifest.get("summary"), dict) else {}
     outputs = manifest.get("outputs") if isinstance(manifest.get("outputs"), dict) else {}
-    answer_sheet = write_answer_sheet(lane_pack_dir / f"review_lane_answers.{lane}.txt", manifest)
+    answer_sheet = outputs.get("answer_sheet") or str(write_answer_sheet(lane_pack_dir / f"review_lane_answers.{lane}.txt", manifest))
     return {
         "lane": lane,
         "status": "ok",
@@ -177,7 +177,7 @@ def build_lane_pack(
         "audio": outputs.get("audio"),
         "manifest": outputs.get("manifest"),
         "markdown": outputs.get("markdown"),
-        "answer_sheet": str(answer_sheet),
+        "answer_sheet": answer_sheet,
     }
 
 

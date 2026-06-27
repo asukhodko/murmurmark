@@ -859,6 +859,7 @@ sessions/_reports/review-plan/lane-packs/
   review_lane_pack.fast_confirm_drop.wav
   review_lane_pack.fast_confirm_drop.json
   review_lane_pack.fast_confirm_drop.md
+  review_lane_answers.fast_confirm_drop.txt
 ```
 
 The JSON uses `murmurmark.review_lane_pack/v1`:
@@ -867,6 +868,12 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
 {
   "schema": "murmurmark.review_lane_pack/v1",
   "lane": "fast_confirm_drop",
+  "outputs": {
+    "audio": "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav",
+    "manifest": "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.json",
+    "markdown": "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.md",
+    "answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt"
+  },
   "summary": {
     "selected_rows": 10,
     "item_count": 10,
@@ -888,7 +895,9 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
 }
 ```
 
-Lane packs are listening aids only. They do not mark decisions and do not modify transcript profiles.
+Lane packs are listening aids only. The generated answer sheet starts with `answers=...`, where `.`
+means `todo`; it is not applied until `apply-review-lane-pack-decisions.py` is run.
+Lane packs do not modify transcript profiles.
 `build-review-workspace.py` builds all currently-open lane packs and writes:
 
 ```text

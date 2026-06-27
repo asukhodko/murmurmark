@@ -765,7 +765,11 @@ EOF
   [[ -s "$lane_pack_dir/review_lane_pack.check_local_recall.wav" ]]
   [[ -s "$lane_pack_dir/review_lane_pack.check_local_recall.json" ]]
   [[ -s "$lane_pack_dir/review_lane_pack.check_local_recall.md" ]]
+  [[ -s "$lane_pack_dir/review_lane_answers.check_local_recall.txt" ]]
   jq -e '.schema == "murmurmark.review_lane_pack/v1" and .summary.item_count == 1 and .items[0].source_audit_id == "local_recall_0001"' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
+  jq -e '.outputs.answer_sheet | endswith("review_lane_answers.check_local_recall.txt")' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
+  grep -q '^answers=\.$' "$lane_pack_dir/review_lane_answers.check_local_recall.txt"
+  grep -q -- '--answers-file' "$lane_pack_dir/review_lane_pack.check_local_recall.md"
   review_workspace_dir="$workdir/review_workspace"
   "$repo_root/scripts/build-review-workspace.py" \
     --template "$review_template" \

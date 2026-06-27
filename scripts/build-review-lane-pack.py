@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA = "murmurmark.review_lane_pack/v1"
 
 
@@ -266,10 +266,18 @@ def write_markdown(path: Path, manifest: dict[str, Any]) -> None:
         f"Lane: `{manifest['lane']}`",
         f"Items: `{manifest['summary']['item_count']}`",
         f"Audio: `{manifest['outputs']['audio']}`",
+        f"Answers: `{manifest['outputs']['answer_sheet']}`",
         f"Duration: `{manifest['summary']['duration_sec']}` sec",
         "",
         "```bash",
         f"afplay {shlex.quote(manifest['outputs']['audio'])}",
+        f"$EDITOR {shlex.quote(manifest['outputs']['answer_sheet'])}",
+        (
+            ".venv/bin/python scripts/apply-review-lane-pack-decisions.py "
+            f"{shlex.quote(manifest['outputs']['manifest'])} "
+            f"--answers-file {shlex.quote(manifest['outputs']['answer_sheet'])} "
+            "--out sessions/_reports/review-plan/review_decisions.jsonl"
+        ),
         "```",
         "",
         "| # | Pack time | Session | Audit id | Suggestion | Text |",
@@ -281,6 +289,28 @@ def write_markdown(path: Path, manifest: dict[str, Any]) -> None:
             f"| {item['index']} | {item['pack_start_time']}-{item['pack_end_time']} | "
             f"`{item.get('session_id')}` | `{item.get('source_audit_id')}` | "
             f"`{item.get('suggested_decision')}` | {text} |"
+        )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def write_answer_sheet(path: Path, manifest: dict[str, Any]) -> None:
+    items = [item for item in manifest.get("items") or [] if isinstance(item, dict)]
+    placeholders = "." * len(items)
+    lines = [
+        f"# MurmurMark review answers for lane {manifest.get('lane')}",
+        "# Listen to the lane WAV, then replace dots in answers=... with decisions.",
+        "# d=drop_me, k=keep_me, r/?=needs_review, s=skip, ./n/t=todo",
+        "# Keep dots for items you have not reviewed yet.",
+        f"answers={placeholders}",
+        "",
+        "# Items",
+    ]
+    for item in items:
+        text = " ".join(str(item.get("text") or "").split())
+        lines.append(
+            f"# {item.get('index')}: {item.get('pack_start_time')}-{item.get('pack_end_time')} "
+            f"{item.get('source_audit_id')} suggested={item.get('suggested_decision')} {text}"
         )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -305,6 +335,7 @@ def main() -> int:
     audio_path = out_dir / f"review_lane_pack.{args.lane}.wav"
     manifest_path = out_dir / f"review_lane_pack.{args.lane}.json"
     md_path = out_dir / f"review_lane_pack.{args.lane}.md"
+    answer_sheet_path = out_dir / f"review_lane_answers.{args.lane}.txt"
 
     manifest_items: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
@@ -377,6 +408,7 @@ def main() -> int:
             "audio": str(audio_path),
             "manifest": str(manifest_path),
             "markdown": str(md_path),
+            "answer_sheet": str(answer_sheet_path),
         },
         "summary": {
             "selected_rows": len(selected),
@@ -388,9 +420,11 @@ def main() -> int:
         "skipped": skipped,
     }
     write_json(manifest_path, manifest)
+    write_answer_sheet(answer_sheet_path, manifest)
     write_markdown(md_path, manifest)
     print(f"audio: {audio_path}")
     print(f"manifest: {manifest_path}")
+    print(f"answers: {answer_sheet_path}")
     print(f"items: {len(manifest_items)}")
     print(f"skipped: {len(skipped)}")
     return 0

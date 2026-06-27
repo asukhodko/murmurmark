@@ -482,6 +482,7 @@ If the lane contains many short clips, build a single listening pack first:
 
 afplay sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav
 less sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.md
+$EDITOR sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt
 ```
 
 To prepare all remaining lanes at once:
