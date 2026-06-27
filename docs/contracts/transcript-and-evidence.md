@@ -895,6 +895,7 @@ Lane packs are listening aids only. They do not mark decisions and do not modify
 sessions/_reports/review-plan/
   review_workspace.json
   review_workspace.md
+  lane-packs/review_lane_answers.<lane>.txt
 ```
 
 The JSON uses `murmurmark.review_workspace/v1`:
@@ -913,16 +914,19 @@ The JSON uses `murmurmark.review_workspace/v1`:
       "lane": "fast_confirm_drop",
       "status": "ok",
       "items": 10,
-      "audio": "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav"
+      "audio": "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav",
+      "answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt"
     }
   ]
 }
 ```
 
-The workspace is a reviewer index only. It does not write decisions; use
+The workspace is a reviewer index only. It writes lane answer sheets with `answers=...` placeholders,
+where `.` means `todo`. It does not write decisions; use
 `apply-review-lane-pack-decisions.py` or `review-decisions-cli.py` for that.
 `apply-review-lane-pack-decisions.py` applies explicit reviewer answers for a lane pack back into
-the complete `review_decisions.jsonl`. It accepts a compact answer string in pack order:
+the complete `review_decisions.jsonl`. It accepts either `--answers` with a compact answer string in
+pack order, or `--answers-file` pointing to a text file with an `answers=...` line:
 `d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.`/`n`/`t=todo`. The script validates
 each answer against `allowed_decisions`, writes `review_source: "lane_pack"`, and emits
 `review_lane_pack_apply_report.json`:

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA = "murmurmark.review_lane_pack_apply_report/v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -41,10 +41,15 @@ def parse_args() -> argparse.Namespace:
         default=Path("sessions/_reports/review-plan/review_decisions.jsonl"),
         help="Editable output decisions JSONL.",
     )
-    parser.add_argument(
+    answers = parser.add_mutually_exclusive_group(required=True)
+    answers.add_argument(
         "--answers",
-        required=True,
         help="Compact answers in pack order. d=drop_me, k=keep_me, r/?=needs_review, s=skip, ./n/t=todo.",
+    )
+    answers.add_argument(
+        "--answers-file",
+        type=Path,
+        help="Text file with an answers=... line or a bare compact answer line.",
     )
     parser.add_argument("--reviewer", default="", help="Reviewer name written to decided rows.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and print a report without writing --out.")
@@ -134,6 +139,17 @@ def parse_answers(raw: str) -> list[str]:
     return decisions
 
 
+def read_answers_file(path: Path) -> str:
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.lower().startswith("answers="):
+            return line.split("=", 1)[1].strip()
+        return line
+    return ""
+
+
 def manifest_items(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     items = manifest.get("items")
     if not isinstance(items, list):
@@ -155,7 +171,8 @@ def main() -> int:
     manifest_path = args.manifest.expanduser()
     manifest = read_json(manifest_path)
     items = manifest_items(manifest)
-    decisions = parse_answers(args.answers)
+    answers_raw = read_answers_file(args.answers_file.expanduser()) if args.answers_file else str(args.answers or "")
+    decisions = parse_answers(answers_raw)
     if len(decisions) != len(items):
         raise SystemExit(f"answers length {len(decisions)} does not match lane pack item count {len(items)}")
 
@@ -215,6 +232,7 @@ def main() -> int:
             "manifest": str(manifest_path),
             "template": str(template),
             "out": str(out),
+            "answers_file": str(args.answers_file) if args.answers_file else None,
         },
         "lane": manifest.get("lane"),
         "dry_run": args.dry_run,

@@ -277,8 +277,8 @@ utterances do not stay in the operational review list. It also ignores stale aud
 when the current audio-review audit has since reclassified that item as reliable.
 The report also includes `Review Queue Strategy`: lane counts, the first lane to close, and the
 estimated queue remaining after that first lane.
-`scripts/build-review-workspace.py` can then build all remaining lane packs plus one
-`review_workspace.md` index for the reviewer.
+`scripts/build-review-workspace.py` can then build all remaining lane packs, editable answer sheets
+and one `review_workspace.md` index for the reviewer.
 
 `scripts/build-review-plan.py` turns that operational review queue into a compact working checklist
 under `sessions/_reports/review-plan/`. It groups nearby risky intervals by session, estimates the
@@ -297,8 +297,9 @@ To clear only the quickest lane, run the CLI with `--lane fast_confirm_drop`; th
 keeps the full template, so later passes can continue with the remaining lanes.
 For faster listening, `scripts/build-review-lane-pack.py --lane fast_confirm_drop` creates a single
 WAV plus a Markdown index under `sessions/_reports/review-plan/lane-packs/`.
-After listening to that pack, `scripts/apply-review-lane-pack-decisions.py` can copy a compact answer
-string such as `ddddkddrdd` back into `review_decisions.jsonl`.
+After listening to that pack, edit the generated `review_lane_answers.<lane>.txt` file and let
+`scripts/apply-review-lane-pack-decisions.py --answers-file` copy those answers back into
+`review_decisions.jsonl`.
 `scripts/report-review-decisions-progress.py` then shows how much of the queue is actually closed
 before running the heavier batch apply.
 

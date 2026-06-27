@@ -491,12 +491,19 @@ To prepare all remaining lanes at once:
 less sessions/_reports/review-plan/review_workspace.md
 ```
 
-Then copy decisions from the pack back into the full review file:
+Then edit the answer sheet for the lane. Dots mean "not reviewed yet"; replace only the items you
+have actually checked:
+
+```bash
+$EDITOR sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt
+```
+
+Then copy decisions from the answer sheet back into the full review file:
 
 ```bash
 .venv/bin/python scripts/apply-review-lane-pack-decisions.py \
   sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.json \
-  --answers dddddddddd \
+  --answers-file sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt \
   --out sessions/_reports/review-plan/review_decisions.jsonl
 ```
 

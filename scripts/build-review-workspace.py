@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA = "murmurmark.review_workspace/v1"
 LANE_ORDER = [
     "fast_confirm_drop",
@@ -167,6 +167,7 @@ def build_lane_pack(
     manifest = read_json(manifest_path)
     summary = manifest.get("summary") if isinstance(manifest.get("summary"), dict) else {}
     outputs = manifest.get("outputs") if isinstance(manifest.get("outputs"), dict) else {}
+    answer_sheet = write_answer_sheet(lane_pack_dir / f"review_lane_answers.{lane}.txt", manifest)
     return {
         "lane": lane,
         "status": "ok",
@@ -176,7 +177,31 @@ def build_lane_pack(
         "audio": outputs.get("audio"),
         "manifest": outputs.get("manifest"),
         "markdown": outputs.get("markdown"),
+        "answer_sheet": str(answer_sheet),
     }
+
+
+def write_answer_sheet(path: Path, manifest: dict[str, Any]) -> Path:
+    items = [item for item in manifest.get("items") or [] if isinstance(item, dict)]
+    placeholders = "." * len(items)
+    lines = [
+        f"# MurmurMark review answers for lane {manifest.get('lane')}",
+        "# Listen to the lane WAV, then replace dots in answers=... with decisions.",
+        "# d=drop_me, k=keep_me, r/?=needs_review, s=skip, ./n/t=todo",
+        "# Keep dots for items you have not reviewed yet.",
+        f"answers={placeholders}",
+        "",
+        "# Items",
+    ]
+    for item in items:
+        text = " ".join(str(item.get("text") or "").split())
+        lines.append(
+            f"# {item.get('index')}: {item.get('pack_start_time')}-{item.get('pack_end_time')} "
+            f"{item.get('source_audit_id')} suggested={item.get('suggested_decision')} {text}"
+        )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    return path
 
 
 def write_markdown(path: Path, workspace: dict[str, Any]) -> None:
@@ -190,29 +215,30 @@ def write_markdown(path: Path, workspace: dict[str, Any]) -> None:
         "",
         "1. Listen to a lane WAV.",
         "2. Use the lane Markdown to map clip numbers to decisions.",
-        "3. Apply the answer string for that lane.",
-        "4. Run the progress report.",
-        "5. When all rows are closed, run the batch apply command.",
+        "3. Edit the lane answer sheet.",
+        "4. Apply the answer sheet for that lane.",
+        "5. Run the progress report.",
+        "6. When all rows are closed, run the batch apply command.",
         "",
         "## Lanes",
         "",
-        "| Lane | Items | Duration sec | Skipped | Audio | Index | Apply answers |",
-        "|---|---:|---:|---:|---|---|---|",
+        "| Lane | Items | Duration sec | Skipped | Audio | Index | Answers | Apply answers |",
+        "|---|---:|---:|---:|---|---|---|---|",
     ]
     for lane in workspace.get("lanes") or []:
         audio = lane.get("audio") or ""
         markdown = lane.get("markdown") or ""
         manifest = lane.get("manifest") or ""
-        answer_hint = "?" * int(lane.get("items") or 0)
+        answer_sheet = lane.get("answer_sheet") or ""
         apply_cmd = (
             f".venv/bin/python scripts/apply-review-lane-pack-decisions.py {shlex.quote(str(manifest))} "
-            f"--answers {answer_hint} --out sessions/_reports/review-plan/review_decisions.jsonl"
-            if manifest
+            f"--answers-file {shlex.quote(str(answer_sheet))} --out sessions/_reports/review-plan/review_decisions.jsonl"
+            if manifest and answer_sheet
             else ""
         )
         lines.append(
             f"| `{lane.get('lane')}` | {lane.get('items')} | {lane.get('duration_sec')} | {lane.get('skipped')} | "
-            f"`{audio}` | `{markdown}` | `{apply_cmd}` |"
+            f"`{audio}` | `{markdown}` | `{answer_sheet}` | `{apply_cmd}` |"
         )
     lines.extend(
         [
