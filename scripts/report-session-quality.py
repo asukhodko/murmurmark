@@ -22,6 +22,7 @@ CLEANUP_PROFILES = {
     "audit_cleanup_v5",
     "audit_cleanup_v6",
     "reviewed_v1",
+    "agent_reviewed_v1",
 }
 
 
@@ -184,6 +185,15 @@ def selected_profile(session: Path) -> str:
         and reviewed_gates.get("passed") is True
     ):
         return "reviewed_v1"
+    agent = read_json(review_decisions / "review_decisions_report.agent_reviewed_v1.json")
+    agent_gates = agent.get("gates") if isinstance(agent, dict) else {}
+    if (
+        (resolved / "quality_report.agent_reviewed_v1.json").exists()
+        and (resolved / "clean_dialogue.agent_reviewed_v1.json").exists()
+        and isinstance(agent_gates, dict)
+        and agent_gates.get("passed") is True
+    ):
+        return "agent_reviewed_v1"
     cleanup_v6 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v6.json")
     cleanup_v6_summary = cleanup_v6.get("summary") if isinstance(cleanup_v6, dict) else {}
     cleanup_v6_gates = cleanup_v6.get("gates") if isinstance(cleanup_v6, dict) else {}
@@ -280,6 +290,9 @@ def stage_status(session: Path) -> dict[str, bool]:
         "reviewed_v1": (resolved / "quality_report.reviewed_v1.json").exists()
         and (resolved / "clean_dialogue.reviewed_v1.json").exists()
         and (review_decisions / "review_decisions_report.reviewed_v1.json").exists(),
+        "agent_reviewed_v1": (resolved / "quality_report.agent_reviewed_v1.json").exists()
+        and (resolved / "clean_dialogue.agent_reviewed_v1.json").exists()
+        and (review_decisions / "review_decisions_report.agent_reviewed_v1.json").exists(),
         "suggested_review_v1": (resolved / "quality_report.suggested_review_v1.json").exists()
         and (resolved / "clean_dialogue.suggested_review_v1.json").exists()
         and (review_decisions / "review_decisions_report.suggested_review_v1.json").exists(),
@@ -298,6 +311,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (synthesis / "evidence_notes.audit_cleanup_v6.json").exists(),
         "synthesis_reviewed_v1": (synthesis / "quality_verdict.reviewed_v1.json").exists()
         and (synthesis / "evidence_notes.reviewed_v1.json").exists(),
+        "synthesis_agent_reviewed_v1": (synthesis / "quality_verdict.agent_reviewed_v1.json").exists()
+        and (synthesis / "evidence_notes.agent_reviewed_v1.json").exists(),
         "synthesis_suggested_review_v1": (synthesis / "quality_verdict.suggested_review_v1.json").exists()
         and (synthesis / "evidence_notes.suggested_review_v1.json").exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
@@ -375,6 +390,44 @@ def audio_review_me_ids(row: dict[str, Any]) -> set[str]:
         if source == "mic" or role == "me":
             ids.add(str(item.get("id")))
     return ids
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if not path.exists():
+        return rows
+    with path.open("r", encoding="utf-8") as file:
+        for line in file:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                value = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, dict):
+                rows.append(value)
+    return rows
+
+
+def review_resolved_audio_ids(session: Path, profile: str) -> set[str]:
+    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+        return set()
+    path = (
+        session
+        / "derived/transcript-simple/whisper-cpp/review-decisions"
+        / f"review_decisions_applied{suffix(profile)}.jsonl"
+    )
+    resolved: set[str] = set()
+    for row in read_jsonl(path):
+        if str(row.get("source") or "") != "audio_review":
+            continue
+        if str(row.get("decision") or "") not in {"drop_me", "keep_me", "skip"}:
+            continue
+        source_id = str(row.get("source_audit_id") or "")
+        if source_id:
+            resolved.add(source_id)
+    return resolved
 
 
 def union_seconds(intervals: list[tuple[float, float]]) -> float:
@@ -526,6 +579,7 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
 
     audit_path = session / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
     selected_me_ids = dialogue_me_ids(session, profile)
+    review_resolved_ids = review_resolved_audio_ids(session, profile)
     audit_rows: list[dict[str, Any]] = []
     if audit_path.exists() and selected_me_ids:
         with audit_path.open("r", encoding="utf-8") as file:
@@ -547,10 +601,13 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
             "needs_stronger_audio_judge": {"count": 0, "intervals": []},
         }
         resolved_count = 0
+        resolved_by_review_count = 0
         resolved_intervals: list[tuple[float, float]] = []
+        resolved_by_review_intervals: list[tuple[float, float]] = []
         active_count = 0
         active_intervals: list[tuple[float, float]] = []
         for row in audit_rows:
+            source_id = str(row.get("id") or "")
             interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
             start = safe_float(interval.get("start"))
             end = safe_float(interval.get("end"))
@@ -561,6 +618,10 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
             if not active_audio_review_row(row, selected_me_ids):
                 resolved_count += 1
                 resolved_intervals.append((start, end))
+                continue
+            if source_id in review_resolved_ids:
+                resolved_by_review_count += 1
+                resolved_by_review_intervals.append((start, end))
                 continue
             active_count += 1
             active_intervals.append((start, end))
@@ -589,6 +650,8 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
             "audio_review_stronger_judge_seconds": union_seconds(buckets["needs_stronger_audio_judge"]["intervals"]),
             "audio_review_resolved_by_cleanup_count": resolved_count,
             "audio_review_resolved_by_cleanup_seconds": union_seconds(resolved_intervals),
+            "audio_review_resolved_by_review_count": resolved_by_review_count,
+            "audio_review_resolved_by_review_seconds": union_seconds(resolved_by_review_intervals),
             "audio_review_raw_probable_error_count": safe_int(raw_error.get("count")),
             "audio_review_raw_probable_error_seconds": round_or_none(raw_error.get("seconds")),
             "audio_review_raw_stronger_judge_count": safe_int(raw_stronger.get("count")),
@@ -671,6 +734,8 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
         flags.append("no_audit_cleanup_profile")
     if row.get("selected_profile") == "reviewed_v1" and row.get("review_decisions_gates_passed") is not True:
         flags.append("review_decisions_gates_failed")
+    if row.get("selected_profile") == "agent_reviewed_v1" and row.get("review_decisions_gates_passed") is not True:
+        flags.append("agent_review_decisions_gates_failed")
     missing = row.get("missing_artifacts") or []
     if missing:
         flags.append("missing:" + ",".join(missing[:3]))
@@ -756,8 +821,8 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
         else None
     )
     review_report = (
-        read_json(session / "derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_v1.json")
-        if profile == "reviewed_v1"
+        read_json(session / "derived/transcript-simple/whisper-cpp/review-decisions" / f"review_decisions_report{suffix(profile)}.json")
+        if profile in {"reviewed_v1", "agent_reviewed_v1"}
         else None
     )
     session_json = read_json(session / "session.json") or {}

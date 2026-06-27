@@ -31,10 +31,11 @@ derived/synthesis-simple/extractive/
   review_items.jsonl
 ```
 
-The `auto` profile prefers `reviewed_v1` when review gates pass, then the highest passing
-`audit_cleanup_v*` profile that actually applied a cleanup patch, then `shadow_v2` only when
-`repair_comparison.json` passes, and finally the baseline `clean_dialogue.json`. The script reads
-only derived transcript and audit JSON; it never reads raw audio.
+The `auto` profile prefers `reviewed_v1` when review gates pass, then `agent_reviewed_v1` when
+agent gates pass, then the highest passing `audit_cleanup_v*` profile that actually applied a
+cleanup patch, then `shadow_v2` only when `repair_comparison.json` passes, and finally the baseline
+`clean_dialogue.json`. The script reads only derived transcript and audit JSON; it never reads raw
+audio.
 
 The output is intentionally extractive:
 

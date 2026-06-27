@@ -28,7 +28,20 @@ jq '{status, outputs}' "$SESSION/derived/pipeline-run/pipeline_run_report.json"
 less "$SESSION/derived/readiness/session_readiness.md"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+
+PROFILE="$(jq -r '.selected_transcript_profile' "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json")"
+case "$PROFILE" in
+  current) TRANSCRIPT="$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.md" ;;
+  *) TRANSCRIPT="$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.$PROFILE.md" ;;
+esac
+echo "PROFILE=\"$PROFILE\""
+echo "TRANSCRIPT=\"$TRANSCRIPT\""
+less "$TRANSCRIPT"
 ```
+
+Use `--force-asr` when you want a cold rerun from the raw `CAF` tracks. Omit it for the normal
+incremental path, where cached raw ASR JSON is reused when its model, language, prompt and windowing
+metadata still match.
 
 For a regression set or several real meetings, build a private quality summary under the ignored
 `sessions/_reports/` tree:
@@ -66,6 +79,16 @@ work, build a corpus from existing audio-review audits:
 
 .venv/bin/python scripts/build-review-plan.py \
   --operational-readiness sessions/_reports/operational-readiness/operational_readiness_report.json
+
+.venv/bin/python scripts/build-agent-review-decisions.py
+
+.venv/bin/python scripts/apply-review-decisions-batch.py \
+  --decisions sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.jsonl \
+  --review-template sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.template.jsonl \
+  --output-profile agent_reviewed_v1 \
+  --synthesize \
+  --refresh-reports \
+  --out sessions/_reports/review-plan/review_decisions_apply.agent_reviewed_v1.json
 
 .venv/bin/python scripts/review-decisions-cli.py \
   --template sessions/_reports/review-plan/review_decisions.template.jsonl \
@@ -110,17 +133,35 @@ jq '{status, outputs}' "$SESSION/derived/pipeline-run/pipeline_run_report.json"
 less "$SESSION/derived/readiness/session_readiness.md"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+
+PROFILE="$(jq -r '.selected_transcript_profile' "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json")"
+case "$PROFILE" in
+  current) TRANSCRIPT="$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.md" ;;
+  *) TRANSCRIPT="$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.$PROFILE.md" ;;
+esac
+echo "PROFILE=\"$PROFILE\""
+echo "TRANSCRIPT=\"$TRANSCRIPT\""
+less "$TRANSCRIPT"
 ```
 
 `scripts/run-session-pipeline.py` is the normal post-recording runner. It calls Echo Guard,
 whisper.cpp transcription, shadow timeline repair, local-recall audit, group-overlap audit, audio-review audit,
-`audit_cleanup_v1..v4`, and extractive synthesis, then writes
+`audit_cleanup_v1/v2`, optionally `audit_cleanup_v3/v4` when the local audio-judge queue exists,
+and extractive synthesis, then writes
 `derived/pipeline-run/pipeline_run_report.json` and `derived/readiness/session_readiness.md`.
 Read `session_readiness.md` first: it gives the session use gate, selected profile, review burden,
 and links to the transcript, notes, quality verdict and audio-review report.
-`transcript.md` is the stable baseline output. `transcript.shadow_v2.md` is the current best candidate when `repair_comparison.json` passes. The shadow profile does not replace the baseline transcript; it writes separate audit and comparison artifacts so changes can be checked before promotion.
-`scripts/audit-group-overlaps.py` is an optional diagnostic step for group calls. It classifies `Me`/`Colleagues` timeline overlaps into harmful, benign and review buckets, writes listenable clips, and does not change transcripts or quality verdicts.
-`scripts/apply-audit-cleanup.py` is an optional conservative cleanup over the group audit. It writes a separate `audit_cleanup_v1` profile and only drops whole `Me` utterances when the audit strongly supports remote duplicate or ASR-noise classification. It never edits `shadow_v2`.
+`transcript.md` is the stable baseline output. Profile transcripts such as `transcript.shadow_v2.md`
+or `transcript.audit_cleanup_v2.md` are separate candidates; the selected profile is written to
+`quality_verdict.json`.
+`audit_cleanup_v5/v6` are not part of the normal single-session runner. They are corpus/review-plan
+steps for already audited sessions, usually run after the private regression and audio-judge reports
+exist under `sessions/_reports/`.
+`scripts/audit-group-overlaps.py` classifies `Me`/`Colleagues` timeline overlaps into harmful, benign
+and review buckets, writes listenable clips, and does not change transcripts or quality verdicts by itself.
+`scripts/apply-audit-cleanup.py` is the conservative cleanup over audit evidence. It writes separate
+`audit_cleanup_*` profiles and only drops whole `Me` utterances when the audit strongly supports remote
+duplicate or ASR-noise classification. It never edits `shadow_v2`.
 `scripts/synthesize-simple-extractive.py` then selects or accepts a dialogue profile, writes a quality verdict, and creates local extractive notes where every item cites utterance IDs.
 
 ### Command Reference
@@ -167,6 +208,8 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/train-audio-judge-v0.py
 .venv/bin/python scripts/report-operational-readiness.py
 .venv/bin/python scripts/build-review-plan.py
+.venv/bin/python scripts/build-agent-review-decisions.py
+.venv/bin/python scripts/apply-review-decisions-batch.py --decisions sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.jsonl --review-template sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.template.jsonl --output-profile agent_reviewed_v1 --synthesize --refresh-reports --out sessions/_reports/review-plan/review_decisions_apply.agent_reviewed_v1.json
 .venv/bin/python scripts/review-decisions-cli.py --template sessions/_reports/review-plan/review_decisions.template.jsonl --out sessions/_reports/review-plan/review_decisions.jsonl
 .venv/bin/python scripts/apply-review-decisions-batch.py --decisions sessions/_reports/review-plan/review_decisions.jsonl --synthesize
 .venv/bin/python scripts/apply-review-decisions.py ./sessions/<session> --decisions sessions/_reports/review-plan/review_decisions.jsonl
@@ -327,6 +370,26 @@ When several lane answer sheets are edited, `scripts/apply-review-workspace-deci
 the whole `review_workspace.json` in one validated pass.
 `scripts/report-review-decisions-progress.py` then shows how much of the queue is actually closed
 before running the heavier batch apply.
+
+`scripts/build-agent-review-decisions.py` is the automatic medium-risk layer. It reads the current
+session-quality report, audio-review audit rows and the audio-judge queue, then writes a reduced
+agent review scope under `sessions/_reports/review-plan/`. The scope contains only rows that the
+rules can close without listening: whole-utterance `drop_me` for very clear remote duplicates or
+ASR noise, and `keep_me` for strong local-support cases that no longer need human review. It writes
+`agent_reviewed_v1`, which is eligible for `--transcript-profile auto` after gates pass. It never
+changes raw CAF files, Echo Guard outputs, ASR output or existing cleanup profiles.
+
+```bash
+.venv/bin/python scripts/build-agent-review-decisions.py
+
+.venv/bin/python scripts/apply-review-decisions-batch.py \
+  --decisions sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.jsonl \
+  --review-template sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.template.jsonl \
+  --output-profile agent_reviewed_v1 \
+  --synthesize \
+  --refresh-reports \
+  --out sessions/_reports/review-plan/review_decisions_apply.agent_reviewed_v1.json
+```
 
 `scripts/review-decisions-cli.py` is the fastest way to fill that checklist. It walks through
 `review_decisions.template.jsonl`, plays the preferred stereo clip, shows the `Me`/`remote` texts and

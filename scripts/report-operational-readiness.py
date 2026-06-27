@@ -147,6 +147,26 @@ def active_audio_review_row(row: dict[str, Any], selected_ids: set[str]) -> bool
     return bool(me_ids & selected_ids)
 
 
+def review_resolved_audio_ids(session_path: Path, profile: str) -> set[str]:
+    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+        return set()
+    path = (
+        session_path
+        / "derived/transcript-simple/whisper-cpp/review-decisions"
+        / f"review_decisions_applied{suffix(profile)}.jsonl"
+    )
+    resolved: set[str] = set()
+    for row in read_jsonl(path):
+        if str(row.get("source") or "") != "audio_review":
+            continue
+        if str(row.get("decision") or "") not in {"drop_me", "keep_me", "skip"}:
+            continue
+        source_id = str(row.get("source_audit_id") or "")
+        if source_id:
+            resolved.add(source_id)
+    return resolved
+
+
 def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
     duration = safe_float(session.get("meeting_duration_sec"))
     probable_error = safe_float(session.get("audio_review_probable_error_seconds"))
@@ -183,7 +203,7 @@ def session_use_gate(row: dict[str, Any]) -> str:
     verdict = str(row.get("verdict") or "")
     if verdict in {"failed", "risky"}:
         return "do_not_use_without_manual_review"
-    if profile not in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6", "reviewed_v1"}:
+    if profile not in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6", "reviewed_v1", "agent_reviewed_v1"}:
         return "pipeline_incomplete_review_first"
     if ratio <= 0.025 and not flags:
         return "ready_for_notes"
@@ -645,9 +665,11 @@ def active_audio_judge_queue_summary(sessions: list[dict[str, Any]], predictions
     sessions_by_id = {str(row.get("session_id")): row for row in sessions}
     me_ids_by_session: dict[str, set[str]] = {}
     audit_rows_by_session: dict[str, dict[str, dict[str, Any]]] = {}
+    review_resolved_by_session: dict[str, set[str]] = {}
     active: list[dict[str, Any]] = []
     resolved = 0
     resolved_by_current_audio_review = 0
+    resolved_by_review = 0
     for row in predictions:
         session_id = str(row.get("session_id") or "")
         session = sessions_by_id.get(session_id)
@@ -664,6 +686,8 @@ def active_audio_judge_queue_summary(sessions: list[dict[str, Any]], predictions
                 for item in read_jsonl(audit_path)
                 if isinstance(item, dict) and item.get("id")
             }
+        if session_id not in review_resolved_by_session:
+            review_resolved_by_session[session_id] = review_resolved_audio_ids(session_path, profile)
         selected_ids = me_ids_by_session[session_id]
         utterance_ids = {str(item) for item in row.get("utterance_ids", []) or []}
         if selected_ids and not (utterance_ids & selected_ids):
@@ -683,6 +707,9 @@ def active_audio_judge_queue_summary(sessions: list[dict[str, Any]], predictions
             if current_verdict not in {"probable_transcript_error", "needs_stronger_audio_judge"}:
                 resolved_by_current_audio_review += 1
                 continue
+        if str(row.get("source_audit_id") or "") in review_resolved_by_session[session_id]:
+            resolved_by_review += 1
+            continue
         active.append(row)
     by_label: dict[str, int] = {}
     by_action: dict[str, int] = {}
@@ -698,6 +725,7 @@ def active_audio_judge_queue_summary(sessions: list[dict[str, Any]], predictions
         "items": len(active),
         "resolved_by_selected_profile_items": resolved,
         "resolved_by_current_audio_review_items": resolved_by_current_audio_review,
+        "resolved_by_review_items": resolved_by_review,
         "by_judge_label": dict(sorted(by_label.items())),
         "by_shadow_action": dict(sorted(by_action.items())),
         "candidate_review_reduction_items": remove_candidates,
@@ -731,6 +759,7 @@ def operational_verdict(
         + safe_int(selected_profiles.get("audit_cleanup_v5"))
         + safe_int(selected_profiles.get("audit_cleanup_v6"))
         + safe_int(selected_profiles.get("reviewed_v1"))
+        + safe_int(selected_profiles.get("agent_reviewed_v1"))
     )
     cleanup_ratio = cleanup_profiles / session_count if session_count > 0 else 0.0
 

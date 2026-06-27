@@ -582,6 +582,26 @@ when fresh audio-review rows expose additional safe duplicates:
 `audit_cleanup_v6` reuses the same audio-review gates as v2 over the v5 transcript. It is not a
 suggested-review profile and does not use audio-judge predictions.
 
+The automatic agent-reviewed layer uses audio-review audit rows plus the audio-judge queue to close
+only rows that are safe without listening. It writes `agent_reviewed_v1`; this profile is selected by
+`auto` after `reviewed_v1` and before automatic cleanup profiles when its gates pass.
+
+```bash
+.venv/bin/python scripts/build-agent-review-decisions.py
+
+.venv/bin/python scripts/apply-review-decisions-batch.py \
+  --decisions sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.jsonl \
+  --review-template sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.template.jsonl \
+  --output-profile agent_reviewed_v1 \
+  --synthesize \
+  --refresh-reports \
+  --out sessions/_reports/review-plan/review_decisions_apply.agent_reviewed_v1.json
+```
+
+Use it as a medium-risk automation layer, not as proof that every remaining questionable phrase is
+correct. `drop_me` is limited to clear whole-utterance duplicates/noise. `keep_me` closes review
+burden for strong local-support rows; unresolved rows remain in `review_first` sessions.
+
 Answer shortcuts are `d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.` or `n=todo`.
 Before applying decisions to transcripts, check progress and validation:
 
@@ -823,11 +843,12 @@ does not call an LLM, and does not read raw audio.
 Profile selection:
 
 ```text
-auto      -> reviewed_v1 when review gates pass, then audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, then shadow_v2 if repair_comparison.json passes, otherwise current
+auto      -> reviewed_v1 when review gates pass, then agent_reviewed_v1 when agent gates pass, then audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, then shadow_v2 if repair_comparison.json passes, otherwise current
 current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
 audit_cleanup_v1..v6 -> audit-cleaned dialogue, marked risky if cleanup gates failed
 reviewed_v1 -> human-reviewed dialogue, marked risky if review gates failed
+agent_reviewed_v1 -> agent-reviewed dialogue, marked risky if review gates failed
 suggested_review_v1 -> machine-suggested review candidate, explicit only, never selected by auto
 ```
 

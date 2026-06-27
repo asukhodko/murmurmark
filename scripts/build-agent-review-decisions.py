@@ -1,0 +1,553 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import re
+from collections import Counter
+from pathlib import Path
+from typing import Any
+
+
+SCRIPT_VERSION = "0.1.0"
+SCHEMA = "murmurmark.agent_review_decisions/v1"
+OUTPUT_PROFILE = "agent_reviewed_v1"
+TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
+
+STOP_WORDS = {
+    "а",
+    "в",
+    "во",
+    "вот",
+    "да",
+    "для",
+    "же",
+    "и",
+    "или",
+    "как",
+    "когда",
+    "мы",
+    "на",
+    "не",
+    "но",
+    "ну",
+    "он",
+    "она",
+    "они",
+    "оно",
+    "по",
+    "при",
+    "с",
+    "со",
+    "там",
+    "то",
+    "тогда",
+    "тоже",
+    "тут",
+    "ты",
+    "у",
+    "что",
+    "это",
+    "этого",
+    "этой",
+    "этот",
+    "я",
+}
+
+PROTECTED_MARKERS = (
+    "надо",
+    "нужно",
+    "сделаю",
+    "сделаем",
+    "давай",
+    "давайте",
+    "решили",
+    "договорились",
+    "согласовали",
+    "риск",
+    "проблем",
+    "вопрос",
+    "блокер",
+    "проверь",
+    "посмотрю",
+)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Build conservative agent review decisions from audio-review audit artifacts.")
+    parser.add_argument(
+        "--session-quality",
+        type=Path,
+        default=Path("sessions/_reports/session-quality/session_quality_report.json"),
+        help="Session quality report with currently selected profiles.",
+    )
+    parser.add_argument(
+        "--audio-judge-queue",
+        type=Path,
+        default=Path("sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl"),
+        help="Optional audio judge v0 queue predictions used as extra evidence.",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path("sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.jsonl"),
+        help="Output closed agent decisions JSONL.",
+    )
+    parser.add_argument(
+        "--template-out",
+        type=Path,
+        default=Path("sessions/_reports/review-plan/review_decisions.agent_reviewed_v1.template.jsonl"),
+        help="Output agent decision scope JSONL.",
+    )
+    parser.add_argument(
+        "--report",
+        type=Path,
+        default=Path("sessions/_reports/review-plan/agent_review_report.agent_reviewed_v1.json"),
+        help="Output agent decision build report.",
+    )
+    return parser.parse_args()
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as file:
+        value = json.load(file)
+    if not isinstance(value, dict):
+        raise ValueError(f"expected JSON object: {path}")
+    return value
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as file:
+        for line in file:
+            line = line.strip()
+            if not line:
+                continue
+            value = json.loads(line)
+            if isinstance(value, dict):
+                rows.append(value)
+    return rows
+
+
+def write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as file:
+        for row in rows:
+            file.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def suffix(profile: str) -> str:
+    return "" if profile == "current" else f".{profile}"
+
+
+def safe_float(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def tokens(text: Any) -> list[str]:
+    return [token.replace("ё", "е").lower() for token in TOKEN_RE.findall(str(text or ""))]
+
+
+def content_tokens(text: Any) -> set[str]:
+    return {token for token in tokens(text) if token not in STOP_WORDS and len(token) > 2}
+
+
+def has_protected_marker(text: Any) -> bool:
+    lowered = str(text or "").lower().replace("ё", "е")
+    return any(marker in lowered for marker in PROTECTED_MARKERS)
+
+
+def role_name(row: dict[str, Any]) -> str:
+    source = str(row.get("source_track") or "").lower()
+    role = str(row.get("role") or row.get("speaker_label") or "").lower()
+    if source == "mic" or role == "me":
+        return "me"
+    if source == "remote" or role in {"remote", "colleagues"}:
+        return "remote"
+    return role or "unknown"
+
+
+def selected_me_ids(session: Path, profile: str) -> set[str]:
+    path = session / "derived/transcript-simple/whisper-cpp/resolved" / f"clean_dialogue{suffix(profile)}.json"
+    if not path.exists():
+        return set()
+    rows = read_json(path).get("utterances")
+    if not isinstance(rows, list):
+        return set()
+    return {str(row.get("id")) for row in rows if isinstance(row, dict) and role_name(row) == "me" and row.get("id")}
+
+
+def base_profile_for_agent(session: Path, selected_profile: str) -> str:
+    if selected_profile != OUTPUT_PROFILE:
+        return selected_profile
+    report_path = (
+        session
+        / "derived/transcript-simple/whisper-cpp/review-decisions"
+        / f"review_decisions_report.{OUTPUT_PROFILE}.json"
+    )
+    if report_path.exists():
+        report = read_json(report_path)
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        input_profile = str(report.get("input_profile") or summary.get("input_profile") or "")
+        if input_profile and input_profile != OUTPUT_PROFILE:
+            return input_profile
+    for candidate in ("audit_cleanup_v6", "audit_cleanup_v5", "audit_cleanup_v4", "audit_cleanup_v3", "audit_cleanup_v2", "audit_cleanup_v1", "shadow_v2", "current"):
+        path = session / "derived/transcript-simple/whisper-cpp/resolved" / f"clean_dialogue{suffix(candidate)}.json"
+        if path.exists():
+            return candidate
+    return "current"
+
+
+def audio_review_me_ids(row: dict[str, Any]) -> set[str]:
+    rows = row.get("utterances")
+    if not isinstance(rows, list):
+        return set()
+    return {str(item.get("id")) for item in rows if isinstance(item, dict) and role_name(item) == "me" and item.get("id")}
+
+
+def audio_review_remote_text(row: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for item in row.get("utterances") or []:
+        if isinstance(item, dict) and role_name(item) == "remote":
+            parts.append(str(item.get("text") or ""))
+    return " ".join(parts)
+
+
+def audio_review_me_text(row: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for item in row.get("utterances") or []:
+        if isinstance(item, dict) and role_name(item) == "me":
+            parts.append(str(item.get("text") or ""))
+    return " ".join(parts)
+
+
+def is_active_audio_review_row(row: dict[str, Any], selected_ids: set[str]) -> bool:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    label = str(classification.get("label") or "")
+    me_ids = audio_review_me_ids(row)
+    if label == "lost_me":
+        return True
+    if not me_ids:
+        return True
+    return bool(me_ids & selected_ids)
+
+
+def unique_me_content_tokens(row: dict[str, Any]) -> set[str]:
+    me = content_tokens(audio_review_me_text(row))
+    remote = content_tokens(audio_review_remote_text(row))
+    return me - remote
+
+
+def queue_index(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
+    return {
+        (str(row.get("session_id") or ""), str(row.get("source_audit_id") or "")): row
+        for row in read_jsonl(path)
+    }
+
+
+def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None) -> tuple[str | None, str, dict[str, Any]]:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    features = row.get("features") if isinstance(row.get("features"), dict) else {}
+    text_features = features.get("text") if isinstance(features.get("text"), dict) else {}
+    scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+
+    label = str(classification.get("label") or "")
+    verdict = str(classification.get("verdict") or "")
+    confidence = safe_float(classification.get("confidence"))
+    duration = safe_float(interval.get("duration_sec"))
+    local_support = safe_float(scores.get("local_support"))
+    remote_duplicate = safe_float(scores.get("remote_duplicate"))
+    remote_leak = safe_float(scores.get("remote_leak"))
+    asr_noise = safe_float(scores.get("asr_noise"))
+    likely_reliable = safe_float(scores.get("likely_reliable"))
+    similarity = safe_float(text_features.get("similarity"))
+    containment = safe_float(text_features.get("containment"))
+    me_text = audio_review_me_text(row)
+    unique_tokens = sorted(unique_me_content_tokens(row))
+    protected = has_protected_marker(me_text)
+    judge_label = str((queue_row or {}).get("judge_label") or "")
+    judge_confidence = safe_float((queue_row or {}).get("judge_confidence"))
+
+    evidence = {
+        "label": label,
+        "verdict": verdict,
+        "confidence": confidence,
+        "duration_sec": duration,
+        "local_support": local_support,
+        "remote_duplicate": remote_duplicate,
+        "remote_leak": remote_leak,
+        "asr_noise": asr_noise,
+        "likely_reliable": likely_reliable,
+        "text_similarity": similarity,
+        "token_containment": containment,
+        "unique_me_content_tokens": unique_tokens,
+        "protected_marker": protected,
+        "audio_judge_label": judge_label or None,
+        "audio_judge_confidence": judge_confidence if judge_label else None,
+    }
+
+    if (
+        label == "asr_noise"
+        and verdict == "probable_transcript_error"
+        and confidence >= 0.78
+        and local_support <= 15
+        and duration <= 1.0
+        and len(content_tokens(me_text)) <= 3
+        and not protected
+    ):
+        return "drop_me", "safe_short_asr_noise", evidence
+
+    if (
+        label == "remote_duplicate"
+        and verdict == "probable_transcript_error"
+        and confidence >= 0.82
+        and local_support <= 25
+        and remote_leak <= 0
+        and similarity >= 0.75
+        and containment >= 0.75
+        and set(unique_tokens) <= {"типа"}
+        and not protected
+    ):
+        return "drop_me", "safe_remote_duplicate_or_asr_noise", evidence
+
+    if (
+        judge_label == "drop_error"
+        and judge_confidence >= 0.90
+        and label == "remote_duplicate"
+        and local_support <= 25
+        and remote_leak <= 0
+        and set(unique_tokens) <= {"типа"}
+        and not protected
+    ):
+        return "drop_me", "audio_judge_high_confidence_drop", evidence
+
+    if (
+        label == "uncertain"
+        and verdict == "needs_stronger_audio_judge"
+        and local_support >= 40
+        and remote_duplicate <= 0
+        and remote_leak <= 0
+        and asr_noise <= 0
+    ):
+        return "keep_me", "strong_local_support_without_error_signal", evidence
+
+    if (
+        label == "uncertain"
+        and verdict == "needs_stronger_audio_judge"
+        and likely_reliable >= 75
+        and local_support >= 40
+        and remote_duplicate <= 0
+        and asr_noise <= 0
+    ):
+        return "keep_me", "likely_reliable_with_local_support", evidence
+
+    if judge_label == "keep" and judge_confidence >= 0.90:
+        return "keep_me", "audio_judge_high_confidence_keep", evidence
+
+    if (
+        judge_label == "mark_only_error"
+        and judge_confidence >= 0.90
+        and label == "remote_leak"
+        and local_support >= 40
+    ):
+        return "keep_me", "audio_judge_mark_only_error_no_safe_drop", evidence
+
+    return None, "not_safe_for_agent_resolution", evidence
+
+
+def decision_base(
+    row: dict[str, Any],
+    session: Path,
+    input_profile: str,
+    decision: str,
+    reason: str,
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    utterance_ids = [str(item) for item in row.get("utterance_ids") or [] if item]
+    me_ids = sorted(audio_review_me_ids(row))
+    remote_ids = [
+        str(item.get("id"))
+        for item in row.get("utterances") or []
+        if isinstance(item, dict) and role_name(item) == "remote" and item.get("id")
+    ]
+    return {
+        "schema": "murmurmark.review_decision/v1",
+        "status": "reviewed",
+        "decision": decision,
+        "allowed_decisions": ["drop_me", "keep_me", "needs_review", "skip"],
+        "session_id": session.name,
+        "session": session.as_posix(),
+        "input_profile": input_profile,
+        "cluster_id": f"agent_{row.get('id')}",
+        "source": "audio_review",
+        "source_audit_id": str(row.get("id") or ""),
+        "label": classification.get("label"),
+        "verdict": classification.get("verdict"),
+        "confidence": classification.get("confidence"),
+        "review_action": "agent_audio_review_resolution",
+        "review_lane": "agent_audio_review",
+        "suggested_decision": decision,
+        "suggested_decision_confidence": "high" if decision == "drop_me" else "medium",
+        "suggested_decision_reason": reason,
+        "interval": interval,
+        "review_features": evidence,
+        "me_utterance_ids": me_ids,
+        "remote_utterance_ids": remote_ids,
+        "utterance_ids": utterance_ids,
+        "text": [
+            {
+                "id": item.get("id"),
+                "role": role_name(item),
+                "source_track": item.get("source_track"),
+                "text": item.get("text"),
+            }
+            for item in row.get("utterances") or []
+            if isinstance(item, dict)
+        ],
+        "commands": row.get("commands") or row.get("clips") or {},
+        "reviewer": "agent:audio_review_rules_v1",
+        "notes": reason,
+        "agent_review": {
+            "schema": SCHEMA,
+            "profile": OUTPUT_PROFILE,
+            "generator": "build-agent-review-decisions",
+            "version": SCRIPT_VERSION,
+            "reason": reason,
+            "evidence": evidence,
+        },
+    }
+
+
+def template_row(decision: dict[str, Any]) -> dict[str, Any]:
+    row = dict(decision)
+    row["status"] = "todo"
+    row["decision"] = "todo"
+    row["reviewer"] = ""
+    row["notes"] = ""
+    return row
+
+
+def session_rows(session: Path, profile: str, queue: dict[tuple[str, str], dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    audit_path = session / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
+    if not audit_path.exists():
+        return [], []
+    selected_ids = selected_me_ids(session, profile)
+    candidates: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for row in read_jsonl(audit_path):
+        if not is_active_audio_review_row(row, selected_ids):
+            continue
+        queue_row = queue.get((session.name, str(row.get("id") or "")))
+        decision, reason, evidence = decision_reason(row, queue_row)
+        if decision is None:
+            rejected.append(
+                {
+                    "session_id": session.name,
+                    "source_audit_id": row.get("id"),
+                    "reason": reason,
+                    "evidence": evidence,
+                }
+            )
+            continue
+        candidates.append(decision_base(row, session, profile, decision, reason, evidence))
+
+    by_me_id: dict[str, list[dict[str, Any]]] = {}
+    for row in candidates:
+        for utterance_id in row.get("me_utterance_ids") or []:
+            by_me_id.setdefault(str(utterance_id), []).append(row)
+
+    suppressed_ids: set[str] = set()
+    for utterance_id, rows in by_me_id.items():
+        decisions = {str(row.get("decision")) for row in rows}
+        if "drop_me" in decisions and len(decisions) > 1:
+            for row in rows:
+                if row.get("decision") == "drop_me":
+                    suppressed_ids.add(str(row.get("source_audit_id")))
+                    rejected.append(
+                        {
+                            "session_id": session.name,
+                            "source_audit_id": row.get("source_audit_id"),
+                            "utterance_id": utterance_id,
+                            "reason": "drop_suppressed_due_to_keep_conflict",
+                            "evidence": row.get("review_features"),
+                        }
+                    )
+
+    decisions = [row for row in candidates if str(row.get("source_audit_id")) not in suppressed_ids]
+    decisions.sort(key=lambda item: (str(item.get("session_id")), safe_float((item.get("interval") or {}).get("start")), str(item.get("source_audit_id"))))
+    return decisions, rejected
+
+
+def main() -> int:
+    args = parse_args()
+    session_quality = read_json(args.session_quality)
+    sessions = session_quality.get("sessions")
+    if not isinstance(sessions, list):
+        raise SystemExit("session quality report does not contain sessions[]")
+
+    queue = queue_index(args.audio_judge_queue)
+    decisions: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for row in sessions:
+        if not isinstance(row, dict):
+            continue
+        session_path = Path(str(row.get("session") or ""))
+        profile = base_profile_for_agent(session_path, str(row.get("selected_profile") or ""))
+        if not session_path.exists() or not profile:
+            continue
+        session_decisions, session_rejected = session_rows(session_path, profile, queue)
+        decisions.extend(session_decisions)
+        rejected.extend(session_rejected)
+
+    templates = [template_row(row) for row in decisions]
+    write_jsonl(args.out, decisions)
+    write_jsonl(args.template_out, templates)
+
+    by_decision = Counter(str(row.get("decision")) for row in decisions)
+    by_reason = Counter(str(row.get("suggested_decision_reason")) for row in decisions)
+    by_session = Counter(str(row.get("session_id")) for row in decisions)
+    report = {
+        "schema": SCHEMA,
+        "generator": {"name": "build-agent-review-decisions", "version": SCRIPT_VERSION},
+        "profile": OUTPUT_PROFILE,
+        "inputs": {
+            "session_quality": args.session_quality.as_posix(),
+            "audio_judge_queue": args.audio_judge_queue.as_posix(),
+        },
+        "outputs": {
+            "decisions": args.out.as_posix(),
+            "template": args.template_out.as_posix(),
+        },
+        "summary": {
+            "decision_rows": len(decisions),
+            "template_rows": len(templates),
+            "rejected_candidate_rows": len(rejected),
+            "by_decision": dict(sorted(by_decision.items())),
+            "by_reason": dict(sorted(by_reason.items())),
+            "by_session": dict(sorted(by_session.items())),
+        },
+        "rejected_examples": rejected[:50],
+    }
+    write_json(args.report, report)
+    print(f"agent_decisions: {args.out}")
+    print(f"agent_template: {args.template_out}")
+    print(f"decision_rows: {len(decisions)}")
+    print(f"by_decision: {dict(sorted(by_decision.items()))}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

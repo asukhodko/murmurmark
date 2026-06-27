@@ -1,0 +1,822 @@
+version: 3
+
+meta:
+  id: murmurmark-cli-roadmap
+  title: "MurmurMark CLI roadmap"
+  effort_unit: "points"
+
+statuses:
+  done:
+    label: "Сделано"
+    color: "#22c55e"
+  current:
+    label: "Текущий фокус"
+    color: "#0ea5e9"
+  next:
+    label: "Ближайший этап"
+    color: "#f59e0b"
+  later:
+    label: "Позже"
+    color: "#8b5cf6"
+  idea:
+    label: "Идея"
+    color: "#9ca3af"
+  optional:
+    label: "Опционально"
+    color: "#94a3b8"
+  blocked:
+    label: "Заблокировано"
+    color: "#ef4444"
+
+nodes:
+  murmurmark-cli:
+    title: "MurmurMark CLI"
+    kind: summary
+    status: current
+    effort: 273
+    notes: |
+      Roadmap CLI-версии MurmurMark.
+
+      Философия:
+      - CLI-first: полезный исполнимый pipeline важнее UI.
+      - Local-first: запись, обработка и аудит по умолчанию локальные.
+      - Evidence-backed: transcript, notes и export должны ссылаться на ids реплик,
+        audit records и проверяемые артефакты.
+      - Raw CAF, baseline, Echo Guard и ASR остаются воспроизводимыми и
+        неразрушаемыми.
+      - Synthesis/export не пишут во внешние системы без review.
+      - UI App или menu bar не являются обязательным путём к полезному продукту.
+
+  foundation-done:
+    title: "Готовая основа"
+    kind: phase
+    parent: murmurmark-cli
+    status: done
+    effort: 42
+    notes: |
+      Уже собран рабочий CLI-пайплайн: запись двух дорожек, Echo Guard,
+      whisper.cpp, repair/audit слои, notes и readiness report.
+
+  foundation-two-track-capture:
+    title: "Two-track capture: mic и remote"
+    kind: task
+    parent: foundation-done
+    status: done
+    effort: 4
+    notes: "Запись локального микрофона и системного/remote звука в разные дорожки."
+
+  foundation-session-package:
+    title: "Session package"
+    kind: task
+    parent: foundation-done
+    status: done
+    effort: 3
+    notes: "Стабильная структура sessions с raw audio, session.json, pipeline_job и derived артефактами."
+
+  foundation-local-fir-echo-guard:
+    title: "Local FIR Echo Guard"
+    kind: task
+    parent: foundation-done
+    status: done
+    effort: 6
+    notes: "Локальное подавление remote leak в mic без BlackHole/Loopback и без изменения raw CAF."
+
+  foundation-whispercpp-transcription:
+    title: "whisper.cpp transcription"
+    kind: task
+    parent: foundation-done
+    status: done
+    effort: 5
+    notes: "Локальная транскрибация Me+Colleagues через whisper.cpp и крупную модель."
+
+  foundation-timeline-repair:
+    title: "Timeline repair и start-of-call repair"
+    kind: task
+    parent: foundation-done
+    status: done
+    effort: 6
+    notes: "Ремонт порядка реплик, коротких локальных островов и начала звонка в shadow-профилях."
+
+  foundation-audit-cleanups:
+    title: "Audit cleanup profiles"
+    kind: task
+    parent: foundation-done
+    status: done
+    effort: 5
+    notes: "Профили audit_cleanup_v1/v2 удаляют только безопасно доказанные Me-дубли и ASR noise."
+
+  foundation-audio-audits:
+    title: "Group overlap, local recall и audio review audits"
+    kind: task
+    parent: foundation-done
+    status: done
+    effort: 5
+    notes: "Цифровые аудио-аудиты для вредных дублей, benign overlap, lost Me и review burden."
+
+  foundation-agent-reviewed-v1:
+    title: "agent_reviewed_v1"
+    kind: task
+    parent: foundation-done
+    status: done
+    effort: 4
+    notes: "Первые agent-reviewed решения поверх audit artifacts и session corpus."
+
+  foundation-extractive-notes:
+    title: "Extractive notes и operational readiness"
+    kind: task
+    parent: foundation-done
+    status: done
+    effort: 4
+    notes: "Evidence-backed notes, quality verdict и session quality report без LLM-выдумок."
+
+  cli-orchestration:
+    title: "Единый CLI-оркестратор"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [foundation-done]
+    status: current
+    effort: 28
+    notes: |
+      Сделать текущий набор скриптов одной понятной пользовательской поверхностью:
+      process, report, review, export, latest, dry-run и единая сводка готовности.
+
+  cli-process-command:
+    title: "murmurmark process SESSION"
+    kind: task
+    parent: cli-orchestration
+    status: current
+    effort: 6
+    notes: "Обёртка над текущим run-session-pipeline.py с понятными этапами, профилями и ошибками."
+
+  cli-record-process-latest:
+    title: "record -> latest -> process"
+    kind: task
+    parent: cli-orchestration
+    deps: [cli-process-command]
+    status: current
+    effort: 4
+    notes: "Путь для обычной работы: записать новую сессию, выбрать последнюю, обработать без ручного SESSION."
+
+  cli-report-command:
+    title: "murmurmark report SESSION и report corpus"
+    kind: task
+    parent: cli-orchestration
+    status: next
+    effort: 4
+    notes: "Единый вход к quality verdict, readiness, profile metrics и corpus summary."
+
+  readiness-single-output:
+    title: "Единая читаемая сводка готовности"
+    kind: task
+    parent: cli-orchestration
+    deps: [cli-report-command]
+    status: next
+    effort: 4
+    notes: "Verdict, выбранный профиль, review burden, рискованные интервалы и следующая команда."
+
+  cli-config-model-prompt:
+    title: "Consistent config/model/prompt handling"
+    kind: task
+    parent: cli-orchestration
+    status: next
+    effort: 5
+    notes: "Одинаковая настройка модели, доменного prompt, путей и профилей во всех командах."
+
+  cli-pipeline-plan-mode:
+    title: "Dry-run и plan mode"
+    kind: task
+    parent: cli-orchestration
+    status: next
+    effort: 3
+    notes: "Показать, какие этапы будут запущены, что будет перегенерировано и какие raw файлы не трогаются."
+
+  cli-export-command:
+    title: "murmurmark export SESSION --format markdown|obsidian"
+    kind: task
+    parent: cli-orchestration
+    deps: [readiness-single-output]
+    status: later
+    effort: 2
+    notes: "Тонкая CLI-команда до полноценного export-workflows."
+
+  corpus-regression:
+    title: "Corpus regression и постоянный контур качества"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [foundation-done]
+    status: current
+    effort: 23
+    notes: |
+      Набор реальных сессий, пересборка, сравнение метрик и no-regression gates.
+      Без этого нельзя безопасно развивать repair/cleanup/notes.
+
+  corpus-add-command:
+    title: "corpus add"
+    kind: task
+    parent: corpus-regression
+    status: current
+    effort: 3
+    notes: "Добавлять сессию в regression corpus с типом встречи и коротким описанием."
+
+  corpus-process-report:
+    title: "corpus process/report"
+    kind: task
+    parent: corpus-regression
+    status: current
+    effort: 5
+    notes: "Одна команда пересобирает корпус и показывает метрики по профилям."
+
+  corpus-regression-gate:
+    title: "Regression gates"
+    kind: task
+    parent: corpus-regression
+    status: next
+    effort: 5
+    notes: "Пороговые проверки: lost Me, harmful duplicate seconds, review burden, notes stability."
+
+  corpus-audio-judge-refresh:
+    title: "Audio judge evaluation"
+    kind: task
+    parent: corpus-regression
+    status: next
+    effort: 5
+    notes: "Оценивать качество аудио-аудита и agent-review решений на корпусе."
+
+  corpus-no-regression-thresholds:
+    title: "No-regression thresholds"
+    kind: task
+    parent: corpus-regression
+    status: next
+    effort: 5
+    notes: "Зафиксировать минимальные требования для изменения default/auto профилей."
+
+  review-loop:
+    title: "Review loop"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [cli-orchestration, corpus-regression]
+    status: next
+    effort: 22
+    notes: |
+      Удобный review CLI для спорных мест. Цель — не прятать неопределённость,
+      а быстро превращать её в решения, патчи и regression material.
+
+  cli-review-command:
+    title: "murmurmark review SESSION"
+    kind: task
+    parent: review-loop
+    status: next
+    effort: 5
+    notes: "Открывает review queue по transcript, overlaps, lost Me, duplicate, notes evidence."
+
+  review-lane-filtering:
+    title: "Lane-based review"
+    kind: task
+    parent: review-loop
+    status: next
+    effort: 4
+    notes: "Фильтры по дорожкам: harmful duplicate, lost Me, uncertain, notes evidence, export blockers."
+
+  review-hotkeys-progress:
+    title: "Hotkeys и progress"
+    kind: task
+    parent: review-loop
+    status: next
+    effort: 3
+    notes: "Быстрые решения: accept/drop/mark/retry/skip и сохранение прогресса."
+
+  review-apply-decisions:
+    title: "Apply decisions"
+    kind: task
+    parent: review-loop
+    status: next
+    effort: 4
+    notes: "Применение review decisions в отдельный профиль без изменения baseline."
+
+  review-burden-report:
+    title: "Review burden report"
+    kind: task
+    parent: review-loop
+    status: next
+    effort: 3
+    notes: "Сколько минут/реплик требуют проверки, что блокирует export, что можно игнорировать."
+
+  review-unresolved-explicit:
+    title: "Unresolved risky items остаются явными"
+    kind: task
+    parent: review-loop
+    status: next
+    effort: 3
+    notes: "Ни один рискованный участок не исчезает молча из итогового отчёта."
+
+  quality-hardening:
+    title: "Укрепление качества transcript"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [review-loop, corpus-regression]
+    status: next
+    effort: 27
+    notes: |
+      Улучшать качество без смены топологии: запись, Echo Guard и основной ASR
+      остаются прежними, меняются repair/cleanup/audit и проверочные контуры.
+
+  quality-local-recall-repair:
+    title: "Better local recall repair"
+    kind: task
+    parent: quality-hardening
+    status: next
+    effort: 6
+    notes: "Меньше пропусков коротких Me-реплик, особенно в начале/конце и на быстрых ack."
+
+  quality-remote-duplicate-safety:
+    title: "Safer remote duplicate handling"
+    kind: task
+    parent: quality-hardening
+    status: next
+    effort: 5
+    notes: "Удалять дубли только при сильных доказательствах, защищать намеренные повторы и действия."
+
+  quality-order-regressions:
+    title: "Transcript order regression cases"
+    kind: task
+    parent: quality-hardening
+    status: next
+    effort: 5
+    notes: "Корпусные кейсы на неверный порядок реплик и длинные Me-блоки поверх remote."
+
+  quality-boundary-repair:
+    title: "Start/end boundary repair"
+    kind: task
+    parent: quality-hardening
+    status: next
+    effort: 5
+    notes: "Восстановление коротких фраз на границах окон без роста remote leak."
+
+  quality-audio-judge-labels:
+    title: "Richer audio-judge labels"
+    kind: task
+    parent: quality-hardening
+    status: next
+    effort: 6
+    notes: "Более точные метки: lost_me, remote_duplicate, asr_noise, timing_overlap, double_talk."
+
+  evidence-notes:
+    title: "Evidence-backed notes и quality verdict"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [quality-hardening]
+    status: later
+    effort: 21
+    notes: |
+      Notes должны быть полезными, но проверяемыми: никаких неподдержанных фактов,
+      все claims ссылаются на utterance IDs и audit evidence.
+
+  evidence-stronger-extractive-scoring:
+    title: "Stronger extractive scoring"
+    kind: task
+    parent: evidence-notes
+    status: later
+    effort: 5
+    notes: "Лучше отличать реальные действия/решения от фасилитации и общего обсуждения."
+
+  evidence-stable-json-contract:
+    title: "Stable evidence_notes.json"
+    kind: task
+    parent: evidence-notes
+    status: later
+    effort: 4
+    notes: "Сделать evidence_notes.json устойчивым контрактом для будущего LLM/export слоя."
+
+  evidence-review-aware-notes:
+    title: "Review-aware notes"
+    kind: task
+    parent: evidence-notes
+    status: later
+    effort: 5
+    notes: "Отмечать notes, которые опираются на спорные или непроверенные реплики."
+
+  evidence-quality-verdict-first-class:
+    title: "quality_verdict как основной пользовательский артефакт"
+    kind: task
+    parent: evidence-notes
+    status: later
+    effort: 4
+    notes: "Сделать verdict понятным итогом запуска: можно использовать, нужно проверить, рискованно."
+
+  evidence-transcript-rich-prep:
+    title: "Подготовка к transcript.rich.json"
+    kind: task
+    parent: evidence-notes
+    status: later
+    effort: 3
+    notes: "Не сам rich transcript, а требования и поля, нужные для будущего слоя."
+
+  export-workflows:
+    title: "Export workflows"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [evidence-notes]
+    status: later
+    effort: 19
+    notes: |
+      Экспорт должен создавать reviewed proposals, а не самовольно писать в рабочие системы.
+      Сначала Markdown/Obsidian, затем docs/Jira как подтверждаемые патчи.
+
+  export-markdown-bundle:
+    title: "Markdown bundle"
+    kind: task
+    parent: export-workflows
+    status: later
+    effort: 4
+    notes: "Transcript, notes, verdict, review items и manifest в одном переносимом пакете."
+
+  export-obsidian-note:
+    title: "Obsidian note"
+    kind: task
+    parent: export-workflows
+    status: later
+    effort: 4
+    notes: "Заметка с evidence links, backrefs и без утечки raw audio по умолчанию."
+
+  export-docs-patch-plan:
+    title: "Docs patch plan"
+    kind: task
+    parent: export-workflows
+    status: later
+    effort: 5
+    notes: "План изменений в документации на основе notes, только как proposal."
+
+  export-jira-reviewed-proposal:
+    title: "Jira/issue tracker export as reviewed proposal"
+    kind: task
+    parent: export-workflows
+    status: later
+    effort: 6
+    notes: "Создание задач только после review, с payload manifest и ссылками на evidence."
+
+  retention-policy:
+    title: "Retention policy и privacy manifests"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [export-workflows, readiness-single-output]
+    status: later
+    effort: 14
+    notes: |
+      Управление raw audio и приватностью: что хранится, что удаляется,
+      что может покинуть локальную машину и с каким manifest.
+
+  retention-policy-file:
+    title: "Retention policy file"
+    kind: task
+    parent: retention-policy
+    status: later
+    effort: 3
+    notes: "Локальная политика хранения raw, derived, review и export artifacts."
+
+  retention-delete-raw-after-export:
+    title: "Delete raw audio after successful export"
+    kind: task
+    parent: retention-policy
+    status: later
+    effort: 4
+    notes: "Удаление raw CAF только по явному правилу и после проверки export manifest."
+
+  retention-provider-payload-manifest:
+    title: "Payload manifest для внешних провайдеров"
+    kind: task
+    parent: retention-policy
+    status: later
+    effort: 4
+    notes: "Если когда-либо используется облако, manifest показывает точный payload."
+
+  retention-audit-events:
+    title: "Audit events без content leakage"
+    kind: task
+    parent: retention-policy
+    status: later
+    effort: 3
+    notes: "События pipeline/review/export без текста встреч и без аудио."
+
+  packaging:
+    title: "Packaging и open-source readiness"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [cli-orchestration, review-loop, export-workflows]
+    status: later
+    effort: 18
+    notes: |
+      Установка, релизы, doctor, документация и готовность репозитория к открытой публикации.
+
+  packaging-install-update:
+    title: "Install/update flow"
+    kind: task
+    parent: packaging
+    status: later
+    effort: 4
+    notes: "Понятная установка CLI, моделей и локальных зависимостей."
+
+  packaging-release-layout:
+    title: "Release layout"
+    kind: task
+    parent: packaging
+    status: later
+    effort: 4
+    notes: "Что входит в релиз, что скачивается отдельно, какие профили стабильны."
+
+  packaging-doctor:
+    title: "Doctor health checks"
+    kind: task
+    parent: packaging
+    status: later
+    effort: 4
+    notes: "Проверки macOS permissions, ffmpeg, whisper.cpp, модели, Python окружения и путей."
+
+  packaging-open-source-readiness:
+    title: "Open-source readiness"
+    kind: task
+    parent: packaging
+    status: later
+    effort: 6
+    notes: "Убрать личные пути/доменные данные, оформить README, LICENSE, CONTRIBUTING и примеры."
+
+  future-heavy-local:
+    title: "Тяжёлые локальные валидаторы и rich transcript"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [corpus-regression, quality-hardening]
+    status: idea
+    effort: 28
+    notes: |
+      Дальняя ветка после стабилизации CLI: diarization внутри Colleagues,
+      forced alignment, альтернативные локальные ASR validators, transcript.rich.json,
+      speaker map и строгая доменная коррекция.
+
+  future-heavy-local-diarization:
+    title: "Per-speaker diarization внутри Colleagues"
+    kind: task
+    parent: future-heavy-local
+    status: idea
+    effort: 7
+    notes: "Пока не обязательна для CLI MVP."
+
+  future-heavy-local-rich-transcript:
+    title: "transcript.rich.json"
+    kind: task
+    parent: future-heavy-local
+    status: idea
+    effort: 7
+    notes: "Единый богатый формат с ролями, уверенностью, evidence и review decisions."
+
+  future-heavy-local-validators:
+    title: "Локальные ASR/forced-alignment validators"
+    kind: task
+    parent: future-heavy-local
+    status: idea
+    effort: 7
+    notes: "Тяжёлые модели как судьи и валидаторы, а не основной обязательный путь."
+
+  future-heavy-local-speaker-map:
+    title: "Speaker map и strict glossary correction"
+    kind: task
+    parent: future-heavy-local
+    status: idea
+    effort: 7
+    notes: "Доменная нормализация и карта говорящих только после устойчивого transcript."
+
+  future-llm-synthesis:
+    title: "LLM synthesis с evidence guard"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [evidence-notes]
+    status: idea
+    effort: 22
+    notes: |
+      Локальный или контролируемый LLM слой поверх evidence_notes.json.
+      Любые выводы должны иметь цитаты и отклонять unsupported claims.
+
+  future-llm-policy:
+    title: "Local/frontier LLM behind policy"
+    kind: task
+    parent: future-llm-synthesis
+    status: idea
+    effort: 5
+    notes: "Выбор локальной/внешней модели только через явную privacy policy."
+
+  future-llm-evidence-guard:
+    title: "Evidence guard"
+    kind: task
+    parent: future-llm-synthesis
+    status: idea
+    effort: 6
+    notes: "Ни одно summary/action/risk утверждение не проходит без evidence IDs."
+
+  future-llm-unsupported-rejection:
+    title: "Unsupported claim rejection"
+    kind: task
+    parent: future-llm-synthesis
+    status: idea
+    effort: 5
+    notes: "Модель должна уметь сказать, что данных недостаточно."
+
+  future-llm-generated-summaries:
+    title: "Generated summaries/actions/risks with citations"
+    kind: task
+    parent: future-llm-synthesis
+    status: idea
+    effort: 6
+    notes: "Человеческий слой итогов после extractive notes и review gates."
+
+  future-ui-app:
+    title: "Optional UI App/Menu Bar"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [packaging, retention-policy, export-workflows]
+    status: optional
+    effort: 9
+    notes: |
+      Необязательный хвост. UI имеет смысл только после зрелого CLI,
+      стабильных профилей, review loop, export и retention policy.
+
+  future-ui-menu-bar:
+    title: "Menu bar recorder"
+    kind: task
+    parent: future-ui-app
+    status: optional
+    effort: 3
+    notes: "Удобный запуск/остановка записи поверх CLI."
+
+  future-ui-review:
+    title: "Review UI"
+    kind: task
+    parent: future-ui-app
+    status: optional
+    effort: 3
+    notes: "Визуальный review спорных мест, если CLI review окажется недостаточным."
+
+  future-ui-library:
+    title: "Session library"
+    kind: task
+    parent: future-ui-app
+    status: optional
+    effort: 3
+    notes: "Каталог сессий, verdict, export status и retention controls."
+
+views:
+  roadmap-tree:
+    title: "Полный roadmap"
+    lanes:
+      root:
+        title: "MurmurMark CLI"
+        expand_descendants: leaves
+        nodes: [murmurmark-cli]
+
+  near-term:
+    title: "Ближайшие этапы"
+    where:
+      status: [current, next]
+    order_by: status
+
+  cli-mvp:
+    title: "Путь к CLI MVP"
+    lanes:
+      foundation:
+        title: "Основа"
+        expand_descendants: leaves
+        nodes: [foundation-done]
+      orchestration:
+        title: "CLI"
+        expand_descendants: leaves
+        nodes: [cli-orchestration]
+      quality-loop:
+        title: "Качество и review"
+        expand_descendants: leaves
+        nodes: [corpus-regression, review-loop, quality-hardening]
+      output:
+        title: "Пользовательский результат"
+        expand_descendants: leaves
+        nodes: [evidence-notes, export-workflows]
+
+  future:
+    title: "Дальние ветки"
+    lanes:
+      heavy-local:
+        title: "Тяжёлые локальные возможности"
+        expand_descendants: leaves
+        nodes: [future-heavy-local]
+      llm:
+        title: "LLM synthesis"
+        expand_descendants: leaves
+        nodes: [future-llm-synthesis]
+      ui:
+        title: "Optional UI"
+        expand_descendants: leaves
+        nodes: [future-ui-app]
+
+  deps-map:
+    title: "Зависимости крупных этапов"
+    lanes:
+      main:
+        title: "CLI-first path"
+        nodes:
+          - foundation-done
+          - cli-orchestration
+          - corpus-regression
+          - review-loop
+          - quality-hardening
+          - evidence-notes
+          - export-workflows
+          - retention-policy
+          - packaging
+          - future-heavy-local
+          - future-llm-synthesis
+          - future-ui-app
+
+x:
+  exec:
+    program:
+      nearest_goal: "Сделать CLI-пайплайн одной понятной пользовательской командой и надежной review-петлёй."
+      success_by_next_sync: "Есть валидный opskarta-roadmap, показывающий ближайший путь к CLI MVP и будущие хвосты."
+    defaults:
+      status_progress:
+        done: 1.0
+        current: 0.5
+        next: 0.2
+        later: 0.0
+        idea: 0.0
+        optional: 0.0
+        blocked: 0.0
+      weight_strategy: effort_effective
+    blocks:
+      working-now:
+        title: "Работает сейчас"
+        scope_nodes: [foundation-done]
+        kind: main
+        mgmt:
+          health: green
+          sync_note: "Capture, Echo Guard, транскрибация, audit, agent-review и readiness уже дают полезный результат."
+          next_sync_goal: "Не ломать baseline и использовать готовую основу как regression corpus."
+      next-cli:
+        title: "Единый CLI"
+        scope_nodes: [cli-orchestration]
+        kind: main
+        mgmt:
+          health: yellow
+          sync_note: "Главный следующий прирост — process/report/review/export как нормальные команды."
+          next_sync_goal: "Собрать process/latest/report и единую readiness summary."
+      quality-loop:
+        title: "Контур качества"
+        scope_nodes: [corpus-regression, review-loop, quality-hardening]
+        kind: main
+        mgmt:
+          health: yellow
+          sync_note: "Корпус, review loop и audio judge должны защищать от регрессий."
+          next_sync_goal: "Сделать повторяемые corpus gates и review burden report."
+      future-capabilities:
+        title: "Будущие возможности"
+        scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]
+        kind: context
+        mgmt:
+          health: neutral
+          sync_note: "Rich transcript, LLM synthesis и exports полезны после укрепления CLI и evidence contracts."
+          next_sync_goal: "Держать эти ветки зависимыми от качества transcript и notes."
+      optional-ui:
+        title: "Optional UI"
+        scope_nodes: [future-ui-app]
+        kind: risk_sidecar
+        progress_override: 0.0
+        mgmt:
+          health: neutral
+          sync_note: "UI не держит полезность MurmurMark и остаётся хвостом после зрелого CLI."
+          next_sync_goal: "Не тратить фокус на UI до стабилизации CLI/export/retention."
+    edges:
+      - from: working-now
+        to: next-cli
+        type: required
+      - from: working-now
+        to: quality-loop
+        type: required
+      - from: next-cli
+        to: quality-loop
+        type: required
+      - from: quality-loop
+        to: future-capabilities
+        type: required
+      - from: future-capabilities
+        to: optional-ui
+        type: context
+        label: "после зрелого CLI"
+    views:
+      exec-top:
+        direction: LR
+        color_mode: mgmt_hybrid
+        highlight_current: true
+        show_progress: false
+        show_gate_date: false
+        wrap_title_lines: 2
+        caption: "Короткая карта: что уже работает, где ближайший CLI-фокус и какие хвосты не держат roadmap."
+        blocks:
+          - working-now
+          - next-cli
+          - quality-loop
+          - future-capabilities
+          - optional-ui

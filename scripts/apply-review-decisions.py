@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.2.1"
 OUTPUT_PROFILE_DEFAULT = "reviewed_v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 OPEN_DECISIONS = {"", "todo"}
@@ -190,6 +190,14 @@ def existing_profile(session: Path) -> str:
         and (resolved / "quality_report.reviewed_v1.json").exists()
     ):
         return "reviewed_v1"
+    agent_report = read_json(review_dir / "review_decisions_report.agent_reviewed_v1.json") if (review_dir / "review_decisions_report.agent_reviewed_v1.json").exists() else None
+    if (
+        agent_report
+        and (agent_report.get("gates") or {}).get("passed") is True
+        and (resolved / "clean_dialogue.agent_reviewed_v1.json").exists()
+        and (resolved / "quality_report.agent_reviewed_v1.json").exists()
+    ):
+        return "agent_reviewed_v1"
     v4 = cleanup / "audit_cleanup_report.audit_cleanup_v4.json"
     if v4.exists():
         data = read_json(v4)
@@ -366,7 +374,13 @@ def decision_me_ids(row: dict[str, Any]) -> list[str]:
     return out
 
 
-def quality_report(input_quality: dict[str, Any], utterances: list[dict[str, Any]], overlaps: list[dict[str, Any]], review_summary: dict[str, Any]) -> dict[str, Any]:
+def quality_report(
+    input_quality: dict[str, Any],
+    utterances: list[dict[str, Any]],
+    overlaps: list[dict[str, Any]],
+    review_summary: dict[str, Any],
+    output_profile: str,
+) -> dict[str, Any]:
     report = copy.deepcopy(input_quality)
     report["schema"] = "murmurmark.simple_transcript_quality/v1"
     report["utterances"] = len(utterances)
@@ -381,6 +395,8 @@ def quality_report(input_quality: dict[str, Any], utterances: list[dict[str, Any
     report["remote_duplicate_in_me_seconds"] = round(sum(safe_float(row.get("duration_sec")) for row in duplicate_overlaps), 3)
     report["meeting_duration_sec"] = round(max((safe_float(row.get("end")) for row in utterances), default=0.0), 3)
     report["human_review"] = review_summary
+    if output_profile.startswith("agent_reviewed"):
+        report["agent_review"] = review_summary
     return report
 
 
@@ -461,7 +477,8 @@ def main() -> int:
             if not isinstance(quality, dict):
                 quality = {}
                 new_row["quality"] = quality
-            quality["human_review"] = {
+            review_key = "agent_review" if args.output_profile.startswith("agent_reviewed") else "human_review"
+            quality[review_key] = {
                 "profile": args.output_profile,
                 "decisions": sorted(decisions_set),
                 "source_audit_ids": sorted({str(item.get("source_audit_id")) for item in rows if item.get("source_audit_id")}),
@@ -485,6 +502,7 @@ def main() -> int:
     ]
     review_summary = {
         "schema": "murmurmark.review_decisions_summary/v1",
+        "review_mode": "agent" if args.output_profile.startswith("agent_reviewed") else "human",
         "input_profile": input_profile,
         "output_profile": args.output_profile,
         "decision_rows": len(decisions),
@@ -530,7 +548,7 @@ def main() -> int:
         "review_scope_closed_rows": coverage["closed_rows"],
         "review_scope_coverage_ratio": coverage["coverage_ratio"],
     }
-    output_quality = quality_report(input_quality, output_utterances, overlaps, review_summary)
+    output_quality = quality_report(input_quality, output_utterances, overlaps, review_summary, args.output_profile)
     gates = {
         "passed": not invalid_decisions and not conflicts and coverage["complete"],
         "hard_failures": [],

@@ -1065,6 +1065,38 @@ is also UI-only and does not count as review coverage.
 `suggested_decision` is only a review hint. It never changes transcript output by itself and does not
 count as coverage. The reviewer must still copy the intended value into `decision`.
 
+`agent_reviewed_v1` uses the same review-decision artifact shape, but the decision file is generated
+by `build-agent-review-decisions.py` from audio-review audit rows and the audio-judge queue:
+
+```text
+sessions/_reports/review-plan/
+  review_decisions.agent_reviewed_v1.jsonl
+  review_decisions.agent_reviewed_v1.template.jsonl
+  agent_review_report.agent_reviewed_v1.json
+  review_decisions_apply.agent_reviewed_v1.json
+
+derived/transcript-simple/whisper-cpp/resolved/
+  clean_dialogue.agent_reviewed_v1.json
+  transcript.agent_reviewed_v1.md
+  transcript.simple.agent_reviewed_v1.json
+  quality_report.agent_reviewed_v1.json
+  overlaps.agent_reviewed_v1.json
+
+derived/transcript-simple/whisper-cpp/review-decisions/
+  review_decisions_report.agent_reviewed_v1.json
+  review_decisions_applied.agent_reviewed_v1.jsonl
+  review_decisions_rejected.agent_reviewed_v1.jsonl
+  review_decisions_conflicts.agent_reviewed_v1.jsonl
+```
+
+The agent scope is deliberately smaller than the human review template. It may contain only rows that
+the rules can close without listening. `drop_me` is allowed only for clear whole-utterance remote
+duplicates or ASR noise with weak local support and no protected action/decision/risk markers.
+`keep_me` can clear review burden for strong local-support rows or high-confidence audio-judge keep
+rows. Rows not present in the agent template remain unresolved and continue to contribute to review
+burden. `agent_reviewed_v1` is eligible for `auto` only when its own coverage gates pass; it ranks
+below `reviewed_v1` and above automatic cleanup profiles.
+
 The same hint stream can be materialized for measurement as `suggested_review_v1`:
 
 ```text
