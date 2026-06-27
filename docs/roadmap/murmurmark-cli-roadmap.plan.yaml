@@ -196,9 +196,9 @@ nodes:
     kind: task
     parent: cli-orchestration
     deps: [readiness-single-output]
-    status: later
+    status: done
     effort: 2
-    notes: "Тонкая CLI-команда до полноценного export-workflows."
+    notes: "Создаёт локальный Markdown/Obsidian bundle и блокирует review_first сессии без --force."
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -420,17 +420,17 @@ nodes:
     kind: phase
     parent: murmurmark-cli
     deps: [evidence-notes]
-    status: later
+    status: current
     effort: 19
     notes: |
-      Экспорт должен создавать reviewed proposals, а не самовольно писать в рабочие системы.
-      Сначала Markdown/Obsidian, затем docs/Jira как подтверждаемые патчи.
+      Базовый локальный Markdown/Obsidian bundle уже есть. Следующий слой — Obsidian vault
+      handoff, docs/Jira proposals и retention policy.
 
   export-markdown-bundle:
     title: "Markdown bundle"
     kind: task
     parent: export-workflows
-    status: later
+    status: done
     effort: 4
     notes: "Transcript, notes, verdict, review items и manifest в одном переносимом пакете."
 
@@ -438,9 +438,9 @@ nodes:
     title: "Obsidian note"
     kind: task
     parent: export-workflows
-    status: later
+    status: done
     effort: 4
-    notes: "Заметка с evidence links, backrefs и без утечки raw audio по умолчанию."
+    notes: "Локальная frontmatter Markdown note без записи в vault и без raw audio."
 
   export-docs-patch-plan:
     title: "Docs patch plan"
@@ -765,8 +765,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "process/latest/report/review уже работают как нормальные команды; следующий разрыв — export/config."
-          next_sync_goal: "Собрать export-команду и единый config для модели/prompt."
+          sync_note: "process/latest/report/review/export уже работают как нормальные команды; следующий разрыв — config/model/prompt."
+          next_sync_goal: "Собрать единый config для модели, prompt, профилей и export defaults."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]

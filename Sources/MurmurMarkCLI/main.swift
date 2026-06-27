@@ -36,6 +36,8 @@ struct MurmurMark {
                 try ReviewCommands.review(args)
             case "corpus":
                 try CorpusCommands.corpus(args)
+            case "export":
+                try ExportCommands.export(args)
             case "preprocess":
                 try Commands.preprocess(args)
             case "reconcile-transcript":
@@ -81,6 +83,8 @@ struct MurmurMark {
           murmurmark corpus train-audio-judge
           murmurmark corpus gate
           murmurmark corpus report [--sessions-root ./sessions]
+          murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
+                             [--include-json] [--force] [--sessions-root ./sessions]
           murmurmark preprocess ./session [--echo diagnostic|clean] [--echo-engine linear_baseline|local_fir|speexdsp|webrtc-apm]
                               [--echo-policy preserve_local|role_safe|strict_silence]
           murmurmark reconcile-transcript ./session [--in ./transcript.rich.json] [--out ./transcript.rich.json]
@@ -97,6 +101,7 @@ struct MurmurMark {
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review wraps the current review-plan, review CLI, progress and apply scripts.
           corpus wraps regression-corpus, audio-judge, corpus gates and operational-readiness scripts.
+          export creates a local user-facing Markdown or Obsidian bundle and blocks review-first sessions by default.
         """)
     }
 }
@@ -499,6 +504,33 @@ enum CorpusCommands {
           --copy-clips          Forwarded to build-regression-corpus.py
           --no-copy-clips       Forwarded to build-regression-corpus.py
         """)
+    }
+}
+
+enum ExportCommands {
+    static func export(_ args: [String]) throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            try Tooling.runPath(try PythonRuntime.resolve(), [try script().path] + args)
+            return
+        }
+        guard let target = args.first else { throw CLIError("export requires a session path or latest") }
+        var forwarded = Array(args.dropFirst())
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        fflush(stdout)
+        try Tooling.runPath(try PythonRuntime.resolve(), [
+            try script().path,
+            session.path,
+        ] + forwarded)
+    }
+
+    private static func script() throws -> URL {
+        let url = PathURLs.fileURL("scripts/export-session-bundle.py")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("export script not found: \(url.path)")
+        }
+        return url
     }
 }
 

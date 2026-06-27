@@ -417,6 +417,7 @@ work:
 .build/debug/murmurmark review latest --lane fast_confirm_drop
 .build/debug/murmurmark review progress
 .build/debug/murmurmark review apply
+.build/debug/murmurmark export sessions/<session> --format markdown --include-json
 
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
@@ -435,6 +436,11 @@ For a full refresh with all sessions under `./sessions`, use:
 readiness JSON reports, then writes `sessions/_reports/corpus-gates/corpus_gates_report.json` and
 `.md`. `passed` or `passed_with_warnings` exits successfully. `failed` exits non-zero unless
 `--no-fail` is used.
+
+`murmurmark export` is the user-facing handoff. It reads the selected transcript profile from
+per-session readiness, copies the Markdown verdict, notes and transcript into `exports/private/`,
+and writes `export_manifest.json`. It blocks `review_first` sessions by default; use
+`murmurmark review plan` first, or pass `--force` only for debugging.
 
 The script reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, balances examples by
 label, and copies existing review clips under `sessions/_reports/regression-corpus/clips/`. It is
@@ -728,6 +734,10 @@ derived/
       quality_verdict.audit_cleanup_v1.md
       notes.audit_cleanup_v1.md
       evidence_notes.audit_cleanup_v1.json
+
+  export/
+    # user-facing exports are written outside the session by default:
+    # exports/private/<session-dir-name>/
 
   audit/
     group-overlaps/

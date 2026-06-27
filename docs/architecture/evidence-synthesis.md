@@ -148,6 +148,14 @@ MurmurMark Synthesis
         approve notes and patches
 ```
 
+Current CLI status:
+
+- Markdown bundle export is available through `murmurmark export SESSION --format markdown`.
+- Obsidian-style single-note export is available through `murmurmark export SESSION --format obsidian`.
+- Export writes only local files under `exports/private/` by default and blocks `review_first`
+  sessions unless `--force` is passed.
+- Docs/Jira patch proposals and direct vault handoff remain future layers.
+
 ## Evidence Guard
 
 Rules:

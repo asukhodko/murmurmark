@@ -603,6 +603,50 @@ derived/readiness/
 The report is a reproducibility/audit artifact. It does not replace the per-stage reports; it only
 records which existing stage commands were run and what final synthesis profile was selected.
 
+## Export Bundle
+
+`murmurmark export SESSION` creates a local handoff bundle outside the session directory, under
+`exports/private/<session-dir-name>/` by default. Raw audio is never copied.
+
+Markdown format:
+
+```text
+index.md
+quality_verdict.md
+notes.md
+transcript.md
+export_manifest.json
+```
+
+With `--include-json`, the bundle also includes evidence/source JSON such as
+`evidence_notes.<profile>.json`, `clean_dialogue.<profile>.json`, `quality_report.<profile>.json`
+and `transcript.simple.<profile>.json`.
+
+Obsidian format writes one frontmatter Markdown note plus `export_manifest.json`.
+
+`export_manifest.json` uses `murmurmark.export_manifest/v1`:
+
+```json
+{
+  "schema": "murmurmark.export_manifest/v1",
+  "status": "exported_with_warnings",
+  "session_id": "2026-06-23T11-04-37Z_87bac5",
+  "requested_profile": "auto",
+  "selected_profile": "audit_cleanup_v2",
+  "format": "markdown",
+  "verdict": "usable_with_review",
+  "use_gate": "ready_for_notes",
+  "blockers": [],
+  "warnings": ["quality_verdict:usable_with_review"],
+  "files": {
+    "transcript_md": {"path": "exports/private/.../transcript.md", "bytes": 12345}
+  }
+}
+```
+
+Default export blocks sessions whose readiness is `review_first`. `--force` may create an export for
+debugging, but the manifest still records blockers and warnings.
+
 `session_readiness.json` uses `murmurmark.session_readiness/v1`:
 
 ```json

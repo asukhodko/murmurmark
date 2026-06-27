@@ -28,6 +28,7 @@ swift build
 .build/debug/murmurmark report "$SESSION"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+.build/debug/murmurmark export "$SESSION" --format markdown --include-json
 
 PROFILE="$(jq -r '.selected_transcript_profile' "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json")"
 case "$PROFILE" in
@@ -196,6 +197,8 @@ swift run murmurmark list-apps
 .build/debug/murmurmark corpus train-audio-judge
 .build/debug/murmurmark corpus gate
 .build/debug/murmurmark corpus report
+.build/debug/murmurmark export ./sessions/<session> --format markdown --include-json
+.build/debug/murmurmark export ./sessions/<session> --format obsidian
 .build/debug/murmurmark preprocess ./sessions/<session> --echo diagnostic
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine linear_baseline
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine local_fir
@@ -275,6 +278,12 @@ For `local_fir`, `--echo-policy preserve_local` is the default because it avoids
 The temporary transcription bridge is `scripts/transcribe-simple-whispercpp.py`. It runs `export-audio`, prepares ASR-only speech-band `mic` audio and normalized `remote` audio, calls local `whisper-cli` on short overlapping windows, creates raw segment and candidate JSON, runs timeline repair plus role reconciliation, then writes `clean_dialogue.json`, `role_decisions.json`, `overlaps.json`, `quality_report.json`, `timeline_repair_report.json`, `transcript.md` and `transcript.simple.json` under `derived/transcript-simple/whisper-cpp/resolved/`. ASR preparation never changes raw capture. See [docs/runbooks/transcribe-simple-whispercpp.md](docs/runbooks/transcribe-simple-whispercpp.md).
 
 The first synthesis bridge is `scripts/synthesize-simple-extractive.py`. It reads only transcript-derived JSON, chooses the best safe dialogue profile, writes `quality_verdict.json`/`.md`, and creates extractive `notes.md` plus `evidence_notes.json` and `review_items.jsonl` under `derived/synthesis-simple/extractive/`. It does not call an LLM and does not infer facts beyond quoted utterances. Its v3 notes path builds topic blocks, scores action/decision/risk/question candidates, hides meeting facilitation from Markdown, shows only selected top items, and keeps every hidden weak/process/facilitation candidate in `evidence_notes.json`.
+
+`murmurmark export` creates a local user-facing bundle under ignored `exports/private/` by default.
+Markdown export writes `index.md`, `quality_verdict.md`, `notes.md`, `transcript.md` and
+`export_manifest.json`; `--include-json` also copies evidence JSON. Obsidian export writes one
+frontmatter Markdown note plus the same manifest. Export blocks `review_first` sessions unless
+`--force` is passed, so unfinished review does not silently become a finished artifact.
 
 The group overlap audit is `scripts/audit-group-overlaps.py`. It reads transcript overlaps, Echo Guard `speaker_state.jsonl`, and local audio derivatives, then writes `derived/audit/group-overlaps/`. It separates likely harmful `Me` duplicates or remote leakage from expected group-call double-talk and timing overlap. This is audit-only: no transcript, Echo Guard output, synthesis output, or `quality_verdict` is modified.
 
