@@ -522,7 +522,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("session", type=Path)
     parser.add_argument(
         "--transcript-profile",
-        choices=("auto", "current", "shadow_v2", "audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "reviewed_v1"),
+        choices=(
+            "auto",
+            "current",
+            "shadow_v2",
+            "audit_cleanup_v1",
+            "audit_cleanup_v2",
+            "audit_cleanup_v3",
+            "audit_cleanup_v4",
+            "reviewed_v1",
+            "suggested_review_v1",
+        ),
         default="auto",
         help="Transcript artifact profile to synthesize from.",
     )
@@ -680,6 +690,32 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
                 }
             )
         return "reviewed_v1", paths, repair_comparison, risk_items
+
+    if requested_profile == "suggested_review_v1":
+        paths = source_profile_paths(resolved_dir, "suggested_review_v1")
+        comparison, error = read_json(paths["repair_comparison"])
+        if error is None and isinstance(comparison, dict):
+            repair_comparison = comparison
+        review_report, review_error = read_json(paths["review_decisions_report"])
+        if review_error is not None:
+            risk_items.append({"type": "missing_suggested_review_report", "severity": "high", "reason": review_error})
+        elif not isinstance(review_report, dict) or not isinstance(review_report.get("gates"), dict) or review_report["gates"].get("passed") is not True:
+            risk_items.append(
+                {
+                    "type": "suggested_review_gates_failed",
+                    "severity": "high",
+                    "reason": "suggested review profile was requested but review decision gates did not pass",
+                }
+            )
+        else:
+            risk_items.append(
+                {
+                    "type": "suggested_review_candidate_profile",
+                    "severity": "medium",
+                    "reason": "profile was generated from suggested decisions and is for comparison only, not human-reviewed",
+                }
+            )
+        return "suggested_review_v1", paths, repair_comparison, risk_items
 
     if requested_profile == "shadow_v2":
         paths = source_profile_paths(resolved_dir, "shadow_v2")
@@ -1959,7 +1995,7 @@ def main() -> int:
     write_notes_markdown(out_dir / "notes.md", verdict_payload, evidence)
     write_jsonl(out_dir / "review_items.jsonl", review_items)
     profile_aliases: dict[str, str] = {}
-    if selected_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "reviewed_v1"}:
+    if selected_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "reviewed_v1", "suggested_review_v1"}:
         profile_suffix = selected_profile
         profile_aliases = {
             "quality_verdict": f"quality_verdict.{profile_suffix}.json",

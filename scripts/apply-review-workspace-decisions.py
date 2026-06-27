@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.3.1"
 SCHEMA = "murmurmark.review_workspace_apply_report/v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -226,6 +226,52 @@ def is_reviewed(row: dict[str, Any]) -> bool:
     return str(row.get("decision") or "todo") not in {"", "todo"}
 
 
+def me_utterance_ids(row: dict[str, Any]) -> list[str]:
+    values = row.get("me_utterance_ids")
+    if isinstance(values, list):
+        return [str(value) for value in values if str(value)]
+    return []
+
+
+def resolve_suggested_drop_conflicts(rows: list[dict[str, Any]], now: str) -> list[dict[str, Any]]:
+    """Generated suggestions must not force-drop an utterance that another row asks to review."""
+    by_utterance: dict[str, list[int]] = {}
+    for index, row in enumerate(rows):
+        if not is_reviewed(row):
+            continue
+        for utterance_id in me_utterance_ids(row):
+            by_utterance.setdefault(utterance_id, []).append(index)
+
+    downgraded: list[dict[str, Any]] = []
+    for utterance_id, indexes in by_utterance.items():
+        decisions = {str(rows[index].get("decision") or "") for index in indexes}
+        if "drop_me" not in decisions or not (decisions - {"drop_me"}):
+            continue
+        for index in indexes:
+            row = rows[index]
+            if row.get("decision") != "drop_me":
+                continue
+            if "needs_review" not in allowed_decisions(row):
+                continue
+            row["decision"] = "needs_review"
+            row["status"] = "reviewed"
+            row["reviewed_at"] = now
+            row["suggested_conflict_resolution"] = "drop_me_downgraded_to_needs_review"
+            rows[index] = row
+            downgraded.append(
+                {
+                    "review_row_key": review_row_key(row),
+                    "source_audit_id": row.get("source_audit_id"),
+                    "session_id": row.get("session_id"),
+                    "utterance_id": utterance_id,
+                    "from": "drop_me",
+                    "to": "needs_review",
+                    "reason": "suggested decisions conflicted for the same Me utterance",
+                }
+            )
+    return downgraded
+
+
 def apply_lane(
     lane_input: dict[str, Any],
     rows: list[dict[str, Any]],
@@ -361,6 +407,9 @@ def main() -> int:
     now = datetime.now(timezone.utc).isoformat()
     lanes = workspace_lane_inputs(workspace, args.answers_source)
     lane_reports = [apply_lane(lane, rows, lookup, now, args.reviewer, args.answers_source) for lane in lanes]
+    suggested_conflict_downgrades = (
+        resolve_suggested_drop_conflicts(rows, now) if args.answers_source == "suggested" else []
+    )
     rejected = [row for lane in lane_reports for row in lane.get("rejected") or []]
     remaining_rows = [row for row in rows if not is_reviewed(row)]
     decision_counts = Counter(str(row.get("decision") or "todo") for row in rows)
@@ -393,8 +442,10 @@ def main() -> int:
             "remaining_minutes": round(sum(row_seconds(row) for row in remaining_rows) / 60.0, 2),
             "ready_for_batch_apply": len(rows) > 0 and not remaining_rows and not rejected and not complete_error,
             "decisions": dict(sorted(decision_counts.items())),
+            "suggested_conflict_downgraded_count": len(suggested_conflict_downgrades),
         },
         "lanes": lane_reports,
+        "suggested_conflict_downgrades": suggested_conflict_downgrades,
         "errors": rejected + ([{"reason": "workspace_answers_incomplete", "todo_count": workspace_todo_count}] if complete_error else []),
     }
 

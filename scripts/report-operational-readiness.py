@@ -385,6 +385,24 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
                 if review_queue
                 else None
             ),
+            "apply_suggested_workspace": (
+                ".venv/bin/python scripts/apply-review-workspace-decisions.py "
+                "--workspace sessions/_reports/review-plan/review_workspace.json "
+                "--answers-source suggested "
+                "--out sessions/_reports/review-plan/review_decisions.suggested.jsonl"
+                if review_queue
+                else None
+            ),
+            "build_suggested_review_profile": (
+                ".venv/bin/python scripts/apply-review-decisions-batch.py "
+                "--decisions sessions/_reports/review-plan/review_decisions.suggested.jsonl "
+                "--review-template sessions/_reports/review-plan/review_decisions.template.jsonl "
+                "--output-profile suggested_review_v1 "
+                "--synthesize "
+                "--out sessions/_reports/review-plan/review_decisions_apply.suggested_review_v1.json"
+                if review_queue
+                else None
+            ),
             "build_first_lane_pack": (
                 ".venv/bin/python scripts/build-review-lane-pack.py --lane fast_confirm_drop"
                 if fast_items
@@ -775,6 +793,9 @@ def build_report(
             "session_count": len(sessions),
             "complete_pipeline_count": safe_int((session_quality.get("summary") or {}).get("complete_pipeline_count")),
             "selected_profiles": (session_quality.get("summary") or {}).get("by_selected_profile", {}),
+            "sessions_with_suggested_review_v1": safe_int(
+                (session_quality.get("summary") or {}).get("sessions_with_suggested_review_v1")
+            ),
             "session_verdicts": (session_quality.get("summary") or {}).get("by_verdict", {}),
             "total_duration_sec": round(total_duration, 3),
             "total_review_burden_sec": round(total_burden, 3),
@@ -828,6 +849,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Total review burden: `{round(report['summary']['total_review_burden_sec'] / 60.0, 2)} min`",
         f"- Review burden ratio: `{round(report['summary']['total_review_burden_ratio'] * 100.0, 2)}%`",
         f"- Corpus readiness: `{report['summary']['corpus_readiness']}`",
+        f"- Suggested review shadow profiles: `{report['summary'].get('sessions_with_suggested_review_v1')}`",
         f"- Corpus items: `{report['summary']['corpus_item_count']}`",
         f"- Audio judge readiness: `{report['summary']['audio_judge_readiness']}`",
         f"- Audio judge CV accuracy: `{report['summary']['audio_judge_cv_accuracy']}`",
@@ -884,9 +906,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         workspace_cmd = commands.get("build_review_workspace")
         apply_workspace_cmd = commands.get("apply_review_workspace")
         dry_run_suggested_cmd = commands.get("dry_run_suggested_workspace")
+        apply_suggested_cmd = commands.get("apply_suggested_workspace")
+        build_suggested_profile_cmd = commands.get("build_suggested_review_profile")
         build_cmd = commands.get("build_first_lane_pack")
         review_cmd = commands.get("review_first_lane")
-        if workspace_cmd or apply_workspace_cmd or dry_run_suggested_cmd or build_cmd or review_cmd:
+        if workspace_cmd or apply_workspace_cmd or dry_run_suggested_cmd or apply_suggested_cmd or build_suggested_profile_cmd or build_cmd or review_cmd:
             lines.extend(["", "```bash"])
             if workspace_cmd:
                 lines.append(str(workspace_cmd))
@@ -895,6 +919,10 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 lines.append(str(apply_workspace_cmd))
             if dry_run_suggested_cmd:
                 lines.append(str(dry_run_suggested_cmd))
+            if apply_suggested_cmd:
+                lines.append(str(apply_suggested_cmd))
+            if build_suggested_profile_cmd:
+                lines.append(str(build_suggested_profile_cmd))
             if build_cmd:
                 lines.append(str(build_cmd))
             if review_cmd:

@@ -1061,6 +1061,34 @@ is also UI-only and does not count as review coverage.
 `suggested_decision` is only a review hint. It never changes transcript output by itself and does not
 count as coverage. The reviewer must still copy the intended value into `decision`.
 
+The same hint stream can be materialized for measurement as `suggested_review_v1`:
+
+```text
+derived/transcript-simple/whisper-cpp/resolved/
+  clean_dialogue.suggested_review_v1.json
+  transcript.suggested_review_v1.md
+  transcript.simple.suggested_review_v1.json
+  quality_report.suggested_review_v1.json
+  overlaps.suggested_review_v1.json
+
+derived/transcript-simple/whisper-cpp/review-decisions/
+  review_decisions_report.suggested_review_v1.json
+  review_decisions_applied.suggested_review_v1.jsonl
+  review_decisions_rejected.suggested_review_v1.jsonl
+  review_decisions_conflicts.suggested_review_v1.jsonl
+
+derived/synthesis-simple/extractive/
+  quality_verdict.suggested_review_v1.json
+  quality_verdict.suggested_review_v1.md
+  notes.suggested_review_v1.md
+  evidence_notes.suggested_review_v1.json
+  review_items.suggested_review_v1.jsonl
+```
+
+`suggested_review_v1` is explicit-only. `--transcript-profile auto` must never select it, and
+session readiness must not count it as a human-reviewed profile. It exists to compare machine
+suggestions against the trusted cleanup and manual-review paths.
+
 `apply-review-decisions-batch.py --refresh-reports` extends the batch report with
 `refresh_reports[]`. Each row stores the command, return code, and output tails for the refreshed
 `session-quality`, `operational-readiness`, and `review-plan` commands. The batch command must fail

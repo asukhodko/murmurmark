@@ -242,6 +242,9 @@ def stage_status(session: Path) -> dict[str, bool]:
         "reviewed_v1": (resolved / "quality_report.reviewed_v1.json").exists()
         and (resolved / "clean_dialogue.reviewed_v1.json").exists()
         and (review_decisions / "review_decisions_report.reviewed_v1.json").exists(),
+        "suggested_review_v1": (resolved / "quality_report.suggested_review_v1.json").exists()
+        and (resolved / "clean_dialogue.suggested_review_v1.json").exists()
+        and (review_decisions / "review_decisions_report.suggested_review_v1.json").exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
@@ -253,6 +256,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (synthesis / "evidence_notes.audit_cleanup_v4.json").exists(),
         "synthesis_reviewed_v1": (synthesis / "quality_verdict.reviewed_v1.json").exists()
         and (synthesis / "evidence_notes.reviewed_v1.json").exists(),
+        "synthesis_suggested_review_v1": (synthesis / "quality_verdict.suggested_review_v1.json").exists()
+        and (synthesis / "evidence_notes.suggested_review_v1.json").exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
         and (audio_review / "review_pack_items.jsonl").exists(),
         "audio_review_audit": (audio_review / "audio_review_summary.json").exists()
@@ -679,6 +684,9 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     audio_summary = read_json(session / "derived/audit/audio-review-pack/audio_review_summary.json")
     local_recall = read_json(session / "derived/audit/local-recall/local_recall_audit.json")
     local_fir = read_json(session / "derived/preprocess/echo/local_fir_report.json")
+    suggested_report = read_json(
+        session / "derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.suggested_review_v1.json"
+    )
     cleanup_report = (
         read_json(session / "derived/transcript-simple/whisper-cpp/audit-cleanup" / f"audit_cleanup_report{suffix(profile)}.json")
         if profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4"}
@@ -694,6 +702,8 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     metrics = verdict.get("metrics") if isinstance(verdict, dict) else None
     if not isinstance(metrics, dict):
         metrics = {}
+    suggested_summary = suggested_report.get("summary") if isinstance(suggested_report, dict) else {}
+    suggested_gates = suggested_report.get("gates") if isinstance(suggested_report, dict) else {}
     counts = selected_counts(evidence)
     missing = missing_artifacts(status)
 
@@ -734,6 +744,17 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
         "micro_reasr_attempt_count": safe_int((quality or {}).get("micro_reasr_attempt_count")),
         "selected_notes": counts,
         "hidden_meeting_facilitation_count": hidden_facilitation_count(evidence),
+        "suggested_review_v1_available": status.get("suggested_review_v1"),
+        "suggested_review_v1_gates_passed": suggested_gates.get("passed") if isinstance(suggested_gates, dict) else None,
+        "suggested_review_v1_applied_decision_rows": safe_int(
+            suggested_summary.get("applied_decision_rows") if isinstance(suggested_summary, dict) else None
+        ),
+        "suggested_review_v1_dropped_me_utterances": safe_int(
+            suggested_summary.get("dropped_me_utterances") if isinstance(suggested_summary, dict) else None
+        ),
+        "suggested_review_v1_dropped_me_seconds": round_or_none(
+            suggested_summary.get("dropped_me_seconds") if isinstance(suggested_summary, dict) else None
+        ),
         "artifacts": {
             "session_json": artifact(session / "session.json"),
             "quality_report": artifact(
@@ -775,6 +796,7 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "median_duration_min": round(statistics.median(durations) / 60.0, 2) if durations else None,
         "by_verdict": dict(sorted(verdicts.items())),
         "by_selected_profile": dict(sorted(profiles.items())),
+        "sessions_with_suggested_review_v1": sum(1 for row in rows if row.get("suggested_review_v1_available")),
         "sessions_with_risk_flags": len(risk_rows),
         "top_risk_sessions": [
             {"session_id": row["session_id"], "label": row["label"], "risk_flags": row["risk_flags"]}
@@ -822,6 +844,11 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "review_decisions_applied",
         "review_decisions_dropped_me",
         "review_decisions_dropped_me_seconds",
+        "suggested_review_v1_available",
+        "suggested_review_v1_gates_passed",
+        "suggested_review_v1_applied_decision_rows",
+        "suggested_review_v1_dropped_me_utterances",
+        "suggested_review_v1_dropped_me_seconds",
         "echo_reduction_db",
         "selected_notes",
         "hidden_meeting_facilitation_count",
@@ -860,6 +887,7 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         f"- Complete pipeline: `{payload['summary']['complete_pipeline_count']}` / `{payload['summary']['session_count']}`",
         f"- Verdicts: `{json.dumps(payload['summary']['by_verdict'], ensure_ascii=False, sort_keys=True)}`",
         f"- Profiles: `{json.dumps(payload['summary']['by_selected_profile'], ensure_ascii=False, sort_keys=True)}`",
+        f"- Suggested review shadow profiles: `{payload['summary'].get('sessions_with_suggested_review_v1', 0)}`",
         f"- Sessions with risk flags: `{payload['summary']['sessions_with_risk_flags']}`",
         "",
         "## Sessions",

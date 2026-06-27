@@ -329,6 +329,25 @@ For local-recall rows, `drop_me` is invalid because there is no transcript utter
 `keep_me` or `skip` closes the local-recall risk as checked; `needs_review` keeps it blocking.
 The template also includes `suggested_decision` hints such as `drop_me` for probable duplicates, but
 they are never applied until the `decision` field is edited explicitly.
+For comparison, the suggested answer sheets can be applied into a separate shadow profile:
+
+```bash
+.venv/bin/python scripts/apply-review-workspace-decisions.py \
+  --workspace sessions/_reports/review-plan/review_workspace.json \
+  --answers-source suggested \
+  --out sessions/_reports/review-plan/review_decisions.suggested.jsonl
+
+.venv/bin/python scripts/apply-review-decisions-batch.py \
+  --decisions sessions/_reports/review-plan/review_decisions.suggested.jsonl \
+  --review-template sessions/_reports/review-plan/review_decisions.template.jsonl \
+  --output-profile suggested_review_v1 \
+  --synthesize \
+  --out sessions/_reports/review-plan/review_decisions_apply.suggested_review_v1.json
+```
+
+`suggested_review_v1` is generated from machine suggestions only. It is useful for measuring the
+next cleanup candidate, but it is not selected by `--transcript-profile auto` and is not equivalent
+to `reviewed_v1`.
 `scripts/apply-review-decisions-batch.py` applies the same edited file to every session mentioned in
 the review plan and can immediately regenerate extractive notes with `--synthesize`. Use
 `--refresh-reports` when the review is closed: it also refreshes session quality,

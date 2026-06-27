@@ -531,6 +531,26 @@ To estimate what the generated suggestions would do without writing decisions:
   --dry-run
 ```
 
+To materialize those suggestions as a separate shadow transcript for comparison, write a suggested
+decisions file and build `suggested_review_v1`:
+
+```bash
+.venv/bin/python scripts/apply-review-workspace-decisions.py \
+  --workspace sessions/_reports/review-plan/review_workspace.json \
+  --answers-source suggested \
+  --out sessions/_reports/review-plan/review_decisions.suggested.jsonl
+
+.venv/bin/python scripts/apply-review-decisions-batch.py \
+  --decisions sessions/_reports/review-plan/review_decisions.suggested.jsonl \
+  --review-template sessions/_reports/review-plan/review_decisions.template.jsonl \
+  --output-profile suggested_review_v1 \
+  --synthesize \
+  --out sessions/_reports/review-plan/review_decisions_apply.suggested_review_v1.json
+```
+
+`suggested_review_v1` is not a reviewed profile. It is a shadow candidate generated from
+`suggested_decision` hints, so `auto` must not select it.
+
 Answer shortcuts are `d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.` or `n=todo`.
 Before applying decisions to transcripts, check progress and validation:
 
@@ -777,6 +797,7 @@ current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
 audit_cleanup_v1..v4 -> audit-cleaned dialogue, marked risky if cleanup gates failed
 reviewed_v1 -> human-reviewed dialogue, marked risky if review gates failed
+suggested_review_v1 -> machine-suggested review candidate, explicit only, never selected by auto
 ```
 
 The script writes a quality verdict and a conservative `notes.md`. The v3 notes path is extractive
