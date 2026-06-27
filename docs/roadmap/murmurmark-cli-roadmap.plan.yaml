@@ -209,23 +209,24 @@ nodes:
     effort: 23
     notes: |
       Набор реальных сессий, пересборка, сравнение метрик и no-regression gates.
-      Без этого нельзя безопасно развивать repair/cleanup/notes.
+      Базовые команды corpus build/process/evaluate/train-audio-judge/report уже доступны;
+      следующий слой — строгие gates и пороги no-regression.
 
   corpus-add-command:
     title: "corpus add"
     kind: task
     parent: corpus-regression
-    status: current
+    status: done
     effort: 3
-    notes: "Добавлять сессию в regression corpus с типом встречи и коротким описанием."
+    notes: "murmurmark corpus build принимает явный список сессий или all/latest и собирает regression corpus."
 
   corpus-process-report:
     title: "corpus process/report"
     kind: task
     parent: corpus-regression
-    status: current
+    status: done
     effort: 5
-    notes: "Одна команда пересобирает корпус и показывает метрики по профилям."
+    notes: "murmurmark corpus process пересобирает quality/corpus/evaluation/audio-judge/readiness; corpus report показывает сводку по сессиям."
 
   corpus-regression-gate:
     title: "Regression gates"
@@ -771,7 +772,7 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Корпус, review loop и audio judge уже защищают от части регрессий; нужны более строгие gates."
+          sync_note: "corpus CLI, review loop и audio judge уже защищают от части регрессий; нужны более строгие gates."
           next_sync_goal: "Сделать повторяемые corpus gates и review/export blockers."
       future-capabilities:
         title: "Будущие возможности"

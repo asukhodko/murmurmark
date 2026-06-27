@@ -16,7 +16,8 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 2. `murmurmark process latest` — готово.
 3. `murmurmark report SESSION` и `murmurmark report corpus` — готово.
 4. `murmurmark review SESSION` — готов базовый CLI-контур.
-5. `murmurmark export SESSION --format markdown|obsidian` — следующий пользовательский output-блок.
+5. `murmurmark corpus process all` — готов базовый контур качества по корпусу.
+6. `murmurmark export SESSION --format markdown|obsidian` — следующий пользовательский output-блок.
 
 UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
 
@@ -24,7 +25,7 @@ UI App не является обязательной частью roadmap. Он
 
 - `foundation-done` — уже готовая основа: capture, Echo Guard, whisper.cpp, repair/audit, agent_reviewed_v1, notes, readiness.
 - `cli-orchestration` — текущий фокус: единые команды process/report/review/export и читаемая readiness summary.
-- `corpus-regression` — текущий/следующий контур: корпус сессий, пересборка, сравнение метрик, no-regression gates.
+- `corpus-regression` — текущий контур: корпус сессий, пересборка, сравнение метрик; следующий слой — no-regression gates.
 - `review-loop` — ближайший этап: удобный CLI-review спорных участков.
 - `quality-hardening` — ближайший этап: улучшение качества transcript без смены топологии.
 - `evidence-notes` и `export-workflows` — следующие пользовательские артефакты после укрепления качества.

@@ -34,6 +34,8 @@ struct MurmurMark {
                 try PipelineCommands.report(args)
             case "review":
                 try ReviewCommands.review(args)
+            case "corpus":
+                try CorpusCommands.corpus(args)
             case "preprocess":
                 try Commands.preprocess(args)
             case "reconcile-transcript":
@@ -73,6 +75,11 @@ struct MurmurMark {
           murmurmark report corpus [--sessions-root ./sessions]
           murmurmark review plan|progress|apply
           murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
+          murmurmark corpus process all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
+          murmurmark corpus build all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
+          murmurmark corpus evaluate
+          murmurmark corpus train-audio-judge
+          murmurmark corpus report [--sessions-root ./sessions]
           murmurmark preprocess ./session [--echo diagnostic|clean] [--echo-engine linear_baseline|local_fir|speexdsp|webrtc-apm]
                               [--echo-policy preserve_local|role_safe|strict_silence]
           murmurmark reconcile-transcript ./session [--in ./transcript.rich.json] [--out ./transcript.rich.json]
@@ -88,6 +95,7 @@ struct MurmurMark {
           process runs the current post-recording pipeline and prints the readiness summary.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review wraps the current review-plan, review CLI, progress and apply scripts.
+          corpus wraps regression-corpus, audio-judge and operational-readiness scripts.
         """)
     }
 }
@@ -325,6 +333,153 @@ enum ReviewCommands {
             throw CLIError("review script not found: \(url.path)")
         }
         return url
+    }
+}
+
+enum CorpusCommands {
+    static func corpus(_ args: [String]) throws {
+        guard let subcommand = args.first else { throw CLIError("corpus requires process, build, evaluate, train-audio-judge, or report") }
+        var forwarded = Array(args.dropFirst())
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
+
+        switch subcommand {
+        case "process":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                printProcessHelp()
+                return
+            }
+            guard !ArgumentEditing.hasOption("out-dir", in: forwarded),
+                  !ArgumentEditing.hasOption("corpus-dir", in: forwarded)
+            else {
+                throw CLIError("corpus process uses default report directories; run build/evaluate/train-audio-judge separately for custom paths")
+            }
+            let sessions = try takeSessions(from: &forwarded, sessionsRoot: sessionsRoot)
+            try reportSessionQuality(sessions: sessions)
+            try build(sessions: sessions, extraArgs: forwarded)
+            try evaluate(extraArgs: [])
+            try trainAudioJudge(extraArgs: [])
+            try operationalReadiness()
+            try CorpusPrinter.printSessionQuality()
+            try CorpusPrinter.printBuild()
+            try CorpusPrinter.printEvaluation()
+            try CorpusPrinter.printAudioJudge()
+            try CorpusPrinter.printOperationalReadiness()
+        case "build":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("build-regression-corpus.py").path] + forwarded)
+                return
+            }
+            let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/regression-corpus")
+            let sessions = try takeSessions(from: &forwarded, sessionsRoot: sessionsRoot)
+            try build(sessions: sessions, extraArgs: forwarded)
+            try CorpusPrinter.printBuild(outDir: outDir)
+        case "evaluate":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("evaluate-regression-corpus.py").path] + forwarded)
+                return
+            }
+            let outDir = PathURLs.fileURL(
+                ArgumentEditing.peekOption("out-dir", in: forwarded)
+                    ?? ArgumentEditing.peekOption("corpus-dir", in: forwarded)
+                    ?? "sessions/_reports/regression-corpus"
+            )
+            try evaluate(extraArgs: forwarded)
+            try CorpusPrinter.printEvaluation(outDir: outDir)
+        case "train-audio-judge":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("train-audio-judge-v0.py").path] + forwarded)
+                return
+            }
+            let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/audio-judge-v0")
+            try trainAudioJudge(extraArgs: forwarded)
+            try CorpusPrinter.printAudioJudge(outDir: outDir)
+        case "report":
+            guard forwarded.isEmpty else { throw CLIError("corpus report only supports --sessions-root") }
+            try PipelineCommands.report(["corpus", "--sessions-root", sessionsRoot.path])
+        default:
+            throw CLIError("unknown corpus command: \(subcommand)")
+        }
+    }
+
+    private static func reportSessionQuality(sessions: [URL]) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("report-session-quality.py").path,
+        ] + sessions.map(\.path) + [
+            "--out-dir", "sessions/_reports/session-quality",
+            "--write-session-readiness",
+        ])
+    }
+
+    private static func build(sessions: [URL], extraArgs: [String]) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("build-regression-corpus.py").path,
+        ] + sessions.map(\.path) + extraArgs)
+    }
+
+    private static func evaluate(extraArgs: [String]) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("evaluate-regression-corpus.py").path,
+        ] + extraArgs)
+    }
+
+    private static func trainAudioJudge(extraArgs: [String]) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("train-audio-judge-v0.py").path,
+        ] + extraArgs)
+    }
+
+    private static func operationalReadiness() throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("report-operational-readiness.py").path,
+        ])
+    }
+
+    private static func takeSessions(from args: inout [String], sessionsRoot: URL) throws -> [URL] {
+        var targets: [String] = []
+        while let first = args.first, !first.hasPrefix("--") {
+            targets.append(first)
+            args.removeFirst()
+        }
+        guard !targets.isEmpty else { throw CLIError("corpus command requires all, latest, or at least one session path") }
+        if targets == ["all"] {
+            let sessions = try SessionResolver.all(in: sessionsRoot)
+            guard !sessions.isEmpty else { throw CLIError("no sessions with session.json found under \(sessionsRoot.path)") }
+            return sessions
+        }
+        return try targets.map { try SessionResolver.resolve($0, sessionsRoot: sessionsRoot) }
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("corpus script not found: \(url.path)")
+        }
+        return url
+    }
+
+    private static func printProcessHelp() {
+        print("""
+        usage: murmurmark corpus process all|latest|./session... [options]
+
+        Runs the local corpus quality loop:
+          1. report-session-quality.py
+          2. build-regression-corpus.py
+          3. evaluate-regression-corpus.py
+          4. train-audio-judge-v0.py
+          5. report-operational-readiness.py
+
+        Options:
+          --sessions-root PATH  Sessions directory for all/latest. Default: sessions
+          --per-label N         Forwarded to build-regression-corpus.py
+          --max-items N         Forwarded to build-regression-corpus.py
+          --copy-clips          Forwarded to build-regression-corpus.py
+          --no-copy-clips       Forwarded to build-regression-corpus.py
+        """)
     }
 }
 
@@ -2903,6 +3058,13 @@ enum ArgumentEditing {
         return value
     }
 
+    static func peekOption(_ key: String, in args: [String]) -> String? {
+        let flag = "--\(key)"
+        guard let index = args.firstIndex(of: flag), index + 1 < args.count else { return nil }
+        let value = args[index + 1]
+        return value.hasPrefix("--") ? nil : value
+    }
+
     static func hasHelpFlag(_ args: [String]) -> Bool {
         args.contains("--help") || args.contains("-h")
     }
@@ -3094,6 +3256,103 @@ enum ReviewPrinter {
         if let value = value as? Bool { return value }
         if let text = value as? String { return ["true", "yes", "1"].contains(text.lowercased()) }
         return nil
+    }
+
+    private static func double(_ value: Any?) -> Double? {
+        if let number = value as? NSNumber { return number.doubleValue }
+        if let text = value as? String { return Double(text) }
+        return nil
+    }
+
+    private static func int(_ value: Any?) -> Int? {
+        if let number = value as? NSNumber { return number.intValue }
+        if let text = value as? String { return Int(text) }
+        return nil
+    }
+
+    private static func compactJSON(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return "\(value)"
+        }
+        return text
+    }
+}
+
+enum CorpusPrinter {
+    static func printSessionQuality() throws {
+        try ReadinessPrinter.printCorpus(report: PathURLs.fileURL("sessions/_reports/session-quality/session_quality_report.json"))
+    }
+
+    static func printBuild(outDir: URL = PathURLs.fileURL("sessions/_reports/regression-corpus")) throws {
+        let url = outDir.appendingPathComponent("regression_corpus_summary.json")
+        let payload = try JSONFiles.object(url)
+        print("")
+        print("regression_corpus:")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("regression_corpus.md")))")
+        print("  sessions: \(int(payload["session_count"]) ?? 0)")
+        print("  items: \(int(payload["item_count"]) ?? 0)")
+        if let labels = payload["by_label"] as? [String: Any] {
+            print("  by_label: \(compactJSON(labels))")
+        }
+        if let skipped = payload["skipped_sessions"] as? [[String: Any]], !skipped.isEmpty {
+            print("  skipped_sessions: \(skipped.count)")
+        }
+    }
+
+    static func printEvaluation(outDir: URL = PathURLs.fileURL("sessions/_reports/regression-corpus")) throws {
+        let url = outDir.appendingPathComponent("regression_corpus_evaluation.json")
+        let payload = try JSONFiles.object(url)
+        print("")
+        print("regression_evaluation:")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("regression_corpus_evaluation.md")))")
+        print("  readiness: \(string(payload["readiness"]) ?? "unknown")")
+        print("  sessions: \(int(payload["session_count"]) ?? 0)")
+        print("  items: \(int(payload["item_count"]) ?? 0)")
+        if let missing = payload["missing_labels"] as? [Any], !missing.isEmpty {
+            print("  missing_labels: \(compactJSON(missing))")
+        }
+    }
+
+    static func printAudioJudge(outDir: URL = PathURLs.fileURL("sessions/_reports/audio-judge-v0")) throws {
+        let url = outDir.appendingPathComponent("audio_judge_v0_report.json")
+        let payload = try JSONFiles.object(url)
+        let training = payload["training"] as? [String: Any] ?? [:]
+        let evaluation = payload["evaluation"] as? [String: Any] ?? [:]
+        let queue = payload["review_queue"] as? [String: Any] ?? [:]
+        print("")
+        print("audio_judge:")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("audio_judge_v0_report.md")))")
+        print("  rows: \(int(training["rows"]) ?? 0)")
+        print("  sessions: \(int(training["sessions"]) ?? 0)")
+        if let accuracy = double(evaluation["cv_accuracy"]) {
+            print(String(format: "  cv_accuracy: %.3f", accuracy))
+        }
+        print("  queue_items: \(int(queue["items"]) ?? 0)")
+        print("  remaining_human_review_items: \(int(queue["remaining_human_review_items"]) ?? 0)")
+        if let labels = queue["by_judge_label"] as? [String: Any] {
+            print("  by_judge_label: \(compactJSON(labels))")
+        }
+    }
+
+    static func printOperationalReadiness() throws {
+        let url = PathURLs.fileURL("sessions/_reports/operational-readiness/operational_readiness_report.json")
+        let payload = try JSONFiles.object(url)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        print("")
+        print("operational_readiness:")
+        print("  report: sessions/_reports/operational-readiness/operational_readiness_report.md")
+        print("  verdict: \(string(summary["verdict"]) ?? "unknown")")
+        print("  sessions_ready_for_notes: \(int(summary["sessions_ready_for_notes"]) ?? 0)")
+        print("  sessions_review_first: \(int(summary["sessions_review_first"]) ?? 0)")
+        print("  review_minutes: \(double(summary["review_minutes"]) ?? 0)")
+        print("  next: murmurmark review plan")
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
     }
 
     private static func double(_ value: Any?) -> Double? {

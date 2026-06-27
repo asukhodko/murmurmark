@@ -47,9 +47,7 @@ For a regression set or several real meetings, build a private quality summary u
 `sessions/_reports/` tree:
 
 ```bash
-.venv/bin/python scripts/report-session-quality.py \
-  sessions/<session-1> \
-  sessions/<session-2>
+.build/debug/murmurmark corpus report
 
 less sessions/_reports/session-quality/session_quality_report.md
 ```
@@ -58,27 +56,31 @@ To turn audited sessions into a reusable private regression set for future clean
 work, build a corpus from existing audio-review audits:
 
 ```bash
-.venv/bin/python scripts/build-regression-corpus.py \
+.build/debug/murmurmark corpus build \
   sessions/<session-1> \
   sessions/<session-2> \
   --per-label 16 \
   --max-items 160
 
-.venv/bin/python scripts/evaluate-regression-corpus.py \
-  --corpus-dir sessions/_reports/regression-corpus
+.build/debug/murmurmark corpus evaluate
 
-.venv/bin/python scripts/train-audio-judge-v0.py \
-  --corpus-dir sessions/_reports/regression-corpus \
-  --out-dir sessions/_reports/audio-judge-v0
+.build/debug/murmurmark corpus train-audio-judge
 
-.venv/bin/python scripts/report-operational-readiness.py \
-  --session-quality sessions/_reports/session-quality/session_quality_report.json \
-  --corpus-evaluation sessions/_reports/regression-corpus/regression_corpus_evaluation.json \
-  --audio-judge sessions/_reports/audio-judge-v0/audio_judge_v0_report.json \
-  --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
+.build/debug/murmurmark review plan
+```
 
-.venv/bin/python scripts/build-review-plan.py \
-  --operational-readiness sessions/_reports/operational-readiness/operational_readiness_report.json
+For the normal full refresh, use one command:
+
+```bash
+.build/debug/murmurmark corpus process all --per-label 16 --max-items 160
+```
+
+The lower-level scripts remain available for debugging specific files:
+
+```bash
+.venv/bin/python scripts/report-operational-readiness.py
+
+.venv/bin/python scripts/build-review-plan.py
 
 .venv/bin/python scripts/build-agent-review-decisions.py
 
@@ -182,6 +184,11 @@ swift run murmurmark list-apps
 .build/debug/murmurmark review latest --lane fast_confirm_drop
 .build/debug/murmurmark review progress
 .build/debug/murmurmark review apply
+.build/debug/murmurmark corpus process all --per-label 16 --max-items 160
+.build/debug/murmurmark corpus build ./sessions/<session> --per-label 16 --max-items 160
+.build/debug/murmurmark corpus evaluate
+.build/debug/murmurmark corpus train-audio-judge
+.build/debug/murmurmark corpus report
 .build/debug/murmurmark preprocess ./sessions/<session> --echo diagnostic
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine linear_baseline
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine local_fir

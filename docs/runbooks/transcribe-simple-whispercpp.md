@@ -401,18 +401,15 @@ Use the already-audited sessions to build a private corpus for future cleanup an
 work:
 
 ```bash
-.venv/bin/python scripts/build-regression-corpus.py \
+.build/debug/murmurmark corpus build \
   sessions/<session-1> \
   sessions/<session-2> \
   --per-label 16 \
   --max-items 160
 
-.venv/bin/python scripts/evaluate-regression-corpus.py \
-  --corpus-dir sessions/_reports/regression-corpus
+.build/debug/murmurmark corpus evaluate
 
-.venv/bin/python scripts/train-audio-judge-v0.py \
-  --corpus-dir sessions/_reports/regression-corpus \
-  --out-dir sessions/_reports/audio-judge-v0
+.build/debug/murmurmark corpus train-audio-judge
 
 .build/debug/murmurmark review plan
 .build/debug/murmurmark review latest --lane fast_confirm_drop
@@ -424,6 +421,12 @@ less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
 less sessions/_reports/audio-judge-v0/audio_judge_v0_report.md
 less sessions/_reports/operational-readiness/operational_readiness_report.md
 less sessions/_reports/review-plan/review_plan.md
+```
+
+For a full refresh with all sessions under `./sessions`, use:
+
+```bash
+.build/debug/murmurmark corpus process all --per-label 16 --max-items 160
 ```
 
 The script reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, balances examples by
