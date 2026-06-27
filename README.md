@@ -295,6 +295,8 @@ For faster listening, `scripts/build-review-lane-pack.py --lane fast_confirm_dro
 WAV plus a Markdown index under `sessions/_reports/review-plan/lane-packs/`.
 After listening to that pack, `scripts/apply-review-lane-pack-decisions.py` can copy a compact answer
 string such as `ddddkddrdd` back into `review_decisions.jsonl`.
+`scripts/report-review-decisions-progress.py` then shows how much of the queue is actually closed
+before running the heavier batch apply.
 
 `scripts/review-decisions-cli.py` is the fastest way to fill that checklist. It walks through
 `review_decisions.template.jsonl`, plays the preferred stereo clip, shows the `Me`/`remote` texts and

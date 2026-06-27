@@ -888,6 +888,31 @@ each answer against `allowed_decisions`, writes `review_source: "lane_pack"`, an
 }
 ```
 
+`report-review-decisions-progress.py` summarizes the current edited review file before applying it:
+
+```text
+sessions/_reports/review-plan/
+  review_decisions_progress.json
+  review_decisions_progress.md
+```
+
+The JSON uses `murmurmark.review_decisions_progress/v1` and reports totals, remaining raw-audio
+seconds, grouped progress by `review_lane` and `session_id`, and validation errors:
+
+```json
+{
+  "schema": "murmurmark.review_decisions_progress/v1",
+  "summary": {
+    "total": 40,
+    "reviewed": 10,
+    "remaining": 30,
+    "remaining_minutes": 1.28,
+    "invalid_rows": 0,
+    "ready_for_batch_apply": false
+  }
+}
+```
+
 After review, `apply-review-decisions.py` consumes the edited decision file and writes a separate
 `reviewed_v1` transcript profile:
 

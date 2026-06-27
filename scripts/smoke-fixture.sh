@@ -774,6 +774,13 @@ EOF
     --answers k >/dev/null
   jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "lane_pack"' "$lane_pack_apply_out" >/dev/null
   jq -e '.schema == "murmurmark.review_lane_pack_apply_report/v1" and .summary.reviewed_count == 1 and .summary.rejected_count == 0' "$workdir/review_lane_pack_apply_report.json" >/dev/null
+  "$repo_root/scripts/report-review-decisions-progress.py" \
+    --template "$review_template" \
+    --decisions "$lane_pack_apply_out" \
+    --out "$workdir/review_decisions_progress.json" \
+    --markdown "$workdir/review_decisions_progress.md" >/dev/null
+  jq -e '.schema == "murmurmark.review_decisions_progress/v1" and .summary.reviewed == 1 and .summary.remaining == 1 and .summary.invalid_rows == 0 and (.by_lane | length) == 2' "$workdir/review_decisions_progress.json" >/dev/null
+  rg -q 'Ready for batch apply: `False`' "$workdir/review_decisions_progress.md"
   local_cli_template="$workdir/review_decisions_local_only.template.jsonl"
   local_cli_out="$workdir/review_decisions_local_only.jsonl"
   local_cli_stdout="$workdir/review_decisions_local_only_stdout.txt"

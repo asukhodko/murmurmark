@@ -492,6 +492,14 @@ Then copy decisions from the pack back into the full review file:
 ```
 
 Answer shortcuts are `d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.` or `n=todo`.
+Before applying decisions to transcripts, check progress and validation:
+
+```bash
+.venv/bin/python scripts/report-review-decisions-progress.py \
+  --decisions sessions/_reports/review-plan/review_decisions.jsonl
+
+less sessions/_reports/review-plan/review_decisions_progress.md
+```
 
 `apply-review-decisions-batch.py` is the normal command after the review file is filled. It applies
 the same edited JSONL to every session mentioned in the review plan and can immediately regenerate
