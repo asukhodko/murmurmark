@@ -537,8 +537,9 @@ enum ReviewCommands {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-decisions-batch.py").path] + forwarded)
                 return
             }
+            try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
             try apply(forwarded)
-            try ReviewPrinter.printApply(report: PathURLs.fileURL("sessions/_reports/review-plan/review_decisions_apply_report.json"))
+            try ReviewPrinter.printApply(report: applyReport(from: forwarded))
         case "first-lane":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 ReviewFirstLaneCommand.printHelp()
@@ -643,6 +644,10 @@ enum ReviewCommands {
 
     private static func workspaceApplyReport(from args: [String]) -> URL {
         PathURLs.fileURL(ArgumentEditing.peekOption("report", in: args) ?? "sessions/_reports/review-plan/review_workspace_apply_report.json")
+    }
+
+    private static func applyReport(from args: [String]) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("out", in: args) ?? "sessions/_reports/review-plan/review_decisions_apply_report.json")
     }
 
     private static func workspaceDecisionsOut(from args: [String]) -> URL {

@@ -1409,6 +1409,24 @@ PY
   [[ -s "$agent_review_dir/review-plan/review_plan.json" ]]
   jq -e '.schema == "murmurmark.agent_review_decisions/v1"' "$agent_review_dir/agent_review_report.agent_reviewed_v1.json" >/dev/null
   jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.failed_sessions == 0 and .summary.failed_refresh_steps == 0' "$agent_review_dir/review_decisions_apply.agent_reviewed_v1.json" >/dev/null
+  latest_apply_report="$agent_review_dir/review_decisions_apply.latest.json"
+  touch "$group_session"
+  latest_apply_output="$("$bin" review apply \
+    --sessions-root "$workdir" \
+    --session latest \
+    --decisions "$agent_review_dir/review_decisions.agent_reviewed_v1.jsonl" \
+    --review-template "$agent_review_dir/review_decisions.agent_reviewed_v1.template.jsonl" \
+    --output-profile reviewed_v1 \
+    --out "$latest_apply_report" \
+    --session-quality-out-dir "$agent_review_dir/latest-session-quality" \
+    --operational-readiness-out-dir "$agent_review_dir/latest-operational-readiness" \
+    --review-plan-out-dir "$agent_review_dir/latest-review-plan" \
+    --corpus-evaluation "$corpus_dir/regression_corpus_evaluation.json" \
+    --audio-judge "$judge_dir/audio_judge_v0_report.json" \
+    --audio-judge-queue "$judge_dir/audio_judge_v0_queue_predictions.jsonl")"
+  echo "$latest_apply_output" | grep -q '^  report: .*review_decisions_apply.latest.json'
+  echo "$latest_apply_output" | grep -q '^  next: murmurmark report '
+  jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.session_count == 1 and .summary.failed_sessions == 0' "$latest_apply_report" >/dev/null
 fi
 
 empty_session="$workdir/empty-session"
