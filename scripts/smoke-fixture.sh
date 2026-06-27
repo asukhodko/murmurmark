@@ -783,6 +783,13 @@ EOF
     --transcript-profile order_repair_v1 >/dev/null
   jq -e '.selected_transcript_profile == "order_repair_v1" and .verdict != "failed"' \
     "$order_session/derived/synthesis-simple/extractive/quality_verdict.order_repair_v1.json" >/dev/null
+  "$repo_root/scripts/report-session-quality.py" "$order_session" --out-dir "$workdir/order-repair-session-quality" >/dev/null
+  jq -e '
+    .sessions[0].selected_profile == "order_repair_v1" and
+    .sessions[0].transcript_order_recommended_next_step == "transcript_order_repaired_clear" and
+    .sessions[0].transcript_order_review_seconds == 0 and
+    .sessions[0].transcript_order_repair_applied_repairs == 1
+  ' "$workdir/order-repair-session-quality/session_quality_report.json" >/dev/null
 
   order_operational="$workdir/order-operational-readiness.json"
   python3 - "$order_operational" "$order_session" <<'PY'

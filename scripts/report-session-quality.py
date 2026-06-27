@@ -772,7 +772,11 @@ def local_recall_metrics(local_recall: dict[str, Any] | None, review_report: dic
     }
 
 
-def transcript_order_metrics(order_audit: dict[str, Any] | None, review_report: dict[str, Any] | None = None) -> dict[str, Any]:
+def transcript_order_metrics(
+    order_audit: dict[str, Any] | None,
+    review_report: dict[str, Any] | None = None,
+    order_repair_report: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if not isinstance(order_audit, dict):
         return {
             "transcript_order_audit_status": "missing",
@@ -784,8 +788,42 @@ def transcript_order_metrics(order_audit: dict[str, Any] | None, review_report: 
             "transcript_order_review_seconds": None,
             "transcript_order_blocking_order_risk": None,
             "transcript_order_recommended_next_step": "run_transcript_order_audit",
+            "transcript_order_repair_gates_passed": None,
+            "transcript_order_repair_applied_repairs": None,
+            "transcript_order_repair_unrepaired_order_risks": None,
         }
     summary = order_audit.get("summary") if isinstance(order_audit.get("summary"), dict) else {}
+    order_repair_summary = (
+        order_repair_report.get("summary")
+        if isinstance(order_repair_report, dict) and isinstance(order_repair_report.get("summary"), dict)
+        else {}
+    )
+    order_repair_gates = (
+        order_repair_report.get("gates")
+        if isinstance(order_repair_report, dict) and isinstance(order_repair_report.get("gates"), dict)
+        else {}
+    )
+    if order_repair_gates.get("passed") is True:
+        unrepaired = safe_int(order_repair_summary.get("unrepaired_order_risks")) or 0
+        marked = safe_int(order_repair_summary.get("marked_needs_review")) or 0
+        original_risk_seconds = round_or_none(summary.get("probable_order_risk_seconds")) or 0.0
+        risk_seconds = 0.0 if unrepaired == 0 else original_risk_seconds
+        review_seconds = 0.0 if marked == 0 else original_risk_seconds
+        blocking = bool(risk_seconds > 0.0 or review_seconds >= 10.0)
+        return {
+            "transcript_order_audit_status": order_audit.get("status"),
+            "transcript_order_audited_overlap_count": safe_int(summary.get("audited_overlap_count")),
+            "transcript_order_probable_order_risk_count": unrepaired,
+            "transcript_order_probable_order_risk_seconds": risk_seconds,
+            "transcript_order_needs_review_count": marked,
+            "transcript_order_needs_review_seconds": review_seconds,
+            "transcript_order_review_seconds": round(risk_seconds + review_seconds, 3),
+            "transcript_order_blocking_order_risk": blocking,
+            "transcript_order_recommended_next_step": "transcript_order_repaired_clear" if not blocking else "review_transcript_order_items",
+            "transcript_order_repair_gates_passed": True,
+            "transcript_order_repair_applied_repairs": safe_int(order_repair_summary.get("applied_repairs")),
+            "transcript_order_repair_unrepaired_order_risks": unrepaired,
+        }
     review_summary = review_report.get("summary") if isinstance(review_report, dict) and isinstance(review_report.get("summary"), dict) else {}
     review_gates = review_report.get("gates") if isinstance(review_report, dict) and isinstance(review_report.get("gates"), dict) else {}
     if review_gates.get("passed") is True and safe_int(review_summary.get("transcript_order_decision_rows")):
@@ -803,6 +841,9 @@ def transcript_order_metrics(order_audit: dict[str, Any] | None, review_report: 
             "transcript_order_review_seconds": round(risk_seconds + review_seconds, 3),
             "transcript_order_blocking_order_risk": blocking,
             "transcript_order_recommended_next_step": "transcript_order_reviewed_clear" if not blocking else "review_transcript_order_items",
+            "transcript_order_repair_gates_passed": order_repair_gates.get("passed") if order_repair_gates else None,
+            "transcript_order_repair_applied_repairs": safe_int(order_repair_summary.get("applied_repairs")),
+            "transcript_order_repair_unrepaired_order_risks": safe_int(order_repair_summary.get("unrepaired_order_risks")),
         }
     risk_seconds = round_or_none(summary.get("probable_order_risk_seconds")) or 0.0
     needs_review_seconds = round_or_none(summary.get("needs_review_seconds")) or 0.0
@@ -817,6 +858,9 @@ def transcript_order_metrics(order_audit: dict[str, Any] | None, review_report: 
         "transcript_order_review_seconds": review_seconds,
         "transcript_order_blocking_order_risk": summary.get("blocking_order_risk"),
         "transcript_order_recommended_next_step": summary.get("recommended_next_step"),
+        "transcript_order_repair_gates_passed": order_repair_gates.get("passed") if order_repair_gates else None,
+        "transcript_order_repair_applied_repairs": safe_int(order_repair_summary.get("applied_repairs")),
+        "transcript_order_repair_unrepaired_order_risks": safe_int(order_repair_summary.get("unrepaired_order_risks")),
     }
 
 
@@ -1005,6 +1049,11 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
         if profile in {"reviewed_v1", "agent_reviewed_v1"}
         else None
     )
+    order_repair_report = (
+        read_json(session / "derived/transcript-simple/whisper-cpp/order-repair/transcript_order_repair_report.order_repair_v1.json")
+        if profile == "order_repair_v1"
+        else None
+    )
     session_json = read_json(session / "session.json") or {}
 
     metrics = verdict.get("metrics") if isinstance(verdict, dict) else None
@@ -1084,7 +1133,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(synthesis_review_metrics(verdict))
     row.update(audio_review_metrics(audio_summary, session, profile))
     row.update(local_recall_metrics(local_recall, review_report))
-    row.update(transcript_order_metrics(order_audit, review_report))
+    row.update(transcript_order_metrics(order_audit, review_report, order_repair_report))
     row["risk_flags"] = risk_flags(row)
     add_use_gate(row)
     return row
@@ -1151,6 +1200,9 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "transcript_order_probable_order_risk_seconds",
         "transcript_order_needs_review_seconds",
         "transcript_order_review_seconds",
+        "transcript_order_repair_gates_passed",
+        "transcript_order_repair_applied_repairs",
+        "transcript_order_repair_unrepaired_order_risks",
         "cross_role_overlap_gt2_seconds",
         "remote_duplicate_in_me_seconds",
         "audit_harmful_seconds_after",

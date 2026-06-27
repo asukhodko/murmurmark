@@ -510,6 +510,9 @@ When repair cannot be applied safely, the original utterance remains in the outp
 `quality.transcript_order_repair.status = "needs_review"` plus `quality.needs_review = true`.
 Synthesis accepts `--transcript-profile order_repair_v1` explicitly and treats failed repair gates as
 a high-severity selection risk.
+When `order_repair_v1` gates pass, `report-session-quality.py` may select this profile and reports
+`transcript_order_recommended_next_step = "transcript_order_repaired_clear"` with zero
+`transcript_order_review_seconds` for the repaired order risk.
 
 `murmurmark corpus order` aggregates per-session order audits into:
 

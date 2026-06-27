@@ -239,7 +239,8 @@ these are the main remaining risk for wrong reply order in an otherwise readable
 order risks are included in readiness review burden and block export until reviewed.
 `murmurmark repair order` writes a separate `order_repair_v1` profile for the narrow safe case where
 the long `Me` turn can be split by its saved source ASR segments. It never edits baseline/shadow
-profiles; if the split is not safe, it marks the affected utterance for review instead.
+profiles; if the split is not safe, it marks the affected utterance for review instead. When gates
+pass, session-quality/readiness can treat the repaired order risk as cleared.
 `murmurmark corpus order` aggregates those audits across the corpus and writes the current list of
 chronology regression candidates under `sessions/_reports/transcript-order/`; corpus gates read this
 report and fail if a complete session still has blocking chronology risk.

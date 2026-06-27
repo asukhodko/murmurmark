@@ -278,6 +278,8 @@ replaces one risky `Me` utterance with before/after `Me` utterances when the sou
 sit cleanly around the remote turn and the dropped overlap text is covered by the remote transcript.
 Otherwise it keeps the original utterance and marks `quality.transcript_order_repair.status =
 needs_review`.
+After a passing repair, `murmurmark report "$SESSION"` can select `order_repair_v1` and show
+`transcript_order_repaired_clear` instead of keeping the old order-risk burden.
 
 For corpus work, aggregate order risks after the usual session-quality report:
 
