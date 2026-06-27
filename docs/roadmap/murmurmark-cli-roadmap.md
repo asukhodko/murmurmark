@@ -10,13 +10,13 @@ Roadmap лежит в формате opskarta v3:
 
 MurmurMark уже прошёл стадию proof of concept: запись, подавление эха, локальная транскрибация, timeline repair, audit cleanup, audio review, agent-reviewed слой, extractive notes и quality verdict уже работают.
 
-Ближайшая цель — сделать это не набором отдельных скриптов, а нормальным CLI-пайплайном:
+Ближайшая цель — закончить превращение набора отдельных скриптов в нормальный CLI-пайплайн:
 
-1. `murmurmark process SESSION`
-2. `murmurmark process latest`
-3. `murmurmark report SESSION`
-4. `murmurmark review SESSION`
-5. `murmurmark export SESSION --format markdown|obsidian`
+1. `murmurmark process SESSION` — готово.
+2. `murmurmark process latest` — готово.
+3. `murmurmark report SESSION` и `murmurmark report corpus` — готово.
+4. `murmurmark review SESSION` — следующий крупный CLI-блок.
+5. `murmurmark export SESSION --format markdown|obsidian` — следующий пользовательский output-блок.
 
 UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
 

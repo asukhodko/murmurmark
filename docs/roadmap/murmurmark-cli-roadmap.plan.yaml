@@ -137,31 +137,32 @@ nodes:
     status: current
     effort: 28
     notes: |
-      Сделать текущий набор скриптов одной понятной пользовательской поверхностью:
-      process, report, review, export, latest, dry-run и единая сводка готовности.
+      Текущий набор скриптов постепенно становится пользовательской CLI-поверхностью.
+      Уже есть process, latest, report, plan-only и readiness summary. Остались review,
+      export и более строгая конфигурация моделей/prompt.
 
   cli-process-command:
     title: "murmurmark process SESSION"
     kind: task
     parent: cli-orchestration
-    status: current
+    status: done
     effort: 6
-    notes: "Обёртка над текущим run-session-pipeline.py с понятными этапами, профилями и ошибками."
+    notes: "Обёртка над текущим run-session-pipeline.py с понятными этапами, профилями, plan-only и readiness summary."
 
   cli-record-process-latest:
     title: "record -> latest -> process"
     kind: task
     parent: cli-orchestration
     deps: [cli-process-command]
-    status: current
+    status: done
     effort: 4
-    notes: "Путь для обычной работы: записать новую сессию, выбрать последнюю, обработать без ручного SESSION."
+    notes: "Путь для обычной работы: записать новую сессию и обработать её через process latest."
 
   cli-report-command:
     title: "murmurmark report SESSION и report corpus"
     kind: task
     parent: cli-orchestration
-    status: next
+    status: done
     effort: 4
     notes: "Единый вход к quality verdict, readiness, profile metrics и corpus summary."
 
@@ -170,9 +171,9 @@ nodes:
     kind: task
     parent: cli-orchestration
     deps: [cli-report-command]
-    status: next
+    status: done
     effort: 4
-    notes: "Verdict, выбранный профиль, review burden, рискованные интервалы и следующая команда."
+    notes: "process/report печатают gate, выбранный профиль, verdict, review burden и основные output paths."
 
   cli-config-model-prompt:
     title: "Consistent config/model/prompt handling"
@@ -186,9 +187,9 @@ nodes:
     title: "Dry-run и plan mode"
     kind: task
     parent: cli-orchestration
-    status: next
+    status: done
     effort: 3
-    notes: "Показать, какие этапы будут запущены, что будет перегенерировано и какие raw файлы не трогаются."
+    notes: "murmurmark process прокидывает --plan-only в runner и показывает planned steps."
 
   cli-export-command:
     title: "murmurmark export SESSION --format markdown|obsidian"
@@ -761,8 +762,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "Главный следующий прирост — process/report/review/export как нормальные команды."
-          next_sync_goal: "Собрать process/latest/report и единую readiness summary."
+          sync_note: "process/latest/report/readiness уже работают как нормальные команды; следующий разрыв — review/export/config."
+          next_sync_goal: "Собрать review/export команды и единый config для модели/prompt."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]

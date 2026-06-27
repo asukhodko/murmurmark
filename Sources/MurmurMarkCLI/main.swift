@@ -26,6 +26,12 @@ struct MurmurMark {
                 Commands.listAudioDevices()
             case "record":
                 try await Commands.record(args)
+            case "latest":
+                try PipelineCommands.latest(args)
+            case "process":
+                try PipelineCommands.process(args)
+            case "report":
+                try PipelineCommands.report(args)
             case "preprocess":
                 try Commands.preprocess(args)
             case "reconcile-transcript":
@@ -58,6 +64,11 @@ struct MurmurMark {
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
+          murmurmark latest [--sessions-root ./sessions]
+          murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--force-asr]
+                                [--reuse-asr-cache] [--plan-only] [--sessions-root ./sessions]
+          murmurmark report ./session|latest [--sessions-root ./sessions]
+          murmurmark report corpus [--sessions-root ./sessions]
           murmurmark preprocess ./session [--echo diagnostic|clean] [--echo-engine linear_baseline|local_fir|speexdsp|webrtc-apm]
                               [--echo-policy preserve_local|role_safe|strict_silence]
           murmurmark reconcile-transcript ./session [--in ./transcript.rich.json] [--out ./transcript.rich.json]
@@ -70,6 +81,8 @@ struct MurmurMark {
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C or SIGTERM and finalizes the session.
           Without --out, recording creates a unique directory under ./sessions.
+          process runs the current post-recording pipeline and prints the readiness summary.
+          report refreshes and prints the readiness summary without rerunning ASR/audio processing.
         """)
     }
 }
@@ -141,7 +154,79 @@ enum Commands {
         )
         try await recorder.run()
     }
+}
 
+enum PipelineCommands {
+    static func latest(_ args: [String]) throws {
+        var remaining = args
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        guard remaining.isEmpty else {
+            throw CLIError("latest only supports --sessions-root")
+        }
+        let session = try SessionResolver.latest(in: sessionsRoot)
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+    }
+
+    static func process(_ args: [String]) throws {
+        guard let target = args.first else { throw CLIError("process requires a session path or latest") }
+        var forwarded = Array(args.dropFirst())
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        let python = try PythonRuntime.resolve()
+        let script = PathURLs.fileURL("scripts/run-session-pipeline.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("pipeline runner not found: \(script.path)")
+        }
+
+        var command = [script.path, session.path]
+        if !ArgumentEditing.hasOption("murmurmark-bin", in: forwarded) {
+            command += ["--murmurmark-bin", ExecutablePath.current()]
+        }
+        command += forwarded
+
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        fflush(stdout)
+        try Tooling.runPath(python, command)
+        try ReadinessPrinter.printSession(session)
+    }
+
+    static func report(_ args: [String]) throws {
+        guard let target = args.first else { throw CLIError("report requires a session path, latest, or corpus") }
+        var remaining = Array(args.dropFirst())
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let python = try PythonRuntime.resolve()
+        let script = PathURLs.fileURL("scripts/report-session-quality.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("session quality reporter not found: \(script.path)")
+        }
+
+        if target == "corpus" {
+            guard remaining.isEmpty else { throw CLIError("report corpus only supports --sessions-root") }
+            let sessions = try SessionResolver.all(in: sessionsRoot)
+            guard !sessions.isEmpty else { throw CLIError("no sessions with session.json found under \(sessionsRoot.path)") }
+            let command = [script.path] + sessions.map(\.path) + [
+                "--out-dir", "sessions/_reports/session-quality",
+                "--write-session-readiness",
+            ]
+            try Tooling.runPath(python, command)
+            try ReadinessPrinter.printCorpus(report: PathURLs.fileURL("sessions/_reports/session-quality/session_quality_report.json"))
+            return
+        }
+
+        guard remaining.isEmpty else { throw CLIError("unexpected report arguments: \(remaining.joined(separator: " "))") }
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        try Tooling.runPath(python, [
+            script.path,
+            session.path,
+            "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
+            "--write-session-readiness",
+        ])
+        try ReadinessPrinter.printSession(session)
+    }
+}
+
+extension Commands {
     static func inspect(_ args: [String]) throws {
         guard let first = args.first(where: { !$0.hasPrefix("--") }) else { throw CLIError("inspect requires a session path") }
         let showEcho = args.contains("--echo")
@@ -2577,6 +2662,18 @@ enum JSONFiles {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(value).write(to: url, options: .atomic)
     }
+
+    static func object(_ url: URL) throws -> [String: Any] {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("JSON file not found: \(url.path)")
+        }
+        let data = try Data(contentsOf: url)
+        let value = try JSONSerialization.jsonObject(with: data)
+        guard let object = value as? [String: Any] else {
+            throw CLIError("expected JSON object: \(url.path)")
+        }
+        return object
+    }
 }
 
 enum JSONLines {
@@ -2652,6 +2749,188 @@ enum PathURLs {
         }
         return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent(path)
+    }
+}
+
+enum PathDisplay {
+    static func display(_ url: URL) -> String {
+        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let path = url.standardizedFileURL.path
+        let root = cwd.standardizedFileURL.path
+        if path == root {
+            return "."
+        }
+        if path.hasPrefix(root + "/") {
+            return String(path.dropFirst(root.count + 1))
+        }
+        return path
+    }
+}
+
+enum ExecutablePath {
+    static func current() -> String {
+        let raw = CommandLine.arguments.first ?? ".build/debug/murmurmark"
+        if raw.hasPrefix("/") {
+            return raw
+        }
+        if raw.contains("/") {
+            return PathURLs.fileURL(raw).path
+        }
+        if let resolved = Tooling.which(raw) {
+            return resolved
+        }
+        return PathURLs.fileURL(raw).path
+    }
+}
+
+enum ArgumentEditing {
+    static func hasOption(_ key: String, in args: [String]) -> Bool {
+        args.contains("--\(key)")
+    }
+
+    static func takeOption(_ key: String, from args: inout [String]) -> String? {
+        let flag = "--\(key)"
+        guard let index = args.firstIndex(of: flag) else { return nil }
+        args.remove(at: index)
+        guard index < args.count else { return nil }
+        let value = args.remove(at: index)
+        if value.hasPrefix("--") {
+            args.insert(value, at: index)
+            return nil
+        }
+        return value
+    }
+}
+
+enum SessionResolver {
+    static func resolve(_ value: String, sessionsRoot: URL) throws -> URL {
+        if value == "latest" {
+            return try latest(in: sessionsRoot)
+        }
+        let session = PathURLs.fileURL(value)
+        guard FileManager.default.fileExists(atPath: session.appendingPathComponent("session.json").path) else {
+            throw CLIError("session.json not found under \(session.path)")
+        }
+        return session
+    }
+
+    static func latest(in root: URL) throws -> URL {
+        let sessions = try all(in: root)
+        guard let session = sessions.first else {
+            throw CLIError("no sessions with session.json found under \(root.path)")
+        }
+        return session
+    }
+
+    static func all(in root: URL) throws -> [URL] {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: root.path) else {
+            throw CLIError("sessions root not found: \(root.path)")
+        }
+        let urls = try fileManager.contentsOfDirectory(
+            at: root,
+            includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        )
+        var sessions: [(url: URL, modified: Date)] = []
+        for url in urls {
+            let values = try url.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
+            guard values.isDirectory == true else { continue }
+            guard !url.lastPathComponent.hasPrefix("_") else { continue }
+            guard fileManager.fileExists(atPath: url.appendingPathComponent("session.json").path) else { continue }
+            sessions.append((url, values.contentModificationDate ?? Date.distantPast))
+        }
+        return sessions.sorted { left, right in
+            if left.modified == right.modified {
+                return left.url.lastPathComponent > right.url.lastPathComponent
+            }
+            return left.modified > right.modified
+        }.map(\.url)
+    }
+}
+
+enum ReadinessPrinter {
+    static func printSession(_ session: URL) throws {
+        let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            print("readiness: missing")
+            print("hint: run `murmurmark report \(PathDisplay.display(session))`")
+            return
+        }
+        let payload = try JSONFiles.object(url)
+        let metrics = payload["metrics"] as? [String: Any] ?? [:]
+        let outputs = payload["outputs"] as? [String: Any] ?? [:]
+        let gate = string(payload["use_gate"]) ?? "unknown"
+        let recommendation = string(payload["recommendation"]) ?? "unknown"
+        let profile = string(payload["selected_profile"]) ?? "unknown"
+        let verdict = string(payload["verdict"]) ?? "unknown"
+        let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0
+        let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0) * 100
+
+        print("")
+        print("readiness:")
+        print("  session: \(PathDisplay.display(session))")
+        print("  gate: \(gate)")
+        print("  recommendation: \(recommendation)")
+        print("  selected_profile: \(profile)")
+        print("  verdict: \(verdict)")
+        print(String(format: "  review_burden: %.2f min / %.2f%%", reviewSeconds / 60, reviewRatio))
+        print("  open:")
+        for key in ["transcript", "notes", "quality_verdict", "audio_review_report", "local_recall_review"] {
+            if let path = outputPath(key, outputs: outputs) {
+                let target = path.hasPrefix("/") ? URL(fileURLWithPath: path) : session.appendingPathComponent(path)
+                print("    \(key): \(PathDisplay.display(target))")
+            }
+        }
+    }
+
+    static func printCorpus(report: URL) throws {
+        let payload = try JSONFiles.object(report)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        print("")
+        print("corpus:")
+        print("  report: \(report.path)")
+        print("  sessions: \(int(summary["session_count"]) ?? 0)")
+        print("  complete_pipeline_count: \(int(summary["complete_pipeline_count"]) ?? 0)")
+        print("  total_duration_min: \(double(summary["total_duration_min"]) ?? 0)")
+        if let profiles = summary["by_selected_profile"] as? [String: Any] {
+            print("  by_selected_profile: \(compactJSON(profiles))")
+        }
+        if let verdicts = summary["by_verdict"] as? [String: Any] {
+            print("  by_verdict: \(compactJSON(verdicts))")
+        }
+    }
+
+    private static func outputPath(_ key: String, outputs: [String: Any]) -> String? {
+        guard let item = outputs[key] as? [String: Any] else { return nil }
+        guard (item["exists"] as? Bool) == true else { return nil }
+        return item["path"] as? String
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
+    }
+
+    private static func double(_ value: Any?) -> Double? {
+        if let number = value as? NSNumber { return number.doubleValue }
+        if let text = value as? String { return Double(text) }
+        return nil
+    }
+
+    private static func int(_ value: Any?) -> Int? {
+        if let number = value as? NSNumber { return number.intValue }
+        if let text = value as? String { return Int(text) }
+        return nil
+    }
+
+    private static func compactJSON(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return "\(value)"
+        }
+        return text
     }
 }
 

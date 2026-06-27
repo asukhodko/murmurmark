@@ -19,13 +19,13 @@ SESSION=./sessions/<session>
 MODEL="$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 
 git pull
-.venv/bin/python scripts/run-session-pipeline.py "$SESSION" \
+swift build
+.build/debug/murmurmark process "$SESSION" \
   --model "$MODEL" \
   --language ru \
   --force-asr
 
-jq '{status, outputs}' "$SESSION/derived/pipeline-run/pipeline_run_report.json"
-less "$SESSION/derived/readiness/session_readiness.md"
+.build/debug/murmurmark report "$SESSION"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 
@@ -122,14 +122,13 @@ swift build
 
 .build/debug/murmurmark record --target-bundle system
 
-SESSION="$(ls -td sessions/* | head -1)"
-echo "SESSION=\"$SESSION\""
-
-.venv/bin/python scripts/run-session-pipeline.py "$SESSION" \
+.build/debug/murmurmark process latest \
   --model "$MODEL" \
   --language ru
 
-jq '{status, outputs}' "$SESSION/derived/pipeline-run/pipeline_run_report.json"
+.build/debug/murmurmark latest
+SESSION="$(.build/debug/murmurmark latest | sed -E 's/^SESSION="(.*)"$/\1/')"
+.build/debug/murmurmark report "$SESSION"
 less "$SESSION/derived/readiness/session_readiness.md"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
@@ -144,7 +143,8 @@ echo "TRANSCRIPT=\"$TRANSCRIPT\""
 less "$TRANSCRIPT"
 ```
 
-`scripts/run-session-pipeline.py` is the normal post-recording runner. It calls Echo Guard,
+`murmurmark process` is the normal post-recording command; internally it calls
+`scripts/run-session-pipeline.py`. The runner calls Echo Guard,
 whisper.cpp transcription, shadow timeline repair, local-recall audit, group-overlap audit, audio-review audit,
 `audit_cleanup_v1/v2`, optionally `audit_cleanup_v3/v4` when the local audio-judge queue exists,
 and extractive synthesis, then writes
@@ -171,6 +171,13 @@ swift build
 swift run murmurmark doctor
 swift run murmurmark list-apps
 .build/debug/murmurmark record --target-bundle system
+.build/debug/murmurmark latest
+.build/debug/murmurmark process latest --model "$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
+.build/debug/murmurmark process ./sessions/<session> --model "$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin" --force-asr
+.build/debug/murmurmark process ./sessions/<session> --plan-only --skip-build
+.build/debug/murmurmark report ./sessions/<session>
+.build/debug/murmurmark report latest
+.build/debug/murmurmark report corpus
 .build/debug/murmurmark preprocess ./sessions/<session> --echo diagnostic
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine linear_baseline
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine local_fir

@@ -30,18 +30,27 @@ Start from a completed session and run the current full post-recording pipeline:
 SESSION=./sessions/<session>
 MODEL="$HOME/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 
-.venv/bin/python scripts/run-session-pipeline.py "$SESSION" \
+swift build
+.build/debug/murmurmark process "$SESSION" \
   --model "$MODEL" \
   --language ru
 
-jq '{status, outputs}' "$SESSION/derived/pipeline-run/pipeline_run_report.json"
+.build/debug/murmurmark report "$SESSION"
 less "$SESSION/derived/readiness/session_readiness.md"
 ```
 
-The runner calls Echo Guard, export/transcription, shadow timeline repair, local-recall audit,
+`murmurmark process` calls the current runner: Echo Guard, export/transcription, shadow timeline repair, local-recall audit,
 group-overlap audit, audio-review audit, `audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. `audit_cleanup_v5` is a separate batch step after the suggested-review shadow report. Use
 `--force-asr` when you need to regenerate Whisper output, and `--reuse-asr-cache` when you only want
 to rebuild repair, cleanup, synthesis and reports from cached ASR JSON.
+
+For the usual record-then-process flow:
+
+```bash
+.build/debug/murmurmark record --target-bundle system
+.build/debug/murmurmark process latest --model "$MODEL" --language ru
+.build/debug/murmurmark report latest
+```
 
 Read `derived/readiness/session_readiness.md` before using a meeting result. It contains:
 
