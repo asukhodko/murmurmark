@@ -914,6 +914,8 @@ EOF
   jq -e '.summary.audio_judge_readiness | type == "string"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'all(.session_review_burden[]; (.use_gate | type) == "string")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.review_queue | type == "array"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.promotion_plan.review_queue_strategy.by_lane | type == "array"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.promotion_plan.review_queue_strategy.after_first_lane_estimate.remaining_items | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'any(.review_queue[]; .source == "local_recall" and .label == "lost_me")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'all(.review_queue[]; .source_audit_id != "arp_manual_v2_duplicate")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   review_plan_dir="$workdir/review-plan"

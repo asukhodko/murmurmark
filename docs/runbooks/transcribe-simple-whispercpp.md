@@ -444,6 +444,8 @@ Stale audio-judge queue rows are also ignored when the current audio-review audi
 the source item as reliable.
 Its `promotion_plan` section explains the current delta to `medium_risk_ready`: unresolved warnings,
 sessions not ready for notes, remaining review minutes, and the next action class.
+Its `Review Queue Strategy` section groups the remaining queue into lanes and shows the first useful
+lane to close, usually `fast_confirm_drop`, plus the estimated queue that remains after that lane.
 `build-review-plan.py` turns that queue into a compact checklist. Use it when a session is
 `review_first`: listen to the listed stereo clips or local-recall mic snippets, decide whether each
 `Me` candidate is leaked remote speech, real local speech, lost local speech, or unclear, then keep

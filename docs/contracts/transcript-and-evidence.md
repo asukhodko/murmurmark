@@ -685,6 +685,24 @@ sessions/_reports/operational-readiness/
       "review_queue_items": 40,
       "review_queue_raw_audio_minutes": 1.81
     },
+    "review_queue_strategy": {
+      "first_recommended_lane": "fast_confirm_drop",
+      "after_first_lane_estimate": {
+        "remaining_items": 30,
+        "remaining_minutes": 1.28
+      },
+      "by_lane": [
+        {
+          "lane": "fast_confirm_drop",
+          "items": 10,
+          "seconds": 27.87,
+          "labels": {
+            "remote_duplicate": 9,
+            "asr_noise": 1
+          }
+        }
+      ]
+    },
     "session_targets": [
       {
         "session_id": "2026-06-26_12-04-04",
@@ -715,6 +733,10 @@ prioritised review queue.
 `promotion_plan` is the bridge from current pilot status to the target state. It names remaining
 conditions, sessions that are not yet `ready_for_notes`, review minutes and the next actions needed
 to reduce uncertainty. It is report-only: it never edits transcripts or cleanup profiles.
+`review_queue_strategy` is also report-only. It groups the remaining review queue into workflow
+lanes, recommends the first lane to close, and estimates the remaining queue after that first lane is
+reviewed. The estimate is not a substitute for rerunning `apply-review-decisions-batch.py`; it is a
+planning aid for reaching `medium_risk_ready`.
 
 `build-review-plan.py` converts the operational review queue into a short working checklist under:
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 
 
@@ -285,6 +285,103 @@ def compact_review_item(session: dict[str, Any], row: dict[str, Any]) -> dict[st
     }
 
 
+def duplicate_drop_hint_allowed(item: dict[str, Any]) -> bool:
+    features = item.get("review_features") if isinstance(item.get("review_features"), dict) else {}
+    coverage = safe_float(features.get("me_overlap_coverage"))
+    similarity = safe_float(features.get("text_similarity"))
+    containment = safe_float(features.get("token_containment"))
+    return coverage >= 0.60 and (similarity >= 0.75 or containment >= 0.75)
+
+
+def review_lane(item: dict[str, Any]) -> str:
+    source = str(item.get("source") or "")
+    label = str(item.get("label") or "")
+    verdict = str(item.get("verdict") or "")
+    if source == "local_recall" or label in {"lost_me", "local_recall_needs_review"}:
+        return "check_local_recall"
+    if label == "remote_duplicate" and verdict == "probable_transcript_error":
+        return "fast_confirm_drop" if duplicate_drop_hint_allowed(item) else "check_unique_me_content"
+    if label == "asr_noise" and verdict == "probable_transcript_error":
+        return "fast_confirm_drop"
+    if label == "remote_leak":
+        return "check_unique_me_content"
+    if label in {"double_talk", "timing_overlap"}:
+        return "confirm_benign"
+    return "classify_audio"
+
+
+def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, Any]:
+    lane_order = [
+        "fast_confirm_drop",
+        "check_unique_me_content",
+        "check_local_recall",
+        "confirm_benign",
+        "classify_audio",
+    ]
+    rows: dict[str, dict[str, Any]] = {
+        lane: {
+            "lane": lane,
+            "items": 0,
+            "seconds": 0.0,
+            "labels": {},
+        }
+        for lane in lane_order
+    }
+    for item in review_queue:
+        lane = review_lane(item)
+        row = rows.setdefault(lane, {"lane": lane, "items": 0, "seconds": 0.0, "labels": {}})
+        interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
+        label = str(item.get("label") or "unknown")
+        row["items"] += 1
+        row["seconds"] += safe_float(interval.get("duration_sec"))
+        row["labels"][label] = row["labels"].get(label, 0) + 1
+    by_lane = []
+    for lane in lane_order:
+        row = rows.get(lane)
+        if not row or not row.get("items"):
+            continue
+        by_lane.append(
+            {
+                "lane": lane,
+                "items": row["items"],
+                "seconds": round(safe_float(row["seconds"]), 3),
+                "minutes": round(safe_float(row["seconds"]) / 60.0, 2),
+                "labels": dict(sorted((row.get("labels") or {}).items())),
+            }
+        )
+    total_items = len(review_queue)
+    total_seconds = sum(
+        safe_float((item.get("interval") if isinstance(item.get("interval"), dict) else {}).get("duration_sec"))
+        for item in review_queue
+    )
+    fast = rows.get("fast_confirm_drop") or {}
+    fast_items = safe_int(fast.get("items"))
+    fast_seconds = safe_float(fast.get("seconds"))
+    return {
+        "by_lane": by_lane,
+        "first_recommended_lane": "fast_confirm_drop" if fast_items else (by_lane[0]["lane"] if by_lane else None),
+        "after_first_lane_estimate": {
+            "remaining_items": max(0, total_items - fast_items),
+            "remaining_seconds": round(max(0.0, total_seconds - fast_seconds), 3),
+            "remaining_minutes": round(max(0.0, total_seconds - fast_seconds) / 60.0, 2),
+        },
+        "commands": {
+            "build_first_lane_pack": (
+                ".venv/bin/python scripts/build-review-lane-pack.py --lane fast_confirm_drop"
+                if fast_items
+                else None
+            ),
+            "review_first_lane": (
+                ".venv/bin/python scripts/apply-review-lane-pack-decisions.py "
+                "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.json "
+                "--answers <answers> --out sessions/_reports/review-plan/review_decisions.jsonl"
+                if fast_items
+                else None
+            ),
+        },
+    }
+
+
 def local_recall_review_priority(row: dict[str, Any]) -> float:
     label = str(row.get("label") or "")
     confidence = safe_float(row.get("confidence"))
@@ -426,6 +523,7 @@ def promotion_plan(
         for row in by_session.values()
     ]
     queue_by_session.sort(key=lambda row: (-safe_float(row.get("seconds")), str(row.get("session_id"))))
+    queue_strategy = review_queue_lane_summary(review_queue)
 
     if blockers:
         status = "blocked_by_structural_issues"
@@ -482,6 +580,7 @@ def promotion_plan(
             for row in high_burden
         ],
         "review_queue_by_session": queue_by_session,
+        "review_queue_strategy": queue_strategy,
         "next_actions": next_actions,
     }
 
@@ -739,6 +838,42 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"- Sessions not ready for notes: `{conditions.get('sessions_not_ready_for_notes')}`",
             f"- Review queue: `{conditions.get('review_queue_items')}` items / `{conditions.get('review_queue_raw_audio_minutes')}` raw audio min",
             f"- Audio judge remaining human review items: `{conditions.get('audio_judge_remaining_human_review_items')}`",
+            "",
+            "### Review Queue Strategy",
+            "",
+        ]
+    )
+    strategy = plan.get("review_queue_strategy") if isinstance(plan.get("review_queue_strategy"), dict) else {}
+    first_lane = strategy.get("first_recommended_lane")
+    after_first = strategy.get("after_first_lane_estimate") if isinstance(strategy.get("after_first_lane_estimate"), dict) else {}
+    if first_lane:
+        lines.extend(
+            [
+                f"- First lane: `{first_lane}`",
+                f"- After first lane estimate: `{after_first.get('remaining_items')}` items / `{after_first.get('remaining_minutes')}` min",
+                "",
+                "| Lane | Items | Raw sec | Labels |",
+                "|---|---:|---:|---|",
+            ]
+        )
+        for row in strategy.get("by_lane", []) or []:
+            lines.append(
+                f"| `{row.get('lane')}` | {row.get('items')} | {safe_float(row.get('seconds')):.2f} | `{row.get('labels')}` |"
+            )
+        commands = strategy.get("commands") if isinstance(strategy.get("commands"), dict) else {}
+        build_cmd = commands.get("build_first_lane_pack")
+        review_cmd = commands.get("review_first_lane")
+        if build_cmd or review_cmd:
+            lines.extend(["", "```bash"])
+            if build_cmd:
+                lines.append(str(build_cmd))
+            if review_cmd:
+                lines.append(str(review_cmd))
+            lines.append("```")
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
             "",
             "### Session Targets",
             "",
