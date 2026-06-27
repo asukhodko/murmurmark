@@ -138,8 +138,8 @@ nodes:
     effort: 28
     notes: |
       Текущий набор скриптов постепенно становится пользовательской CLI-поверхностью.
-      Уже есть process, latest, report, plan-only и readiness summary. Остались review,
-      export и более строгая конфигурация моделей/prompt.
+      Уже есть process, latest, report, audit, plan-only и readiness summary. Остались полировка
+      review/export UX и более строгая конфигурация моделей/prompt.
 
   cli-process-command:
     title: "murmurmark process SESSION"
@@ -165,6 +165,14 @@ nodes:
     status: done
     effort: 4
     notes: "Единый вход к quality verdict, readiness, profile metrics и corpus summary."
+
+  cli-audit-command:
+    title: "murmurmark audit"
+    kind: task
+    parent: cli-orchestration
+    status: done
+    effort: 3
+    notes: "Обёртка над local-recall, group-overlaps и audio-review audit scripts через проектный Python runtime."
 
   readiness-single-output:
     title: "Единая читаемая сводка готовности"

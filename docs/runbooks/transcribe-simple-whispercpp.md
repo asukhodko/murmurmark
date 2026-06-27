@@ -198,7 +198,7 @@ the local recall audit to separate likely harmless short/weak islands from possi
 speech:
 
 ```bash
-.venv/bin/python scripts/audit-local-recall.py "$SESSION" --profile shadow_v2
+murmurmark audit local-recall "$SESSION" --profile shadow_v2
 
 jq '.summary' "$SESSION/derived/audit/local-recall/local_recall_audit.json"
 less "$SESSION/derived/audit/local-recall/local_recall_review.md"
@@ -221,7 +221,7 @@ group audit after transcription and synthesis when you need to separate harmful 
 expected group-call overlap:
 
 ```bash
-.venv/bin/python scripts/audit-group-overlaps.py "$SESSION" \
+murmurmark audit group-overlaps "$SESSION" \
   --profile shadow_v2 \
   --min-overlap-sec 0.5 \
   --review-threshold-sec 2.0 \
@@ -291,12 +291,10 @@ gates pass. Use the explicit profile when comparing runs.
 For agent-driven review, build a local pack of suspicious clips after synthesis:
 
 ```bash
-.venv/bin/python scripts/build-audio-review-pack.py "$SESSION" \
+murmurmark audit audio-review "$SESSION" \
   --profile audit_cleanup_v1 \
   --write-clips \
   --max-items 160
-
-.venv/bin/python scripts/audit-audio-review-pack.py "$SESSION"
 
 jq '{items, likely_reliable, probable_error, needs_stronger_audio_judge, recommended_next_step}' \
   "$SESSION/derived/audit/audio-review-pack/audio_review_summary.json"

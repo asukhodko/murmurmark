@@ -23,7 +23,7 @@ murmurmark config print
 ```
 
 The wrapper points `MURMURMARK_HOME` at this checkout, so `murmurmark process`,
-`murmurmark report`, `murmurmark review`, `murmurmark corpus` and `murmurmark export`
+`murmurmark report`, `murmurmark audit`, `murmurmark review`, `murmurmark corpus` and `murmurmark export`
 can be run from any directory. During development, `.build/debug/murmurmark` and
 `swift run murmurmark ...` still work.
 
@@ -245,7 +245,7 @@ or `transcript.audit_cleanup_v2.md` are separate candidates; the selected profil
 `audit_cleanup_v5/v6` are not part of the normal single-session runner. They are corpus/review-plan
 steps for already audited sessions, usually run after the private regression and audio-judge reports
 exist under `sessions/_reports/`.
-`scripts/audit-group-overlaps.py` classifies `Me`/`Colleagues` timeline overlaps into harmful, benign
+`murmurmark audit group-overlaps` classifies `Me`/`Colleagues` timeline overlaps into harmful, benign
 and review buckets, writes listenable clips, and does not change transcripts or quality verdicts by itself.
 `scripts/apply-audit-cleanup.py` is the conservative cleanup over audit evidence. It writes separate
 `audit_cleanup_*` profiles and only drops whole `Me` utterances when the audit strongly supports remote
@@ -270,6 +270,9 @@ murmurmark process ./sessions/<session> --plan-only --skip-build
 murmurmark report ./sessions/<session>
 murmurmark report latest
 murmurmark report corpus
+murmurmark audit local-recall ./sessions/<session> --profile shadow_v2
+murmurmark audit group-overlaps ./sessions/<session> --profile shadow_v2 --write-clips
+murmurmark audit audio-review ./sessions/<session> --profile audit_cleanup_v2 --write-clips
 murmurmark review plan
 murmurmark review latest --lane fast_confirm_drop
 murmurmark review progress
@@ -302,12 +305,8 @@ murmurmark retention apply ./sessions/<session> --policy ./policy.json --confirm
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --repair-profile shadow_v2 --skip-export --skip-transcribe
 .venv/bin/python scripts/run-session-pipeline.py ./sessions/<session>
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile auto
-.venv/bin/python scripts/audit-local-recall.py ./sessions/<session> --profile shadow_v2
-.venv/bin/python scripts/audit-group-overlaps.py ./sessions/<session> --profile shadow_v2 --write-clips
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile shadow_v2 --output-profile audit_cleanup_v1
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v1
-.venv/bin/python scripts/build-audio-review-pack.py ./sessions/<session> --profile audit_cleanup_v1 --write-clips
-.venv/bin/python scripts/audit-audio-review-pack.py ./sessions/<session>
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v1 --output-profile audit_cleanup_v2
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v2
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v2 --output-profile audit_cleanup_v3 --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
@@ -375,9 +374,13 @@ frontmatter Markdown note plus the same manifest. Export blocks sessions whose
 hard quality failures and unfinished review do not silently become finished artifacts. `--force`
 keeps the blockers in `export_manifest.json` and is meant for debugging.
 
-The group overlap audit is `scripts/audit-group-overlaps.py`. It reads transcript overlaps, Echo Guard `speaker_state.jsonl`, and local audio derivatives, then writes `derived/audit/group-overlaps/`. It separates likely harmful `Me` duplicates or remote leakage from expected group-call double-talk and timing overlap. This is audit-only: no transcript, Echo Guard output, synthesis output, or `quality_verdict` is modified.
+`murmurmark audit` wraps the local audit scripts through the project Python runtime. `murmurmark audit
+local-recall`, `murmurmark audit group-overlaps` and `murmurmark audit audio-review` are the normal
+entry points; direct Python script calls remain useful for debugging.
 
-The local recall audit is `scripts/audit-local-recall.py`. It reads timeline-repair examples and
+The group overlap audit reads transcript overlaps, Echo Guard `speaker_state.jsonl`, and local audio derivatives, then writes `derived/audit/group-overlaps/`. It separates likely harmful `Me` duplicates or remote leakage from expected group-call double-talk and timing overlap. This is audit-only: no transcript, Echo Guard output, synthesis output, or `quality_verdict` is modified.
+
+The local recall audit reads timeline-repair examples and
 Echo Guard `speaker_state.jsonl`, then writes `derived/audit/local-recall/`. Its job is to explain
 low `local_only_island_recall`: short or weak unrecovered islands are recorded as low-risk evidence,
 and islands whose text is already covered by the remote transcript are treated as low-risk content
@@ -387,7 +390,7 @@ local speech stays as a blocking `low_local_recall` risk. It never edits transcr
 
 Audit-informed cleanup is `scripts/apply-audit-cleanup.py`. It reads `clean_dialogue.shadow_v2.json` and the group overlap audit, then writes only `audit_cleanup_v1` artifacts under `derived/transcript-simple/whisper-cpp/resolved/` and `derived/transcript-simple/whisper-cpp/audit-cleanup/`. In conservative mode it may drop whole `Me` utterances only when they are high-confidence remote duplicates or short unsupported ASR noise. Double-talk, timing overlap, remote leak, and human-review regions are kept and marked.
 
-The audio review layer is `scripts/build-audio-review-pack.py` plus `scripts/audit-audio-review-pack.py`.
+The audio review layer is available through `murmurmark audit audio-review`.
 It collects suspicious transcript regions from `needs_review`, overlaps, group-overlap audit and cleanup
 rejections, cuts local comparison clips under `derived/audit/audio-review-pack/`, then classifies them
 with local audio/text metrics. The output separates likely reliable regions, probable transcript errors

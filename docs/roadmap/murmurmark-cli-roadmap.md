@@ -15,23 +15,24 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 1. `murmurmark process SESSION` — готово.
 2. `murmurmark process latest` — готово.
 3. `murmurmark report SESSION` и `murmurmark report corpus` — готово.
-4. `murmurmark review SESSION` — готов базовый CLI-контур.
-5. `murmurmark corpus process all` — готов базовый контур качества по корпусу.
-6. `murmurmark corpus gate` — готов no-regression gate с локальным baseline-сравнением.
-7. `murmurmark export SESSION --format markdown|obsidian` — готов базовый пользовательский output-блок.
-8. `scripts/install-local.sh` — готов минимальный локальный install wrapper для команды `murmurmark`.
-9. `murmurmark doctor` — готов расширенный health check локальной установки и pipeline-зависимостей.
-10. `scripts/build-release-bundle.sh` — готов локальный release layout с manifest и без приватных данных.
-11. `murmurmark retention plan SESSION` — готов локальный retention plan; raw deletion защищён отдельным `apply`.
-12. `murmurmark retention payload SESSION` — готов provider payload manifest; default policy блокирует внешние payload’ы.
-13. `scripts/check-open-source-readiness.sh` — готов public-readiness gate; LICENSE остаётся owner decision.
+4. `murmurmark audit local-recall|group-overlaps|audio-review` — готов CLI-вход к audit-слоям.
+5. `murmurmark review SESSION` — готов базовый CLI-контур.
+6. `murmurmark corpus process all` — готов базовый контур качества по корпусу.
+7. `murmurmark corpus gate` — готов no-regression gate с локальным baseline-сравнением.
+8. `murmurmark export SESSION --format markdown|obsidian` — готов базовый пользовательский output-блок.
+9. `scripts/install-local.sh` — готов минимальный локальный install wrapper для команды `murmurmark`.
+10. `murmurmark doctor` — готов расширенный health check локальной установки и pipeline-зависимостей.
+11. `scripts/build-release-bundle.sh` — готов локальный release layout с manifest и без приватных данных.
+12. `murmurmark retention plan SESSION` — готов локальный retention plan; raw deletion защищён отдельным `apply`.
+13. `murmurmark retention payload SESSION` — готов provider payload manifest; default policy блокирует внешние payload’ы.
+14. `scripts/check-open-source-readiness.sh` — готов public-readiness gate; LICENSE остаётся owner decision.
 
 UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
 
 ## Крупные направления
 
 - `foundation-done` — уже готовая основа: capture, Echo Guard, whisper.cpp, repair/audit, agent_reviewed_v1, notes, readiness.
-- `cli-orchestration` — текущий фокус: единые команды process/report/review/corpus/export/config; минимальная локальная установка уже готова.
+- `cli-orchestration` — текущий фокус: единые команды process/report/audit/review/corpus/export/config; минимальная локальная установка уже готова.
 - `corpus-regression` — текущий контур: корпус сессий, пересборка, baseline thresholds,
   out-of-fold оценка audio judge и явные review/export blockers.
 - `review-loop` — ближайший этап: удобный CLI-review спорных участков.

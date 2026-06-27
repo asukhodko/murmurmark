@@ -35,6 +35,8 @@ struct MurmurMark {
                 try PipelineCommands.report(args)
             case "review":
                 try ReviewCommands.review(args)
+            case "audit":
+                try AuditCommands.audit(args)
             case "corpus":
                 try CorpusCommands.corpus(args)
             case "export":
@@ -82,6 +84,9 @@ struct MurmurMark {
           murmurmark report corpus [--sessions-root ./sessions]
           murmurmark review plan|progress|apply
           murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
+          murmurmark audit local-recall ./session|latest [--profile shadow_v2] [--sessions-root ./sessions]
+          murmurmark audit group-overlaps ./session|latest [--profile shadow_v2] [--write-clips] [--sessions-root ./sessions]
+          murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark corpus process all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus build all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus evaluate
@@ -111,8 +116,9 @@ struct MurmurMark {
           process runs the current post-recording pipeline and prints the readiness summary.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review wraps the current review-plan, review CLI, progress and apply scripts.
+          audit wraps the local recall, group overlap and audio-review audit scripts through the project Python runtime.
           corpus wraps regression-corpus, audio-judge, corpus gates and operational-readiness scripts.
-          export creates a local user-facing Markdown or Obsidian bundle and blocks review-first sessions by default.
+          export creates a local user-facing Markdown or Obsidian bundle and blocks readiness export blockers by default.
           retention plans or applies local retention policy; raw deletion requires apply plus --confirm-delete-raw.
           config shows local defaults loaded by process/export.
         """)
@@ -333,6 +339,10 @@ enum DoctorChecks {
             "scripts/run-session-pipeline.py",
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/synthesize-simple-extractive.py",
+            "scripts/audit-local-recall.py",
+            "scripts/audit-group-overlaps.py",
+            "scripts/build-audio-review-pack.py",
+            "scripts/audit-audio-review-pack.py",
             "scripts/report-session-quality.py",
             "scripts/apply-retention-policy.py",
             "scripts/build-provider-payload-manifest.py",
@@ -580,6 +590,80 @@ enum ReviewCommands {
             throw CLIError("review script not found: \(url.path)")
         }
         return url
+    }
+}
+
+enum AuditCommands {
+    static func audit(_ args: [String]) throws {
+        if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+
+        var remaining = args
+        let subcommand = remaining.removeFirst()
+        guard let target = remaining.first else {
+            throw CLIError("audit \(subcommand) requires a session path or latest")
+        }
+        remaining.removeFirst()
+
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        let python = try PythonRuntime.resolve()
+
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        fflush(stdout)
+
+        switch subcommand {
+        case "local-recall":
+            try Tooling.runPath(python, [try script("audit-local-recall.py").path, session.path] + remaining)
+        case "group-overlaps":
+            try Tooling.runPath(python, [try script("audit-group-overlaps.py").path, session.path] + remaining)
+        case "audio-review":
+            let packArgs = defaulted(remaining, option: "profile", value: "audit_cleanup_v2")
+            let packDir = ArgumentEditing.peekOption("out-dir", in: packArgs)
+            try Tooling.runPath(python, [try script("build-audio-review-pack.py").path, session.path] + packArgs)
+            var auditArgs = [try script("audit-audio-review-pack.py").path, session.path]
+            if let packDir {
+                auditArgs += ["--pack-dir", packDir, "--out-dir", packDir]
+            }
+            try Tooling.runPath(python, auditArgs)
+        default:
+            throw CLIError("unknown audit command: \(subcommand)")
+        }
+    }
+
+    private static func defaulted(_ args: [String], option: String, value: String) -> [String] {
+        if ArgumentEditing.hasOption(option, in: args) {
+            return args
+        }
+        return ["--\(option)", value] + args
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("audit script not found: \(url.path)")
+        }
+        return url
+    }
+
+    private static func printHelp() {
+        print("""
+        usage:
+          murmurmark audit local-recall ./session|latest [--profile shadow_v2] [--sessions-root ./sessions]
+          murmurmark audit group-overlaps ./session|latest [--profile shadow_v2] [--write-clips] [--sessions-root ./sessions]
+          murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
+
+        Audit commands are local-only wrappers over existing Python scripts:
+          local-recall    runs audit-local-recall.py
+          group-overlaps  runs audit-group-overlaps.py
+          audio-review    runs build-audio-review-pack.py, then audit-audio-review-pack.py
+
+        Use --sessions-root when resolving latest from a non-default sessions directory.
+        Extra options are forwarded to the underlying audit script; for audio-review they are
+        forwarded to the pack builder, then the pack audit runs over the resulting directory.
+        """)
     }
 }
 
