@@ -1080,6 +1080,8 @@ to reduce uncertainty. It is report-only: it never edits transcripts or cleanup 
 lanes, recommends the first lane to close, and estimates the remaining queue after that first lane is
 reviewed. The estimate is not a substitute for rerunning `apply-review-decisions-batch.py`; it is a
 planning aid for reaching `medium_risk_ready`.
+`murmurmark review first-lane` reads this strategy from `review_plan.json` and builds the matching
+lane pack through `build-review-lane-pack.py`.
 
 `build-review-plan.py` converts the operational review queue into a short working checklist under:
 

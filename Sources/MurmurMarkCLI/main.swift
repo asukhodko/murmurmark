@@ -86,7 +86,7 @@ struct MurmurMark {
                                 [--reuse-asr-cache] [--plan-only] [--sessions-root ./sessions]
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
-          murmurmark review plan|progress|apply
+          murmurmark review plan|progress|apply|first-lane
           murmurmark review agent [--session-quality sessions/_reports/session-quality/session_quality_report.json]
           murmurmark review workspace [build|apply] [--session latest|./session]
           murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
@@ -539,6 +539,12 @@ enum ReviewCommands {
             }
             try apply(forwarded)
             try ReviewPrinter.printApply(report: PathURLs.fileURL("sessions/_reports/review-plan/review_decisions_apply_report.json"))
+        case "first-lane":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                ReviewFirstLaneCommand.printHelp()
+                return
+            }
+            try ReviewFirstLaneCommand.run(forwarded, sessionsRoot: sessionsRoot)
         case "agent":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 printAgentHelp()
@@ -570,14 +576,12 @@ enum ReviewCommands {
         }
     }
 
-    private static func buildPlan(extraArgs: [String]) throws {
+    private static func buildPlan(extraArgs: [String], refreshOperational: Bool = true) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
-            try script("report-operational-readiness.py").path,
-        ])
-        try Tooling.runPath(python, [
-            try script("build-review-plan.py").path,
-        ] + extraArgs)
+        if refreshOperational {
+            try Tooling.runPath(python, [try script("report-operational-readiness.py").path])
+        }
+        try Tooling.runPath(python, [try script("build-review-plan.py").path] + extraArgs)
     }
 
     private static func workspace(_ args: [String], sessionsRoot: URL) throws {
@@ -653,11 +657,8 @@ enum ReviewCommands {
     }
 
     private static func runProgress() throws {
-        let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
-            try script("report-review-decisions-progress.py").path,
-            "--decisions", "sessions/_reports/review-plan/review_decisions.jsonl",
-        ])
+        let command = [try script("report-review-decisions-progress.py").path, "--decisions", "sessions/_reports/review-plan/review_decisions.jsonl"]
+        try Tooling.runPath(try PythonRuntime.resolve(), command)
     }
 
     private static func agent(_ args: [String]) throws {
@@ -771,6 +772,107 @@ enum ReviewCommands {
           --review-plan-out-dir PATH
           --no-apply               Only build decisions and template.
         """)
+    }
+
+}
+
+enum ReviewFirstLaneCommand {
+    static func run(_ args: [String], sessionsRoot: URL) throws {
+        var forwarded = args
+        guard !ArgumentEditing.hasOption("lane", in: forwarded) else {
+            throw CLIError("review first-lane chooses --lane from review_plan.json; pass --session/--out-dir only")
+        }
+        let operationalReadiness = ArgumentEditing.takeOption("operational-readiness", from: &forwarded)
+        let planOutDir = ArgumentEditing.takeOption("plan-out-dir", from: &forwarded) ?? "sessions/_reports/review-plan"
+        let planURL = PathURLs.fileURL(planOutDir)
+        var planArgs = ["--out-dir", planOutDir]
+        if let operationalReadiness {
+            planArgs += ["--operational-readiness", operationalReadiness]
+        }
+        try buildPlan(extraArgs: planArgs, refreshOperational: operationalReadiness == nil)
+        let lane = try firstRecommendedLane(planOutDir: planURL)
+        try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
+        try Tooling.runPath(try PythonRuntime.resolve(), [
+            try script("build-review-lane-pack.py").path,
+            "--template", planURL.appendingPathComponent("review_decisions.template.jsonl").path,
+            "--decisions", planURL.appendingPathComponent("review_decisions.jsonl").path,
+            "--lane", lane,
+        ] + forwarded)
+        try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutDir(from: forwarded))
+    }
+
+    static func printHelp() {
+        print("""
+        usage: murmurmark review first-lane [--session latest|SESSION] [--out-dir PATH]
+
+        Refreshes the review plan, reads review_queue_strategy.first_recommended_lane,
+        then builds one review lane pack for that lane.
+
+        Options:
+          --operational-readiness PATH  Default: sessions/_reports/operational-readiness/operational_readiness_report.json
+          --plan-out-dir PATH           Default: sessions/_reports/review-plan
+          --out-dir PATH                Lane pack directory. Default: sessions/_reports/review-plan/lane-packs
+
+        Useful next step after:
+          murmurmark corpus report
+          murmurmark review plan
+        """)
+    }
+
+    private static func buildPlan(extraArgs: [String], refreshOperational: Bool) throws {
+        let python = try PythonRuntime.resolve()
+        if refreshOperational {
+            try Tooling.runPath(python, [try script("report-operational-readiness.py").path])
+        }
+        try Tooling.runPath(python, [try script("build-review-plan.py").path] + extraArgs)
+    }
+
+    private static func rewriteLatestSessionFilters(in args: inout [String], sessionsRoot: URL) throws {
+        var index = 0
+        while index < args.count {
+            if args[index] == "--session", index + 1 < args.count, args[index + 1] == "latest" {
+                args[index + 1] = try SessionResolver.latest(in: sessionsRoot).lastPathComponent
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+    }
+
+    private static func firstRecommendedLane(planOutDir: URL) throws -> String {
+        let plan = try JSONFiles.object(planOutDir.appendingPathComponent("review_plan.json"))
+        let strategy = plan["review_queue_strategy"] as? [String: Any] ?? [:]
+        if let lane = strategy["first_recommended_lane"] as? String, !lane.isEmpty {
+            return lane
+        }
+        let summary = plan["summary"] as? [String: Any] ?? [:]
+        let lanes = summary["by_review_lane"] as? [String: Any] ?? [:]
+        let fallbackOrder = [
+            "fast_confirm_drop",
+            "check_unique_me_content",
+            "check_local_recall",
+            "check_transcript_order",
+            "confirm_benign",
+            "classify_audio",
+        ]
+        for lane in fallbackOrder {
+            if let count = lanes[lane] as? NSNumber, count.intValue > 0 {
+                return lane
+            }
+        }
+        return "fast_confirm_drop"
+    }
+
+    private static func lanePackOutDir(from args: [String]) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: args) ?? "sessions/_reports/review-plan/lane-packs")
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("review script not found: \(url.path)")
+        }
+        return url
     }
 }
 
@@ -4702,6 +4804,31 @@ enum ReadinessPrinter {
 }
 
 enum ReviewPrinter {
+    static func printLanePack(lane: String, outDir: URL) throws {
+        let manifestURL = outDir.appendingPathComponent("review_lane_pack.\(lane).json")
+        let payload = try JSONFiles.object(manifestURL)
+        let outputs = payload["outputs"] as? [String: Any] ?? [:]
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        print("")
+        print("review_lane_pack:")
+        print("  lane: \(lane)")
+        print("  manifest: \(PathDisplay.display(manifestURL))")
+        if let audio = string(outputs["audio"]) {
+            print("  audio: \(audio)")
+        }
+        if let markdown = string(outputs["markdown"]) {
+            print("  markdown: \(markdown)")
+        }
+        if let answerSheet = string(outputs["answer_sheet"]) {
+            print("  answer_sheet: \(answerSheet)")
+        }
+        if let suggested = string(outputs["suggested_answer_sheet"]) {
+            print("  suggested_answer_sheet: \(suggested)")
+        }
+        print("  items: \(int(summary["item_count"]) ?? 0)")
+        print("  skipped: \(int(summary["skipped_count"]) ?? 0)")
+    }
+
     static func printPlan() throws {
         let url = PathURLs.fileURL("sessions/_reports/review-plan/review_plan.json")
         let payload = try JSONFiles.object(url)

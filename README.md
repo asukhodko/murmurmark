@@ -284,6 +284,7 @@ murmurmark audit order ./sessions/<session> --profile auto
 murmurmark audit group-overlaps ./sessions/<session> --profile shadow_v2 --write-clips
 murmurmark audit audio-review ./sessions/<session> --profile audit_cleanup_v2 --write-clips
 murmurmark review plan
+murmurmark review first-lane
 murmurmark review latest --lane fast_confirm_drop
 murmurmark review progress
 murmurmark review apply
@@ -523,6 +524,8 @@ The generated plan also splits the queue into `review_lane` groups:
 `classify_audio`. Use those lanes to clear easy duplicate/noise checks first and leave meaning-heavy
 checks for a slower pass. The plan carries the `first_recommended_lane` from operational readiness,
 and `murmurmark review plan` prints the matching `murmurmark review latest --lane ...` command.
+`murmurmark review first-lane` builds the corresponding lane pack directly, including WAV, Markdown
+index and editable answer sheet.
 To clear only the quickest lane, run the CLI with that lane; the output file still
 keeps the full template, so later passes can continue with the remaining lanes.
 For faster listening, `murmurmark review workspace` builds lane packs for all remaining lanes:
@@ -557,6 +560,7 @@ The normal manual review loop is available through the Swift CLI:
 
 ```bash
 .build/debug/murmurmark review plan
+.build/debug/murmurmark review first-lane
 .build/debug/murmurmark review workspace
 .build/debug/murmurmark review latest --lane fast_confirm_drop
 .build/debug/murmurmark review workspace apply

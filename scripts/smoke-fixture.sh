@@ -1364,6 +1364,17 @@ PY
   jq -e '.schema == "murmurmark.review_plan/v1" and .summary.cluster_count >= 1' "$review_plan_dir/review_plan.json" >/dev/null
   jq -e '(.review_queue_strategy.first_recommended_lane | type) == "string"' "$review_plan_dir/review_plan.json" >/dev/null
   grep -q 'Recommended First Lane' "$review_plan_dir/review_plan.md"
+  first_lane_plan_dir="$workdir/first-lane-review-plan"
+  first_lane_pack_dir="$workdir/first-lane-pack"
+  first_lane_output="$("$bin" review first-lane \
+    --operational-readiness "$readiness_dir/operational_readiness_report.json" \
+    --plan-out-dir "$first_lane_plan_dir" \
+    --out-dir "$first_lane_pack_dir")"
+  echo "$first_lane_output" | grep -q '^review_lane_pack:$'
+  first_lane="$(jq -r '.review_queue_strategy.first_recommended_lane' "$first_lane_plan_dir/review_plan.json")"
+  [[ -s "$first_lane_pack_dir/review_lane_pack.$first_lane.json" ]]
+  [[ -s "$first_lane_pack_dir/review_lane_pack.$first_lane.md" ]]
+  [[ -s "$first_lane_pack_dir/review_lane_answers.$first_lane.txt" ]]
   jq -s 'all(.[]; (.primary_command | type) == "string")' "$review_plan_dir/review_plan_clusters.jsonl" >/dev/null
   jq -s 'all(.[]; .schema == "murmurmark.review_decision/v1" and .decision == "todo" and (.me_utterance_ids | type) == "array" and (.suggested_decision | IN("drop_me", "keep_me", "needs_review")))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .suggested_decision == "drop_me" and .decision == "todo")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null

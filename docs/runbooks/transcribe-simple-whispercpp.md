@@ -497,6 +497,7 @@ work:
   --baseline sessions/_reports/corpus-gates/baseline.local.json
 
 .build/debug/murmurmark review plan
+.build/debug/murmurmark review first-lane
 .build/debug/murmurmark review latest --lane fast_confirm_drop
 .build/debug/murmurmark review progress
 .build/debug/murmurmark review apply
@@ -587,6 +588,9 @@ overlap, and `classify_audio` for anything else.
 Close the plan's `first_recommended_lane` first; it is usually `fast_confirm_drop`, but can change as
 the review queue changes. Keep the other lanes conservative unless the audio or chronology evidence
 is clear.
+`murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended
+lane. Use it when you want the next concrete review artifact without manually copying commands from
+`review_plan.md`.
 `review-decisions-cli.py` is the normal way to fill the checklist: it plays each preferred clip,
 shows the transcript rows, respects each row's `allowed_decisions`, and writes
 `review_decisions.jsonl` after every answer. It also prints nearby turns from the reviewed transcript
