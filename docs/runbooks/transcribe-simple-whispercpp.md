@@ -64,6 +64,10 @@ murmurmark process latest
 murmurmark report latest
 ```
 
+After a successful recording, `record` prints `SESSION="..."` and the exact `murmurmark process ...`
+command for that session. `process latest` remains a convenient shortcut when the newest session is
+the one you just recorded.
+
 Read `derived/readiness/session_readiness.md` before using a meeting result. It contains:
 
 - `ready_for_notes`: the notes can be used with normal caution;

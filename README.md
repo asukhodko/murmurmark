@@ -193,6 +193,8 @@ less sessions/_reports/review-plan/review_plan.md
 
 This is the current practical path from a new local recording to the best available transcript candidate.
 The `record` command keeps running until `Ctrl-C`; the following commands continue after the recording stops.
+After a successful recording, the CLI prints `SESSION="..."` and the exact `murmurmark process ...`
+command for that session.
 
 ```bash
 cd murmurmark
@@ -627,7 +629,8 @@ For the first real run, use [docs/runbooks/first-recording.md](docs/runbooks/fir
 For real work, install the local wrapper with `scripts/install-local.sh` and then use
 `murmurmark record --target-bundle system`. Without `--duration`, recording runs until `Ctrl-C`.
 Without `--out`, every recording gets a unique directory under `./sessions`, so previous sessions
-are not overwritten.
+are not overwritten. On success, `record` prints the session path and the next `murmurmark process ...`
+command.
 
 Before trying cleanup on a real speaker-bleed session, run the [Echo Guard delay lab](docs/runbooks/echo-guard-lab.md). If delay confidence is unstable, do not trust cleanup output yet; use transcript-level suppression and keep raw mic for ASR fallback.
 

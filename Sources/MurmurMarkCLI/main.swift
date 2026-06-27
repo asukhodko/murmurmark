@@ -2506,6 +2506,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             try eventLog.write(type: "capture.stopped", fields: ["reason": stopReason.rawValue])
             try finish()
             print("done")
+            printHandoff()
         } catch {
             try? remoteInputCapture?.stop()
             try? voiceProcessingMic?.stop()
@@ -2655,6 +2656,12 @@ extension SessionRecorder {
         try PipelineJob.default(for: manifest).write(to: outputDirectory.appendingPathComponent("pipeline_job.json"))
         try? fileManager.removeItem(at: outputDirectory.appendingPathComponent("session.lock"))
         try events?.write(type: "manifest.written", fields: ["health": manifest.health.summary])
+    }
+
+    private func printHandoff() {
+        let session = PathDisplay.display(outputDirectory)
+        print("SESSION=\"\(session)\"")
+        print("next: murmurmark process \(session)")
     }
 }
 
