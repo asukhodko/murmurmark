@@ -553,7 +553,9 @@ decisions file and build `suggested_review_v1`:
 `suggested_review_v1` is not a reviewed profile. It is a shadow candidate generated from
 `suggested_decision` hints, so `auto` must not select it. The report under
 `sessions/_reports/suggested-review-shadow/` compares it with the currently selected profile and
-marks sessions as `promising_shadow_candidate`, `low_gain_shadow_candidate`, or `do_not_promote`.
+marks sessions as `promising_shadow_candidate`,
+`promising_cleanup_candidate_with_residual_review`, `low_gain_shadow_candidate`, or
+`do_not_promote`.
 
 Answer shortcuts are `d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.` or `n=todo`.
 Before applying decisions to transcripts, check progress and validation:

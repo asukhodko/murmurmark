@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA = "murmurmark.suggested_review_shadow_report/v1"
 SUGGESTED_PROFILE = "suggested_review_v1"
 METRIC_KEYS = (
@@ -93,6 +93,10 @@ def verdict_path(session: Path, profile: str) -> Path:
     return session / "derived/synthesis-simple/extractive" / f"quality_verdict{suffix(profile)}.json"
 
 
+def dialogue_path(session: Path, profile: str) -> Path:
+    return session / "derived/transcript-simple/whisper-cpp/resolved" / f"clean_dialogue{suffix(profile)}.json"
+
+
 def selected_rows_from_report(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
     rows = report.get("sessions") if isinstance(report.get("sessions"), list) else []
     result: dict[str, dict[str, Any]] = {}
@@ -147,19 +151,95 @@ def suggested_report_path(session: Path) -> Path:
     )
 
 
+def needs_review_ids(session: Path, profile: str) -> set[str]:
+    payload = read_json(dialogue_path(session, profile))
+    utterances = payload.get("utterances") if isinstance(payload, dict) else []
+    if not isinstance(utterances, list):
+        return set()
+    return {
+        str(row.get("id"))
+        for row in utterances
+        if isinstance(row, dict) and str(row.get("id") or "") and isinstance(row.get("quality"), dict) and row["quality"].get("needs_review") is True
+    }
+
+
+def utterance_ids(session: Path, profile: str) -> set[str]:
+    payload = read_json(dialogue_path(session, profile))
+    utterances = payload.get("utterances") if isinstance(payload, dict) else []
+    if not isinstance(utterances, list):
+        return set()
+    return {str(row.get("id")) for row in utterances if isinstance(row, dict) and str(row.get("id") or "")}
+
+
+def risk_types(verdict: dict[str, Any] | None) -> set[str]:
+    items = verdict.get("risk_items") if isinstance(verdict, dict) else []
+    if not isinstance(items, list):
+        return set()
+    return {str(item.get("type")) for item in items if isinstance(item, dict) and item.get("type")}
+
+
+def severe_risk_types(verdict: dict[str, Any] | None) -> set[str]:
+    items = verdict.get("risk_items") if isinstance(verdict, dict) else []
+    if not isinstance(items, list):
+        return set()
+    return {
+        str(item.get("type"))
+        for item in items
+        if isinstance(item, dict) and item.get("type") and item.get("severity") in {"high", "fatal"}
+    }
+
+
+def needs_review_sources(session: Path, selected_profile: str) -> dict[str, Any]:
+    suggested_dialogue = dialogue_path(session, SUGGESTED_PROFILE)
+    if not suggested_dialogue.exists():
+        selected_needs = needs_review_ids(session, selected_profile)
+        return {
+            "selected_needs_review_count": len(selected_needs),
+            "suggested_needs_review_count": None,
+            "inherited_needs_review_count": None,
+            "added_needs_review_count": None,
+            "removed_needs_review_count": None,
+            "dropped_utterance_count": None,
+            "added_needs_review_ids": [],
+            "removed_needs_review_ids": [],
+        }
+    selected_needs = needs_review_ids(session, selected_profile)
+    suggested_needs = needs_review_ids(session, SUGGESTED_PROFILE)
+    selected_ids = utterance_ids(session, selected_profile)
+    suggested_ids = utterance_ids(session, SUGGESTED_PROFILE)
+    return {
+        "selected_needs_review_count": len(selected_needs),
+        "suggested_needs_review_count": len(suggested_needs),
+        "inherited_needs_review_count": len(selected_needs & suggested_needs),
+        "added_needs_review_count": len(suggested_needs - selected_needs),
+        "removed_needs_review_count": len(selected_needs - suggested_needs),
+        "dropped_utterance_count": len(selected_ids - suggested_ids),
+        "added_needs_review_ids": sorted(suggested_needs - selected_needs)[:20],
+        "removed_needs_review_ids": sorted(selected_needs - suggested_needs)[:20],
+    }
+
+
 def assess(
     selected_quality: dict[str, Any] | None,
     suggested_quality: dict[str, Any] | None,
     suggested_verdict: str | None,
     suggested_gates: bool | None,
+    suggested_severe_risk_types: set[str],
+    needs_sources: dict[str, Any],
 ) -> tuple[str, list[str]]:
     flags: list[str] = []
     if not suggested_quality:
         return "missing_suggested_profile", ["missing_suggested_quality"]
     if suggested_gates is not True:
         flags.append("suggested_gates_not_passed")
+    residual_risk = suggested_verdict in {"risky", "failed"}
     if suggested_verdict in {"risky", "failed"}:
-        flags.append(f"suggested_verdict:{suggested_verdict}")
+        flags.append(f"residual_suggested_verdict:{suggested_verdict}")
+    non_residual_risks = sorted(suggested_severe_risk_types - {"needs_review_ratio", "suggested_review_candidate_profile"})
+    if non_residual_risks:
+        flags.append("non_residual_risk_items:" + ",".join(non_residual_risks[:5]))
+    if safe_int(needs_sources.get("added_needs_review_count")) > 0:
+        flags.append("added_needs_review_items")
 
     selected_recall = metric_value(selected_quality, "local_only_island_recall")
     suggested_recall = metric_value(suggested_quality, "local_only_island_recall")
@@ -178,10 +258,25 @@ def assess(
     if duplicate_reduction <= 0.0:
         flags.append("no_remote_duplicate_reduction")
 
-    hard_flags = [flag for flag in flags if flag.startswith("suggested_verdict:") or flag in {"suggested_gates_not_passed", "local_recall_worse"}]
+    hard_flags = [
+        flag
+        for flag in flags
+        if flag.startswith("non_residual_risk_items:")
+        or flag
+        in {
+            "suggested_gates_not_passed",
+            "local_recall_worse",
+            "audit_harmful_seconds_after_worse",
+            "audit_review_seconds_worse",
+            "needs_review_count_worse",
+            "added_needs_review_items",
+        }
+    ]
     if hard_flags:
         return "do_not_promote", flags
     if duplicate_reduction >= 5.0:
+        if residual_risk:
+            return "promising_cleanup_candidate_with_residual_review", flags
         return "promising_shadow_candidate", flags
     return "low_gain_shadow_candidate", flags
 
@@ -192,6 +287,7 @@ def collect_session(session: Path, selected_row: dict[str, Any]) -> dict[str, An
     suggested_quality = read_json(quality_path(session, SUGGESTED_PROFILE))
     selected_verdict = read_json(verdict_path(session, selected_profile))
     suggested_verdict = read_json(verdict_path(session, SUGGESTED_PROFILE))
+    needs_sources = needs_review_sources(session, selected_profile)
     review_report = read_json(suggested_report_path(session))
     review_summary = review_report.get("summary") if isinstance(review_report, dict) else {}
     review_gates = review_report.get("gates") if isinstance(review_report, dict) else {}
@@ -201,6 +297,8 @@ def collect_session(session: Path, selected_row: dict[str, Any]) -> dict[str, An
         suggested_quality,
         str(suggested_verdict.get("verdict")) if isinstance(suggested_verdict, dict) else None,
         suggested_gates_passed if isinstance(suggested_gates_passed, bool) else None,
+        severe_risk_types(suggested_verdict),
+        needs_sources,
     )
     metrics = metric_comparison(selected_quality, suggested_quality)
     return {
@@ -211,9 +309,11 @@ def collect_session(session: Path, selected_row: dict[str, Any]) -> dict[str, An
         "suggested_available": suggested_quality is not None,
         "selected_verdict": selected_verdict.get("verdict") if isinstance(selected_verdict, dict) else None,
         "suggested_verdict": suggested_verdict.get("verdict") if isinstance(suggested_verdict, dict) else None,
+        "suggested_risk_types": sorted(risk_types(suggested_verdict)),
         "suggested_gates_passed": suggested_gates_passed,
         "assessment": assessment,
         "flags": flags,
+        "needs_review_sources": needs_sources,
         "review_summary": {
             "applied_decision_rows": safe_int(review_summary.get("applied_decision_rows") if isinstance(review_summary, dict) else None),
             "dropped_me_utterances": safe_int(review_summary.get("dropped_me_utterances") if isinstance(review_summary, dict) else None),
@@ -229,12 +329,20 @@ def collect_session(session: Path, selected_row: dict[str, Any]) -> dict[str, An
 
 def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
     available = [row for row in rows if row.get("suggested_available")]
+    cleanup_candidates = [
+        row
+        for row in available
+        if row.get("assessment") in {"promising_shadow_candidate", "promising_cleanup_candidate_with_residual_review"}
+    ]
     duplicate_reduction = 0.0
+    candidate_duplicate_reduction = 0.0
     needs_review_reduction = 0
     for row in available:
         duplicate_delta = row["metrics"]["remote_duplicate_in_me_seconds"]["delta"]
         if isinstance(duplicate_delta, (int, float)):
             duplicate_reduction += -duplicate_delta
+            if row in cleanup_candidates:
+                candidate_duplicate_reduction += -duplicate_delta
         needs_delta = row["metrics"]["needs_review_count"]["delta"]
         if isinstance(needs_delta, (int, float)):
             needs_review_reduction += int(-needs_delta)
@@ -248,12 +356,19 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "suggested_gates_passed_sessions": sum(1 for row in available if row.get("suggested_gates_passed") is True),
         "suggested_risky_or_failed_sessions": sum(1 for row in available if row.get("suggested_verdict") in {"risky", "failed"}),
         "by_assessment": dict(sorted(by_assessment.items())),
+        "cleanup_candidate_sessions": len(cleanup_candidates),
+        "cleanup_candidate_dropped_me_seconds": rounded(
+            sum(safe_float((row.get("review_summary") or {}).get("dropped_me_seconds")) or 0.0 for row in cleanup_candidates)
+        ),
+        "cleanup_candidate_remote_duplicate_reduction_seconds": rounded(candidate_duplicate_reduction),
         "total_dropped_me_utterances": sum(safe_int((row.get("review_summary") or {}).get("dropped_me_utterances")) for row in available),
         "total_dropped_me_seconds": rounded(
             sum(safe_float((row.get("review_summary") or {}).get("dropped_me_seconds")) or 0.0 for row in available)
         ),
         "remote_duplicate_reduction_seconds": rounded(duplicate_reduction),
         "needs_review_reduction_count": needs_review_reduction,
+        "added_needs_review_count": sum(safe_int((row.get("needs_review_sources") or {}).get("added_needs_review_count")) for row in available),
+        "removed_needs_review_count": sum(safe_int((row.get("needs_review_sources") or {}).get("removed_needs_review_count")) for row in available),
     }
 
 
@@ -273,15 +388,20 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         f"- Dropped Me seconds in shadow: `{summary['total_dropped_me_seconds']}`",
         f"- Remote duplicate reduction: `{summary['remote_duplicate_reduction_seconds']}` seconds",
         f"- Needs-review reduction: `{summary['needs_review_reduction_count']}` utterances",
+        f"- Added needs-review items: `{summary['added_needs_review_count']}`",
+        f"- Removed needs-review items: `{summary['removed_needs_review_count']}`",
+        f"- Cleanup candidate sessions: `{summary['cleanup_candidate_sessions']}`",
+        f"- Cleanup candidate duplicate reduction: `{summary['cleanup_candidate_remote_duplicate_reduction_seconds']}` seconds",
         f"- Assessments: `{json.dumps(summary['by_assessment'], ensure_ascii=False, sort_keys=True)}`",
         "",
         "## Sessions",
         "",
-        "| Session | Selected | Suggested Verdict | Assessment | Drop s | Dup Δ s | Needs Δ | Flags |",
-        "|---|---|---|---|---:|---:|---:|---|",
+        "| Session | Selected | Suggested Verdict | Assessment | Drop s | Dup Δ s | Needs Δ | Added Needs | Removed Needs | Flags |",
+        "|---|---|---|---|---:|---:|---:|---:|---:|---|",
     ]
     for row in payload["sessions"]:
         metrics = row["metrics"]
+        sources = row.get("needs_review_sources") or {}
         lines.append(
             "| "
             + " | ".join(
@@ -293,6 +413,8 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
                     str((row.get("review_summary") or {}).get("dropped_me_seconds")),
                     str(metrics["remote_duplicate_in_me_seconds"].get("delta")),
                     str(metrics["needs_review_count"].get("delta")),
+                    str(sources.get("added_needs_review_count")),
+                    str(sources.get("removed_needs_review_count")),
                     ", ".join(row.get("flags") or []),
                 ]
             )
@@ -304,7 +426,8 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
             "## Recommendation",
             "",
             "Keep `suggested_review_v1` explicit-only. Use it to design the next conservative cleanup rule, "
-            "but do not promote it while any suggested session has a `risky` or `failed` verdict.",
+            "but do not make it the user-facing auto profile. Residual `needs_review_ratio` means the session "
+            "still needs review; it does not by itself prove that the suggested cleanup edits are unsafe.",
         ]
     )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")

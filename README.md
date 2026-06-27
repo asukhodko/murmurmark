@@ -350,7 +350,9 @@ For comparison, the suggested answer sheets can be applied into a separate shado
 `suggested_review_v1` is generated from machine suggestions only. It is useful for measuring the
 next cleanup candidate, but it is not selected by `--transcript-profile auto` and is not equivalent
 to `reviewed_v1`. The shadow report writes `sessions/_reports/suggested-review-shadow/` and should
-show no `risky` or `failed` suggested sessions before these rules are considered for promotion.
+show no hard metric regressions before these rules are considered for promotion. A residual
+`needs_review_ratio` risk means the session still needs review; it does not by itself prove that the
+suggested cleanup edits are unsafe.
 `scripts/apply-review-decisions-batch.py` applies the same edited file to every session mentioned in
 the review plan and can immediately regenerate extractive notes with `--synthesize`. Use
 `--refresh-reports` when the review is closed: it also refreshes session quality,
