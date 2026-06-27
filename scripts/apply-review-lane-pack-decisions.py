@@ -4,12 +4,13 @@ from __future__ import annotations
 import argparse
 import json
 import shlex
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.review_lane_pack_apply_report/v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -97,16 +98,19 @@ def normalize_text(value: Any) -> str:
 
 def review_row_key(row: dict[str, Any]) -> str:
     source_id = str(row.get("source_audit_id") or "").strip()
-    if source_id:
-        return f"source:{source_id}"
     cluster_id = str(row.get("cluster_id") or "").strip()
-    if cluster_id:
-        return f"cluster:{cluster_id}"
     utterance_ids = row.get("utterance_ids")
-    if isinstance(utterance_ids, list) and utterance_ids:
-        return "utterances:" + ",".join(str(item) for item in utterance_ids)
+    utterance_key = ",".join(str(item) for item in utterance_ids) if isinstance(utterance_ids, list) else ""
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
-    return f"interval:{interval.get('start')}:{interval.get('end')}:{row.get('label')}:{normalize_text(row.get('text'))[:80]}"
+    return (
+        "review:"
+        f"{source_id}:"
+        f"{row.get('session_id') or ''}:"
+        f"{cluster_id}:"
+        f"{utterance_key}:"
+        f"{interval.get('start')}:{interval.get('end')}:"
+        f"{row.get('label')}"
+    )
 
 
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -159,11 +163,21 @@ def manifest_items(manifest: dict[str, Any]) -> list[dict[str, Any]]:
 
 def row_lookup(rows: list[dict[str, Any]]) -> dict[str, int]:
     lookup: dict[str, int] = {}
+    source_counts = Counter(str(row.get("source_audit_id") or "").strip() for row in rows)
     for index, row in enumerate(rows):
+        lookup[review_row_key(row)] = index
         source_id = str(row.get("source_audit_id") or "").strip()
-        if source_id:
-            lookup[source_id] = index
+        if source_id and source_counts[source_id] == 1:
+            lookup[f"source:{source_id}"] = index
     return lookup
+
+
+def item_lookup_key(item: dict[str, Any]) -> str:
+    key = str(item.get("review_row_key") or "").strip()
+    if key:
+        return key
+    source_id = str(item.get("source_audit_id") or "").strip()
+    return f"source:{source_id}" if source_id else ""
 
 
 def main() -> int:
@@ -186,7 +200,7 @@ def main() -> int:
 
     for item, decision in zip(items, decisions):
         source_id = str(item.get("source_audit_id") or "").strip()
-        row_index = lookup.get(source_id)
+        row_index = lookup.get(item_lookup_key(item))
         if row_index is None:
             rejected.append({"source_audit_id": source_id, "decision": decision, "reason": "missing_template_row"})
             continue

@@ -261,19 +261,19 @@ def template_for_session(args: argparse.Namespace, session: Path) -> tuple[list[
 
 def review_row_key(row: dict[str, Any]) -> str:
     source_id = str(row.get("source_audit_id") or "").strip()
-    if source_id:
-        return f"source:{source_id}"
     cluster_id = str(row.get("cluster_id") or "").strip()
-    if cluster_id:
-        return f"cluster:{cluster_id}"
     utterance_ids = row.get("utterance_ids")
-    if isinstance(utterance_ids, list) and utterance_ids:
-        return "utterances:" + ",".join(str(item) for item in utterance_ids)
+    utterance_key = ",".join(str(item) for item in utterance_ids) if isinstance(utterance_ids, list) else ""
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
-    start = interval.get("start")
-    end = interval.get("end")
-    label = row.get("label")
-    return f"interval:{start}:{end}:{label}:{normalize_text(row.get('text'))[:80]}"
+    return (
+        "review:"
+        f"{source_id}:"
+        f"{row.get('session_id') or ''}:"
+        f"{cluster_id}:"
+        f"{utterance_key}:"
+        f"{interval.get('start')}:{interval.get('end')}:"
+        f"{row.get('label')}"
+    )
 
 
 def review_coverage(

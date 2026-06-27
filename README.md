@@ -300,6 +300,8 @@ WAV, a Markdown index and an editable answer sheet under `sessions/_reports/revi
 After listening to that pack, edit the generated `review_lane_answers.<lane>.txt` file and let
 `scripts/apply-review-lane-pack-decisions.py --answers-file` copy those answers back into
 `review_decisions.jsonl`.
+Each lane also has `review_lane_answers.<lane>.suggested.txt`; use it as a review aid, not as a
+silent replacement for listening when the meeting is medium-risk.
 When several lane answer sheets are edited, `scripts/apply-review-workspace-decisions.py` applies
 the whole `review_workspace.json` in one validated pass.
 `scripts/report-review-decisions-progress.py` then shows how much of the queue is actually closed

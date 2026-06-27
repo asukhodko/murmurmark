@@ -766,9 +766,12 @@ EOF
   [[ -s "$lane_pack_dir/review_lane_pack.check_local_recall.json" ]]
   [[ -s "$lane_pack_dir/review_lane_pack.check_local_recall.md" ]]
   [[ -s "$lane_pack_dir/review_lane_answers.check_local_recall.txt" ]]
+  [[ -s "$lane_pack_dir/review_lane_answers.check_local_recall.suggested.txt" ]]
   jq -e '.schema == "murmurmark.review_lane_pack/v1" and .summary.item_count == 1 and .items[0].source_audit_id == "local_recall_0001"' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   jq -e '.outputs.answer_sheet | endswith("review_lane_answers.check_local_recall.txt")' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
+  jq -e '.outputs.suggested_answer_sheet | endswith("review_lane_answers.check_local_recall.suggested.txt")' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   grep -q '^answers=\.$' "$lane_pack_dir/review_lane_answers.check_local_recall.txt"
+  grep -q '^answers=r$' "$lane_pack_dir/review_lane_answers.check_local_recall.suggested.txt"
   grep -q -- '--answers-file' "$lane_pack_dir/review_lane_pack.check_local_recall.md"
   review_workspace_dir="$workdir/review_workspace"
   "$repo_root/scripts/build-review-workspace.py" \
@@ -780,7 +783,19 @@ EOF
   answer_sheet="$review_workspace_dir/lane-packs/review_lane_answers.check_local_recall.txt"
   [[ -s "$answer_sheet" ]]
   grep -q '^answers=\.$' "$answer_sheet"
+  suggested_answer_sheet="$review_workspace_dir/lane-packs/review_lane_answers.check_local_recall.suggested.txt"
+  [[ -s "$suggested_answer_sheet" ]]
+  grep -q '^answers=r$' "$suggested_answer_sheet"
   grep -q -- '--answers-file' "$review_workspace_dir/review_workspace.md"
+  suggested_apply_out="$workdir/review_decisions_workspace_suggested_apply.jsonl"
+  "$repo_root/scripts/apply-review-workspace-decisions.py" \
+    --workspace "$review_workspace_dir/review_workspace.json" \
+    --template "$review_template" \
+    --out "$suggested_apply_out" \
+    --report "$workdir/review_workspace_suggested_apply_report.json" \
+    --answers-source suggested >/dev/null
+  jq -s '.[0].decision == "todo" and .[1].decision == "needs_review" and .[1].review_source == "workspace_suggested_answer_sheet"' "$suggested_apply_out" >/dev/null
+  jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .answers_source == "suggested" and .summary.reviewed_count == 1 and .summary.remaining_rows == 1 and .summary.rejected_count == 0' "$workdir/review_workspace_suggested_apply_report.json" >/dev/null
   sed 's/^answers=.*/answers=k/' "$answer_sheet" >"$answer_sheet.tmp"
   mv "$answer_sheet.tmp" "$answer_sheet"
   workspace_apply_out="$workdir/review_decisions_workspace_apply.jsonl"
@@ -799,6 +814,24 @@ EOF
     --answers-file "$answer_sheet" >/dev/null
   jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "lane_pack"' "$lane_pack_apply_out" >/dev/null
   jq -e '.schema == "murmurmark.review_lane_pack_apply_report/v1" and .summary.reviewed_count == 1 and .summary.rejected_count == 0' "$workdir/review_lane_pack_apply_report.json" >/dev/null
+  duplicate_source_template="$workdir/review_decisions_duplicate_source.template.jsonl"
+  duplicate_source_out="$workdir/review_decisions_duplicate_source.jsonl"
+  duplicate_lane_dir="$workdir/review_lane_pack_duplicate_source"
+  cat >"$duplicate_source_template" <<EOF
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source_audit_id":"duplicate_source","label":"remote_duplicate","verdict":"probable_transcript_error","review_lane":"fast_confirm_drop","review_action":"check_duplicate","suggested_decision":"drop_me","suggested_decision_confidence":"high","me_utterance_ids":["utt_dup_a"],"utterance_ids":["utt_dup_a"],"interval":{"start":0.0,"end":0.8,"duration_sec":0.8},"text":[{"id":"utt_dup_a","role":"me","source_track":"mic","text":"Первый дубль."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 0.000 -t 1.000 \"$group_session/audio/mic/000001.caf\""}}
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source_audit_id":"duplicate_source","label":"remote_duplicate","verdict":"probable_transcript_error","review_lane":"fast_confirm_drop","review_action":"check_duplicate","suggested_decision":"drop_me","suggested_decision_confidence":"high","me_utterance_ids":["utt_dup_b"],"utterance_ids":["utt_dup_b"],"interval":{"start":1.0,"end":1.8,"duration_sec":0.8},"text":[{"id":"utt_dup_b","role":"me","source_track":"mic","text":"Второй дубль."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 1.000 -t 1.000 \"$group_session/audio/mic/000001.caf\""}}
+EOF
+  "$repo_root/scripts/build-review-lane-pack.py" \
+    --template "$duplicate_source_template" \
+    --lane fast_confirm_drop \
+    --out-dir "$duplicate_lane_dir" >/dev/null
+  jq -e '.items | length == 2 and all(.[]; .review_row_key | startswith("source:duplicate_source") | not)' "$duplicate_lane_dir/review_lane_pack.fast_confirm_drop.json" >/dev/null
+  "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
+    "$duplicate_lane_dir/review_lane_pack.fast_confirm_drop.json" \
+    --template "$duplicate_source_template" \
+    --out "$duplicate_source_out" \
+    --answers ks >/dev/null
+  jq -s '.[0].decision == "keep_me" and .[1].decision == "skip"' "$duplicate_source_out" >/dev/null
   "$repo_root/scripts/report-review-decisions-progress.py" \
     --template "$review_template" \
     --decisions "$lane_pack_apply_out" \

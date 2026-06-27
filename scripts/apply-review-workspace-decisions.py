@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.review_workspace_apply_report/v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -54,6 +54,12 @@ def parse_args() -> argparse.Namespace:
         help="Output apply report JSON.",
     )
     parser.add_argument("--reviewer", default="", help="Reviewer name written to decided rows.")
+    parser.add_argument(
+        "--answers-source",
+        choices=["review", "suggested"],
+        default="review",
+        help="Use edited review answer sheets or generated suggested answer sheets.",
+    )
     parser.add_argument("--require-complete", action="store_true", help="Fail if any workspace answer is still todo.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and print a report without writing --out.")
     return parser.parse_args()
@@ -100,16 +106,19 @@ def normalize_text(value: Any) -> str:
 
 def review_row_key(row: dict[str, Any]) -> str:
     source_id = str(row.get("source_audit_id") or "").strip()
-    if source_id:
-        return f"source:{source_id}"
     cluster_id = str(row.get("cluster_id") or "").strip()
-    if cluster_id:
-        return f"cluster:{cluster_id}"
     utterance_ids = row.get("utterance_ids")
-    if isinstance(utterance_ids, list) and utterance_ids:
-        return "utterances:" + ",".join(str(item) for item in utterance_ids)
+    utterance_key = ",".join(str(item) for item in utterance_ids) if isinstance(utterance_ids, list) else ""
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
-    return f"interval:{interval.get('start')}:{interval.get('end')}:{row.get('label')}:{normalize_text(row.get('text'))[:80]}"
+    return (
+        "review:"
+        f"{source_id}:"
+        f"{row.get('session_id') or ''}:"
+        f"{cluster_id}:"
+        f"{utterance_key}:"
+        f"{interval.get('start')}:{interval.get('end')}:"
+        f"{row.get('label')}"
+    )
 
 
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -162,32 +171,44 @@ def manifest_items(manifest: dict[str, Any]) -> list[dict[str, Any]]:
 
 def row_lookup(rows: list[dict[str, Any]]) -> dict[str, int]:
     lookup: dict[str, int] = {}
+    source_counts = Counter(str(row.get("source_audit_id") or "").strip() for row in rows)
     for index, row in enumerate(rows):
+        lookup[review_row_key(row)] = index
         source_id = str(row.get("source_audit_id") or "").strip()
-        if source_id:
-            lookup[source_id] = index
+        if source_id and source_counts[source_id] == 1:
+            lookup[f"source:{source_id}"] = index
     return lookup
+
+
+def item_lookup_key(item: dict[str, Any]) -> str:
+    key = str(item.get("review_row_key") or "").strip()
+    if key:
+        return key
+    source_id = str(item.get("source_audit_id") or "").strip()
+    return f"source:{source_id}" if source_id else ""
 
 
 def path_from_value(value: Any) -> Path:
     return Path(str(value or "")).expanduser()
 
 
-def workspace_lane_inputs(workspace: dict[str, Any]) -> list[dict[str, Any]]:
+def workspace_lane_inputs(workspace: dict[str, Any], answers_source: str) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
+    answer_key = "suggested_answer_sheet" if answers_source == "suggested" else "answer_sheet"
     for lane in workspace.get("lanes") or []:
         if not isinstance(lane, dict) or lane.get("status") != "ok":
             continue
         manifest = lane.get("manifest")
-        answer_sheet = lane.get("answer_sheet")
+        answer_sheet = lane.get(answer_key)
         if not manifest or not answer_sheet:
-            result.append({"lane": lane.get("lane"), "error": "missing_manifest_or_answer_sheet"})
+            result.append({"lane": lane.get("lane"), "error": f"missing_manifest_or_{answer_key}"})
             continue
         result.append(
             {
                 "lane": lane.get("lane"),
                 "manifest": path_from_value(manifest),
                 "answer_sheet": path_from_value(answer_sheet),
+                "answer_key": answer_key,
             }
         )
     return result
@@ -211,6 +232,7 @@ def apply_lane(
     lookup: dict[str, int],
     now: str,
     reviewer: str,
+    answers_source: str,
 ) -> dict[str, Any]:
     lane = str(lane_input.get("lane") or "unknown")
     if lane_input.get("error"):
@@ -236,6 +258,7 @@ def apply_lane(
             "status": "failed",
             "manifest": str(manifest_path),
             "answer_sheet": str(answer_sheet),
+            "answer_key": lane_input.get("answer_key"),
             "summary": {"applied_count": 0, "reviewed_count": 0, "todo_count": 0, "rejected_count": len(rejected)},
             "rejected": rejected,
         }
@@ -260,13 +283,14 @@ def apply_lane(
             "status": "failed",
             "manifest": str(manifest_path),
             "answer_sheet": str(answer_sheet),
+            "answer_key": lane_input.get("answer_key"),
             "summary": {"applied_count": 0, "reviewed_count": 0, "todo_count": 0, "rejected_count": len(rejected)},
             "rejected": rejected,
         }
 
     for item, decision in zip(items, decisions):
         source_id = str(item.get("source_audit_id") or "").strip()
-        row_index = lookup.get(source_id)
+        row_index = lookup.get(item_lookup_key(item))
         if row_index is None:
             rejected.append({"source_audit_id": source_id, "decision": decision, "reason": "missing_template_row"})
             continue
@@ -289,7 +313,9 @@ def apply_lane(
             row["decision"] = decision
             row["status"] = "reviewed"
             row["reviewed_at"] = now
-            row["review_source"] = "workspace_answer_sheet"
+            row["review_source"] = (
+                "workspace_suggested_answer_sheet" if answers_source == "suggested" else "workspace_answer_sheet"
+            )
             row["review_workspace_lane"] = lane
             row["review_lane_pack"] = str(manifest_path)
             row["review_lane_pack_index"] = item.get("index")
@@ -310,13 +336,14 @@ def apply_lane(
         "status": "failed" if rejected else "ok",
         "manifest": str(manifest_path),
         "answer_sheet": str(answer_sheet),
-            "summary": {
-                "manifest_items": len(items),
-                "answer_count": len(decisions),
-                "skipped_count": skipped_count,
-                "applied_count": len(applied),
-                "reviewed_count": sum(1 for row in applied if row.get("status") == "reviewed"),
-                "todo_count": sum(1 for row in applied if row.get("status") == "todo"),
+        "answer_key": lane_input.get("answer_key"),
+        "summary": {
+            "manifest_items": len(items),
+            "answer_count": len(decisions),
+            "skipped_count": skipped_count,
+            "applied_count": len(applied),
+            "reviewed_count": sum(1 for row in applied if row.get("status") == "reviewed"),
+            "todo_count": sum(1 for row in applied if row.get("status") == "todo"),
             "rejected_count": len(rejected),
         },
         "rejected": rejected,
@@ -332,8 +359,8 @@ def main() -> int:
     rows = merge_existing(read_jsonl(template), read_jsonl(out))
     lookup = row_lookup(rows)
     now = datetime.now(timezone.utc).isoformat()
-    lanes = workspace_lane_inputs(workspace)
-    lane_reports = [apply_lane(lane, rows, lookup, now, args.reviewer) for lane in lanes]
+    lanes = workspace_lane_inputs(workspace, args.answers_source)
+    lane_reports = [apply_lane(lane, rows, lookup, now, args.reviewer, args.answers_source) for lane in lanes]
     rejected = [row for lane in lane_reports for row in lane.get("rejected") or []]
     remaining_rows = [row for row in rows if not is_reviewed(row)]
     decision_counts = Counter(str(row.get("decision") or "todo") for row in rows)
@@ -350,6 +377,7 @@ def main() -> int:
             "out": str(out),
         },
         "dry_run": args.dry_run,
+        "answers_source": args.answers_source,
         "require_complete": args.require_complete,
         "summary": {
             "lane_count": len(lane_reports),

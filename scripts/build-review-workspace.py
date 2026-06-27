@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.review_workspace/v1"
 LANE_ORDER = [
     "fast_confirm_drop",
@@ -76,16 +76,19 @@ def normalize_text(value: Any) -> str:
 
 def review_row_key(row: dict[str, Any]) -> str:
     source_id = str(row.get("source_audit_id") or "").strip()
-    if source_id:
-        return f"source:{source_id}"
     cluster_id = str(row.get("cluster_id") or "").strip()
-    if cluster_id:
-        return f"cluster:{cluster_id}"
     utterance_ids = row.get("utterance_ids")
-    if isinstance(utterance_ids, list) and utterance_ids:
-        return "utterances:" + ",".join(str(item) for item in utterance_ids)
+    utterance_key = ",".join(str(item) for item in utterance_ids) if isinstance(utterance_ids, list) else ""
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
-    return f"interval:{interval.get('start')}:{interval.get('end')}:{row.get('label')}:{normalize_text(row.get('text'))[:80]}"
+    return (
+        "review:"
+        f"{source_id}:"
+        f"{row.get('session_id') or ''}:"
+        f"{cluster_id}:"
+        f"{utterance_key}:"
+        f"{interval.get('start')}:{interval.get('end')}:"
+        f"{row.get('label')}"
+    )
 
 
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -168,6 +171,7 @@ def build_lane_pack(
     summary = manifest.get("summary") if isinstance(manifest.get("summary"), dict) else {}
     outputs = manifest.get("outputs") if isinstance(manifest.get("outputs"), dict) else {}
     answer_sheet = outputs.get("answer_sheet") or str(write_answer_sheet(lane_pack_dir / f"review_lane_answers.{lane}.txt", manifest))
+    suggested_answer_sheet = outputs.get("suggested_answer_sheet")
     return {
         "lane": lane,
         "status": "ok",
@@ -178,6 +182,7 @@ def build_lane_pack(
         "manifest": outputs.get("manifest"),
         "markdown": outputs.get("markdown"),
         "answer_sheet": answer_sheet,
+        "suggested_answer_sheet": suggested_answer_sheet,
     }
 
 
@@ -222,14 +227,15 @@ def write_markdown(path: Path, workspace: dict[str, Any]) -> None:
         "",
         "## Lanes",
         "",
-        "| Lane | Items | Duration sec | Skipped | Audio | Index | Answers | Apply answers |",
-        "|---|---:|---:|---:|---|---|---|---|",
+        "| Lane | Items | Duration sec | Skipped | Audio | Index | Answers | Suggested | Apply answers |",
+        "|---|---:|---:|---:|---|---|---|---|---|",
     ]
     for lane in workspace.get("lanes") or []:
         audio = lane.get("audio") or ""
         markdown = lane.get("markdown") or ""
         manifest = lane.get("manifest") or ""
         answer_sheet = lane.get("answer_sheet") or ""
+        suggested_answer_sheet = lane.get("suggested_answer_sheet") or ""
         apply_cmd = (
             f".venv/bin/python scripts/apply-review-lane-pack-decisions.py {shlex.quote(str(manifest))} "
             f"--answers-file {shlex.quote(str(answer_sheet))} --out sessions/_reports/review-plan/review_decisions.jsonl"
@@ -238,7 +244,7 @@ def write_markdown(path: Path, workspace: dict[str, Any]) -> None:
         )
         lines.append(
             f"| `{lane.get('lane')}` | {lane.get('items')} | {lane.get('duration_sec')} | {lane.get('skipped')} | "
-            f"`{audio}` | `{markdown}` | `{answer_sheet}` | `{apply_cmd}` |"
+            f"`{audio}` | `{markdown}` | `{answer_sheet}` | `{suggested_answer_sheet}` | `{apply_cmd}` |"
         )
     lines.extend(
         [

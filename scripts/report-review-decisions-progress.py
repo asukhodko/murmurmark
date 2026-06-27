@@ -70,16 +70,19 @@ def normalize_text(value: Any) -> str:
 
 def review_row_key(row: dict[str, Any]) -> str:
     source_id = str(row.get("source_audit_id") or "").strip()
-    if source_id:
-        return f"source:{source_id}"
     cluster_id = str(row.get("cluster_id") or "").strip()
-    if cluster_id:
-        return f"cluster:{cluster_id}"
     utterance_ids = row.get("utterance_ids")
-    if isinstance(utterance_ids, list) and utterance_ids:
-        return "utterances:" + ",".join(str(item) for item in utterance_ids)
+    utterance_key = ",".join(str(item) for item in utterance_ids) if isinstance(utterance_ids, list) else ""
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
-    return f"interval:{interval.get('start')}:{interval.get('end')}:{row.get('label')}:{normalize_text(row.get('text'))[:80]}"
+    return (
+        "review:"
+        f"{source_id}:"
+        f"{row.get('session_id') or ''}:"
+        f"{cluster_id}:"
+        f"{utterance_key}:"
+        f"{interval.get('start')}:{interval.get('end')}:"
+        f"{row.get('label')}"
+    )
 
 
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -499,6 +499,12 @@ have actually checked:
 $EDITOR sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt
 ```
 
+Each lane also has a suggested answer sheet. It is useful for comparison after listening:
+
+```bash
+less sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.suggested.txt
+```
+
 Then copy decisions from the answer sheet back into the full review file:
 
 ```bash
@@ -514,6 +520,15 @@ If several lane answer sheets have been edited, apply the whole workspace instea
 .venv/bin/python scripts/apply-review-workspace-decisions.py \
   --workspace sessions/_reports/review-plan/review_workspace.json \
   --out sessions/_reports/review-plan/review_decisions.jsonl
+```
+
+To estimate what the generated suggestions would do without writing decisions:
+
+```bash
+.venv/bin/python scripts/apply-review-workspace-decisions.py \
+  --workspace sessions/_reports/review-plan/review_workspace.json \
+  --answers-source suggested \
+  --dry-run
 ```
 
 Answer shortcuts are `d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.` or `n=todo`.

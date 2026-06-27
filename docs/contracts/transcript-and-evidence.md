@@ -860,6 +860,7 @@ sessions/_reports/review-plan/lane-packs/
   review_lane_pack.fast_confirm_drop.json
   review_lane_pack.fast_confirm_drop.md
   review_lane_answers.fast_confirm_drop.txt
+  review_lane_answers.fast_confirm_drop.suggested.txt
 ```
 
 The JSON uses `murmurmark.review_lane_pack/v1`:
@@ -872,7 +873,8 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
     "audio": "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav",
     "manifest": "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.json",
     "markdown": "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.md",
-    "answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt"
+    "answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt",
+    "suggested_answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.suggested.txt"
   },
   "summary": {
     "selected_rows": 10,
@@ -883,6 +885,7 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
   "items": [
     {
       "index": 1,
+      "review_row_key": "review:arp_000020:2026-06-26_11-15-50:review_cluster_0015:utt_000269,utt_000271:1455.04:1460.66:remote_duplicate",
       "source_audit_id": "arp_000020",
       "session_id": "2026-06-26_11-15-50",
       "pack_start": 0.0,
@@ -895,8 +898,13 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
 }
 ```
 
+`review_row_key` is the stable row identity for applying answers. `source_audit_id` is useful for
+display but is not guaranteed to be unique across clustered review rows.
+
 Lane packs are listening aids only. The generated answer sheet starts with `answers=...`, where `.`
-means `todo`; it is not applied until `apply-review-lane-pack-decisions.py` is run.
+means `todo`; it is not applied until `apply-review-lane-pack-decisions.py` is run. The generated
+`.suggested.txt` sheet mirrors existing `suggested_decision` values that are allowed for each row.
+It is a review aid, not a transcript edit by itself.
 Lane packs do not modify transcript profiles.
 `build-review-workspace.py` builds all currently-open lane packs and writes:
 
@@ -924,7 +932,8 @@ The JSON uses `murmurmark.review_workspace/v1`:
       "status": "ok",
       "items": 10,
       "audio": "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav",
-      "answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt"
+      "answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt",
+      "suggested_answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.suggested.txt"
     }
   ]
 }
@@ -957,8 +966,9 @@ each answer against `allowed_decisions`, writes `review_source: "lane_pack"`, an
 
 `apply-review-workspace-decisions.py` applies every lane answer sheet referenced by
 `review_workspace.json` into one `review_decisions.jsonl`. It validates item counts, answer
-shortcuts and `allowed_decisions`; with `--require-complete` it fails if any workspace answer is
-still `todo`. It writes:
+shortcuts and `allowed_decisions`; with `--answers-source suggested` it reads
+`suggested_answer_sheet` instead of the manual `answer_sheet`, and with `--require-complete` it fails
+if any selected workspace answer is still `todo`. It writes:
 
 ```text
 sessions/_reports/review-plan/
@@ -970,6 +980,7 @@ The JSON uses `murmurmark.review_workspace_apply_report/v1`:
 ```json
 {
   "schema": "murmurmark.review_workspace_apply_report/v1",
+  "answers_source": "review",
   "summary": {
     "lane_count": 3,
     "reviewed_count": 10,

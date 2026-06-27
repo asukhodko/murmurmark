@@ -11,8 +11,17 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.review_lane_pack/v1"
+DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
+DECISION_SHORTCUTS = {
+    "drop_me": "d",
+    "keep_me": "k",
+    "needs_review": "r",
+    "skip": "s",
+    "todo": ".",
+    "": ".",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -64,16 +73,19 @@ def normalize_text(value: Any) -> str:
 
 def review_row_key(row: dict[str, Any]) -> str:
     source_id = str(row.get("source_audit_id") or "").strip()
-    if source_id:
-        return f"source:{source_id}"
     cluster_id = str(row.get("cluster_id") or "").strip()
-    if cluster_id:
-        return f"cluster:{cluster_id}"
     utterance_ids = row.get("utterance_ids")
-    if isinstance(utterance_ids, list) and utterance_ids:
-        return "utterances:" + ",".join(str(item) for item in utterance_ids)
+    utterance_key = ",".join(str(item) for item in utterance_ids) if isinstance(utterance_ids, list) else ""
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
-    return f"interval:{interval.get('start')}:{interval.get('end')}:{row.get('label')}:{normalize_text(row.get('text'))[:80]}"
+    return (
+        "review:"
+        f"{source_id}:"
+        f"{row.get('session_id') or ''}:"
+        f"{cluster_id}:"
+        f"{utterance_key}:"
+        f"{interval.get('start')}:{interval.get('end')}:"
+        f"{row.get('label')}"
+    )
 
 
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -267,6 +279,7 @@ def write_markdown(path: Path, manifest: dict[str, Any]) -> None:
         f"Items: `{manifest['summary']['item_count']}`",
         f"Audio: `{manifest['outputs']['audio']}`",
         f"Answers: `{manifest['outputs']['answer_sheet']}`",
+        f"Suggested answers: `{manifest['outputs']['suggested_answer_sheet']}`",
         f"Duration: `{manifest['summary']['duration_sec']}` sec",
         "",
         "```bash",
@@ -294,23 +307,43 @@ def write_markdown(path: Path, manifest: dict[str, Any]) -> None:
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
-def write_answer_sheet(path: Path, manifest: dict[str, Any]) -> None:
+def allowed_decisions_for_item(item: dict[str, Any]) -> set[str]:
+    values = item.get("allowed_decisions")
+    if not isinstance(values, list) or not values:
+        return set(DEFAULT_ALLOWED_DECISIONS)
+    allowed = {str(value) for value in values if str(value) in DEFAULT_ALLOWED_DECISIONS}
+    return allowed or set(DEFAULT_ALLOWED_DECISIONS)
+
+
+def answer_for_item(item: dict[str, Any], suggested: bool) -> str:
+    if not suggested:
+        return "."
+    decision = str(item.get("suggested_decision") or "todo")
+    if decision not in allowed_decisions_for_item(item):
+        return "."
+    return DECISION_SHORTCUTS.get(decision, ".")
+
+
+def write_answer_sheet(path: Path, manifest: dict[str, Any], *, suggested: bool = False) -> None:
     items = [item for item in manifest.get("items") or [] if isinstance(item, dict)]
-    placeholders = "." * len(items)
+    answers = "".join(answer_for_item(item, suggested) for item in items)
+    title = "suggested review answers" if suggested else "review answers"
     lines = [
-        f"# MurmurMark review answers for lane {manifest.get('lane')}",
-        "# Listen to the lane WAV, then replace dots in answers=... with decisions.",
+        f"# MurmurMark {title} for lane {manifest.get('lane')}",
+        "# Listen to the lane WAV before applying decisions to medium-risk transcripts.",
         "# d=drop_me, k=keep_me, r/?=needs_review, s=skip, ./n/t=todo",
-        "# Keep dots for items you have not reviewed yet.",
-        f"answers={placeholders}",
+        "# Keep dots for items you have not reviewed or cannot confidently classify.",
+        f"answers={answers}",
         "",
         "# Items",
     ]
     for item in items:
         text = " ".join(str(item.get("text") or "").split())
+        allowed = ",".join(sorted(allowed_decisions_for_item(item)))
         lines.append(
             f"# {item.get('index')}: {item.get('pack_start_time')}-{item.get('pack_end_time')} "
-            f"{item.get('source_audit_id')} suggested={item.get('suggested_decision')} {text}"
+            f"{item.get('source_audit_id')} suggested={item.get('suggested_decision')} "
+            f"allowed={allowed} {text}"
         )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -336,6 +369,7 @@ def main() -> int:
     manifest_path = out_dir / f"review_lane_pack.{args.lane}.json"
     md_path = out_dir / f"review_lane_pack.{args.lane}.md"
     answer_sheet_path = out_dir / f"review_lane_answers.{args.lane}.txt"
+    suggested_answer_sheet_path = out_dir / f"review_lane_answers.{args.lane}.suggested.txt"
 
     manifest_items: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
@@ -368,11 +402,15 @@ def main() -> int:
             manifest_items.append(
                 {
                     "index": len(manifest_items) + 1,
+                    "review_row_key": review_row_key(row),
                     "source_audit_id": row.get("source_audit_id"),
                     "session_id": row.get("session_id"),
                     "review_lane": row.get("review_lane"),
                     "label": row.get("label"),
                     "suggested_decision": row.get("suggested_decision"),
+                    "suggested_decision_confidence": row.get("suggested_decision_confidence"),
+                    "suggested_decision_reason": row.get("suggested_decision_reason"),
+                    "allowed_decisions": row.get("allowed_decisions"),
                     "command_key": command_key,
                     "command": command,
                     "pack_start": round(start, 3),
@@ -409,6 +447,7 @@ def main() -> int:
             "manifest": str(manifest_path),
             "markdown": str(md_path),
             "answer_sheet": str(answer_sheet_path),
+            "suggested_answer_sheet": str(suggested_answer_sheet_path),
         },
         "summary": {
             "selected_rows": len(selected),
@@ -421,10 +460,12 @@ def main() -> int:
     }
     write_json(manifest_path, manifest)
     write_answer_sheet(answer_sheet_path, manifest)
+    write_answer_sheet(suggested_answer_sheet_path, manifest, suggested=True)
     write_markdown(md_path, manifest)
     print(f"audio: {audio_path}")
     print(f"manifest: {manifest_path}")
     print(f"answers: {answer_sheet_path}")
+    print(f"suggested_answers: {suggested_answer_sheet_path}")
     print(f"items: {len(manifest_items)}")
     print(f"skipped: {len(skipped)}")
     return 0
