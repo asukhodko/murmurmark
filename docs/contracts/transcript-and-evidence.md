@@ -647,6 +647,20 @@ Obsidian format writes one frontmatter Markdown note plus `export_manifest.json`
 Default export blocks sessions whose readiness is `review_first`. `--force` may create an export for
 debugging, but the manifest still records blockers and warnings.
 
+## Retention Plan
+
+`murmurmark retention plan SESSION` records how the current retention policy treats raw audio,
+exports and external providers.
+
+Output:
+
+```text
+SESSION/derived/retention/retention_plan.json
+```
+
+The plan uses `murmurmark.retention_plan/v1`. See
+[retention-policy.md](retention-policy.md) for policy, plan and audit-event schemas.
+
 ## Local CLI Config
 
 `murmurmark.config.json` uses `murmurmark.config/v1`. It is local and ignored by git. The tracked

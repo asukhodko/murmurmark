@@ -65,6 +65,7 @@ murmurmark report "$SESSION"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
 murmurmark export "$SESSION" --format markdown --include-json
+murmurmark retention plan "$SESSION"
 
 PROFILE="$(jq -r '.selected_transcript_profile' "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json")"
 case "$PROFILE" in
@@ -98,6 +99,18 @@ murmurmark corpus report
 
 less sessions/_reports/session-quality/session_quality_report.md
 ```
+
+Retention is explicit and local:
+
+```bash
+murmurmark retention plan "$SESSION"
+less "$SESSION/derived/retention/retention_plan.json"
+```
+
+The tracked default policy is [examples/retention-policy.local-first.json](examples/retention-policy.local-first.json).
+It keeps raw audio, forbids copying raw audio to export bundles and disables external providers.
+Raw deletion is available only with a policy that requests deletion plus
+`murmurmark retention apply "$SESSION" --confirm-delete-raw` after a successful export manifest.
 
 To turn audited sessions into a reusable private regression set for future cleanup and audio-judge
 work, build a corpus from existing audio-review audits:
@@ -183,6 +196,7 @@ murmurmark report "$SESSION"
 less "$SESSION/derived/readiness/session_readiness.md"
 less "$SESSION/derived/synthesis-simple/extractive/quality_verdict.md"
 less "$SESSION/derived/synthesis-simple/extractive/notes.md"
+murmurmark retention plan "$SESSION"
 
 PROFILE="$(jq -r '.selected_transcript_profile' "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json")"
 case "$PROFILE" in
@@ -244,6 +258,8 @@ murmurmark corpus gate
 murmurmark corpus report
 murmurmark export ./sessions/<session> --format markdown --include-json
 murmurmark export ./sessions/<session> --format obsidian
+murmurmark retention plan ./sessions/<session>
+murmurmark retention apply ./sessions/<session> --policy ./policy.json --confirm-delete-raw
 .build/debug/murmurmark preprocess ./sessions/<session> --echo diagnostic
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine linear_baseline
 .build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine local_fir

@@ -140,13 +140,15 @@ Default.
 
 ## Retention Policy
 
-Supported policies:
+Implemented policy flow:
 
-- `keep_until_manual_delete`;
-- `delete_after_transcript_success`;
-- `delete_after_notes_success`;
-- `delete_after_n_days`;
-- `delete_immediately_after_export`.
+- `murmurmark retention plan SESSION` writes a content-free retention plan under
+  `SESSION/derived/retention/`;
+- the default tracked policy is `examples/retention-policy.local-first.json`;
+- default policy keeps raw audio, forbids copying raw audio into export bundles and disables
+  external providers;
+- raw deletion requires an explicit policy, a successful export manifest, `retention apply` and
+  `--confirm-delete-raw`.
 
 Deletion events are technical audit events, not content logs.
 
@@ -155,4 +157,3 @@ Deletion events are technical audit events, not content logs.
 This repository does not provide legal advice. Implementations must make room for consent workflows appropriate to the user's jurisdiction and organization.
 
 Product UX should not imply that hidden recording is automatically acceptable. A future consent checklist should be part of onboarding before real meetings.
-

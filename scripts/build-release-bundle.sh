@@ -98,6 +98,9 @@ done
 # Include this script before it is committed, so local verification can inspect
 # the same bundle layout during development.
 copy_file "scripts/build-release-bundle.sh"
+copy_file "scripts/apply-retention-policy.py"
+copy_file "examples/retention-policy.local-first.json"
+copy_file "docs/contracts/retention-policy.md"
 
 cat > "$bundle_root/bin/murmurmark" <<'EOF'
 #!/usr/bin/env bash

@@ -42,6 +42,7 @@ murmurmark process "$SESSION"
 
 murmurmark report "$SESSION"
 less "$SESSION/derived/readiness/session_readiness.md"
+murmurmark retention plan "$SESSION"
 ```
 
 Copy `murmurmark.config.example.json` to `murmurmark.config.json` when you want local defaults for
@@ -68,6 +69,18 @@ Read `derived/readiness/session_readiness.md` before using a meeting result. It 
 - `review_first`: check the listed audio-review regions before using the result for medium-risk work;
 - `do_not_use_without_manual_review`: the transcript is too risky for unattended use;
 - `pipeline_incomplete`: rerun the full pipeline before judging the session.
+
+After export, keep a retention plan with the session:
+
+```bash
+murmurmark export "$SESSION" --format markdown --include-json
+murmurmark retention plan "$SESSION"
+less "$SESSION/derived/retention/retention_plan.json"
+```
+
+The default policy keeps raw audio and records that raw audio is not copied into export bundles.
+Destructive raw deletion requires an explicit policy, `retention apply`, a successful export manifest,
+and `--confirm-delete-raw`.
 
 ## Low-Level Transcription
 

@@ -39,6 +39,8 @@ struct MurmurMark {
                 try CorpusCommands.corpus(args)
             case "export":
                 try ExportCommands.export(args)
+            case "retention":
+                try RetentionCommands.retention(args)
             case "config":
                 try ConfigCommands.config(args)
             case "preprocess":
@@ -88,6 +90,9 @@ struct MurmurMark {
           murmurmark corpus report [--sessions-root ./sessions]
           murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
                              [--include-json] [--force] [--sessions-root ./sessions]
+          murmurmark retention plan|apply ./session|latest [--policy examples/retention-policy.local-first.json]
+                             [--export-manifest ./exports/private/session/export_manifest.json]
+                             [--confirm-delete-raw] [--sessions-root ./sessions]
           murmurmark config print [--config murmurmark.config.json]
           murmurmark preprocess ./session [--echo diagnostic|clean] [--echo-engine linear_baseline|local_fir|speexdsp|webrtc-apm]
                               [--echo-policy preserve_local|role_safe|strict_silence]
@@ -106,6 +111,7 @@ struct MurmurMark {
           review wraps the current review-plan, review CLI, progress and apply scripts.
           corpus wraps regression-corpus, audio-judge, corpus gates and operational-readiness scripts.
           export creates a local user-facing Markdown or Obsidian bundle and blocks review-first sessions by default.
+          retention plans or applies local retention policy; raw deletion requires apply plus --confirm-delete-raw.
           config shows local defaults loaded by process/export.
         """)
     }
@@ -326,6 +332,7 @@ enum DoctorChecks {
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/synthesize-simple-extractive.py",
             "scripts/report-session-quality.py",
+            "scripts/apply-retention-policy.py",
         ] {
             let url = PathURLs.fileURL(path)
             if FileManager.default.fileExists(atPath: url.path) {
@@ -763,6 +770,57 @@ enum ExportCommands {
             throw CLIError("export script not found: \(url.path)")
         }
         return url
+    }
+}
+
+enum RetentionCommands {
+    static func retention(_ args: [String]) throws {
+        if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+
+        var remaining = args
+        let mode = remaining.removeFirst()
+        guard mode == "plan" || mode == "apply" else {
+            throw CLIError("retention requires plan or apply")
+        }
+        guard let target = remaining.first else {
+            throw CLIError("retention \(mode) requires a session path or latest")
+        }
+        remaining.removeFirst()
+
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        var command = [try script().path, session.path]
+        if mode == "apply" {
+            command.append("--apply")
+        }
+        command += remaining
+
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        fflush(stdout)
+        try Tooling.runPath(try PythonRuntime.resolve(), command)
+    }
+
+    private static func script() throws -> URL {
+        let url = PathURLs.fileURL("scripts/apply-retention-policy.py")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("retention script not found: \(url.path)")
+        }
+        return url
+    }
+
+    private static func printHelp() {
+        print("""
+        usage:
+          murmurmark retention plan ./session|latest [--policy ./policy.json] [--export-manifest ./export_manifest.json]
+          murmurmark retention apply ./session|latest --confirm-delete-raw [--policy ./policy.json] [--export-manifest ./export_manifest.json]
+
+        Plan mode writes SESSION/derived/retention/retention_plan.json and does not delete files.
+        Apply mode can delete raw CAF only when the policy requests it, export manifest is successful,
+        and --confirm-delete-raw is present.
+        """)
     }
 }
 

@@ -1,0 +1,24 @@
+{
+  "schema": "murmurmark.retention_policy/v1",
+  "name": "local_first_keep_raw",
+  "raw_audio": {
+    "after_successful_export": "keep",
+    "delete_requires_confirmation": true
+  },
+  "derived_artifacts": {
+    "default_action": "keep"
+  },
+  "exports": {
+    "default_out_dir": "exports/private",
+    "copy_raw_audio": false,
+    "include_json": true
+  },
+  "external_providers": {
+    "allow": false,
+    "require_payload_manifest": true
+  },
+  "audit": {
+    "write_events": true,
+    "content_free": true
+  }
+}
