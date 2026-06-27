@@ -1249,6 +1249,11 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
                 "label": "Apply edited review workspace answers.",
                 "command": "murmurmark review workspace apply",
             },
+            {
+                "id": "review_apply",
+                "label": "Apply closed review decisions and refresh reports when progress is ready.",
+                "command": "murmurmark review apply",
+            },
         ]
 
     if gate == "ready_for_notes":

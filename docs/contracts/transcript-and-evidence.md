@@ -824,6 +824,11 @@ Explicit command-line flags override config values.
       "id": "review_workspace_apply",
       "label": "Apply edited review workspace answers.",
       "command": "murmurmark review workspace apply"
+    },
+    {
+      "id": "review_apply",
+      "label": "Apply closed review decisions and refresh reports when progress is ready.",
+      "command": "murmurmark review apply"
     }
   ],
   "metrics": {

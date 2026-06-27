@@ -3899,6 +3899,10 @@ enum ReadinessPrinter {
                     "label": "Apply edited review workspace answers.",
                     "command": "murmurmark review workspace apply",
                 ],
+                [
+                    "label": "Apply closed review decisions and refresh reports when progress is ready.",
+                    "command": "murmurmark review apply",
+                ],
             ]
         }
         if gate == "ready_for_notes" {
