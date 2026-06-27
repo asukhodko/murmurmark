@@ -222,7 +222,9 @@ If an unrecovered local island is already covered by nearby remote transcript te
 it `likely_harmless_remote_covered`: content is preserved, and the remaining risk is attribution,
 not missing meeting substance. Short islands on parent, recovered-child or remote-guard boundaries
 are labelled `likely_harmless_boundary_fragment`; they stay visible in audit JSON but should not
-inflate the review queue unless other local-speech evidence is strong.
+inflate the review queue unless other local-speech evidence is strong. Short acknowledgement-only
+islands such as `понял` or `окей` are labelled `likely_harmless_ack_fragment`; they remain visible
+for audit, but do not become blocking lost-speech evidence by themselves.
 
 ## Group Overlap Audit
 

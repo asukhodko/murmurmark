@@ -392,8 +392,9 @@ Echo Guard `speaker_state.jsonl`, then writes `derived/audit/local-recall/`. Its
 low `local_only_island_recall`: short or weak unrecovered islands are recorded as low-risk evidence,
 and islands whose text is already covered by the remote transcript are treated as low-risk content
 coverage rather than missing meeting content. Short islands that sit exactly on parent/child/remote
-guard boundaries are labelled as likely harmless boundary fragments, while stronger unrecovered
-local speech stays as a blocking `low_local_recall` risk. It never edits transcripts.
+guard boundaries are labelled as likely harmless boundary fragments. Short acknowledgement-only
+islands such as `понял` or `окей` are also low-risk audit evidence, while stronger unrecovered local
+speech stays as a blocking `low_local_recall` risk. It never edits transcripts.
 
 Audit-informed cleanup is `murmurmark cleanup`. It wraps `scripts/apply-audit-cleanup.py`, reads
 `clean_dialogue.shadow_v2.json` and the group overlap audit, then writes only `audit_cleanup_v1`

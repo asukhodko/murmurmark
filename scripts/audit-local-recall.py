@@ -11,7 +11,23 @@ from typing import Any
 
 SCHEMA_AUDIT = "murmurmark.local_recall_audit/v1"
 SCHEMA_ITEM = "murmurmark.local_recall_item/v1"
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.4.0"
+ACK_TOKENS = {
+    "ага",
+    "угу",
+    "ок",
+    "окей",
+    "хорошо",
+    "понял",
+    "поняла",
+    "понятно",
+    "ясно",
+    "ладно",
+    "супер",
+    "класс",
+    "да",
+    "нет",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -182,6 +198,17 @@ def has_work_marker(text: Any) -> bool:
     return any(marker in value for marker in markers)
 
 
+def is_acknowledgement_text(text: Any) -> bool:
+    normalized = normalize_text(text)
+    if not normalized:
+        return False
+    tokens = normalized.split()
+    if len(tokens) > 3:
+        return False
+    meaningful = [token for token in tokens if token not in {"я", "ну", "вот", "это"}]
+    return bool(meaningful) and all(token in ACK_TOKENS for token in meaningful)
+
+
 def state_rows_for_interval(rows: list[dict[str, Any]], start_sec: float, end_sec: float) -> list[tuple[dict[str, Any], float]]:
     matches: list[tuple[dict[str, Any], float]] = []
     for row in rows:
@@ -335,12 +362,15 @@ def classify_item(
     mic_db = float(state.get("mic_db_mean", -120.0) or -120.0)
     token_count = len(content_tokens(parent_text))
     marker = has_work_marker(parent_text)
+    ack = is_acknowledgement_text(parent_text)
     remote_coverage = token_containment(parent_text, remote_overlap_text)
 
     if duration_sec < 0.55:
         return "likely_harmless_short", "local island is shorter than 550 ms", 0.74
     if token_count >= 3 and remote_coverage >= 0.70:
         return "likely_harmless_remote_covered", "unrecovered local island text is already covered by remote transcript", 0.82
+    if ack and not marker and duration_sec <= 1.6:
+        return "likely_harmless_ack_fragment", "short acknowledgement island has no work marker or unique meeting content", 0.79
     if boundary.get("boundary_fragment") and not marker:
         return "likely_harmless_boundary_fragment", "short unrecovered island sits on a parent, child, or remote guard boundary", 0.77
     if local_ratio >= 0.55 and mic_db > -52.0 and duration_sec >= 1.2:
@@ -399,6 +429,7 @@ def audit_items(examples: list[dict[str, Any]], speaker_states: list[dict[str, A
                     "parent_text": parent_text,
                     "parent_content_token_count": len(content_tokens(parent_text)),
                     "parent_has_work_marker": has_work_marker(parent_text),
+                    "parent_is_acknowledgement": is_acknowledgement_text(parent_text),
                     "state": state,
                     "boundary": boundary,
                     "matched_remote_candidate_ids": [str(row.get("candidate_id")) for row in remote_overlaps if isinstance(row, dict)],

@@ -541,6 +541,7 @@ PY
 {"start":10.0,"end":11.0,"state":"remote_only","confidence":0.95,"remote_db":-18,"mic_db":-80}
 {"start":12.0,"end":13.6,"state":"remote_only","confidence":0.90,"remote_db":-18,"mic_db":-24}
 {"start":13.0,"end":14.2,"state":"local_only","confidence":0.90,"remote_db":-80,"mic_db":-18}
+{"start":16.5,"end":17.8,"state":"local_only","confidence":0.90,"remote_db":-80,"mic_db":-18}
 EOF
 
   jq -n '{
@@ -587,9 +588,9 @@ EOF
     enabled: true,
     parameters: {repair_profile: "shadow_v2"},
     metrics: {
-      local_only_island_count: 3,
+      local_only_island_count: 4,
       local_only_island_recovered_count: 1,
-      local_only_island_recall: 0.333333,
+      local_only_island_recall: 0.25,
       long_mic_segments_count: 3,
       long_mic_segments_crossing_remote_count: 3,
       long_mic_segments_repaired_count: 3,
@@ -600,20 +601,22 @@ EOF
 {"action":"split","parent_candidate_id":"cand_mic_fixture_001","parent_start_ms":5000,"parent_end_ms":8000,"parent_text":"Я возьму логи.","remote_overlaps":[],"local_intervals":[[5000,5800]],"local_islands":[[5000,5800]],"children":[{"candidate_id":"cand_mic_repair_fixture_001","start_ms":5000,"end_ms":5800,"action":"micro_reasr","text":"Я возьму логи."}]}
 {"action":"drop","parent_candidate_id":"cand_mic_fixture_002","parent_start_ms":13000,"parent_end_ms":14200,"parent_text":"Я понял.","remote_overlaps":[],"local_intervals":[[13000,14200]],"local_islands":[[13000,14200]],"children":[]}
 {"action":"drop","parent_candidate_id":"cand_mic_fixture_boundary","parent_start_ms":15000,"parent_end_ms":19000,"parent_text":"короткий граничный хвост","remote_overlaps":[{"candidate_id":"cand_remote_boundary","start_ms":14000,"end_ms":14750,"guarded_start_ms":13750,"guarded_end_ms":15000,"overlap_ms":0,"guarded_overlap_ms":0,"text":"удаленная фраза"}],"local_intervals":[[15000,15650]],"local_islands":[[15000,15650]],"children":[]}
+{"action":"drop","parent_candidate_id":"cand_mic_fixture_lost","parent_start_ms":16500,"parent_end_ms":17800,"parent_text":"Я возьму логи.","remote_overlaps":[],"local_intervals":[[16500,17800]],"local_islands":[[16500,17800]],"children":[]}
 EOF
 
   local_recall_cli_output="$("$bin" audit local-recall "$group_session" --profile shadow_v2)"
   echo "$local_recall_cli_output" | grep -q '^audit:$'
   echo "$local_recall_cli_output" | grep -q '  kind: local_recall'
-  echo "$local_recall_cli_output" | grep -q '  missing_islands: 2'
+  echo "$local_recall_cli_output" | grep -q '  missing_islands: 3'
   local_recall_summary="$group_session/derived/audit/local-recall/local_recall_audit.json"
   [[ -s "$local_recall_summary" ]]
   [[ -s "$group_session/derived/audit/local-recall/local_recall_items.jsonl" ]]
   [[ -s "$group_session/derived/audit/local-recall/local_recall_review.md" ]]
   jq -e '.schema == "murmurmark.local_recall_audit/v1"' "$local_recall_summary" >/dev/null
-  jq -e '.summary.audited_missing_island_count == 2' "$local_recall_summary" >/dev/null
+  jq -e '.summary.audited_missing_island_count == 3' "$local_recall_summary" >/dev/null
   jq -e '.summary.blocking_low_local_recall == true' "$local_recall_summary" >/dev/null
   jq -s 'any(.[]; .label == "possible_lost_me")' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
+  jq -s 'any(.[]; .label == "likely_harmless_ack_fragment" and .parent_is_acknowledgement == true)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
   jq -s 'any(.[]; .label == "likely_harmless_boundary_fragment" and .boundary.boundary_fragment == true)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
 
   group_overlap_cli_output="$("$bin" audit group-overlaps "$group_session" \

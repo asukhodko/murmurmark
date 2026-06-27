@@ -356,6 +356,7 @@ missing-island count, possible lost local speech, review seconds, recommendation
 - `likely_harmless_weak_audio`
 - `likely_harmless_remote_guard`
 - `likely_harmless_remote_covered`
+- `likely_harmless_ack_fragment`
 - `likely_harmless_boundary_fragment`
 
 Each item also carries a `boundary` object:
@@ -380,8 +381,10 @@ modify raw capture. Session quality gates may ignore low local recall only when 
 `blocking_low_local_recall: false`. Possible lost local speech remains a blocking risk.
 `likely_harmless_remote_covered` means the unrecovered local island text is already covered by a
 nearby remote candidate, so the audit treats it as preserved content rather than missing meeting
-substance. `likely_harmless_boundary_fragment` means the missing island is short and sits on a known
-timeline boundary, so it is tracked as low-risk boundary timing noise rather than a lost local turn.
+substance. `likely_harmless_ack_fragment` means the missing island is a short acknowledgement such
+as "понял" or "окей" without work markers or unique meeting content. `likely_harmless_boundary_fragment`
+means the missing island is short and sits on a known timeline boundary, so it is tracked as low-risk
+boundary timing noise rather than a lost local turn.
 
 The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
 and writes under:
