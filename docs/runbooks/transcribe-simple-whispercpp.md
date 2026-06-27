@@ -209,7 +209,9 @@ The audit reads only timeline-repair examples and Echo Guard `speaker_state.json
 `report-session-quality.py` to decide whether low local recall should block `ready_for_notes`.
 If an unrecovered local island is already covered by nearby remote transcript text, the audit labels
 it `likely_harmless_remote_covered`: content is preserved, and the remaining risk is attribution,
-not missing meeting substance.
+not missing meeting substance. Short islands on parent, recovered-child or remote-guard boundaries
+are labelled `likely_harmless_boundary_fragment`; they stay visible in audit JSON but should not
+inflate the review queue unless other local-speech evidence is strong.
 
 ## Group Overlap Audit
 

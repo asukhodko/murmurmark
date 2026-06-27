@@ -381,8 +381,9 @@ The local recall audit is `scripts/audit-local-recall.py`. It reads timeline-rep
 Echo Guard `speaker_state.jsonl`, then writes `derived/audit/local-recall/`. Its job is to explain
 low `local_only_island_recall`: short or weak unrecovered islands are recorded as low-risk evidence,
 and islands whose text is already covered by the remote transcript are treated as low-risk content
-coverage rather than missing meeting content. Stronger unrecovered local speech stays as a blocking
-`low_local_recall` risk. It never edits transcripts.
+coverage rather than missing meeting content. Short islands that sit exactly on parent/child/remote
+guard boundaries are labelled as likely harmless boundary fragments, while stronger unrecovered
+local speech stays as a blocking `low_local_recall` risk. It never edits transcripts.
 
 Audit-informed cleanup is `scripts/apply-audit-cleanup.py`. It reads `clean_dialogue.shadow_v2.json` and the group overlap audit, then writes only `audit_cleanup_v1` artifacts under `derived/transcript-simple/whisper-cpp/resolved/` and `derived/transcript-simple/whisper-cpp/audit-cleanup/`. In conservative mode it may drop whole `Me` utterances only when they are high-confidence remote duplicates or short unsupported ASR noise. Double-talk, timing overlap, remote leak, and human-review regions are kept and marked.
 

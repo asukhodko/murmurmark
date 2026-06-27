@@ -350,13 +350,32 @@ derived/audit/local-recall/
 - `likely_harmless_weak_audio`
 - `likely_harmless_remote_guard`
 - `likely_harmless_remote_covered`
+- `likely_harmless_boundary_fragment`
+
+Each item also carries a `boundary` object:
+
+```json
+{
+  "boundary": {
+    "start_offset_from_parent_ms": 450,
+    "end_offset_from_parent_ms": 3100,
+    "near_parent_boundary": true,
+    "nearest_child_boundary_ms": null,
+    "adjacent_to_child": false,
+    "nearest_remote_guard_boundary_ms": 0,
+    "adjacent_to_remote_guard": true,
+    "boundary_fragment": true
+  }
+}
+```
 
 The audit reads timeline-repair examples and Echo Guard `speaker_state.jsonl`; it does not read or
 modify raw capture. Session quality gates may ignore low local recall only when this audit says
 `blocking_low_local_recall: false`. Possible lost local speech remains a blocking risk.
 `likely_harmless_remote_covered` means the unrecovered local island text is already covered by a
 nearby remote candidate, so the audit treats it as preserved content rather than missing meeting
-substance.
+substance. `likely_harmless_boundary_fragment` means the missing island is short and sits on a known
+timeline boundary, so it is tracked as low-risk boundary timing noise rather than a lost local turn.
 
 The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
 and writes under:

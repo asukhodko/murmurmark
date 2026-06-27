@@ -11,7 +11,7 @@ from typing import Any
 
 SCHEMA_AUDIT = "murmurmark.local_recall_audit/v1"
 SCHEMA_ITEM = "murmurmark.local_recall_item/v1"
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 
 
 def parse_args() -> argparse.Namespace:
@@ -162,6 +162,7 @@ def has_work_marker(text: Any) -> bool:
         "сделаем",
         "давай",
         "давайте",
+        "добав",
         "решили",
         "договорились",
         "согласовали",
@@ -169,6 +170,12 @@ def has_work_marker(text: Any) -> bool:
         "риск",
         "блокер",
         "вопрос",
+        "задач",
+        "заявк",
+        "тикет",
+        "таск",
+        "alert",
+        "алерт",
         "проверь",
         "посмотрю",
     )
@@ -246,7 +253,82 @@ def covered_by_child(island: tuple[int, int], children: list[dict[str, Any]]) ->
     return covered / duration >= 0.5
 
 
-def classify_item(duration_sec: float, parent_text: str, state: dict[str, Any], remote_overlap_text: str) -> tuple[str, str, float]:
+def parse_interval(row: dict[str, Any], start_key: str, end_key: str) -> tuple[int, int] | None:
+    try:
+        start = int(row.get(start_key))
+        end = int(row.get(end_key))
+    except (TypeError, ValueError):
+        return None
+    if end <= start:
+        return None
+    return (start, end)
+
+
+def nearest_boundary_gap_ms(point_ms: int, intervals: list[tuple[int, int]]) -> int | None:
+    gaps: list[int] = []
+    for start_ms, end_ms in intervals:
+        gaps.append(abs(point_ms - start_ms))
+        gaps.append(abs(point_ms - end_ms))
+    return min(gaps) if gaps else None
+
+
+def boundary_features(example: dict[str, Any], island: tuple[int, int], children: list[dict[str, Any]]) -> dict[str, Any]:
+    start_ms, end_ms = island
+    parent_start = int(example.get("parent_start_ms", start_ms) or start_ms)
+    parent_end = int(example.get("parent_end_ms", end_ms) or end_ms)
+    child_intervals = [
+        interval
+        for child in children
+        if isinstance(child, dict)
+        for interval in [parse_interval(child, "start_ms", "end_ms")]
+        if interval is not None
+    ]
+    remote_rows = example.get("remote_overlaps") if isinstance(example.get("remote_overlaps"), list) else []
+    remote_guarded = [
+        interval
+        for row in remote_rows
+        if isinstance(row, dict)
+        for interval in [parse_interval(row, "guarded_start_ms", "guarded_end_ms")]
+        if interval is not None
+    ]
+    start_offset = max(0, start_ms - parent_start)
+    end_offset = max(0, parent_end - end_ms)
+    nearest_child = min(
+        (
+            gap
+            for interval in child_intervals
+            for gap in (abs(start_ms - interval[1]), abs(end_ms - interval[0]))
+        ),
+        default=None,
+    )
+    remote_start_gap = nearest_boundary_gap_ms(start_ms, remote_guarded)
+    remote_end_gap = nearest_boundary_gap_ms(end_ms, remote_guarded)
+    remote_gap_values = [gap for gap in (remote_start_gap, remote_end_gap) if gap is not None]
+    nearest_remote_guard = min(remote_gap_values) if remote_gap_values else None
+    duration_ms = max(0, end_ms - start_ms)
+    near_parent_boundary = start_offset <= 1_000 or end_offset <= 1_000
+    adjacent_child = nearest_child is not None and nearest_child <= 350
+    adjacent_remote_guard = nearest_remote_guard is not None and nearest_remote_guard <= 350
+    boundary_fragment = duration_ms <= 900 and (near_parent_boundary or adjacent_child or adjacent_remote_guard)
+    return {
+        "start_offset_from_parent_ms": start_offset,
+        "end_offset_from_parent_ms": end_offset,
+        "near_parent_boundary": near_parent_boundary,
+        "nearest_child_boundary_ms": nearest_child,
+        "adjacent_to_child": adjacent_child,
+        "nearest_remote_guard_boundary_ms": nearest_remote_guard,
+        "adjacent_to_remote_guard": adjacent_remote_guard,
+        "boundary_fragment": boundary_fragment,
+    }
+
+
+def classify_item(
+    duration_sec: float,
+    parent_text: str,
+    state: dict[str, Any],
+    remote_overlap_text: str,
+    boundary: dict[str, Any],
+) -> tuple[str, str, float]:
     local_ratio = float(state.get("local_only_ratio", 0.0) or 0.0)
     double_ratio = float(state.get("double_talk_ratio", 0.0) or 0.0)
     remote_ratio = float(state.get("remote_active_ratio", 0.0) or 0.0)
@@ -259,6 +341,8 @@ def classify_item(duration_sec: float, parent_text: str, state: dict[str, Any], 
         return "likely_harmless_short", "local island is shorter than 550 ms", 0.74
     if token_count >= 3 and remote_coverage >= 0.70:
         return "likely_harmless_remote_covered", "unrecovered local island text is already covered by remote transcript", 0.82
+    if boundary.get("boundary_fragment") and not marker:
+        return "likely_harmless_boundary_fragment", "short unrecovered island sits on a parent, child, or remote guard boundary", 0.77
     if local_ratio >= 0.55 and mic_db > -52.0 and duration_sec >= 1.2:
         confidence = 0.84 if marker or token_count >= 4 else 0.78
         return "possible_lost_me", "strong local-only evidence was not recovered as a Me utterance", confidence
@@ -296,7 +380,8 @@ def audit_items(examples: list[dict[str, Any]], speaker_states: list[dict[str, A
             state = state_summary(speaker_states, start_ms, end_ms)
             remote_overlaps = example.get("remote_overlaps") if isinstance(example.get("remote_overlaps"), list) else []
             remote_overlap_text = " ".join(str(row.get("text") or "") for row in remote_overlaps if isinstance(row, dict))
-            label, reason, confidence = classify_item(duration_sec, parent_text, state, remote_overlap_text)
+            boundary = boundary_features(example, interval, children)
+            label, reason, confidence = classify_item(duration_sec, parent_text, state, remote_overlap_text, boundary)
             items.append(
                 {
                     "schema": SCHEMA_ITEM,
@@ -315,6 +400,7 @@ def audit_items(examples: list[dict[str, Any]], speaker_states: list[dict[str, A
                     "parent_content_token_count": len(content_tokens(parent_text)),
                     "parent_has_work_marker": has_work_marker(parent_text),
                     "state": state,
+                    "boundary": boundary,
                     "matched_remote_candidate_ids": [str(row.get("candidate_id")) for row in remote_overlaps if isinstance(row, dict)],
                     "remote_overlap_text_sample": remote_overlap_text[:280],
                     "remote_overlap_text_containment": round(token_containment(parent_text, remote_overlap_text), 6),
@@ -395,6 +481,13 @@ def write_review(path: Path, session: Path, profile: str, summary: dict[str, Any
         f"- Likely harmless: `{summary.get('likely_harmless_seconds')}` sec",
         "",
     ]
+    by_label = summary.get("by_label") if isinstance(summary.get("by_label"), dict) else {}
+    if by_label:
+        lines += ["## Labels", ""]
+        for label, payload in sorted(by_label.items()):
+            if isinstance(payload, dict):
+                lines.append(f"- `{label}`: `{payload.get('count')}` / `{payload.get('seconds')}` sec")
+        lines.append("")
     risky = [item for item in items if item.get("label") in {"possible_lost_me", "needs_review"}]
     risky.sort(key=lambda item: (str(item.get("label")) != "possible_lost_me", -float(item.get("duration_sec", 0.0) or 0.0)))
     if risky:

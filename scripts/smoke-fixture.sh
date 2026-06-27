@@ -526,18 +526,19 @@ EOF
     enabled: true,
     parameters: {repair_profile: "shadow_v2"},
     metrics: {
-      local_only_island_count: 2,
+      local_only_island_count: 3,
       local_only_island_recovered_count: 1,
-      local_only_island_recall: 0.5,
-      long_mic_segments_count: 2,
-      long_mic_segments_crossing_remote_count: 2,
-      long_mic_segments_repaired_count: 2,
+      local_only_island_recall: 0.333333,
+      long_mic_segments_count: 3,
+      long_mic_segments_crossing_remote_count: 3,
+      long_mic_segments_repaired_count: 3,
       unrepaired_long_mic_crossings_count: 0
     }
   }' >"$group_resolved/timeline_repair_report.shadow_v2.json"
   cat >"$group_resolved/timeline_repair_examples.shadow_v2.jsonl" <<'EOF'
 {"action":"split","parent_candidate_id":"cand_mic_fixture_001","parent_start_ms":5000,"parent_end_ms":8000,"parent_text":"Я возьму логи.","remote_overlaps":[],"local_intervals":[[5000,5800]],"local_islands":[[5000,5800]],"children":[{"candidate_id":"cand_mic_repair_fixture_001","start_ms":5000,"end_ms":5800,"action":"micro_reasr","text":"Я возьму логи."}]}
 {"action":"drop","parent_candidate_id":"cand_mic_fixture_002","parent_start_ms":13000,"parent_end_ms":14200,"parent_text":"Я понял.","remote_overlaps":[],"local_intervals":[[13000,14200]],"local_islands":[[13000,14200]],"children":[]}
+{"action":"drop","parent_candidate_id":"cand_mic_fixture_boundary","parent_start_ms":15000,"parent_end_ms":19000,"parent_text":"короткий граничный хвост","remote_overlaps":[{"candidate_id":"cand_remote_boundary","start_ms":14000,"end_ms":14750,"guarded_start_ms":13750,"guarded_end_ms":15000,"overlap_ms":0,"guarded_overlap_ms":0,"text":"удаленная фраза"}],"local_intervals":[[15000,15650]],"local_islands":[[15000,15650]],"children":[]}
 EOF
 
   "$repo_root/scripts/audit-local-recall.py" "$group_session" --profile shadow_v2 >/dev/null
@@ -546,9 +547,10 @@ EOF
   [[ -s "$group_session/derived/audit/local-recall/local_recall_items.jsonl" ]]
   [[ -s "$group_session/derived/audit/local-recall/local_recall_review.md" ]]
   jq -e '.schema == "murmurmark.local_recall_audit/v1"' "$local_recall_summary" >/dev/null
-  jq -e '.summary.audited_missing_island_count == 1' "$local_recall_summary" >/dev/null
+  jq -e '.summary.audited_missing_island_count == 2' "$local_recall_summary" >/dev/null
   jq -e '.summary.blocking_low_local_recall == true' "$local_recall_summary" >/dev/null
   jq -s 'any(.[]; .label == "possible_lost_me")' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
+  jq -s 'any(.[]; .label == "likely_harmless_boundary_fragment" and .boundary.boundary_fragment == true)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
 
   "$audit_python" "$repo_root/scripts/audit-group-overlaps.py" "$group_session" \
     --profile shadow_v2 \

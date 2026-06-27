@@ -341,6 +341,14 @@ nodes:
     effort: 6
     notes: "Меньше пропусков коротких Me-реплик, особенно в начале/конце и на быстрых ack."
 
+  quality-local-recall-boundary-audit:
+    title: "Boundary-aware local recall audit"
+    kind: task
+    parent: quality-hardening
+    status: done
+    effort: 2
+    notes: "audit-local-recall отличает короткие boundary fragments от возможной потерянной локальной речи и не раздувает review burden такими хвостами."
+
   quality-remote-duplicate-safety:
     title: "Safer remote duplicate handling"
     kind: task
