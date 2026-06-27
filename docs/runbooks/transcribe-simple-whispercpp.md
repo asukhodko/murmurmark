@@ -1013,6 +1013,9 @@ Useful checks:
 jq '{schema, metrics, selected_counts: .metrics.selected_counts}' \
   "$SESSION/derived/synthesis-simple/extractive/evidence_notes.json"
 
+jq '.review_summary' \
+  "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json"
+
 jq -r '.candidates[] | select(.type == "action") | [.subtype, .status, .score, .display_text] | @tsv' \
   "$SESSION/derived/synthesis-simple/extractive/evidence_notes.json" | head
 

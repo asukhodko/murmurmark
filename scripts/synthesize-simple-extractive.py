@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -573,6 +574,13 @@ def format_time(seconds: float | int | None) -> str:
         return "??:??"
     total = max(0, int(float(seconds)))
     return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def safe_number(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def clean_text(text: Any, limit: int = 280) -> str:
@@ -1789,6 +1797,7 @@ def build_evidence_notes(
         if candidate["status"] != "selected":
             key = str(candidate["subtype"])
             hidden_counts[key] = hidden_counts.get(key, 0) + 1
+    review_summary = review_items_summary(review_items)
 
     evidence = {
         "schema": "murmurmark.evidence_notes/v2",
@@ -1811,7 +1820,7 @@ def build_evidence_notes(
         "review": {
             "items": review_items,
             "summary": {
-                "review_item_count": len(review_items),
+                **review_summary,
                 "hidden_candidate_counts": dict(sorted(hidden_counts.items())),
             },
         },
@@ -1821,6 +1830,10 @@ def build_evidence_notes(
             "candidate_count": len(candidates),
             "selected_counts": selected_counts,
             "hidden_candidate_counts": dict(sorted(hidden_counts.items())),
+            "review_item_count": review_summary["review_item_count"],
+            "review_item_seconds": review_summary["review_item_seconds"],
+            "review_items_by_type": review_summary["by_type"],
+            "review_items_by_severity": review_summary["by_severity"],
         },
         "rules": DEFAULT_RULES,
         "outline": selected["outline_blocks"],
@@ -1909,6 +1922,42 @@ def build_review_items(
     return rows
 
 
+def review_items_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
+    by_type: dict[str, dict[str, Any]] = {}
+    by_severity: dict[str, dict[str, Any]] = {}
+    type_counts: Counter[str] = Counter()
+    total_seconds = 0.0
+
+    for item in items:
+        item_type = str(item.get("type") or "unknown")
+        severity = str(item.get("severity") or "medium")
+        start = safe_number(item.get("start"))
+        end = safe_number(item.get("end"))
+        seconds = max(0.0, end - start)
+        total_seconds += seconds
+        type_counts[item_type] += 1
+        type_bucket = by_type.setdefault(item_type, {"count": 0, "seconds": 0.0})
+        type_bucket["count"] += 1
+        type_bucket["seconds"] += seconds
+        severity_bucket = by_severity.setdefault(severity, {"count": 0, "seconds": 0.0})
+        severity_bucket["count"] += 1
+        severity_bucket["seconds"] += seconds
+
+    for bucket in list(by_type.values()) + list(by_severity.values()):
+        bucket["seconds"] = round(float(bucket["seconds"]), 3)
+
+    return {
+        "review_item_count": len(items),
+        "review_item_seconds": round(total_seconds, 3),
+        "by_type": dict(sorted(by_type.items())),
+        "by_severity": dict(sorted(by_severity.items())),
+        "top_types": [
+            {"type": item_type, "count": count}
+            for item_type, count in type_counts.most_common(5)
+        ],
+    }
+
+
 def write_quality_markdown(path: Path, verdict_payload: dict[str, Any]) -> None:
     lines = [
         "# Quality Verdict",
@@ -1921,6 +1970,17 @@ def write_quality_markdown(path: Path, verdict_payload: dict[str, Any]) -> None:
     ]
     for key, value in verdict_payload["metrics"].items():
         lines.append(f"- `{key}`: `{value}`")
+    review_summary = verdict_payload.get("review_summary") if isinstance(verdict_payload.get("review_summary"), dict) else {}
+    if review_summary:
+        lines.extend(["", "## Review Items", ""])
+        lines.append(f"- `review_item_count`: `{review_summary.get('review_item_count')}`")
+        lines.append(f"- `review_item_seconds`: `{review_summary.get('review_item_seconds')}`")
+        by_type = review_summary.get("by_type") if isinstance(review_summary.get("by_type"), dict) else {}
+        if by_type:
+            lines.append("- by type:")
+            for item_type, bucket in sorted(by_type.items()):
+                if isinstance(bucket, dict):
+                    lines.append(f"  - `{item_type}`: `{bucket.get('count')}` / `{bucket.get('seconds')}` sec")
     lines.extend(["", "## Risk Items", ""])
     if verdict_payload["risk_items"]:
         for item in verdict_payload["risk_items"]:
@@ -1988,6 +2048,8 @@ def write_notes_markdown(path: Path, verdict: dict[str, Any], evidence: dict[str
 
 
 def empty_evidence(session: Path, requested_profile: str, risk_items: list[dict[str, Any]], metrics: dict[str, Any]) -> dict[str, Any]:
+    review_items = build_review_items([], [], risk_items)
+    review_summary = review_items_summary(review_items)
     return {
         "schema": "murmurmark.evidence_notes/v2",
         "session_id": session.name,
@@ -1996,8 +2058,18 @@ def empty_evidence(session: Path, requested_profile: str, risk_items: list[dict[
         "topic_blocks": [],
         "candidates": [],
         "selected": {"outline_blocks": [], "decisions": [], "actions": [], "risks": [], "open_questions": []},
-        "review": {"items": build_review_items([], [], risk_items), "summary": {"review_item_count": len(risk_items)}},
-        "metrics": {**metrics, "topic_block_count": 0, "candidate_count": 0, "selected_counts": {}, "hidden_candidate_counts": {}},
+        "review": {"items": review_items, "summary": review_summary},
+        "metrics": {
+            **metrics,
+            "topic_block_count": 0,
+            "candidate_count": 0,
+            "selected_counts": {},
+            "hidden_candidate_counts": {},
+            "review_item_count": review_summary["review_item_count"],
+            "review_item_seconds": review_summary["review_item_seconds"],
+            "review_items_by_type": review_summary["by_type"],
+            "review_items_by_severity": review_summary["by_severity"],
+        },
         "rules": DEFAULT_RULES,
         "outline": [],
         "potential_decisions": [],
@@ -2018,15 +2090,17 @@ def write_failed_outputs(out_dir: Path, session: Path, requested_profile: str, r
         "unrepaired_long_mic_crossings_count": 0,
         "golden_phrase_fail_count": 0,
     }
+    evidence = empty_evidence(session, requested_profile, risk_items, metrics)
+    review_summary = review_items_summary(evidence["review"]["items"])
     payload = {
         "schema": "murmurmark.quality_verdict/v1",
         "verdict": "failed",
         "selected_transcript_profile": requested_profile,
         "inputs": {},
         "metrics": metrics,
+        "review_summary": review_summary,
         "risk_items": risk_items,
     }
-    evidence = empty_evidence(session, requested_profile, risk_items, metrics)
     write_json(out_dir / "quality_verdict.json", payload)
     write_quality_markdown(out_dir / "quality_verdict.md", payload)
     write_json(out_dir / "evidence_notes.json", evidence)
@@ -2098,6 +2172,8 @@ def main() -> int:
         return write_failed_outputs(out_dir, session, selected_profile, risk_items)
 
     review_items = build_review_items(utterances, overlap_rows, risk_items)
+    review_summary = review_items_summary(review_items)
+    verdict_payload["review_summary"] = review_summary
     evidence = build_evidence_notes(
         session=session,
         selected_profile=selected_profile,

@@ -82,6 +82,16 @@ derived/synthesis-simple/extractive/
     "cross_role_overlap_gt2_count": 2,
     "remote_duplicate_in_me_seconds": 8.4
   },
+  "review_summary": {
+    "review_item_count": 6,
+    "review_item_seconds": 42.3,
+    "by_type": {
+      "utterance_transcript_order_review": {"count": 1, "seconds": 6.0}
+    },
+    "by_severity": {
+      "medium": {"count": 6, "seconds": 42.3}
+    }
+  },
   "risk_items": [
     {
       "type": "needs_review_ratio",
