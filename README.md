@@ -207,15 +207,12 @@ murmurmark record --target-bundle system
 
 murmurmark process latest
 
-murmurmark latest
-SESSION="$(murmurmark latest | sed -E 's/^SESSION="(.*)"$/\1/')"
-murmurmark report "$SESSION"
-less "$SESSION/derived/readiness/session_readiness.md"
-murmurmark notes "$SESSION" --kind verdict
-murmurmark notes "$SESSION"
-murmurmark transcript "$SESSION"
-murmurmark retention plan "$SESSION"
-less "$(murmurmark transcript "$SESSION" --path-only)"
+murmurmark report latest
+murmurmark notes latest --kind verdict
+murmurmark notes latest
+murmurmark transcript latest
+murmurmark retention plan latest
+less "$(murmurmark transcript latest --path-only)"
 ```
 
 `murmurmark process` is the normal post-recording command; internally it calls

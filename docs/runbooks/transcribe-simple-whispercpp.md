@@ -62,6 +62,9 @@ For the usual record-then-process flow:
 murmurmark record --target-bundle system
 murmurmark process latest
 murmurmark report latest
+murmurmark notes latest --kind verdict
+murmurmark notes latest
+murmurmark transcript latest
 ```
 
 After a successful recording, `record` prints `SESSION="..."` and the exact `murmurmark process ...`
