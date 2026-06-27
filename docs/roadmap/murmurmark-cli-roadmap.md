@@ -24,6 +24,7 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 10. `scripts/build-release-bundle.sh` — готов локальный release layout с manifest и без приватных данных.
 11. `murmurmark retention plan SESSION` — готов локальный retention plan; raw deletion защищён отдельным `apply`.
 12. `murmurmark retention payload SESSION` — готов provider payload manifest; default policy блокирует внешние payload’ы.
+13. `scripts/check-open-source-readiness.sh` — готов public-readiness gate; LICENSE остаётся owner decision.
 
 UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
 
@@ -35,7 +36,7 @@ UI App не является обязательной частью roadmap. Он
 - `review-loop` — ближайший этап: удобный CLI-review спорных участков.
 - `quality-hardening` — ближайший этап: улучшение качества transcript без смены топологии.
 - `evidence-notes` и `export-workflows` — пользовательские артефакты; базовый export готов, дальше нужны vault/docs/Jira proposals.
-- `retention-policy` и `packaging` — приватность, хранение raw audio, release layout и provider payload manifest; дальше готовность к open source.
+- `retention-policy` и `packaging` — приватность, хранение raw audio, release layout, provider payload manifest и readiness gate; перед публикацией нужно выбрать LICENSE.
 - `future-heavy-local`, `future-llm-synthesis`, `future-ui-app` — дальние ветки.
 
 ## Проверка

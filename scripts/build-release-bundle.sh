@@ -84,6 +84,10 @@ copy_file() {
 
 git -C "$repo_root" ls-files -z -- \
   README.md \
+  CONTRIBUTING.md \
+  SECURITY.md \
+  LICENSE \
+  LICENSE.md \
   Package.swift \
   .swiftlint.yml \
   murmurmark.config.example.json \
@@ -154,6 +158,8 @@ cat > "$bundle_root/release-manifest.json" <<EOF
   },
   "included": [
     "README.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
     "Package.swift",
     ".swiftlint.yml",
     "murmurmark.config.example.json",

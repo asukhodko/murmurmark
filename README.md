@@ -49,6 +49,18 @@ The bundle contains the release binary, wrapper, scripts, docs, examples, helper
 `exports/private/`, raw audio, `.venv`, models, weights and `murmurmark.config.json`.
 See [docs/contracts/release-bundle.md](docs/contracts/release-bundle.md).
 
+### Public Repository Readiness
+
+Before sharing or publishing the repository:
+
+```bash
+scripts/check-open-source-readiness.sh
+```
+
+This gate fails on tracked real sessions, raw audio, local configs, private prompts/glossaries,
+personal paths and workspace-specific domain packs. It warns when no license has been selected yet.
+See [docs/project/open-source-readiness.md](docs/project/open-source-readiness.md).
+
 ### End-to-End From an Existing Recording
 
 Use this when the session directory already exists and raw recording is complete.
@@ -239,6 +251,7 @@ swift build
 swift run murmurmark doctor
 swift run murmurmark doctor --strict
 scripts/build-release-bundle.sh
+scripts/check-open-source-readiness.sh
 swift run murmurmark list-apps
 murmurmark record --target-bundle system
 murmurmark latest

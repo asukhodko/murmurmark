@@ -511,7 +511,8 @@ nodes:
     effort: 18
     notes: |
       Установка, релизы, doctor, документация и готовность репозитория к открытой публикации.
-      Минимальный локальный install wrapper, расширенный doctor и локальный release bundle уже есть.
+      Минимальный локальный install wrapper, расширенный doctor, локальный release bundle
+      и open-source readiness gate уже есть.
 
   packaging-install-update:
     title: "Install/update flow"
@@ -541,9 +542,9 @@ nodes:
     title: "Open-source readiness"
     kind: task
     parent: packaging
-    status: later
+    status: current
     effort: 6
-    notes: "Убрать личные пути/доменные данные, оформить README, LICENSE, CONTRIBUTING и примеры."
+    notes: "CONTRIBUTING, SECURITY, sanitized example-domain и scripts/check-open-source-readiness.sh готовы; LICENSE и public security contact остаются owner decision."
 
   future-heavy-local:
     title: "Тяжёлые локальные валидаторы и rich transcript"
@@ -767,8 +768,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "process/latest/report/review/corpus/export/config и локальная установка уже работают как нормальные команды."
-          next_sync_goal: "Довести open-source readiness."
+          sync_note: "process/latest/report/review/corpus/export/config, локальная установка и public-readiness gate уже работают."
+          next_sync_goal: "Выбрать LICENSE и public security contact перед публикацией."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]

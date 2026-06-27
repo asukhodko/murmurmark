@@ -20,6 +20,8 @@ murmurmark-<version>-<commit>/
   examples/
   tools/
   README.md
+  CONTRIBUTING.md
+  SECURITY.md
   RELEASE_BUNDLE.md
   Package.swift
   murmurmark.config.example.json
@@ -67,6 +69,8 @@ understand the CLI:
 - examples that are safe to publish;
 - helper source files under `tools`;
 - `README.md`;
+- `CONTRIBUTING.md`;
+- `SECURITY.md`;
 - `Package.swift`;
 - `murmurmark.config.example.json`.
 

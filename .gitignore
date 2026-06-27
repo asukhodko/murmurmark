@@ -27,6 +27,7 @@ weights/
 examples/domain-packs/*/whisper-prompt*.txt
 examples/domain-packs/*/glossary.yaml
 murmurmark.config.json
+.murmurmark-readiness-local-patterns
 
 # Local app/runtime state.
 .build/
