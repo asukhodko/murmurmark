@@ -588,7 +588,7 @@ nodes:
     parent: packaging
     status: current
     effort: 6
-    notes: "CONTRIBUTING, SECURITY, sanitized example-domain и scripts/check-open-source-readiness.sh готовы; LICENSE и public security contact остаются owner decision."
+    notes: "CONTRIBUTING, SECURITY, sanitized example-domain, MIT LICENSE и scripts/check-open-source-readiness.sh готовы; public security contact остаётся owner decision."
 
   future-heavy-local:
     title: "Тяжёлые локальные валидаторы и rich transcript"
@@ -813,7 +813,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "process/latest/report/review/corpus/export/config, локальная установка и public-readiness gate уже работают."
-          next_sync_goal: "Выбрать LICENSE и public security contact перед публикацией."
+          next_sync_goal: "Выбрать public security contact перед публикацией."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]

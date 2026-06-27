@@ -58,7 +58,8 @@ scripts/check-open-source-readiness.sh
 ```
 
 This gate fails on tracked real sessions, raw audio, local configs, private prompts/glossaries,
-personal paths and workspace-specific domain packs. It warns when no license has been selected yet.
+personal paths and workspace-specific domain packs. The repository uses the MIT license; set a public
+security contact before a public release.
 See [docs/project/open-source-readiness.md](docs/project/open-source-readiness.md).
 
 ### End-to-End From an Existing Recording

@@ -24,8 +24,8 @@ The gate fails when tracked files include:
   key headers;
 - tracked files larger than 5 MiB.
 
-The gate warns, but does not fail, when no `LICENSE` file exists. License choice
-is a project-owner decision and must be made before public release.
+The gate also checks that a repository license file exists. MurmurMark currently
+uses the MIT license.
 
 For repository-specific private words, create an ignored local file:
 
@@ -48,7 +48,6 @@ files or outside the repository.
 
 ## Still Required Before Public Release
 
-- Choose a license and add `LICENSE`.
 - Decide the public security contact.
 - Re-run `scripts/check.sh` and `scripts/check-open-source-readiness.sh`.
 - Build a release bundle and verify `bin/murmurmark doctor --strict`.
