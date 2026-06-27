@@ -245,6 +245,19 @@ transcript profiles. `probable_order_risk` means a long `Me` turn wraps a `Colle
 tail after it; this is included in session readiness review burden and should go to review before
 using the transcript for precise chronology.
 
+For corpus work, aggregate order risks after the usual session-quality report:
+
+```bash
+murmurmark corpus order
+
+jq '.summary' sessions/_reports/transcript-order/transcript_order_corpus_report.json
+less sessions/_reports/transcript-order/transcript_order_corpus_report.md
+```
+
+This report is the practical list of chronology regression candidates. Complete sessions with
+blocking order risk fail `check-corpus-gates.py` through `transcript.no_blocking_order_risk`; partial
+historical sessions remain visible as review material without blocking the complete-session gate.
+
 ## Group Overlap Audit
 
 For group calls, `remote_duplicate_in_me_seconds` can overstate the real damage. Some overlap is
@@ -548,6 +561,9 @@ working meetings, how much manual review remains, which sessions are `ready_for_
 profile-aware: already-resolved cleanup items are not shown as remaining work.
 Stale audio-judge queue rows are also ignored when the current audio-review audit has reclassified
 the source item as reliable.
+`murmurmark corpus order` writes a separate chronology-risk corpus report under
+`sessions/_reports/transcript-order/`; read it when wrong reply order is the concern rather than
+audio leakage.
 Its `promotion_plan` section explains the current delta to `medium_risk_ready`: unresolved warnings,
 sessions not ready for notes, remaining review minutes, and the next action class.
 Its `Review Queue Strategy` section groups the remaining queue into lanes and shows the first useful

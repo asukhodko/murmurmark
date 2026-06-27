@@ -247,6 +247,8 @@ exist under `sessions/_reports/`.
 `murmurmark audit order` finds long `Me` turns that cross a `Colleagues` turn and continue after it:
 these are the main remaining risk for wrong reply order in an otherwise readable transcript. Blocking
 order risks are included in readiness review burden and block export until reviewed.
+`murmurmark corpus order` aggregates those audits across the corpus and writes the current list of
+chronology regression candidates under `sessions/_reports/transcript-order/`.
 `murmurmark audit group-overlaps` classifies `Me`/`Colleagues` timeline overlaps into harmful, benign
 and review buckets, writes listenable clips, and does not change transcripts or quality verdicts by itself.
 `murmurmark cleanup` is the conservative cleanup over audit evidence. It writes separate
@@ -287,6 +289,7 @@ murmurmark corpus train-audio-judge
 murmurmark corpus gate
 murmurmark corpus gate --write-baseline sessions/_reports/corpus-gates/baseline.local.json
 murmurmark corpus gate --baseline sessions/_reports/corpus-gates/baseline.local.json
+murmurmark corpus order
 murmurmark corpus report
 murmurmark export ./sessions/<session> --format markdown --include-json
 murmurmark export ./sessions/<session> --format obsidian
@@ -325,6 +328,7 @@ murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v6
 .venv/bin/python scripts/evaluate-regression-corpus.py
 .venv/bin/python scripts/train-audio-judge-v0.py
 .venv/bin/python scripts/report-operational-readiness.py
+.venv/bin/python scripts/report-transcript-order-corpus.py
 .venv/bin/python scripts/build-review-plan.py
 murmurmark review agent
 .venv/bin/python scripts/review-decisions-cli.py --template sessions/_reports/review-plan/review_decisions.template.jsonl --out sessions/_reports/review-plan/review_decisions.jsonl

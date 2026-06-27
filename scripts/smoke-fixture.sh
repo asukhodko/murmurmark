@@ -1235,6 +1235,15 @@ EOF
   "$repo_root/scripts/report-session-quality.py" "$group_session" --out-dir "$quality_dir" >/dev/null
   jq -e '.sessions[0].audio_review_resolved_by_cleanup_count >= 1' "$quality_dir/session_quality_report.json" >/dev/null
   jq -e '.sessions[0].stages.transcript_order_audit == true and .sessions[0].transcript_order_probable_order_risk_count == 0' "$quality_dir/session_quality_report.json" >/dev/null
+  order_corpus_dir="$workdir/transcript-order-corpus"
+  "$bin" corpus order "$group_session" \
+    --session-quality "$quality_dir/session_quality_report.json" \
+    --out-dir "$order_corpus_dir" >/dev/null
+  [[ -s "$order_corpus_dir/transcript_order_corpus_report.json" ]]
+  [[ -s "$order_corpus_dir/transcript_order_corpus_items.jsonl" ]]
+  [[ -s "$order_corpus_dir/transcript_order_corpus_report.md" ]]
+  jq -e '.schema == "murmurmark.transcript_order_corpus_report/v1" and .summary.audited_session_count == 1 and .summary.complete_blocking_session_count == 0' \
+    "$order_corpus_dir/transcript_order_corpus_report.json" >/dev/null
   readiness_dir="$workdir/operational-readiness"
   "$repo_root/scripts/report-operational-readiness.py" \
     --session-quality "$quality_dir/session_quality_report.json" \

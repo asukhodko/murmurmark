@@ -102,6 +102,7 @@ struct MurmurMark {
           murmurmark corpus evaluate
           murmurmark corpus train-audio-judge
           murmurmark corpus gate
+          murmurmark corpus order [all|./session...] [--sessions-root ./sessions]
           murmurmark corpus report [--sessions-root ./sessions]
           murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
                              [--include-json] [--force] [--sessions-root ./sessions]
@@ -1275,7 +1276,9 @@ enum SynthesisPrinter {
 
 enum CorpusCommands {
     static func corpus(_ args: [String]) throws {
-        guard let subcommand = args.first else { throw CLIError("corpus requires process, build, evaluate, train-audio-judge, or report") }
+        guard let subcommand = args.first else {
+            throw CLIError("corpus requires process, build, evaluate, train-audio-judge, gate, order, or report")
+        }
         var forwarded = Array(args.dropFirst())
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
 
@@ -1297,11 +1300,13 @@ enum CorpusCommands {
             try trainAudioJudge(extraArgs: [])
             try operationalReadiness()
             try gates(extraArgs: [])
+            try transcriptOrder(sessions: [], extraArgs: [])
             try CorpusPrinter.printSessionQuality()
             try CorpusPrinter.printBuild()
             try CorpusPrinter.printEvaluation()
             try CorpusPrinter.printAudioJudge()
             try CorpusPrinter.printGates()
+            try CorpusPrinter.printTranscriptOrder()
             try CorpusPrinter.printOperationalReadiness()
         case "build":
             if ArgumentEditing.hasHelpFlag(forwarded) {
@@ -1340,6 +1345,15 @@ enum CorpusCommands {
             let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/corpus-gates")
             try gates(extraArgs: forwarded)
             try CorpusPrinter.printGates(outDir: outDir)
+        case "order":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-transcript-order-corpus.py").path] + forwarded)
+                return
+            }
+            let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/transcript-order")
+            let sessions = try takeOptionalSessions(from: &forwarded, sessionsRoot: sessionsRoot)
+            try transcriptOrder(sessions: sessions, extraArgs: forwarded)
+            try CorpusPrinter.printTranscriptOrder(outDir: outDir)
         case "report":
             guard forwarded.isEmpty else { throw CLIError("corpus report only supports --sessions-root") }
             try PipelineCommands.report(["corpus", "--sessions-root", sessionsRoot.path])
@@ -1386,6 +1400,13 @@ enum CorpusCommands {
         ] + extraArgs)
     }
 
+    private static func transcriptOrder(sessions: [URL], extraArgs: [String]) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("report-transcript-order-corpus.py").path,
+        ] + sessions.map(\.path) + extraArgs)
+    }
+
     private static func operationalReadiness() throws {
         let python = try PythonRuntime.resolve()
         try Tooling.runPath(python, [
@@ -1400,6 +1421,23 @@ enum CorpusCommands {
             args.removeFirst()
         }
         guard !targets.isEmpty else { throw CLIError("corpus command requires all, latest, or at least one session path") }
+        if targets == ["all"] {
+            let sessions = try SessionResolver.all(in: sessionsRoot)
+            guard !sessions.isEmpty else { throw CLIError("no sessions with session.json found under \(sessionsRoot.path)") }
+            return sessions
+        }
+        return try targets.map { try SessionResolver.resolve($0, sessionsRoot: sessionsRoot) }
+    }
+
+    private static func takeOptionalSessions(from args: inout [String], sessionsRoot: URL) throws -> [URL] {
+        var targets: [String] = []
+        while let first = args.first, !first.hasPrefix("--") {
+            targets.append(first)
+            args.removeFirst()
+        }
+        if targets.isEmpty {
+            return []
+        }
         if targets == ["all"] {
             let sessions = try SessionResolver.all(in: sessionsRoot)
             guard !sessions.isEmpty else { throw CLIError("no sessions with session.json found under \(sessionsRoot.path)") }
@@ -1427,6 +1465,7 @@ enum CorpusCommands {
           4. train-audio-judge-v0.py
           5. report-operational-readiness.py
           6. check-corpus-gates.py
+          7. report-transcript-order-corpus.py
 
         Options:
           --sessions-root PATH  Sessions directory for all/latest. Default: sessions
@@ -4954,6 +4993,25 @@ enum CorpusPrinter {
         print("  complete_pipeline_count: \(int(summary["complete_pipeline_count"]) ?? 0)")
         print("  ready_for_notes: \(int(summary["ready_for_notes"]) ?? 0)")
         print("  review_first: \(int(summary["review_first"]) ?? 0)")
+    }
+
+    static func printTranscriptOrder(outDir: URL = PathURLs.fileURL("sessions/_reports/transcript-order")) throws {
+        let url = outDir.appendingPathComponent("transcript_order_corpus_report.json")
+        let payload = try JSONFiles.object(url)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        print("")
+        print("transcript_order_corpus:")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("transcript_order_corpus_report.md")))")
+        print("  audited_sessions: \(int(summary["audited_session_count"]) ?? 0) / \(int(summary["session_count"]) ?? 0)")
+        print("  blocking_sessions: \(int(summary["blocking_session_count"]) ?? 0)")
+        print("  complete_blocking_sessions: \(int(summary["complete_blocking_session_count"]) ?? 0)")
+        if let seconds = double(summary["probable_order_risk_seconds"]) {
+            print(String(format: "  probable_order_risk_seconds: %.2f", seconds))
+        }
+        if let seconds = double(summary["needs_review_seconds"]) {
+            print(String(format: "  needs_review_seconds: %.2f", seconds))
+        }
+        print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
     }
 
     static func printOperationalReadiness() throws {

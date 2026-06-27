@@ -434,6 +434,41 @@ the remote phrase that triggered it.
 `check-corpus-gates.py` as `transcript.no_blocking_order_risk`. The operational readiness report
 also includes such items in the review queue under lane `check_transcript_order`.
 
+`murmurmark corpus order` aggregates per-session order audits into:
+
+```text
+sessions/_reports/transcript-order/
+  transcript_order_corpus_report.json
+  transcript_order_corpus_items.jsonl
+  transcript_order_corpus_report.md
+```
+
+`transcript_order_corpus_report.json` uses `murmurmark.transcript_order_corpus_report/v1`:
+
+```json
+{
+  "schema": "murmurmark.transcript_order_corpus_report/v1",
+  "summary": {
+    "session_count": 12,
+    "audited_session_count": 12,
+    "missing_order_audit_count": 0,
+    "blocking_session_count": 2,
+    "complete_blocking_session_count": 0,
+    "probable_order_risk_count": 1,
+    "probable_order_risk_seconds": 2.0,
+    "needs_review_count": 23,
+    "needs_review_seconds": 173.42,
+    "recommended_next_step": "review_incomplete_order_candidates"
+  }
+}
+```
+
+`transcript_order_corpus_items.jsonl` uses `murmurmark.transcript_order_corpus_item/v1` and keeps
+the session id, selected profile, label, interval, utterance ids, short `Me`/`Colleagues` texts and
+the path to the per-session review Markdown. This report is read-only: it does not change review
+decisions or transcript profiles. Its purpose is to keep chronology-risk examples visible as a
+corpus regression queue.
+
 The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
 and writes under:
 
