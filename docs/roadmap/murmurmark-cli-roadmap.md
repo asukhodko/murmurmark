@@ -32,7 +32,7 @@ UI App не является обязательной частью roadmap. Он
 
 - `foundation-done` — уже готовая основа: capture, Echo Guard, whisper.cpp, repair/audit, agent_reviewed_v1, notes, readiness.
 - `cli-orchestration` — текущий фокус: единые команды process/report/review/corpus/export/config; минимальная локальная установка уже готова.
-- `corpus-regression` — текущий контур: корпус сессий, пересборка, сравнение метрик, baseline thresholds; следующий слой — оценка audio judge на корпусе.
+- `corpus-regression` — текущий контур: корпус сессий, пересборка, baseline thresholds и out-of-fold оценка audio judge; следующий слой — review/export blockers.
 - `review-loop` — ближайший этап: удобный CLI-review спорных участков.
 - `quality-hardening` — ближайший этап: улучшение качества transcript без смены топологии.
 - `evidence-notes` и `export-workflows` — пользовательские артефакты; базовый export готов, дальше нужны vault/docs/Jira proposals.

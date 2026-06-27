@@ -961,9 +961,14 @@ EOF
     --out-dir "$judge_dir" >/dev/null
   [[ -s "$judge_dir/audio_judge_v0_report.json" ]]
   [[ -s "$judge_dir/audio_judge_v0_predictions.jsonl" ]]
+  [[ -s "$judge_dir/audio_judge_v0_cv_predictions.jsonl" ]]
   [[ -s "$judge_dir/audio_judge_v0_report.md" ]]
   jq -e '.schema == "murmurmark.audio_judge_v0_report/v1"' "$judge_dir/audio_judge_v0_report.json" >/dev/null
-  jq -e '.policy.may_modify_transcript == false and .training.rows >= 2' "$judge_dir/audio_judge_v0_report.json" >/dev/null
+  jq -e '.policy.may_modify_transcript == false and .training.rows >= 2 and (.evaluation.policy_accuracy | type) == "number"' "$judge_dir/audio_judge_v0_report.json" >/dev/null
+  jq -e '.evaluation_detail.per_session | type == "array"' "$judge_dir/audio_judge_v0_report.json" >/dev/null
+  jq -e '.evaluation_detail.confidence_buckets | length == 4' "$judge_dir/audio_judge_v0_report.json" >/dev/null
+  jq -e '.evaluation_detail.cleanup_precision_by_threshold | length == 3' "$judge_dir/audio_judge_v0_report.json" >/dev/null
+  jq -s 'all(.[]; .schema == "murmurmark.audio_judge_v0_cv_prediction/v1" and (.cv_correct | type) == "boolean" and (.policy_label | type) == "string")' "$judge_dir/audio_judge_v0_cv_predictions.jsonl" >/dev/null
   jq -e '(.review_queue.remaining_human_review_items // 0) >= ((.review_queue.candidate_future_cleanup_items // 0) + (.review_queue.candidate_mark_only_items // 0))' "$judge_dir/audio_judge_v0_report.json" >/dev/null
 
   quality_dir="$workdir/session-quality"

@@ -499,6 +499,8 @@ Audio judge v0 is a local shadow classifier trained on the regression corpus:
 sessions/_reports/audio-judge-v0/
   audio_judge_v0_report.json
   audio_judge_v0_predictions.jsonl
+  audio_judge_v0_cv_predictions.jsonl
+  audio_judge_v0_queue_predictions.jsonl
   audio_judge_v0_report.md
 ```
 
@@ -520,7 +522,23 @@ sessions/_reports/audio-judge-v0/
   },
   "evaluation": {
     "method": "leave_one_session_out",
-    "cv_accuracy": 0.901961
+    "cv_accuracy": 0.970297,
+    "policy_accuracy": 0.990099
+  },
+  "evaluation_detail": {
+    "confidence_buckets": [
+      {"bucket": "0.90-1.00", "items": 78, "cv_accuracy": 1.0}
+    ],
+    "cleanup_precision_by_threshold": [
+      {
+        "predicted_label": "drop_error",
+        "expected_label": "drop_error",
+        "confidence_threshold": 0.93,
+        "precision": 1.0,
+        "recall": 0.611111
+      }
+    ],
+    "high_confidence_errors": []
   },
   "policy": {
     "mode": "shadow_only",
@@ -538,6 +556,9 @@ sessions/_reports/audio-judge-v0/
 The model uses only numeric audio/text metrics, not `label`, `verdict`, readiness bucket, or free-text
 content as features. The labels are still silver labels derived from current local metrics, so v0 is a
 shadow judge for prioritisation and future cleanup experiments, not a human-quality audio oracle.
+`audio_judge_v0_cv_predictions.jsonl` contains out-of-fold predictions for the same training rows,
+so the report can show per-session weakness, confidence buckets and high-confidence mistakes without
+training on the row being evaluated.
 `remaining_human_review_items` does not decrease for `drop_error` or `mark_only_error`; those classes
 remain review items until a separate cleanup profile applies stricter gates.
 

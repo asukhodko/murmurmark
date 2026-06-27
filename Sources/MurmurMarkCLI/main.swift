@@ -3859,10 +3859,14 @@ enum CorpusPrinter {
         print("")
         print("audio_judge:")
         print("  report: \(PathDisplay.display(outDir.appendingPathComponent("audio_judge_v0_report.md")))")
+        print("  cv_predictions: \(PathDisplay.display(outDir.appendingPathComponent("audio_judge_v0_cv_predictions.jsonl")))")
         print("  rows: \(int(training["rows"]) ?? 0)")
         print("  sessions: \(int(training["sessions"]) ?? 0)")
         if let accuracy = double(evaluation["cv_accuracy"]) {
             print(String(format: "  cv_accuracy: %.3f", accuracy))
+        }
+        if let accuracy = double(evaluation["policy_accuracy"]) {
+            print(String(format: "  policy_accuracy: %.3f", accuracy))
         }
         print("  queue_items: \(int(queue["items"]) ?? 0)")
         print("  remaining_human_review_items: \(int(queue["remaining_human_review_items"]) ?? 0)")

@@ -450,6 +450,7 @@ work:
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
 less sessions/_reports/audio-judge-v0/audio_judge_v0_report.md
+less sessions/_reports/audio-judge-v0/audio_judge_v0_cv_predictions.jsonl
 less sessions/_reports/operational-readiness/operational_readiness_report.md
 less sessions/_reports/review-plan/review_plan.md
 ```

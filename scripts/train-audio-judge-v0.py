@@ -12,14 +12,15 @@ from typing import Any
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.model_selection import LeaveOneGroupOut, cross_val_predict
+from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA_REPORT = "murmurmark.audio_judge_v0_report/v1"
 SCHEMA_PREDICTION = "murmurmark.audio_judge_v0_prediction/v1"
+SCHEMA_CV_PREDICTION = "murmurmark.audio_judge_v0_cv_prediction/v1"
 
 TRAINING_BUCKETS = {
     "silver_cleanup_positive": "drop_error",
@@ -217,6 +218,201 @@ def predict_rows(model: Pipeline, rows: list[dict[str, Any]], features: np.ndarr
     return output
 
 
+def cross_validated_outputs(
+    features: np.ndarray,
+    labels: np.ndarray,
+    groups: np.ndarray,
+    classes: list[str],
+) -> tuple[np.ndarray, np.ndarray, str]:
+    probabilities = np.zeros((len(labels), len(classes)), dtype=np.float64)
+    predictions = np.asarray(labels.copy())
+    unique_groups = sorted(set(groups))
+    if len(unique_groups) < 2 or min(Counter(labels).values()) < 2:
+        for index, label in enumerate(labels):
+            probabilities[index, classes.index(str(label))] = 1.0
+        return predictions, probabilities, "identity"
+
+    logo = LeaveOneGroupOut()
+    for train_index, test_index in logo.split(features, labels, groups=groups):
+        train_labels = labels[train_index]
+        if len(set(train_labels)) < 2:
+            majority = Counter(str(label) for label in train_labels).most_common(1)[0][0]
+            predictions[test_index] = majority
+            probabilities[test_index, classes.index(majority)] = 1.0
+            continue
+        fold_model = make_model()
+        fold_model.fit(features[train_index], train_labels)
+        fold_predictions = fold_model.predict(features[test_index])
+        fold_probabilities = fold_model.predict_proba(features[test_index])
+        fold_classes = [str(item) for item in fold_model.named_steps["clf"].classes_]
+        predictions[test_index] = fold_predictions
+        for local_column, class_name in enumerate(fold_classes):
+            probabilities[test_index, classes.index(class_name)] = fold_probabilities[:, local_column]
+    return predictions, probabilities, "leave_one_session_out"
+
+
+def cv_prediction_rows(
+    rows: list[dict[str, Any]],
+    labels: np.ndarray,
+    cv_pred: np.ndarray,
+    cv_probabilities: np.ndarray,
+    classes: list[str],
+    min_confidence: float,
+) -> list[dict[str, Any]]:
+    output: list[dict[str, Any]] = []
+    for row, expected, predicted, probs in zip(rows, labels, cv_pred, cv_probabilities):
+        confidence = float(max(probs)) if len(probs) else 0.0
+        policy_label = str(predicted) if confidence >= min_confidence else "uncertain"
+        output.append(
+            {
+                "schema": SCHEMA_CV_PREDICTION,
+                "id": row.get("id"),
+                "session_id": row.get("session_id"),
+                "source_audit_id": row.get("source_audit_id"),
+                "corpus_label": row.get("label"),
+                "readiness_bucket": row.get("readiness_bucket"),
+                "training_label": str(expected),
+                "cv_label": str(predicted),
+                "policy_label": policy_label,
+                "cv_confidence": round(confidence, 6),
+                "cv_correct": str(predicted) == str(expected),
+                "policy_correct": policy_label == str(expected),
+                "probabilities": probability_map(np.asarray(classes), probs),
+                "interval": row.get("interval"),
+                "utterance_ids": row.get("utterance_ids", []),
+                "commands": row.get("commands", {}),
+            }
+        )
+    return output
+
+
+def accuracy(rows: list[dict[str, Any]], key: str) -> float:
+    if not rows:
+        return 0.0
+    return round(sum(1 for row in rows if row.get(key) is True) / len(rows), 6)
+
+
+def session_evaluation(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_session: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        by_session[str(row.get("session_id") or "unknown")].append(row)
+    output: list[dict[str, Any]] = []
+    for session_id, items in sorted(by_session.items()):
+        errors = [row for row in items if row.get("cv_correct") is not True]
+        policy_errors = [row for row in items if row.get("policy_correct") is not True]
+        output.append(
+            {
+                "session_id": session_id,
+                "items": len(items),
+                "cv_accuracy": accuracy(items, "cv_correct"),
+                "policy_accuracy": accuracy(items, "policy_correct"),
+                "cv_errors": len(errors),
+                "policy_errors": len(policy_errors),
+                "labels": dict(sorted(Counter(str(row.get("training_label")) for row in items).items())),
+                "predicted": dict(sorted(Counter(str(row.get("cv_label")) for row in items).items())),
+                "top_errors": [
+                    {
+                        "id": row.get("id"),
+                        "expected": row.get("training_label"),
+                        "predicted": row.get("cv_label"),
+                        "confidence": row.get("cv_confidence"),
+                        "source_audit_id": row.get("source_audit_id"),
+                    }
+                    for row in sorted(errors, key=lambda item: -safe_float(item.get("cv_confidence")))[:5]
+                ],
+            }
+        )
+    output.sort(key=lambda item: (item["cv_accuracy"], -item["items"], item["session_id"]))
+    return output
+
+
+def confidence_buckets(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    bounds = [
+        (0.0, 0.6, "0.00-0.60"),
+        (0.6, 0.75, "0.60-0.75"),
+        (0.75, 0.9, "0.75-0.90"),
+        (0.9, 1.000001, "0.90-1.00"),
+    ]
+    output: list[dict[str, Any]] = []
+    for lower, upper, label in bounds:
+        items = [row for row in rows if lower <= safe_float(row.get("cv_confidence")) < upper]
+        output.append(
+            {
+                "bucket": label,
+                "items": len(items),
+                "cv_accuracy": accuracy(items, "cv_correct"),
+                "policy_accuracy": accuracy(items, "policy_correct"),
+                "errors": sum(1 for row in items if row.get("cv_correct") is not True),
+                "labels": dict(sorted(Counter(str(row.get("training_label")) for row in items).items())),
+                "predicted": dict(sorted(Counter(str(row.get("cv_label")) for row in items).items())),
+            }
+        )
+    return output
+
+
+def precision_recall_for_label(rows: list[dict[str, Any]], predicted_label: str, expected_label: str, threshold: float) -> dict[str, Any]:
+    predicted = [
+        row
+        for row in rows
+        if row.get("cv_label") == predicted_label and safe_float(row.get("cv_confidence")) >= threshold
+    ]
+    true_positive = [row for row in predicted if row.get("training_label") == expected_label]
+    expected = [row for row in rows if row.get("training_label") == expected_label]
+    return {
+        "predicted_label": predicted_label,
+        "expected_label": expected_label,
+        "confidence_threshold": threshold,
+        "candidates": len(predicted),
+        "true_positive": len(true_positive),
+        "expected_total": len(expected),
+        "precision": round(len(true_positive) / len(predicted), 6) if predicted else None,
+        "recall": round(len(true_positive) / len(expected), 6) if expected else None,
+    }
+
+
+def high_confidence_errors(rows: list[dict[str, Any]], limit: int = 25) -> list[dict[str, Any]]:
+    errors = [row for row in rows if row.get("cv_correct") is not True]
+    output: list[dict[str, Any]] = []
+    for row in sorted(errors, key=lambda item: -safe_float(item.get("cv_confidence")))[:limit]:
+        commands = row.get("commands") if isinstance(row.get("commands"), dict) else {}
+        output.append(
+            {
+                "id": row.get("id"),
+                "session_id": row.get("session_id"),
+                "source_audit_id": row.get("source_audit_id"),
+                "expected": row.get("training_label"),
+                "predicted": row.get("cv_label"),
+                "policy_label": row.get("policy_label"),
+                "confidence": row.get("cv_confidence"),
+                "interval": row.get("interval"),
+                "utterance_ids": row.get("utterance_ids", []),
+                "stereo_command": commands.get("stereo_clean_left_remote_right")
+                or commands.get("stereo_mic_left_remote_right"),
+            }
+        )
+    return output
+
+
+def build_evaluation_detail(cv_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    thresholds = [0.75, 0.85, 0.93]
+    cleanup_eval = [
+        precision_recall_for_label(cv_rows, "drop_error", "drop_error", threshold)
+        for threshold in thresholds
+    ]
+    keep_eval = [
+        precision_recall_for_label(cv_rows, "keep", "keep", threshold)
+        for threshold in thresholds
+    ]
+    return {
+        "policy_accuracy": accuracy(cv_rows, "policy_correct"),
+        "per_session": session_evaluation(cv_rows),
+        "confidence_buckets": confidence_buckets(cv_rows),
+        "high_confidence_errors": high_confidence_errors(cv_rows),
+        "cleanup_precision_by_threshold": cleanup_eval,
+        "keep_precision_by_threshold": keep_eval,
+    }
+
+
 def role_from_utterance(row: dict[str, Any]) -> str:
     role = str(row.get("role") or "").lower()
     source = str(row.get("source_track") or "").lower()
@@ -363,7 +559,13 @@ def evaluate_predictions(labels: np.ndarray, predictions: np.ndarray, classes: l
     }
 
 
-def write_markdown(path: Path, report: dict[str, Any], predictions: list[dict[str, Any]], queue_predictions: list[dict[str, Any]]) -> None:
+def write_markdown(
+    path: Path,
+    report: dict[str, Any],
+    predictions: list[dict[str, Any]],
+    cv_predictions: list[dict[str, Any]],
+    queue_predictions: list[dict[str, Any]],
+) -> None:
     lines = [
         "# Audio Judge v0",
         "",
@@ -371,6 +573,7 @@ def write_markdown(path: Path, report: dict[str, Any], predictions: list[dict[st
         f"Training rows: `{report['training']['rows']}`",
         f"Sessions: `{report['training']['sessions']}`",
         f"CV accuracy: `{report['evaluation']['cv_accuracy']}`",
+        f"Policy accuracy: `{report['evaluation']['policy_accuracy']}`",
         f"Queue items: `{report['review_queue']['items']}`",
         "",
         "## Label Counts",
@@ -384,6 +587,47 @@ def write_markdown(path: Path, report: dict[str, Any], predictions: list[dict[st
         for item in features:
             lines.append(f"- `{item['feature']}`: `{item['weight']}`")
         lines.append("")
+    lines.extend(["", "## Out-of-Fold Evaluation", ""])
+    lines.extend(
+        [
+            "| Session | Items | CV accuracy | Policy accuracy | CV errors |",
+            "| --- | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for item in report["evaluation_detail"]["per_session"]:
+        lines.append(
+            f"| `{item['session_id']}` | `{item['items']}` | `{item['cv_accuracy']}` | `{item['policy_accuracy']}` | `{item['cv_errors']}` |"
+        )
+    lines.extend(["", "### Confidence Buckets", ""])
+    lines.extend(
+        [
+            "| Confidence | Items | CV accuracy | Policy accuracy | Errors |",
+            "| --- | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for item in report["evaluation_detail"]["confidence_buckets"]:
+        lines.append(
+            f"| `{item['bucket']}` | `{item['items']}` | `{item['cv_accuracy']}` | `{item['policy_accuracy']}` | `{item['errors']}` |"
+        )
+    lines.extend(["", "### Cleanup Precision by Threshold", ""])
+    for item in report["evaluation_detail"]["cleanup_precision_by_threshold"]:
+        lines.append(
+            f"- `drop_error >= {item['confidence_threshold']}`: candidates `{item['candidates']}`, precision `{item['precision']}`, recall `{item['recall']}`"
+        )
+    lines.extend(["", "### High-Confidence CV Errors", ""])
+    for row in report["evaluation_detail"]["high_confidence_errors"][:15]:
+        lines.extend(
+            [
+                f"#### {row['id']} `{row['expected']}` -> `{row['predicted']}`",
+                "",
+                f"- Session: `{row['session_id']}`",
+                f"- Confidence: `{row['confidence']}`",
+                f"- Audit id: `{row['source_audit_id']}`",
+            ]
+        )
+        if row.get("stereo_command"):
+            lines.append(f"- Stereo: `{row['stereo_command']}`")
+        lines.append("")
     lines.extend(["", "## Highest-Confidence Predictions", ""])
     for row in sorted(predictions, key=lambda item: -float(item.get("judge_confidence", 0.0)))[:25]:
         lines.extend(
@@ -393,6 +637,22 @@ def write_markdown(path: Path, report: dict[str, Any], predictions: list[dict[st
                 f"- Confidence: `{row['judge_confidence']}`",
                 f"- Training label: `{row['training_label']}`",
                 f"- Corpus label: `{row['corpus_label']}`",
+            ]
+        )
+        commands = row.get("commands") or {}
+        stereo = commands.get("stereo_clean_left_remote_right") or commands.get("stereo_mic_left_remote_right")
+        if stereo:
+            lines.append(f"- Stereo: `{stereo}`")
+        lines.append("")
+    lines.extend(["", "## Highest-Confidence Out-of-Fold Predictions", ""])
+    for row in sorted(cv_predictions, key=lambda item: -float(item.get("cv_confidence", 0.0)))[:25]:
+        lines.extend(
+            [
+                f"### {row['id']} `{row['cv_label']}` {row['session_id']}",
+                "",
+                f"- Confidence: `{row['cv_confidence']}`",
+                f"- Expected: `{row['training_label']}`",
+                f"- Correct: `{row['cv_correct']}`",
             ]
         )
         commands = row.get("commands") or {}
@@ -427,11 +687,9 @@ def main() -> int:
     unique_groups = sorted(set(groups))
     classes = sorted(set(labels))
     model = make_model()
-    if len(unique_groups) >= 2 and min(Counter(labels).values()) >= 2:
-        logo = LeaveOneGroupOut()
-        cv_pred = cross_val_predict(model, features, labels, groups=groups, cv=logo)
-    else:
-        cv_pred = labels.copy()
+    cv_pred, cv_probabilities, cv_method = cross_validated_outputs(features, labels, groups, classes)
+    cv_predictions = cv_prediction_rows(rows, labels, cv_pred, cv_probabilities, classes, args.min_confidence)
+    evaluation_detail = build_evaluation_detail(cv_predictions)
     evaluation = evaluate_predictions(labels, cv_pred, classes)
     cv_accuracy = round(float(np.mean(cv_pred == labels)), 6)
     model.fit(features, labels)
@@ -462,10 +720,12 @@ def main() -> int:
             "feature_names": FEATURE_NAMES,
         },
         "evaluation": {
-            "method": "leave_one_session_out" if len(unique_groups) >= 2 else "identity",
+            "method": cv_method,
             "cv_accuracy": cv_accuracy,
+            "policy_accuracy": evaluation_detail["policy_accuracy"],
             **evaluation,
         },
+        "evaluation_detail": evaluation_detail,
         "judge_label_counts": dict(sorted(judge_counts.items())),
         "review_queue": queue_summary(queue_predictions),
         "top_features": {label: top_features(model, label) for label in classes},
@@ -479,8 +739,9 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     write_json(out_dir / "audio_judge_v0_report.json", report)
     write_jsonl(out_dir / "audio_judge_v0_predictions.jsonl", predictions)
+    write_jsonl(out_dir / "audio_judge_v0_cv_predictions.jsonl", cv_predictions)
     write_jsonl(out_dir / "audio_judge_v0_queue_predictions.jsonl", queue_predictions)
-    write_markdown(out_dir / "audio_judge_v0_report.md", report, predictions, queue_predictions)
+    write_markdown(out_dir / "audio_judge_v0_report.md", report, predictions, cv_predictions, queue_predictions)
     print(f"readiness: {readiness}")
     print(f"cv_accuracy: {cv_accuracy}")
     print(f"written: {out_dir / 'audio_judge_v0_report.json'}")

@@ -429,8 +429,9 @@ audio judge. It is private generated data and does not modify sessions or raw au
 `scripts/evaluate-regression-corpus.py` then buckets the corpus into silver cleanup positives,
 silver keep negatives, mark-only regressions and examples that need a stronger audio judge.
 `scripts/train-audio-judge-v0.py` trains a local shadow classifier on corpus silver labels using only
-numeric audio/text metrics. It does not edit transcripts; it reports cross-session validation quality
-and candidate predictions for later cleanup experiments. Queue predictions stay conservative:
+numeric audio/text metrics. It does not edit transcripts; it reports out-of-fold cross-session
+validation quality, per-session errors, confidence buckets, cleanup precision by threshold and
+candidate predictions for later cleanup experiments. Queue predictions stay conservative:
 `drop_error` and `mark_only_error` remain human-review items until a separate cleanup profile consumes
 them with its own gates. `audit_cleanup_v3` is that first consuming profile, but it only accepts
 high-confidence `drop_error` candidates that also satisfy the existing cleanup safety checks.
