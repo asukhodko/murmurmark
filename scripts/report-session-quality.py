@@ -14,7 +14,14 @@ from typing import Any
 SCRIPT_VERSION = "0.2.0"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
-CLEANUP_PROFILES = {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "reviewed_v1"}
+CLEANUP_PROFILES = {
+    "audit_cleanup_v1",
+    "audit_cleanup_v2",
+    "audit_cleanup_v3",
+    "audit_cleanup_v4",
+    "audit_cleanup_v5",
+    "reviewed_v1",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -176,6 +183,18 @@ def selected_profile(session: Path) -> str:
         and reviewed_gates.get("passed") is True
     ):
         return "reviewed_v1"
+    cleanup_v5 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v5.json")
+    cleanup_v5_summary = cleanup_v5.get("summary") if isinstance(cleanup_v5, dict) else {}
+    cleanup_v5_gates = cleanup_v5.get("gates") if isinstance(cleanup_v5, dict) else {}
+    cleanup_v5_applied = safe_int(cleanup_v5_summary.get("applied_patches") if isinstance(cleanup_v5_summary, dict) else None) or 0
+    if (
+        (resolved / "quality_report.audit_cleanup_v5.json").exists()
+        and (resolved / "clean_dialogue.audit_cleanup_v5.json").exists()
+        and isinstance(cleanup_v5_gates, dict)
+        and cleanup_v5_gates.get("passed") is True
+        and cleanup_v5_applied > 0
+    ):
+        return "audit_cleanup_v5"
     cleanup_v4 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v4.json")
     cleanup_v4_summary = cleanup_v4.get("summary") if isinstance(cleanup_v4, dict) else {}
     cleanup_v4_gates = cleanup_v4.get("gates") if isinstance(cleanup_v4, dict) else {}
@@ -239,6 +258,9 @@ def stage_status(session: Path) -> dict[str, bool]:
         "audit_cleanup_v4": (resolved / "quality_report.audit_cleanup_v4.json").exists()
         and (resolved / "clean_dialogue.audit_cleanup_v4.json").exists()
         and (cleanup / "audit_cleanup_report.audit_cleanup_v4.json").exists(),
+        "audit_cleanup_v5": (resolved / "quality_report.audit_cleanup_v5.json").exists()
+        and (resolved / "clean_dialogue.audit_cleanup_v5.json").exists()
+        and (cleanup / "audit_cleanup_report.audit_cleanup_v5.json").exists(),
         "reviewed_v1": (resolved / "quality_report.reviewed_v1.json").exists()
         and (resolved / "clean_dialogue.reviewed_v1.json").exists()
         and (review_decisions / "review_decisions_report.reviewed_v1.json").exists(),
@@ -254,6 +276,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (synthesis / "evidence_notes.audit_cleanup_v3.json").exists(),
         "synthesis_audit_cleanup_v4": (synthesis / "quality_verdict.audit_cleanup_v4.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v4.json").exists(),
+        "synthesis_audit_cleanup_v5": (synthesis / "quality_verdict.audit_cleanup_v5.json").exists()
+        and (synthesis / "evidence_notes.audit_cleanup_v5.json").exists(),
         "synthesis_reviewed_v1": (synthesis / "quality_verdict.reviewed_v1.json").exists()
         and (synthesis / "evidence_notes.reviewed_v1.json").exists(),
         "synthesis_suggested_review_v1": (synthesis / "quality_verdict.suggested_review_v1.json").exists()
@@ -604,7 +628,7 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
     verdict = row.get("verdict")
     if verdict in {"risky", "failed"}:
         flags.append(f"verdict:{verdict}")
-    if row.get("selected_profile") not in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "reviewed_v1"}:
+    if row.get("selected_profile") not in CLEANUP_PROFILES:
         flags.append("no_audit_cleanup_profile")
     if row.get("selected_profile") == "reviewed_v1" and row.get("review_decisions_gates_passed") is not True:
         flags.append("review_decisions_gates_failed")
@@ -689,7 +713,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     )
     cleanup_report = (
         read_json(session / "derived/transcript-simple/whisper-cpp/audit-cleanup" / f"audit_cleanup_report{suffix(profile)}.json")
-        if profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4"}
+        if profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5"}
         else None
     )
     review_report = (

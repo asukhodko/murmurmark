@@ -20,7 +20,20 @@ SAMPLE_RATE = 16000
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build local audio clips for suspicious transcript regions.")
     parser.add_argument("session", type=Path)
-    parser.add_argument("--profile", default="audit_cleanup_v1", choices=["auto", "current", "shadow_v2", "audit_cleanup_v1", "audit_cleanup_v2"])
+    parser.add_argument(
+        "--profile",
+        default="audit_cleanup_v1",
+        choices=[
+            "auto",
+            "current",
+            "shadow_v2",
+            "audit_cleanup_v1",
+            "audit_cleanup_v2",
+            "audit_cleanup_v3",
+            "audit_cleanup_v4",
+            "audit_cleanup_v5",
+        ],
+    )
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--min-overlap-sec", type=float, default=0.5)
     parser.add_argument("--padding-sec", type=float, default=3.0)
@@ -92,7 +105,7 @@ def resolve_profile(session: Path, requested: str) -> str:
     if requested != "auto":
         return requested
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
-    for candidate in ("audit_cleanup_v2", "audit_cleanup_v1", "shadow_v2", "current"):
+    for candidate in ("audit_cleanup_v5", "audit_cleanup_v4", "audit_cleanup_v3", "audit_cleanup_v2", "audit_cleanup_v1", "shadow_v2", "current"):
         if (resolved / f"clean_dialogue{suffix(candidate)}.json").exists():
             return candidate
     return "current"

@@ -183,7 +183,7 @@ def session_use_gate(row: dict[str, Any]) -> str:
     verdict = str(row.get("verdict") or "")
     if verdict in {"failed", "risky"}:
         return "do_not_use_without_manual_review"
-    if profile not in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "reviewed_v1"}:
+    if profile not in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "reviewed_v1"}:
         return "pipeline_incomplete_review_first"
     if ratio <= 0.025 and not flags:
         return "ready_for_notes"
@@ -405,6 +405,11 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
             ),
             "report_suggested_review_shadow": (
                 ".venv/bin/python scripts/report-suggested-review-shadow.py"
+                if review_queue
+                else None
+            ),
+            "apply_suggested_cleanup": (
+                ".venv/bin/python scripts/apply-suggested-cleanup.py"
                 if review_queue
                 else None
             ),
@@ -717,6 +722,7 @@ def operational_verdict(
         + safe_int(selected_profiles.get("audit_cleanup_v2"))
         + safe_int(selected_profiles.get("audit_cleanup_v3"))
         + safe_int(selected_profiles.get("audit_cleanup_v4"))
+        + safe_int(selected_profiles.get("audit_cleanup_v5"))
         + safe_int(selected_profiles.get("reviewed_v1"))
     )
     cleanup_ratio = cleanup_profiles / session_count if session_count > 0 else 0.0
@@ -914,6 +920,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         apply_suggested_cmd = commands.get("apply_suggested_workspace")
         build_suggested_profile_cmd = commands.get("build_suggested_review_profile")
         report_suggested_cmd = commands.get("report_suggested_review_shadow")
+        apply_suggested_cleanup_cmd = commands.get("apply_suggested_cleanup")
         build_cmd = commands.get("build_first_lane_pack")
         review_cmd = commands.get("review_first_lane")
         if (
@@ -923,6 +930,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             or apply_suggested_cmd
             or build_suggested_profile_cmd
             or report_suggested_cmd
+            or apply_suggested_cleanup_cmd
             or build_cmd
             or review_cmd
         ):
@@ -940,6 +948,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 lines.append(str(build_suggested_profile_cmd))
             if report_suggested_cmd:
                 lines.append(str(report_suggested_cmd))
+            if apply_suggested_cleanup_cmd:
+                lines.append(str(apply_suggested_cleanup_cmd))
             if build_cmd:
                 lines.append(str(build_cmd))
             if review_cmd:

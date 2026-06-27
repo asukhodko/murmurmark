@@ -39,7 +39,7 @@ less "$SESSION/derived/readiness/session_readiness.md"
 ```
 
 The runner calls Echo Guard, export/transcription, shadow timeline repair, local-recall audit,
-group-overlap audit, audio-review audit, `audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. Use
+group-overlap audit, audio-review audit, `audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. `audit_cleanup_v5` is a separate batch step after the suggested-review shadow report. Use
 `--force-asr` when you need to regenerate Whisper output, and `--reuse-asr-cache` when you only want
 to rebuild repair, cleanup, synthesis and reports from cached ASR JSON.
 
@@ -548,6 +548,7 @@ decisions file and build `suggested_review_v1`:
   --out sessions/_reports/review-plan/review_decisions_apply.suggested_review_v1.json
 
 .venv/bin/python scripts/report-suggested-review-shadow.py
+.venv/bin/python scripts/apply-suggested-cleanup.py
 ```
 
 `suggested_review_v1` is not a reviewed profile. It is a shadow candidate generated from
@@ -556,6 +557,11 @@ decisions file and build `suggested_review_v1`:
 marks sessions as `promising_shadow_candidate`,
 `promising_cleanup_candidate_with_residual_review`, `low_gain_shadow_candidate`, or
 `do_not_promote`.
+
+`scripts/apply-suggested-cleanup.py` turns only safe shadow `drop_me` candidates into
+`audit_cleanup_v5`. It reads the selected cleanup profile, does not copy `suggested_review_v1`
+wholesale, and skips low-gain or unsafe sessions. `audit_cleanup_v5` is eligible for `auto` only
+when its cleanup gates pass and at least one patch was applied.
 
 Answer shortcuts are `d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.` or `n=todo`.
 Before applying decisions to transcripts, check progress and validation:
@@ -580,7 +586,7 @@ audit but is not selected by `auto`. The template includes `suggested_decision` 
 not applied until the reviewer explicitly edits `decision`. For `remote_duplicate`, those hints are coverage-aware:
 if the duplicate covers only part of a longer `Me` utterance, the plan uses
 `check_unique_me_content` and suggests `needs_review`, because `drop_me` would remove the whole
-utterance. It does not edit `audit_cleanup_v1/v2/v3/v4`.
+utterance. It does not edit `audit_cleanup_v1/v2/v3/v4/v5`.
 
 After closing a review file, prefer:
 
@@ -798,10 +804,10 @@ does not call an LLM, and does not read raw audio.
 Profile selection:
 
 ```text
-auto      -> reviewed_v1 when review gates pass, then audit_cleanup_v4/v3/v2/v1 with passing cleanup gates, then shadow_v2 if repair_comparison.json passes, otherwise current
+auto      -> reviewed_v1 when review gates pass, then audit_cleanup_v5/v4/v3/v2/v1 with passing cleanup gates, then shadow_v2 if repair_comparison.json passes, otherwise current
 current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
-audit_cleanup_v1..v4 -> audit-cleaned dialogue, marked risky if cleanup gates failed
+audit_cleanup_v1..v5 -> audit-cleaned dialogue, marked risky if cleanup gates failed
 reviewed_v1 -> human-reviewed dialogue, marked risky if review gates failed
 suggested_review_v1 -> machine-suggested review candidate, explicit only, never selected by auto
 ```

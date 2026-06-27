@@ -157,6 +157,8 @@ swift run murmurmark list-apps
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v3
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v3 --output-profile audit_cleanup_v4 --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v4
+.venv/bin/python scripts/apply-suggested-cleanup.py
+.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v5
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session> --write-session-readiness
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
 .venv/bin/python scripts/evaluate-regression-corpus.py
@@ -266,6 +268,17 @@ high-confidence `drop_error` candidates that also satisfy the existing cleanup s
 audio-judge `drop_error` predictions above `0.93`: strong text containment, low local support, good
 overlap coverage, no protected markers and no notes impact are required. It remains mark-only for
 `remote_leak`, `lost_me`, `uncertain`, double-talk and timing overlap.
+`audit_cleanup_v5` materializes only safe `drop_me` edits from the `suggested_review_v1` shadow
+report. It does not trust suggested review as human review and does not copy review marks wholesale:
+it reads the currently selected cleanup profile, drops only whole `Me` utterances from sessions
+classified as promising cleanup candidates, and writes a normal cleanup profile with its own gates.
+Use it after `scripts/report-suggested-review-shadow.py`:
+
+```bash
+.venv/bin/python scripts/apply-suggested-cleanup.py
+```
+
+`auto` synthesis may select v5 when its cleanup gates pass and it applied at least one patch.
 `scripts/report-operational-readiness.py` combines session quality, corpus readiness and audio-judge
 shadow readiness into a practical verdict such as `pilot_ready_with_review` for medium-risk working
 meetings. It also assigns per-session use gates such as `ready_for_notes` and `review_first`, then
@@ -345,6 +358,7 @@ For comparison, the suggested answer sheets can be applied into a separate shado
   --out sessions/_reports/review-plan/review_decisions_apply.suggested_review_v1.json
 
 .venv/bin/python scripts/report-suggested-review-shadow.py
+.venv/bin/python scripts/apply-suggested-cleanup.py
 ```
 
 `suggested_review_v1` is generated from machine suggestions only. It is useful for measuring the

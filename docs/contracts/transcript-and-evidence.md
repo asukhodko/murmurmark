@@ -1090,6 +1090,7 @@ sessions/_reports/review-plan/
 sessions/_reports/suggested-review-shadow/
   suggested_review_shadow_report.json
   suggested_review_shadow_report.md
+  suggested_cleanup_apply_report.json
 ```
 
 `suggested_review_v1` is explicit-only. `--transcript-profile auto` must never select it, and
@@ -1097,6 +1098,10 @@ session readiness must not count it as a human-reviewed profile. It exists to co
 suggestions against the trusted cleanup and manual-review paths. The shadow report compares core
 quality metrics against the selected profile and may classify a session as `do_not_promote` even
 when the suggested profile gates pass.
+
+`apply-suggested-cleanup.py` consumes this report and materializes only safe `drop_me` candidates as
+`audit_cleanup_v5`. It must not select `suggested_review_v1` as input wholesale and must not copy
+machine-generated review marks as if they were human review.
 
 `apply-review-decisions-batch.py --refresh-reports` extends the batch report with
 `refresh_reports[]`. Each row stores the command, return code, and output tails for the refreshed
@@ -1219,6 +1224,14 @@ strong duplicate evidence:
 - no protected action/decision/risk marker, intentional repeat or notes impact is present.
 
 All non-duplicate audio-review classes remain mark-only in v4.
+
+`audit_cleanup_v5` has the same artifact shape with the `audit_cleanup_v5` suffix. It usually uses
+the currently selected cleanup profile from `suggested_review_shadow_report.json` as input and reads
+the `suggested_review_v1` applied decisions only as evidence for whole-utterance `drop_me` patches.
+It may apply patches only for sessions classified as `promising_shadow_candidate` or
+`promising_cleanup_candidate_with_residual_review`, and it must skip sessions where the shadow
+report added new `needs_review` items. v5 is a cleanup profile, not a reviewed profile:
+`suggested_review_v1` remains explicit-only and is never selected by `auto`.
 
 Patch suggestions are dry-run only:
 
