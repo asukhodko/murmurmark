@@ -567,6 +567,11 @@ the source item as reliable.
 `murmurmark corpus order` writes a separate chronology-risk corpus report under
 `sessions/_reports/transcript-order/`; read it when wrong reply order is the concern rather than
 audio leakage.
+`murmurmark corpus report` prints the existing session-quality summary and, when the files already
+exist, also prints short summaries for transcript-order, corpus-gates and operational-readiness. It
+does not rebuild those reports; it is the quick “what is the current state?” command after a heavier
+`murmurmark corpus process all`. Use `murmurmark report corpus` when only session-quality needs a
+refresh.
 Its `promotion_plan` section explains the current delta to `medium_risk_ready`: unresolved warnings,
 sessions not ready for notes, remaining review minutes, and the next action class.
 Its `Review Queue Strategy` section groups the remaining queue into lanes and shows the first useful

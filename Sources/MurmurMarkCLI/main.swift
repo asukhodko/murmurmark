@@ -103,7 +103,7 @@ struct MurmurMark {
           murmurmark corpus train-audio-judge
           murmurmark corpus gate
           murmurmark corpus order [all|./session...] [--sessions-root ./sessions]
-          murmurmark corpus report [--sessions-root ./sessions]
+          murmurmark corpus report
           murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
                              [--include-json] [--force] [--sessions-root ./sessions]
           murmurmark retention plan|apply ./session|latest [--policy examples/retention-policy.local-first.json]
@@ -1355,8 +1355,9 @@ enum CorpusCommands {
             try transcriptOrder(sessions: sessions, extraArgs: forwarded)
             try CorpusPrinter.printTranscriptOrder(outDir: outDir)
         case "report":
-            guard forwarded.isEmpty else { throw CLIError("corpus report only supports --sessions-root") }
-            try PipelineCommands.report(["corpus", "--sessions-root", sessionsRoot.path])
+            guard forwarded.isEmpty else { throw CLIError("corpus report does not support extra arguments") }
+            try CorpusPrinter.printSessionQuality()
+            try CorpusPrinter.printAvailableStatusReports()
         default:
             throw CLIError("unknown corpus command: \(subcommand)")
         }
@@ -4921,6 +4922,21 @@ enum ExportPrinter {
 }
 
 enum CorpusPrinter {
+    static func printAvailableStatusReports() throws {
+        let transcriptOrder = PathURLs.fileURL("sessions/_reports/transcript-order/transcript_order_corpus_report.json")
+        let corpusGates = PathURLs.fileURL("sessions/_reports/corpus-gates/corpus_gates_report.json")
+        let operationalReadiness = PathURLs.fileURL("sessions/_reports/operational-readiness/operational_readiness_report.json")
+        if FileManager.default.fileExists(atPath: transcriptOrder.path) {
+            try printTranscriptOrder()
+        }
+        if FileManager.default.fileExists(atPath: corpusGates.path) {
+            try printGates()
+        }
+        if FileManager.default.fileExists(atPath: operationalReadiness.path) {
+            try printOperationalReadiness()
+        }
+    }
+
     static func printSessionQuality() throws {
         try ReadinessPrinter.printCorpus(report: PathURLs.fileURL("sessions/_reports/session-quality/session_quality_report.json"))
     }

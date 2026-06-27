@@ -114,6 +114,10 @@ murmurmark corpus report
 less sessions/_reports/session-quality/session_quality_report.md
 ```
 
+When corpus order/gate/readiness reports already exist, `murmurmark corpus report` also prints their
+short summaries without rebuilding them. Use `murmurmark corpus process all` when those reports need
+to be rebuilt. `murmurmark report corpus` is narrower: it refreshes the session-quality report.
+
 Retention is explicit and local:
 
 ```bash
