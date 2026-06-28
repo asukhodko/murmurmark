@@ -522,6 +522,9 @@ echo "$sessions_output" | grep -q '^sessions:$'
 echo "$sessions_output" | grep -q '^  latest: '
 echo "$sessions_output" | grep -q '^  items:$'
 echo "$sessions_output" | grep -q '^    - session: '
+echo "$sessions_output" | grep -q '^      label: '
+echo "$sessions_output" | grep -q '^      created_at: 2026-06-22T16:00:00.000Z$'
+echo "$sessions_output" | grep -q '^      duration: '
 echo "$sessions_output" | grep -q '^      status: incomplete$'
 echo "$sessions_output" | grep -q '^      next: murmurmark process '
 "$bin" sessions --sessions-root "$workdir" --path-only --limit 1 | grep -q '/session$'
@@ -530,6 +533,7 @@ echo "$sessions_output" | grep -q '^      next: murmurmark process '
 sessions_json="$("$bin" sessions --sessions-root "$workdir" --status incomplete --json --limit 1)"
 printf '%s\n' "$sessions_json" | jq -e '.schema == "murmurmark.sessions_queue/v1" and .status_filter == "incomplete" and .shown == 1' >/dev/null
 printf '%s\n' "$sessions_json" | jq -e '.items[0].status == "incomplete" and (.items[0].next | startswith("murmurmark process "))' >/dev/null
+printf '%s\n' "$sessions_json" | jq -e '.items[0].label == "session" and .items[0].created_at == "2026-06-22T16:00:00.000Z" and (.items[0].duration_sec | type == "number")' >/dev/null
 [[ -z "$("$bin" sessions --sessions-root "$workdir" --status exportable --next-only --limit 1)" ]]
 review_next_refresh_output="$("$bin" review next "$session")"
 assert_no_helper_prefix "$review_next_refresh_output"

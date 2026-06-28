@@ -821,7 +821,7 @@ enum SessionListPrinter {
             "count": sessions.count,
             "shown": shown.count,
             "latest": sessions.first.map { PathDisplay.display($0) as Any } ?? NSNull(),
-            "items": shown.map(jsonItem),
+            "items": shown.map(itemPayload),
         ]
         guard JSONSerialization.isValidJSONObject(payload) else {
             throw CLIError("cannot render sessions queue JSON")
@@ -860,22 +860,42 @@ enum SessionListPrinter {
     }
 
     private static func printItem(_ session: URL) {
-        let readiness = readReadiness(session)
-        let sessionPath = PathDisplay.display(session)
-        Swift.print("    - session: \(sessionPath)")
-        Swift.print("      status: \(status(for: session, readiness: readiness))")
-        Swift.print("      gate: \(string(readiness?["use_gate"]) ?? "missing")")
-        Swift.print("      profile: \(string(readiness?["selected_profile"]) ?? "unknown")")
-        Swift.print("      verdict: \(string(readiness?["verdict"]) ?? "unknown")")
-        Swift.print("      next: \(nextCommand(for: session, readiness: readiness))")
+        let item = itemPayload(session)
+        Swift.print("    - session: \(string(item["session"]) ?? PathDisplay.display(session))")
+        Swift.print("      label: \(string(item["label"]) ?? session.lastPathComponent)")
+        if let createdAt = string(item["created_at"]) {
+            Swift.print("      created_at: \(createdAt)")
+        }
+        if let durationSec = double(item["duration_sec"]) {
+            Swift.print("      duration: \(formatMinutes(durationSec))")
+        }
+        Swift.print("      status: \(string(item["status"]) ?? "unknown")")
+        Swift.print("      gate: \(string(item["gate"]) ?? "missing")")
+        Swift.print("      profile: \(string(item["profile"]) ?? "unknown")")
+        Swift.print("      verdict: \(string(item["verdict"]) ?? "unknown")")
+        if let reviewSec = double(item["review_burden_sec"]) {
+            let ratio = double(item["review_burden_ratio"]) ?? 0
+            Swift.print("      review_burden: \(formatMinutes(reviewSec)) / \(formatPercent(ratio))")
+        }
+        Swift.print("      next: \(string(item["next"]) ?? "murmurmark status \(PathDisplay.display(session))")")
     }
 
-    private static func jsonItem(_ session: URL) -> [String: Any] {
+    private static func itemPayload(_ session: URL) -> [String: Any] {
         let readiness = readReadiness(session)
+        let sessionJSON = readSessionJSON(session)
+        let metrics = readiness?["metrics"] as? [String: Any] ?? [:]
         let readinessURL = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        let createdAt = string(sessionJSON?["created_at"]) ?? string(readiness?["created_at"])
+        let endedAt = string(sessionJSON?["ended_at"]) ?? string(readiness?["ended_at"])
         return [
             "session": PathDisplay.display(session),
             "session_id": session.lastPathComponent,
+            "label": string(readiness?["label"]) ?? string(sessionJSON?["label"]) ?? session.lastPathComponent,
+            "created_at": createdAt as Any? ?? NSNull(),
+            "ended_at": endedAt as Any? ?? NSNull(),
+            "duration_sec": double(metrics["meeting_duration_sec"]) as Any? ?? NSNull(),
+            "review_burden_sec": double(metrics["review_burden_sec"]) as Any? ?? NSNull(),
+            "review_burden_ratio": double(metrics["review_burden_ratio"]) as Any? ?? NSNull(),
             "readiness_exists": readiness != nil,
             "readiness_path": PathDisplay.display(readinessURL),
             "status": status(for: session, readiness: readiness),
@@ -896,6 +916,14 @@ enum SessionListPrinter {
 
     private static func readReadiness(_ session: URL) -> [String: Any]? {
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+        return try? JSONFiles.object(url)
+    }
+
+    private static func readSessionJSON(_ session: URL) -> [String: Any]? {
+        let url = session.appendingPathComponent("session.json")
         guard FileManager.default.fileExists(atPath: url.path) else {
             return nil
         }
@@ -938,6 +966,21 @@ enum SessionListPrinter {
 
     private static func string(_ value: Any?) -> String? {
         value as? String
+    }
+
+    private static func double(_ value: Any?) -> Double? {
+        if let value = value as? Double { return value }
+        if let value = value as? NSNumber { return value.doubleValue }
+        if let value = value as? String { return Double(value) }
+        return nil
+    }
+
+    private static func formatMinutes(_ seconds: Double) -> String {
+        String(format: "%.2f min", seconds / 60.0)
+    }
+
+    private static func formatPercent(_ ratio: Double) -> String {
+        String(format: "%.2f%%", ratio * 100.0)
     }
 }
 

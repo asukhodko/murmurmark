@@ -57,9 +57,10 @@ all print the next safe command for the current session state, so the terminal o
 `next` is the shortest answer when you only need the one command to run now.
 `open` is the shortest answer when you need to inspect the selected local output: notes, transcript,
 quality verdict, readiness or audit reports.
-`sessions` is the quick picker for recent recordings: it shows each session path, readiness status
-and the next safe command. Use `--status review_required --next-only` to print the current review
-queue as copyable commands, or `--json` when an agent needs a machine-readable queue snapshot.
+`sessions` is the quick picker for recent recordings: it shows each session path, label, time,
+duration, readiness status, review burden and the next safe command. Use `--status review_required
+--next-only` to print the current review queue as copyable commands, or `--json` when an agent needs
+a machine-readable queue snapshot.
 `status` is the quickest dashboard for already-generated readiness; `report` refreshes readiness first.
 If readiness is not present yet, `status` and `next` point to `murmurmark process SESSION`.
 After a successful export, `next` follows the export manifest and points to retention planning; pass
