@@ -2248,6 +2248,12 @@ machine-generated review marks as if they were human review.
 `refresh_reports[]`. Each row stores the command, return code, and output tails for the refreshed
 `session-quality`, `operational-readiness`, and `review-plan` commands. The batch command must fail
 if any refreshed report command fails, so stale readiness reports are not silently treated as current.
+When reports are refreshed, each applied session row also gets `post_apply_readiness` copied from
+`SESSION/derived/readiness/session_readiness.json`: `use_gate`, `selected_profile`, `verdict`,
+`recommendation`, `recommended_next` and `next_commands`. The top-level report also writes
+`next_commands`; for one session they come from the refreshed readiness handoff, and for failed or
+multi-session runs they point to the apply report or corpus report. This makes
+`review_decisions_apply_report.json` a self-contained handoff for CLI wrappers and agents.
 The Swift `murmurmark review apply` wrapper performs a preflight before running the batch command.
 If the decisions file or review template is missing, it prints `review_apply: status: not_ready`,
 the missing path kind and the next `review workspace` / `review progress` commands instead of

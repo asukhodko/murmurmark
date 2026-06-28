@@ -914,7 +914,9 @@ suggested cleanup edits are unsafe.
 `scripts/apply-review-decisions-batch.py` applies the same edited file to every session mentioned in
 the review plan and can immediately regenerate extractive notes with `--synthesize`. Use
 `--refresh-reports` when the review is closed: it also refreshes session quality,
-operational readiness, and the next review plan, so the visible verdict is not stale.
+operational readiness, and the next review plan, so the visible verdict is not stale. Its report also
+copies the refreshed `next_commands`, which lets `murmurmark review apply` and agents continue from
+one machine-readable handoff instead of guessing the next shell command.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 

@@ -270,19 +270,40 @@ enum ReviewPrinter {
         print("  passed_sessions: \(int(summary["passed_sessions"]) ?? 0)")
         print("  failed_sessions: \(failedSessions)")
         print("  failed_refresh_steps: \(failedRefreshSteps)")
+        let reportNextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+        let hasReportNextCommands = !reportNextCommands.isEmpty
+        if let recommended = ReadinessPrinter.preferredNextCommand(reportNextCommands) {
+            print("  recommended_next: \(recommended)")
+        }
+        if hasReportNextCommands {
+            print("  next:")
+            for item in reportNextCommands {
+                guard let command = string(item["command"]), !command.isEmpty else { continue }
+                let label = string(item["label"]) ?? string(item["id"]) ?? "next"
+                print("    \(command) — \(label)")
+            }
+        }
         if failedSessions > 0 || failedRefreshSteps > 0 {
-            print("  next: less \(PathDisplay.display(report))")
+            if !hasReportNextCommands {
+                print("  next: less \(PathDisplay.display(report))")
+            }
         } else if let session = singleAppliedSession(sessions) {
             let sessionURL = PathURLs.fileURL(session)
-            if let next = readinessRecommendedNext(sessionURL) {
-                print("  next: \(next)")
-                print("  report_next: murmurmark report \(PathDisplay.display(sessionURL))")
+            if !hasReportNextCommands {
+                if let next = readinessRecommendedNext(sessionURL) {
+                    print("  next: \(next)")
+                    print("  report_next: murmurmark report \(PathDisplay.display(sessionURL))")
+                } else {
+                    print("  next: murmurmark report \(PathDisplay.display(sessionURL))")
+                }
             } else {
-                print("  next: murmurmark report \(PathDisplay.display(sessionURL))")
+                print("  report_next: murmurmark report \(PathDisplay.display(sessionURL))")
             }
             try printAppliedSessionReadiness(session)
         } else if !sessions.isEmpty {
-            print("  next: murmurmark report corpus")
+            if !hasReportNextCommands {
+                print("  next: murmurmark report corpus")
+            }
         }
     }
 

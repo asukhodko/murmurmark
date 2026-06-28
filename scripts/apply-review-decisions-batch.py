@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.review_decisions_batch_report/v1"
 
 
@@ -148,6 +148,104 @@ def run_command(command: list[str]) -> dict[str, Any]:
     }
 
 
+def safe_str(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def session_readiness_path(session: Path) -> Path:
+    return session / "derived/readiness/session_readiness.json"
+
+
+def post_apply_readiness(session: Path) -> dict[str, Any]:
+    path = session_readiness_path(session)
+    payload = read_json(path)
+    if not isinstance(payload, dict):
+        return {
+            "exists": False,
+            "path": path.as_posix(),
+            "recommended_next": f"murmurmark report {session.as_posix()}",
+            "next_commands": [
+                {
+                    "id": "report",
+                    "label": "Refresh this session readiness.",
+                    "command": f"murmurmark report {session.as_posix()}",
+                }
+            ],
+        }
+
+    commands = payload.get("next_commands")
+    next_commands = [item for item in commands if isinstance(item, dict)] if isinstance(commands, list) else []
+    if not next_commands:
+        next_commands = [
+            {
+                "id": "report",
+                "label": "Refresh this session readiness.",
+                "command": f"murmurmark report {session.as_posix()}",
+            }
+        ]
+    recommended = next((safe_str(item.get("command")) for item in next_commands if safe_str(item.get("command"))), "")
+    return {
+        "exists": True,
+        "path": path.as_posix(),
+        "use_gate": payload.get("use_gate"),
+        "selected_profile": payload.get("selected_profile"),
+        "verdict": payload.get("verdict"),
+        "recommendation": payload.get("recommendation"),
+        "recommended_next": recommended or f"murmurmark report {session.as_posix()}",
+        "next_commands": next_commands,
+    }
+
+
+def report_next_commands(report_path: Path, results: list[dict[str, Any]], failed: list[dict[str, Any]], failed_refresh: list[dict[str, Any]]) -> list[dict[str, str]]:
+    if failed or failed_refresh:
+        return [
+            {
+                "id": "inspect_apply_report",
+                "label": "Inspect failed review apply details.",
+                "command": f"less {report_path.as_posix()}",
+            }
+        ]
+    if len(results) == 1:
+        readiness = results[0].get("post_apply_readiness") if isinstance(results[0].get("post_apply_readiness"), dict) else {}
+        commands = readiness.get("next_commands")
+        if isinstance(commands, list) and commands:
+            out = [
+                {
+                    "id": safe_str(item.get("id")) or f"next_{index}",
+                    "label": safe_str(item.get("label")) or "Next command after review apply.",
+                    "command": safe_str(item.get("command")),
+                }
+                for index, item in enumerate(commands, start=1)
+                if isinstance(item, dict) and safe_str(item.get("command"))
+            ]
+            session = safe_str(results[0].get("session"))
+            if session:
+                out.append(
+                    {
+                        "id": "report",
+                        "label": "Refresh and print this session readiness.",
+                        "command": f"murmurmark report {session}",
+                    }
+                )
+            return out
+        session = safe_str(results[0].get("session"))
+        if session:
+            return [
+                {
+                    "id": "report",
+                    "label": "Refresh and print this session readiness.",
+                    "command": f"murmurmark report {session}",
+                }
+            ]
+    return [
+        {
+            "id": "report_corpus",
+            "label": "Refresh and print the corpus readiness summary.",
+            "command": "murmurmark report corpus",
+        }
+    ]
+
+
 def refresh_sessions_from_existing_report(out_dir: Path, fallback: list[Path]) -> list[Path]:
     report = read_json(out_dir / "session_quality_report.json")
     rows = report.get("sessions") if isinstance(report, dict) else None
@@ -277,6 +375,9 @@ def main() -> int:
     refresh_results: list[dict[str, Any]] = []
     if args.refresh_reports:
         refresh_results = refresh_reports(args, repo_root, sessions)
+        for row in results:
+            session = Path(str(row.get("session") or ""))
+            row["post_apply_readiness"] = post_apply_readiness(session)
 
     failed = [
         row
@@ -286,6 +387,7 @@ def main() -> int:
         or (row.get("synthesize") and row["synthesize"]["returncode"] != 0)
     ]
     failed_refresh = [row for row in refresh_results if row.get("returncode") != 0]
+    next_commands = report_next_commands(args.out.expanduser(), results, failed, failed_refresh)
     report = {
         "schema": SCHEMA,
         "generator": {"name": "apply-review-decisions-batch", "version": SCRIPT_VERSION},
@@ -307,9 +409,11 @@ def main() -> int:
             "failed_sessions": len(failed),
             "refresh_steps": len(refresh_results),
             "failed_refresh_steps": len(failed_refresh),
+            "recommended_next": next((item["command"] for item in next_commands if item.get("command")), None),
         },
         "sessions": results,
         "refresh_reports": refresh_results,
+        "next_commands": next_commands,
     }
     write_json(args.out.expanduser(), report)
 

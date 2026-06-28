@@ -1948,6 +1948,7 @@ EOF
     --review-plan-out-dir "$batch_review_plan_dir" >/dev/null
   [[ -s "$batch_report" ]]
   jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.session_count == 1 and .summary.failed_sessions == 0 and .summary.failed_refresh_steps == 0 and (.refresh_reports | length) == 3' "$batch_report" >/dev/null
+  jq -e '.summary.recommended_next != null and (.next_commands | length) >= 1 and .sessions[0].post_apply_readiness.exists == true and (.sessions[0].post_apply_readiness.next_commands | length) >= 1' "$batch_report" >/dev/null
   [[ -s "$batch_session_quality_dir/session_quality_report.json" ]]
   [[ -s "$batch_operational_dir/operational_readiness_report.json" ]]
   [[ -s "$batch_review_plan_dir/review_plan.json" ]]
@@ -2775,7 +2776,9 @@ PY
   assert_no_helper_prefix "$agent_review_output"
   echo "$agent_review_output" | grep -q '^agent_review:$'
   echo "$agent_review_output" | grep -q '^review_apply:$'
-  echo "$agent_review_output" | grep -Eq '^  (next|report_next): murmurmark report '
+  echo "$agent_review_output" | grep -q '^  recommended_next: '
+  echo "$agent_review_output" | grep -q '^  next:$'
+  echo "$agent_review_output" | grep -Eq '^    murmurmark (process|report) '
   [[ -s "$agent_review_dir/review_decisions.agent_reviewed_v1.jsonl" ]]
   [[ -s "$agent_review_dir/review_decisions.agent_reviewed_v1.template.jsonl" ]]
   [[ -s "$agent_review_dir/agent_review_report.agent_reviewed_v1.json" ]]
@@ -2784,7 +2787,7 @@ PY
   [[ -s "$agent_review_dir/operational-readiness/operational_readiness_report.json" ]]
   [[ -s "$agent_review_dir/review-plan/review_plan.json" ]]
   jq -e '.schema == "murmurmark.agent_review_decisions/v1"' "$agent_review_dir/agent_review_report.agent_reviewed_v1.json" >/dev/null
-  jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.failed_sessions == 0 and .summary.failed_refresh_steps == 0' "$agent_review_dir/review_decisions_apply.agent_reviewed_v1.json" >/dev/null
+  jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.failed_sessions == 0 and .summary.failed_refresh_steps == 0 and .summary.recommended_next != null and (.next_commands | length) >= 1' "$agent_review_dir/review_decisions_apply.agent_reviewed_v1.json" >/dev/null
   latest_apply_report="$agent_review_dir/review_decisions_apply.latest.json"
   touch "$group_session"
   latest_apply_output="$("$bin" review apply \
@@ -2803,7 +2806,9 @@ PY
   assert_no_helper_prefix "$latest_apply_output"
   echo "$latest_apply_output" | grep -q '^SESSION="'
   echo "$latest_apply_output" | grep -q '^  report: .*review_decisions_apply.latest.json'
-  echo "$latest_apply_output" | grep -Eq '^  next: murmurmark (export|review|process|retention|report) '
+  echo "$latest_apply_output" | grep -Eq '^  recommended_next: murmurmark (export|review|process|retention|report) '
+  echo "$latest_apply_output" | grep -q '^  next:$'
+  echo "$latest_apply_output" | grep -Eq '^    murmurmark (export|review|process|retention|report) '
   echo "$latest_apply_output" | grep -q '^  report_next: murmurmark report '
   echo "$latest_apply_output" | grep -q '^readiness:$'
   echo "$latest_apply_output" | grep -q '^  status: '

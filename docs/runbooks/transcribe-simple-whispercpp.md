@@ -938,7 +938,8 @@ If the decisions file exists but the checklist still has `todo` rows, it refresh
 `review_decisions_progress.json`, prints `reviewed`, `remaining`, packed review actions and
 `by_lane`, then points back to workspace/workspace-apply/progress without running batch apply. After
 a successful single-session batch apply, `review apply` uses the refreshed readiness `next_commands`
-for its primary `next`, and prints `report_next` for an explicit status refresh.
+for its primary `recommended_next`, prints the full `next` list from
+`review_decisions_apply_report.json`, and keeps `report_next` for an explicit status refresh.
 
 The lower-level equivalent is still useful for debugging exact paths:
 
