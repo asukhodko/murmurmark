@@ -680,7 +680,9 @@ otherwise to the first review lane/workspace commands.
 `murmurmark report corpus` prints the same operational handoff in compact form: the first
 `next_command`, plus `focus_session`, `focus_label`, `focus_reason` and `focus_next` when a concrete
 review target exists. It also prints `sessions_in_scope` and `sessions_excluded` to make the
-working-meeting scope visible next to the full corpus count.
+working-meeting scope visible next to the full corpus count. The same block prints
+`review_actions` and `grouped_review_rows`, so the handoff shows the number of actual answer-sheet
+decisions rather than only the noisier raw row count.
 Stale audio-judge queue rows are also ignored when the current audio-review audit has reclassified
 the source item as reliable.
 `murmurmark corpus order` writes a separate chronology-risk corpus report under
@@ -762,7 +764,9 @@ sessions not ready for notes, remaining review minutes, and the next action clas
 Its `Review Queue Strategy` section groups the remaining queue into lanes and shows the first useful
 lane to close. Export-blocking lanes such as transcript order, local recall, or unique `Me` content
 come first; `fast_confirm_drop` remains the quick lane when no blocking lane needs priority. The
-report also estimates the queue that remains after the first lane.
+report also estimates the queue that remains after the first lane. The strategy includes raw rows,
+packed actions and grouped rows saved per lane; grouped rows are safe duplicates of the same review
+decision, usually several checks tied to one `Me` utterance.
 `build-review-plan.py` turns that queue into a compact checklist. Use it when a session is
 `review_first`: listen to the listed stereo clips or local-recall mic snippets, decide whether each
 `Me` candidate is leaked remote speech, real local speech, lost local speech, order-risk, or unclear, then keep

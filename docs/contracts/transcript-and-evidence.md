@@ -1594,7 +1594,21 @@ sessions/_reports/operational-readiness/
       "resolved_by_selected_profile_items": 6,
       "remaining_human_review_items": 34
     },
-    "review_queue_items": 40
+    "review_queue_items": 40,
+    "review_action_count": 34,
+    "grouped_review_row_count": 6,
+    "by_review_action": {
+      "check_transcript_order": 26,
+      "check_unique_me_content": 8
+    },
+    "by_review_lane_actions": {
+      "check_transcript_order": 25,
+      "check_unique_me_content": 9
+    },
+    "by_review_lane_grouped_rows": {
+      "check_transcript_order": 1,
+      "check_unique_me_content": 6
+    }
   },
   "promotion_plan": {
     "target": "medium_risk_ready",
@@ -1603,6 +1617,8 @@ sessions/_reports/operational-readiness/
     "outstanding_conditions": {
       "sessions_not_ready_for_notes": 6,
       "review_queue_items": 40,
+      "review_action_count": 34,
+      "grouped_review_row_count": 6,
       "review_queue_raw_audio_minutes": 1.81
     },
     "review_queue_strategy": {
@@ -1611,12 +1627,15 @@ sessions/_reports/operational-readiness/
       "first_recommended_reason": "close_blocking_review_lane",
       "after_first_lane_estimate": {
         "remaining_items": 30,
+        "remaining_actions": 25,
         "remaining_minutes": 1.28
       },
       "by_lane": [
         {
           "lane": "fast_confirm_drop",
           "items": 10,
+          "actions": 10,
+          "grouped_rows": 0,
           "seconds": 27.87,
           "labels": {
             "remote_duplicate": 9,
@@ -1675,7 +1694,9 @@ conditions, sessions that are not yet `ready_for_notes`, review minutes and the 
 to reduce uncertainty. It is report-only: it never edits transcripts or cleanup profiles.
 `review_queue_strategy` is also report-only. It groups the remaining review queue into workflow
 lanes, recommends the first lane to close, and estimates the remaining queue after that first lane is
-reviewed. The estimate is not a substitute for rerunning `apply-review-decisions-batch.py`; it is a
+reviewed. It reports both raw `items` and packed `actions`; `grouped_rows` is the number of raw rows
+that can share one answer because they have the same lane, action, allowed decisions and first `Me`
+utterance. The estimate is not a substitute for rerunning `apply-review-decisions-batch.py`; it is a
 planning aid for reaching `medium_risk_ready`.
 `murmurmark review next SESSION` prints the same strategy as a terminal handoff: `first_lane`,
 `quick_lane`, `first_lane_reason`, `after_first_lane`, `quick_lane_flow` and `workspace_flow`.

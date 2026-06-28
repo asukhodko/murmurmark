@@ -7430,6 +7430,8 @@ enum CorpusPrinter {
         print("  sessions_ready_for_notes: \(int(useGates["ready_for_notes"]) ?? 0)")
         print("  sessions_review_first: \(int(useGates["review_first"]) ?? 0)")
         print(String(format: "  review_minutes: %.2f", reviewSeconds / 60))
+        print("  review_actions: \(int(summary["review_action_count"]) ?? int(summary["review_queue_items"]) ?? 0)")
+        print("  grouped_review_rows: \(int(summary["grouped_review_row_count"]) ?? 0)")
         printFirstNextCommand(payload)
         printOperationalFocus(payload)
     }

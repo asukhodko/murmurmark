@@ -2098,11 +2098,16 @@ PY
   jq -e '.operational_verdict | IN("not_ready", "pilot_ready_with_review", "medium_risk_ready")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.summary.use_gates | type == "object"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.summary.audio_judge_readiness | type == "string"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.summary.review_action_count | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.summary.grouped_review_row_count | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'all(.session_review_burden[]; (.use_gate | type) == "string")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.review_queue | type == "array"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.next_commands | type == "array" and length >= 1 and (.[0].command | type) == "string"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.promotion_plan.review_queue_strategy.by_lane | type == "array"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.promotion_plan.review_queue_strategy.review_action_count | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.promotion_plan.review_queue_strategy.grouped_review_row_count | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.promotion_plan.review_queue_strategy.after_first_lane_estimate.remaining_items | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.promotion_plan.review_queue_strategy.after_first_lane_estimate.remaining_actions | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.promotion_plan.review_queue_strategy.first_recommended_reason | type == "string"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'any(.review_queue[]; (.source == "local_recall" and .label == "lost_me") or (.source == "local_recall_repair" and .label == "local_recall_repair_inserted"))' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'any(.review_queue[]; .source == "local_recall_repair" and .label == "local_recall_repair_inserted" and .input_profile == "local_recall_repair_v1" and (.utterance_ids | length) >= 1)' "$readiness_dir/operational_readiness_report.json" >/dev/null
@@ -2176,6 +2181,15 @@ assert strategy["first_recommended_lane"] == "check_local_recall", strategy
 assert strategy["quick_recommended_lane"] == "fast_confirm_drop", strategy
 assert strategy["first_recommended_reason"] == "close_blocking_review_lane", strategy
 assert "review_lane_pack.check_local_recall.json" in strategy["commands"]["review_first_lane"], strategy
+grouped_a = item("audio_review", "remote_leak", "needs_stronger_audio_judge", 180, 1)
+grouped_b = item("audio_review", "remote_leak", "needs_stronger_audio_judge", 170, 2)
+for grouped in (grouped_a, grouped_b):
+    grouped["text"] = [{"id": "me_same", "role": "Me", "source_track": "mic", "text": "same me"}]
+grouped_strategy = module.review_queue_lane_summary([grouped_a, grouped_b])
+assert grouped_strategy["review_action_count"] == 1, grouped_strategy
+assert grouped_strategy["grouped_review_row_count"] == 1, grouped_strategy
+assert grouped_strategy["by_lane"][0]["actions"] == 1, grouped_strategy
+assert grouped_strategy["by_lane"][0]["grouped_rows"] == 1, grouped_strategy
 order_item = module.compact_transcript_order_item(
     {"session_id": "order-session", "session": "sessions/order-session"},
     {

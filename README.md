@@ -132,7 +132,9 @@ session-quality and operational-readiness without rebuilding heavier corpus diag
 review work remains, the CLI summary also prints `focus_session`, the blocking label/reason and the
 first `murmurmark review ...` commands for that session. Its readiness block also prints
 `sessions_in_scope` and `sessions_excluded`, so the corpus total can include old diagnostic captures
-without making them look like working meetings.
+without making them look like working meetings. It also prints `review_actions` and
+`grouped_review_rows`: the first is the number of answer-sheet decisions after safe grouping, the
+second is how many raw review rows were packed behind those decisions.
 
 Retention is explicit and local:
 
@@ -661,7 +663,9 @@ when the current audio-review audit has since reclassified that item as reliable
 The report also includes `Review Queue Strategy`: lane counts, the first lane to close, and the
 reason it was chosen. `quick_recommended_lane` still points to the fastest confirm/drop pass when it
 exists, while `first_recommended_lane` targets the current blocker. The report also shows the
-estimated queue remaining after that first lane. `murmurmark report corpus` surfaces the first
+estimated queue remaining after that first lane. It reports both raw queue rows and packed review
+actions, so the remaining work reflects grouped rows that can be answered once per `Me` utterance.
+`murmurmark report corpus` surfaces the first
 review target directly as `focus_session` and `focus_next`, so the next operator action is visible
 without opening the JSON report.
 The generated review plan keeps both `raw_item_count` and `review_action_count`: raw items are source

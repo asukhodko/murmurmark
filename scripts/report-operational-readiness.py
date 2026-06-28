@@ -8,8 +8,9 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.3.1"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
+GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 MIN_OPERATIONAL_SESSION_DURATION_SEC = 60.0
 DIAGNOSTIC_SESSION_EXACT_IDS = {
     "smoke",
@@ -400,6 +401,144 @@ def review_lane(item: dict[str, Any]) -> str:
     return "classify_audio"
 
 
+def review_action(item: dict[str, Any]) -> str:
+    label = str(item.get("label") or "")
+    verdict = str(item.get("verdict") or "")
+    if label == "remote_duplicate" and verdict == "probable_transcript_error":
+        return "confirm_drop_or_keep_me" if duplicate_drop_hint_allowed(item) else "check_unique_me_content"
+    if label == "asr_noise" and verdict == "probable_transcript_error":
+        return "confirm_drop_or_keep_me"
+    if label == "remote_leak":
+        return "check_unique_me_content"
+    if label == "lost_me":
+        return "check_lost_local_speech"
+    if label == "local_recall_needs_review":
+        return "check_local_recall_island"
+    if label == "local_recall_repair_inserted":
+        return "check_inserted_local_recall_repair"
+    if label in {"probable_order_risk", "needs_review", "transcript_order_needs_review"}:
+        if str(item.get("source") or "") == "transcript_order":
+            return "check_transcript_order"
+    if label in {"double_talk", "timing_overlap"}:
+        return "confirm_benign_overlap"
+    return "classify_audio"
+
+
+def item_list_values(item: dict[str, Any], key: str) -> list[str]:
+    values = item.get(key)
+    if isinstance(values, list):
+        return [str(value) for value in values if value is not None and str(value)]
+    return []
+
+
+def item_text_utterance_ids(item: dict[str, Any], *, role: str) -> list[str]:
+    rows = item.get("text")
+    if not isinstance(rows, list):
+        return []
+    ids: list[str] = []
+    role = role.lower()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        source_track = str(row.get("source_track") or "").lower()
+        row_role = str(row.get("role") or "").lower()
+        if role == "me":
+            matches = source_track == "mic" or row_role == "me"
+        else:
+            matches = source_track == "remote" or row_role in {"remote", "colleagues"}
+        value = row.get("id")
+        if matches and value is not None and str(value):
+            ids.append(str(value))
+    return ids
+
+
+def review_item_allowed_decisions(item: dict[str, Any]) -> list[str]:
+    values = item.get("allowed_decisions")
+    if isinstance(values, list) and values:
+        return [str(value) for value in values if value is not None and str(value)]
+    source = str(item.get("source") or "")
+    if source in {"local_recall", "transcript_order"}:
+        return ["keep_me", "needs_review", "skip"]
+    return ["drop_me", "keep_me", "needs_review", "skip"]
+
+
+def first_me_utterance_id(item: dict[str, Any]) -> str:
+    me_ids = item_list_values(item, "me_utterance_ids") or item_text_utterance_ids(item, role="me")
+    if me_ids:
+        return me_ids[0]
+    utterance_ids = item_list_values(item, "utterance_ids")
+    return utterance_ids[0] if utterance_ids else ""
+
+
+def enrich_review_item(item: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(item)
+    enriched["review_action"] = str(enriched.get("review_action") or review_action(enriched))
+    enriched["review_lane"] = str(enriched.get("review_lane") or review_lane(enriched))
+    if not isinstance(enriched.get("allowed_decisions"), list) or not enriched.get("allowed_decisions"):
+        enriched["allowed_decisions"] = review_item_allowed_decisions(enriched)
+    if not isinstance(enriched.get("me_utterance_ids"), list):
+        enriched["me_utterance_ids"] = item_text_utterance_ids(enriched, role="me")
+    if not isinstance(enriched.get("remote_utterance_ids"), list):
+        enriched["remote_utterance_ids"] = item_text_utterance_ids(enriched, role="remote")
+    return enriched
+
+
+def review_group_key(item: dict[str, Any]) -> str:
+    lane = str(item.get("review_lane") or review_lane(item))
+    if lane not in GROUPABLE_REVIEW_LANES:
+        return ""
+    me_id = first_me_utterance_id(item)
+    if not me_id:
+        return ""
+    session_id = str(item.get("session_id") or item.get("session") or "")
+    label = str(item.get("label") or "")
+    action = str(item.get("review_action") or review_action(item))
+    allowed = ",".join(sorted(review_item_allowed_decisions(item)))
+    return f"{lane}:{session_id}:{label}:{action}:{allowed}:{me_id}"
+
+
+def review_action_groups(items: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    groups: list[list[dict[str, Any]]] = []
+    by_key: dict[str, list[dict[str, Any]]] = {}
+    for raw_item in items:
+        item = enrich_review_item(raw_item)
+        key = review_group_key(item)
+        if not key:
+            groups.append([item])
+            continue
+        group = by_key.get(key)
+        if group is None:
+            group = []
+            by_key[key] = group
+            groups.append(group)
+        group.append(item)
+    return groups
+
+
+def review_action_summary(review_queue: list[dict[str, Any]]) -> dict[str, Any]:
+    groups = review_action_groups(review_queue)
+    by_lane_actions: dict[str, int] = {}
+    by_lane_grouped_rows: dict[str, int] = {}
+    by_action: dict[str, int] = {}
+    for item in review_queue:
+        enriched = enrich_review_item(item)
+        action = str(enriched.get("review_action") or "classify_audio")
+        by_action[action] = by_action.get(action, 0) + 1
+    for group in groups:
+        if not group:
+            continue
+        lane = str(group[0].get("review_lane") or review_lane(group[0]))
+        by_lane_actions[lane] = by_lane_actions.get(lane, 0) + 1
+        by_lane_grouped_rows[lane] = by_lane_grouped_rows.get(lane, 0) + max(0, len(group) - 1)
+    return {
+        "review_action_count": len(groups),
+        "grouped_review_row_count": sum(max(0, len(group) - 1) for group in groups),
+        "by_review_action": dict(sorted(by_action.items())),
+        "by_review_lane_actions": dict(sorted(by_lane_actions.items())),
+        "by_review_lane_grouped_rows": dict(sorted(by_lane_grouped_rows.items())),
+    }
+
+
 def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, Any]:
     lane_order = [
         "fast_confirm_drop",
@@ -418,8 +557,12 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
         }
         for lane in lane_order
     }
-    for item in review_queue:
-        lane = review_lane(item)
+    action_summary = review_action_summary(review_queue)
+    actions_by_lane = action_summary.get("by_review_lane_actions") or {}
+    grouped_by_lane = action_summary.get("by_review_lane_grouped_rows") or {}
+    for raw_item in review_queue:
+        item = enrich_review_item(raw_item)
+        lane = str(item.get("review_lane") or review_lane(item))
         row = rows.setdefault(lane, {"lane": lane, "items": 0, "seconds": 0.0, "labels": {}})
         interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
         label = str(item.get("label") or "unknown")
@@ -435,6 +578,8 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
             {
                 "lane": lane,
                 "items": row["items"],
+                "actions": safe_int(actions_by_lane.get(lane)) or row["items"],
+                "grouped_rows": safe_int(grouped_by_lane.get(lane)),
                 "seconds": round(safe_float(row["seconds"]), 3),
                 "minutes": round(safe_float(row["seconds"]) / 60.0, 2),
                 "labels": dict(sorted((row.get("labels") or {}).items())),
@@ -453,9 +598,15 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
     first_lane = first_lane or quick_lane or (by_lane[0]["lane"] if by_lane else None)
     first_row = rows.get(first_lane or "") or {}
     first_items = safe_int(first_row.get("items"))
+    first_actions = safe_int(actions_by_lane.get(first_lane or "")) or first_items
     first_seconds = safe_float(first_row.get("seconds"))
     return {
         "by_lane": by_lane,
+        "review_action_count": action_summary["review_action_count"],
+        "grouped_review_row_count": action_summary["grouped_review_row_count"],
+        "by_review_action": action_summary["by_review_action"],
+        "by_review_lane_actions": action_summary["by_review_lane_actions"],
+        "by_review_lane_grouped_rows": action_summary["by_review_lane_grouped_rows"],
         "first_recommended_lane": first_lane,
         "quick_recommended_lane": quick_lane,
         "first_recommended_reason": (
@@ -465,6 +616,7 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
         ),
         "after_first_lane_estimate": {
             "remaining_items": max(0, total_items - first_items),
+            "remaining_actions": max(0, action_summary["review_action_count"] - first_actions),
             "remaining_seconds": round(max(0.0, total_seconds - first_seconds), 3),
             "remaining_minutes": round(max(0.0, total_seconds - first_seconds) / 60.0, 2),
         },
@@ -801,7 +953,7 @@ def select_review_queue(rows: list[dict[str, Any]], max_items: int) -> list[dict
         add(item)
 
     selected.sort(key=review_queue_sort_key)
-    return selected[:limit]
+    return [enrich_review_item(item) for item in selected[:limit]]
 
 
 def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[dict[str, Any]]:
@@ -905,6 +1057,10 @@ def promotion_plan(
     ]
     queue_by_session.sort(key=lambda row: (-safe_float(row.get("seconds")), str(row.get("session_id"))))
     queue_strategy = review_queue_lane_summary(review_queue)
+    queue_actions = {
+        "review_action_count": safe_int(queue_strategy.get("review_action_count")),
+        "grouped_review_row_count": safe_int(queue_strategy.get("grouped_review_row_count")),
+    }
 
     if blockers:
         status = "blocked_by_structural_issues"
@@ -936,6 +1092,7 @@ def promotion_plan(
             "warnings": warnings,
             "sessions_not_ready_for_notes": len(not_ready),
             "review_queue_items": len(review_queue),
+            **queue_actions,
             "review_queue_raw_audio_minutes": review_queue_minutes(review_queue),
             "audio_judge_remaining_human_review_items": (
                 safe_int(audio_judge_review_queue.get("remaining_human_review_items"))
@@ -1146,6 +1303,7 @@ def build_report(
         gate = str(row.get("use_gate") or "unknown")
         gates[gate] = gates.get(gate, 0) + 1
     review_queue = build_review_queue(burdens, max_review_items)
+    review_actions = review_action_summary(review_queue)
     active_judge_queue = active_audio_judge_queue_summary(burdens, audio_judge_queue)
     audio_judge_review_queue = active_judge_queue or (audio_judge.get("review_queue") if isinstance(audio_judge, dict) else None)
     promotion = promotion_plan(verdict, blockers, warnings, burdens, review_queue, audio_judge_review_queue)
@@ -1184,6 +1342,11 @@ def build_report(
             ),
             "audio_judge_review_queue": audio_judge_review_queue,
             "review_queue_items": len(review_queue),
+            "review_action_count": review_actions["review_action_count"],
+            "grouped_review_row_count": review_actions["grouped_review_row_count"],
+            "by_review_action": review_actions["by_review_action"],
+            "by_review_lane_actions": review_actions["by_review_lane_actions"],
+            "by_review_lane_grouped_rows": review_actions["by_review_lane_grouped_rows"],
         },
         "session_review_burden": burdens,
         "review_queue": review_queue,
@@ -1291,6 +1454,9 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Complete pipelines: `{report['summary']['complete_pipeline_count']}`",
         f"- Total review burden: `{round(report['summary']['total_review_burden_sec'] / 60.0, 2)} min`",
         f"- Review burden ratio: `{round(report['summary']['total_review_burden_ratio'] * 100.0, 2)}%`",
+        f"- Review queue rows: `{report['summary'].get('review_queue_items')}`",
+        f"- Packed review actions: `{report['summary'].get('review_action_count')}`",
+        f"- Grouped review rows saved: `{report['summary'].get('grouped_review_row_count')}`",
         f"- Corpus readiness: `{report['summary']['corpus_readiness']}`",
         f"- Suggested review shadow profiles: `{report['summary'].get('sessions_with_suggested_review_v1')}`",
         f"- Corpus items: `{report['summary']['corpus_item_count']}`",
@@ -1334,7 +1500,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"- Target: `{plan.get('target')}`",
             f"- Status: `{plan.get('status')}`",
             f"- Sessions not ready for notes: `{conditions.get('sessions_not_ready_for_notes')}`",
-            f"- Review queue: `{conditions.get('review_queue_items')}` items / `{conditions.get('review_queue_raw_audio_minutes')}` raw audio min",
+            f"- Review queue: `{conditions.get('review_queue_items')}` rows / `{conditions.get('review_action_count')}` packed actions / `{conditions.get('review_queue_raw_audio_minutes')}` raw audio min",
+            f"- Grouped review rows saved: `{conditions.get('grouped_review_row_count')}`",
             f"- Audio judge remaining human review items: `{conditions.get('audio_judge_remaining_human_review_items')}`",
             "",
             "### Review Queue Strategy",
@@ -1350,15 +1517,15 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 f"- First lane: `{first_lane}`",
                 f"- First lane reason: `{strategy.get('first_recommended_reason')}`",
                 f"- Quick lane: `{strategy.get('quick_recommended_lane')}`",
-                f"- After first lane estimate: `{after_first.get('remaining_items')}` items / `{after_first.get('remaining_minutes')}` min",
+                f"- After first lane estimate: `{after_first.get('remaining_items')}` rows / `{after_first.get('remaining_actions')}` actions / `{after_first.get('remaining_minutes')}` min",
                 "",
-                "| Lane | Items | Raw sec | Labels |",
-                "|---|---:|---:|---|",
+                "| Lane | Rows | Actions | Grouped Rows | Raw sec | Labels |",
+                "|---|---:|---:|---:|---:|---|",
             ]
         )
         for row in strategy.get("by_lane", []) or []:
             lines.append(
-                f"| `{row.get('lane')}` | {row.get('items')} | {safe_float(row.get('seconds')):.2f} | `{row.get('labels')}` |"
+                f"| `{row.get('lane')}` | {row.get('items')} | {row.get('actions')} | {row.get('grouped_rows')} | {safe_float(row.get('seconds')):.2f} | `{row.get('labels')}` |"
             )
         commands = strategy.get("commands") if isinstance(strategy.get("commands"), dict) else {}
         workspace_cmd = commands.get("build_review_workspace")
