@@ -635,7 +635,8 @@ is clear.
 `murmurmark review next "$SESSION"` is the quickest entry point for one session: it refreshes
 `session_readiness.json`, shows gate/profile/verdict/review burden, builds a session-local review
 plan if needed, then prints the next review commands with explicit local `--plan-out-dir`,
-`--template` and `--out` paths. Use `murmurmark review plan` for the global corpus queue.
+`--template`, `--out` and refresh output paths. Use `murmurmark review plan` for the global corpus
+queue.
 `murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended
 lane. Use it when you want the next concrete review artifact without manually copying commands from
 `review_plan.md`.

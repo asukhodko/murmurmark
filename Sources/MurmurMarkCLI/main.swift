@@ -5409,6 +5409,7 @@ enum ReviewNextPrinter {
     }
 
     private static func sessionLocalReviewCommands(sessionPath: String, planOutDir: URL, operationalReadiness: URL) -> [String] {
+        let readinessRoot = planOutDir.deletingLastPathComponent()
         let plan = PathDisplay.display(planOutDir)
         let lanePacks = PathDisplay.display(planOutDir.appendingPathComponent("lane-packs"))
         let template = PathDisplay.display(planOutDir.appendingPathComponent("review_decisions.template.jsonl"))
@@ -5417,12 +5418,16 @@ enum ReviewNextPrinter {
         let workspaceApply = PathDisplay.display(planOutDir.appendingPathComponent("review_workspace_apply_report.json"))
         let applyReport = PathDisplay.display(planOutDir.appendingPathComponent("review_decisions_apply_report.json"))
         let operational = PathDisplay.display(operationalReadiness)
+        let sessionQualityOut = PathDisplay.display(readinessRoot.appendingPathComponent("session-quality"))
+        let operationalOut = PathDisplay.display(operationalReadiness.deletingLastPathComponent())
         return [
             "murmurmark review first-lane --session \(sessionPath) "
                 + "--operational-readiness \(operational) --plan-out-dir \(plan) --out-dir \(lanePacks)",
             "murmurmark review workspace --session \(sessionPath) --template \(template) --decisions \(decisions) --out-dir \(plan)",
             "murmurmark review workspace apply --workspace \(workspace) --template \(template) --out \(decisions) --report \(workspaceApply)",
-            "murmurmark review apply --decisions \(decisions) --review-template \(template) --out \(applyReport)",
+            "murmurmark review apply --decisions \(decisions) --review-template \(template) --out \(applyReport) "
+                + "--session-quality-out-dir \(sessionQualityOut) --operational-readiness-out-dir \(operationalOut) "
+                + "--review-plan-out-dir \(plan)",
         ]
     }
 

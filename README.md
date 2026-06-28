@@ -586,7 +586,8 @@ The normal manual review loop is available through the Swift CLI:
 ```
 
 `review next` writes its per-session review handoff under
-`SESSION/derived/readiness/review-plan/`. Use `review plan` when you want the global corpus queue.
+`SESSION/derived/readiness/review-plan/` and prints `review apply` with session-local refresh
+directories. Use `review plan` when you want the global corpus queue.
 
 Use the Python scripts directly only when debugging a specific review file, lane pack, or batch
 application edge case.
