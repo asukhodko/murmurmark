@@ -461,6 +461,10 @@ enum DoctorChecks {
 
 enum PipelineCommands {
     static func latest(_ args: [String]) throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            PipelineHelp.printLatest()
+            return
+        }
         var remaining = args
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
         guard remaining.isEmpty else {
@@ -471,7 +475,14 @@ enum PipelineCommands {
     }
 
     static func process(_ args: [String]) throws {
-        guard let target = args.first else { throw CLIError("process requires a session path or latest") }
+        if ArgumentEditing.hasHelpFlag(args) {
+            PipelineHelp.printProcess()
+            return
+        }
+        guard let target = args.first else {
+            PipelineHelp.printProcess()
+            return
+        }
         var forwarded = Array(args.dropFirst())
         let config = try MurmurMarkConfig.load(from: ArgumentEditing.takeOption("config", from: &forwarded))
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
@@ -496,7 +507,14 @@ enum PipelineCommands {
     }
 
     static func report(_ args: [String]) throws {
-        guard let target = args.first else { throw CLIError("report requires a session path, latest, or corpus") }
+        if ArgumentEditing.hasHelpFlag(args) {
+            PipelineHelp.printReport()
+            return
+        }
+        guard let target = args.first else {
+            PipelineHelp.printReport()
+            return
+        }
         var remaining = Array(args.dropFirst())
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
         let python = try PythonRuntime.resolve()
@@ -528,6 +546,43 @@ enum PipelineCommands {
             "--write-session-readiness",
         ])
         try ReadinessPrinter.printSession(session)
+    }
+}
+
+enum PipelineHelp {
+    static func printLatest() {
+        Swift.print("""
+        usage: murmurmark latest [--sessions-root ./sessions]
+
+        Prints the newest session as:
+          SESSION="./sessions/<id>"
+
+        The command ignores internal report directories whose names start with `_`.
+        """)
+    }
+
+    static func printProcess() {
+        Swift.print("""
+        usage: murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--force-asr]
+                                [--reuse-asr-cache] [--plan-only] [--sessions-root ./sessions]
+
+        Runs scripts/run-session-pipeline.py for one recorded session, then prints readiness.
+        Defaults come from murmurmark.config.json when present; explicit CLI flags win.
+
+        Common:
+          murmurmark process latest
+          murmurmark process ./sessions/<id> --plan-only
+        """)
+    }
+
+    static func printReport() {
+        Swift.print("""
+        usage: murmurmark report ./session|latest [--sessions-root ./sessions]
+               murmurmark report corpus [--sessions-root ./sessions]
+
+        Refreshes session-quality/readiness reports without rerunning ASR, Echo Guard or audits.
+        Use `report corpus` for a summary over all sessions under --sessions-root.
+        """)
     }
 }
 
@@ -2568,6 +2623,10 @@ enum SynthesisPrinter {
 
 enum CorpusCommands {
     static func corpus(_ args: [String]) throws {
+        if args.isEmpty || ArgumentEditing.hasHelpFlag([args.first ?? ""]) {
+            CorpusHelp.print()
+            return
+        }
         guard let subcommand = args.first else {
             throw CLIError(
                 "corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, " +
@@ -2801,6 +2860,29 @@ enum CorpusCommands {
         return url
     }
 
+}
+
+enum CorpusHelp {
+    static func print() {
+        Swift.print("""
+        usage:
+          murmurmark corpus process all|latest|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
+          murmurmark corpus build all|latest|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
+          murmurmark corpus evaluate
+          murmurmark corpus train-audio-judge
+          murmurmark corpus taxonomy
+          murmurmark corpus gate
+          murmurmark corpus order [all|latest|./session...] [--repair] [--sessions-root ./sessions]
+          murmurmark corpus local-recall [all|latest|./session...] [--audit] [--sessions-root ./sessions]
+          murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
+          murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
+          murmurmark corpus report
+
+        Corpus commands operate on a local regression set and write reports under sessions/_reports/.
+        Use `murmurmark corpus process all` for the normal full quality loop.
+        Use `murmurmark corpus process --help` for the detailed process pipeline.
+        """)
+    }
 }
 
 enum CorpusProcessHelp {

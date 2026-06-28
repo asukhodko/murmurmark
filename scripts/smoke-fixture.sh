@@ -1540,6 +1540,15 @@ EOF
   echo "$corpus_process_help" | grep -q 'plan-remote-leak-segment-repair.py'
   review_help="$("$bin" review --help)"
   echo "$review_help" | grep -q 'murmurmark review lane apply LANE|first'
+  latest_help="$("$bin" latest --help)"
+  echo "$latest_help" | grep -q 'usage: murmurmark latest'
+  process_help="$("$bin" process --help)"
+  echo "$process_help" | grep -q 'usage: murmurmark process'
+  report_help="$("$bin" report --help)"
+  echo "$report_help" | grep -q 'usage: murmurmark report'
+  corpus_help="$("$bin" corpus --help)"
+  echo "$corpus_help" | grep -q 'usage:'
+  echo "$corpus_help" | grep -q 'murmurmark corpus process all'
 
   corpus_dir="$workdir/regression-corpus"
   "$repo_root/scripts/build-regression-corpus.py" "$group_session" \
