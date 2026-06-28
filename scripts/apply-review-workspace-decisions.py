@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.2"
+SCRIPT_VERSION = "0.4.0"
 SCHEMA = "murmurmark.review_workspace_apply_report/v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -189,6 +189,16 @@ def item_lookup_key(item: dict[str, Any]) -> str:
     return f"source:{source_id}" if source_id else ""
 
 
+def item_lookup_keys(item: dict[str, Any]) -> list[str]:
+    keys = item.get("review_row_keys")
+    if isinstance(keys, list):
+        result = [str(key).strip() for key in keys if str(key).strip()]
+        if result:
+            return list(dict.fromkeys(result))
+    key = item_lookup_key(item)
+    return [key] if key else []
+
+
 def path_from_value(value: Any) -> Path:
     return Path(str(value or "")).expanduser()
 
@@ -339,46 +349,71 @@ def apply_lane(
 
     for item, decision in zip(items, decisions):
         source_id = str(item.get("source_audit_id") or "").strip()
-        row_index = lookup.get(item_lookup_key(item))
-        if row_index is None:
-            rejected.append({"source_audit_id": source_id, "decision": decision, "reason": "missing_template_row"})
-            continue
-        row = rows[row_index]
-        allowed = allowed_decisions(row)
-        if decision not in {"", "todo"} and decision not in allowed:
+        source_ids = item.get("source_audit_ids") if isinstance(item.get("source_audit_ids"), list) else [source_id]
+        item_keys = item_lookup_keys(item)
+        row_indexes = [lookup.get(key) for key in item_keys]
+        missing_keys = [key for key, row_index in zip(item_keys, row_indexes) if row_index is None]
+        if missing_keys:
             rejected.append(
                 {
                     "source_audit_id": source_id,
+                    "source_audit_ids": source_ids,
                     "decision": decision,
-                    "reason": "decision_not_allowed_for_row",
-                    "allowed_decisions": sorted(allowed),
+                    "reason": "missing_template_row",
+                    "missing_review_row_keys": missing_keys,
                 }
             )
             continue
-        if decision in {"", "todo"}:
-            row["decision"] = "todo"
-            row["status"] = "todo"
-        else:
-            row["decision"] = decision
-            row["status"] = "reviewed"
-            row["reviewed_at"] = now
-            row["review_source"] = (
-                "workspace_suggested_answer_sheet" if answers_source == "suggested" else "workspace_answer_sheet"
-            )
-            row["review_workspace_lane"] = lane
-            row["review_lane_pack"] = str(manifest_path)
-            row["review_lane_pack_index"] = item.get("index")
-            if reviewer:
-                row["reviewer"] = reviewer
-        rows[row_index] = row
-        applied.append(
+        concrete_indexes = [row_index for row_index in row_indexes if row_index is not None]
+        invalid_rows = [
             {
-                "source_audit_id": source_id,
-                "index": item.get("index"),
-                "decision": decision,
-                "status": row["status"],
+                "review_row_key": review_row_key(rows[row_index]),
+                "source_audit_id": rows[row_index].get("source_audit_id"),
+                "allowed_decisions": sorted(allowed_decisions(rows[row_index])),
             }
-        )
+            for row_index in concrete_indexes
+            if decision not in {"", "todo"} and decision not in allowed_decisions(rows[row_index])
+        ]
+        if invalid_rows:
+            rejected.append(
+                {
+                    "source_audit_id": source_id,
+                    "source_audit_ids": source_ids,
+                    "decision": decision,
+                    "reason": "decision_not_allowed_for_row",
+                    "invalid_rows": invalid_rows,
+                }
+            )
+            continue
+        for row_index in concrete_indexes:
+            row = rows[row_index]
+            if decision in {"", "todo"}:
+                row["decision"] = "todo"
+                row["status"] = "todo"
+            else:
+                row["decision"] = decision
+                row["status"] = "reviewed"
+                row["reviewed_at"] = now
+                row["review_source"] = (
+                    "workspace_suggested_answer_sheet" if answers_source == "suggested" else "workspace_answer_sheet"
+                )
+                row["review_workspace_lane"] = lane
+                row["review_lane_pack"] = str(manifest_path)
+                row["review_lane_pack_index"] = item.get("index")
+                if item.get("grouped"):
+                    row["review_lane_pack_group_size"] = item.get("group_size")
+                if reviewer:
+                    row["reviewer"] = reviewer
+            rows[row_index] = row
+            applied.append(
+                {
+                    "source_audit_id": row.get("source_audit_id") or source_id,
+                    "index": item.get("index"),
+                    "decision": decision,
+                    "status": row["status"],
+                    "review_row_key": review_row_key(row),
+                }
+            )
 
     return {
         "lane": lane,

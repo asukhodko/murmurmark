@@ -703,6 +703,9 @@ The Markdown index is meant to be readable on its own: it shows the compact shor
 allowed decisions per item, suggested decision reason, selected audio command, utterance ids and the
 text evidence used for the row. Use the JSON manifest when tooling needs the same data
 programmatically.
+For `check_transcript_order`, the lane pack groups rows that point to the same long `Me` utterance.
+One answer can therefore close several repeated order-risk rows; the manifest keeps the full
+`review_row_keys` list so the apply step remains explicit and auditable.
 After listening to that pack, edit the generated `review_lane_answers.<lane>.txt` file and run
 `murmurmark review lane apply <lane> --session SESSION` to copy those answers back into
 `review_decisions.jsonl`. Use `murmurmark review lane apply first --session SESSION` after

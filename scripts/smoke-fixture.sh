@@ -1678,6 +1678,52 @@ completed = subprocess.run(
 duration = float(json.loads(completed.stdout)["format"]["duration"])
 assert duration > 1.0, duration
 PY
+  order_group_template="$workdir/review_decisions_order_group.template.jsonl"
+  order_group_out="$workdir/review_decisions_order_group.jsonl"
+  order_group_lane_dir="$workdir/review_lane_pack_order_group"
+  cat >"$order_group_template" <<EOF
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"order_repair_v1","source":"transcript_order","source_audit_id":"order_group_001","label":"probable_order_risk","verdict":"needs_transcript_order_review","review_lane":"check_transcript_order","review_action":"check_transcript_order","suggested_decision":"needs_review","suggested_decision_confidence":"medium","allowed_decisions":["keep_me","needs_review","skip"],"me_utterance_ids":["utt_order_group_me"],"remote_utterance_ids":["utt_order_group_remote_a"],"utterance_ids":["utt_order_group_me","utt_order_group_remote_a"],"interval":{"start":2.0,"end":3.0,"duration_sec":1.0},"text":[{"id":"utt_order_group_me","role":"Me","source_track":"mic","text":"Длинная локальная реплика с хвостом."},{"id":"utt_order_group_remote_a","role":"Colleagues","source_track":"remote","text":"Первая вложенная реплика."}],"commands":{"review":"less \"$group_session/derived/audit/order/transcript_order_review.md\""}}
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"order_repair_v1","source":"transcript_order","source_audit_id":"order_group_002","label":"probable_order_risk","verdict":"needs_transcript_order_review","review_lane":"check_transcript_order","review_action":"check_transcript_order","suggested_decision":"needs_review","suggested_decision_confidence":"medium","allowed_decisions":["keep_me","needs_review","skip"],"me_utterance_ids":["utt_order_group_me"],"remote_utterance_ids":["utt_order_group_remote_b"],"utterance_ids":["utt_order_group_me","utt_order_group_remote_b"],"interval":{"start":4.0,"end":5.0,"duration_sec":1.0},"text":[{"id":"utt_order_group_me","role":"Me","source_track":"mic","text":"Длинная локальная реплика с хвостом."},{"id":"utt_order_group_remote_b","role":"Colleagues","source_track":"remote","text":"Вторая вложенная реплика."}],"commands":{"review":"less \"$group_session/derived/audit/order/transcript_order_review.md\""}}
+EOF
+  "$repo_root/scripts/build-review-lane-pack.py" \
+    --template "$order_group_template" \
+    --lane check_transcript_order \
+    --out-dir "$order_group_lane_dir" >/dev/null
+  jq -e '
+    .summary.selected_rows == 2
+    and .summary.item_count == 1
+    and .summary.grouped_item_count == 1
+    and .items[0].grouped == true
+    and .items[0].group_size == 2
+    and (.items[0].review_row_keys | length == 2)
+    and (.items[0].source_audit_ids == ["order_group_001", "order_group_002"])
+  ' "$order_group_lane_dir/review_lane_pack.check_transcript_order.json" >/dev/null
+  grep -q '^answers=r$' "$order_group_lane_dir/review_lane_answers.check_transcript_order.suggested.txt"
+  "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
+    "$order_group_lane_dir/review_lane_pack.check_transcript_order.json" \
+    --template "$order_group_template" \
+    --out "$order_group_out" \
+    --answers r >/dev/null
+  jq -s '
+    length == 2
+    and all(.[]; .decision == "needs_review" and .status == "reviewed" and .review_lane_pack_group_size == 2)
+  ' "$order_group_out" >/dev/null
+  order_group_workspace_dir="$workdir/review_workspace_order_group"
+  order_group_workspace_out="$workdir/review_decisions_order_group_workspace.jsonl"
+  "$repo_root/scripts/build-review-workspace.py" \
+    --template "$order_group_template" \
+    --out-dir "$order_group_workspace_dir" >/dev/null
+  sed -i.bak 's/^answers=.*/answers=k/' \
+    "$order_group_workspace_dir/lane-packs/review_lane_answers.check_transcript_order.txt"
+  "$repo_root/scripts/apply-review-workspace-decisions.py" \
+    --workspace "$order_group_workspace_dir/review_workspace.json" \
+    --template "$order_group_template" \
+    --out "$order_group_workspace_out" \
+    --report "$workdir/review_workspace_order_group_apply_report.json" >/dev/null
+  jq -s '
+    length == 2
+    and all(.[]; .decision == "keep_me" and .status == "reviewed" and .review_lane_pack_group_size == 2)
+  ' "$order_group_workspace_out" >/dev/null
   "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
     "$duplicate_lane_dir/review_lane_pack.fast_confirm_drop.json" \
     --template "$duplicate_source_template" \

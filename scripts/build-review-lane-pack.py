@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.4.0"
 SCHEMA = "murmurmark.review_lane_pack/v1"
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
 DECISION_SHORTCUTS = {
@@ -44,6 +44,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out-dir", type=Path, default=Path("sessions/_reports/review-plan/lane-packs"))
     parser.add_argument("--silence-sec", type=float, default=0.5, help="Silence inserted between clips.")
     parser.add_argument("--include-reviewed", action="store_true", help="Include rows that already have a non-todo decision.")
+    parser.add_argument(
+        "--group-related",
+        choices=["auto", "off"],
+        default="auto",
+        help="Group related review rows into one pack item when safe. Currently groups transcript-order rows by Me utterance.",
+    )
     return parser.parse_args()
 
 
@@ -120,6 +126,114 @@ def command_for_row(row: dict[str, Any], preferred_key: str) -> tuple[str, str] 
         if command:
             return key, str(command)
     return None
+
+
+def list_values(row: dict[str, Any], key: str) -> list[str]:
+    values = row.get(key)
+    if isinstance(values, list):
+        return [str(value) for value in values if value is not None and str(value)]
+    return []
+
+
+def first_me_utterance_id(row: dict[str, Any]) -> str:
+    me_ids = list_values(row, "me_utterance_ids")
+    if me_ids:
+        return me_ids[0]
+    utterance_ids = list_values(row, "utterance_ids")
+    return utterance_ids[0] if utterance_ids else ""
+
+
+def related_group_key(row: dict[str, Any], mode: str) -> str:
+    if mode != "auto":
+        return ""
+    if str(row.get("review_lane") or "") != "check_transcript_order":
+        return ""
+    me_id = first_me_utterance_id(row)
+    if not me_id:
+        return ""
+    session_id = str(row.get("session_id") or row.get("session") or "")
+    return f"check_transcript_order:{session_id}:{me_id}"
+
+
+def group_selected_rows(rows: list[dict[str, Any]], mode: str) -> list[list[dict[str, Any]]]:
+    groups: list[list[dict[str, Any]]] = []
+    by_key: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        key = related_group_key(row, mode)
+        if not key:
+            groups.append([row])
+            continue
+        group = by_key.get(key)
+        if group is None:
+            group = []
+            by_key[key] = group
+            groups.append(group)
+        group.append(row)
+    return groups
+
+
+def unique_from_rows(rows: list[dict[str, Any]], key: str) -> list[str]:
+    values: list[str] = []
+    for row in rows:
+        values.extend(list_values(row, key))
+    return list(dict.fromkeys(values))
+
+
+def common_allowed_decisions(rows: list[dict[str, Any]]) -> list[str]:
+    allowed_sets = [allowed_decisions_for_item(row) for row in rows]
+    if not allowed_sets:
+        return sorted(DEFAULT_ALLOWED_DECISIONS)
+    common = set.intersection(*allowed_sets)
+    return sorted(common or allowed_sets[0])
+
+
+def common_value(rows: list[dict[str, Any]], key: str, default: Any = None) -> Any:
+    values = [row.get(key) for row in rows]
+    if not values:
+        return default
+    first = values[0]
+    return first if all(value == first for value in values) else default
+
+
+def group_suggested_decision(rows: list[dict[str, Any]]) -> str:
+    decision = common_value(rows, "suggested_decision", "todo")
+    allowed = set(common_allowed_decisions(rows))
+    return str(decision or "todo") if str(decision or "todo") in allowed else "todo"
+
+
+def group_suggested_reason(rows: list[dict[str, Any]]) -> str:
+    reason = common_value(rows, "suggested_decision_reason")
+    if reason:
+        return str(reason)
+    if len(rows) <= 1:
+        return str(rows[0].get("suggested_decision_reason") or "")
+    return f"grouped_{len(rows)}_transcript_order_rows_for_same_me_utterance"
+
+
+def group_clip_text(rows: list[dict[str, Any]]) -> str:
+    if len(rows) == 1:
+        return clip_text(rows[0])
+    pieces: list[str] = []
+    for index, row in enumerate(rows, start=1):
+        source_id = row.get("source_audit_id") or f"row_{index}"
+        text = clip_text(row)
+        if text:
+            pieces.append(f"{source_id}: {text}")
+    return " || ".join(pieces)
+
+
+def group_evidence_text(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
+    if len(rows) == 1:
+        return evidence_text(rows[0])
+    pieces: list[dict[str, str]] = []
+    for index, row in enumerate(rows, start=1):
+        source_id = str(row.get("source_audit_id") or f"row_{index}")
+        for piece in evidence_text(row):
+            role = piece.get("role") or "?"
+            text = piece.get("text") or ""
+            if text:
+                pieces.append({"role": f"{index}:{source_id}:{role}", "text": text})
+    return pieces
 
 
 def parse_play_command(command: str) -> dict[str, str] | None:
@@ -251,6 +365,67 @@ def concat_wavs(parts: list[Path], out_path: Path, list_path: Path) -> bool:
     return completed.returncode == 0 and out_path.exists() and out_path.stat().st_size > 0
 
 
+def command_entries_for_group(
+    rows: list[dict[str, Any]],
+    preferred_key: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    entries: list[dict[str, Any]] = []
+    for row in rows:
+        command_choice = command_for_row(row, preferred_key)
+        is_text_only = str(row.get("source") or "") == "transcript_order" and command_choice is None
+        if command_choice is None and not is_text_only:
+            return [], {
+                "source_audit_id": row.get("source_audit_id"),
+                "source_audit_ids": [item.get("source_audit_id") for item in rows],
+                "reason": "missing_audio_command",
+            }
+        command_key, command = (
+            command_choice if command_choice is not None else ("review", str((row.get("commands") or {}).get("review") or ""))
+        )
+        entries.append(
+            {
+                "row": row,
+                "command_key": command_key,
+                "command": command,
+                "text_only": is_text_only,
+            }
+        )
+    return entries, None
+
+
+def render_group_clip(
+    entries: list[dict[str, Any]],
+    tmp_dir: Path,
+    index: int,
+    out_path: Path,
+) -> tuple[bool, str]:
+    if len(entries) == 1:
+        entry = entries[0]
+        rendered = (
+            make_silence(out_path, 0.25)
+            if entry.get("text_only")
+            else render_command(str(entry.get("command") or ""), out_path)
+        )
+        return rendered, "render_failed"
+
+    parts: list[Path] = []
+    between_silence = tmp_dir / f"clip_{index:04d}_within_group_silence.wav"
+    has_between_silence = make_silence(between_silence, 0.25)
+    for sub_index, entry in enumerate(entries, start=1):
+        child_wav = tmp_dir / f"clip_{index:04d}_{sub_index:02d}.wav"
+        rendered = (
+            make_silence(child_wav, 0.25)
+            if entry.get("text_only")
+            else render_command(str(entry.get("command") or ""), child_wav)
+        )
+        if not rendered:
+            return False, "render_failed"
+        parts.append(child_wav)
+        if has_between_silence and sub_index < len(entries):
+            parts.append(between_silence)
+    return concat_wavs(parts, out_path, tmp_dir / f"clip_{index:04d}_concat.txt"), "render_failed"
+
+
 def clip_text(row: dict[str, Any]) -> str:
     pieces: list[str] = []
     for item in row.get("text") or []:
@@ -315,11 +490,13 @@ def format_utterance_ids(item: dict[str, Any]) -> str:
 
 def write_item_details(lines: list[str], item: dict[str, Any]) -> None:
     source_id = item.get("source_audit_id") or f"item_{item.get('index')}"
+    source_ids = item.get("source_audit_ids") if isinstance(item.get("source_audit_ids"), list) else []
     label = item.get("label") or item.get("source") or "review"
     confidence = item.get("suggested_decision_confidence")
     confidence_text = f" ({confidence})" if confidence not in (None, "") else ""
     reason = truncate_text(item.get("suggested_decision_reason") or "-", 520)
     command = str(item.get("command") or "").strip()
+    group_text = f"- Grouped rows: `{item.get('group_size')}`" if item.get("grouped") else "- Grouped rows: `1`"
     lines.extend(
         [
             "",
@@ -332,6 +509,8 @@ def write_item_details(lines: list[str], item: dict[str, Any]) -> None:
             f"- Suggested: {markdown_inline(item.get('suggested_decision'))}{confidence_text}",
             f"- Suggested reason: {reason}",
             f"- Allowed: {format_allowed_decisions(item)}",
+            group_text,
+            f"- Source audit ids: {', '.join(markdown_inline(value) for value in source_ids) if source_ids else markdown_inline(source_id)}",
             f"- Utterances: {format_utterance_ids(item)}",
             f"- Command: {markdown_inline(item.get('command_key'))}",
         ]
@@ -376,14 +555,15 @@ def write_markdown(path: Path, manifest: dict[str, Any]) -> None:
         ),
         "```",
         "",
-        "| # | Pack time | Session | Audit id | Suggestion | Text |",
-        "|---:|---|---|---|---|---|",
+        "| # | Pack time | Session | Rows | Audit id | Suggestion | Text |",
+        "|---:|---|---|---:|---|---|---|",
     ]
     for item in manifest["items"]:
         text = markdown_cell(truncate_text(item.get("text"), 260))
+        row_count = item.get("group_size") or 1
         lines.append(
             f"| {item['index']} | {item['pack_start_time']}-{item['pack_end_time']} | "
-            f"`{item.get('session_id')}` | `{item.get('source_audit_id')}` | "
+            f"`{item.get('session_id')}` | {row_count} | `{item.get('source_audit_id')}` | "
             f"`{item.get('suggested_decision')}` | {text} |"
         )
     lines.extend(["", "## Review Items"])
@@ -429,10 +609,11 @@ def write_answer_sheet(path: Path, manifest: dict[str, Any], *, suggested: bool 
     for item in items:
         text = " ".join(str(item.get("text") or "").split())
         allowed = ",".join(sorted(allowed_decisions_for_item(item)))
+        group_size = item.get("group_size") or 1
         lines.append(
             f"# {item.get('index')}: {item.get('pack_start_time')}-{item.get('pack_end_time')} "
             f"{item.get('source_audit_id')} suggested={item.get('suggested_decision')} "
-            f"allowed={allowed} {text}"
+            f"allowed={allowed} rows={group_size} {text}"
         )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -460,6 +641,7 @@ def main() -> int:
     answer_sheet_path = out_dir / f"review_lane_answers.{args.lane}.txt"
     suggested_answer_sheet_path = out_dir / f"review_lane_answers.{args.lane}.suggested.txt"
 
+    selected_groups = group_selected_rows(selected, args.group_related)
     manifest_items: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     cursor = 0.0
@@ -469,52 +651,86 @@ def main() -> int:
         tmp_dir = Path(tmp)
         silence_wav = tmp_dir / "silence.wav"
         has_silence = make_silence(silence_wav, args.silence_sec)
-        for index, row in enumerate(selected, start=1):
-            command_choice = command_for_row(row, args.command_key)
-            is_text_only = str(row.get("source") or "") == "transcript_order" and command_choice is None
-            if command_choice is None and not is_text_only:
-                skipped.append({"source_audit_id": row.get("source_audit_id"), "reason": "missing_audio_command"})
+        for index, group_rows in enumerate(selected_groups, start=1):
+            row = group_rows[0]
+            command_entries, command_error = command_entries_for_group(group_rows, args.command_key)
+            if command_error is not None:
+                skipped.append(command_error)
                 continue
-            command_key, command = command_choice if command_choice is not None else ("review", str((row.get("commands") or {}).get("review") or ""))
+            first_command = command_entries[0] if command_entries else {"command_key": "review", "command": ""}
+            command_key = str(first_command.get("command_key") or "review")
+            command = str(first_command.get("command") or "")
+            group_commands = [
+                {
+                    "source_audit_id": entry["row"].get("source_audit_id"),
+                    "command_key": entry.get("command_key"),
+                    "command": entry.get("command"),
+                    "text_only": entry.get("text_only"),
+                }
+                for entry in command_entries
+            ]
+            if len(group_commands) > 1:
+                command_key = f"grouped:{command_key}"
             tmp_wav = tmp_dir / f"clip_{index:04d}.wav"
-            rendered = make_silence(tmp_wav, 0.25) if is_text_only else render_command(command, tmp_wav)
+            rendered, render_error = render_group_clip(command_entries, tmp_dir, index, tmp_wav)
             if not rendered:
-                skipped.append({"source_audit_id": row.get("source_audit_id"), "reason": "render_failed", "command": command})
+                skipped.append(
+                    {
+                        "source_audit_id": row.get("source_audit_id"),
+                        "source_audit_ids": [item.get("source_audit_id") for item in group_rows],
+                        "reason": render_error,
+                        "command": command,
+                    }
+                )
                 continue
             duration = probe_duration(tmp_wav)
             if duration <= 0:
-                skipped.append({"source_audit_id": row.get("source_audit_id"), "reason": "empty_rendered_clip"})
+                skipped.append(
+                    {
+                        "source_audit_id": row.get("source_audit_id"),
+                        "source_audit_ids": [item.get("source_audit_id") for item in group_rows],
+                        "reason": "empty_rendered_clip",
+                    }
+                )
                 continue
             start = cursor
             end = cursor + duration
             concat_parts.append(tmp_wav)
             if has_silence:
                 concat_parts.append(silence_wav)
+            review_row_keys = [review_row_key(item) for item in group_rows]
+            source_audit_ids = [str(item.get("source_audit_id") or "") for item in group_rows if item.get("source_audit_id")]
             manifest_items.append(
                 {
                     "index": len(manifest_items) + 1,
                     "review_row_key": review_row_key(row),
+                    "review_row_keys": review_row_keys,
                     "source": row.get("source"),
                     "source_audit_id": row.get("source_audit_id"),
+                    "source_audit_ids": source_audit_ids,
+                    "grouped": len(group_rows) > 1,
+                    "group_size": len(group_rows),
+                    "group_key": related_group_key(row, args.group_related),
                     "session_id": row.get("session_id"),
                     "input_profile": row.get("input_profile"),
                     "review_lane": row.get("review_lane"),
                     "label": row.get("label"),
-                    "utterance_ids": row.get("utterance_ids"),
-                    "me_utterance_ids": row.get("me_utterance_ids"),
-                    "remote_utterance_ids": row.get("remote_utterance_ids"),
-                    "suggested_decision": row.get("suggested_decision"),
-                    "suggested_decision_confidence": row.get("suggested_decision_confidence"),
-                    "suggested_decision_reason": row.get("suggested_decision_reason"),
-                    "allowed_decisions": row.get("allowed_decisions"),
+                    "utterance_ids": unique_from_rows(group_rows, "utterance_ids"),
+                    "me_utterance_ids": unique_from_rows(group_rows, "me_utterance_ids"),
+                    "remote_utterance_ids": unique_from_rows(group_rows, "remote_utterance_ids"),
+                    "suggested_decision": group_suggested_decision(group_rows),
+                    "suggested_decision_confidence": common_value(group_rows, "suggested_decision_confidence", "mixed"),
+                    "suggested_decision_reason": group_suggested_reason(group_rows),
+                    "allowed_decisions": common_allowed_decisions(group_rows),
                     "command_key": command_key,
                     "command": command,
+                    "group_commands": group_commands,
                     "pack_start": round(start, 3),
                     "pack_end": round(end, 3),
                     "pack_start_time": format_time(start),
                     "pack_end_time": format_time(end),
-                    "text": clip_text(row),
-                    "evidence_text": evidence_text(row),
+                    "text": group_clip_text(group_rows),
+                    "evidence_text": group_evidence_text(group_rows),
                 }
             )
             cursor = end + args.silence_sec
@@ -538,6 +754,7 @@ def main() -> int:
             "command_key": args.command_key,
             "silence_sec": args.silence_sec,
             "include_reviewed": args.include_reviewed,
+            "group_related": args.group_related,
         },
         "outputs": {
             "audio": str(audio_path),
@@ -548,7 +765,10 @@ def main() -> int:
         },
         "summary": {
             "selected_rows": len(selected),
+            "selected_groups": len(selected_groups),
             "item_count": len(manifest_items),
+            "grouped_item_count": sum(1 for item in manifest_items if item.get("grouped")),
+            "grouped_row_count": sum(max(0, int(item.get("group_size") or 1) - 1) for item in manifest_items),
             "skipped_count": len(skipped),
             "duration_sec": round(output_duration, 3),
         },
