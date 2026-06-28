@@ -555,6 +555,18 @@ grep -q '^next: .*murmurmark process' "$export_block_stdout"
 jq -e '.status == "blocked" and (.blockers | index("pipeline_incomplete")) and (.readiness.export_blockers | index("pipeline_incomplete"))' \
   "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
 jq -e '.next | contains("murmurmark process")' "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
+cli_export_block_dir="$workdir/export-blocked-cli"
+cli_export_block_stdout="$workdir/export_blocked_cli_stdout.txt"
+if "$bin" export "$session" --out-dir "$cli_export_block_dir" >"$cli_export_block_stdout" 2>&1; then
+  echo "expected Swift export to block incomplete session" >&2
+  exit 1
+fi
+grep -q '^next: .*murmurmark process' "$cli_export_block_stdout"
+grep -q 'error: export blocked; follow the printed next step or pass --force for debugging' "$cli_export_block_stdout"
+if grep -q 'python exited with 2' "$cli_export_block_stdout"; then
+  echo "blocked export leaked generic python exit error" >&2
+  exit 1
+fi
 export_force_dir="$workdir/export-forced"
 export_stdout="$workdir/export_forced_stdout.txt"
 "$bin" export "$session" --force --out-dir "$export_force_dir" --include-json >"$export_stdout"

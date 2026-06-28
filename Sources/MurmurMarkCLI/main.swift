@@ -3303,10 +3303,13 @@ enum ExportCommands {
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
         let effectiveArgs = config.exportDefaults(unless: forwarded) + forwarded
-        try Tooling.runPath(try PythonRuntime.resolve(), [
+        let status = try Tooling.runPathAllowingExitCodes(try PythonRuntime.resolve(), [
             try script().path,
             session.path,
-        ] + effectiveArgs)
+        ] + effectiveArgs, allowedExitCodes: [0, 2])
+        if status == 2 {
+            throw CLIError("export blocked; follow the printed next step or pass --force for debugging")
+        }
         try ExportPrinter.printManifest(session: session, outDir: exportOutDir(from: effectiveArgs))
     }
 
