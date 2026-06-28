@@ -6780,6 +6780,17 @@ enum ReviewNextPrinter {
         if let firstLane = string(strategy["first_recommended_lane"]) {
             Swift.print("  first_lane: \(firstLane)")
         }
+        if let quickLane = string(strategy["quick_recommended_lane"]) {
+            Swift.print("  quick_lane: \(quickLane)")
+        }
+        if let reason = string(strategy["first_recommended_reason"]) {
+            Swift.print("  first_lane_reason: \(reason)")
+        }
+        if let estimate = strategy["after_first_lane_estimate"] as? [String: Any] {
+            let remainingItems = int(estimate["remaining_items"]) ?? 0
+            let remainingMinutes = double(estimate["remaining_minutes"]) ?? 0.0
+            Swift.print(String(format: "  after_first_lane: remaining_items=%d remaining_minutes=%.2f", remainingItems, remainingMinutes))
+        }
         if let lanes = summary["by_review_lane"] as? [String: Any], !lanes.isEmpty {
             Swift.print("  by_lane: \(compactJSON(lanes))")
         }
