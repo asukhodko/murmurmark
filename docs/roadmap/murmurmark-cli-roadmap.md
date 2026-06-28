@@ -20,7 +20,7 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 6. `murmurmark review SESSION` — готов базовый CLI-контур.
 7. `murmurmark corpus process all` — готов базовый контур качества по корпусу.
 8. `murmurmark corpus taxonomy` — готова сводная таксономия аудио-ошибок для следующей итерации качества.
-9. `murmurmark corpus gate` — готов no-regression gate с локальным baseline-сравнением.
+9. `murmurmark corpus gate` — готов no-regression gate с локальным baseline-сравнением и warnings по remote-leak очереди.
 10. `murmurmark export SESSION --format markdown|obsidian` — готов базовый пользовательский output-блок.
 11. `scripts/install-local.sh` — готов минимальный локальный install wrapper для команды `murmurmark`.
 12. `murmurmark doctor` — готов расширенный health check локальной установки и pipeline-зависимостей.

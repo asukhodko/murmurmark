@@ -6290,6 +6290,12 @@ enum CorpusPrinter {
         print("  complete_pipeline_count: \(int(summary["complete_pipeline_count"]) ?? 0)")
         print("  ready_for_notes: \(int(summary["ready_for_notes"]) ?? 0)")
         print("  review_first: \(int(summary["review_first"]) ?? 0)")
+        if let remoteLeakItems = int(summary["remote_leak_segment_item_count"]) {
+            print("  remote_leak_segment_items: \(remoteLeakItems)")
+        }
+        if let protectedItems = int(summary["remote_leak_segment_protect_local_content_items"]) {
+            print("  remote_leak_protect_local_content_items: \(protectedItems)")
+        }
     }
 
     static func printTranscriptOrder(outDir: URL = PathURLs.fileURL("sessions/_reports/transcript-order")) throws {

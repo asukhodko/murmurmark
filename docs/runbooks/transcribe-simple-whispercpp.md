@@ -597,10 +597,11 @@ For a full refresh with all sessions under `./sessions`, use:
 .build/debug/murmurmark corpus process all --per-label 16 --max-items 160
 ```
 
-`corpus gate` reads the generated session-quality, regression-corpus, audio-judge and operational
-readiness JSON reports, then writes `sessions/_reports/corpus-gates/corpus_gates_report.json` and
-`.md`. `passed` or `passed_with_warnings` exits successfully. `failed` exits non-zero unless
-`--no-fail` is used.
+`corpus gate` reads the generated session-quality, regression-corpus, audio-judge, transcript-order,
+remote-leak segment corpus and operational readiness JSON reports, then writes
+`sessions/_reports/corpus-gates/corpus_gates_report.json` and `.md`. Remote-leak segment queues are
+reported as warnings: they are review/repair backlog, not hard no-regression failures. `passed` or
+`passed_with_warnings` exits successfully. `failed` exits non-zero unless `--no-fail` is used.
 
 For risky algorithm changes, first save a private local baseline:
 
@@ -659,7 +660,8 @@ audio leakage.
 per-session remote-leak segment plans into one corpus queue and keeps the same audit-only policy:
 no transcript profile and no raw audio are modified. `murmurmark corpus process all` refreshes these
 plans before session-quality and corpus aggregation. Use `corpus remote-leak --plan` when you only
-want to refresh the remote-leak queue.
+want to refresh the remote-leak queue. `corpus gate` reads this aggregate report and warns when
+plans are missing or when protected-local-content leak intervals remain in the queue.
 `murmurmark corpus report` prints the existing session-quality summary and, when the files already
 exist, also prints short summaries for transcript-order, remote-leak, corpus-gates and
 operational-readiness. It does not rebuild those reports; it is the quick “what is the current state?” command after a heavier

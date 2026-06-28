@@ -953,8 +953,8 @@ they are a routing layer for the next agent or reviewer.
 `action_plan` is also routing metadata. It names the next narrow engineering work and expected
 deliverable, but it does not apply patches.
 
-Corpus gates are generated after session quality, corpus evaluation, audio judge and operational
-readiness reports:
+Corpus gates are generated after session quality, corpus evaluation, audio judge, transcript-order,
+remote-leak segment corpus and operational readiness reports:
 
 ```text
 sessions/_reports/corpus-gates/
@@ -984,7 +984,9 @@ sessions/_reports/corpus-gates/
     "complete_pipeline_count": 10,
     "ready_for_notes": 6,
     "audio_judge_cv_accuracy": 0.970297,
-    "total_review_burden_ratio": 0.007082
+    "total_review_burden_ratio": 0.007082,
+    "remote_leak_segment_item_count": 15,
+    "remote_leak_segment_protect_local_content_items": 15
   },
   "checks": [
     {
@@ -1000,6 +1002,17 @@ sessions/_reports/corpus-gates/
       "severity": "fail",
       "observed": 0,
       "threshold": "0 sessions"
+    },
+    {
+      "id": "remote_leak_segment.no_protected_local_content",
+      "status": "warn",
+      "severity": "warn",
+      "observed": {
+        "items": 15,
+        "seconds": 63.46,
+        "sessions": 3
+      },
+      "threshold": "0 protected-local-content items"
     }
   ]
 }
@@ -1008,6 +1021,10 @@ sessions/_reports/corpus-gates/
 `baseline.local.json` uses `murmurmark.corpus_gates_baseline/v1`. It is a private generated snapshot
 of aggregate metrics and per-session gates used by `check-corpus-gates.py --baseline`. A baseline
 built from real meeting sessions must stay under ignored `sessions/_reports/`.
+
+Remote-leak segment corpus gates are intentionally warning-level. A pending queue means some `Me`
+regions may still contain unique local content mixed with remote leak and need segment-level repair
+or review. It must not be treated as permission for whole-utterance deletion.
 
 The post-recording runner writes a per-session execution manifest:
 

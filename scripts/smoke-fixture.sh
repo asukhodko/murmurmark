@@ -1664,6 +1664,7 @@ PY
     --audio-judge "$judge_dir/audio_judge_v0_report.json"
     --operational-readiness "$readiness_dir/operational_readiness_report.json"
     --transcript-order "$order_corpus_dir/transcript_order_corpus_report.json"
+    --remote-leak-segment-corpus "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.json"
     --min-complete-sessions 1
     --min-ready-for-notes 0
     --min-corpus-sessions 1
@@ -1686,6 +1687,10 @@ PY
   jq -e 'any(.checks[]; .id == "transcript_order.no_complete_blocking_sessions" and .status == "pass")' \
     "$gates_dir/corpus_gates_report.json" >/dev/null
   jq -e '.summary.transcript_order_complete_blocking_sessions == 0 and .summary.transcript_order_missing_audits == 0' \
+    "$gates_dir/corpus_gates_report.json" >/dev/null
+  jq -e '.summary.remote_leak_segment_protect_local_content_items >= 1 and .summary.remote_leak_segment_sessions_with_protect_local_content >= 1' \
+    "$gates_dir/corpus_gates_report.json" >/dev/null
+  jq -e 'any(.checks[]; .id == "remote_leak_segment.no_protected_local_content" and .status == "warn" and .observed.items >= 1)' \
     "$gates_dir/corpus_gates_report.json" >/dev/null
   "$repo_root/scripts/check-corpus-gates.py" \
     "${gate_args[@]}" \

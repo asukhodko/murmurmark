@@ -164,7 +164,9 @@ For the normal full refresh, use one command:
 murmurmark corpus process all --per-label 16 --max-items 160
 ```
 
-`corpus gate` writes `sessions/_reports/corpus-gates/corpus_gates_report.*`.
+`corpus gate` writes `sessions/_reports/corpus-gates/corpus_gates_report.*`. It also reads the
+remote-leak segment corpus report when it exists and surfaces pending leak-repair queues as warnings,
+not hard failures.
 `corpus taxonomy` writes `sessions/_reports/audio-error-taxonomy/audio_error_taxonomy_report.*`.
 Use it after `corpus train-audio-judge` to see which error classes are already safe cleanup
 candidates, which are mark-only, which need better labels, and which sessions/examples should drive
