@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.1"
+SCRIPT_VERSION = "0.2.2"
 OUTPUT_PROFILE_DEFAULT = "reviewed_v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 OPEN_DECISIONS = {"", "todo"}
@@ -241,6 +241,10 @@ def is_local_recall_decision(row: dict[str, Any]) -> bool:
     label = str(row.get("label") or "").strip()
     source_id = str(row.get("source_audit_id") or "").strip()
     return source == "local_recall" or source_id.startswith("local_recall_") or label in {"lost_me", "local_recall_needs_review"}
+
+
+def is_local_recall_repair_decision(row: dict[str, Any]) -> bool:
+    return str(row.get("source") or "").strip() == "local_recall_repair"
 
 
 def is_transcript_order_decision(row: dict[str, Any]) -> bool:
@@ -554,11 +558,15 @@ def main() -> int:
 
     overlaps = build_overlaps(output_utterances)
     applied_all = applied + audit_only_applied
-    local_recall_rows = [row for row in audit_only_applied if is_local_recall_decision(row)]
+    local_recall_rows = [row for row in audit_only_applied if is_local_recall_decision(row)] + [
+        row for row in applied if is_local_recall_repair_decision(row)
+    ]
     local_recall_cleared = [row for row in local_recall_rows if row.get("decision") in {"keep_me", "skip"}]
     local_recall_remaining = [row for row in local_recall_rows if row.get("decision") == "needs_review"]
     local_recall_possible_lost_remaining = [
-        row for row in local_recall_remaining if str(row.get("label") or "") == "lost_me"
+        row
+        for row in local_recall_remaining
+        if str(row.get("label") or "") in {"lost_me", "local_recall_repair_inserted"}
     ]
     local_recall_review_remaining = [
         row for row in local_recall_remaining if str(row.get("label") or "") == "local_recall_needs_review"

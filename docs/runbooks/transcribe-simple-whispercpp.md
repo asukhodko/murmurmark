@@ -728,8 +728,8 @@ murmurmark transcript "$SESSION" --profile local_recall_repair_v1
 murmurmark synthesize "$SESSION" --transcript-profile local_recall_repair_v1
 ```
 
-Inserted `Me` turns stay `needs_review`, so this profile is for inspection and explicit use, not
-automatic promotion.
+Inserted `Me` turns start as `needs_review`, so this profile is for inspection and explicit use until
+review closes them.
 For short islands near a parent boundary, `local_recall_repair_v1` also records raw micro-ASR rows
 and may use `boundary_overlap_fallback` when Whisper recognized text but the row midpoint landed
 just outside the selected local island. This is still conservative: the recovered turn is inserted
@@ -737,7 +737,9 @@ only into the explicit repair profile and remains `needs_review`.
 After operational readiness is rebuilt, inserted repair turns appear in the `check_local_recall`
 review lane as `local_recall_repair` rows. Unlike raw audit-only local-recall rows, these rows point
 to actual `Me` utterance IDs in `local_recall_repair_v1`, so review can keep or drop the inserted
-turn explicitly.
+turn explicitly. `murmurmark review agent` can also close the narrow high-confidence case without
+listening: the repair must be local-only by speaker-state, have successful micro-ASR, and pass the
+agent confidence thresholds. Lower-confidence insertions remain in `check_local_recall`.
 For a corpus-level view of these candidate repairs:
 
 ```bash
@@ -1010,9 +1012,10 @@ murmurmark synthesize "$SESSION" --transcript-profile audit_cleanup_v6
 `audit_cleanup_v6` reuses the same audio-review gates as v2 over the v5 transcript. It is not a
 suggested-review profile and does not use audio-judge predictions.
 
-The automatic agent-reviewed layer uses audio-review audit rows plus the audio-judge queue to close
-only rows that are safe without listening. It writes `agent_reviewed_v1`; this profile is selected by
-`auto` after `reviewed_v1` and before automatic cleanup profiles when its gates pass.
+The automatic agent-reviewed layer uses audio-review audit rows, the audio-judge queue and
+high-confidence local-recall repair rows to close only items that are safe without listening. It
+writes `agent_reviewed_v1`; this profile is selected by `auto` after `reviewed_v1` and before
+automatic cleanup profiles when its gates pass.
 
 ```bash
 murmurmark review agent

@@ -377,7 +377,7 @@ nodes:
     parent: quality-hardening
     status: current
     effort: 6
-    notes: "Первый conservative слой local_recall_repair_v1 вставляет только короткие Me-острова из possible_lost_me после micro-ASR и оставляет их needs_review. Boundary-overlap fallback восстанавливает короткие строки, которые Whisper распознал, но чей midpoint вышел за край local island; operational readiness и review plan выводят эти вставки как local_recall_repair rows с keep/drop/needs_review решениями. murmurmark corpus local-recall-repair собирает эффект по корпусу перед возможной auto-promotion и отделяет reviewable-вставки complete-сессий от incomplete-сессий, которые сначала нужно прогнать через process."
+    notes: "Первый conservative слой local_recall_repair_v1 вставляет только короткие Me-острова из possible_lost_me после micro-ASR поверх лучшего текущего безопасного профиля. Boundary-overlap fallback восстанавливает короткие строки, которые Whisper распознал, но чей midpoint вышел за край local island; operational readiness и review plan выводят эти вставки как local_recall_repair rows с keep/drop/needs_review решениями. murmurmark review agent может закрыть только high-confidence local-only вставки, остальные остаются в check_local_recall. murmurmark corpus local-recall-repair собирает эффект по корпусу перед возможной auto-promotion и отделяет reviewable-вставки complete-сессий от incomplete-сессий, которые сначала нужно прогнать через process."
 
   quality-local-recall-boundary-audit:
     title: "Boundary-aware local recall audit"

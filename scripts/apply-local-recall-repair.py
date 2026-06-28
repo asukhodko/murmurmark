@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.2.1"
 DEFAULT_MODEL = "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 DEFAULT_OUTPUT_PROFILE = "local_recall_repair_v1"
 SCHEMA_REPORT = "murmurmark.local_recall_repair_report/v1"
@@ -203,10 +203,30 @@ def resolve_profile(session: Path, requested: str) -> str:
     if requested != "auto":
         return requested
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    order_repair_report = read_json_if_exists(
+        session
+        / "derived/transcript-simple/whisper-cpp/order-repair/transcript_order_repair_report.order_repair_v1.json"
+    )
+    order_summary = order_repair_report.get("summary") if isinstance(order_repair_report, dict) else {}
+    order_gates = order_repair_report.get("gates") if isinstance(order_repair_report, dict) else {}
+    order_applied = safe_int(order_summary.get("applied_repairs")) if isinstance(order_summary, dict) else 0
+
+    def profile_exists(profile: str) -> bool:
+        return (resolved / f"clean_dialogue{suffix(profile)}.json").exists()
+
+    def order_repair_usable_for(profile: str) -> bool:
+        return (
+            profile_exists("order_repair_v1")
+            and isinstance(order_repair_report, dict)
+            and isinstance(order_gates, dict)
+            and order_gates.get("passed") is True
+            and order_applied > 0
+            and order_repair_report.get("input_profile") == profile
+        )
+
     for profile in (
-        "order_repair_v1",
-        "agent_reviewed_v1",
         "reviewed_v1",
+        "agent_reviewed_v1",
         "audit_cleanup_v6",
         "audit_cleanup_v5",
         "audit_cleanup_v4",
@@ -216,8 +236,12 @@ def resolve_profile(session: Path, requested: str) -> str:
         "shadow_v2",
         "current",
     ):
-        if (resolved / f"clean_dialogue{suffix(profile)}.json").exists():
+        if profile_exists(profile):
+            if order_repair_usable_for(profile):
+                return "order_repair_v1"
             return profile
+    if profile_exists("order_repair_v1"):
+        return "order_repair_v1"
     return "current"
 
 
@@ -682,6 +706,19 @@ def main() -> int:
             continue
         duplicate = existing_overlap(output_utterances, item, text)
         if duplicate:
+            duplicate_source = duplicate.get("source") if isinstance(duplicate.get("source"), dict) else {}
+            if duplicate.get("id") == f"{args.output_profile}_{item_id}" or duplicate_source.get("kind") == "local_recall_repair":
+                patches.append(
+                    {
+                        "schema": SCHEMA_PATCH,
+                        "source_item_id": item_id,
+                        "action": "keep_existing_me_utterance",
+                        "status": "already_present",
+                        "utterance": copy.deepcopy(duplicate),
+                        "micro_asr": meta,
+                    }
+                )
+                continue
             rejected.append(
                 {
                     "schema": SCHEMA_REJECTION,

@@ -588,9 +588,9 @@ left, it points to `murmurmark process ...` for the first one.
 
 `murmurmark repair local-recall` wraps `scripts/apply-local-recall-repair.py`. It reads
 `local_recall_items.jsonl`, runs micro-ASR on strong `possible_lost_me` local islands and writes a
-separate `local_recall_repair_v1` profile. Inserted `Me` turns are always marked `needs_review`;
-baseline, cleanup and order profiles are not modified. Use this profile explicitly when checking
-whether a missed short local phrase was recovered:
+separate `local_recall_repair_v1` profile over the best current safe profile. Inserted `Me` turns are
+marked `needs_review`; baseline, cleanup and order profiles are not modified. Use this profile
+explicitly when checking whether a missed short local phrase was recovered:
 `murmurmark synthesize SESSION --transcript-profile local_recall_repair_v1`.
 For short boundary islands, the repair also inspects raw micro-ASR rows. If Whisper produced text
 whose timestamp overlaps or nearly touches the island but whose midpoint is outside it, the row can
@@ -602,7 +602,9 @@ decisions: `keep_me`, `drop_me`, `needs_review` or `skip`. Corpus repair reports
 `next_commands` so inserted rows from complete sessions can be reviewed through
 `murmurmark review lane check_local_recall --session ...` without opening the Markdown report first.
 If a session with inserted rows is still incomplete, the report points to `murmurmark process ...`
-before review.
+before review. `murmurmark review agent` may clear a repair row automatically only when the inserted
+phrase has strong local-only speaker-state evidence and high-confidence micro-ASR; otherwise it stays
+in the normal review lane.
 
 The transcript order audit reads `clean_dialogue` and `overlaps`, then writes
 `derived/audit/order/`. It highlights long `Me` turns that wrap a `Colleagues` turn and have a
@@ -816,7 +818,8 @@ the heavier batch apply.
 report, audio-review audit rows and the audio-judge queue, then writes and applies a reduced
 agent review scope under `sessions/_reports/review-plan/`. The scope contains only rows that the
 rules can close without listening: whole-utterance `drop_me` for very clear remote duplicates or
-ASR noise, and `keep_me` for strong local-support cases that no longer need human review. It writes
+ASR noise, `keep_me` for strong local-support cases that no longer need human review, and
+high-confidence local-recall repair insertions with local-only speaker-state evidence. It writes
 `agent_reviewed_v1`, which is eligible for `--transcript-profile auto` after gates pass. It never
 changes raw CAF files, Echo Guard outputs, ASR output or existing cleanup profiles.
 
