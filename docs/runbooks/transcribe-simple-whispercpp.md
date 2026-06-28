@@ -866,6 +866,8 @@ lane-pack command prints the suggested compact answer line, `afplay`, `$EDITOR`,
 `review lane apply ...` command for the generated answer sheet. It also prints `read: less ...` for
 the lane Markdown, which is the fastest place to inspect allowed decisions, suggested reasons and
 evidence text before editing the answer sheet.
+It also prints `manual_flow`, optional `suggested_flow`, and `after_apply`, so a reviewer can follow
+the terminal handoff through dry-run, apply and progress without opening this runbook.
 It also prints `suggested_dry_run` and `suggested_apply`; these call
 `review lane apply ... --answers-source suggested`, read
 `review_lane_answers.<lane>.suggested.txt`, and are meant for explicit reviewer-approved use after a

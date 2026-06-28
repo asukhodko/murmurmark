@@ -39,11 +39,28 @@ enum ReviewPrinter {
         }
         print("  dry_run: \(applyCommand) --dry-run")
         print("  apply: \(applyCommand)")
-        if string(outputs["suggested_answer_sheet"]) != nil {
+        let hasSuggestedAnswerSheet = string(outputs["suggested_answer_sheet"]) != nil
+        if hasSuggestedAnswerSheet {
             print("  suggested_dry_run: \(applyCommand) --answers-source suggested --dry-run")
             print("  suggested_apply: \(applyCommand) --answers-source suggested")
         }
-        print("  next: listen, read markdown, edit answer_sheet, then apply")
+        printLanePackHandoff(applyCommand: applyCommand, session: session, hasSuggestedAnswerSheet: hasSuggestedAnswerSheet)
+    }
+
+    private static func printLanePackHandoff(applyCommand: String, session: URL?, hasSuggestedAnswerSheet: Bool) {
+        let sessionArgument = session.map { " --session \($0.lastPathComponent)" } ?? ""
+        print("  manual_flow:")
+        print("    dry_run: \(applyCommand) --dry-run")
+        print("    apply: \(applyCommand)")
+        if hasSuggestedAnswerSheet {
+            print("  suggested_flow:")
+            print("    dry_run: \(applyCommand) --answers-source suggested --dry-run")
+            print("    apply: \(applyCommand) --answers-source suggested")
+        }
+        print("  after_apply:")
+        print("    murmurmark review progress\(sessionArgument)")
+        print("    murmurmark review apply\(sessionArgument)")
+        print("  next: listen, read markdown, edit answer_sheet, dry-run, apply, then progress")
     }
 
     private static func laneApplyCommand(lane: String, session: URL?, planOutDir: URL?, outDir: URL) -> String {

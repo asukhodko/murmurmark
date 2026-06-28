@@ -707,6 +707,8 @@ After listening to that pack, edit the generated `review_lane_answers.<lane>.txt
 script remains available for debugging, but the Swift CLI uses the correct session-local paths by
 default. Lane-pack commands print the exact `review lane apply ...` command for the generated answer
 sheet, plus the `afplay`, `less` for the lane Markdown, `$EDITOR` and dry-run commands for that pack.
+They also print `manual_flow`, optional `suggested_flow`, and `after_apply`, so the safe order is
+visible without reading the runbook.
 `review lane apply --dry-run` writes `review_lane_pack_apply_report.json`, prints the lane result and
 the exact non-dry-run command. After applying the lane, the CLI refreshes
 `review_decisions_progress.json`: if more rows remain it points back to

@@ -2306,7 +2306,16 @@ PY
   echo "$first_lane_output" | grep -q '^  suggested_apply: murmurmark review lane apply '
   echo "$first_lane_output" | grep -q -- '--answers-source suggested --dry-run'
   echo "$first_lane_output" | grep -q -- '--answers-source suggested'
-  echo "$first_lane_output" | grep -q '^  next: listen, read markdown, edit answer_sheet, then apply'
+  echo "$first_lane_output" | grep -q '^  manual_flow:$'
+  echo "$first_lane_output" | grep -q '^    dry_run: murmurmark review lane apply '
+  echo "$first_lane_output" | grep -q '^    apply: murmurmark review lane apply '
+  echo "$first_lane_output" | grep -q '^  suggested_flow:$'
+  echo "$first_lane_output" | grep -q '^    dry_run: murmurmark review lane apply .* --answers-source suggested --dry-run'
+  echo "$first_lane_output" | grep -q '^    apply: murmurmark review lane apply .* --answers-source suggested'
+  echo "$first_lane_output" | grep -q '^  after_apply:$'
+  echo "$first_lane_output" | grep -q '^    murmurmark review progress'
+  echo "$first_lane_output" | grep -q '^    murmurmark review apply'
+  echo "$first_lane_output" | grep -q '^  next: listen, read markdown, edit answer_sheet, dry-run, apply, then progress'
   echo "$first_lane_output" | grep -Eq -- "--plan-out-dir .*first-lane-review-plan"
   echo "$first_lane_output" | grep -Eq -- "--out-dir .*first-lane-pack"
   first_lane_suggested_dry_run_output="$("$bin" review lane apply first \
@@ -2344,7 +2353,9 @@ PY
   echo "$explicit_local_recall_lane_output" | grep -q '^  apply: murmurmark review lane apply check_local_recall --session '
   echo "$explicit_local_recall_lane_output" | grep -q '^  suggested_dry_run: murmurmark review lane apply check_local_recall --session '
   echo "$explicit_local_recall_lane_output" | grep -q '^  suggested_apply: murmurmark review lane apply check_local_recall --session '
-  echo "$explicit_local_recall_lane_output" | grep -q '^  next: listen, read markdown, edit answer_sheet, then apply'
+  echo "$explicit_local_recall_lane_output" | grep -q '^  manual_flow:$'
+  echo "$explicit_local_recall_lane_output" | grep -q '^  after_apply:$'
+  echo "$explicit_local_recall_lane_output" | grep -q '^  next: listen, read markdown, edit answer_sheet, dry-run, apply, then progress'
   echo "$explicit_local_recall_lane_output" | grep -Eq -- "--out-dir .*explicit-local-recall-lane-pack"
   [[ -s "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.json" ]]
   grep -q '^## Review Items' "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.md"
