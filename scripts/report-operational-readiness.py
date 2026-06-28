@@ -1077,13 +1077,23 @@ def build_report(
 def build_next_commands(blockers: list[str], promotion: dict[str, Any]) -> list[dict[str, str]]:
     commands: list[dict[str, str]] = []
     if "not_enough_complete_pipelines" in blockers:
-        commands.append(
-            {
-                "id": "process_corpus",
-                "label": "Rebuild the corpus pipeline so operational readiness has enough complete sessions.",
-                "command": "murmurmark corpus process all",
-            }
-        )
+        target = first_pipeline_target(promotion)
+        if target:
+            commands.append(
+                {
+                    "id": "process_session",
+                    "label": "Process the first incomplete high-value session.",
+                    "command": f"murmurmark process {target}",
+                }
+            )
+        else:
+            commands.append(
+                {
+                    "id": "process_corpus",
+                    "label": "Rebuild the corpus pipeline so operational readiness has enough complete sessions.",
+                    "command": "murmurmark corpus process all",
+                }
+            )
     strategy = promotion.get("review_queue_strategy") if isinstance(promotion.get("review_queue_strategy"), dict) else {}
     first_lane = str(strategy.get("first_recommended_lane") or "")
     if first_lane:
@@ -1110,6 +1120,24 @@ def build_next_commands(blockers: list[str], promotion: dict[str, Any]) -> list[
             }
         )
     return commands
+
+
+def first_pipeline_target(promotion: dict[str, Any]) -> str | None:
+    targets = promotion.get("session_targets")
+    if not isinstance(targets, list):
+        return None
+    for target in targets:
+        if not isinstance(target, dict):
+            continue
+        if target.get("recommended_action") != "rerun_pipeline_or_fix_artifacts":
+            continue
+        session_id = str(target.get("session_id") or "").strip()
+        if not session_id:
+            continue
+        if session_id.startswith("sessions/") or session_id.startswith("./sessions/"):
+            return session_id
+        return f"sessions/{session_id}"
+    return None
 
 
 def recommendations(verdict: str, blockers: list[str], warnings: list[str]) -> list[str]:

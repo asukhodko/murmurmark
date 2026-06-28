@@ -728,8 +728,12 @@ Corpus CLI commands keep per-session helper output quiet and show one aggregate 
 `murmurmark corpus report` prints the existing session-quality summary and, when the files already
 exist, also prints short summaries for transcript-order, remote-leak, corpus-gates and
 operational-readiness. It does not rebuild those reports; it is the quick “what is the current state?” command after a heavier
-`murmurmark corpus process all`. Use `murmurmark report corpus` when only session-quality needs a
-refresh.
+`murmurmark corpus process all`. The process command completes the refresh and prints summaries even
+when corpus gates are currently `failed`; run `murmurmark corpus gate` separately when a strict
+non-zero gate is useful for CI or release checks. Operational readiness points to a concrete
+`murmurmark process sessions/<id>` target when the promotion plan already identifies one; it falls
+back to `murmurmark corpus process all` only when no specific target is known. Use
+`murmurmark report corpus` when only session-quality needs a refresh.
 Its `promotion_plan` section explains the current delta to `medium_risk_ready`: unresolved warnings,
 sessions not ready for notes, remaining review minutes, and the next action class.
 Its `Review Queue Strategy` section groups the remaining queue into lanes and shows the first useful

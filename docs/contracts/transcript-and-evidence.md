@@ -1617,8 +1617,10 @@ lanes, recommends the first lane to close, and estimates the remaining queue aft
 reviewed. The estimate is not a substitute for rerunning `apply-review-decisions-batch.py`; it is a
 planning aid for reaching `medium_risk_ready`.
 Top-level `next_commands` is the executable handoff: structural blockers such as too few complete
-pipelines point to `murmurmark corpus process all`; otherwise review queues point to
-`murmurmark review first-lane` and `murmurmark review workspace`.
+pipelines point to the first concrete `murmurmark process sessions/<id>` target from
+`promotion_plan.session_targets` when one exists, and fall back to `murmurmark corpus process all`
+only when no specific session target is known. Review queues point to `murmurmark review first-lane`
+and `murmurmark review workspace`.
 `murmurmark review first-lane` reads this strategy from `review_plan.json` and builds the matching
 lane pack through `build-review-lane-pack.py`.
 

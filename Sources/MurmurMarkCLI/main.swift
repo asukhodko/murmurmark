@@ -2738,7 +2738,7 @@ enum CorpusCommands {
             try CorpusLocalRecallCommands.report(sessions: [], extraArgs: [])
             try CorpusLocalRecallRepairCommands.report(sessions: [], extraArgs: [])
             try CorpusRemoteLeakCommands.report(sessions: [], extraArgs: [])
-            try gates(extraArgs: [])
+            try gates(extraArgs: [], allowedExitCodes: [0, 1])
             try CorpusPrinter.printSessionQuality()
             try CorpusPrinter.printBuild()
             try CorpusPrinter.printEvaluation()
@@ -2879,10 +2879,14 @@ enum CorpusCommands {
     }
 
     private static func gates(extraArgs: [String]) throws {
+        try gates(extraArgs: extraArgs, allowedExitCodes: [0])
+    }
+
+    private static func gates(extraArgs: [String], allowedExitCodes: Set<Int32>) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPathQuiet(python, [
+        _ = try Tooling.runPathQuietAllowingExitCodes(python, [
             try script("check-corpus-gates.py").path,
-        ] + extraArgs)
+        ] + extraArgs, allowedExitCodes: allowedExitCodes)
     }
 
     private static func transcriptOrder(sessions: [URL], extraArgs: [String]) throws {

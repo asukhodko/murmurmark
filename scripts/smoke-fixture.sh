@@ -1871,9 +1871,22 @@ assert lanes["check_transcript_order"] == 2, lanes
 assert any(row["label"] == "probable_order_risk" for row in selected), selected
 blocked_next = module.build_next_commands(
     ["not_enough_complete_pipelines"],
+    {
+        "review_queue_strategy": {"first_recommended_lane": "fast_confirm_drop"},
+        "session_targets": [
+            {
+                "session_id": "fixture-session",
+                "recommended_action": "rerun_pipeline_or_fix_artifacts",
+            }
+        ],
+    },
+)
+assert blocked_next[0]["command"] == "murmurmark process sessions/fixture-session", blocked_next
+blocked_fallback = module.build_next_commands(
+    ["not_enough_complete_pipelines"],
     {"review_queue_strategy": {"first_recommended_lane": "fast_confirm_drop"}},
 )
-assert blocked_next[0]["command"] == "murmurmark corpus process all", blocked_next
+assert blocked_fallback[0]["command"] == "murmurmark corpus process all", blocked_fallback
 review_next = module.build_next_commands(
     [],
     {"review_queue_strategy": {"first_recommended_lane": "fast_confirm_drop"}},
