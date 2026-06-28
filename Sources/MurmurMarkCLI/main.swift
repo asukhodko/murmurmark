@@ -104,6 +104,7 @@ struct MurmurMark {
                              [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
                                 [--mode conservative] [--sessions-root ./sessions]
+          murmurmark repair remote-leak ./session|latest [--sessions-root ./sessions]
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
           murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
           murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
@@ -1450,11 +1451,8 @@ enum RepairCommands {
 
         var remaining = args
         let subcommand = remaining.removeFirst()
-        guard subcommand == "order" else {
-            throw CLIError("unknown repair command: \(subcommand)")
-        }
         guard !remaining.isEmpty else {
-            throw CLIError("repair order requires a session path or latest")
+            throw CLIError("repair \(subcommand) requires a session path or latest")
         }
         let target = remaining.removeFirst()
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
@@ -1462,14 +1460,25 @@ enum RepairCommands {
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
 
-        let status = try Tooling.runPathAllowingExitCodes(
-            try PythonRuntime.resolve(),
-            [try script("apply-transcript-order-repair.py").path, session.path] + remaining,
-            allowedExitCodes: [0, 2]
-        )
-        try RepairPrinter.printOrderSummary(session: session, args: remaining)
-        if status != 0 {
-            throw CLIError("order repair gates did not pass; inspect transcript_order_repair_report before promoting the profile")
+        switch subcommand {
+        case "order":
+            let status = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("apply-transcript-order-repair.py").path, session.path] + remaining,
+                allowedExitCodes: [0, 2]
+            )
+            try RepairPrinter.printOrderSummary(session: session, args: remaining)
+            if status != 0 {
+                throw CLIError("order repair gates did not pass; inspect transcript_order_repair_report before promoting the profile")
+            }
+        case "remote-leak":
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [try script("plan-remote-leak-segment-repair.py").path, session.path] + remaining
+            )
+            try RepairPrinter.printRemoteLeakSummary(session: session, args: remaining)
+        default:
+            throw CLIError("unknown repair command: \(subcommand)")
         }
     }
 
@@ -1483,11 +1492,13 @@ enum RepairCommands {
 
     private static func printHelp() {
         print("""
-        usage: murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
-                                     [--mode conservative] [--sessions-root ./sessions]
+        usage:
+          murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
+                                [--mode conservative] [--sessions-root ./sessions]
+          murmurmark repair remote-leak ./session|latest [--sessions-root ./sessions]
 
-        Writes a separate transcript profile with conservative transcript-order repairs.
-        If repair gates fail, artifacts are still written and summarized, but the command exits non-zero.
+        order writes a separate transcript profile with conservative transcript-order repairs.
+        remote-leak writes an audit-only segment repair plan and never edits transcript profiles.
         """)
     }
 }
@@ -1909,6 +1920,38 @@ enum RepairPrinter {
         print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
         print("    murmurmark transcript \(PathDisplay.display(session)) --profile \(profile)")
         print("    murmurmark report \(PathDisplay.display(session))")
+    }
+
+    static func printRemoteLeakSummary(session: URL, args: [String]) throws {
+        let outDir = ArgumentEditing.peekOption("out-dir", in: args)
+            .map(PathURLs.fileURL(_:))
+            ?? session.appendingPathComponent("derived/transcript-simple/whisper-cpp/remote-leak-repair")
+        let planURL = outDir.appendingPathComponent("remote_leak_segment_repair_plan.json")
+        let reportURL = outDir.appendingPathComponent("remote_leak_segment_repair.md")
+        guard FileManager.default.fileExists(atPath: planURL.path) else {
+            print("")
+            print("remote_leak_segment_repair:")
+            print("  plan: missing")
+            print("  expected: \(PathDisplay.display(planURL))")
+            return
+        }
+
+        let payload = try JSONFiles.object(planURL)
+        let summary = dict(payload["summary"])
+        let actionPlan = payload["action_plan"] as? [[String: Any]] ?? []
+        print("")
+        print("remote_leak_segment_repair:")
+        print("  plan: \(PathDisplay.display(planURL))")
+        print("  report: \(PathDisplay.display(reportURL))")
+        print("  mode: audit_only")
+        print("  items: \(int(summary["items"]))")
+        print("  seconds: \(summary["seconds"] ?? 0)")
+        print("  protect_local_content_items: \(int(summary["protect_local_content_items"]))")
+        if let firstAction = actionPlan.first {
+            print("  next_work: \(string(firstAction["next_work"]) ?? "none")")
+        }
+        print("  next:")
+        print("    less \(PathDisplay.display(reportURL))")
     }
 
     private static func dict(_ value: Any?) -> [String: Any] {

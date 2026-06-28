@@ -393,7 +393,16 @@ nodes:
     parent: quality-hardening
     status: next
     effort: 5
-    notes: "Удалять дубли только при сильных доказательствах, защищать намеренные повторы и действия."
+    notes: "Удалять дубли только при сильных доказательствах, защищать намеренные повторы и действия. Для remote_leak сначала нужен segment-level план, потому что внутри Me может оставаться уникальный локальный смысл."
+
+  quality-remote-leak-segment-plan:
+    title: "Remote leak segment repair plan"
+    kind: task
+    parent: quality-hardening
+    deps: [corpus-error-taxonomy, quality-remote-duplicate-safety]
+    status: done
+    effort: 2
+    notes: "murmurmark repair remote-leak строит audit-only план по audio_review remote_leak probable errors, отделяет plain leak от remote_leak_with_local_content_risk и явно запрещает whole-Me drop/raw edits."
 
   quality-order-regressions:
     title: "Transcript order regression cases"

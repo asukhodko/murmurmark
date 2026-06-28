@@ -563,6 +563,65 @@ has missing order audits and fails `transcript_order.no_complete_blocking_sessio
 session still has blocking chronology risk. `murmurmark corpus process` builds the aggregate order
 report before running corpus gates.
 
+### Remote Leak Segment Repair Plan
+
+`murmurmark repair remote-leak` is an audit-only planning step. It reads
+`derived/audit/audio-review-pack/audio_review_audit.jsonl`, selects rows where
+`classification.label == "remote_leak"` and `classification.verdict == "probable_transcript_error"`,
+and writes:
+
+```text
+derived/transcript-simple/whisper-cpp/remote-leak-repair/
+  remote_leak_segment_repair_plan.json
+  remote_leak_segment_repair_items.jsonl
+  remote_leak_segment_repair.md
+```
+
+`remote_leak_segment_repair_plan.json` uses
+`murmurmark.remote_leak_segment_repair_plan/v1`:
+
+```json
+{
+  "schema": "murmurmark.remote_leak_segment_repair_plan/v1",
+  "summary": {
+    "items": 15,
+    "seconds": 63.46,
+    "protect_local_content_items": 15,
+    "protect_local_content_seconds": 63.46,
+    "by_diagnostic": {
+      "remote_leak_with_local_content_risk": 15
+    }
+  },
+  "action_plan": [
+    {
+      "next_work": "implement_segment_level_remote_leak_repair",
+      "diagnostic": "remote_leak_with_local_content_risk"
+    }
+  ],
+  "policy": {
+    "mode": "audit_only",
+    "may_modify_transcript": false,
+    "may_modify_raw_audio": false,
+    "whole_me_drop_allowed": false
+  }
+}
+```
+
+`remote_leak_segment_repair_items.jsonl` uses
+`murmurmark.remote_leak_segment_repair_item/v1`. Each item keeps the source audit id, interval,
+utterance ids, compact utterances, diagnostic label, proposed future patch type, scores, text/audio
+evidence and ready clip commands from the source audit. v1 has three diagnostics:
+
+- `remote_leak_with_local_content_risk`: local support or unique `Me` text makes whole-utterance
+  deletion unsafe; future work should split or re-ASR local islands.
+- `remote_leak_duplicate_like`: leak also looks textually similar to remote, but remains review or
+  mark-only until stronger evidence exists.
+- `remote_leak_plain`: likely leak evidence without enough local content; keep explicit mark-only
+  evidence.
+
+The planner never writes a transcript profile and never changes raw CAF files. Its job is to turn a
+wide `remote_leak` bucket into the next safe repair queue.
+
 The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
 and writes under:
 

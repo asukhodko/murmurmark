@@ -310,6 +310,26 @@ historical sessions remain visible as review material without blocking the compl
 `transcript_order.no_complete_blocking_sessions` if any complete session remains blocked by
 chronology risk.
 
+## Remote Leak Segment Plan
+
+Remote leak needs a different safety shape. A `remote_leak` region can still contain real local
+content from `Me`, so the next safe step is an audit-only segment plan:
+
+```bash
+murmurmark repair remote-leak "$SESSION"
+
+less "$SESSION/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md"
+jq '.summary, .action_plan, .policy' \
+  "$SESSION/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json"
+```
+
+The planner reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, selects
+`remote_leak` rows with `probable_transcript_error`, and writes only
+`remote_leak_segment_repair_*` artifacts. It does not edit transcript profiles, Echo Guard outputs,
+or raw CAF files. Items with unique local `Me` content are labelled
+`remote_leak_with_local_content_risk`; those are future segment-level repair candidates, not
+whole-utterance drops.
+
 ## Group Overlap Audit
 
 For group calls, `remote_duplicate_in_me_seconds` can overstate the real damage. Some overlap is
