@@ -454,6 +454,8 @@ jq -e '.metrics.synthesis_review_item_count >= 1 and any(.metrics.synthesis_revi
 report_output="$("$bin" report "$session")"
 assert_no_helper_prefix "$report_output"
 echo "$report_output" | grep -q '^readiness:$'
+echo "$report_output" | grep -q '^  status: incomplete$'
+echo "$report_output" | grep -q '^  recommended_next: murmurmark process '
 echo "$report_output" | grep -q '  synthesis_review_items: '
 echo "$report_output" | grep -q '  synthesis_review_types: .*utterance_transcript_order_review=1'
 corpus_report_output="$("$bin" report corpus --sessions-root "$workdir")"
@@ -2462,6 +2464,8 @@ PY
   echo "$latest_apply_output" | grep -q '^  report: .*review_decisions_apply.latest.json'
   echo "$latest_apply_output" | grep -q '^  next: murmurmark report '
   echo "$latest_apply_output" | grep -q '^readiness:$'
+  echo "$latest_apply_output" | grep -q '^  status: '
+  echo "$latest_apply_output" | grep -q '^  recommended_next: '
   echo "$latest_apply_output" | grep -q '^  selected_profile: '
   echo "$latest_apply_output" | grep -q '^  next:'
   jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.session_count == 1 and .summary.failed_sessions == 0' "$latest_apply_report" >/dev/null

@@ -90,9 +90,9 @@ retention. For `review_first`, the command chain runs `murmurmark review progres
 after workspace answers have been copied, then ends with `murmurmark review apply` only when the
 decision file is ready.
 
-`murmurmark report SESSION` prints the same selected profile, verdict, review burden and synthesis
-review item summary, so the terminal output is enough to see whether notes still depend on risky
-utterances before opening the Markdown files.
+`murmurmark report SESSION` prints a short status, `recommended_next`, the selected profile, verdict,
+review burden and synthesis review item summary, so the terminal output is enough to see whether
+notes still depend on risky utterances before opening the Markdown files.
 Use `murmurmark review next SESSION` when you only need the next review step for one session. It
 refreshes session readiness, builds a session-local review plan under
 `SESSION/derived/readiness/review-plan/` when review is needed, and prints the review-oriented

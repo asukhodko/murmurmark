@@ -1544,6 +1544,15 @@ Explicit command-line flags override config values.
 the transcript or notes. `export_blockers` is the machine-readable default export gate. `review_blockers`
 is the list a review workflow should close before a medium-risk handoff. `next_commands` is
 informational CLI guidance for the current state; gates and blockers remain the source of truth.
+The Swift CLI additionally prints a derived terminal-only `status`:
+
+- `exportable`: `ready_for_notes` and no export blockers;
+- `review_required`: review blockers or `review_first`;
+- `incomplete`: pipeline-incomplete gate or blocker;
+- `blocked`: hard no-use gate or export blockers not already classified as review/incomplete;
+- `check_required`: fallback for unusual states.
+
+`recommended_next` is the first command from `next_commands`.
 
 Operational readiness combines the private session quality report and regression corpus evaluation:
 

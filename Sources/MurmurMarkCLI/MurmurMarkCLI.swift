@@ -6638,12 +6638,18 @@ enum ReadinessPrinter {
         let verdict = string(payload["verdict"]) ?? "unknown"
         let nextCommands = payload["next_commands"] as? [[String: Any]]
             ?? fallbackNextCommands(gate: gate, session: session, payload: payload)
+        let status = readinessStatus(gate: gate, payload: payload)
+        let recommendedNext = nextCommands.compactMap { string($0["command"]) }.first
         let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0) * 100
 
         print("")
         print("readiness:")
         print("  session: \(PathDisplay.display(session))")
+        print("  status: \(status)")
+        if let recommendedNext {
+            print("  recommended_next: \(recommendedNext)")
+        }
         print("  gate: \(gate)")
         print("  recommendation: \(recommendation)")
         print("  selected_profile: \(profile)")
@@ -6750,6 +6756,24 @@ enum ReadinessPrinter {
                 "command": "less \(sessionPath)/derived/readiness/session_readiness.md",
             ],
         ]
+    }
+
+    private static func readinessStatus(gate: String, payload: [String: Any]) -> String {
+        let exportBlockers = (payload["export_blockers"] as? [Any] ?? []).map { String(describing: $0) }
+        let reviewBlockers = (payload["review_blockers"] as? [Any] ?? []).map { String(describing: $0) }
+        if gate.hasPrefix("pipeline_incomplete") || exportBlockers.contains("pipeline_incomplete") {
+            return "incomplete"
+        }
+        if gate == "ready_for_notes" && exportBlockers.isEmpty {
+            return "exportable"
+        }
+        if gate == "review_first" || !reviewBlockers.isEmpty {
+            return "review_required"
+        }
+        if gate == "do_not_use_without_manual_review" || !exportBlockers.isEmpty {
+            return "blocked"
+        }
+        return "check_required"
     }
 
     private static func string(_ value: Any?) -> String? {
