@@ -1448,6 +1448,10 @@ EOF
     --template "$review_template" \
     --out-dir "$cli_review_workspace_dir" >"$cli_workspace_stdout"
   [[ -s "$cli_review_workspace_dir/review_workspace.json" ]]
+  grep -q '^  lane_packs:$' "$cli_workspace_stdout"
+  grep -q '^    check_local_recall: items=' "$cli_workspace_stdout"
+  grep -q '^      listen: afplay ' "$cli_workspace_stdout"
+  grep -q '^      edit: \$EDITOR ' "$cli_workspace_stdout"
   grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_stdout"
   jq -e '.schema == "murmurmark.review_workspace/v1" and any(.lanes[]; .lane == "check_local_recall" and .status == "ok")' "$cli_review_workspace_dir/review_workspace.json" >/dev/null
   cli_answer_sheet="$cli_review_workspace_dir/lane-packs/review_lane_answers.check_local_recall.txt"

@@ -202,6 +202,12 @@ enum ReviewPrinter {
         print("  items: \(itemCount)")
         print(String(format: "  listen_minutes: %.2f", durationSeconds / 60))
         print("  by_lane: \(compactJSON(byLane))")
+        if !okLanes.isEmpty {
+            print("  lane_packs:")
+            for lane in okLanes {
+                printWorkspaceLane(lane)
+            }
+        }
         if let sessionID = sessionIDForSessionLocalPlan(outDir) {
             print("  next: edit lane answer sheets, then `murmurmark review workspace apply --session \(sessionID)`")
         } else {
@@ -248,6 +254,21 @@ enum ReviewPrinter {
             return nil
         }
         return session.lastPathComponent
+    }
+
+    private static func printWorkspaceLane(_ lane: [String: Any]) {
+        let name = string(lane["lane"]) ?? "unknown"
+        let items = int(lane["items"]) ?? 0
+        let minutes = (double(lane["duration_sec"]) ?? 0) / 60
+        let suggested = string(lane["suggested_answer_sheet"]).flatMap { firstAnswersLine(url: PathURLs.fileURL($0)) }
+        let suffix = suggested.map { " suggested=\($0)" } ?? ""
+        print(String(format: "    %@: items=%d minutes=%.2f%@", name, items, minutes, suffix))
+        if let audio = string(lane["audio"]) {
+            print("      listen: afplay \(shellQuote(audio))")
+        }
+        if let answerSheet = string(lane["answer_sheet"]) {
+            print("      edit: $EDITOR \(shellQuote(answerSheet))")
+        }
     }
 
     private static func bool(_ value: Any?) -> Bool? {

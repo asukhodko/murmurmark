@@ -1847,6 +1847,9 @@ sessions/_reports/review-plan/
   lane-packs/review_lane_answers.<lane>.txt
 ```
 
+The Swift CLI also prints a per-lane handoff from `review_workspace.json`: item count, estimated
+minutes, suggested `answers=...`, and ready `afplay`/`$EDITOR` commands for each lane pack.
+
 The JSON uses `murmurmark.review_workspace/v1`:
 
 ```json
