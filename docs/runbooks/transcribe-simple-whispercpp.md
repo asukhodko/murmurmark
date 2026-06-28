@@ -74,8 +74,8 @@ murmurmark export latest --format markdown --include-json
 murmurmark retention plan latest
 ```
 
-After a successful recording, `record` prints `SESSION="..."` and the exact `murmurmark process ...`
-command for that session. `process latest` remains a convenient shortcut when the newest session is
+After a successful recording, `record` prints `SESSION="..."`, `recommended_next` and the exact
+`murmurmark process ...` command for that session. `process latest` remains a convenient shortcut when the newest session is
 the one you just recorded. If `export` blocks, follow its printed review commands first, then rerun
 the same export command.
 

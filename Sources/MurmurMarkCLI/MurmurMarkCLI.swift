@@ -347,7 +347,7 @@ struct DoctorReport {
         if warnings > 0 {
             print("  optional: resolve warnings above")
         }
-        print("  murmurmark record")
+        print("  murmurmark record --target-bundle system")
         print("  murmurmark process latest")
         print("  murmurmark status latest")
     }
@@ -4583,7 +4583,9 @@ extension SessionRecorder {
     private func printHandoff() {
         let session = PathDisplay.display(outputDirectory)
         print("SESSION=\"\(session)\"")
-        print("next: murmurmark process \(session)")
+        print("recommended_next: murmurmark process \(session)")
+        print("next:")
+        print("  murmurmark process \(session)")
     }
 }
 

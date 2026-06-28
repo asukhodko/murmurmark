@@ -28,6 +28,8 @@ fi
 
 doctor_output="$("$bin" doctor)"
 echo "$doctor_output" | grep -q '^next:$'
+echo "$doctor_output" | grep -q '^  murmurmark record --target-bundle system$'
+echo "$doctor_output" | grep -q '^  murmurmark status latest$'
 echo "$doctor_output" | grep -q '^status: doctor completed$'
 
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-smoke.XXXXXX")"
