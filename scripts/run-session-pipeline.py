@@ -282,6 +282,30 @@ def run_step(item: dict[str, Any], repo_root: Path, plan_only: bool) -> dict[str
     return result
 
 
+def print_step_start(item: dict[str, Any], plan_only: bool) -> None:
+    if not item["enabled"]:
+        prefix = "[skip]"
+    elif plan_only:
+        prefix = "[plan]"
+    else:
+        prefix = "[run]"
+    print(f"{prefix} {item['name']}", flush=True)
+
+
+def print_step_result(result: dict[str, Any]) -> None:
+    status = str(result.get("status") or "unknown")
+    duration = float(result.get("duration_sec") or 0.0)
+    if status in {"planned", "skipped"}:
+        print(f"[{status}] {result['name']}", flush=True)
+        return
+    print(f"[{status}] {result['name']} ({duration:.1f}s)", flush=True)
+    if status == "failed":
+        for key in ("stderr_tail", "stdout_tail"):
+            tail = str(result.get(key) or "").strip()
+            if tail:
+                print(f"{key}:\n{tail}", flush=True)
+
+
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parents[1]
@@ -293,15 +317,10 @@ def main() -> int:
     final_status = "passed"
 
     for item in steps:
-        if not item["enabled"]:
-            prefix = "[skip]"
-        elif args.plan_only:
-            prefix = "[plan]"
-        else:
-            prefix = "[run]"
-        print(f"{prefix} {item['name']}")
+        print_step_start(item, args.plan_only)
         result = run_step(item, repo_root, args.plan_only)
         results.append(result)
+        print_step_result(result)
         if result["status"] == "failed":
             final_status = "failed"
             break
@@ -345,11 +364,11 @@ def main() -> int:
         "steps": results,
     }
     write_json(report_path, report)
-    print(f"pipeline_run_report: {report_path}")
+    print(f"pipeline_run_report: {report_path}", flush=True)
     if report["outputs"]["selected_transcript_profile"]:
-        print(f"selected_profile: {report['outputs']['selected_transcript_profile']}")
+        print(f"selected_profile: {report['outputs']['selected_transcript_profile']}", flush=True)
     if report["outputs"]["verdict"]:
-        print(f"quality_verdict: {report['outputs']['verdict']}")
+        print(f"quality_verdict: {report['outputs']['verdict']}", flush=True)
     return 0 if report["status"] in {"passed", "planned"} else 2
 
 

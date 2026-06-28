@@ -1314,6 +1314,8 @@ derived/readiness/
 
 The report is a reproducibility/audit artifact. It does not replace the per-stage reports; it only
 records which existing stage commands were run and what final synthesis profile was selected.
+The runner also prints the same stage names to stdout as live progress lines (`[run]`, `[passed]`,
+`[failed]`, `[skip]`) so long ASR stages are visible during a normal `murmurmark process` run.
 
 ## Export Bundle
 

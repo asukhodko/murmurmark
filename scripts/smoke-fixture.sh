@@ -1589,7 +1589,10 @@ EOF
     --plan-only \
     --skip-build \
     --reuse-asr-cache \
-    --report "$pipeline_plan" >/dev/null
+    --report "$pipeline_plan" >"$workdir/pipeline-plan.out"
+  grep -q '^\[skip\] swift_build' "$workdir/pipeline-plan.out"
+  grep -q '^\[plan\] inspect' "$workdir/pipeline-plan.out"
+  grep -q '^\[planned\] session_readiness' "$workdir/pipeline-plan.out"
   [[ -s "$pipeline_plan" ]]
   jq -e '.schema == "murmurmark.session_pipeline_run/v1" and .status == "planned" and (.steps | length) >= 10' "$pipeline_plan" >/dev/null
   jq -e '.outputs.readiness_selected_profile == .outputs.selected_transcript_profile' "$pipeline_plan" >/dev/null
@@ -1869,6 +1872,17 @@ assert lanes["check_unique_me_content"] == 2, lanes
 assert lanes["check_local_recall"] == 2, lanes
 assert lanes["check_transcript_order"] == 2, lanes
 assert any(row["label"] == "probable_order_risk" for row in selected), selected
+burden = module.session_review_burden(
+    {
+        "session_id": "order-repair-session",
+        "selected_profile": "order_repair_v1",
+        "verdict": "usable_with_review",
+        "use_gate": "review_first",
+        "meeting_duration_sec": 100,
+        "review_burden_sec": 4,
+    }
+)
+assert burden["use_gate"] == "review_first", burden
 blocked_next = module.build_next_commands(
     ["not_enough_complete_pipelines"],
     {

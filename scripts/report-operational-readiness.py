@@ -196,7 +196,8 @@ def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
         "audit_harmful_seconds_after": round(harmful, 3),
         "risk_flags": session.get("risk_flags") or [],
     }
-    row["use_gate"] = session_use_gate(row)
+    source_gate = session.get("use_gate")
+    row["use_gate"] = source_gate if isinstance(source_gate, str) and source_gate else session_use_gate(row)
     return row
 
 
