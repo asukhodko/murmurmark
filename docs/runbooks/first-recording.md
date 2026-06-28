@@ -38,8 +38,9 @@ If screen or system audio access is missing, grant it in macOS privacy settings 
 
 If microphone access is missing, grant microphone access to the same launching application.
 
-Re-run `doctor` after changing permissions. Use `murmurmark doctor --strict` when a setup script
-should fail on missing required dependencies.
+Re-run `doctor` after changing permissions. It prints the next normal CLI commands when the machine
+is usable. Use `murmurmark doctor --strict` when a setup script should fail on missing required
+dependencies.
 
 ## Short Recording
 

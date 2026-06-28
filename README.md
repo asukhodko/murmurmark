@@ -29,8 +29,8 @@ can be run from any directory. During development, `.build/debug/murmurmark` and
 
 `murmurmark doctor` checks the current CLI home, config, core scripts, `ffmpeg`/`ffprobe`,
 `whisper-cli`, Python runtime and modules, the configured whisper.cpp model, and macOS recording
-permissions. It reports warnings without failing by default; use `murmurmark doctor --strict` in
-automation when required checks must fail the command.
+permissions. It reports warnings without failing by default and prints the next normal CLI commands;
+use `murmurmark doctor --strict` in automation when required checks must fail the command.
 
 ### Local Release Bundle
 
@@ -783,7 +783,9 @@ Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If w
 
 `--repair-profile current` is the default and keeps the current transcript path stable. `--repair-profile shadow_v2` writes a separate candidate transcript, quality report, timeline-repair report, comparison gates, and audit examples without replacing `transcript.md`. Shadow repair seeds every short local-island micro-ASR choice with the current result, then tests wider windows, alternate mic sources, leading silence, narrow boundary-prefix fixes such as `адно` -> `Ладно`, and a guarded start-of-call repair for short opening turns such as `Привет`, `Меня слышно?`, `Привет, да`. `repair_comparison.json` must pass no-regression gates before any shadow behavior is promoted.
 
-Before recording, macOS must allow the terminal or Codex app to use Screen & System Audio Recording and Microphone. `doctor` prints the current permission state, local dependency checks, model path and pipeline readiness.
+Before recording, macOS must allow the terminal or Codex app to use Screen & System Audio Recording
+and Microphone. `doctor` prints the current permission state, local dependency checks, model path,
+pipeline readiness and the next normal CLI commands.
 
 For the first real run, use [docs/runbooks/first-recording.md](docs/runbooks/first-recording.md).
 

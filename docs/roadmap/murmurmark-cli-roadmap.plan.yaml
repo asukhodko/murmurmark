@@ -619,7 +619,7 @@ nodes:
     parent: packaging
     status: done
     effort: 4
-    notes: "doctor проверяет macOS permissions, ffmpeg/ffprobe, whisper-cli, модель, Python окружение, модули, config и core scripts."
+    notes: "doctor проверяет macOS permissions, ffmpeg/ffprobe, whisper-cli, модель, Python окружение, модули, config и core scripts; в конце печатает next commands для обычного запуска."
 
   packaging-open-source-readiness:
     title: "Open-source readiness"
