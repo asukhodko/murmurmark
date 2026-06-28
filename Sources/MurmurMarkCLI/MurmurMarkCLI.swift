@@ -7375,6 +7375,33 @@ enum CorpusPrinter {
         print("  sessions_review_first: \(int(useGates["review_first"]) ?? 0)")
         print(String(format: "  review_minutes: %.2f", reviewSeconds / 60))
         printFirstNextCommand(payload)
+        printOperationalFocus(payload)
+    }
+
+    private static func printOperationalFocus(_ payload: [String: Any]) {
+        guard let first = firstReviewFocus(payload) else { return }
+        let sessionID = string(first["session_id"])
+            ?? string(first["session"]).map { URL(fileURLWithPath: $0).lastPathComponent }
+            ?? ""
+        guard !sessionID.isEmpty else { return }
+        print("  focus_session: \(sessionID)")
+        if let label = string(first["label"]) {
+            print("  focus_label: \(label)")
+        }
+        if let reason = string(first["reason"]) {
+            print("  focus_reason: \(reason)")
+        }
+        print("  focus_next:")
+        print("    murmurmark review next \(sessionID)")
+        print("    murmurmark review first-lane --session \(sessionID)")
+    }
+
+    private static func firstReviewFocus(_ payload: [String: Any]) -> [String: Any]? {
+        if let queue = payload["review_queue"] as? [[String: Any]], let first = queue.first {
+            return first
+        }
+        let rows = payload["session_review_burden"] as? [[String: Any]] ?? []
+        return rows.first { string($0["use_gate"]) == "review_first" }
     }
 
     private static func string(_ value: Any?) -> String? {

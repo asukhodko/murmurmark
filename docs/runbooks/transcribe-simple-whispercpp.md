@@ -677,6 +677,9 @@ working meetings, how much manual review remains, which sessions are `ready_for_
 profile-aware: already-resolved cleanup items are not shown as remaining work. Its `next_commands`
 points first to `murmurmark corpus process all` when structural pipeline coverage is the blocker,
 otherwise to the first review lane/workspace commands.
+`murmurmark report corpus` prints the same operational handoff in compact form: the first
+`next_command`, plus `focus_session`, `focus_label`, `focus_reason` and `focus_next` when a concrete
+review target exists.
 Stale audio-judge queue rows are also ignored when the current audio-review audit has reclassified
 the source item as reliable.
 `murmurmark corpus order` writes a separate chronology-risk corpus report under
