@@ -2842,7 +2842,7 @@ enum CorpusCommands {
 
     private static func reportSessionQuality(sessions: [URL], outDir: String = "sessions/_reports/session-quality") throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("report-session-quality.py").path,
         ] + sessions.map(\.path) + [
             "--out-dir", outDir,
@@ -2852,49 +2852,49 @@ enum CorpusCommands {
 
     private static func build(sessions: [URL], extraArgs: [String]) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("build-regression-corpus.py").path,
         ] + sessions.map(\.path) + extraArgs)
     }
 
     private static func evaluate(extraArgs: [String]) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("evaluate-regression-corpus.py").path,
         ] + extraArgs)
     }
 
     private static func trainAudioJudge(extraArgs: [String]) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("train-audio-judge-v0.py").path,
         ] + extraArgs)
     }
 
     private static func taxonomy(extraArgs: [String]) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("report-audio-error-taxonomy.py").path,
         ] + extraArgs)
     }
 
     private static func gates(extraArgs: [String]) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("check-corpus-gates.py").path,
         ] + extraArgs)
     }
 
     private static func transcriptOrder(sessions: [URL], extraArgs: [String]) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("report-transcript-order-corpus.py").path,
         ] + sessions.map(\.path) + extraArgs)
     }
 
     private static func operationalReadiness() throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("report-operational-readiness.py").path,
         ])
     }
@@ -3009,7 +3009,7 @@ enum CorpusRemoteLeakPlan {
     static func run(sessions: [URL]) throws {
         let python = try PythonRuntime.resolve()
         for session in sessions {
-            try Tooling.runPath(python, [
+            try Tooling.runPathQuiet(python, [
                 try script("plan-remote-leak-segment-repair.py").path,
                 session.path,
             ])
@@ -3052,14 +3052,14 @@ enum CorpusRemoteLeakCommands {
 
     static func report(sessions: [URL], extraArgs: [String]) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("report-remote-leak-segment-corpus.py").path,
         ] + sessions.map(\.path) + extraArgs)
     }
 
     private static func reportSessionQuality(sessions: [URL], outDir: String) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("report-session-quality.py").path,
         ] + sessions.map(\.path) + [
             "--out-dir", outDir,
@@ -3121,7 +3121,7 @@ enum CorpusLocalRecallCommands {
 
     static func report(sessions: [URL], extraArgs: [String]) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("report-local-recall-corpus.py").path,
         ] + sessions.map(\.path) + extraArgs)
     }
@@ -3129,7 +3129,7 @@ enum CorpusLocalRecallCommands {
     private static func runAudits(sessions: [URL], profile: String) throws {
         let python = try PythonRuntime.resolve()
         for session in sessions {
-            _ = try Tooling.runPathAllowingExitCodes(python, [
+            _ = try Tooling.runPathQuietAllowingExitCodes(python, [
                 try script("audit-local-recall.py").path,
                 session.path,
                 "--profile", profile,
@@ -3139,7 +3139,7 @@ enum CorpusLocalRecallCommands {
 
     private static func reportSessionQuality(sessions: [URL], outDir: String) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("report-session-quality.py").path,
         ] + sessions.map(\.path) + [
             "--out-dir", outDir,
@@ -3208,7 +3208,7 @@ enum CorpusLocalRecallRepairCommands {
 
     static func report(sessions: [URL], extraArgs: [String]) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("report-local-recall-repair-corpus.py").path,
         ] + sessions.map(\.path) + extraArgs)
     }
@@ -3216,19 +3216,19 @@ enum CorpusLocalRecallRepairCommands {
     private static func runRepairs(sessions: [URL], inputProfile: String, outputProfile: String, synthesize: Bool) throws {
         let python = try PythonRuntime.resolve()
         for session in sessions {
-            _ = try Tooling.runPathAllowingExitCodes(python, [
+            _ = try Tooling.runPathQuietAllowingExitCodes(python, [
                 try script("audit-local-recall.py").path,
                 session.path,
                 "--profile", inputProfile,
             ], allowedExitCodes: [0, 1])
-            let repairStatus = try Tooling.runPathAllowingExitCodes(python, [
+            let repairStatus = try Tooling.runPathQuietAllowingExitCodes(python, [
                 try script("apply-local-recall-repair.py").path,
                 session.path,
                 "--input-profile", inputProfile,
                 "--output-profile", outputProfile,
             ], allowedExitCodes: [0, 2])
             if repairStatus == 0, synthesize {
-                _ = try Tooling.runPathAllowingExitCodes(python, [
+                _ = try Tooling.runPathQuietAllowingExitCodes(python, [
                     try script("synthesize-simple-extractive.py").path,
                     session.path,
                     "--transcript-profile", outputProfile,
@@ -3239,7 +3239,7 @@ enum CorpusLocalRecallRepairCommands {
 
     private static func reportSessionQuality(sessions: [URL], outDir: String) throws {
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("report-session-quality.py").path,
         ] + sessions.map(\.path) + [
             "--out-dir", outDir,
@@ -3277,7 +3277,7 @@ enum CorpusOrderRepair {
     static func run(sessions: [URL], inputProfile: String, outputProfile: String, synthesize: Bool) throws {
         let python = try PythonRuntime.resolve()
         for session in sessions {
-            let auditStatus = try Tooling.runPathAllowingExitCodes(python, [
+            let auditStatus = try Tooling.runPathQuietAllowingExitCodes(python, [
                 try script("audit-transcript-order.py").path,
                 session.path,
                 "--profile", inputProfile,
@@ -3286,14 +3286,14 @@ enum CorpusOrderRepair {
                 continue
             }
 
-            let repairStatus = try Tooling.runPathAllowingExitCodes(python, [
+            let repairStatus = try Tooling.runPathQuietAllowingExitCodes(python, [
                 try script("apply-transcript-order-repair.py").path,
                 session.path,
                 "--input-profile", inputProfile,
                 "--output-profile", outputProfile,
             ], allowedExitCodes: [0, 2])
             if repairStatus == 0, synthesize {
-                _ = try Tooling.runPathAllowingExitCodes(python, [
+                _ = try Tooling.runPathQuietAllowingExitCodes(python, [
                     try script("synthesize-simple-extractive.py").path,
                     session.path,
                     "--transcript-profile", outputProfile,
@@ -7143,7 +7143,7 @@ enum CorpusPrinter {
         print("  sessions: \(int(payload["session_count"]) ?? 0)")
         print("  items: \(int(payload["item_count"]) ?? 0)")
         if let labels = payload["by_label"] as? [String: Any] {
-            print("  by_label: \(compactJSON(labels))")
+            print("  by_label: \(corpusPrinterCompactJSON(labels))")
         }
         if let skipped = payload["skipped_sessions"] as? [[String: Any]], !skipped.isEmpty {
             print("  skipped_sessions: \(skipped.count)")
@@ -7160,7 +7160,7 @@ enum CorpusPrinter {
         print("  sessions: \(int(payload["session_count"]) ?? 0)")
         print("  items: \(int(payload["item_count"]) ?? 0)")
         if let missing = payload["missing_labels"] as? [Any], !missing.isEmpty {
-            print("  missing_labels: \(compactJSON(missing))")
+            print("  missing_labels: \(corpusPrinterCompactJSON(missing))")
         }
     }
 
@@ -7185,7 +7185,7 @@ enum CorpusPrinter {
         print("  queue_items: \(int(queue["items"]) ?? 0)")
         print("  remaining_human_review_items: \(int(queue["remaining_human_review_items"]) ?? 0)")
         if let labels = queue["by_judge_label"] as? [String: Any] {
-            print("  by_judge_label: \(compactJSON(labels))")
+            print("  by_judge_label: \(corpusPrinterCompactJSON(labels))")
         }
     }
 
@@ -7202,7 +7202,7 @@ enum CorpusPrinter {
             print(String(format: "  attention_seconds: %.2f", seconds))
         }
         if let missing = summary["missing_classes"] as? [Any], !missing.isEmpty {
-            print("  missing_classes: \(compactJSON(missing))")
+            print("  missing_classes: \(corpusPrinterCompactJSON(missing))")
         }
         if let focus = payload["focus_areas"] as? [[String: Any]], let first = focus.first {
             print("  first_focus: \(string(first["area"]) ?? "unknown") -> \(string(first["next_action"]) ?? "unknown")")
@@ -7299,6 +7299,8 @@ enum CorpusPrinter {
         print("  repaired_sessions: \(int(summary["repaired_session_count"]) ?? 0) / \(int(summary["session_count"]) ?? 0)")
         print("  sessions_with_repairs: \(int(summary["sessions_with_repairs"]) ?? 0)")
         print("  applied_repairs: \(int(summary["applied_repairs"]) ?? 0)")
+        print("  reviewable_applied_repairs: \(int(summary["reviewable_applied_repairs"]) ?? 0)")
+        print("  incomplete_applied_repairs: \(int(summary["incomplete_applied_repairs"]) ?? 0)")
         if let seconds = double(summary["inserted_me_seconds"]) {
             print(String(format: "  inserted_me_seconds: %.2f", seconds))
         }
@@ -7317,6 +7319,9 @@ enum CorpusPrinter {
         print("  planned_sessions: \(int(summary["planned_session_count"]) ?? 0) / \(int(summary["session_count"]) ?? 0)")
         print("  missing_plans: \(int(summary["missing_plan_count"]) ?? 0)")
         print("  items: \(int(summary["item_count"]) ?? 0)")
+        print("  protect_local_content_items: \(int(summary["protect_local_content_items"]) ?? 0)")
+        print("  reviewable_protect_local_content_items: \(int(summary["reviewable_protect_local_content_items"]) ?? 0)")
+        print("  incomplete_protect_local_content_items: \(int(summary["incomplete_protect_local_content_items"]) ?? 0)")
         if let seconds = double(summary["protect_local_content_seconds"]) {
             print(String(format: "  protect_local_content_seconds: %.2f", seconds))
         }
@@ -7356,15 +7361,16 @@ enum CorpusPrinter {
         return nil
     }
 
-    private static func compactJSON(_ value: Any) -> String {
-        guard JSONSerialization.isValidJSONObject(value),
-              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
-              let text = String(data: data, encoding: .utf8)
-        else {
-            return "\(value)"
-        }
-        return text
+}
+
+private func corpusPrinterCompactJSON(_ value: Any) -> String {
+    guard JSONSerialization.isValidJSONObject(value),
+          let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+          let text = String(data: data, encoding: .utf8)
+    else {
+        return "\(value)"
     }
+    return text
 }
 
 private func printFirstNextCommand(_ payload: [String: Any]) {
@@ -7504,6 +7510,13 @@ enum Tooling {
         }
     }
 
+    static func runPathQuiet(_ executable: URL, _ arguments: [String]) throws {
+        let status = try runPathQuietAllowingExitCodes(executable, arguments, allowedExitCodes: [0])
+        guard status == 0 else {
+            throw CLIError("\(executable.lastPathComponent) exited with \(status)")
+        }
+    }
+
     static func runPathAllowingExitCodes(_ executable: URL, _ arguments: [String], allowedExitCodes: Set<Int32>) throws -> Int32 {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
             throw CLIError("executable not found: \(executable.path)")
@@ -7515,6 +7528,43 @@ enum Tooling {
         process.waitUntilExit()
         guard allowedExitCodes.contains(process.terminationStatus) else {
             throw CLIError("\(executable.lastPathComponent) exited with \(process.terminationStatus)")
+        }
+        return process.terminationStatus
+    }
+
+    static func runPathQuietAllowingExitCodes(
+        _ executable: URL,
+        _ arguments: [String],
+        allowedExitCodes: Set<Int32>
+    ) throws -> Int32 {
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+            throw CLIError("executable not found: \(executable.path)")
+        }
+        let process = Process()
+        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        let outputURL = tempDir.appendingPathComponent("murmurmark-\(UUID().uuidString).out")
+        let errorURL = tempDir.appendingPathComponent("murmurmark-\(UUID().uuidString).err")
+        FileManager.default.createFile(atPath: outputURL.path, contents: nil)
+        FileManager.default.createFile(atPath: errorURL.path, contents: nil)
+        let output = try FileHandle(forWritingTo: outputURL)
+        let error = try FileHandle(forWritingTo: errorURL)
+        defer {
+            try? output.close()
+            try? error.close()
+            try? FileManager.default.removeItem(at: outputURL)
+            try? FileManager.default.removeItem(at: errorURL)
+        }
+        process.executableURL = executable
+        process.arguments = arguments
+        process.standardOutput = output
+        process.standardError = error
+        try process.run()
+        process.waitUntilExit()
+        guard allowedExitCodes.contains(process.terminationStatus) else {
+            try? output.close()
+            try? error.close()
+            let capturedOutput = quietProcessOutput(stdout: outputURL, stderr: errorURL)
+            throw CLIError("\(executable.lastPathComponent) exited with \(process.terminationStatus)\(capturedOutput)")
         }
         return process.terminationStatus
     }
@@ -7540,6 +7590,25 @@ enum Tooling {
         let combined = output + error
         return String(bytes: [UInt8](combined), encoding: .utf8) ?? ""
     }
+}
+
+private func quietProcessOutput(stdout: URL, stderr: URL) -> String {
+    let output = [readQuietProcessFile(stderr), readQuietProcessFile(stdout)]
+        .filter { !$0.isEmpty }
+        .joined(separator: "\n")
+    guard !output.isEmpty else { return "" }
+    let limit = 4_000
+    let tail = output.count > limit ? String(output.suffix(limit)) : output
+    return "\n\(tail)"
+}
+
+private func readQuietProcessFile(_ url: URL) -> String {
+    guard let data = try? Data(contentsOf: url),
+          let text = String(data: data, encoding: .utf8)
+    else {
+        return ""
+    }
+    return text.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 enum CaptureErrors {

@@ -724,6 +724,7 @@ want to refresh the remote-leak queue. The report writes `next_commands`: missin
 point to `murmurmark review lane check_unique_me_content --session ...`, and incomplete sessions
 go back through `murmurmark process ...` first. `corpus gate` reads this aggregate report and warns
 when plans are missing or when protected-local-content leak intervals remain in the queue.
+Corpus CLI commands keep per-session helper output quiet and show one aggregate handoff summary.
 `murmurmark corpus report` prints the existing session-quality summary and, when the files already
 exist, also prints short summaries for transcript-order, remote-leak, corpus-gates and
 operational-readiness. It does not rebuild those reports; it is the quick “what is the current state?” command after a heavier
