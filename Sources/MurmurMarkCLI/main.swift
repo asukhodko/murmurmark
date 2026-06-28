@@ -5522,11 +5522,11 @@ enum ReadinessPrinter {
                 ],
                 [
                     "label": "Apply edited review workspace answers.",
-                    "command": "murmurmark review workspace apply",
+                    "command": "murmurmark review workspace apply --session \(sessionPath)",
                 ],
                 [
                     "label": "Apply closed review decisions and refresh reports when progress is ready.",
-                    "command": "murmurmark review apply",
+                    "command": "murmurmark review apply --session \(sessionPath)",
                 ],
             ]
         }

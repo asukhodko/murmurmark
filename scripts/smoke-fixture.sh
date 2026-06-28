@@ -467,7 +467,8 @@ ids = [item["id"] for item in commands]
 assert ids == ["review_plan", "review_first_lane", "review_workspace", "review_workspace_apply", "review_apply"], ids
 assert any("murmurmark review first-lane --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review workspace --session sessions/review-session" == item["command"] for item in commands)
-assert any("murmurmark review apply" == item["command"] for item in commands)
+assert any("murmurmark review workspace apply --session sessions/review-session" == item["command"] for item in commands)
+assert any("murmurmark review apply --session sessions/review-session" == item["command"] for item in commands)
 order_commands = module.readiness_next_commands(
     Path("sessions/order-session"),
     {"use_gate": "review_first", "review_blockers": ["risk:transcript_order_risk"], "risk_flags": ["transcript_order_risk"]},
@@ -507,7 +508,8 @@ jq -n --arg session "$review_next_session" '{
     {id: "review_plan", label: "Build the review queue.", command: "murmurmark review plan"},
     {id: "review_first_lane", label: "Build first lane.", command: ("murmurmark review first-lane --session " + $session)},
     {id: "review_workspace", label: "Build workspace.", command: ("murmurmark review workspace --session " + $session)},
-    {id: "review_apply", label: "Apply decisions.", command: "murmurmark review apply"}
+    {id: "review_workspace_apply", label: "Apply workspace.", command: ("murmurmark review workspace apply --session " + $session)},
+    {id: "review_apply", label: "Apply decisions.", command: ("murmurmark review apply --session " + $session)}
   ]
 }' >"$review_next_session/derived/readiness/session_readiness.json"
 jq -n '{

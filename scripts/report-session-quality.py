@@ -1493,12 +1493,12 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
                 {
                     "id": "review_workspace_apply",
                     "label": "Apply edited review workspace answers.",
-                    "command": "murmurmark review workspace apply",
+                    "command": f"murmurmark review workspace apply --session {session_arg}",
                 },
                 {
                     "id": "review_apply",
                     "label": "Apply closed review decisions and refresh reports when progress is ready.",
-                    "command": "murmurmark review apply",
+                    "command": f"murmurmark review apply --session {session_arg}",
                 },
             ]
         )
