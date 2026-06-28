@@ -29,6 +29,8 @@ struct MurmurMark {
                 try await Commands.record(args)
             case "latest":
                 try PipelineCommands.latest(args)
+            case "sessions":
+                try PipelineCommands.sessions(args)
             case "process":
                 try PipelineCommands.process(args)
             case "status":
@@ -103,6 +105,7 @@ struct MurmurMark {
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
+          murmurmark sessions [--limit 10] [--path-only] [--sessions-root ./sessions]
           murmurmark latest [--sessions-root ./sessions]
           murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
@@ -163,6 +166,7 @@ struct MurmurMark {
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C or SIGTERM and finalizes the session.
           Without --out, recording creates a unique directory under ./sessions.
+          sessions lists recent session packages and their readiness state.
           process runs the current post-recording pipeline and prints the readiness summary.
           status prints the current readiness dashboard without recomputing reports.
           next prints the single recommended next command from readiness.
@@ -500,6 +504,32 @@ enum DoctorChecks {
 }
 
 enum PipelineCommands {
+    static func sessions(_ args: [String]) throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            PipelineHelp.printSessions()
+            return
+        }
+        var remaining = args
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let pathOnly = ArgumentEditing.takeFlag("path-only", from: &remaining)
+        let all = ArgumentEditing.takeFlag("all", from: &remaining)
+        let limitText = ArgumentEditing.takeOption("limit", from: &remaining)
+        let limit = try parsePositiveLimit(limitText, defaultValue: 10)
+        guard remaining.isEmpty else {
+            throw CLIError("unexpected sessions arguments: \(remaining.joined(separator: " "))")
+        }
+
+        let sessions = try SessionResolver.all(in: sessionsRoot)
+        let selected = all ? sessions : Array(sessions.prefix(limit))
+        if pathOnly {
+            for session in selected {
+                print(PathDisplay.display(session))
+            }
+            return
+        }
+        SessionListPrinter.print(sessions: sessions, shown: selected, root: sessionsRoot, limit: all ? nil : limit)
+    }
+
     static func latest(_ args: [String]) throws {
         if ArgumentEditing.hasHelpFlag(args) {
             PipelineHelp.printLatest()
@@ -651,9 +681,31 @@ enum PipelineCommands {
             "--write-session-readiness",
         ])
     }
+
+    private static func parsePositiveLimit(_ value: String?, defaultValue: Int) throws -> Int {
+        guard let value else { return defaultValue }
+        guard let parsed = Int(value), parsed > 0 else {
+            throw CLIError("--limit must be a positive integer")
+        }
+        return parsed
+    }
 }
 
 enum PipelineHelp {
+    static func printSessions() {
+        Swift.print("""
+        usage: murmurmark sessions [--limit 10] [--all] [--path-only] [--sessions-root ./sessions]
+
+        Lists recent session packages and their current readiness state.
+        Use --path-only when another command or script only needs session paths.
+
+        Common:
+          murmurmark sessions
+          murmurmark sessions --limit 5
+          murmurmark sessions --path-only --limit 3
+        """)
+    }
+
     static func printLatest() {
         Swift.print("""
         usage: murmurmark latest [--sessions-root ./sessions]
@@ -728,6 +780,90 @@ enum PipelineHelp {
           murmurmark report ./sessions/<id>
           murmurmark report corpus
         """)
+    }
+}
+
+enum SessionListPrinter {
+    static func print(sessions: [URL], shown: [URL], root: URL, limit: Int?) {
+        Swift.print("")
+        Swift.print("sessions:")
+        Swift.print("  root: \(PathDisplay.display(root))")
+        Swift.print("  count: \(sessions.count)")
+        if let latest = sessions.first {
+            Swift.print("  latest: \(PathDisplay.display(latest))")
+        }
+        if limit != nil, sessions.count > shown.count {
+            Swift.print("  shown: \(shown.count)")
+            Swift.print("  more: \(sessions.count - shown.count)")
+            Swift.print("  hint: murmurmark sessions --all")
+        } else {
+            Swift.print("  shown: \(shown.count)")
+        }
+        Swift.print("  items:")
+        if shown.isEmpty {
+            Swift.print("    []")
+            return
+        }
+        for session in shown {
+            printItem(session)
+        }
+    }
+
+    private static func printItem(_ session: URL) {
+        let readiness = readReadiness(session)
+        let sessionPath = PathDisplay.display(session)
+        Swift.print("    - session: \(sessionPath)")
+        Swift.print("      status: \(status(readiness))")
+        Swift.print("      gate: \(string(readiness?["use_gate"]) ?? "missing")")
+        Swift.print("      profile: \(string(readiness?["selected_profile"]) ?? "unknown")")
+        Swift.print("      verdict: \(string(readiness?["verdict"]) ?? "unknown")")
+        Swift.print("      next: \(nextCommand(readiness, session: session))")
+    }
+
+    private static func readReadiness(_ session: URL) -> [String: Any]? {
+        let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+        return try? JSONFiles.object(url)
+    }
+
+    private static func status(_ readiness: [String: Any]?) -> String {
+        guard let readiness else { return "missing_readiness" }
+        let gate = string(readiness["use_gate"]) ?? "unknown"
+        let exportBlockers = (readiness["export_blockers"] as? [Any] ?? []).map { String(describing: $0) }
+        let reviewBlockers = (readiness["review_blockers"] as? [Any] ?? []).map { String(describing: $0) }
+        if gate.hasPrefix("pipeline_incomplete") || exportBlockers.contains("pipeline_incomplete") {
+            return "incomplete"
+        }
+        if gate == "ready_for_notes" && exportBlockers.isEmpty {
+            return "exportable"
+        }
+        if gate == "review_first" || !reviewBlockers.isEmpty {
+            return "review_required"
+        }
+        if gate == "do_not_use_without_manual_review" || !exportBlockers.isEmpty {
+            return "blocked"
+        }
+        return "check_required"
+    }
+
+    private static func nextCommand(_ readiness: [String: Any]?, session: URL) -> String {
+        if let readiness {
+            if let next = string(readiness["recommended_next"]), !next.isEmpty {
+                return next
+            }
+            if let commands = readiness["next_commands"] as? [[String: Any]],
+               let command = ReadinessPrinter.preferredNextCommand(commands) {
+                return command
+            }
+            return "murmurmark status \(PathDisplay.display(session))"
+        }
+        return "murmurmark process \(PathDisplay.display(session))"
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
     }
 }
 

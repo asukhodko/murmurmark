@@ -102,6 +102,8 @@ the selected verdict, notes, transcript and audit reports.
 the selected notes/transcript/verdict, the selected profile, verdict, review burden and synthesis
 review item summary without recomputing reports. Use `murmurmark report SESSION` when readiness
 should be refreshed first. If readiness is missing, `status` points to `murmurmark process SESSION`.
+Use `murmurmark sessions` to list recent session packages with their current readiness state and
+next safe command before choosing a target.
 Use `murmurmark next SESSION` when you only need the single command to run now; add `--refresh` when
 derived artifacts changed and readiness should be regenerated first. After a successful export,
 `next` follows the successful `export_manifest.json` and points to retention planning. If the export

@@ -516,6 +516,15 @@ echo "$retention_readiness_output" | grep -q '^  recommended_next: murmurmark pr
 status_latest_output="$("$bin" status --sessions-root "$workdir")"
 echo "$status_latest_output" | grep -q '^SESSION="'
 echo "$status_latest_output" | grep -q '^readiness:$'
+sessions_output="$("$bin" sessions --sessions-root "$workdir" --limit 1)"
+assert_no_helper_prefix "$sessions_output"
+echo "$sessions_output" | grep -q '^sessions:$'
+echo "$sessions_output" | grep -q '^  latest: '
+echo "$sessions_output" | grep -q '^  items:$'
+echo "$sessions_output" | grep -q '^    - session: '
+echo "$sessions_output" | grep -q '^      status: incomplete$'
+echo "$sessions_output" | grep -q '^      next: murmurmark process '
+"$bin" sessions --sessions-root "$workdir" --path-only --limit 1 | grep -q '/session$'
 review_next_refresh_output="$("$bin" review next "$session")"
 assert_no_helper_prefix "$review_next_refresh_output"
 echo "$review_next_refresh_output" | grep -q '^review_next:$'

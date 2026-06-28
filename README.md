@@ -42,6 +42,7 @@ Normal CLI loop:
 ```bash
 murmurmark doctor
 murmurmark record --target-bundle system
+murmurmark sessions
 murmurmark process latest
 murmurmark next latest
 murmurmark open latest --kind notes
@@ -56,6 +57,8 @@ all print the next safe command for the current session state, so the terminal o
 `next` is the shortest answer when you only need the one command to run now.
 `open` is the shortest answer when you need to inspect the selected local output: notes, transcript,
 quality verdict, readiness or audit reports.
+`sessions` is the quick picker for recent recordings: it shows each session path, readiness status
+and the next safe command.
 `status` is the quickest dashboard for already-generated readiness; `report` refreshes readiness first.
 If readiness is not present yet, `status` and `next` point to `murmurmark process SESSION`.
 After a successful export, `next` follows the export manifest and points to retention planning; pass
@@ -394,6 +397,8 @@ murmurmark doctor --strict
 murmurmark list-apps
 murmurmark record --target-bundle system
 murmurmark latest
+murmurmark sessions
+murmurmark sessions --limit 5
 murmurmark config print
 murmurmark process latest
 murmurmark open latest --kind notes
