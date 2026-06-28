@@ -124,16 +124,16 @@ struct MurmurMark {
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
           murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
           murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
-          murmurmark corpus process all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
-          murmurmark corpus build all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
+          murmurmark corpus process all|latest|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
+          murmurmark corpus build all|latest|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus evaluate
           murmurmark corpus train-audio-judge
           murmurmark corpus taxonomy
           murmurmark corpus gate
-          murmurmark corpus order [all|./session...] [--repair] [--sessions-root ./sessions]
-          murmurmark corpus local-recall [all|./session...] [--audit] [--sessions-root ./sessions]
-          murmurmark corpus local-recall-repair [all|./session...] [--repair] [--sessions-root ./sessions]
-          murmurmark corpus remote-leak [all|./session...] [--plan] [--sessions-root ./sessions]
+          murmurmark corpus order [all|latest|./session...] [--repair] [--sessions-root ./sessions]
+          murmurmark corpus local-recall [all|latest|./session...] [--audit] [--sessions-root ./sessions]
+          murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
+          murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus report
           murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
                              [--include-json] [--force] [--sessions-root ./sessions]
