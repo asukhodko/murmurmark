@@ -317,7 +317,7 @@ nodes:
     parent: review-loop
     status: done
     effort: 4
-    notes: "Фильтры по дорожкам и workspace packs: harmful duplicate, lost Me, uncertain, notes evidence, export blockers."
+    notes: "Фильтры по дорожкам, explicit `murmurmark review lane LANE`, first-lane и workspace packs: harmful duplicate, lost Me, local-recall repair, uncertain, notes evidence, export blockers."
 
   review-hotkeys-progress:
     title: "Hotkeys и progress"

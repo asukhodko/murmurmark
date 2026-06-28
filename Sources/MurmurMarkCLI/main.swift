@@ -92,7 +92,7 @@ struct MurmurMark {
                                 [--reuse-asr-cache] [--plan-only] [--sessions-root ./sessions]
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
-          murmurmark review plan|progress|apply|first-lane|next
+          murmurmark review plan|progress|apply|first-lane|lane|next
           murmurmark review agent [--session-quality sessions/_reports/session-quality/session_quality_report.json]
           murmurmark review workspace [build|apply] [--session latest|./session]
           murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
@@ -572,6 +572,12 @@ enum ReviewCommands {
                 return
             }
             try ReviewFirstLaneCommand.run(forwarded, sessionsRoot: sessionsRoot)
+        case "lane":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                ReviewLaneCommand.printHelp()
+                return
+            }
+            try ReviewLaneCommand.run(forwarded, sessionsRoot: sessionsRoot)
         case "agent":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 ReviewAgentHelp.print()
@@ -996,6 +1002,122 @@ enum ReviewNextCommand {
     }
 }
 
+enum ReviewLaneCommand {
+    static func run(_ args: [String], sessionsRoot: URL) throws {
+        var forwarded = args
+        let explicitLane = ArgumentEditing.takeOption("lane", from: &forwarded)
+        let positionalLane: String?
+        if let first = forwarded.first, !first.hasPrefix("-") {
+            positionalLane = first
+            forwarded.removeFirst()
+        } else {
+            positionalLane = nil
+        }
+        guard let lane = explicitLane ?? positionalLane, !lane.isEmpty else {
+            throw CLIError("review lane requires a lane name, for example `murmurmark review lane check_local_recall`")
+        }
+
+        let explicitOperationalReadiness = ArgumentEditing.takeOption("operational-readiness", from: &forwarded)
+        let explicitPlanOutDir = ArgumentEditing.takeOption("plan-out-dir", from: &forwarded)
+        let explicitOutDir = ArgumentEditing.takeOption("out-dir", from: &forwarded)
+        let sessionFilter = ArgumentEditing.takeOption("session", from: &forwarded)
+        let session = try sessionFilter.map { try SessionResolver.resolve($0, sessionsRoot: sessionsRoot) }
+
+        var operationalReadiness = explicitOperationalReadiness.map(PathURLs.fileURL)
+        let planURL: URL
+        let lanePackOutURL: URL
+
+        if let session {
+            let readinessRoot = session.appendingPathComponent("derived/readiness")
+            let sessionQualityOut = readinessRoot.appendingPathComponent("session-quality")
+            let operationalOut = readinessRoot.appendingPathComponent("operational-readiness")
+            planURL = explicitPlanOutDir.map(PathURLs.fileURL) ?? readinessRoot.appendingPathComponent("review-plan")
+            lanePackOutURL = explicitOutDir.map(PathURLs.fileURL) ?? planURL.appendingPathComponent("lane-packs")
+            if operationalReadiness == nil {
+                try Tooling.runPath(try PythonRuntime.resolve(), [
+                    try script("report-session-quality.py").path,
+                    session.path,
+                    "--out-dir", sessionQualityOut.path,
+                    "--write-session-readiness",
+                ])
+                try Tooling.runPath(try PythonRuntime.resolve(), [
+                    try script("report-operational-readiness.py").path,
+                    "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
+                    "--out-dir", operationalOut.path,
+                ])
+                operationalReadiness = operationalOut.appendingPathComponent("operational_readiness_report.json")
+            }
+        } else {
+            planURL = explicitPlanOutDir.map(PathURLs.fileURL) ?? PathURLs.fileURL("sessions/_reports/review-plan")
+            lanePackOutURL = explicitOutDir.map(PathURLs.fileURL) ?? PathURLs.fileURL("sessions/_reports/review-plan/lane-packs")
+        }
+
+        var planArgs = ["--out-dir", planURL.path]
+        if let operationalReadiness {
+            planArgs += ["--operational-readiness", operationalReadiness.path]
+        }
+        try buildPlan(extraArgs: planArgs, refreshOperational: operationalReadiness == nil)
+
+        var laneArgs = [
+            try script("build-review-lane-pack.py").path,
+            "--template", planURL.appendingPathComponent("review_decisions.template.jsonl").path,
+            "--decisions", planURL.appendingPathComponent("review_decisions.jsonl").path,
+            "--lane", lane,
+            "--out-dir", lanePackOutURL.path,
+        ]
+        if let session {
+            laneArgs += ["--session", session.lastPathComponent]
+        }
+        try Tooling.runPath(try PythonRuntime.resolve(), laneArgs + forwarded)
+        try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutURL)
+    }
+
+    static func printHelp() {
+        print("""
+        usage: murmurmark review lane LANE [--session latest|SESSION] [--out-dir PATH]
+               murmurmark review lane --lane LANE [--session latest|SESSION] [--out-dir PATH]
+
+        Refreshes the review plan, then builds one explicit review lane pack.
+        Use this when you want a specific lane such as check_local_recall instead of the
+        automatically recommended first lane.
+
+        Common lanes:
+          fast_confirm_drop
+          check_unique_me_content
+          check_local_recall
+          check_transcript_order
+          confirm_benign
+          classify_audio
+
+        With --session, defaults are session-local under SESSION/derived/readiness/.
+        Without --session, defaults are the global corpus review plan under sessions/_reports/.
+
+        Options:
+          --operational-readiness PATH  Default: sessions/_reports/operational-readiness/operational_readiness_report.json
+          --plan-out-dir PATH           Default: sessions/_reports/review-plan
+          --out-dir PATH                Lane pack directory. Default: sessions/_reports/review-plan/lane-packs
+          --command-key KEY             Forwarded to build-review-lane-pack.py
+          --include-reviewed            Forwarded to build-review-lane-pack.py
+        """)
+    }
+
+    private static func buildPlan(extraArgs: [String], refreshOperational: Bool) throws {
+        let python = try PythonRuntime.resolve()
+        if refreshOperational {
+            try Tooling.runPath(python, [try script("report-operational-readiness.py").path])
+        }
+        try Tooling.runPath(python, [try script("build-review-plan.py").path] + extraArgs)
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("review script not found: \(url.path)")
+        }
+        return url
+    }
+}
+
 enum ReviewFirstLaneCommand {
     static func run(_ args: [String], sessionsRoot: URL) throws {
         var forwarded = args
@@ -1076,6 +1198,8 @@ enum ReviewFirstLaneCommand {
         Useful next step after:
           murmurmark corpus report
           murmurmark review plan
+
+        Use `murmurmark review lane check_local_recall --session SESSION` to build a specific lane.
         """)
     }
 

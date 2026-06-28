@@ -1702,8 +1702,13 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
     {
       "index": 1,
       "review_row_key": "review:arp_000020:2026-06-26_11-15-50:review_cluster_0015:utt_000269,utt_000271:1455.04:1460.66:remote_duplicate",
+      "source": "audio_review",
       "source_audit_id": "arp_000020",
       "session_id": "2026-06-26_11-15-50",
+      "input_profile": "audit_cleanup_v2",
+      "utterance_ids": ["utt_000269", "utt_000271"],
+      "me_utterance_ids": ["utt_000269"],
+      "remote_utterance_ids": ["utt_000271"],
       "pack_start": 0.0,
       "pack_end": 9.62,
       "pack_start_time": "00:00.000",
@@ -1715,7 +1720,9 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
 ```
 
 `review_row_key` is the stable row identity for applying answers. `source_audit_id` is useful for
-display but is not guaranteed to be unique across clustered review rows.
+display but is not guaranteed to be unique across clustered review rows. `source`, `input_profile`
+and utterance id arrays are copied from the review template so a lane pack remains auditable even
+when it is opened outside the full `review_plan.json`.
 
 Lane packs are listening aids only. The generated answer sheet starts with `answers=...`, where `.`
 means `todo`; it is not applied until `apply-review-lane-pack-decisions.py` is run. The generated

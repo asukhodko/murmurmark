@@ -736,6 +736,9 @@ global corpus queue.
 `murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended lane.
 With `--session`, its default paths are under `SESSION/derived/readiness/`; without `--session`, it
 uses the global corpus queue under `sessions/_reports/`.
+Use `murmurmark review lane check_local_recall --session "$SESSION"` to build one explicit lane pack,
+for example when local-recall repair inserted short `Me` turns and the recommended first lane is
+still `fast_confirm_drop`.
 `review-decisions-cli.py` is the normal way to fill the checklist: it plays each preferred clip,
 shows the transcript rows, respects each row's `allowed_decisions`, and writes
 `review_decisions.jsonl` after every answer. It also prints nearby turns from the reviewed transcript

@@ -1820,6 +1820,14 @@ PY
   [[ -s "$first_lane_pack_dir/review_lane_pack.$first_lane.json" ]]
   [[ -s "$first_lane_pack_dir/review_lane_pack.$first_lane.md" ]]
   [[ -s "$first_lane_pack_dir/review_lane_answers.$first_lane.txt" ]]
+  explicit_local_recall_lane_dir="$workdir/explicit-local-recall-lane-pack"
+  explicit_local_recall_lane_output="$("$bin" review lane check_local_recall \
+    --session "$group_session" \
+    --out-dir "$explicit_local_recall_lane_dir")"
+  echo "$explicit_local_recall_lane_output" | grep -q '^review_lane_pack:$'
+  [[ -s "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.json" ]]
+  jq -e '.schema == "murmurmark.review_lane_pack/v1" and .summary.item_count >= 1 and any(.items[]; .source == "local_recall_repair" and .input_profile == "local_recall_repair_v1" and (.utterance_ids | length) >= 1)' \
+    "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.json" >/dev/null
   jq -s 'all(.[]; (.primary_command | type) == "string")' "$review_plan_dir/review_plan_clusters.jsonl" >/dev/null
   jq -s 'all(.[]; .schema == "murmurmark.review_decision/v1" and .decision == "todo" and (.me_utterance_ids | type) == "array" and (.suggested_decision | IN("drop_me", "keep_me", "needs_review")))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .suggested_decision == "drop_me" and .decision == "todo")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null

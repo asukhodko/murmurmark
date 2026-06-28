@@ -257,6 +257,8 @@ review-specific next commands.
 For `review_first` sessions, those next commands point to `murmurmark review plan`,
 `murmurmark review first-lane --session ...`, `murmurmark review workspace --session ...`,
 `murmurmark review workspace apply`, and `murmurmark review apply`.
+Use `murmurmark review lane check_local_recall --session ...` when you need a specific lane rather
+than the automatically recommended first lane.
 `transcript.md` is the stable baseline output. Profile transcripts such as `transcript.shadow_v2.md`
 or `transcript.audit_cleanup_v2.md` are separate candidates; the selected profile is written to
 `quality_verdict.json`.
@@ -326,6 +328,7 @@ murmurmark repair local-recall ./sessions/<session> --input-profile auto --outpu
 murmurmark repair remote-leak ./sessions/<session>
 murmurmark review plan
 murmurmark review first-lane
+murmurmark review lane check_local_recall --session ./sessions/<session>
 murmurmark review latest --lane fast_confirm_drop
 murmurmark review progress
 murmurmark review apply
@@ -614,6 +617,8 @@ checks for a slower pass. The plan carries the `first_recommended_lane` from ope
 and `murmurmark review plan` prints the matching `murmurmark review latest --lane ...` command.
 `murmurmark review first-lane` builds the corresponding lane pack directly, including WAV, Markdown
 index and editable answer sheet.
+`murmurmark review lane check_local_recall --session SESSION` builds one explicit lane pack, which is
+useful for checking local-recall repair insertions without first clearing the recommended fast lane.
 To clear only the quickest lane, run the CLI with that lane; the output file still
 keeps the full template, so later passes can continue with the remaining lanes.
 For faster listening, `murmurmark review workspace` builds lane packs for all remaining lanes:
@@ -654,6 +659,7 @@ The normal manual review loop is available through the Swift CLI:
 .build/debug/murmurmark review next latest
 .build/debug/murmurmark review plan
 .build/debug/murmurmark review first-lane
+.build/debug/murmurmark review lane check_local_recall --session latest
 .build/debug/murmurmark review workspace
 .build/debug/murmurmark review latest --lane fast_confirm_drop
 .build/debug/murmurmark review workspace apply
