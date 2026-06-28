@@ -478,6 +478,8 @@ assert "transcript_order_review.md" in order_commands[0]["command"], order_comma
 PY
 review_next_session="$workdir/review-next-session"
 mkdir -p "$review_next_session/derived/readiness"
+review_next_plan_dir="$review_next_session/derived/readiness/review-plan"
+mkdir -p "$review_next_plan_dir"
 jq -n '{
   schema: "murmurmark.session/v1",
   session_id: "review-next-fixture",
@@ -508,11 +510,19 @@ jq -n --arg session "$review_next_session" '{
     {id: "review_apply", label: "Apply decisions.", command: "murmurmark review apply"}
   ]
 }' >"$review_next_session/derived/readiness/session_readiness.json"
+jq -n '{
+  schema: "murmurmark.review_plan/v1",
+  summary: {by_review_lane: {check_transcript_order: 1}, raw_item_count: 1, cluster_count: 1},
+  review_queue_strategy: {first_recommended_lane: "check_transcript_order"}
+}' >"$review_next_plan_dir/review_plan.json"
 review_next_output="$("$bin" review next "$review_next_session" --no-refresh)"
 echo "$review_next_output" | grep -q 'review_next:'
 echo "$review_next_output" | grep -q 'gate: review_first'
 echo "$review_next_output" | grep -q 'selected_profile: order_repair_v1'
-echo "$review_next_output" | grep -q "murmurmark review first-lane --session $review_next_session"
+echo "$review_next_output" | grep -q 'plan: .*derived/readiness/review-plan/review_plan.json'
+echo "$review_next_output" | grep -q 'first_lane: check_transcript_order'
+echo "$review_next_output" | grep -q 'murmurmark review first-lane --session .*review-next-session .*--plan-out-dir .*derived/readiness/review-plan --out-dir .*derived/readiness/review-plan/lane-packs'
+echo "$review_next_output" | grep -q 'murmurmark review workspace --session .*review-next-session --template .*derived/readiness/review-plan/review_decisions.template.jsonl --decisions .*derived/readiness/review-plan/review_decisions.jsonl --out-dir .*derived/readiness/review-plan'
 export_block_dir="$workdir/export-blocked"
 if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >/dev/null 2>&1; then
   echo "expected export to block incomplete session" >&2

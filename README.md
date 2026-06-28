@@ -227,7 +227,8 @@ Read `session_readiness.md` first: it gives the session use gate, selected profi
 synthesis review item summary, next CLI commands, and links to the transcript, notes, quality
 verdict and audio-review report.
 `murmurmark review next SESSION` is the short terminal handoff for that same information: it refreshes
-session readiness and prints the review-specific next commands.
+session readiness, builds a session-local review plan when review is needed, and prints the
+review-specific next commands.
 For `review_first` sessions, those next commands point to `murmurmark review plan`,
 `murmurmark review first-lane --session ...`, `murmurmark review workspace --session ...`,
 `murmurmark review workspace apply`, and `murmurmark review apply`.
@@ -583,6 +584,9 @@ The normal manual review loop is available through the Swift CLI:
 .build/debug/murmurmark review progress
 .build/debug/murmurmark review apply
 ```
+
+`review next` writes its per-session review handoff under
+`SESSION/derived/readiness/review-plan/`. Use `review plan` when you want the global corpus queue.
 
 Use the Python scripts directly only when debugging a specific review file, lane pack, or batch
 application edge case.

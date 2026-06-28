@@ -87,8 +87,10 @@ workspace answers have been closed.
 review item summary, so the terminal output is enough to see whether notes still depend on risky
 utterances before opening the Markdown files.
 Use `murmurmark review next SESSION` when you only need the next review step for one session. It
-refreshes session readiness and prints the review-oriented command chain; pass `--no-refresh` to
-read an already current `session_readiness.json`.
+refreshes session readiness, builds a session-local review plan under
+`SESSION/derived/readiness/review-plan/` when review is needed, and prints the review-oriented
+command chain. Pass `--no-refresh` to read an already current `session_readiness.json`, or
+`--no-plan` to refresh readiness without rebuilding the session-local plan.
 
 After export, keep a retention plan with the session:
 
@@ -631,9 +633,9 @@ Close the plan's `first_recommended_lane` first; it is usually `fast_confirm_dro
 the review queue changes. Keep the other lanes conservative unless the audio or chronology evidence
 is clear.
 `murmurmark review next "$SESSION"` is the quickest entry point for one session: it refreshes
-`session_readiness.json`, shows gate/profile/verdict/review burden, then prints the next review
-commands. Use it before deciding whether to build a lane pack, open the workspace, or apply already
-closed decisions.
+`session_readiness.json`, shows gate/profile/verdict/review burden, builds a session-local review
+plan if needed, then prints the next review commands with explicit local `--plan-out-dir`,
+`--template` and `--out` paths. Use `murmurmark review plan` for the global corpus queue.
 `murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended
 lane. Use it when you want the next concrete review artifact without manually copying commands from
 `review_plan.md`.
