@@ -11,16 +11,16 @@ enum ReviewPrinter {
         print("  lane: \(lane)")
         print("  manifest: \(PathDisplay.display(manifestURL))")
         if let audio = string(outputs["audio"]) {
-            print("  audio: \(audio)")
+            print("  audio: \(displayPath(audio))")
         }
         if let markdown = string(outputs["markdown"]) {
-            print("  markdown: \(markdown)")
+            print("  markdown: \(displayPath(markdown))")
         }
         if let answerSheet = string(outputs["answer_sheet"]) {
-            print("  answer_sheet: \(answerSheet)")
+            print("  answer_sheet: \(displayPath(answerSheet))")
         }
         if let suggested = string(outputs["suggested_answer_sheet"]) {
-            print("  suggested_answer_sheet: \(suggested)")
+            print("  suggested_answer_sheet: \(displayPath(suggested))")
             if let suggestedLine = firstAnswersLine(url: PathURLs.fileURL(suggested)) {
                 print("  suggested_answers: \(suggestedLine)")
             }
@@ -38,13 +38,13 @@ enum ReviewPrinter {
         print("  skipped: \(int(summary["skipped_count"]) ?? 0)")
         let applyCommand = laneApplyCommand(lane: lane, session: session, planOutDir: planOutDir, outDir: outDir)
         if let audio = string(outputs["audio"]) {
-            print("  listen: afplay \(shellQuote(audio))")
+            print("  listen: afplay \(shellQuote(displayPath(audio)))")
         }
         if let markdown = string(outputs["markdown"]) {
-            print("  read: less \(shellQuote(markdown))")
+            print("  read: less \(shellQuote(displayPath(markdown)))")
         }
         if let answerSheet = string(outputs["answer_sheet"]) {
-            print("  edit: $EDITOR \(shellQuote(answerSheet))")
+            print("  edit: $EDITOR \(shellQuote(displayPath(answerSheet)))")
         }
         print("  dry_run: \(applyCommand) --dry-run")
         print("  apply: \(applyCommand)")
@@ -114,6 +114,10 @@ enum ReviewPrinter {
             return value
         }
         return "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    private static func displayPath(_ value: String) -> String {
+        PathDisplay.display(PathURLs.fileURL(value))
     }
 
     static func printPlan() throws {
@@ -536,13 +540,13 @@ enum ReviewPrinter {
         let grouping = groupedRows > 0 ? " rows=\(rows) grouped_saved=\(groupedRows)" : " rows=\(rows)"
         print(String(format: "    %@: items=%d%@ minutes=%.2f%@", name, items, grouping, minutes, suffix))
         if let audio = string(lane["audio"]) {
-            print("      listen: afplay \(shellQuote(audio))")
+            print("      listen: afplay \(shellQuote(displayPath(audio)))")
         }
         if let markdown = string(lane["markdown"]) {
-            print("      read: less \(shellQuote(markdown))")
+            print("      read: less \(shellQuote(displayPath(markdown)))")
         }
         if let answerSheet = string(lane["answer_sheet"]) {
-            print("      edit: $EDITOR \(shellQuote(answerSheet))")
+            print("      edit: $EDITOR \(shellQuote(displayPath(answerSheet)))")
         }
     }
 
