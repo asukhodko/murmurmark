@@ -55,6 +55,8 @@ all print the next safe command for the current session state, so the terminal o
 `next` is the shortest answer when you only need the one command to run now.
 `status` is the quickest dashboard for already-generated readiness; `report` refreshes readiness first.
 If readiness is not present yet, `status` and `next` point to `murmurmark process SESSION`.
+After a successful export, `next` follows the export manifest and points to retention planning; pass
+`--export-manifest` when the bundle was written outside the default `exports/private/` directory.
 `status` and `report` start with a short status such as `exportable`, `review_required`, `incomplete` or `blocked`, plus
 `recommended_next` and `handoff` commands for opening the selected notes, transcript and verdict.
 

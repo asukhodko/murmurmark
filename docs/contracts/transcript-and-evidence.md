@@ -1614,7 +1614,10 @@ fall back to the first command from `next_commands`. This keeps report-reading c
 `murmurmark next SESSION` is the compact view over this same object. It prints one primary
 `command`, status, gate, selected profile, verdict and the first read-only `open_commands` item. With
 `--refresh`, it regenerates session readiness through `report-session-quality.py` before reading the
-command.
+command. If the session is exportable and a successful `export_manifest.json` exists, `next` follows
+the manifest's post-export `next_commands` instead, usually retention planning. Forced exports or
+manifests with blockers do not override readiness. `--export-manifest` points `next` at a non-default
+export bundle.
 The same terminal summary prints `handoff` commands for opening selected notes, transcript and
 quality verdict. When the derived status is `exportable`, it also prints export and retention
 commands. This is CLI presentation only; `outputs`, `next_commands`, gates and blockers remain the

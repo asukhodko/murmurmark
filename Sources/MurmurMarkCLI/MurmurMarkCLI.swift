@@ -107,7 +107,7 @@ struct MurmurMark {
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
                                 [--progress-interval-sec 60] [--config murmurmark.config.json] [--sessions-root ./sessions]
           murmurmark status [./session|latest] [--sessions-root ./sessions]
-          murmurmark next [./session|latest] [--refresh] [--sessions-root ./sessions]
+          murmurmark next [./session|latest] [--refresh] [--export-manifest ./export_manifest.json] [--sessions-root ./sessions]
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
           murmurmark review plan|progress|apply|first-lane|lane|next
@@ -566,6 +566,7 @@ enum PipelineCommands {
         }
         var remaining = args
         let refresh = ArgumentEditing.takeFlag("refresh", from: &remaining)
+        let exportManifest = ArgumentEditing.takeOption("export-manifest", from: &remaining).map(PathURLs.fileURL)
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
         let target = remaining.isEmpty ? "latest" : remaining.removeFirst()
         guard remaining.isEmpty else {
@@ -576,7 +577,7 @@ enum PipelineCommands {
             try refreshReadiness(session)
         }
         print("SESSION=\"\(PathDisplay.display(session))\"")
-        try ReadinessPrinter.printNext(session)
+        try ReadinessPrinter.printNext(session, exportManifest: exportManifest)
     }
 
     static func report(_ args: [String]) throws {
@@ -694,15 +695,17 @@ enum PipelineHelp {
 
     static func printNext() {
         Swift.print("""
-        usage: murmurmark next [./session|latest] [--refresh] [--sessions-root ./sessions]
+        usage: murmurmark next [./session|latest] [--refresh] [--export-manifest ./export_manifest.json] [--sessions-root ./sessions]
 
         Prints the single recommended next command from session_readiness.json.
         Defaults to latest when no session is provided. Use --refresh to update readiness first
-        without rerunning ASR, Echo Guard or audits.
+        without rerunning ASR, Echo Guard or audits. If a successful export manifest exists, the
+        command follows its post-export handoff, usually retention planning.
 
         Common:
           murmurmark next
           murmurmark next latest
+          murmurmark next ./sessions/<id> --export-manifest ./exports/private/<id>/export_manifest.json
           murmurmark next ./sessions/<id> --refresh
         """)
     }
@@ -6958,7 +6961,7 @@ enum SessionResolver {
 }
 
 enum ReadinessPrinter {
-    static func printNext(_ session: URL) throws {
+    static func printNext(_ session: URL, exportManifest explicitExportManifest: URL? = nil) throws {
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
         let sessionPath = PathDisplay.display(session)
         guard FileManager.default.fileExists(atPath: url.path) else {
@@ -6979,15 +6982,23 @@ enum ReadinessPrinter {
             ?? fallbackNextCommands(gate: gate, session: session, payload: payload)
         let openCommands = payload["open_commands"] as? [[String: Any]] ?? []
         let status = readinessStatus(gate: gate, payload: payload)
-        let command = string(payload["recommended_next"]) ?? preferredNextCommand(nextCommands) ?? "murmurmark status \(sessionPath)"
+        let readinessCommand = string(payload["recommended_next"]) ?? preferredNextCommand(nextCommands) ?? "murmurmark status \(sessionPath)"
+        let exportHandoff = status == "exportable"
+            ? successfulExportHandoff(session: session, explicitManifest: explicitExportManifest)
+            : nil
+        let command = exportHandoff?.command ?? readinessCommand
 
         print("")
         print("next:")
         print("  status: \(status)")
         print("  command: \(command)")
+        print("  source: \(exportHandoff == nil ? "readiness" : "export_manifest")")
         print("  gate: \(gate)")
         print("  selected_profile: \(profile)")
         print("  verdict: \(verdict)")
+        if let manifest = exportHandoff?.manifest {
+            print("  export_manifest: \(PathDisplay.display(manifest))")
+        }
         if let firstOpen = openCommands.compactMap({ string($0["command"]) }).first {
             print("  open_first: \(firstOpen)")
         }
@@ -6998,6 +7009,30 @@ enum ReadinessPrinter {
                 print("    \(alternative)")
             }
         }
+    }
+
+    private static func successfulExportHandoff(session: URL, explicitManifest: URL?) -> (command: String, manifest: URL)? {
+        let manifestURL = explicitManifest ?? PathURLs.fileURL("exports/private")
+            .appendingPathComponent(session.lastPathComponent)
+            .appendingPathComponent("export_manifest.json")
+        guard FileManager.default.fileExists(atPath: manifestURL.path),
+              let payload = try? JSONFiles.object(manifestURL)
+        else {
+            return nil
+        }
+        guard string(payload["schema"]) == "murmurmark.export_manifest/v1" else { return nil }
+        let status = string(payload["status"]) ?? ""
+        guard status == "exported" || status == "exported_with_warnings" else { return nil }
+        let blockers = payload["blockers"] as? [Any] ?? []
+        guard blockers.isEmpty else { return nil }
+        if let nextCommands = payload["next_commands"] as? [[String: Any]],
+           let command = preferredNextCommand(nextCommands) {
+            return (command, manifestURL)
+        }
+        if let next = string(payload["next"]), !next.isEmpty {
+            return (next, manifestURL)
+        }
+        return nil
     }
 
     static func printSession(_ session: URL, label: String = "readiness") throws {

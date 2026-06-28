@@ -837,6 +837,13 @@ ready_export_dir="$workdir/export-ready"
 grep -q '^recommended_next: murmurmark retention plan ' "$workdir/export_ready_stdout.txt"
 jq -e '.status == "exported" and (.blockers | length == 0) and (.next | startswith("murmurmark retention plan ")) and (.next_commands | map(.id) == ["retention_plan", "retention_payload"]) and (.open_commands | map(.id) | index("open_manifest")) and (.debug_retention_commands | length == 0)' \
   "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json" >/dev/null
+ready_next_output="$("$bin" next "$ready_export_session" --export-manifest "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json")"
+assert_no_helper_prefix "$ready_next_output"
+echo "$ready_next_output" | grep -q '^next:$'
+echo "$ready_next_output" | grep -q '^  status: exportable$'
+echo "$ready_next_output" | grep -q '^  command: murmurmark retention plan '
+echo "$ready_next_output" | grep -q '^  source: export_manifest$'
+echo "$ready_next_output" | grep -q '^  export_manifest: '
 
 audit_python=""
 if [[ -x "$repo_root/.venv/bin/python" ]] && "$repo_root/.venv/bin/python" - <<'PY' >/dev/null 2>&1
@@ -2082,6 +2089,7 @@ EOF
   next_help="$("$bin" next --help)"
   echo "$next_help" | grep -q 'usage: murmurmark next'
   echo "$next_help" | grep -q 'single recommended next command'
+  echo "$next_help" | grep -q -- '--export-manifest'
   report_help="$("$bin" report --help)"
   echo "$report_help" | grep -q 'usage: murmurmark report'
   echo "$report_help" | grep -q 'Use `murmurmark status` when you only need to inspect'
