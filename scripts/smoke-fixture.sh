@@ -17,7 +17,7 @@ require_tool jq
 
 assert_no_helper_prefix() {
   local helper_prefix_re
-  helper_prefix_re='^(written|markdown|verdict|next_command|review_plan|clusters|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped|transcript_order_audit|local_recall_audit|group_overlap_summary|audio_review_report|audio_review_summary|review_pack|audit_cleanup_report|clean_dialogue|transcript|applied_patches|dropped_me_duplicate_seconds|harmful_after|gates_passed|selected_transcript_profile|quality_verdict|notes|progress):'
+  helper_prefix_re='^(written|markdown|verdict|next_command|review_plan|clusters|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped|transcript_order_audit|local_recall_audit|group_overlap_summary|audio_review_report|audio_review_summary|review_pack|audit_cleanup_report|clean_dialogue|transcript|applied_patches|dropped_me_duplicate_seconds|harmful_after|gates_passed|selected_transcript_profile|quality_verdict|notes|progress|retention_plan|provider_payload_manifest|mode|can_apply|applied|raw_audio|status|payload_files|blockers):'
   ! printf '%s\n' "$1" | grep -Eq "$helper_prefix_re"
 }
 
@@ -220,6 +220,7 @@ echo "$selected_export_output" | grep -q 'exporting mic from derived/preprocess/
 [[ -s "$session/derived/asr-selected/remote.wav" ]]
 
 retention_plan_output="$("$bin" retention plan "$session")"
+assert_no_helper_prefix "$retention_plan_output"
 echo "$retention_plan_output" | grep -q '^retention:$'
 echo "$retention_plan_output" | grep -q '  raw_audio_files: 2'
 echo "$retention_plan_output" | grep -q '  next:'
@@ -229,6 +230,7 @@ jq -e '.policy.external_providers.allow == false' "$session/derived/retention/re
 jq -e 'all(.actions[]; .planned_action == "keep_raw_audio")' "$session/derived/retention/retention_plan.json" >/dev/null
 
 retention_payload_output="$("$bin" retention payload "$session")"
+assert_no_helper_prefix "$retention_payload_output"
 echo "$retention_payload_output" | grep -q '^retention_payload:$'
 echo "$retention_payload_output" | grep -q '  sends_data: false'
 echo "$retention_payload_output" | grep -q '  raw_audio_included: false'

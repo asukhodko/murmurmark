@@ -3452,7 +3452,7 @@ enum RetentionCommands {
 
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
-        try Tooling.runPath(try PythonRuntime.resolve(), command)
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), command)
         try RetentionPrinter.printSummary(mode: mode, session: session, args: remaining)
     }
 
