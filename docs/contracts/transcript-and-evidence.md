@@ -1885,6 +1885,10 @@ session-local or corpus-local paths, and prints the next review command.
 `review_queue_strategy.first_recommended_lane` in the active `review_plan.json`. After a non-dry run,
 the command also writes `review_decisions_progress.json` and only recommends `review apply` when
 `ready_for_batch_apply` is true.
+`murmurmark review lane apply <lane> --answers-source suggested` reads
+`review_lane_answers.<lane>.suggested.txt` instead of the manual sheet. This mode is explicit,
+prints `answers_source: suggested`, and is mutually exclusive with `--answers` and `--answers-file`;
+use it with `--dry-run` before writing decisions.
 `apply-review-lane-pack-decisions.py` is the same operation as a lower-level script: it applies
 explicit reviewer answers for a lane pack back into the complete `review_decisions.jsonl`. It accepts
 either `--answers` with a compact answer string in pack order, or `--answers-file` pointing to a text

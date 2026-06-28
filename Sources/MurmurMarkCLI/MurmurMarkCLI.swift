@@ -94,7 +94,7 @@ struct MurmurMark {
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
           murmurmark review plan|progress|apply|first-lane|lane|next
-          murmurmark review lane apply LANE|first [--session latest|SESSION]
+          murmurmark review lane apply LANE|first [--session latest|SESSION] [--answers-source manual|suggested]
           murmurmark review agent [--session-quality sessions/_reports/session-quality/session_quality_report.json]
           murmurmark review workspace [build|apply] [--session latest|./session]
           murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
@@ -1129,6 +1129,7 @@ enum ReviewHelp {
                murmurmark review first-lane [--session latest|SESSION]
                murmurmark review lane LANE [--session latest|SESSION]
                murmurmark review lane apply LANE|first [--session latest|SESSION] [--answers-file PATH|--answers TEXT]
+                                    [--answers-source manual|suggested]
                murmurmark review workspace [build|apply] [--session latest|SESSION]
                murmurmark review SESSION|latest [--lane LANE] [--no-play]
                murmurmark review progress [--session latest|SESSION]
@@ -1252,6 +1253,7 @@ enum ReviewLaneCommand {
         usage: murmurmark review lane LANE [--session latest|SESSION] [--out-dir PATH]
                murmurmark review lane --lane LANE [--session latest|SESSION] [--out-dir PATH]
                murmurmark review lane apply LANE|first [--session latest|SESSION] [--answers-file PATH|--answers TEXT]
+                                    [--answers-source manual|suggested]
 
         Refreshes the review plan, then builds one explicit review lane pack.
         Use this when you want a specific lane such as check_local_recall instead of the
@@ -1278,6 +1280,8 @@ enum ReviewLaneCommand {
         Apply options:
           --answers-file PATH           Default: review_lane_answers.LANE.txt from the lane pack directory
           --answers TEXT                Compact answers: d=drop_me, k=keep_me, r=needs_review, s=skip, .=todo
+          --answers-source manual|suggested
+                                         Use the manual answer sheet or generated suggested sheet. Default: manual
           --decisions-out PATH          Default: review_decisions.jsonl in the review plan directory
           --dry-run                     Validate answers without writing decisions
 
@@ -1312,6 +1316,7 @@ struct ReviewLaneApplyPrintContext {
     let lanePackOutURL: URL
     let answers: String?
     let answersFile: URL?
+    let answersSource: String
     let decisions: URL
     let reviewer: String?
     let progress: URL?
@@ -1340,11 +1345,18 @@ enum ReviewLaneApplyCommand {
         let explicitDecisionsOut = ArgumentEditing.takeOption("decisions-out", from: &forwarded)
         let explicitAnswersFile = ArgumentEditing.takeOption("answers-file", from: &forwarded)
         let explicitAnswers = ArgumentEditing.takeOption("answers", from: &forwarded)
+        let answersSource = ArgumentEditing.takeOption("answers-source", from: &forwarded) ?? "manual"
         let reviewer = ArgumentEditing.takeOption("reviewer", from: &forwarded)
         let sessionFilter = ArgumentEditing.takeOption("session", from: &forwarded)
         let dryRun = ArgumentEditing.takeFlag("dry-run", from: &forwarded)
         guard explicitAnswers == nil || explicitAnswersFile == nil else {
             throw CLIError("pass either --answers or --answers-file, not both")
+        }
+        guard ["manual", "suggested"].contains(answersSource) else {
+            throw CLIError("review lane apply --answers-source must be manual or suggested")
+        }
+        guard answersSource == "manual" || (explicitAnswers == nil && explicitAnswersFile == nil) else {
+            throw CLIError("review lane apply --answers-source suggested cannot be combined with --answers or --answers-file")
         }
         guard forwarded.isEmpty else {
             throw CLIError("unexpected review lane apply arguments: \(forwarded.joined(separator: " "))")
@@ -1372,9 +1384,11 @@ enum ReviewLaneApplyCommand {
             ?? planURL.appendingPathComponent("review_decisions.template.jsonl")
         let decisions = explicitDecisionsOut.map(PathURLs.fileURL)
             ?? planURL.appendingPathComponent("review_decisions.jsonl")
+        let defaultAnswersFile = answersSource == "suggested"
+            ? lanePackOutURL.appendingPathComponent("review_lane_answers.\(lane).suggested.txt")
+            : lanePackOutURL.appendingPathComponent("review_lane_answers.\(lane).txt")
         let answersFile = explicitAnswers == nil
-            ? (explicitAnswersFile.map(PathURLs.fileURL)
-                ?? lanePackOutURL.appendingPathComponent("review_lane_answers.\(lane).txt"))
+            ? (explicitAnswersFile.map(PathURLs.fileURL) ?? defaultAnswersFile)
             : nil
 
         try validateInputs(manifest: manifest, template: template, answersFile: answersFile, lane: lane, session: session)
@@ -1400,6 +1414,7 @@ enum ReviewLaneApplyCommand {
             lanePackOutURL: lanePackOutURL,
             answers: explicitAnswers,
             answersFile: answersFile,
+            answersSource: answersSource,
             decisions: decisions,
             reviewer: reviewer,
             progress: progress,
@@ -1486,6 +1501,7 @@ enum ReviewLaneApplyCommand {
         if let answersFile = context.answersFile {
             print("  answers: \(PathDisplay.display(answersFile))")
         }
+        print("  answers_source: \(context.answersSource)")
         print("  decisions: \(PathDisplay.display(context.decisions))")
         if let progress = context.progress {
             print("  progress: \(PathDisplay.display(progress))")
@@ -1599,6 +1615,8 @@ enum ReviewLaneApplyNextCommand {
         )
         if let answers = context.answers {
             parts += ["--answers", answers]
+        } else if context.answersSource == "suggested" {
+            parts += ["--answers-source", "suggested"]
         } else if let answersFile = context.answersFile {
             appendPathOption(
                 "answers-file",

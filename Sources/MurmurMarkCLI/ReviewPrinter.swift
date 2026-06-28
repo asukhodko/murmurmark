@@ -36,6 +36,10 @@ enum ReviewPrinter {
         }
         print("  dry_run: \(applyCommand) --dry-run")
         print("  apply: \(applyCommand)")
+        if string(outputs["suggested_answer_sheet"]) != nil {
+            print("  suggested_dry_run: \(applyCommand) --answers-source suggested --dry-run")
+            print("  suggested_apply: \(applyCommand) --answers-source suggested")
+        }
         print("  next: listen, edit answer_sheet, then apply")
     }
 
