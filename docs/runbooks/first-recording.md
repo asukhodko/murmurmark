@@ -48,9 +48,9 @@ Run:
 
 ```bash
 rm -rf ./sessions/smoke
-swift run murmurmark record --out ./sessions/smoke --duration 5 --target-bundle system
-swift run murmurmark inspect ./sessions/smoke
-swift run murmurmark export-audio ./sessions/smoke
+murmurmark record --out ./sessions/smoke --duration 5 --target-bundle system
+murmurmark inspect ./sessions/smoke
+murmurmark export-audio ./sessions/smoke
 ```
 
 The session is acceptable only if:
@@ -94,22 +94,21 @@ Without `--out`, MurmurMark creates a fresh directory under `./sessions`, for ex
 recording until Ctrl-C -> ./sessions/<session>
 ```
 
-Use that printed path for inspection and export:
+Use that printed path for processing and export. If the terminal scrollback is gone,
+`murmurmark latest` prints a copyable `SESSION="..."` assignment.
 
 ```bash
 SESSION=./sessions/<session>
 
-murmurmark inspect "$SESSION"
-murmurmark preprocess "$SESSION" --echo diagnostic
-murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir
-murmurmark inspect "$SESSION" --echo
-murmurmark export-audio "$SESSION"
-afplay "$SESSION/audio/mic/000001.caf"
-afplay "$SESSION/audio/remote/000001.caf"
-afplay "$SESSION/derived/preprocess/audio/mic_role_preview.wav"
-afplay "$SESSION/derived/preprocess/audio/mic_role_masked_for_asr.wav"
-afplay "$SESSION/derived/asr/mic.wav"
-afplay "$SESSION/derived/asr/remote.wav"
+murmurmark process "$SESSION"
+murmurmark status "$SESSION"
+
+# If readiness says review_first, follow the printed review command first.
+murmurmark notes "$SESSION" --kind verdict
+murmurmark notes "$SESSION"
+murmurmark transcript "$SESSION"
+murmurmark export "$SESSION" --format markdown --include-json
+murmurmark retention plan "$SESSION"
 ```
 
 `--mic-backend voice-processing` and `--remote-backend audio-input` are experimental comparison modes. They are not the main product path and should not be used to judge the algorithmic subtraction problem unless the test explicitly says so.
@@ -124,15 +123,25 @@ For the normal path, expected `session.json` values are:
 }
 ```
 
-If Echo Guard has already run, `derived/asr/mic.wav` is exported from `derived/preprocess/audio/mic_for_asr.wav`. If cleanup was rejected, `mic_for_asr.wav` is the prepared raw mic fallback.
-
-After a transcript exists at `derived/transcript/resolved/transcript.rich.json`, run the transcript-level Echo Guard pass:
+For low-level capture or Echo Guard debugging, inspect the raw and derived audio explicitly:
 
 ```bash
-murmurmark reconcile-transcript "$SESSION"
+murmurmark inspect "$SESSION"
+murmurmark preprocess "$SESSION" --echo diagnostic
+murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir
+murmurmark inspect "$SESSION" --echo
+murmurmark export-audio "$SESSION"
+afplay "$SESSION/audio/mic/000001.caf"
+afplay "$SESSION/audio/remote/000001.caf"
+afplay "$SESSION/derived/preprocess/audio/mic_role_preview.wav"
+afplay "$SESSION/derived/preprocess/audio/mic_role_masked_for_asr.wav"
+afplay "$SESSION/derived/asr/mic.wav"
+afplay "$SESSION/derived/asr/remote.wav"
 ```
 
-It marks mic utterances that look like delayed copies of remote speech and updates `derived/transcript/resolved/quality_report.json`.
+If Echo Guard has already run, `derived/asr/mic.wav` is exported from
+`derived/preprocess/audio/mic_for_asr.wav`. If cleanup was rejected, `mic_for_asr.wav` is the
+prepared raw mic fallback.
 
 If you need a fixed directory for a planned test, pass `--out` explicitly:
 
