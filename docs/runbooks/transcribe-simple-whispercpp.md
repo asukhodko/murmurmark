@@ -293,9 +293,13 @@ For corpus work, aggregate order risks after the usual session-quality report:
 ```bash
 murmurmark corpus order
 murmurmark corpus order --repair
+murmurmark corpus remote-leak
+murmurmark corpus remote-leak --plan
 
 jq '.summary' sessions/_reports/transcript-order/transcript_order_corpus_report.json
 less sessions/_reports/transcript-order/transcript_order_corpus_report.md
+jq '.summary' sessions/_reports/remote-leak-segment/remote_leak_segment_corpus_report.json
+less sessions/_reports/remote-leak-segment/remote_leak_segment_corpus_report.md
 ```
 
 Without `--repair`, the command only aggregates existing order audits. With `--repair`, it uses the
@@ -303,6 +307,8 @@ sessions from the current session-quality report, refreshes their order audit, w
 `order_repair_v1`, refreshes session-quality and then rebuilds the corpus order report. Pass explicit
 session paths or `all` when you need a different target set. This report is the practical list of
 chronology regression candidates.
+For remote leak, `--plan` refreshes only the audit-only segment plans, then rebuilds the corpus
+summary. It still does not apply transcript edits.
 Complete sessions with
 blocking order risk fail `check-corpus-gates.py` through `transcript.no_blocking_order_risk`; partial
 historical sessions remain visible as review material without blocking the complete-session gate.
@@ -649,9 +655,13 @@ the source item as reliable.
 `murmurmark corpus order` writes a separate chronology-risk corpus report under
 `sessions/_reports/transcript-order/`; read it when wrong reply order is the concern rather than
 audio leakage.
+`murmurmark corpus remote-leak` writes `sessions/_reports/remote-leak-segment/`. It aggregates
+per-session remote-leak segment plans into one corpus queue and keeps the same audit-only policy:
+no transcript profile and no raw audio are modified. Use `--plan` to refresh per-session plans
+before aggregating.
 `murmurmark corpus report` prints the existing session-quality summary and, when the files already
-exist, also prints short summaries for transcript-order, corpus-gates and operational-readiness. It
-does not rebuild those reports; it is the quick “what is the current state?” command after a heavier
+exist, also prints short summaries for transcript-order, remote-leak, corpus-gates and
+operational-readiness. It does not rebuild those reports; it is the quick “what is the current state?” command after a heavier
 `murmurmark corpus process all`. Use `murmurmark report corpus` when only session-quality needs a
 refresh.
 Its `promotion_plan` section explains the current delta to `medium_risk_ready`: unresolved warnings,

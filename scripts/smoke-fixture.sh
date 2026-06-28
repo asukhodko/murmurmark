@@ -1547,6 +1547,26 @@ EOF
     "$group_session/derived/readiness/session_readiness.json" >/dev/null
   grep -q 'remote_leak_segment_report' "$group_session/derived/readiness/session_readiness.md"
 
+  remote_leak_corpus_dir="$workdir/remote-leak-segment-corpus"
+  remote_leak_corpus_output="$("$bin" corpus remote-leak "$group_session" \
+    --session-quality "$quality_dir/session_quality_report.json" \
+    --out-dir "$remote_leak_corpus_dir")"
+  echo "$remote_leak_corpus_output" | grep -q '^remote_leak_segment_corpus:'
+  [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.json" ]]
+  [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_items.jsonl" ]]
+  [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.md" ]]
+  jq -e '.schema == "murmurmark.remote_leak_segment_corpus_report/v1" and .summary.protect_local_content_items >= 1 and .policy.may_modify_transcript == false' \
+    "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.json" >/dev/null
+  jq -s 'any(.[]; .schema == "murmurmark.remote_leak_segment_corpus_item/v1" and .diagnostic == "remote_leak_with_local_content_risk" and .whole_me_drop_allowed == false)' \
+    "$remote_leak_corpus_dir/remote_leak_segment_corpus_items.jsonl" >/dev/null
+  remote_leak_corpus_plan_dir="$workdir/remote-leak-segment-corpus-plan"
+  "$bin" corpus remote-leak "$group_session" \
+    --plan \
+    --session-quality "$quality_dir/session_quality_report.json" \
+    --out-dir "$remote_leak_corpus_plan_dir" >/dev/null
+  jq -e '.summary.planned_session_count == 1 and .summary.protect_local_content_items >= 1' \
+    "$remote_leak_corpus_plan_dir/remote_leak_segment_corpus_report.json" >/dev/null
+
   taxonomy_dir="$workdir/audio-error-taxonomy"
   taxonomy_output="$("$bin" corpus taxonomy \
     --corpus-dir "$corpus_dir" \

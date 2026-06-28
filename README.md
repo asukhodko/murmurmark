@@ -107,9 +107,10 @@ murmurmark corpus report
 less sessions/_reports/session-quality/session_quality_report.md
 ```
 
-When corpus order/gate/readiness reports already exist, `murmurmark corpus report` also prints their
-short summaries without rebuilding them. Use `murmurmark corpus process all` when those reports need
-to be rebuilt. `murmurmark report corpus` is narrower: it refreshes the session-quality report.
+When corpus order, remote-leak, gate and readiness reports already exist, `murmurmark corpus report`
+also prints their short summaries without rebuilding them. Use `murmurmark corpus process all` when
+those reports need to be rebuilt. `murmurmark report corpus` is narrower: it refreshes the
+session-quality report.
 
 Retention is explicit and local:
 
@@ -169,6 +170,8 @@ Use it after `corpus train-audio-judge` to see which error classes are already s
 candidates, which are mark-only, which need better labels, and which sessions/examples should drive
 the next quality iteration. The report also splits broad classes like `uncertain` into diagnostic
 subtypes and writes an `action_plan`, so the next repair can target one narrow failure mode.
+`corpus remote-leak` writes `sessions/_reports/remote-leak-segment/remote_leak_segment_corpus_report.*`.
+Use `--plan` when you want to rebuild per-session remote-leak plans before aggregating them.
 `passed_with_warnings` means the hard no-regression gates are green, but some historical sessions or
 review queues still need cleanup before the whole repository is operationally ready.
 The optional baseline is private generated state under ignored `sessions/_reports/`.
@@ -319,6 +322,8 @@ murmurmark corpus gate --write-baseline sessions/_reports/corpus-gates/baseline.
 murmurmark corpus gate --baseline sessions/_reports/corpus-gates/baseline.local.json
 murmurmark corpus order
 murmurmark corpus order --repair
+murmurmark corpus remote-leak
+murmurmark corpus remote-leak --plan
 murmurmark corpus report
 murmurmark export ./sessions/<session> --format markdown --include-json
 murmurmark export ./sessions/<session> --format obsidian
@@ -361,6 +366,7 @@ murmurmark synthesize ./sessions/<session> --transcript-profile auto
 .venv/bin/python scripts/report-audio-error-taxonomy.py
 .venv/bin/python scripts/report-operational-readiness.py
 .venv/bin/python scripts/report-transcript-order-corpus.py
+.venv/bin/python scripts/report-remote-leak-segment-corpus.py
 .venv/bin/python scripts/build-review-plan.py
 murmurmark review agent
 .venv/bin/python scripts/review-decisions-cli.py --template sessions/_reports/review-plan/review_decisions.template.jsonl --out sessions/_reports/review-plan/review_decisions.jsonl

@@ -404,6 +404,15 @@ nodes:
     effort: 2
     notes: "murmurmark repair remote-leak строит audit-only план по audio_review remote_leak probable errors, отделяет plain leak от remote_leak_with_local_content_risk и явно запрещает whole-Me drop/raw edits."
 
+  quality-remote-leak-corpus-queue:
+    title: "Remote leak corpus queue"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-remote-leak-segment-plan]
+    status: done
+    effort: 2
+    notes: "murmurmark corpus remote-leak агрегирует per-session segment plans в одну очередь по корпусу; --plan пересобирает планы перед агрегацией, но не применяет transcript edits."
+
   quality-order-regressions:
     title: "Transcript order regression cases"
     kind: task

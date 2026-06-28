@@ -622,6 +622,45 @@ evidence and ready clip commands from the source audit. v1 has three diagnostics
 The planner never writes a transcript profile and never changes raw CAF files. Its job is to turn a
 wide `remote_leak` bucket into the next safe repair queue.
 
+`murmurmark corpus remote-leak` aggregates those per-session plans into:
+
+```text
+sessions/_reports/remote-leak-segment/
+  remote_leak_segment_corpus_report.json
+  remote_leak_segment_corpus_items.jsonl
+  remote_leak_segment_corpus_report.md
+```
+
+`remote_leak_segment_corpus_report.json` uses
+`murmurmark.remote_leak_segment_corpus_report/v1`:
+
+```json
+{
+  "schema": "murmurmark.remote_leak_segment_corpus_report/v1",
+  "summary": {
+    "session_count": 10,
+    "planned_session_count": 10,
+    "missing_plan_count": 0,
+    "item_count": 15,
+    "seconds": 63.46,
+    "protect_local_content_items": 15,
+    "protect_local_content_seconds": 63.46,
+    "sessions_with_protect_local_content": 3,
+    "recommended_next_step": "implement_segment_level_remote_leak_repair"
+  },
+  "policy": {
+    "mode": "audit_only",
+    "may_modify_transcript": false,
+    "may_modify_raw_audio": false
+  }
+}
+```
+
+`remote_leak_segment_corpus_items.jsonl` uses
+`murmurmark.remote_leak_segment_corpus_item/v1` and keeps session id, source audit id, diagnostic,
+proposal, interval, utterance ids and compact `Me`/`Colleagues` texts. This corpus report is the
+queue for future segment-level remote-leak repair work; it does not apply repairs.
+
 The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
 and writes under:
 

@@ -115,6 +115,7 @@ struct MurmurMark {
           murmurmark corpus taxonomy
           murmurmark corpus gate
           murmurmark corpus order [all|./session...] [--repair] [--sessions-root ./sessions]
+          murmurmark corpus remote-leak [all|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus report
           murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
                              [--include-json] [--force] [--sessions-root ./sessions]
@@ -2072,7 +2073,7 @@ enum SynthesisPrinter {
 enum CorpusCommands {
     static func corpus(_ args: [String]) throws {
         guard let subcommand = args.first else {
-            throw CLIError("corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, or report")
+            throw CLIError("corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, remote-leak, or report")
         }
         var forwarded = Array(args.dropFirst())
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
@@ -2096,6 +2097,7 @@ enum CorpusCommands {
             try taxonomy(extraArgs: [])
             try operationalReadiness()
             try transcriptOrder(sessions: [], extraArgs: [])
+            try CorpusRemoteLeakCommands.report(sessions: [], extraArgs: [])
             try gates(extraArgs: [])
             try CorpusPrinter.printSessionQuality()
             try CorpusPrinter.printBuild()
@@ -2103,6 +2105,7 @@ enum CorpusCommands {
             try CorpusPrinter.printAudioJudge()
             try CorpusPrinter.printTaxonomy()
             try CorpusPrinter.printTranscriptOrder()
+            try CorpusPrinter.printRemoteLeakSegment()
             try CorpusPrinter.printGates()
             try CorpusPrinter.printOperationalReadiness()
         case "build":
@@ -2180,6 +2183,8 @@ enum CorpusCommands {
             }
             try transcriptOrder(sessions: sessions, extraArgs: forwarded)
             try CorpusPrinter.printTranscriptOrder(outDir: outDir)
+        case "remote-leak":
+            try CorpusRemoteLeakCommands.run(args: forwarded, sessionsRoot: sessionsRoot)
         case "report":
             guard forwarded.isEmpty else { throw CLIError("corpus report does not support extra arguments") }
             try CorpusPrinter.printSessionQuality()
@@ -2300,7 +2305,8 @@ enum CorpusCommands {
           5. report-audio-error-taxonomy.py
           6. report-operational-readiness.py
           7. report-transcript-order-corpus.py
-          8. check-corpus-gates.py
+          8. report-remote-leak-segment-corpus.py
+          9. check-corpus-gates.py
 
         Options:
           --sessions-root PATH  Sessions directory for all/latest. Default: sessions
@@ -2313,9 +2319,99 @@ enum CorpusCommands {
           murmurmark corpus order [all|latest|./session...] --repair
               [--repair-input-profile auto] [--repair-output-profile order_repair_v1]
               [--no-synthesize] [--sessions-root sessions]
+          murmurmark corpus remote-leak [all|latest|./session...] --plan
+              [--session-quality sessions/_reports/session-quality/session_quality_report.json]
         """)
     }
 
+}
+
+enum CorpusRemoteLeakPlan {
+    static func run(sessions: [URL]) throws {
+        let python = try PythonRuntime.resolve()
+        for session in sessions {
+            try Tooling.runPath(python, [
+                try script("plan-remote-leak-segment-repair.py").path,
+                session.path,
+            ])
+        }
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("corpus remote-leak script not found: \(url.path)")
+        }
+        return url
+    }
+}
+
+enum CorpusRemoteLeakCommands {
+    static func run(args: [String], sessionsRoot: URL) throws {
+        var forwarded = args
+        if ArgumentEditing.hasHelpFlag(forwarded) {
+            try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-remote-leak-segment-corpus.py").path] + forwarded)
+            return
+        }
+        let plan = ArgumentEditing.takeFlag("plan", from: &forwarded)
+        let sessionQualityURL = PathURLs.fileURL(
+            ArgumentEditing.peekOption("session-quality", in: forwarded)
+                ?? "sessions/_reports/session-quality/session_quality_report.json"
+        )
+        let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/remote-leak-segment")
+        let sessions = try takeOptionalSessions(from: &forwarded, sessionsRoot: sessionsRoot)
+        if plan {
+            let planSessions = sessions.isEmpty
+                ? try CorpusOrderRepair.sessions(sessionQuality: sessionQualityURL, sessionsRoot: sessionsRoot)
+                : sessions
+            try CorpusRemoteLeakPlan.run(sessions: planSessions)
+            try reportSessionQuality(sessions: planSessions, outDir: sessionQualityURL.deletingLastPathComponent().path)
+        }
+        try report(sessions: sessions, extraArgs: forwarded)
+        try CorpusPrinter.printRemoteLeakSegment(outDir: outDir)
+    }
+
+    static func report(sessions: [URL], extraArgs: [String]) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("report-remote-leak-segment-corpus.py").path,
+        ] + sessions.map(\.path) + extraArgs)
+    }
+
+    private static func reportSessionQuality(sessions: [URL], outDir: String) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("report-session-quality.py").path,
+        ] + sessions.map(\.path) + [
+            "--out-dir", outDir,
+            "--write-session-readiness",
+        ])
+    }
+
+    private static func takeOptionalSessions(from args: inout [String], sessionsRoot: URL) throws -> [URL] {
+        var targets: [String] = []
+        while let first = args.first, !first.hasPrefix("--") {
+            targets.append(first)
+            args.removeFirst()
+        }
+        if targets.isEmpty {
+            return []
+        }
+        if targets == ["all"] {
+            let sessions = try SessionResolver.all(in: sessionsRoot)
+            guard !sessions.isEmpty else { throw CLIError("no sessions with session.json found under \(sessionsRoot.path)") }
+            return sessions
+        }
+        return try targets.map { try SessionResolver.resolve($0, sessionsRoot: sessionsRoot) }
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("corpus remote-leak script not found: \(url.path)")
+        }
+        return url
+    }
 }
 
 enum CorpusOrderRepair {
@@ -6074,6 +6170,7 @@ enum ExportPrinter {
 enum CorpusPrinter {
     static func printAvailableStatusReports() throws {
         let transcriptOrder = PathURLs.fileURL("sessions/_reports/transcript-order/transcript_order_corpus_report.json")
+        let remoteLeak = PathURLs.fileURL("sessions/_reports/remote-leak-segment/remote_leak_segment_corpus_report.json")
         let corpusGates = PathURLs.fileURL("sessions/_reports/corpus-gates/corpus_gates_report.json")
         let operationalReadiness = PathURLs.fileURL("sessions/_reports/operational-readiness/operational_readiness_report.json")
         let taxonomy = PathURLs.fileURL("sessions/_reports/audio-error-taxonomy/audio_error_taxonomy_report.json")
@@ -6082,6 +6179,9 @@ enum CorpusPrinter {
         }
         if FileManager.default.fileExists(atPath: transcriptOrder.path) {
             try printTranscriptOrder()
+        }
+        if FileManager.default.fileExists(atPath: remoteLeak.path) {
+            try printRemoteLeakSegment()
         }
         if FileManager.default.fileExists(atPath: corpusGates.path) {
             try printGates()
@@ -6205,6 +6305,22 @@ enum CorpusPrinter {
         }
         if let seconds = double(summary["needs_review_seconds"]) {
             print(String(format: "  needs_review_seconds: %.2f", seconds))
+        }
+        print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
+    }
+
+    static func printRemoteLeakSegment(outDir: URL = PathURLs.fileURL("sessions/_reports/remote-leak-segment")) throws {
+        let url = outDir.appendingPathComponent("remote_leak_segment_corpus_report.json")
+        let payload = try JSONFiles.object(url)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        print("")
+        print("remote_leak_segment_corpus:")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("remote_leak_segment_corpus_report.md")))")
+        print("  planned_sessions: \(int(summary["planned_session_count"]) ?? 0) / \(int(summary["session_count"]) ?? 0)")
+        print("  missing_plans: \(int(summary["missing_plan_count"]) ?? 0)")
+        print("  items: \(int(summary["item_count"]) ?? 0)")
+        if let seconds = double(summary["protect_local_content_seconds"]) {
+            print(String(format: "  protect_local_content_seconds: %.2f", seconds))
         }
         print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
     }
