@@ -17,8 +17,9 @@ require_tool jq
 
 assert_no_helper_prefix() {
   local helper_prefix_re
-  helper_prefix_re='^(written|markdown|verdict|next_command|review_plan|clusters|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped|transcript_order_audit|local_recall_audit|group_overlap_summary|audio_review_report|audio_review_summary|review_pack|audit_cleanup_report|clean_dialogue|transcript|applied_patches|dropped_me_duplicate_seconds|harmful_after|gates_passed|selected_transcript_profile|quality_verdict|notes|progress|retention_plan|provider_payload_manifest|mode|can_apply|applied|raw_audio|status|payload_files|blockers):'
+  helper_prefix_re='^(written|markdown|verdict|next_command|review_plan|review_decisions_progress|workspace|lanes|clusters|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped|transcript_order_audit|local_recall_audit|group_overlap_summary|audio_review_report|audio_review_summary|review_pack|audit_cleanup_report|clean_dialogue|transcript|applied_patches|dropped_me_duplicate_seconds|harmful_after|gates_passed|selected_transcript_profile|quality_verdict|notes|progress|retention_plan|provider_payload_manifest|mode|can_apply|applied|raw_audio|status|payload_files|blockers):'
   ! printf '%s\n' "$1" | grep -Eq "$helper_prefix_re"
+  ! printf '%s\n' "$1" | grep -Eq '^reviewed=[0-9]+/'
 }
 
 if [[ ! -x "$bin" ]]; then
@@ -1475,6 +1476,7 @@ EOF
   "$repo_root/.build/debug/murmurmark" review workspace \
     --template "$review_template" \
     --out-dir "$cli_review_workspace_dir" >"$cli_workspace_stdout"
+  assert_no_helper_prefix "$(cat "$cli_workspace_stdout")"
   [[ -s "$cli_review_workspace_dir/review_workspace.json" ]]
   grep -q '^  lane_packs:$' "$cli_workspace_stdout"
   grep -q '^    check_local_recall: items=' "$cli_workspace_stdout"
@@ -1491,6 +1493,7 @@ EOF
     --out "$cli_workspace_dry_run_out" \
     --report "$cli_review_workspace_dir/review_workspace_apply_dry_run_report.json" \
     --dry-run >"$cli_workspace_dry_run_stdout"
+  assert_no_helper_prefix "$(cat "$cli_workspace_dry_run_stdout")"
   [[ ! -e "$cli_workspace_dry_run_out" ]]
   jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .dry_run == true and .summary.remaining_rows == 2' "$cli_review_workspace_dir/review_workspace_apply_dry_run_report.json" >/dev/null
   grep -q '^review_workspace_apply:$' "$cli_workspace_dry_run_stdout"
@@ -1508,6 +1511,7 @@ EOF
     --template "$review_template" \
     --out "$cli_workspace_apply_out" \
     --report "$cli_review_workspace_dir/review_workspace_apply_report.json" >"$cli_workspace_apply_stdout"
+  assert_no_helper_prefix "$(cat "$cli_workspace_apply_stdout")"
   jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "workspace_answer_sheet"' "$cli_workspace_apply_out" >/dev/null
   jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .summary.reviewed_count == 1 and .summary.remaining_rows == 1' "$cli_review_workspace_dir/review_workspace_apply_report.json" >/dev/null
   grep -q '^  lane_progress:$' "$cli_workspace_apply_stdout"
@@ -2185,6 +2189,7 @@ PY
   [[ -s "$group_session/derived/readiness/review-plan/review_decisions.jsonl" ]]
   [[ -s "$group_session/derived/readiness/review-plan/review_decisions_progress.json" ]]
   explicit_progress_output="$("$bin" review progress --session "$group_session")"
+  assert_no_helper_prefix "$explicit_progress_output"
   echo "$explicit_progress_output" | grep -q '^review_progress:$'
   echo "$explicit_progress_output" | grep -q 'derived/readiness/review-plan/review_decisions_progress.md'
   echo "$explicit_progress_output" | grep -q '^  ready_for_apply: false'
@@ -2215,6 +2220,7 @@ PY
     --session-quality-out-dir "$agent_review_dir/session-quality" \
     --operational-readiness-out-dir "$agent_review_dir/operational-readiness" \
     --review-plan-out-dir "$agent_review_dir/review-plan")"
+  assert_no_helper_prefix "$agent_review_output"
   echo "$agent_review_output" | grep -q '^agent_review:$'
   echo "$agent_review_output" | grep -q '^review_apply:$'
   echo "$agent_review_output" | grep -q '^  next: murmurmark report '
@@ -2242,6 +2248,7 @@ PY
     --corpus-evaluation "$corpus_dir/regression_corpus_evaluation.json" \
     --audio-judge "$judge_dir/audio_judge_v0_report.json" \
     --audio-judge-queue "$judge_dir/audio_judge_v0_queue_predictions.jsonl")"
+  assert_no_helper_prefix "$latest_apply_output"
   echo "$latest_apply_output" | grep -q '^  report: .*review_decisions_apply.latest.json'
   echo "$latest_apply_output" | grep -q '^  next: murmurmark report '
   echo "$latest_apply_output" | grep -q '^readiness:$'

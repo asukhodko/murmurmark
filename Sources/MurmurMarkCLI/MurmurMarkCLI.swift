@@ -692,9 +692,9 @@ enum ReviewCommands {
     private static func buildPlan(extraArgs: [String], refreshOperational: Bool = true) throws {
         let python = try PythonRuntime.resolve()
         if refreshOperational {
-            try Tooling.runPath(python, [try script("report-operational-readiness.py").path])
+            try Tooling.runPathQuiet(python, [try script("report-operational-readiness.py").path])
         }
-        try Tooling.runPath(python, [try script("build-review-plan.py").path] + extraArgs)
+        try Tooling.runPathQuiet(python, [try script("build-review-plan.py").path] + extraArgs)
     }
 
     private static func workspace(_ args: [String], sessionsRoot: URL) throws {
@@ -723,7 +723,7 @@ enum ReviewCommands {
             } else {
                 try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
             }
-            try Tooling.runPath(try PythonRuntime.resolve(), [try script("build-review-workspace.py").path] + forwarded)
+            try Tooling.runPathQuiet(try PythonRuntime.resolve(), [try script("build-review-workspace.py").path] + forwarded)
             try ReviewPrinter.printWorkspace(outDir: ReviewPaths.workspaceOutDir(from: forwarded))
         case "apply":
             if ArgumentEditing.hasHelpFlag(forwarded) {
@@ -736,7 +736,7 @@ enum ReviewCommands {
             if !ArgumentEditing.hasOption("quiet", in: forwarded) {
                 forwarded.append("--quiet")
             }
-            try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-workspace-decisions.py").path] + forwarded)
+            try Tooling.runPathQuiet(try PythonRuntime.resolve(), [try script("apply-review-workspace-decisions.py").path] + forwarded)
             try ReviewPrinter.printWorkspaceApply(report: ReviewPaths.workspaceApplyReport(from: forwarded))
             if !ArgumentEditing.hasOption("dry-run", in: forwarded) {
                 let defaultDecisions = PathURLs.fileURL("sessions/_reports/review-plan/review_decisions.jsonl")
@@ -846,7 +846,7 @@ enum ReviewCommands {
             forwarded += ["--session", session.lastPathComponent]
         }
         let python = try PythonRuntime.resolve()
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             try script("apply-review-decisions-batch.py").path,
             "--decisions", "sessions/_reports/review-plan/review_decisions.jsonl",
             "--review-template", "sessions/_reports/review-plan/review_decisions.template.jsonl",
@@ -1118,7 +1118,7 @@ enum ReviewHelp {
 
 enum ReviewProgressRunner {
     static func run(args: [String] = []) throws {
-        try Tooling.runPath(try PythonRuntime.resolve(), [
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
             try script("report-review-decisions-progress.py").path,
         ] + args)
     }
