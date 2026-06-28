@@ -1130,7 +1130,7 @@ enum ReviewHelp {
                murmurmark review lane LANE [--session latest|SESSION]
                murmurmark review lane apply LANE|first [--session latest|SESSION] [--answers-file PATH|--answers TEXT]
                                     [--answers-source manual|suggested]
-               murmurmark review workspace [build|apply] [--session latest|SESSION]
+               murmurmark review workspace [build|apply] [--session latest|SESSION] [--answers-source review|suggested]
                murmurmark review SESSION|latest [--lane LANE] [--no-play]
                murmurmark review progress [--session latest|SESSION]
                murmurmark review apply [--session latest|SESSION]

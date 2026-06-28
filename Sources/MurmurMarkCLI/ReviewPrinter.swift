@@ -229,11 +229,13 @@ enum ReviewPrinter {
                 printWorkspaceLane(lane)
             }
         }
-        if let sessionID = sessionIDForSessionLocalPlan(outDir) {
-            print("  next: edit lane answer sheets, then `murmurmark review workspace apply --session \(sessionID)`")
-        } else {
-            print("  next: edit lane answer sheets, then `murmurmark review workspace apply`")
+        let sessionID = sessionIDForSessionLocalPlan(outDir)
+        let applyCommand = workspaceApplyCommand(payload: payload, outDir: outDir, sessionID: sessionID)
+        if okLanes.contains(where: { string($0["suggested_answer_sheet"]) != nil }) {
+            print("  suggested_dry_run: \(applyCommand) --answers-source suggested --dry-run")
+            print("  suggested_apply: \(applyCommand) --answers-source suggested")
         }
+        print("  next: edit lane answer sheets, then `\(applyCommand)`")
     }
 
     static func printWorkspaceApply(report: URL) throws {
@@ -246,6 +248,7 @@ enum ReviewPrinter {
         print("  reviewed: \(int(summary["reviewed_count"]) ?? 0)")
         print("  remaining: \(int(summary["remaining_rows"]) ?? 0)")
         print("  rejected: \(int(summary["rejected_count"]) ?? 0)")
+        print("  answers_source: \(string(payload["answers_source"]) ?? "review")")
         print("  dry_run: \(bool(payload["dry_run"]) ?? false)")
         print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
         printWorkspaceApplyLanes(payload)
@@ -261,6 +264,45 @@ enum ReviewPrinter {
         } else {
             print("  next: edit remaining lane answer sheets, then `murmurmark review workspace apply`")
         }
+    }
+
+    private static func workspaceApplyCommand(payload: [String: Any], outDir: URL, sessionID: String?) -> String {
+        var parts = ["murmurmark", "review", "workspace", "apply"]
+        if let sessionID {
+            parts += ["--session", sessionID]
+            return parts.joined(separator: " ")
+        }
+
+        let workspace = outDir.appendingPathComponent("review_workspace.json")
+        appendPathOption(
+            "workspace",
+            workspace,
+            default: PathURLs.fileURL("sessions/_reports/review-plan/review_workspace.json"),
+            to: &parts
+        )
+
+        let inputs = payload["inputs"] as? [String: Any] ?? [:]
+        if let template = string(inputs["template"]) {
+            appendPathOption(
+                "template",
+                PathURLs.fileURL(template),
+                default: PathURLs.fileURL("sessions/_reports/review-plan/review_decisions.template.jsonl"),
+                to: &parts
+            )
+        }
+
+        appendPathOption(
+            "report",
+            outDir.appendingPathComponent("review_workspace_apply_report.json"),
+            default: PathURLs.fileURL("sessions/_reports/review-plan/review_workspace_apply_report.json"),
+            to: &parts
+        )
+        return parts.joined(separator: " ")
+    }
+
+    private static func appendPathOption(_ name: String, _ value: URL, default defaultValue: URL, to parts: inout [String]) {
+        guard !samePath(value, defaultValue) else { return }
+        parts += ["--\(name)", PathDisplay.display(value)]
     }
 
     private static func printWorkspaceApplyLanes(_ payload: [String: Any]) {

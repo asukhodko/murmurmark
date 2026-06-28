@@ -1487,6 +1487,8 @@ EOF
   grep -q '^      listen: afplay ' "$cli_workspace_stdout"
   grep -q '^      edit: \$EDITOR ' "$cli_workspace_stdout"
   grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_stdout"
+  grep -q '^  suggested_dry_run: murmurmark review workspace apply --session review_workspace_cli_session --answers-source suggested --dry-run' "$cli_workspace_stdout"
+  grep -q '^  suggested_apply: murmurmark review workspace apply --session review_workspace_cli_session --answers-source suggested' "$cli_workspace_stdout"
   jq -e '.schema == "murmurmark.review_workspace/v1" and any(.lanes[]; .lane == "check_local_recall" and .status == "ok")' "$cli_review_workspace_dir/review_workspace.json" >/dev/null
   cli_answer_sheet="$cli_review_workspace_dir/lane-packs/review_lane_answers.check_local_recall.txt"
   cli_workspace_dry_run_out="$workdir/review_decisions_workspace_cli_dry_run.jsonl"
@@ -1501,11 +1503,27 @@ EOF
   [[ ! -e "$cli_workspace_dry_run_out" ]]
   jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .dry_run == true and .summary.remaining_rows == 2' "$cli_review_workspace_dir/review_workspace_apply_dry_run_report.json" >/dev/null
   grep -q '^review_workspace_apply:$' "$cli_workspace_dry_run_stdout"
+  grep -q '^  answers_source: review' "$cli_workspace_dry_run_stdout"
   grep -q '  dry_run: true' "$cli_workspace_dry_run_stdout"
   grep -q '^  lane_progress:$' "$cli_workspace_dry_run_stdout"
   grep -q '^    check_local_recall: status=ok reviewed=0 todo=1 rejected=0' "$cli_workspace_dry_run_stdout"
   grep -q '^      edit: \$EDITOR ' "$cli_workspace_dry_run_stdout"
   grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_dry_run_stdout"
+  cli_workspace_suggested_dry_run_out="$workdir/review_decisions_workspace_cli_suggested_dry_run.jsonl"
+  cli_workspace_suggested_dry_run_stdout="$workdir/review_workspace_cli_suggested_dry_run_stdout.txt"
+  "$repo_root/.build/debug/murmurmark" review workspace apply \
+    --workspace "$cli_review_workspace_dir/review_workspace.json" \
+    --template "$review_template" \
+    --out "$cli_workspace_suggested_dry_run_out" \
+    --report "$cli_review_workspace_dir/review_workspace_suggested_apply_dry_run_report.json" \
+    --answers-source suggested \
+    --dry-run >"$cli_workspace_suggested_dry_run_stdout"
+  assert_no_helper_prefix "$(cat "$cli_workspace_suggested_dry_run_stdout")"
+  [[ ! -e "$cli_workspace_suggested_dry_run_out" ]]
+  jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .answers_source == "suggested" and .dry_run == true and .summary.reviewed_count == 1 and .summary.remaining_rows == 1' "$cli_review_workspace_dir/review_workspace_suggested_apply_dry_run_report.json" >/dev/null
+  grep -q '^review_workspace_apply:$' "$cli_workspace_suggested_dry_run_stdout"
+  grep -q '^  answers_source: suggested' "$cli_workspace_suggested_dry_run_stdout"
+  grep -q '^    check_local_recall: status=ok reviewed=1 todo=0 rejected=0' "$cli_workspace_suggested_dry_run_stdout"
   sed 's/^answers=.*/answers=k/' "$cli_answer_sheet" >"$cli_answer_sheet.tmp"
   mv "$cli_answer_sheet.tmp" "$cli_answer_sheet"
   cli_workspace_apply_out="$workdir/review_decisions_workspace_cli_apply.jsonl"
@@ -1518,6 +1536,7 @@ EOF
   assert_no_helper_prefix "$(cat "$cli_workspace_apply_stdout")"
   jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "workspace_answer_sheet"' "$cli_workspace_apply_out" >/dev/null
   jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .summary.reviewed_count == 1 and .summary.remaining_rows == 1' "$cli_review_workspace_dir/review_workspace_apply_report.json" >/dev/null
+  grep -q '^  answers_source: review' "$cli_workspace_apply_stdout"
   grep -q '^  lane_progress:$' "$cli_workspace_apply_stdout"
   grep -q '^    check_local_recall: status=ok reviewed=1 todo=0 rejected=0' "$cli_workspace_apply_stdout"
   grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_apply_stdout"

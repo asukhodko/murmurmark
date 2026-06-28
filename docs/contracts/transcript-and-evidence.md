@@ -1916,7 +1916,9 @@ each answer against `allowed_decisions`, writes `review_source: "lane_pack"`, an
 `review_workspace.json` into one `review_decisions.jsonl`. It validates item counts, answer
 shortcuts and `allowed_decisions`; with `--answers-source suggested` it reads
 `suggested_answer_sheet` instead of the manual `answer_sheet`, and with `--require-complete` it fails
-if any selected workspace answer is still `todo`. It writes:
+if any selected workspace answer is still `todo`. The Swift workspace handoff prints
+`suggested_dry_run` and `suggested_apply` commands whenever the workspace has suggested sheets. It
+writes:
 
 ```text
 sessions/_reports/review-plan/
