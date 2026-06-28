@@ -45,6 +45,10 @@ less "$SESSION/derived/readiness/session_readiness.md"
 murmurmark retention plan "$SESSION"
 ```
 
+If synthesis or readiness still reports review risk, the CLI handoff points to
+`murmurmark review next "$SESSION"` before export. Export is advertised from synthesis only after a
+good verdict with no review items.
+
 Copy `murmurmark.config.example.json` to `murmurmark.config.json` when you want local defaults for
 model, language, prompt and export. Explicit command-line flags override config values.
 `murmurmark doctor` reports the selected config and model path, so run it after changing local

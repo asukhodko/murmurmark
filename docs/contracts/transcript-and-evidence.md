@@ -2745,7 +2745,9 @@ Synthesis must read this report before producing notes. `murmurmark synthesize S
 CLI entry point for the deterministic extractive synthesis layer. It wraps
 `scripts/synthesize-simple-extractive.py`, writes the same `quality_verdict`, `notes`,
 `evidence_notes` and `review_items` artifacts, then prints the selected profile, verdict, risk count
-and next commands.
+and next commands. When the verdict still has review items, risk items or `usable_with_review`, the
+Swift summary uses `murmurmark review next SESSION` as the primary handoff and omits export from
+`next`. Export is suggested from synthesis only for a `good` verdict without review work.
 
 ## `synthesis_policy.yaml`
 

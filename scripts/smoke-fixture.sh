@@ -1403,7 +1403,9 @@ EOF
   echo "$synthesize_cli_output" | grep -q '^synthesis:$'
   echo "$synthesize_cli_output" | grep -q '  selected_profile: audit_cleanup_v1'
   echo "$synthesize_cli_output" | grep -q '  review_items: '
-  echo "$synthesize_cli_output" | grep -q '^  recommended_next: murmurmark notes '
+  echo "$synthesize_cli_output" | grep -q '^  recommended_next: murmurmark review next '
+  echo "$synthesize_cli_output" | grep -q '^    murmurmark review next '
+  ! echo "$synthesize_cli_output" | grep -q '^    murmurmark export '
   jq -e '.selected_transcript_profile == "audit_cleanup_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json" >/dev/null
   "$bin" notes "$group_session" --profile audit_cleanup_v1 --path-only | grep -q '/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md$'
   "$bin" notes "$group_session" --profile audit_cleanup_v1 --kind verdict --cat | grep -q '# Quality Verdict'

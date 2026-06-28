@@ -2968,15 +2968,21 @@ enum SynthesisPrinter {
 
         let payload = try JSONFiles.object(verdictURL)
         let metrics = dict(payload["metrics"])
+        let reviewSummary = dict(payload["review_summary"])
         let riskItems = payload["risk_items"] as? [Any] ?? []
         let profile = string(payload["selected_transcript_profile"]) ?? "unknown"
+        let verdict = string(payload["verdict"]) ?? "unknown"
+        let sessionPath = PathDisplay.display(session)
+        let reviewItemCount = intOptional(reviewSummary["review_item_count"]) ?? 0
+        let needsReview = reviewItemCount > 0 || !riskItems.isEmpty || verdict == "usable_with_review"
+        let canSuggestExport = verdict == "good" && !needsReview
 
         print("")
         print("synthesis:")
         print("  quality_verdict: \(PathDisplay.display(verdictURL))")
         print("  notes: \(PathDisplay.display(outDir.appendingPathComponent("notes.md")))")
         print("  selected_profile: \(profile)")
-        print("  verdict: \(string(payload["verdict"]) ?? "unknown")")
+        print("  verdict: \(verdict)")
         print("  risk_items: \(riskItems.count)")
         ReviewSummaryPrinter.printReviewSummary(payload["review_summary"], indent: "  ")
         if let needsReview = intOptional(metrics["needs_review_count"]) {
@@ -2985,12 +2991,20 @@ enum SynthesisPrinter {
         if let overlapSeconds = doubleOptional(metrics["cross_role_overlap_gt2_seconds"]) {
             print(String(format: "  cross_role_overlap_gt2_seconds: %.2f", overlapSeconds))
         }
-        print("  recommended_next: murmurmark notes \(PathDisplay.display(session))")
+        let recommendedNext = needsReview
+            ? "murmurmark review next \(sessionPath)"
+            : "murmurmark notes \(sessionPath)"
+        print("  recommended_next: \(recommendedNext)")
         print("  next:")
-        print("    murmurmark notes \(PathDisplay.display(session))")
-        print("    murmurmark transcript \(PathDisplay.display(session))")
-        print("    murmurmark report \(PathDisplay.display(session))")
-        print("    murmurmark export \(PathDisplay.display(session)) --format markdown --include-json")
+        if needsReview {
+            print("    murmurmark review next \(sessionPath)")
+        }
+        print("    murmurmark notes \(sessionPath)")
+        print("    murmurmark transcript \(sessionPath)")
+        print("    murmurmark report \(sessionPath)")
+        if canSuggestExport {
+            print("    murmurmark export \(sessionPath) --format markdown --include-json")
+        }
     }
 
     private static func dict(_ value: Any?) -> [String: Any] {
