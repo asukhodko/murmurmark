@@ -21,7 +21,7 @@ murmurmark doctor
 To verify the release layout instead of the working checkout:
 
 ```bash
-scripts/build-release-bundle.sh
+scripts/build-release-bundle.sh --verify
 BUNDLE="$(find dist/release-bundles -maxdepth 1 -type d -name 'murmurmark-*' | sort | tail -1)"
 MURMURMARK_PYTHON="$PWD/.venv/bin/python" "$BUNDLE/bin/murmurmark" doctor --strict
 ```

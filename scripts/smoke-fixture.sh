@@ -1996,6 +1996,10 @@ EOF
   echo "$export_help" | grep -q 'usage: murmurmark export'
   export_flag_help="$("$bin" export --help)"
   echo "$export_flag_help" | grep -q 'usage: murmurmark export'
+  release_help="$("$repo_root/scripts/build-release-bundle.sh" --help)"
+  echo "$release_help" | grep -q 'usage: scripts/build-release-bundle.sh'
+  echo "$release_help" | grep -q -- '--verify'
+  echo "$release_help" | grep -q -- '--python PATH'
 
   corpus_dir="$workdir/regression-corpus"
   "$repo_root/scripts/build-regression-corpus.py" "$group_session" \

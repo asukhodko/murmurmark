@@ -5,10 +5,12 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 out_dir="$repo_root/dist/release-bundles"
 build=1
+verify=0
+verify_python="${MURMURMARK_PYTHON:-}"
 
 usage() {
   cat <<'EOF'
-usage: scripts/build-release-bundle.sh [--out-dir DIR] [--no-build]
+usage: scripts/build-release-bundle.sh [--out-dir DIR] [--no-build] [--verify] [--python PATH]
 
 Builds a local MurmurMark release bundle:
   bin/murmurmark
@@ -22,6 +24,10 @@ Builds a local MurmurMark release bundle:
 
 The bundle contains tracked project files only. It does not copy sessions,
 exports, raw audio, models, .venv or murmurmark.config.json.
+
+Options:
+  --verify      Run the bundled wrapper with `doctor --strict` after building.
+  --python PATH Use PATH as MURMURMARK_PYTHON for --verify.
 EOF
 }
 
@@ -35,6 +41,15 @@ while [[ $# -gt 0 ]]; do
     --no-build)
       build=0
       shift
+      ;;
+    --verify)
+      verify=1
+      shift
+      ;;
+    --python)
+      [[ $# -ge 2 ]] || { echo "error: --python requires a path" >&2; exit 2; }
+      verify_python="$2"
+      shift 2
       ;;
     --help|-h)
       usage
@@ -136,6 +151,12 @@ bin/murmurmark doctor
 bin/murmurmark process ./sessions/<session>
 ```
 
+Verify the bundle:
+
+```bash
+MURMURMARK_PYTHON=/path/to/python bin/murmurmark doctor --strict
+```
+
 If the host Python does not have MurmurMark's audio dependencies, set:
 
 ```bash
@@ -194,4 +215,20 @@ EOF
 
 echo "bundle: $bundle_root"
 echo "manifest: $bundle_root/release-manifest.json"
-echo "try: $bundle_root/bin/murmurmark doctor"
+if [[ -z "$verify_python" && -x "$repo_root/.venv/bin/python" ]]; then
+  verify_python="$repo_root/.venv/bin/python"
+fi
+if [[ -n "$verify_python" ]]; then
+  printf -v quoted_verify_python '%q' "$verify_python"
+  echo "verify: MURMURMARK_PYTHON=$quoted_verify_python $bundle_root/bin/murmurmark doctor --strict"
+else
+  echo "verify: $bundle_root/bin/murmurmark doctor --strict"
+fi
+
+if [[ "$verify" == "1" ]]; then
+  if [[ -n "$verify_python" ]]; then
+    MURMURMARK_PYTHON="$verify_python" "$bundle_root/bin/murmurmark" doctor --strict
+  else
+    "$bundle_root/bin/murmurmark" doctor --strict
+  fi
+fi

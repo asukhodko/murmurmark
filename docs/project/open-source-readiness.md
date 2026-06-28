@@ -50,4 +50,5 @@ files or outside the repository.
 
 - Decide the public security contact.
 - Re-run `scripts/check.sh` and `scripts/check-open-source-readiness.sh`.
-- Build a release bundle and verify `bin/murmurmark doctor --strict`.
+- Build a release bundle with `scripts/build-release-bundle.sh --verify` and verify
+  `bin/murmurmark doctor --strict`.

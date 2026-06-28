@@ -91,7 +91,7 @@ The bundle must not include:
 Build:
 
 ```bash
-scripts/build-release-bundle.sh
+scripts/build-release-bundle.sh --verify
 ```
 
 Verify:
@@ -103,3 +103,5 @@ MURMURMARK_PYTHON="$PWD/.venv/bin/python" "$BUNDLE/bin/murmurmark" doctor --stri
 
 If the host Python does not contain MurmurMark's audio dependencies, set
 `MURMURMARK_PYTHON` to a prepared environment before running the bundle.
+`scripts/build-release-bundle.sh --verify --python PATH` runs this verification immediately after
+creating the bundle.
