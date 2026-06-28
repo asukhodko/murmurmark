@@ -105,6 +105,12 @@ enum ReviewPrinter {
             print("  by_lane: \(compactJSON(lanes))")
         }
         print("  first_lane: \(firstLane)")
+        if let reason = string(strategy["first_recommended_reason"]) {
+            print("  first_lane_reason: \(reason)")
+        }
+        if let quickLane = string(strategy["quick_recommended_lane"]), quickLane != firstLane {
+            print("  quick_lane: \(quickLane)")
+        }
         print("  next:")
         print("    murmurmark review workspace")
         print("    murmurmark review latest --lane \(firstLane)")

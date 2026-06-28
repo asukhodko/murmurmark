@@ -1897,6 +1897,7 @@ PY
   jq -e '.next_commands | type == "array" and length >= 1 and (.[0].command | type) == "string"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.promotion_plan.review_queue_strategy.by_lane | type == "array"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.promotion_plan.review_queue_strategy.after_first_lane_estimate.remaining_items | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.promotion_plan.review_queue_strategy.first_recommended_reason | type == "string"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'any(.review_queue[]; (.source == "local_recall" and .label == "lost_me") or (.source == "local_recall_repair" and .label == "local_recall_repair_inserted"))' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'any(.review_queue[]; .source == "local_recall_repair" and .label == "local_recall_repair_inserted" and .input_profile == "local_recall_repair_v1" and (.utterance_ids | length) >= 1)' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'all(.review_queue[]; .source_audit_id != "arp_manual_v2_duplicate")' "$readiness_dir/operational_readiness_report.json" >/dev/null
@@ -2118,7 +2119,10 @@ PY
   [[ -s "$review_plan_dir/review_decisions.template.jsonl" ]]
   jq -e '.schema == "murmurmark.review_plan/v1" and .summary.cluster_count >= 1' "$review_plan_dir/review_plan.json" >/dev/null
   jq -e '(.review_queue_strategy.first_recommended_lane | type) == "string"' "$review_plan_dir/review_plan.json" >/dev/null
+  jq -e '(.review_queue_strategy.first_recommended_reason | type) == "string"' "$review_plan_dir/review_plan.json" >/dev/null
   grep -q 'Recommended First Lane' "$review_plan_dir/review_plan.md"
+  grep -q 'Reason: `' "$review_plan_dir/review_plan.md"
+  grep -q 'current blocker' "$review_plan_dir/review_plan.md"
   python3 - "$repo_root" <<'PY'
 import importlib.util
 from pathlib import Path

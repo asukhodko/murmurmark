@@ -1685,7 +1685,7 @@ sessions/_reports/review-plan/
       "remaining_minutes": 1.93
     },
     "commands": {
-      "build_first_lane_pack": ".venv/bin/python scripts/build-review-lane-pack.py --lane fast_confirm_drop"
+      "build_first_lane_pack": ".venv/bin/python scripts/build-review-lane-pack.py --lane check_transcript_order"
     }
   },
   "review_lanes": {

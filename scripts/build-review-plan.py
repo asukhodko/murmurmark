@@ -533,6 +533,8 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
                 "## Recommended First Lane",
                 "",
                 f"- Lane: `{strategy.get('first_recommended_lane')}`",
+                f"- Reason: `{strategy.get('first_recommended_reason')}`",
+                f"- Quick lane: `{strategy.get('quick_recommended_lane')}`",
                 f"- After first lane: `{after_first.get('remaining_items')}` items",
             ]
         )
@@ -546,7 +548,7 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
                 "",
                 "## Decision Lanes",
                 "",
-                "Use this section to close the queue in the safest order: quick confirm-drop candidates first, then partial/unique-content checks, then local-recall checks.",
+                "Use this section to close the queue safely: the recommended first lane targets the current blocker; quick confirm-drop candidates remain available as a separate lane.",
                 "",
                 "| Lane | Items | Raw sec | What to do |",
                 "|---|---:|---:|---|",

@@ -1313,6 +1313,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         lines.extend(
             [
                 f"- First lane: `{first_lane}`",
+                f"- First lane reason: `{strategy.get('first_recommended_reason')}`",
+                f"- Quick lane: `{strategy.get('quick_recommended_lane')}`",
                 f"- After first lane estimate: `{after_first.get('remaining_items')}` items / `{after_first.get('remaining_minutes')}` min",
                 "",
                 "| Lane | Items | Raw sec | Labels |",

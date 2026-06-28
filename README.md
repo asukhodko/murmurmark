@@ -631,6 +631,8 @@ minutes. The queue is filtered through the selected transcript profile, so alrea
 utterances do not stay in the operational review list. It also ignores stale audio-judge queue rows
 when the current audio-review audit has since reclassified that item as reliable.
 The report also includes `Review Queue Strategy`: lane counts, the first lane to close, and the
+reason it was chosen. `quick_recommended_lane` still points to the fastest confirm/drop pass when it
+exists, while `first_recommended_lane` targets the current blocker. The report also shows the
 estimated queue remaining after that first lane.
 `murmurmark review workspace` can then build all remaining lane packs, editable answer sheets
 and one `review_workspace.md` index for the reviewer.
