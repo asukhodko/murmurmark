@@ -10,6 +10,17 @@ from typing import Any
 
 SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
+DIAGNOSTIC_SESSION_EXACT_IDS = {
+    "smoke",
+    "test",
+    "talk-solo",
+    "voice-processing-smoke",
+}
+DIAGNOSTIC_SESSION_MARKERS = (
+    "audio-input",
+    "talk-audio-input",
+    "talk-routed",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -88,6 +99,48 @@ def safe_int(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def is_diagnostic_session(row: dict[str, Any]) -> bool:
+    session_id = str(row.get("session_id") or row.get("label") or "").lower()
+    label = str(row.get("label") or "").lower()
+    candidates = {session_id, label}
+    if any(candidate in DIAGNOSTIC_SESSION_EXACT_IDS for candidate in candidates):
+        return True
+    return any(marker in session_id or marker in label for marker in DIAGNOSTIC_SESSION_MARKERS)
+
+
+def aggregate_session_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    verdicts: dict[str, int] = {}
+    profiles: dict[str, int] = {}
+    total_duration = 0.0
+    for row in rows:
+        verdict = str(row.get("verdict") or "missing")
+        profile = str(row.get("selected_profile") or "missing")
+        verdicts[verdict] = verdicts.get(verdict, 0) + 1
+        profiles[profile] = profiles.get(profile, 0) + 1
+        total_duration += safe_float(row.get("meeting_duration_sec"))
+    complete = sum(1 for row in rows if row.get("pipeline_status") == "complete")
+    return {
+        "session_count": len(rows),
+        "complete_pipeline_count": complete,
+        "partial_or_incomplete_count": len(rows) - complete,
+        "total_duration_sec": round(total_duration, 3),
+        "total_duration_min": round(total_duration / 60.0, 2),
+        "by_verdict": dict(sorted(verdicts.items())),
+        "by_selected_profile": dict(sorted(profiles.items())),
+        "sessions_with_suggested_review_v1": sum(1 for row in rows if row.get("suggested_review_v1_available")),
+    }
+
+
+def operational_scope(session_quality: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    sessions = session_quality.get("sessions") if isinstance(session_quality.get("sessions"), list) else []
+    included = [row for row in sessions if isinstance(row, dict) and not is_diagnostic_session(row)]
+    excluded = [row for row in sessions if isinstance(row, dict) and is_diagnostic_session(row)]
+    scoped = dict(session_quality)
+    scoped["sessions"] = included
+    scoped["summary"] = aggregate_session_rows(included)
+    return scoped, excluded
 
 
 def suffix(profile: str) -> str:
@@ -1034,6 +1087,8 @@ def build_report(
     inputs: dict[str, str],
     max_review_items: int,
 ) -> dict[str, Any]:
+    raw_sessions = session_quality.get("sessions") if isinstance(session_quality.get("sessions"), list) else []
+    session_quality, excluded_diagnostics = operational_scope(session_quality)
     sessions = session_quality.get("sessions") if isinstance(session_quality.get("sessions"), list) else []
     burdens = [session_review_burden(row) for row in sessions]
     total_duration = sum(item["duration_sec"] for item in burdens)
@@ -1058,6 +1113,9 @@ def build_report(
         "warnings": warnings,
         "summary": {
             "session_count": len(sessions),
+            "all_session_count": len(raw_sessions),
+            "excluded_diagnostic_session_count": len(excluded_diagnostics),
+            "excluded_diagnostic_sessions": [str(row.get("session_id") or row.get("label") or "") for row in excluded_diagnostics],
             "complete_pipeline_count": safe_int((session_quality.get("summary") or {}).get("complete_pipeline_count")),
             "selected_profiles": (session_quality.get("summary") or {}).get("by_selected_profile", {}),
             "sessions_with_suggested_review_v1": safe_int(
@@ -1182,6 +1240,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         "## Summary",
         "",
         f"- Sessions: `{report['summary']['session_count']}`",
+        f"- Excluded diagnostic sessions: `{report['summary'].get('excluded_diagnostic_session_count', 0)}` / `{report['summary'].get('all_session_count', report['summary']['session_count'])}` total",
         f"- Complete pipelines: `{report['summary']['complete_pipeline_count']}`",
         f"- Total review burden: `{round(report['summary']['total_review_burden_sec'] / 60.0, 2)} min`",
         f"- Review burden ratio: `{round(report['summary']['total_review_burden_ratio'] * 100.0, 2)}%`",

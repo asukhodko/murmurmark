@@ -171,7 +171,9 @@ This command completes the refresh and prints summaries even when corpus gates a
 `murmurmark corpus gate` separately when you need a strict non-zero gate for CI or release checks.
 Operational readiness prefers a concrete `murmurmark process sessions/<id>` command only for the
 first incomplete high-value session. Complete but risky sessions stay in the review lane commands;
-the report does not ask you to rerun them as if artifacts were missing.
+the report does not ask you to rerun them as if artifacts were missing. Obvious diagnostic/smoke
+sessions such as `audio-input-*`, `*-talk-routed`, `smoke` and `test` are excluded from this
+operational scope, while their files remain available for manual debugging.
 `corpus gate` writes `sessions/_reports/corpus-gates/corpus_gates_report.*`. It also reads the
 local-recall and remote-leak corpus reports when they exist. Complete sessions with blocking
 local-recall risk fail the gate; pending remote-leak segment queues are warnings, not hard failures.

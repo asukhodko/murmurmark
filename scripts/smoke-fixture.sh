@@ -1842,6 +1842,20 @@ spec = importlib.util.spec_from_file_location("report_operational_readiness", mo
 module = importlib.util.module_from_spec(spec)
 assert spec and spec.loader
 spec.loader.exec_module(module)
+assert module.is_diagnostic_session({"session_id": "audio-input-smoke"})
+assert module.is_diagnostic_session({"session_id": "2026-06-23_10-45-26-talk-routed"})
+assert not module.is_diagnostic_session({"session_id": "2026-06-24_15-03-52"})
+scoped, excluded = module.operational_scope(
+    {
+        "sessions": [
+            {"session_id": "audio-input-smoke", "selected_profile": "missing", "pipeline_status": "incomplete"},
+            {"session_id": "2026-06-24_15-03-52", "selected_profile": "audit_cleanup_v2", "pipeline_status": "complete", "verdict": "good", "meeting_duration_sec": 60},
+        ]
+    }
+)
+assert scoped["summary"]["session_count"] == 1, scoped
+assert scoped["summary"]["complete_pipeline_count"] == 1, scoped
+assert len(excluded) == 1, excluded
 
 def item(source, label, verdict, score, idx):
     return {

@@ -1537,6 +1537,9 @@ sessions/_reports/operational-readiness/
   "warnings": ["some_sessions_need_manual_review_before_use"],
   "summary": {
     "session_count": 10,
+    "all_session_count": 14,
+    "excluded_diagnostic_session_count": 4,
+    "excluded_diagnostic_sessions": ["audio-input-smoke", "test"],
     "use_gates": {
       "ready_for_notes": 4,
       "review_first": 5,
@@ -1614,6 +1617,12 @@ sessions/_reports/operational-readiness/
   ]
 }
 ```
+
+`session_count` is the operational scope for working meetings, not necessarily every directory under
+`sessions/`. Obvious diagnostic/smoke sessions whose ids contain markers such as `audio-input`,
+`talk-routed`, `talk-audio-input`, or exact ids such as `smoke`, `test`, `talk-solo`,
+`voice-processing-smoke`, are excluded from operational readiness and listed in
+`excluded_diagnostic_sessions`. They remain valid debug sessions and are not deleted.
 
 The operational verdict is not a transcript correctness proof. It is a use-readiness summary for
 piloting MurmurMark on medium-risk meetings with explicit review burden, per-session use gates and a
