@@ -1582,7 +1582,14 @@ enum ReviewLaneApplyCommand {
             print("  next:")
             print("    murmurmark review apply\(sessionArgument)")
         } else {
-            print("  next:")
+            if let nextLane = context.progress.flatMap(firstRemainingLane) {
+                print("  next_lane: \(nextLane)")
+                print("  next:")
+                print("    murmurmark review lane \(nextLane)\(sessionArgument)")
+                print("    murmurmark review lane apply \(nextLane)\(sessionArgument)")
+            } else {
+                print("  next:")
+            }
             print("    murmurmark review workspace\(sessionArgument)")
             print("    murmurmark review progress\(sessionArgument)")
         }
@@ -1624,6 +1631,15 @@ enum ReviewLaneApplyCommand {
             return false
         }
         return bool(summary["ready_for_batch_apply"]) == true
+    }
+
+    private static func firstRemainingLane(_ progress: URL) -> String? {
+        guard let payload = try? JSONFiles.object(progress),
+              let lanes = payload["by_lane"] as? [[String: Any]]
+        else {
+            return nil
+        }
+        return lanes.first { (int($0["remaining"]) ?? 0) > 0 }.flatMap { $0["review_lane"] as? String }
     }
 
     private static func bool(_ value: Any?) -> Bool? {

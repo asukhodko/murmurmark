@@ -2396,7 +2396,10 @@ PY
   echo "$explicit_local_recall_apply_output" | grep -q '^  lane_result: reviewed='
   echo "$explicit_local_recall_apply_output" | grep -q '^  progress: '
   echo "$explicit_local_recall_apply_output" | grep -q '^  ready_for_apply: false'
+  echo "$explicit_local_recall_apply_output" | grep -q '^  next_lane: check_unique_me_content'
   echo "$explicit_local_recall_apply_output" | grep -q '^  next:$'
+  echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review lane check_unique_me_content --session '
+  echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review lane apply check_unique_me_content --session '
   echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review workspace --session '
   echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review progress --session '
   explicit_local_recall_apply_dry_run_output="$("$bin" review lane apply check_local_recall \

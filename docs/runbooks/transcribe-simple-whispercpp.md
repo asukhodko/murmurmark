@@ -875,7 +875,8 @@ dry run. `review lane apply --dry-run` writes `review_lane_pack_apply_report.jso
 `lane_result`, so you can see how many items would become reviewed or remain `todo` before writing
 `review_decisions.jsonl`.
 `review lane apply --dry-run` also prints the exact non-dry-run command under `next`. Applying the
-lane refreshes `review_decisions_progress.json` and prints the next safe command. When batch apply is
+lane refreshes `review_decisions_progress.json` and prints the next remaining lane before the
+workspace fallback. When batch apply is
 not ready yet, `review apply --session "$SESSION"` points back to `review first-lane`, `review lane
 apply first`, and the workspace flow instead of leaving the reviewer to inspect JSON. `review progress --session
 "$SESSION"` prints `by_lane`, `next_lane`, lane-specific build/apply commands, plus the
