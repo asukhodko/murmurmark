@@ -669,6 +669,8 @@ echo "$review_apply_not_ready_output" | grep -q '^  status: not_ready'
 echo "$review_apply_not_ready_output" | grep -q '^  progress: '
 echo "$review_apply_not_ready_output" | grep -q '^  reviewed: 0/1'
 echo "$review_apply_not_ready_output" | grep -q '^  remaining: 1'
+echo "$review_apply_not_ready_output" | grep -q '^  review_actions: 0/1'
+echo "$review_apply_not_ready_output" | grep -q '^  remaining_actions: 1'
 echo "$review_apply_not_ready_output" | grep -q '^  ready_for_apply: false'
 echo "$review_apply_not_ready_output" | grep -q '^  by_lane:$'
 echo "$review_apply_not_ready_output" | grep -q '^  next_lane: check_local_recall'
@@ -2661,7 +2663,7 @@ PY
   assert_no_helper_prefix "$agent_review_output"
   echo "$agent_review_output" | grep -q '^agent_review:$'
   echo "$agent_review_output" | grep -q '^review_apply:$'
-  echo "$agent_review_output" | grep -q '^  next: murmurmark report '
+  echo "$agent_review_output" | grep -Eq '^  (next|report_next): murmurmark report '
   [[ -s "$agent_review_dir/review_decisions.agent_reviewed_v1.jsonl" ]]
   [[ -s "$agent_review_dir/review_decisions.agent_reviewed_v1.template.jsonl" ]]
   [[ -s "$agent_review_dir/agent_review_report.agent_reviewed_v1.json" ]]
@@ -2689,7 +2691,8 @@ PY
   assert_no_helper_prefix "$latest_apply_output"
   echo "$latest_apply_output" | grep -q '^SESSION="'
   echo "$latest_apply_output" | grep -q '^  report: .*review_decisions_apply.latest.json'
-  echo "$latest_apply_output" | grep -q '^  next: murmurmark report '
+  echo "$latest_apply_output" | grep -Eq '^  next: murmurmark (export|review|process|retention|report) '
+  echo "$latest_apply_output" | grep -q '^  report_next: murmurmark report '
   echo "$latest_apply_output" | grep -q '^readiness:$'
   echo "$latest_apply_output" | grep -q '^  status: '
   echo "$latest_apply_output" | grep -q '^  recommended_next: '

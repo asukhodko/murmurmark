@@ -905,8 +905,10 @@ prints `review apply --session "$SESSION"` only when the checklist is ready for 
 If `review apply --session "$SESSION"` is called before `review_decisions.jsonl` exists, it prints
 `status: not_ready`, the missing file and the first-lane/workspace/progress commands to run next.
 If the decisions file exists but the checklist still has `todo` rows, it refreshes
-`review_decisions_progress.json`, prints `reviewed`, `remaining` and `by_lane`, then points back to
-workspace/workspace-apply/progress without running batch apply.
+`review_decisions_progress.json`, prints `reviewed`, `remaining`, packed review actions and
+`by_lane`, then points back to workspace/workspace-apply/progress without running batch apply. After
+a successful single-session batch apply, `review apply` uses the refreshed readiness `next_commands`
+for its primary `next`, and prints `report_next` for an explicit status refresh.
 
 The lower-level equivalent is still useful for debugging exact paths:
 

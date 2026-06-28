@@ -748,9 +748,10 @@ lane/workspace-apply/progress/apply commands. Workspace output also prints
 `manual_flow`, optional `suggested_flow`, and `after_apply`. It still prints `suggested_dry_run`
 and `suggested_apply` for the generated `.suggested.txt` sheets; keep the same rule as lane review
 and run the suggested path with `--dry-run` before writing decisions.
-After `murmurmark review apply`, the CLI prints the next report command for the affected session or
-corpus. For a single session it also prints the refreshed readiness summary, including the next
-export or retention commands when the session is ready.
+After `murmurmark review apply`, the CLI uses the refreshed readiness report for the primary `next`
+command. For a single session it keeps `report_next: murmurmark report ...` as the explicit refresh
+command and then prints the readiness summary, including export or retention commands when the
+session is ready.
 If `review apply` is run before a decisions file exists, or while review progress still has `todo`
 rows, it prints `status: not_ready`, the missing file or progress summary, and the
 `review workspace` / `review progress` commands to run next instead of exposing a low-level Python

@@ -2238,6 +2238,10 @@ surfacing the lower-level Python failure.
 If the files exist but `review_decisions_progress.json` is not `ready_for_batch_apply`, the wrapper
 prints the progress summary, lane breakdown, and the next workspace/workspace-apply/progress command
 chain, then exits without running the batch command.
+After a successful single-session batch apply, the Swift wrapper reads the refreshed
+`session_readiness.json`: `next` is the first readiness `next_commands[].command`, while
+`report_next` keeps the explicit `murmurmark report SESSION` refresh command. If readiness is
+missing, `next` falls back to `murmurmark report SESSION`.
 
 The report includes coverage evidence:
 

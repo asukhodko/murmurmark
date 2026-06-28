@@ -248,7 +248,13 @@ enum ReviewPrinter {
         if failedSessions > 0 || failedRefreshSteps > 0 {
             print("  next: less \(PathDisplay.display(report))")
         } else if let session = singleAppliedSession(sessions) {
-            print("  next: murmurmark report \(session)")
+            let sessionURL = PathURLs.fileURL(session)
+            if let next = readinessRecommendedNext(sessionURL) {
+                print("  next: \(next)")
+                print("  report_next: murmurmark report \(PathDisplay.display(sessionURL))")
+            } else {
+                print("  next: murmurmark report \(PathDisplay.display(sessionURL))")
+            }
             try printAppliedSessionReadiness(session)
         } else if !sessions.isEmpty {
             print("  next: murmurmark report corpus")
@@ -283,6 +289,10 @@ enum ReviewPrinter {
         print("  progress: \(PathDisplay.display(progress))")
         print("  reviewed: \(int(summary["reviewed"]) ?? 0)/\(int(summary["total"]) ?? 0)")
         print("  remaining: \(int(summary["remaining"]) ?? 0)")
+        if let actionCount = int(summary["action_count"]) {
+            print("  review_actions: \(int(summary["reviewed_actions"]) ?? 0)/\(actionCount)")
+            print("  remaining_actions: \(int(summary["remaining_actions"]) ?? 0)")
+        }
         print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
         printProgressLanes(payload)
         printApplyNotReadyNext(sessionArgument: sessionArgument, nextLane: firstRemainingLane(payload))
@@ -554,6 +564,17 @@ enum ReviewPrinter {
             return
         }
         try ReadinessPrinter.printSession(sessionURL)
+    }
+
+    private static func readinessRecommendedNext(_ session: URL) -> String? {
+        let readiness = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        guard FileManager.default.fileExists(atPath: readiness.path),
+              let payload = try? JSONFiles.object(readiness),
+              let nextCommands = payload["next_commands"] as? [[String: Any]]
+        else {
+            return nil
+        }
+        return nextCommands.compactMap { string($0["command"]) }.first
     }
 
     private static func string(_ value: Any?) -> String? {
