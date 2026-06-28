@@ -110,6 +110,7 @@ def compact_patch(row: dict[str, Any], session_row: dict[str, Any]) -> dict[str,
     session = str(session_row.get("session") or "")
     utterance = row.get("utterance") if isinstance(row.get("utterance"), dict) else {}
     micro = row.get("micro_asr") if isinstance(row.get("micro_asr"), dict) else {}
+    ready_for_review = session_ready_for_review(session_row)
     return {
         "schema": SCHEMA_ITEM,
         "kind": "patch",
@@ -118,6 +119,7 @@ def compact_patch(row: dict[str, Any], session_row: dict[str, Any]) -> dict[str,
         "selected_profile": session_row.get("selected_profile"),
         "pipeline_status": session_row.get("pipeline_status"),
         "use_gate": session_row.get("use_gate"),
+        "ready_for_review": ready_for_review,
         "source_item_id": row.get("source_item_id"),
         "status": row.get("status"),
         "utterance_id": utterance.get("id"),
@@ -133,6 +135,11 @@ def compact_patch(row: dict[str, Any], session_row: dict[str, Any]) -> dict[str,
         if session
         else None,
     }
+
+
+def session_ready_for_review(row: dict[str, Any]) -> bool:
+    use_gate = str(row.get("use_gate") or "")
+    return row.get("pipeline_status") == "complete" and not use_gate.startswith("pipeline_incomplete")
 
 
 def compact_rejection(row: dict[str, Any], session_row: dict[str, Any]) -> dict[str, Any]:
@@ -205,12 +212,18 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
     rejection_reasons = Counter(str(item.get("reason") or "unknown") for item in items if item.get("kind") == "rejection")
     statuses = Counter(str(row.get("status") or "unknown") for row in session_summaries)
     patches = [item for item in items if item.get("kind") == "patch"]
+    reviewable_patches = [item for item in patches if item.get("ready_for_review") is True]
+    incomplete_patches = [item for item in patches if item.get("ready_for_review") is not True]
     sessions_with_repairs = {str(item.get("session_id") or "") for item in patches}
+    reviewable_sessions_with_repairs = {str(item.get("session_id") or "") for item in reviewable_patches}
+    incomplete_sessions_with_repairs = {str(item.get("session_id") or "") for item in incomplete_patches}
     missing_input_sessions = statuses["missing_inputs"]
     applied_repairs = sum(safe_int(row.get("applied_repairs")) for row in session_summaries)
     eligible_items = sum(safe_int(row.get("eligible_items")) for row in session_summaries)
-    if patches:
+    if reviewable_patches:
         next_step = "review_inserted_local_recall_repairs"
+    elif incomplete_patches:
+        next_step = "complete_pipeline_before_reviewing_local_recall_repairs"
     elif missing:
         next_step = "run_local_recall_repair_for_missing_sessions"
     elif eligible_items > applied_repairs:
@@ -226,25 +239,22 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
         "by_status": dict(sorted(statuses.items())),
         "missing_input_session_count": missing_input_sessions,
         "sessions_with_repairs": len(sessions_with_repairs),
+        "reviewable_sessions_with_repairs": len(reviewable_sessions_with_repairs),
+        "incomplete_sessions_with_repairs": len(incomplete_sessions_with_repairs),
         "source_items": sum(safe_int(row.get("source_items")) for row in session_summaries),
         "eligible_items": eligible_items,
         "planned_repairs": sum(safe_int(row.get("planned_repairs")) for row in session_summaries),
         "applied_repairs": applied_repairs,
+        "reviewable_applied_repairs": len(reviewable_patches),
+        "incomplete_applied_repairs": len(incomplete_patches),
         "inserted_me_seconds": round(sum(safe_float(row.get("inserted_me_seconds")) for row in session_summaries), 3),
+        "reviewable_inserted_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in reviewable_patches), 3),
+        "incomplete_inserted_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in incomplete_patches), 3),
         "rejected_items": sum(safe_int(row.get("rejected_items")) for row in session_summaries),
         "rejection_reasons": dict(sorted(rejection_reasons.items())),
         "gates_failed_sessions": sum(1 for row in session_summaries if row.get("gates_passed") is not True),
         "recommended_next_step": next_step,
     }
-    next_commands = build_next_commands(
-        sorted(
-            patches,
-            key=lambda item: (
-                -safe_float(item.get("duration_sec")),
-                str(item.get("session_id") or ""),
-            ),
-        )
-    )
     report = {
         "schema": SCHEMA_REPORT,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -274,15 +284,21 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
             ),
         )[: max(0, args.max_items)],
         "policy": {"mode": "explicit_profile", "auto_promotion": False, "inserted_me_turns_need_review": True},
-        "next_commands": next_commands,
+        "next_commands": build_next_commands(reviewable_patches, incomplete_patches),
     }
     return report, items
 
 
-def build_next_commands(patches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def build_next_commands(reviewable_patches: list[dict[str, Any]], incomplete_patches: list[dict[str, Any]]) -> list[dict[str, Any]]:
     commands: list[dict[str, Any]] = []
     seen_sessions: set[str] = set()
-    for item in patches:
+    for item in sorted(
+        reviewable_patches,
+        key=lambda row: (
+            -safe_float(row.get("duration_sec")),
+            str(row.get("session_id") or ""),
+        ),
+    ):
         session = str(item.get("session") or "")
         session_id = str(item.get("session_id") or Path(session).name)
         if not session or session_id in seen_sessions:
@@ -295,6 +311,28 @@ def build_next_commands(patches: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "command": f"murmurmark review lane check_local_recall --session {command_path(session)}",
                 "session_id": session_id,
                 "session": session,
+            }
+        )
+    for item in sorted(
+        incomplete_patches,
+        key=lambda row: (
+            -safe_float(row.get("duration_sec")),
+            str(row.get("session_id") or ""),
+        ),
+    ):
+        session = str(item.get("session") or "")
+        session_id = str(item.get("session_id") or Path(session).name)
+        if not session or session_id in seen_sessions:
+            continue
+        seen_sessions.add(session_id)
+        commands.append(
+            {
+                "id": f"process_local_recall_repair_{session_id}",
+                "label": f"Complete the pipeline before reviewing inserted local-recall repairs for {session_id}.",
+                "command": f"murmurmark process {command_path(session)}",
+                "session_id": session_id,
+                "session": session,
+                "reason": "pipeline_incomplete",
             }
         )
     return commands
@@ -322,7 +360,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Missing repair reports: `{summary.get('missing_repair_report_count')}`",
         f"- Missing inputs: `{summary.get('missing_input_session_count')}`",
         f"- Sessions with repairs: `{summary.get('sessions_with_repairs')}`",
+        f"- Reviewable sessions with repairs: `{summary.get('reviewable_sessions_with_repairs')}`",
+        f"- Incomplete sessions with repairs: `{summary.get('incomplete_sessions_with_repairs')}`",
         f"- Applied repairs: `{summary.get('applied_repairs')}` / `{summary.get('inserted_me_seconds')}` sec",
+        f"- Reviewable repairs: `{summary.get('reviewable_applied_repairs')}` / `{summary.get('reviewable_inserted_me_seconds')}` sec",
+        f"- Incomplete repairs: `{summary.get('incomplete_applied_repairs')}` / `{summary.get('incomplete_inserted_me_seconds')}` sec",
         f"- Eligible items: `{summary.get('eligible_items')}`",
         f"- Rejected items: `{summary.get('rejected_items')}`",
         f"- Next: `{summary.get('recommended_next_step')}`",
@@ -335,6 +377,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             lines.append(
                 f"- `{row.get('session_id')}` `{row.get('input_profile')}` -> `{row.get('output_profile')}` "
                 f"repairs `{row.get('applied_repairs')}`, inserted `{row.get('inserted_me_seconds')}`s, "
+                f"pipeline `{row.get('pipeline_status')}`, gate `{row.get('use_gate')}`, "
                 f"report `less {row.get('report_path')}`"
             )
         lines.append("")
@@ -387,6 +430,8 @@ def main() -> int:
     print(f"repaired_sessions: {summary['repaired_session_count']} / {summary['session_count']}")
     print(f"applied_repairs: {summary['applied_repairs']}")
     print(f"inserted_me_seconds: {summary['inserted_me_seconds']}")
+    print(f"reviewable_applied_repairs: {summary['reviewable_applied_repairs']}")
+    print(f"incomplete_applied_repairs: {summary['incomplete_applied_repairs']}")
     print(f"recommended_next_step: {summary['recommended_next_step']}")
     next_commands = [row for row in report.get("next_commands", []) if isinstance(row, dict)]
     if next_commands:

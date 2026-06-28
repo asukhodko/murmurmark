@@ -731,9 +731,15 @@ sessions/_reports/local-recall-repair/
     "missing_repair_report_count": 0,
     "missing_input_session_count": 0,
     "sessions_with_repairs": 1,
+    "reviewable_sessions_with_repairs": 1,
+    "incomplete_sessions_with_repairs": 0,
     "eligible_items": 2,
     "applied_repairs": 1,
+    "reviewable_applied_repairs": 1,
+    "incomplete_applied_repairs": 0,
     "inserted_me_seconds": 1.3,
+    "reviewable_inserted_me_seconds": 1.3,
+    "incomplete_inserted_me_seconds": 0.0,
     "rejected_items": 8,
     "recommended_next_step": "review_inserted_local_recall_repairs"
   },
@@ -758,6 +764,9 @@ sessions/_reports/local-recall-repair/
 `murmurmark.local_recall_repair_corpus_item/v1` and keeps inserted `Me` rows plus rejected
 local-recall repair items. This report is a promotion checkpoint: it shows whether
 `local_recall_repair_v1` produced useful candidates, but does not make the profile automatic.
+Inserted repair rows include `ready_for_review`; corpus `next_commands` point to
+`check_local_recall` only for complete sessions. If inserted repairs exist only in incomplete
+sessions, the next command points back to `murmurmark process ...` first.
 
 ### Remote Leak Segment Repair Plan
 

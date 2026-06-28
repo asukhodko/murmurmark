@@ -513,6 +513,25 @@ process_commands = module.build_next_commands(
 )
 assert process_commands[0]["command"] == "murmurmark process sessions/incomplete-local", process_commands
 PY
+python3 - "$repo_root" <<'PY'
+import importlib.util
+from pathlib import Path
+import sys
+
+repo_root = Path(sys.argv[1])
+module_path = repo_root / "scripts/report-local-recall-repair-corpus.py"
+spec = importlib.util.spec_from_file_location("report_local_recall_repair_corpus", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+spec.loader.exec_module(module)
+commands = module.build_next_commands(
+    [{"session": "sessions/ready-repair", "session_id": "ready-repair", "duration_sec": 1.5}],
+    [{"session": "sessions/incomplete-repair", "session_id": "incomplete-repair", "duration_sec": 2.5}],
+)
+assert commands[0]["command"] == "murmurmark review lane check_local_recall --session sessions/ready-repair", commands
+assert commands[1]["command"] == "murmurmark process sessions/incomplete-repair", commands
+assert commands[1]["reason"] == "pipeline_incomplete", commands
+PY
 review_next_session="$workdir/review-next-session"
 mkdir -p "$review_next_session/derived/readiness"
 review_next_plan_dir="$review_next_session/derived/readiness/review-plan"
@@ -1671,13 +1690,15 @@ EOF
     --out-dir "$local_recall_repair_corpus_dir")"
   echo "$local_recall_repair_corpus_output" | grep -q '^local_recall_repair_corpus:'
   echo "$local_recall_repair_corpus_output" | grep -q '  applied_repairs: 1'
-  echo "$local_recall_repair_corpus_output" | grep -q '  next_command: murmurmark review lane check_local_recall --session '
+  echo "$local_recall_repair_corpus_output" | grep -q 'reviewable_applied_repairs: 0'
+  echo "$local_recall_repair_corpus_output" | grep -q 'incomplete_applied_repairs: 1'
+  echo "$local_recall_repair_corpus_output" | grep -q '  next_command: murmurmark process '
   [[ -s "$local_recall_repair_corpus_dir/local_recall_repair_corpus_report.json" ]]
   [[ -s "$local_recall_repair_corpus_dir/local_recall_repair_corpus_items.jsonl" ]]
   [[ -s "$local_recall_repair_corpus_dir/local_recall_repair_corpus_report.md" ]]
-  jq -e '.schema == "murmurmark.local_recall_repair_corpus_report/v1" and .summary.repaired_session_count == 1 and .summary.applied_repairs == 1 and .policy.auto_promotion == false and (.next_commands | length) == 1 and (.next_commands[0].command | startswith("murmurmark review lane check_local_recall --session "))' \
+  jq -e '.schema == "murmurmark.local_recall_repair_corpus_report/v1" and .summary.repaired_session_count == 1 and .summary.applied_repairs == 1 and .summary.reviewable_applied_repairs == 0 and .summary.incomplete_applied_repairs == 1 and .policy.auto_promotion == false and (.next_commands | length) == 1 and (.next_commands[0].command | startswith("murmurmark process "))' \
     "$local_recall_repair_corpus_dir/local_recall_repair_corpus_report.json" >/dev/null
-  jq -s 'any(.[]; .schema == "murmurmark.local_recall_repair_corpus_item/v1" and .kind == "patch" and .utterance_id == "local_recall_repair_v1_local_recall_0003")' \
+  jq -s 'any(.[]; .schema == "murmurmark.local_recall_repair_corpus_item/v1" and .kind == "patch" and .utterance_id == "local_recall_repair_v1_local_recall_0003" and .ready_for_review == false)' \
     "$local_recall_repair_corpus_dir/local_recall_repair_corpus_items.jsonl" >/dev/null
 
   remote_leak_corpus_dir="$workdir/remote-leak-segment-corpus"

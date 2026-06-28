@@ -183,10 +183,11 @@ per-session local-recall audits first.
 `sessions/_reports/local-recall-repair/local_recall_repair_corpus_report.*`. It summarizes
 `local_recall_repair_v1` reports across sessions; `--repair` refreshes the candidate repair profile
 first. Inserted `Me` turns remain explicit `needs_review`, and the report does not promote the
-profile into `auto`. When inserted repairs exist, the corpus report includes the first
-`murmurmark review lane check_local_recall --session ...` command for review. The repair layer keeps
-micro-ASR diagnostics and can recover short boundary-shifted rows when Whisper recognized text but
-the row midpoint landed just outside the local island.
+profile into `auto`. When inserted repairs exist in complete sessions, the corpus report includes
+the first `murmurmark review lane check_local_recall --session ...` command for review; incomplete
+sessions are sent back through `murmurmark process ...` first. The repair layer keeps micro-ASR
+diagnostics and can recover short boundary-shifted rows when Whisper recognized text but the row
+midpoint landed just outside the local island.
 `murmurmark corpus process all` rebuilds per-session remote-leak plans before session-quality and
 corpus aggregation. Use `corpus remote-leak --plan` when you want to refresh only that queue; the
 aggregate report prints that command when plans are missing.
@@ -501,8 +502,10 @@ be recovered through `boundary_overlap_fallback`; the attempt stays visible in
 Applied repair turns are included in the operational review queue as `local_recall_repair` items.
 They use `local_recall_repair_v1` as the review input profile and allow the normal transcript
 decisions: `keep_me`, `drop_me`, `needs_review` or `skip`. Corpus repair reports include
-`next_commands` so the inserted rows can be reviewed through
+`next_commands` so inserted rows from complete sessions can be reviewed through
 `murmurmark review lane check_local_recall --session ...` without opening the Markdown report first.
+If a session with inserted rows is still incomplete, the report points to `murmurmark process ...`
+before review.
 
 The transcript order audit reads `clean_dialogue` and `overlaps`, then writes
 `derived/audit/order/`. It highlights long `Me` turns that wrap a `Colleagues` turn and have a

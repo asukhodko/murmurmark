@@ -706,11 +706,14 @@ less sessions/_reports/local-recall-repair/local_recall_repair_corpus_report.md
 ```
 
 When inserted repairs exist, the corpus report writes `next_commands` and the CLI prints the first
-review command, for example:
+safe command. Complete sessions go straight to review, for example:
 
 ```bash
 murmurmark review lane check_local_recall --session ./sessions/<session>
 ```
+
+If the inserted repair belongs to an incomplete session, the report prints `murmurmark process ...`
+first and leaves the inserted turn out of the reviewable count until the session is complete.
 
 `murmurmark corpus remote-leak` writes `sessions/_reports/remote-leak-segment/`. It aggregates
 per-session remote-leak segment plans into one corpus queue and keeps the same audit-only policy:
