@@ -1566,6 +1566,30 @@ EOF
     --lane fast_confirm_drop \
     --out-dir "$duplicate_lane_dir" >/dev/null
   jq -e '.items | length == 2 and all(.[]; .review_row_key | startswith("source:duplicate_source") | not)' "$duplicate_lane_dir/review_lane_pack.fast_confirm_drop.json" >/dev/null
+  order_source_template="$workdir/review_decisions_order_source.template.jsonl"
+  order_lane_dir="$workdir/review_lane_pack_order_source"
+  cat >"$order_source_template" <<EOF
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"order_repair_v1","source_audit_id":"order_source","label":"probable_order_risk","verdict":"needs_transcript_order_review","review_lane":"check_transcript_order","review_action":"check_transcript_order","suggested_decision":"needs_review","suggested_decision_confidence":"medium","allowed_decisions":["keep_me","needs_review","skip"],"me_utterance_ids":["utt_order_me"],"remote_utterance_ids":["utt_order_remote"],"utterance_ids":["utt_order_me","utt_order_remote"],"interval":{"start":2.0,"end":3.0,"duration_sec":1.0},"text":[{"id":"utt_order_me","role":"Me","source_track":"mic","text":"Длинная локальная реплика."},{"id":"utt_order_remote","role":"Colleagues","source_track":"remote","text":"Вложенная реплика."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 1.000 -t 2.500 \"$group_session/audio/mic/000001.caf\"","remote":"ffplay -hide_banner -loglevel error -ss 1.000 -t 2.500 \"$group_session/audio/remote/000001.caf\"","review":"less \"$group_session/derived/audit/order/transcript_order_review.md\""}}
+EOF
+  "$repo_root/scripts/build-review-lane-pack.py" \
+    --template "$order_source_template" \
+    --lane check_transcript_order \
+    --out-dir "$order_lane_dir" >/dev/null
+  jq -e '(.items | length == 1) and (.items[0].command_key == "mic_raw")' "$order_lane_dir/review_lane_pack.check_transcript_order.json" >/dev/null
+  python3 - "$order_lane_dir/review_lane_pack.check_transcript_order.wav" <<'PY'
+import json
+import subprocess
+import sys
+
+completed = subprocess.run(
+    ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", sys.argv[1]],
+    check=True,
+    text=True,
+    capture_output=True,
+)
+duration = float(json.loads(completed.stdout)["format"]["duration"])
+assert duration > 1.0, duration
+PY
   "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
     "$duplicate_lane_dir/review_lane_pack.fast_confirm_drop.json" \
     --template "$duplicate_source_template" \
@@ -1967,6 +1991,25 @@ assert strategy["first_recommended_lane"] == "check_local_recall", strategy
 assert strategy["quick_recommended_lane"] == "fast_confirm_drop", strategy
 assert strategy["first_recommended_reason"] == "close_blocking_review_lane", strategy
 assert "review_lane_pack.check_local_recall.json" in strategy["commands"]["review_first_lane"], strategy
+order_item = module.compact_transcript_order_item(
+    {"session_id": "order-session", "session": "sessions/order-session"},
+    {
+        "item_id": "order_1",
+        "label": "probable_order_risk",
+        "confidence": 0.9,
+        "reason": "long Me turn crosses a remote turn",
+        "interval": {"start": 12.0, "end": 14.0, "duration_sec": 2.0},
+        "utterances": {
+            "me": {"id": "me_1", "start": 10.0, "end": 18.0, "text": "me text"},
+            "remote": {"id": "remote_1", "start": 12.0, "end": 14.0, "text": "remote text"},
+        },
+        "features": {"post_remote_tail_sec": 4.0},
+    },
+)
+assert "mic_raw" in order_item["commands"], order_item
+assert "remote" in order_item["commands"], order_item
+assert "-ss 10.000" in order_item["commands"]["mic_raw"], order_item["commands"]
+assert "-t 9.000" in order_item["commands"]["mic_raw"], order_item["commands"]
 assert not module.duplicate_drop_hint_allowed({
     "review_features": {
         "me_overlap_coverage": 0.68,

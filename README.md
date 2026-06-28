@@ -296,6 +296,8 @@ content, readiness links to `remote_leak_segment_repair.md` before any future re
 `murmurmark audit order` finds long `Me` turns that cross a `Colleagues` turn and continue after it:
 these are the main remaining risk for wrong reply order in an otherwise readable transcript. Blocking
 order risks are included in readiness review burden and block export until reviewed.
+`check_transcript_order` review packs include short mic/remote clips around the crossed utterances,
+so the reviewer can verify chronology without opening the full order audit first.
 `murmurmark repair order` writes a separate `order_repair_v1` profile for the narrow safe case where
 the long `Me` turn can be split by its saved source ASR segments. It never edits baseline/shadow
 profiles; if the split is not safe, it marks the affected utterance for review instead. When gates

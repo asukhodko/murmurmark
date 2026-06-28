@@ -1730,7 +1730,9 @@ duplicate or ASR-noise checks, `check_unique_me_content` rows need a content che
 `check_transcript_order` rows are audit-only chronology checks, `confirm_benign` rows usually clear
 harmless overlap, and `classify_audio` rows have no safe shortcut.
 Transcript-order rows allow only `keep_me`, `needs_review` and `skip`; they never allow `drop_me`,
-never move utterances and never edit transcript text.
+never move utterances and never edit transcript text. Their review rows include `mic_raw` and
+`remote` playback commands around the crossed utterances, plus the full `transcript_order_review.md`
+link.
 `remote_duplicate` suggestions are coverage-aware. `drop_me` is suggested only when the suspicious
 interval covers almost all of the whole `Me` utterance and the text match is strong. Partial duplicates keep
 `allowed_decisions: ["drop_me", "keep_me", "needs_review", "skip"]`, but the hint becomes

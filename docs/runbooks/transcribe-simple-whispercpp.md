@@ -762,6 +762,8 @@ The plan also assigns each row a `review_lane`: `fast_confirm_drop` for likely c
 rows, `check_unique_me_content` for partial duplicates and leaks, `check_local_recall` for possible
 missing local speech, `check_transcript_order` for chronology-risk rows, `confirm_benign` for likely
 harmless overlap, and `classify_audio` for anything else.
+For `check_transcript_order`, lane packs render short mic/remote clips around the crossed `Me` and
+`Colleagues` utterances; the full `transcript_order_review.md` remains linked as text evidence.
 Close the plan's `first_recommended_lane` first; it is chosen to reduce the current blocker, not just
 to pick the easiest audio. Keep the other lanes conservative unless the audio or chronology evidence
 is clear.

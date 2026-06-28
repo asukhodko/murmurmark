@@ -382,7 +382,7 @@ def main() -> int:
         has_silence = make_silence(silence_wav, args.silence_sec)
         for index, row in enumerate(selected, start=1):
             command_choice = command_for_row(row, args.command_key)
-            is_text_only = str(row.get("source") or "") == "transcript_order"
+            is_text_only = str(row.get("source") or "") == "transcript_order" and command_choice is None
             if command_choice is None and not is_text_only:
                 skipped.append({"source_audit_id": row.get("source_audit_id"), "reason": "missing_audio_command"})
                 continue

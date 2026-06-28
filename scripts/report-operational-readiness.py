@@ -675,6 +675,27 @@ def compact_transcript_order_item(session: dict[str, Any], row: dict[str, Any]) 
     me = utterances.get("me") if isinstance(utterances.get("me"), dict) else {}
     remote = utterances.get("remote") if isinstance(utterances.get("remote"), dict) else {}
     session_path = str(session.get("session") or "")
+    starts = [
+        safe_float(value)
+        for value in (me.get("start"), remote.get("start"), interval.get("start"))
+        if value is not None
+    ]
+    ends = [
+        safe_float(value)
+        for value in (me.get("end"), remote.get("end"), interval.get("end"))
+        if value is not None
+    ]
+    if not starts:
+        starts = [0.0]
+    if not ends:
+        ends = [max(starts)]
+    overlap_start = safe_float(interval.get("start")) if interval.get("start") is not None else min(starts)
+    overlap_end = safe_float(interval.get("end")) if interval.get("end") is not None else max(ends)
+    if overlap_end < overlap_start:
+        overlap_end = overlap_start
+    listen_start = max(0.0, overlap_start - 2.0)
+    listen_end = min(max(ends) + 1.0, overlap_end + 6.0)
+    listen_duration = max(0.25, listen_end - listen_start)
     return {
         "session_id": session.get("session_id"),
         "session": session.get("session"),
@@ -702,6 +723,14 @@ def compact_transcript_order_item(session: dict[str, Any], row: dict[str, Any]) 
             },
         ],
         "commands": {
+            "mic_raw": (
+                f"ffplay -hide_banner -loglevel error -ss {listen_start:.3f} "
+                f"-t {listen_duration:.3f} \"{session_path}/audio/mic/000001.caf\""
+            ),
+            "remote": (
+                f"ffplay -hide_banner -loglevel error -ss {listen_start:.3f} "
+                f"-t {listen_duration:.3f} \"{session_path}/audio/remote/000001.caf\""
+            ),
             "review": f"less \"{session_path}/derived/audit/order/transcript_order_review.md\"",
         },
         "reason": row.get("reason"),
