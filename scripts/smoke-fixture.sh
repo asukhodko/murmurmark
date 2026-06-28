@@ -466,6 +466,14 @@ echo "$report_output" | grep -q '^    open_transcript: less '
 echo "$report_output" | grep -q '^    open_verdict: less '
 echo "$report_output" | grep -q '  synthesis_review_items: '
 echo "$report_output" | grep -q '  synthesis_review_types: .*utterance_transcript_order_review=1'
+status_output="$("$bin" status "$session")"
+assert_no_helper_prefix "$status_output"
+echo "$status_output" | grep -q '^readiness:$'
+echo "$status_output" | grep -q '^  status: incomplete$'
+echo "$status_output" | grep -q '^  recommended_next: murmurmark process '
+status_latest_output="$("$bin" status --sessions-root "$workdir")"
+echo "$status_latest_output" | grep -q '^SESSION="'
+echo "$status_latest_output" | grep -q '^readiness:$'
 review_next_refresh_output="$("$bin" review next "$session")"
 assert_no_helper_prefix "$review_next_refresh_output"
 echo "$review_next_refresh_output" | grep -q '^review_next:$'
@@ -1943,6 +1951,7 @@ EOF
   echo "$main_help" | grep -q '^Normal flow:$'
   echo "$main_help" | grep -q '^  murmurmark record --target-bundle system$'
   echo "$main_help" | grep -q '^  murmurmark process latest$'
+  echo "$main_help" | grep -q '^  murmurmark status latest$'
   echo "$main_help" | grep -q '^  murmurmark export latest --format markdown --include-json$'
   review_help="$("$bin" review --help)"
   echo "$review_help" | grep -q 'murmurmark review lane apply LANE|first'
@@ -1951,6 +1960,8 @@ EOF
   echo "$latest_help" | grep -q 'usage: murmurmark latest'
   process_help="$("$bin" process --help)"
   echo "$process_help" | grep -q 'usage: murmurmark process'
+  status_help="$("$bin" status --help)"
+  echo "$status_help" | grep -q 'usage: murmurmark status'
   report_help="$("$bin" report --help)"
   echo "$report_help" | grep -q 'usage: murmurmark report'
   corpus_help="$("$bin" corpus --help)"

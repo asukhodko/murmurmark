@@ -159,12 +159,12 @@ nodes:
     notes: "Путь для обычной работы: записать новую сессию и обработать её через process latest."
 
   cli-report-command:
-    title: "murmurmark report SESSION и report corpus"
+    title: "murmurmark status/report SESSION и report corpus"
     kind: task
     parent: cli-orchestration
     status: done
     effort: 4
-    notes: "Единый вход к quality verdict, readiness, profile metrics и corpus summary."
+    notes: "status даёт быстрый dashboard по готовому readiness, report refresh-ит quality verdict/readiness/profile metrics, report corpus даёт corpus summary."
 
   cli-audit-command:
     title: "murmurmark audit"

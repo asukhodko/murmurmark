@@ -38,15 +38,16 @@ Normal CLI loop:
 murmurmark doctor
 murmurmark record --target-bundle system
 murmurmark process latest
-murmurmark report latest
+murmurmark status latest
 # Follow printed review commands when the gate is review_first.
 murmurmark export latest --format markdown --include-json
 murmurmark retention plan latest
 ```
 
-`report`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
-all print the next safe command for the current session state, so the terminal output is the main handoff. `report` starts with a
-short status such as `exportable`, `review_required`, `incomplete` or `blocked`, plus
+`status`, `report`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
+all print the next safe command for the current session state, so the terminal output is the main handoff.
+`status` is the quickest dashboard for already-generated readiness; `report` refreshes readiness first.
+Both start with a short status such as `exportable`, `review_required`, `incomplete` or `blocked`, plus
 `recommended_next` and `handoff` commands for opening the selected notes, transcript and verdict.
 
 ### Local Release Bundle
@@ -91,7 +92,7 @@ SESSION=./sessions/<session>
 git pull
 murmurmark process "$SESSION" --force-asr
 
-murmurmark report "$SESSION"
+murmurmark status "$SESSION"
 murmurmark notes "$SESSION" --kind verdict
 murmurmark notes "$SESSION"
 murmurmark transcript "$SESSION"
@@ -277,7 +278,7 @@ murmurmark record --target-bundle system
 
 murmurmark process latest
 
-murmurmark report latest
+murmurmark status latest
 murmurmark notes latest --kind verdict
 murmurmark notes latest
 murmurmark transcript latest
@@ -297,8 +298,8 @@ Long stages also emit a heartbeat such as `[run] transcribe_current still runnin
 Use `--progress-interval-sec 0` to disable these heartbeat lines. `--plan-only` prints a compact
 `pipeline_plan` block with enabled/skipped steps and `recommended_next` instead of the live stage log;
 the following readiness block is labelled `existing_readiness` because no new processing was run.
-Read `session_readiness.md` first, or run `murmurmark report SESSION` for the terminal version. The
-CLI prints a short status, `recommended_next`, the session use gate, selected profile, review burden,
+Read `session_readiness.md` first, or run `murmurmark status SESSION` for the terminal version.
+Use `murmurmark report SESSION` when readiness should be refreshed. The CLI prints a short status, `recommended_next`, the session use gate, selected profile, review burden,
 synthesis review item summary, next CLI commands, `handoff` open/export commands, and links to the
 transcript, notes, quality verdict and audio-review report.
 `recommended_next` prefers executable `murmurmark ...` actions from `next_commands`; read-only
@@ -373,8 +374,9 @@ murmurmark config print
 murmurmark process latest
 murmurmark process ./sessions/<session> --force-asr
 murmurmark process ./sessions/<session> --plan-only --skip-build
+murmurmark status ./sessions/<session>
+murmurmark status latest
 murmurmark report ./sessions/<session>
-murmurmark report latest
 murmurmark report corpus
 murmurmark notes ./sessions/<session>
 murmurmark notes latest --kind verdict --path-only

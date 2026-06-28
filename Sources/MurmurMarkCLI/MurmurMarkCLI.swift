@@ -31,6 +31,8 @@ struct MurmurMark {
                 try PipelineCommands.latest(args)
             case "process":
                 try PipelineCommands.process(args)
+            case "status":
+                try PipelineCommands.status(args)
             case "report":
                 try PipelineCommands.report(args)
             case "review":
@@ -84,7 +86,7 @@ struct MurmurMark {
           murmurmark doctor
           murmurmark record --target-bundle system
           murmurmark process latest
-          murmurmark report latest
+          murmurmark status latest
           # follow printed review commands when the gate is review_first
           murmurmark export latest --format markdown --include-json
           murmurmark retention plan latest
@@ -100,6 +102,7 @@ struct MurmurMark {
           murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--force-asr]
                                 [--reuse-asr-cache] [--plan-only] [--progress-interval-sec 60]
                                 [--sessions-root ./sessions]
+          murmurmark status [./session|latest] [--sessions-root ./sessions]
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
           murmurmark review plan|progress|apply|first-lane|lane|next
@@ -153,6 +156,7 @@ struct MurmurMark {
           Without --duration, recording runs until Ctrl-C or SIGTERM and finalizes the session.
           Without --out, recording creates a unique directory under ./sessions.
           process runs the current post-recording pipeline and prints the readiness summary.
+          status prints the current readiness dashboard without recomputing reports.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review wraps the current review-plan, agent-review, review CLI, progress and apply scripts.
           audit wraps the transcript order, local recall, group overlap and audio-review audit scripts through the project Python runtime.
@@ -345,7 +349,7 @@ struct DoctorReport {
         }
         print("  murmurmark record")
         print("  murmurmark process latest")
-        print("  murmurmark report latest")
+        print("  murmurmark status latest")
     }
 }
 
@@ -533,6 +537,22 @@ enum PipelineCommands {
         try ReadinessPrinter.printSession(session, label: planOnly ? "existing_readiness" : "readiness")
     }
 
+    static func status(_ args: [String]) throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            PipelineHelp.printStatus()
+            return
+        }
+        var remaining = args
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let target = remaining.isEmpty ? "latest" : remaining.removeFirst()
+        guard remaining.isEmpty else {
+            throw CLIError("unexpected status arguments: \(remaining.joined(separator: " "))")
+        }
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        try ReadinessPrinter.printSession(session)
+    }
+
     static func report(_ args: [String]) throws {
         if ArgumentEditing.hasHelpFlag(args) {
             PipelineHelp.printReport()
@@ -613,6 +633,20 @@ enum PipelineHelp {
           murmurmark process latest
           murmurmark process ./sessions/<id> --plan-only
           murmurmark process ./sessions/<id> --progress-interval-sec 30
+        """)
+    }
+
+    static func printStatus() {
+        Swift.print("""
+        usage: murmurmark status [./session|latest] [--sessions-root ./sessions]
+
+        Prints the current session readiness dashboard without recomputing reports.
+        Defaults to latest when no session is provided.
+
+        Common:
+          murmurmark status
+          murmurmark status latest
+          murmurmark status ./sessions/<id>
         """)
     }
 

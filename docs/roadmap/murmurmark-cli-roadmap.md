@@ -14,7 +14,7 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 
 1. `murmurmark process SESSION` — готово.
 2. `murmurmark process latest` — готово.
-3. `murmurmark report SESSION` и `murmurmark report corpus` — готово.
+3. `murmurmark status SESSION`, `murmurmark report SESSION` и `murmurmark report corpus` — готово.
 4. `murmurmark audit local-recall|group-overlaps|audio-review` — готов CLI-вход к audit-слоям со сводкой.
 5. `murmurmark cleanup` и `murmurmark synthesize` — готовы CLI-входы к cleanup-профилям и extractive notes.
 6. `murmurmark review SESSION` — готов базовый CLI-контур.

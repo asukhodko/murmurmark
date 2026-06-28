@@ -40,7 +40,7 @@ SESSION=./sessions/<session>
 murmurmark config print
 murmurmark process "$SESSION"
 
-murmurmark report "$SESSION"
+murmurmark status "$SESSION"
 less "$SESSION/derived/readiness/session_readiness.md"
 murmurmark retention plan "$SESSION"
 ```
@@ -66,7 +66,7 @@ For the usual record-then-process flow:
 ```bash
 murmurmark record --target-bundle system
 murmurmark process latest
-murmurmark report latest
+murmurmark status latest
 murmurmark notes latest --kind verdict
 murmurmark notes latest
 murmurmark transcript latest
@@ -92,9 +92,10 @@ retention. For `review_first`, the command chain runs `murmurmark review progres
 after workspace answers have been copied, then ends with `murmurmark review apply` only when the
 decision file is ready.
 
-`murmurmark report SESSION` prints a short status, `recommended_next`, handoff commands for opening
+`murmurmark status SESSION` prints a short status, `recommended_next`, handoff commands for opening
 the selected notes/transcript/verdict, the selected profile, verdict, review burden and synthesis
-review item summary. The terminal output is enough to see whether notes still depend on risky
+review item summary without recomputing reports. Use `murmurmark report SESSION` when readiness
+should be refreshed first. The terminal output is enough to see whether notes still depend on risky
 utterances before opening the Markdown files. `recommended_next` prefers actionable `murmurmark ...`
 commands from `next_commands`; report-reading commands remain visible in `next` and `open`.
 Use `murmurmark review next SESSION` when you only need the next review step for one session. It
