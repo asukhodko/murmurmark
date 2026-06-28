@@ -612,9 +612,11 @@ enum ReviewCommands {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-review-decisions-progress.py").path] + forwarded)
                 return
             }
-            guard forwarded.isEmpty else { throw CLIError("review progress only accepts --help") }
-            try ReviewProgressRunner.run()
-            try ReviewPrinter.printProgress()
+            if let session = ReviewSessionLocalPlan.takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot) {
+                ReviewSessionLocalPlan.addProgressDefaults(for: session, to: &forwarded)
+            }
+            try ReviewProgressRunner.run(args: forwarded)
+            try ReviewPrinter.printProgress(report: ReviewPaths.progressReport(from: forwarded))
         case "next":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 ReviewNextCommand.printHelp()
@@ -880,6 +882,14 @@ enum ReviewSessionLocalPlan {
         addOption("report", plan.appendingPathComponent("review_workspace_apply_report.json").path, to: &args)
     }
 
+    static func addProgressDefaults(for session: URL, to args: inout [String]) {
+        let plan = planDir(session)
+        addOption("template", plan.appendingPathComponent("review_decisions.template.jsonl").path, to: &args)
+        addOption("decisions", plan.appendingPathComponent("review_decisions.jsonl").path, to: &args)
+        addOption("out", plan.appendingPathComponent("review_decisions_progress.json").path, to: &args)
+        addOption("markdown", plan.appendingPathComponent("review_decisions_progress.md").path, to: &args)
+    }
+
     static func addReviewApplyDefaults(for session: URL, to args: inout [String]) {
         let plan = planDir(session)
         addOption("decisions", plan.appendingPathComponent("review_decisions.jsonl").path, to: &args)
@@ -958,6 +968,10 @@ enum ReviewPaths {
 
     static func workspaceDecisionsOut(from args: [String]) -> URL {
         PathURLs.fileURL(ArgumentEditing.peekOption("out", in: args) ?? "sessions/_reports/review-plan/review_decisions.jsonl")
+    }
+
+    static func progressReport(from args: [String]) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("out", in: args) ?? "sessions/_reports/review-plan/review_decisions_progress.json")
     }
 }
 
@@ -1070,7 +1084,7 @@ enum ReviewHelp {
                murmurmark review lane apply LANE|first [--session latest|SESSION] [--answers-file PATH|--answers TEXT]
                murmurmark review workspace [build|apply] [--session latest|SESSION]
                murmurmark review SESSION|latest [--lane LANE] [--no-play]
-               murmurmark review progress
+               murmurmark review progress [--session latest|SESSION]
                murmurmark review apply [--session latest|SESSION]
                murmurmark review agent
 
@@ -1088,11 +1102,10 @@ enum ReviewHelp {
 }
 
 enum ReviewProgressRunner {
-    static func run() throws {
+    static func run(args: [String] = []) throws {
         try Tooling.runPath(try PythonRuntime.resolve(), [
             try script("report-review-decisions-progress.py").path,
-            "--decisions", "sessions/_reports/review-plan/review_decisions.jsonl",
-        ])
+        ] + args)
     }
 
     private static func script(_ name: String) throws -> URL {
@@ -6732,13 +6745,13 @@ enum ReviewPrinter {
         }
     }
 
-    static func printProgress() throws {
-        let url = PathURLs.fileURL("sessions/_reports/review-plan/review_decisions_progress.json")
-        let payload = try JSONFiles.object(url)
+    static func printProgress(report: URL = PathURLs.fileURL("sessions/_reports/review-plan/review_decisions_progress.json")) throws {
+        let payload = try JSONFiles.object(report)
         let summary = payload["summary"] as? [String: Any] ?? [:]
+        let markdown = report.deletingPathExtension().appendingPathExtension("md")
         print("")
         print("review_progress:")
-        print("  report: sessions/_reports/review-plan/review_decisions_progress.md")
+        print("  report: \(PathDisplay.display(markdown))")
         print("  reviewed: \(int(summary["reviewed"]) ?? 0)/\(int(summary["total"]) ?? 0)")
         print("  remaining: \(int(summary["remaining"]) ?? 0)")
         print("  remaining_minutes: \(double(summary["remaining_minutes"]) ?? 0)")
@@ -6747,8 +6760,15 @@ enum ReviewPrinter {
         if let decisions = summary["decisions"] as? [String: Any] {
             print("  decisions: \(compactJSON(decisions))")
         }
+        let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
         if bool(summary["ready_for_batch_apply"]) == true {
-            print("  next: murmurmark review apply")
+            if let sessionID {
+                print("  next: murmurmark review apply --session \(sessionID)")
+            } else {
+                print("  next: murmurmark review apply")
+            }
+        } else if let sessionID {
+            print("  next: murmurmark review workspace --session \(sessionID)")
         }
     }
 

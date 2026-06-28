@@ -332,8 +332,8 @@ murmurmark review first-lane
 murmurmark review lane check_local_recall --session ./sessions/<session>
 murmurmark review lane apply first --session ./sessions/<session>
 murmurmark review latest --lane fast_confirm_drop
-murmurmark review progress
-murmurmark review apply
+murmurmark review progress --session ./sessions/<session>
+murmurmark review apply --session ./sessions/<session>
 murmurmark corpus process all --per-label 16 --max-items 160
 murmurmark corpus build ./sessions/<session> --per-label 16 --max-items 160
 murmurmark corpus evaluate
@@ -670,16 +670,17 @@ The normal manual review loop is available through the Swift CLI:
 .build/debug/murmurmark review lane apply first --session latest
 .build/debug/murmurmark review workspace
 .build/debug/murmurmark review latest --lane fast_confirm_drop
-.build/debug/murmurmark review workspace apply
-.build/debug/murmurmark review progress
-.build/debug/murmurmark review apply
+.build/debug/murmurmark review workspace apply --session latest
+.build/debug/murmurmark review progress --session latest
+.build/debug/murmurmark review apply --session latest
 ```
 
 `review next` writes its per-session review handoff under
 `SESSION/derived/readiness/review-plan/`. `review first-lane --session SESSION`,
-`review workspace --session SESSION`, `review workspace apply --session SESSION`, and
-`review apply --session SESSION` default to those session-local paths. Use `review plan` when you
-want the global corpus queue.
+`review workspace --session SESSION`, `review workspace apply --session SESSION`,
+`review progress --session SESSION`, and `review apply --session SESSION` default to those
+session-local paths. Use `review plan` or bare `review progress` when you want the global corpus
+queue.
 
 Use the Python scripts directly only when debugging a specific review file, lane pack, or batch
 application edge case.

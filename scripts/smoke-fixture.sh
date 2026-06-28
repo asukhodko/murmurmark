@@ -1540,6 +1540,7 @@ EOF
   echo "$corpus_process_help" | grep -q 'plan-remote-leak-segment-repair.py'
   review_help="$("$bin" review --help)"
   echo "$review_help" | grep -q 'murmurmark review lane apply LANE|first'
+  echo "$review_help" | grep -q 'murmurmark review progress \[--session latest|SESSION\]'
   latest_help="$("$bin" latest --help)"
   echo "$latest_help" | grep -q 'usage: murmurmark latest'
   process_help="$("$bin" process --help)"
@@ -1872,6 +1873,11 @@ PY
   echo "$explicit_local_recall_apply_output" | grep -q '^  next: murmurmark review workspace --session '
   [[ -s "$group_session/derived/readiness/review-plan/review_decisions.jsonl" ]]
   [[ -s "$group_session/derived/readiness/review-plan/review_decisions_progress.json" ]]
+  explicit_progress_output="$("$bin" review progress --session "$group_session")"
+  echo "$explicit_progress_output" | grep -q '^review_progress:$'
+  echo "$explicit_progress_output" | grep -q 'derived/readiness/review-plan/review_decisions_progress.md'
+  echo "$explicit_progress_output" | grep -q '^  ready_for_apply: false'
+  echo "$explicit_progress_output" | grep -q '^  next: murmurmark review workspace --session '
   jq -s 'any(.[]; .source == "local_recall_repair" and .input_profile == "local_recall_repair_v1" and .status == "reviewed" and .decision == "needs_review")' \
     "$group_session/derived/readiness/review-plan/review_decisions.jsonl" >/dev/null
   jq -s 'all(.[]; (.primary_command | type) == "string")' "$review_plan_dir/review_plan_clusters.jsonl" >/dev/null

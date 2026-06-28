@@ -586,8 +586,8 @@ work:
 .build/debug/murmurmark review plan
 .build/debug/murmurmark review first-lane
 .build/debug/murmurmark review latest --lane fast_confirm_drop
-.build/debug/murmurmark review progress
-.build/debug/murmurmark review apply
+.build/debug/murmurmark review progress --session latest
+.build/debug/murmurmark review apply --session latest
 .build/debug/murmurmark export sessions/<session> --format markdown --include-json
 
 less sessions/_reports/regression-corpus/regression_corpus.md
@@ -731,8 +731,9 @@ is clear.
 plan if needed, then prints the next review commands. `murmurmark review first-lane --session
 "$SESSION"` now defaults to that session-local plan. The same is true for
 `murmurmark review workspace --session "$SESSION"`, `murmurmark review workspace apply --session
-"$SESSION"` and `murmurmark review apply --session "$SESSION"`. Use `murmurmark review plan` for the
-global corpus queue.
+"$SESSION"`, `murmurmark review progress --session "$SESSION"` and `murmurmark review apply --session
+"$SESSION"`. Use `murmurmark review plan` or bare `murmurmark review progress` for the global corpus
+queue.
 `murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended lane.
 With `--session`, its default paths are under `SESSION/derived/readiness/`; without `--session`, it
 uses the global corpus queue under `sessions/_reports/`.
