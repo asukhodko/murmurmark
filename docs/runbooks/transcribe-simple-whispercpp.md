@@ -293,11 +293,15 @@ For corpus work, aggregate order risks after the usual session-quality report:
 ```bash
 murmurmark corpus order
 murmurmark corpus order --repair
+murmurmark corpus local-recall
+murmurmark corpus local-recall --audit
 murmurmark corpus remote-leak
 murmurmark corpus remote-leak --plan
 
 jq '.summary' sessions/_reports/transcript-order/transcript_order_corpus_report.json
 less sessions/_reports/transcript-order/transcript_order_corpus_report.md
+jq '.summary' sessions/_reports/local-recall/local_recall_corpus_report.json
+less sessions/_reports/local-recall/local_recall_corpus_report.md
 jq '.summary' sessions/_reports/remote-leak-segment/remote_leak_segment_corpus_report.json
 less sessions/_reports/remote-leak-segment/remote_leak_segment_corpus_report.md
 ```
@@ -309,6 +313,8 @@ session paths or `all` when you need a different target set. This report is the 
 chronology regression candidates. Its `summary.order_repair` block shows the corpus-level repair
 effect: sessions with repair, cleared sessions, applied repairs, remaining unrepaired order risks and
 resolved order-risk seconds.
+For local recall, `--audit` refreshes per-session `audit-local-recall.py`, refreshes session-quality
+and then rebuilds the corpus queue for possible lost `Me` islands.
 For remote leak, `--plan` refreshes only the audit-only segment plans, then rebuilds the corpus
 summary. It still does not apply transcript edits.
 Complete sessions with
@@ -658,6 +664,9 @@ the source item as reliable.
 `murmurmark corpus order` writes a separate chronology-risk corpus report under
 `sessions/_reports/transcript-order/`; read it when wrong reply order is the concern rather than
 audio leakage.
+`murmurmark corpus local-recall` writes `sessions/_reports/local-recall/`. It aggregates
+possible lost `Me`, local-recall review and harmless missing-island explanations across the corpus.
+Use it when local speech recall is the concern.
 `murmurmark corpus remote-leak` writes `sessions/_reports/remote-leak-segment/`. It aggregates
 per-session remote-leak segment plans into one corpus queue and keeps the same audit-only policy:
 no transcript profile and no raw audio are modified. `murmurmark corpus process all` refreshes these

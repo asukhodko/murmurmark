@@ -387,6 +387,15 @@ nodes:
     effort: 2
     notes: "audit-local-recall отличает короткие boundary/ack fragments от возможной потерянной локальной речи и не раздувает review burden такими хвостами."
 
+  quality-local-recall-corpus-queue:
+    title: "Local recall corpus queue"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-local-recall-boundary-audit]
+    status: done
+    effort: 2
+    notes: "murmurmark corpus local-recall агрегирует per-session local-recall audits в одну очередь возможных пропусков Me; --audit пересобирает аудиты перед агрегацией. Transcript edits не применяются."
+
   quality-remote-duplicate-safety:
     title: "Safer remote duplicate handling"
     kind: task

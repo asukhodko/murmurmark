@@ -21,13 +21,14 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 7. `murmurmark corpus process all` — готов базовый контур качества по корпусу.
 8. `murmurmark corpus taxonomy` — готова сводная таксономия аудио-ошибок для следующей итерации качества.
 9. `murmurmark corpus gate` — готов no-regression gate с локальным baseline-сравнением и warnings по remote-leak очереди.
-10. `murmurmark export SESSION --format markdown|obsidian` — готов базовый пользовательский output-блок.
-11. `scripts/install-local.sh` — готов минимальный локальный install wrapper для команды `murmurmark`.
-12. `murmurmark doctor` — готов расширенный health check локальной установки и pipeline-зависимостей.
-13. `scripts/build-release-bundle.sh` — готов локальный release layout с manifest и без приватных данных.
-14. `murmurmark retention plan SESSION` — готов локальный retention plan; raw deletion защищён отдельным `apply`.
-15. `murmurmark retention payload SESSION` — готов provider payload manifest; default policy блокирует внешние payload’ы.
-16. `scripts/check-open-source-readiness.sh` — готов public-readiness gate; MIT LICENSE добавлена.
+10. `murmurmark corpus local-recall` — готова корпусная очередь возможных пропусков `Me`.
+11. `murmurmark export SESSION --format markdown|obsidian` — готов базовый пользовательский output-блок.
+12. `scripts/install-local.sh` — готов минимальный локальный install wrapper для команды `murmurmark`.
+13. `murmurmark doctor` — готов расширенный health check локальной установки и pipeline-зависимостей.
+14. `scripts/build-release-bundle.sh` — готов локальный release layout с manifest и без приватных данных.
+15. `murmurmark retention plan SESSION` — готов локальный retention plan; raw deletion защищён отдельным `apply`.
+16. `murmurmark retention payload SESSION` — готов provider payload manifest; default policy блокирует внешние payload’ы.
+17. `scripts/check-open-source-readiness.sh` — готов public-readiness gate; MIT LICENSE добавлена.
 
 UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
 

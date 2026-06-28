@@ -173,6 +173,9 @@ candidates, which are mark-only, which need better labels, and which sessions/ex
 the next quality iteration. The report also splits broad classes like `uncertain` into diagnostic
 subtypes and writes an `action_plan`, so the next repair can target one narrow failure mode.
 `corpus remote-leak` writes `sessions/_reports/remote-leak-segment/remote_leak_segment_corpus_report.*`.
+`corpus local-recall` writes `sessions/_reports/local-recall/local_recall_corpus_report.*`.
+It aggregates possible lost-`Me` and local-recall review items across the corpus; `--audit` refreshes
+per-session local-recall audits first.
 `murmurmark corpus process all` rebuilds per-session remote-leak plans before session-quality and
 corpus aggregation. Use `corpus remote-leak --plan` when you want to refresh only that queue.
 `passed_with_warnings` means the hard no-regression gates are green, but some historical sessions or
@@ -326,6 +329,8 @@ murmurmark corpus gate --write-baseline sessions/_reports/corpus-gates/baseline.
 murmurmark corpus gate --baseline sessions/_reports/corpus-gates/baseline.local.json
 murmurmark corpus order
 murmurmark corpus order --repair
+murmurmark corpus local-recall
+murmurmark corpus local-recall --audit
 murmurmark corpus remote-leak
 murmurmark corpus remote-leak --plan
 murmurmark corpus report
@@ -447,6 +452,8 @@ coverage rather than missing meeting content. Short islands that sit exactly on 
 guard boundaries are labelled as likely harmless boundary fragments. Short acknowledgement-only
 islands such as `понял` or `окей` are also low-risk audit evidence, while stronger unrecovered local
 speech stays as a blocking `low_local_recall` risk. It never edits transcripts.
+`murmurmark corpus local-recall` aggregates those per-session audits into
+`sessions/_reports/local-recall/` so possible lost `Me` regions are visible as one corpus queue.
 
 The transcript order audit reads `clean_dialogue` and `overlaps`, then writes
 `derived/audit/order/`. It highlights long `Me` turns that wrap a `Colleagues` turn and have a

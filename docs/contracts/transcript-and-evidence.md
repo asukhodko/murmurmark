@@ -576,6 +576,44 @@ has missing order audits and fails `transcript_order.no_complete_blocking_sessio
 session still has blocking chronology risk. `murmurmark corpus process` builds the aggregate order
 report before running corpus gates.
 
+`murmurmark corpus local-recall` aggregates per-session local-recall audits into:
+
+```text
+sessions/_reports/local-recall/
+  local_recall_corpus_report.json
+  local_recall_corpus_items.jsonl
+  local_recall_corpus_report.md
+```
+
+`local_recall_corpus_report.json` uses `murmurmark.local_recall_corpus_report/v1`:
+
+```json
+{
+  "schema": "murmurmark.local_recall_corpus_report/v1",
+  "summary": {
+    "session_count": 10,
+    "audited_session_count": 10,
+    "missing_local_recall_audit_count": 0,
+    "blocking_session_count": 1,
+    "complete_blocking_session_count": 1,
+    "possible_lost_me_count": 2,
+    "possible_lost_me_seconds": 4.2,
+    "needs_review_count": 3,
+    "needs_review_seconds": 6.8,
+    "likely_harmless_seconds": 12.4,
+    "recommended_next_step": "review_complete_local_recall_items"
+  }
+}
+```
+
+`local_recall_corpus_items.jsonl` uses `murmurmark.local_recall_corpus_item/v1` and keeps session id,
+selected profile, label, interval, parent candidate/text, compact state/boundary evidence and the
+path to `local_recall_review.md`. This report is read-only: it does not insert missing speech into
+the transcript. `summary.audit_by_label` keeps the raw local-recall audit labels; the top-level
+`possible_lost_me_*` and `needs_review_*` counters follow the effective session-quality metrics after
+review decisions. Its purpose is to keep possible lost-`Me` examples visible as a corpus regression
+queue without reopening already-reviewed items.
+
 ### Remote Leak Segment Repair Plan
 
 `murmurmark repair remote-leak` is an audit-only planning step. It reads

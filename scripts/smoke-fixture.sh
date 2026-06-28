@@ -1555,6 +1555,28 @@ EOF
     "$group_session/derived/readiness/session_readiness.json" >/dev/null
   grep -q 'remote_leak_segment_report' "$group_session/derived/readiness/session_readiness.md"
 
+  local_recall_corpus_dir="$workdir/local-recall-corpus"
+  local_recall_corpus_output="$("$bin" corpus local-recall "$group_session" \
+    --session-quality "$quality_dir/session_quality_report.json" \
+    --out-dir "$local_recall_corpus_dir")"
+  echo "$local_recall_corpus_output" | grep -q '^local_recall_corpus:'
+  echo "$local_recall_corpus_output" | grep -q '  possible_lost_me_seconds: '
+  [[ -s "$local_recall_corpus_dir/local_recall_corpus_report.json" ]]
+  [[ -s "$local_recall_corpus_dir/local_recall_corpus_items.jsonl" ]]
+  [[ -s "$local_recall_corpus_dir/local_recall_corpus_report.md" ]]
+  jq -e '.schema == "murmurmark.local_recall_corpus_report/v1" and .summary.audited_session_count == 1 and .summary.audit_by_label.possible_lost_me.count >= 1 and .summary.possible_lost_me_count == 0 and .summary.complete_blocking_session_count == 0' \
+    "$local_recall_corpus_dir/local_recall_corpus_report.json" >/dev/null
+  jq -s 'any(.[]; .schema == "murmurmark.local_recall_corpus_item/v1" and .label == "possible_lost_me")' \
+    "$local_recall_corpus_dir/local_recall_corpus_items.jsonl" >/dev/null
+  local_recall_corpus_audit_dir="$workdir/local-recall-corpus-audit"
+  "$bin" corpus local-recall "$group_session" \
+    --audit \
+    --audit-profile shadow_v2 \
+    --session-quality "$quality_dir/session_quality_report.json" \
+    --out-dir "$local_recall_corpus_audit_dir" >/dev/null
+  jq -e '.summary.audited_session_count == 1 and .summary.audit_by_label.possible_lost_me.count >= 1 and .summary.possible_lost_me_count == 0' \
+    "$local_recall_corpus_audit_dir/local_recall_corpus_report.json" >/dev/null
+
   remote_leak_corpus_dir="$workdir/remote-leak-segment-corpus"
   remote_leak_corpus_output="$("$bin" corpus remote-leak "$group_session" \
     --session-quality "$quality_dir/session_quality_report.json" \
