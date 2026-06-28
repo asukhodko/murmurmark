@@ -644,7 +644,8 @@ from real meetings.
 `murmurmark export` is the user-facing handoff. It reads the selected transcript profile from
 per-session readiness, copies the Markdown verdict, notes and transcript into `exports/private/`,
 and writes `export_manifest.json`. It blocks sessions with readiness `export_blockers` by default;
-use `murmurmark review next SESSION` first when review is required, or pass `--force` only for debugging.
+blocked export prints structured next commands from readiness plus rerun/debug export commands. Use
+`murmurmark review next SESSION` first when review is required, or pass `--force` only for debugging.
 After a successful export, the CLI prints the manifest path, key output files and the retention
 commands that should use the same manifest.
 

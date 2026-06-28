@@ -652,11 +652,16 @@ if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_b
   echo "expected export to block incomplete session" >&2
   exit 1
 fi
-grep -q '^next: .*murmurmark process' "$export_block_stdout"
+grep -q '^next:$' "$export_block_stdout"
+grep -q '^  murmurmark process' "$export_block_stdout"
+grep -q '^  rerun_export: murmurmark export' "$export_block_stdout"
+grep -q '^  debug_force: murmurmark export .* --force' "$export_block_stdout"
 [[ -s "$export_block_dir/$(basename "$session").export_blocked.json" ]]
 jq -e '.status == "blocked" and (.blockers | index("pipeline_incomplete")) and (.readiness.export_blockers | index("pipeline_incomplete"))' \
   "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
 jq -e '.next | contains("murmurmark process")' "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
+jq -e '(.next_commands | map(.command | startswith("murmurmark process ")) | any) and (.export_commands.debug_force | contains("--force"))' \
+  "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
 cli_export_block_dir="$workdir/export-blocked-cli"
 cli_export_block_stdout="$workdir/export_blocked_cli_stdout.txt"
 if "$bin" export "$session" --out-dir "$cli_export_block_dir" >"$cli_export_block_stdout" 2>&1; then
@@ -665,8 +670,12 @@ if "$bin" export "$session" --out-dir "$cli_export_block_dir" >"$cli_export_bloc
 fi
 grep -q '^export_blocked:$' "$cli_export_block_stdout"
 grep -q '^  blockers: .*pipeline_incomplete' "$cli_export_block_stdout"
-grep -q '^  next: .*murmurmark process' "$cli_export_block_stdout"
-grep -q 'error: export blocked; follow the printed next step or pass --force for debugging' "$cli_export_block_stdout"
+grep -q '^  next:$' "$cli_export_block_stdout"
+grep -q '^    commands:$' "$cli_export_block_stdout"
+grep -q '^      murmurmark process' "$cli_export_block_stdout"
+grep -q '^    rerun_export:$' "$cli_export_block_stdout"
+grep -q '^    debug_force:$' "$cli_export_block_stdout"
+grep -q 'error: export blocked; follow the printed next steps or pass --force for debugging' "$cli_export_block_stdout"
 if grep -q '^export blocked:' "$cli_export_block_stdout"; then
   echo "Swift export leaked raw helper output" >&2
   exit 1

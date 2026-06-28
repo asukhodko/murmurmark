@@ -1373,8 +1373,35 @@ Obsidian format writes one frontmatter Markdown note plus `export_manifest.json`
 Default export blocks sessions whose `session_readiness.json` contains `export_blockers`, including
 review-required sessions, incomplete pipeline and hard quality failures. `--force` may create an
 export for debugging, but the manifest still records blockers, warnings and the readiness payload
-used. The Swift CLI reads the resulting `export_manifest.json` after successful export and prints a
-short handoff summary with output files and retention commands.
+used.
+
+Blocked export writes `<session>.export_blocked.json` with the same schema, `status: "blocked"`,
+the blockers, the readiness payload, legacy text `next`, structured `next_commands`, and
+`export_commands`:
+
+```json
+{
+  "schema": "murmurmark.export_manifest/v1",
+  "status": "blocked",
+  "blockers": ["risk:local_recall_possible_lost_me"],
+  "next": "`murmurmark review next sessions/...`; rerun export after blockers are closed...",
+  "next_commands": [
+    {
+      "id": "review_next",
+      "label": "Refresh this session's review handoff.",
+      "command": "murmurmark review next sessions/..."
+    }
+  ],
+  "export_commands": {
+    "rerun": "murmurmark export sessions/... --format markdown --profile auto --out-dir exports/private",
+    "debug_force": "murmurmark export sessions/... --format markdown --profile auto --out-dir exports/private --force"
+  }
+}
+```
+
+The Swift CLI reads successful `export_manifest.json` files and blocked `*.export_blocked.json`
+files, then prints a short handoff summary with output files, retention commands, or structured next
+commands.
 
 ## Retention Plan
 

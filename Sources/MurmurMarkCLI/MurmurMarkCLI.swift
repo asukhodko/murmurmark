@@ -3525,7 +3525,7 @@ enum ExportCommands {
         if status == 2 {
             try ExportPrinter.printBlocked(session: session, outDir: outDir)
             fflush(stdout)
-            throw CLIError("export blocked; follow the printed next step or pass --force for debugging")
+            throw CLIError("export blocked; follow the printed next steps or pass --force for debugging")
         }
         try ExportPrinter.printManifest(session: session, outDir: outDir)
     }
@@ -6957,6 +6957,8 @@ enum ExportPrinter {
         let blockers = payload["blockers"] as? [Any] ?? []
         let warnings = payload["warnings"] as? [Any] ?? []
         let next = string(payload["next"]) ?? "murmurmark report \(PathDisplay.display(session))"
+        let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+        let exportCommands = payload["export_commands"] as? [String: Any] ?? [:]
         let profile = string(payload["selected_profile"]) ?? string(payload["requested_profile"]) ?? "unknown"
         let format = string(payload["format"]) ?? "unknown"
 
@@ -6969,7 +6971,28 @@ enum ExportPrinter {
         if !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
-        print("  next: \(next)")
+        print("  next:")
+        if nextCommands.isEmpty {
+            print("    \(next)")
+        } else {
+            print("    commands:")
+            for item in nextCommands {
+                if let label = string(item["label"]) {
+                    print("      # \(label)")
+                }
+                if let command = string(item["command"]) {
+                    print("      \(command)")
+                }
+            }
+        }
+        if let rerun = string(exportCommands["rerun"]) {
+            print("    rerun_export:")
+            print("      \(rerun)")
+        }
+        if let debugForce = string(exportCommands["debug_force"]) {
+            print("    debug_force:")
+            print("      \(debugForce)")
+        }
     }
 
     static func printManifest(session: URL, outDir: URL) throws {

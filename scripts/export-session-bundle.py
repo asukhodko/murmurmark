@@ -190,20 +190,83 @@ def readiness_blockers(
     return blockers, warnings
 
 
-def blocked_export_next(session: Path, readiness: dict[str, Any] | None, blockers: list[str]) -> str:
-    commands: list[str] = []
+def blocked_export_next_commands(
+    session: Path,
+    readiness: dict[str, Any] | None,
+    blockers: list[str],
+) -> list[dict[str, str]]:
+    commands: list[dict[str, str]] = []
     if readiness:
         for item in readiness.get("next_commands") or []:
             if isinstance(item, dict) and item.get("command"):
-                commands.append(str(item["command"]))
+                command_item = {
+                    "id": str(item.get("id") or f"step_{len(commands) + 1}"),
+                    "label": str(item.get("label") or "Run the next readiness step."),
+                    "command": str(item["command"]),
+                }
+                commands.append(command_item)
     if commands:
-        rendered = "; ".join(f"`{command}`" for command in commands)
-        return f"{rendered}; rerun export after blockers are closed, or use --force only for debugging"
+        return commands
 
     session_arg = command_path(session)
     if "pipeline_incomplete" in blockers or any(str(item).startswith("missing:") for item in blockers):
-        return f"run `murmurmark process {session_arg}` and rerun export, or use --force only for debugging"
-    return f"`murmurmark review next {session_arg}`; rerun export after blockers are closed, or use --force only for debugging"
+        return [
+            {
+                "id": "process",
+                "label": "Run the pipeline until readiness is refreshed.",
+                "command": f"murmurmark process {session_arg}",
+            }
+        ]
+    return [
+        {
+            "id": "review_next",
+            "label": "Refresh this session's review handoff.",
+            "command": f"murmurmark review next {session_arg}",
+        }
+    ]
+
+
+def export_commands(args: argparse.Namespace, session: Path) -> dict[str, str]:
+    base = [
+        "murmurmark",
+        "export",
+        command_path(session),
+        "--format",
+        shlex.quote(args.format),
+        "--profile",
+        shlex.quote(args.profile),
+        "--out-dir",
+        command_path(args.out_dir),
+    ]
+    if args.include_json:
+        base.append("--include-json")
+    rerun = " ".join(base)
+    return {
+        "rerun": rerun,
+        "debug_force": f"{rerun} --force",
+    }
+
+
+def blocked_export_next(next_commands: list[dict[str, str]]) -> str:
+    rendered = "; ".join(f"`{item['command']}`" for item in next_commands if item.get("command"))
+    if not rendered:
+        return "rerun export after blockers are closed, or use --force only for debugging"
+    return f"{rendered}; rerun export after blockers are closed, or use --force only for debugging"
+
+
+def print_blocked_export_handoff(manifest: dict[str, Any], blocked_path: Path) -> None:
+    print(f"export blocked: {blocked_path}")
+    print("blockers: " + ", ".join(str(item) for item in manifest["blockers"]))
+    print("next:")
+    for item in manifest.get("next_commands") or []:
+        command = item.get("command") if isinstance(item, dict) else None
+        if command:
+            print(f"  {command}")
+    export = manifest.get("export_commands") if isinstance(manifest.get("export_commands"), dict) else {}
+    if export.get("rerun"):
+        print(f"  rerun_export: {export['rerun']}")
+    if export.get("debug_force"):
+        print(f"  debug_force: {export['debug_force']}")
 
 
 def copy_file(src: Path, dst: Path) -> dict[str, Any]:
@@ -299,6 +362,8 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
     readiness = read_json(paths["session_readiness_json"])
     blockers, warnings = readiness_blockers(paths, quality, verdict, readiness)
     if blockers and not args.force:
+        next_commands = blocked_export_next_commands(session, readiness, blockers)
+        blocked_export_commands = export_commands(args, session)
         manifest = {
             "schema": SCHEMA_MANIFEST,
             "generator": {"name": "export-session-bundle", "version": SCRIPT_VERSION},
@@ -310,14 +375,14 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
             "blockers": blockers,
             "warnings": warnings,
             "readiness": readiness,
-            "next": blocked_export_next(session, readiness, blockers),
+            "next": blocked_export_next(next_commands),
+            "next_commands": next_commands,
+            "export_commands": blocked_export_commands,
         }
         args.out_dir.mkdir(parents=True, exist_ok=True)
         blocked_path = args.out_dir / f"{session.name}.export_blocked.json"
         write_json(blocked_path, manifest)
-        print(f"export blocked: {blocked_path}")
-        print("blockers: " + ", ".join(blockers))
-        print("next: " + str(manifest["next"]))
+        print_blocked_export_handoff(manifest, blocked_path)
         raise SystemExit(2)
 
     out_dir = args.out_dir / session.name
