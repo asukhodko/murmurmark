@@ -179,6 +179,22 @@ def selected_profile(session: Path) -> str:
     cleanup = session / "derived/transcript-simple/whisper-cpp/audit-cleanup"
     review_decisions = session / "derived/transcript-simple/whisper-cpp/review-decisions"
     order_repair = session / "derived/transcript-simple/whisper-cpp/order-repair"
+    order_repair_v1 = read_json(order_repair / "transcript_order_repair_report.order_repair_v1.json")
+    order_repair_summary = order_repair_v1.get("summary") if isinstance(order_repair_v1, dict) else {}
+    order_repair_gates = order_repair_v1.get("gates") if isinstance(order_repair_v1, dict) else {}
+    order_repair_applied = safe_int(order_repair_summary.get("applied_repairs") if isinstance(order_repair_summary, dict) else None) or 0
+
+    def order_repair_usable_for(profile: str) -> bool:
+        return (
+            (resolved / "quality_report.order_repair_v1.json").exists()
+            and (resolved / "clean_dialogue.order_repair_v1.json").exists()
+            and isinstance(order_repair_gates, dict)
+            and order_repair_gates.get("passed") is True
+            and order_repair_applied > 0
+            and isinstance(order_repair_v1, dict)
+            and order_repair_v1.get("input_profile") == profile
+        )
+
     reviewed = read_json(review_decisions / "review_decisions_report.reviewed_v1.json")
     reviewed_gates = reviewed.get("gates") if isinstance(reviewed, dict) else {}
     if (
@@ -187,6 +203,8 @@ def selected_profile(session: Path) -> str:
         and isinstance(reviewed_gates, dict)
         and reviewed_gates.get("passed") is True
     ):
+        if order_repair_usable_for("reviewed_v1"):
+            return "order_repair_v1"
         return "reviewed_v1"
     agent = read_json(review_decisions / "review_decisions_report.agent_reviewed_v1.json")
     agent_gates = agent.get("gates") if isinstance(agent, dict) else {}
@@ -196,16 +214,9 @@ def selected_profile(session: Path) -> str:
         and isinstance(agent_gates, dict)
         and agent_gates.get("passed") is True
     ):
+        if order_repair_usable_for("agent_reviewed_v1"):
+            return "order_repair_v1"
         return "agent_reviewed_v1"
-    order_repair_v1 = read_json(order_repair / "transcript_order_repair_report.order_repair_v1.json")
-    order_repair_gates = order_repair_v1.get("gates") if isinstance(order_repair_v1, dict) else {}
-    if (
-        (resolved / "quality_report.order_repair_v1.json").exists()
-        and (resolved / "clean_dialogue.order_repair_v1.json").exists()
-        and isinstance(order_repair_gates, dict)
-        and order_repair_gates.get("passed") is True
-    ):
-        return "order_repair_v1"
     cleanup_v6 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v6.json")
     cleanup_v6_summary = cleanup_v6.get("summary") if isinstance(cleanup_v6, dict) else {}
     cleanup_v6_gates = cleanup_v6.get("gates") if isinstance(cleanup_v6, dict) else {}
@@ -217,6 +228,8 @@ def selected_profile(session: Path) -> str:
         and cleanup_v6_gates.get("passed") is True
         and cleanup_v6_applied > 0
     ):
+        if order_repair_usable_for("audit_cleanup_v6"):
+            return "order_repair_v1"
         return "audit_cleanup_v6"
     cleanup_v5 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v5.json")
     cleanup_v5_summary = cleanup_v5.get("summary") if isinstance(cleanup_v5, dict) else {}
@@ -229,6 +242,8 @@ def selected_profile(session: Path) -> str:
         and cleanup_v5_gates.get("passed") is True
         and cleanup_v5_applied > 0
     ):
+        if order_repair_usable_for("audit_cleanup_v5"):
+            return "order_repair_v1"
         return "audit_cleanup_v5"
     cleanup_v4 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v4.json")
     cleanup_v4_summary = cleanup_v4.get("summary") if isinstance(cleanup_v4, dict) else {}
@@ -241,6 +256,8 @@ def selected_profile(session: Path) -> str:
         and cleanup_v4_gates.get("passed") is True
         and cleanup_v4_applied > 0
     ):
+        if order_repair_usable_for("audit_cleanup_v4"):
+            return "order_repair_v1"
         return "audit_cleanup_v4"
     cleanup_v3 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v3.json")
     cleanup_v3_summary = cleanup_v3.get("summary") if isinstance(cleanup_v3, dict) else {}
@@ -253,14 +270,24 @@ def selected_profile(session: Path) -> str:
         and cleanup_v3_gates.get("passed") is True
         and cleanup_v3_applied > 0
     ):
+        if order_repair_usable_for("audit_cleanup_v3"):
+            return "order_repair_v1"
         return "audit_cleanup_v3"
     if (resolved / "quality_report.audit_cleanup_v2.json").exists() and (resolved / "clean_dialogue.audit_cleanup_v2.json").exists():
+        if order_repair_usable_for("audit_cleanup_v2"):
+            return "order_repair_v1"
         return "audit_cleanup_v2"
     if (resolved / "quality_report.audit_cleanup_v1.json").exists() and (resolved / "clean_dialogue.audit_cleanup_v1.json").exists():
+        if order_repair_usable_for("audit_cleanup_v1"):
+            return "order_repair_v1"
         return "audit_cleanup_v1"
     if (resolved / "quality_report.shadow_v2.json").exists() and (resolved / "clean_dialogue.shadow_v2.json").exists():
+        if order_repair_usable_for("shadow_v2"):
+            return "order_repair_v1"
         return "shadow_v2"
     if (resolved / "quality_report.json").exists() and (resolved / "clean_dialogue.json").exists():
+        if order_repair_usable_for("current"):
+            return "order_repair_v1"
         return "current"
     return "missing"
 
@@ -777,7 +804,36 @@ def transcript_order_metrics(
     review_report: dict[str, Any] | None = None,
     order_repair_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    order_repair_summary = (
+        order_repair_report.get("summary")
+        if isinstance(order_repair_report, dict) and isinstance(order_repair_report.get("summary"), dict)
+        else {}
+    )
+    order_repair_gates = (
+        order_repair_report.get("gates")
+        if isinstance(order_repair_report, dict) and isinstance(order_repair_report.get("gates"), dict)
+        else {}
+    )
     if not isinstance(order_audit, dict):
+        if order_repair_gates.get("passed") is True:
+            unrepaired = safe_int(order_repair_summary.get("unrepaired_order_risks")) or 0
+            marked = safe_int(order_repair_summary.get("marked_needs_review")) or 0
+            risk_seconds = round_or_none(order_repair_summary.get("unrepaired_order_risk_seconds")) or 0.0
+            blocking = bool(risk_seconds > 0.0)
+            return {
+                "transcript_order_audit_status": "missing",
+                "transcript_order_audited_overlap_count": safe_int(order_repair_summary.get("order_risk_items")),
+                "transcript_order_probable_order_risk_count": unrepaired,
+                "transcript_order_probable_order_risk_seconds": risk_seconds,
+                "transcript_order_needs_review_count": marked,
+                "transcript_order_needs_review_seconds": 0.0,
+                "transcript_order_review_seconds": risk_seconds,
+                "transcript_order_blocking_order_risk": blocking,
+                "transcript_order_recommended_next_step": "transcript_order_repaired_clear" if not blocking else "review_transcript_order_items",
+                "transcript_order_repair_gates_passed": True,
+                "transcript_order_repair_applied_repairs": safe_int(order_repair_summary.get("applied_repairs")),
+                "transcript_order_repair_unrepaired_order_risks": unrepaired,
+            }
         return {
             "transcript_order_audit_status": "missing",
             "transcript_order_audited_overlap_count": None,
@@ -793,22 +849,11 @@ def transcript_order_metrics(
             "transcript_order_repair_unrepaired_order_risks": None,
         }
     summary = order_audit.get("summary") if isinstance(order_audit.get("summary"), dict) else {}
-    order_repair_summary = (
-        order_repair_report.get("summary")
-        if isinstance(order_repair_report, dict) and isinstance(order_repair_report.get("summary"), dict)
-        else {}
-    )
-    order_repair_gates = (
-        order_repair_report.get("gates")
-        if isinstance(order_repair_report, dict) and isinstance(order_repair_report.get("gates"), dict)
-        else {}
-    )
     if order_repair_gates.get("passed") is True:
         unrepaired = safe_int(order_repair_summary.get("unrepaired_order_risks")) or 0
         marked = safe_int(order_repair_summary.get("marked_needs_review")) or 0
-        original_risk_seconds = round_or_none(summary.get("probable_order_risk_seconds")) or 0.0
-        risk_seconds = 0.0 if unrepaired == 0 else original_risk_seconds
-        review_seconds = 0.0 if marked == 0 else original_risk_seconds
+        risk_seconds = round_or_none(order_repair_summary.get("unrepaired_order_risk_seconds")) or 0.0
+        review_seconds = 0.0
         blocking = bool(risk_seconds > 0.0 or review_seconds >= 10.0)
         return {
             "transcript_order_audit_status": order_audit.get("status"),

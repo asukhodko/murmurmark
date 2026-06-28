@@ -791,6 +791,91 @@ EOF
     .sessions[0].transcript_order_repair_applied_repairs == 1
   ' "$workdir/order-repair-session-quality/session_quality_report.json" >/dev/null
 
+  order_partial_session="$workdir/order-partial-session"
+  order_partial_resolved="$order_partial_session/derived/transcript-simple/whisper-cpp/resolved"
+  mkdir -p "$order_partial_resolved"
+  jq -n '{
+    schema: "murmurmark.session/v1",
+    session_id: "order-partial-fixture",
+    created_at: "2026-06-22T16:00:00.000Z",
+    ended_at: "2026-06-22T16:00:40.000Z",
+    app_version: "0.1.0",
+    capture_mode: "fixture",
+    status: "completed",
+    target: {kind: "system_audio", bundle_id: null, display_name: "Fixture", pid_strategy: "fixture"},
+    microphone: {device_uid: "default", display_name: "Fixture Mic", capture_backend: "fixture"},
+    remote_audio: {backend: "fixture", sample_rate: 48000, channels: 1, format: "caf:lpcm"},
+    mic_audio: {backend: "fixture", sample_rate: 48000, channels: 1, format: "caf:lpcm"},
+    privacy: {network_allowed_during_capture: false, telemetry: false, raw_audio_retention: "fixture"},
+    files: {mic: [], remote: []},
+    health: {summary: "ok", warnings: []}
+  }' >"$order_partial_session/session.json"
+  jq -n '{
+    schema: "murmurmark.clean_dialogue/v1",
+    session: "order-partial-fixture",
+    utterances: [
+      {id: "utt_partial_me1", start: 0.0, end: 9.0, source_candidate_id: "cand_partial_mic1", source_track: "mic", speaker_label: "Me", role: "Me", text: "Я рассказываю план надо проверить логи и добавляю хвост.", quality: {needs_review: false}},
+      {id: "utt_partial_remote1", start: 3.0, end: 5.0, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Надо проверить логи.", quality: {needs_review: false}},
+      {id: "utt_partial_me2", start: 20.0, end: 30.0, source_candidate_id: "cand_partial_mic2", source_track: "mic", speaker_label: "Me", role: "Me", text: "Я говорю длинную фразу потом слушаю ответ и продолжаю дальше.", quality: {needs_review: false}},
+      {id: "utt_partial_remote2", start: 23.0, end: 25.0, source_track: "remote", speaker_label: "Colleagues", role: "Colleagues", text: "Ответ внутри.", quality: {needs_review: false}}
+    ]
+  }' >"$order_partial_resolved/clean_dialogue.shadow_v2.json"
+  jq -n '{
+    schema: "murmurmark.transcript_overlaps/v1",
+    session: "order-partial-fixture",
+    overlaps: [
+      {left_utterance_id: "utt_partial_me1", right_utterance_id: "utt_partial_remote1", left_role: "Me", right_role: "Colleagues", start: 3.0, end: 5.0, duration_sec: 2.0, type: "possible_double_talk_or_timing", text_similarity: 0.1},
+      {left_utterance_id: "utt_partial_me2", right_utterance_id: "utt_partial_remote2", left_role: "Me", right_role: "Colleagues", start: 23.0, end: 25.0, duration_sec: 2.0, type: "possible_double_talk_or_timing", text_similarity: 0.1}
+    ]
+  }' >"$order_partial_resolved/overlaps.shadow_v2.json"
+  jq -n '{
+    schema: "murmurmark.simple_transcript_quality/v1",
+    utterances: 4,
+    needs_review_count: 0,
+    cross_role_overlap_gt2_count: 0,
+    cross_role_overlap_gt2_seconds: 0,
+    remote_duplicate_in_me_seconds: 0,
+    unrepaired_long_mic_crossings_count: 0,
+    golden_phrase_fail_count: 0,
+    local_only_island_recall: 1.0,
+    meeting_duration_sec: 40.0
+  }' >"$order_partial_resolved/quality_report.shadow_v2.json"
+  jq -n '{
+    schema: "murmurmark.raw_segments/v1",
+    session: "order-partial-fixture",
+    segments: [
+      {id: "raw_partial_mic_001", source_track: "mic", start: 0.0, end: 2.5, text: "Я рассказываю план", token_avg_prob: 0.95, token_low_prob_ratio: 0.0},
+      {id: "raw_partial_mic_002", source_track: "mic", start: 3.1, end: 4.8, text: "Надо проверить логи.", token_avg_prob: 0.82, token_low_prob_ratio: 0.1},
+      {id: "raw_partial_mic_003", source_track: "mic", start: 5.3, end: 9.0, text: "и добавляю хвост.", token_avg_prob: 0.94, token_low_prob_ratio: 0.0},
+      {id: "raw_partial_mic_004", source_track: "mic", start: 20.0, end: 30.0, text: "Я говорю длинную фразу потом слушаю ответ и продолжаю дальше.", token_avg_prob: 0.91, token_low_prob_ratio: 0.0}
+    ]
+  }' >"$order_partial_resolved/raw_segments.shadow_v2.json"
+  jq -n '{
+    schema: "murmurmark.candidate_utterances/v1",
+    session: "order-partial-fixture",
+    candidates: [
+      {id: "cand_partial_mic1", source_track: "mic", initial_role: "me", speaker_label: "Me", start: 0.0, end: 9.0, text_raw: "Я рассказываю план надо проверить логи и добавляю хвост.", source_segments: ["raw_partial_mic_001", "raw_partial_mic_002", "raw_partial_mic_003"]},
+      {id: "cand_partial_mic2", source_track: "mic", initial_role: "me", speaker_label: "Me", start: 20.0, end: 30.0, text_raw: "Я говорю длинную фразу потом слушаю ответ и продолжаю дальше.", source_segments: ["raw_partial_mic_004"]}
+    ]
+  }' >"$order_partial_resolved/candidate_utterances.shadow_v2.json"
+  "$bin" repair order "$order_partial_session" --input-profile shadow_v2 --output-profile order_repair_v1 >/dev/null
+  "$repo_root/scripts/synthesize-simple-extractive.py" "$order_partial_session" --transcript-profile order_repair_v1 >/dev/null
+  jq -e '
+    .gates.passed == true and
+    (.gates.warnings | index("partial_order_repair_needs_review")) and
+    .summary.applied_repairs == 1 and
+    .summary.unrepaired_order_risks == 1 and
+    .summary.unrepaired_order_risk_seconds == 2
+  ' "$order_partial_session/derived/transcript-simple/whisper-cpp/order-repair/transcript_order_repair_report.order_repair_v1.json" >/dev/null
+  "$repo_root/scripts/report-session-quality.py" "$order_partial_session" --out-dir "$workdir/order-partial-session-quality" >/dev/null
+  jq -e '
+    .sessions[0].selected_profile == "order_repair_v1" and
+    .sessions[0].transcript_order_recommended_next_step == "review_transcript_order_items" and
+    .sessions[0].transcript_order_review_seconds == 2 and
+    .sessions[0].transcript_order_repair_applied_repairs == 1 and
+    .sessions[0].transcript_order_repair_unrepaired_order_risks == 1
+  ' "$workdir/order-partial-session-quality/session_quality_report.json" >/dev/null
+
   order_operational="$workdir/order-operational-readiness.json"
   python3 - "$order_operational" "$order_session" <<'PY'
 import json

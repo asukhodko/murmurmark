@@ -633,6 +633,27 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
     risk_items: list[dict[str, Any]] = []
     repair_comparison: dict[str, Any] | None = None
 
+    def order_repair_for(base_profile: str) -> tuple[str, dict[str, Path]] | None:
+        order_paths = source_profile_paths(resolved_dir, "order_repair_v1")
+        order_report, order_error = read_json(order_paths["order_repair_report"])
+        if order_error is not None or not isinstance(order_report, dict):
+            return None
+        gates = order_report.get("gates") if isinstance(order_report.get("gates"), dict) else {}
+        summary = order_report.get("summary") if isinstance(order_report.get("summary"), dict) else {}
+        try:
+            applied_repairs = int(summary.get("applied_repairs", 0) or 0)
+        except (TypeError, ValueError):
+            applied_repairs = 0
+        if (
+            order_paths["clean_dialogue"].exists()
+            and order_paths["quality_report"].exists()
+            and gates.get("passed") is True
+            and applied_repairs > 0
+            and order_report.get("input_profile") == base_profile
+        ):
+            return "order_repair_v1", order_paths
+        return None
+
     if requested_profile == "auto":
         comparison_path = resolved_dir / "repair_comparison.json"
         comparison, error = read_json(comparison_path)
@@ -647,6 +668,9 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             and isinstance(reviewed_report.get("gates"), dict)
             and reviewed_report["gates"].get("passed") is True
         ):
+            repaired = order_repair_for("reviewed_v1")
+            if repaired:
+                return repaired[0], repaired[1], repair_comparison, risk_items
             return "reviewed_v1", reviewed_paths, repair_comparison, risk_items
         agent_paths = source_profile_paths(resolved_dir, "agent_reviewed_v1")
         agent_report, agent_error = read_json(agent_paths["review_decisions_report"])
@@ -657,6 +681,9 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             and isinstance(agent_report.get("gates"), dict)
             and agent_report["gates"].get("passed") is True
         ):
+            repaired = order_repair_for("agent_reviewed_v1")
+            if repaired:
+                return repaired[0], repaired[1], repair_comparison, risk_items
             return "agent_reviewed_v1", agent_paths, repair_comparison, risk_items
         for cleanup_profile in ("audit_cleanup_v6", "audit_cleanup_v5", "audit_cleanup_v4", "audit_cleanup_v3", "audit_cleanup_v2", "audit_cleanup_v1"):
             cleanup_paths = source_profile_paths(resolved_dir, cleanup_profile)
@@ -672,10 +699,19 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
                 and isinstance(cleanup_report.get("gates"), dict)
                 and cleanup_report["gates"].get("passed") is True
             ):
+                repaired = order_repair_for(cleanup_profile)
+                if repaired:
+                    return repaired[0], repaired[1], repair_comparison, risk_items
                 return cleanup_profile, cleanup_paths, repair_comparison, risk_items
         shadow_paths = source_profile_paths(resolved_dir, "shadow_v2")
         if shadow_paths["clean_dialogue"].exists() and repair_comparison and repair_comparison.get("passed") is True:
+            repaired = order_repair_for("shadow_v2")
+            if repaired:
+                return repaired[0], repaired[1], repair_comparison, risk_items
             return "shadow_v2", shadow_paths, repair_comparison, risk_items
+        repaired = order_repair_for("current")
+        if repaired:
+            return repaired[0], repaired[1], repair_comparison, risk_items
         return "current", source_profile_paths(resolved_dir, "current"), repair_comparison, risk_items
 
     if requested_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6"}:

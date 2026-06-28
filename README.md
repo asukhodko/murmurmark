@@ -240,7 +240,9 @@ order risks are included in readiness review burden and block export until revie
 `murmurmark repair order` writes a separate `order_repair_v1` profile for the narrow safe case where
 the long `Me` turn can be split by its saved source ASR segments. It never edits baseline/shadow
 profiles; if the split is not safe, it marks the affected utterance for review instead. When gates
-pass, session-quality/readiness can treat the repaired order risk as cleared.
+pass and at least one repair was applied, session-quality/readiness and synthesis `auto` can select
+`order_repair_v1`. Fully repaired sessions clear the order-risk burden; partial repairs keep the
+remaining unsafe regions as explicit review items.
 `murmurmark corpus order` aggregates those audits across the corpus and writes the current list of
 chronology regression candidates under `sessions/_reports/transcript-order/`; corpus gates read this
 report and fail if a complete session still has blocking chronology risk.
@@ -325,7 +327,7 @@ murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v5
 murmurmark cleanup ./sessions/<session> --input-profile audit_cleanup_v5 --output-profile audit_cleanup_v6
 murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v6
 murmurmark repair order ./sessions/<session> --input-profile auto --output-profile order_repair_v1
-murmurmark synthesize ./sessions/<session> --transcript-profile order_repair_v1
+murmurmark synthesize ./sessions/<session> --transcript-profile auto
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session> --write-session-readiness
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
 .venv/bin/python scripts/evaluate-regression-corpus.py

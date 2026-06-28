@@ -493,7 +493,9 @@ derived/transcript-simple/whisper-cpp/order-repair/
     "split_utterances_created": 2,
     "removed_original_me_utterances": 1,
     "marked_needs_review": 0,
-    "unrepaired_order_risks": 0
+    "unrepaired_order_risks": 0,
+    "repaired_order_risk_seconds": 2.4,
+    "unrepaired_order_risk_seconds": 0.0
   },
   "gates": {
     "passed": true,
@@ -508,11 +510,17 @@ original `Me` id, remote id, created utterance ids and dropped overlap segment i
 use `murmurmark.transcript_order_repair_rejection/v1` and must include a machine-readable reason.
 When repair cannot be applied safely, the original utterance remains in the output profile and gets
 `quality.transcript_order_repair.status = "needs_review"` plus `quality.needs_review = true`.
+`gates.passed = true` means the output profile is internally safe to consume: applied repairs were
+materialized, and every unrepaired order risk is still explicit as `needs_review`. It does not mean
+all chronology risk disappeared. Partial repairs add `partial_order_repair_needs_review` to warnings
+and keep `unrepaired_order_risk_seconds` in readiness.
 Synthesis accepts `--transcript-profile order_repair_v1` explicitly and treats failed repair gates as
-a high-severity selection risk.
+a high-severity selection risk. `--transcript-profile auto` may select `order_repair_v1` only when it
+was built over the otherwise selected base profile, gates passed and at least one repair was applied.
 When `order_repair_v1` gates pass, `report-session-quality.py` may select this profile and reports
-`transcript_order_recommended_next_step = "transcript_order_repaired_clear"` with zero
-`transcript_order_review_seconds` for the repaired order risk.
+`transcript_order_recommended_next_step = "transcript_order_repaired_clear"` only when
+`unrepaired_order_risks == 0`. Otherwise it keeps `review_transcript_order_items` and counts the
+remaining seconds in `transcript_order_review_seconds`.
 
 `murmurmark corpus order` aggregates per-session order audits into:
 

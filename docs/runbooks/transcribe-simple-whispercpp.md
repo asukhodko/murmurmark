@@ -279,7 +279,9 @@ sit cleanly around the remote turn and the dropped overlap text is covered by th
 Otherwise it keeps the original utterance and marks `quality.transcript_order_repair.status =
 needs_review`.
 After a passing repair, `murmurmark report "$SESSION"` can select `order_repair_v1` and show
-`transcript_order_repaired_clear` instead of keeping the old order-risk burden.
+`transcript_order_repaired_clear` instead of keeping the old order-risk burden. Partial repair is
+also valid: already-split regions are used, but unrepaired regions stay as `needs_review` and remain
+in `transcript_order_review_seconds`.
 
 For corpus work, aggregate order risks after the usual session-quality report:
 
@@ -1007,14 +1009,14 @@ does not call an LLM, and does not read raw audio.
 Profile selection:
 
 ```text
-auto      -> reviewed_v1 when review gates pass, then agent_reviewed_v1 when agent gates pass, then audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, then shadow_v2 if repair_comparison.json passes, otherwise current
+auto      -> reviewed_v1 when review gates pass, then agent_reviewed_v1 when agent gates pass, then audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, but may select order_repair_v1 over any of those bases when order repair gates pass and at least one repair was applied; then shadow_v2 if repair_comparison.json passes, otherwise current
 current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
 audit_cleanup_v1..v6 -> audit-cleaned dialogue, marked risky if cleanup gates failed
 reviewed_v1 -> human-reviewed dialogue, marked risky if review gates failed
 agent_reviewed_v1 -> agent-reviewed dialogue, marked risky if review gates failed
 suggested_review_v1 -> machine-suggested review candidate, explicit only, never selected by auto
-order_repair_v1 -> explicit transcript-order repair candidate, marked risky if order repair gates failed
+order_repair_v1 -> transcript-order repair candidate, eligible for auto only when built over the selected base profile, gates passed and at least one repair was applied; marked risky if requested explicitly and gates failed
 ```
 
 The script writes a quality verdict and a conservative `notes.md`. The v3 notes path is extractive
