@@ -180,7 +180,9 @@ per-session local-recall audits first.
 `sessions/_reports/local-recall-repair/local_recall_repair_corpus_report.*`. It summarizes
 `local_recall_repair_v1` reports across sessions; `--repair` refreshes the candidate repair profile
 first. Inserted `Me` turns remain explicit `needs_review`, and the report does not promote the
-profile into `auto`.
+profile into `auto`. The repair layer keeps micro-ASR diagnostics and can recover short
+boundary-shifted rows when Whisper recognized text but the row midpoint landed just outside the
+local island.
 `murmurmark corpus process all` rebuilds per-session remote-leak plans before session-quality and
 corpus aggregation. Use `corpus remote-leak --plan` when you want to refresh only that queue.
 `passed_with_warnings` means the hard no-regression gates are green, but some historical sessions or
@@ -473,6 +475,10 @@ separate `local_recall_repair_v1` profile. Inserted `Me` turns are always marked
 baseline, cleanup and order profiles are not modified. Use this profile explicitly when checking
 whether a missed short local phrase was recovered:
 `murmurmark synthesize SESSION --transcript-profile local_recall_repair_v1`.
+For short boundary islands, the repair also inspects raw micro-ASR rows. If Whisper produced text
+whose timestamp overlaps or nearly touches the island but whose midpoint is outside it, the row can
+be recovered through `boundary_overlap_fallback`; the attempt stays visible in
+`local_recall_repair_micro_runs.local_recall_repair_v1.jsonl`.
 
 The transcript order audit reads `clean_dialogue` and `overlaps`, then writes
 `derived/audit/order/`. It highlights long `Me` turns that wrap a `Colleagues` turn and have a

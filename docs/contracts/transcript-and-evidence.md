@@ -411,6 +411,9 @@ separate profile and does not modify `shadow_v2`, cleanup, order repair or revie
 The v1 repair may insert only whole short `Me` utterances from `possible_lost_me` items when the
 local state is strong, remote state is weak and micro-ASR produces a non-empty text that is not too
 similar to nearby remote text. Inserted rows are marked `quality.needs_review = true`.
+For boundary islands, micro-ASR rows whose midpoint is outside the selected island can still be
+used when the row overlaps or nearly touches that island; such attempts are marked with
+`selection_policy = "boundary_overlap_fallback"` in the micro-runs JSONL.
 
 Profile outputs:
 
@@ -443,7 +446,10 @@ derived/transcript-simple/whisper-cpp/local-recall-repair/
     "eligible_items": 1,
     "applied_repairs": 1,
     "inserted_me_seconds": 1.3,
-    "rejected_items": 2
+    "rejected_items": 2,
+    "micro_boundary_overlap_recovered_items": 1,
+    "micro_boundary_overlap_recovered_attempts": 3,
+    "micro_raw_transcription_rows": 3
   },
   "gates": {
     "passed": true,
@@ -458,6 +464,8 @@ Applied patches use `murmurmark.local_recall_repair_patch/v1`; rejected items us
 `--transcript-profile local_recall_repair_v1` explicitly and adds a review risk when inserted local
 turns exist. Auto-promotion is intentionally left out until corpus evidence proves that the inserted
 turns reduce lost local speech without increasing remote leak.
+`local_recall_repair_micro_runs.local_recall_repair_v1.jsonl` keeps per-source/per-window evidence:
+raw transcription text, selected rows, score, source label, window label and fallback metadata.
 
 The transcript order audit explains remaining chronology risk from long `Me` utterances crossing
 remote turns. It is audit-only and writes under:

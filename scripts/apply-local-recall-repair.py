@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 DEFAULT_MODEL = "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 DEFAULT_OUTPUT_PROFILE = "local_recall_repair_v1"
 SCHEMA_REPORT = "murmurmark.local_recall_repair_report/v1"
@@ -44,6 +44,8 @@ STOP_WORDS = {
     "я",
 }
 ACK_WORDS = {"да", "ага", "угу", "ок", "окей", "ладно", "понял", "понятно", "хорошо"}
+BOUNDARY_FALLBACK_BEFORE_MS = 700
+BOUNDARY_FALLBACK_AFTER_MS = 250
 
 
 def parse_args() -> argparse.Namespace:
@@ -278,6 +280,131 @@ def read_stub_repair_text(item: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     }
 
 
+def compact_micro_rows(meta: dict[str, Any], bridge: Any) -> list[dict[str, Any]]:
+    json_value = meta.get("json")
+    if not json_value:
+        return []
+    json_path = Path(str(json_value))
+    if not json_path.exists():
+        return []
+    try:
+        data = json.loads(json_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    global_offset_ms = safe_int(meta.get("slice_start_ms")) - safe_int(meta.get("leading_silence_ms"))
+    rows: list[dict[str, Any]] = []
+    for row in data.get("transcription", []):
+        if not isinstance(row, dict):
+            continue
+        shifted = bridge.shift_transcription_row(row, global_offset_ms)
+        offsets = shifted.get("offsets") if isinstance(shifted.get("offsets"), dict) else {}
+        start_ms = safe_int(offsets.get("from"))
+        end_ms = safe_int(offsets.get("to")) or start_ms
+        text = bridge.clean_text(str(shifted.get("text") or ""))
+        if not text or bridge.KNOWN_HALLUCINATION_RE.search(text):
+            continue
+        stats = bridge.token_confidence_stats(shifted)
+        rows.append(
+            {
+                "start_ms": start_ms,
+                "end_ms": end_ms,
+                "midpoint_ms": (start_ms + end_ms) // 2,
+                "text": text,
+                "avg_logprob": bridge.first_optional_float(shifted, ("avg_logprob", "average_logprob", "logprob")),
+                "no_speech_prob": bridge.first_optional_float(shifted, ("no_speech_prob", "no_speech_probability")),
+                "token_avg_prob": stats.get("token_avg_prob"),
+            }
+        )
+    return rows
+
+
+def enrich_micro_meta(meta: dict[str, Any], bridge: Any) -> dict[str, Any]:
+    rows = compact_micro_rows(meta, bridge)
+    if not rows:
+        meta["raw_transcription_count"] = 0
+        meta["raw_transcription_text"] = ""
+        return meta
+    meta["raw_transcription_count"] = len(rows)
+    meta["raw_transcription_text"] = bridge.clean_text(" ".join(str(row.get("text") or "") for row in rows))
+    meta["raw_transcription_rows"] = rows
+    return meta
+
+
+def row_distance_to_interval_ms(row: dict[str, Any], start_ms: int, end_ms: int) -> int:
+    row_start = safe_int(row.get("start_ms"))
+    row_end = safe_int(row.get("end_ms")) or row_start
+    if row_end < start_ms:
+        return start_ms - row_end
+    if row_start > end_ms:
+        return row_start - end_ms
+    return 0
+
+
+def recover_boundary_micro_text(
+    *,
+    text: str,
+    meta: dict[str, Any],
+    item: dict[str, Any],
+    remote_text: str,
+    bridge: Any,
+) -> tuple[str, dict[str, Any]]:
+    if text or meta.get("reason") != "empty_micro_text":
+        return text, meta
+    boundary = item.get("boundary") if isinstance(item.get("boundary"), dict) else {}
+    if boundary.get("near_parent_boundary") is not True:
+        return text, meta
+
+    start_ms = int(round(safe_float(item.get("start_sec")) * 1000))
+    end_ms = int(round(safe_float(item.get("end_sec")) * 1000))
+    rows = meta.get("raw_transcription_rows") if isinstance(meta.get("raw_transcription_rows"), list) else []
+    selected = [
+        row
+        for row in rows
+        if row_distance_to_interval_ms(row, start_ms, end_ms) <= BOUNDARY_FALLBACK_BEFORE_MS
+        and safe_int(row.get("start_ms")) <= end_ms + BOUNDARY_FALLBACK_AFTER_MS
+    ]
+    if not selected:
+        meta["boundary_overlap_fallback"] = {
+            "attempted": True,
+            "recovered": False,
+            "reason": "no_raw_row_near_selection",
+            "before_ms": BOUNDARY_FALLBACK_BEFORE_MS,
+            "after_ms": BOUNDARY_FALLBACK_AFTER_MS,
+        }
+        return text, meta
+
+    recovered_text = bridge.clean_text(" ".join(str(row.get("text") or "") for row in selected))
+    if not recovered_text:
+        return text, meta
+    score = bridge.score_micro_reasr_text(
+        recovered_text,
+        selected,
+        start_ms,
+        end_ms,
+        remote_context_text=remote_text,
+    )
+    recovered_meta = dict(meta)
+    recovered_meta.update(
+        {
+            "status": "ok",
+            "reason": "boundary_overlap_recovered",
+            "selection_policy": "boundary_overlap_fallback",
+            "rows": selected,
+            "raw_text": recovered_text,
+            "score": round(score, 6),
+            "boundary_overlap_fallback": {
+                "attempted": True,
+                "recovered": True,
+                "before_ms": BOUNDARY_FALLBACK_BEFORE_MS,
+                "after_ms": BOUNDARY_FALLBACK_AFTER_MS,
+                "selected_row_count": len(selected),
+            },
+        }
+    )
+    return recovered_text, recovered_meta
+
+
 def run_micro_asr(
     session: Path,
     item: dict[str, Any],
@@ -333,6 +460,14 @@ def run_micro_asr(
                 local_score=safe_float(state.get("local_only_ratio")),
             )
             meta = dict(meta)
+            meta = enrich_micro_meta(meta, bridge)
+            text, meta = recover_boundary_micro_text(
+                text=text,
+                meta=meta,
+                item=item,
+                remote_text=remote_text,
+                bridge=bridge,
+            )
             meta["text"] = text
             attempts.append(meta)
             score = safe_float(meta.get("score"))
@@ -586,6 +721,20 @@ def main() -> int:
         "inserted_me_seconds": inserted_seconds if args.mode == "conservative" else 0.0,
         "planned_inserted_me_seconds": inserted_seconds,
         "rejected_items": len(rejected),
+        "micro_boundary_overlap_recovered_attempts": sum(
+            1
+            for row in micro_runs
+            if row.get("selection_policy") == "boundary_overlap_fallback" and row.get("status") == "ok"
+        ),
+        "micro_boundary_overlap_recovered_items": len(
+            {
+                str(row.get("source_item_id") or "")
+                for row in micro_runs
+                if row.get("selection_policy") == "boundary_overlap_fallback" and row.get("status") == "ok"
+            }
+            - {""}
+        ),
+        "micro_raw_transcription_rows": sum(safe_int(row.get("raw_transcription_count")) for row in micro_runs),
     }
     warnings = []
     if not patches:

@@ -683,6 +683,10 @@ murmurmark synthesize "$SESSION" --transcript-profile local_recall_repair_v1
 
 Inserted `Me` turns stay `needs_review`, so this profile is for inspection and explicit use, not
 automatic promotion.
+For short islands near a parent boundary, `local_recall_repair_v1` also records raw micro-ASR rows
+and may use `boundary_overlap_fallback` when Whisper recognized text but the row midpoint landed
+just outside the selected local island. This is still conservative: the recovered turn is inserted
+only into the explicit repair profile and remains `needs_review`.
 For a corpus-level view of these candidate repairs:
 
 ```bash
