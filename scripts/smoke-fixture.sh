@@ -2093,6 +2093,7 @@ PY
     --plan-out-dir "$first_lane_plan_dir" \
     --out-dir "$first_lane_pack_dir")"
   echo "$first_lane_output" | grep -q '^review_lane_pack:$'
+  ! echo "$first_lane_output" | grep -Eq '^(review_plan|clusters|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped):'
   first_lane="$(jq -r '.review_queue_strategy.first_recommended_lane' "$first_lane_plan_dir/review_plan.json")"
   [[ -s "$first_lane_pack_dir/review_lane_pack.$first_lane.json" ]]
   [[ -s "$first_lane_pack_dir/review_lane_pack.$first_lane.md" ]]

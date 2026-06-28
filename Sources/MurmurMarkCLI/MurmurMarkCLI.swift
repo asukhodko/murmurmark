@@ -1174,13 +1174,13 @@ enum ReviewLaneCommand {
             planURL = explicitPlanOutDir.map(PathURLs.fileURL) ?? readinessRoot.appendingPathComponent("review-plan")
             lanePackOutURL = explicitOutDir.map(PathURLs.fileURL) ?? planURL.appendingPathComponent("lane-packs")
             if operationalReadiness == nil {
-                try Tooling.runPath(try PythonRuntime.resolve(), [
+                try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
                     try script("report-session-quality.py").path,
                     session.path,
                     "--out-dir", sessionQualityOut.path,
                     "--write-session-readiness",
                 ])
-                try Tooling.runPath(try PythonRuntime.resolve(), [
+                try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
                     try script("report-operational-readiness.py").path,
                     "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
                     "--out-dir", operationalOut.path,
@@ -1608,13 +1608,13 @@ enum ReviewFirstLaneCommand {
             planURL = explicitPlanOutDir.map(PathURLs.fileURL) ?? readinessRoot.appendingPathComponent("review-plan")
             lanePackOutURL = explicitOutDir.map(PathURLs.fileURL) ?? planURL.appendingPathComponent("lane-packs")
             if operationalReadiness == nil {
-                try Tooling.runPath(try PythonRuntime.resolve(), [
+                try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
                     try script("report-session-quality.py").path,
                     session.path,
                     "--out-dir", sessionQualityOut.path,
                     "--write-session-readiness",
                 ])
-                try Tooling.runPath(try PythonRuntime.resolve(), [
+                try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
                     try script("report-operational-readiness.py").path,
                     "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
                     "--out-dir", operationalOut.path,
@@ -1637,7 +1637,7 @@ enum ReviewFirstLaneCommand {
         } else {
             try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
         }
-        try Tooling.runPath(try PythonRuntime.resolve(), [
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
             try script("build-review-lane-pack.py").path,
             "--template", planURL.appendingPathComponent("review_decisions.template.jsonl").path,
             "--decisions", planURL.appendingPathComponent("review_decisions.jsonl").path,
@@ -1673,9 +1673,9 @@ enum ReviewFirstLaneCommand {
     private static func buildPlan(extraArgs: [String], refreshOperational: Bool) throws {
         let python = try PythonRuntime.resolve()
         if refreshOperational {
-            try Tooling.runPath(python, [try script("report-operational-readiness.py").path])
+            try Tooling.runPathQuiet(python, [try script("report-operational-readiness.py").path])
         }
-        try Tooling.runPath(python, [try script("build-review-plan.py").path] + extraArgs)
+        try Tooling.runPathQuiet(python, [try script("build-review-plan.py").path] + extraArgs)
     }
 
     private static func rewriteLatestSessionFilters(in args: inout [String], sessionsRoot: URL) throws {
