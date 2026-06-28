@@ -37,12 +37,13 @@ UI App не является обязательной частью roadmap. Он
 - `foundation-done` — уже готовая основа: capture, Echo Guard, whisper.cpp, repair/audit, agent_reviewed_v1, notes, readiness.
 - `cli-orchestration` — текущий фокус: единые команды process/report/audit/review/corpus/export/config; минимальная локальная установка уже готова.
 - `corpus-regression` — текущий контур: корпус сессий, пересборка, baseline thresholds,
-  out-of-fold оценка audio judge и явные review/export blockers.
+  out-of-fold оценка audio judge, local-recall blockers, remote-leak queue и явные review/export
+  blockers.
 - `review-loop` — ближайший этап: удобный CLI-review спорных участков; ручный workspace review и агентный `review agent` уже есть.
 - `quality-hardening` — ближайший этап: улучшение качества transcript без смены топологии; первый
   явный `order_repair_v1` уже чинит только те order-risk регионы, которые безопасно режутся по
-  сохранённым source ASR segments. Следующий короткий шаг — таксономия аудио-ошибок поверх
-  corpus/audio-judge отчётов, чтобы чинить не всё подряд, а самый дорогой класс ошибок.
+  сохранённым source ASR segments. Следующий короткий шаг — безопасный repair по корпусной очереди
+  local-recall, чтобы возвращать пропущенные `Me`-фразы без роста remote leak.
 - `evidence-notes` и `export-workflows` — пользовательские артефакты; базовый export готов, дальше нужны vault/docs/Jira proposals.
 - `retention-policy` и `packaging` — приватность, хранение raw audio, release layout, provider payload manifest и readiness gate; перед публикацией нужен публичный security contact.
 - `future-heavy-local`, `future-llm-synthesis`, `future-ui-app` — дальние ветки.

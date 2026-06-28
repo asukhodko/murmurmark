@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.4.0"
 SCHEMA_REPORT = "murmurmark.corpus_gates_report/v1"
 SCHEMA_BASELINE = "murmurmark.corpus_gates_baseline/v1"
 
@@ -82,6 +82,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-local-recall-drop", type=float, default=0.05)
     parser.add_argument("--max-audio-judge-review-queue-increase", type=int, default=10)
     parser.add_argument("--max-operational-review-queue-increase", type=int, default=10)
+    parser.add_argument("--max-local-recall-complete-blocking-increase", type=int, default=0)
+    parser.add_argument("--max-local-recall-possible-lost-sec-increase", type=float, default=0.0)
+    parser.add_argument("--max-remote-leak-protected-items-increase", type=int, default=0)
+    parser.add_argument("--max-remote-leak-protected-sec-increase", type=float, default=0.5)
     parser.add_argument("--allowed-corpus-readiness", default=",".join(sorted(DEFAULT_CORPUS_READINESS)))
     parser.add_argument("--strict-warnings", action="store_true", help="Treat warnings as failures.")
     parser.add_argument("--no-fail", action="store_true", help="Always exit 0 after writing the report.")
@@ -368,6 +372,44 @@ def compare_baseline(
         threshold=f"<= baseline {baseline_operational_queue} + {args.max_operational_review_queue_increase}",
         message="operational review queue does not grow beyond the allowed budget",
     )
+    current_local_blocking, baseline_local_blocking = int_metric("local_recall_complete_blocking_sessions")
+    check(
+        checks,
+        "baseline.local_recall_complete_blocking_not_higher",
+        current_local_blocking <= baseline_local_blocking + args.max_local_recall_complete_blocking_increase,
+        observed=current_local_blocking,
+        threshold=f"<= baseline {baseline_local_blocking} + {args.max_local_recall_complete_blocking_increase}",
+        message="complete-session local-recall blocker count does not grow from baseline",
+    )
+    current_local_lost, baseline_local_lost = float_metric("local_recall_possible_lost_me_seconds")
+    check(
+        checks,
+        "baseline.local_recall_possible_lost_not_higher",
+        current_local_lost <= baseline_local_lost + args.max_local_recall_possible_lost_sec_increase,
+        observed=round(current_local_lost, 3),
+        threshold=f"<= baseline {round(baseline_local_lost, 3)} + {args.max_local_recall_possible_lost_sec_increase}",
+        message="possible lost-Me seconds do not grow from baseline",
+    )
+    current_remote_protected, baseline_remote_protected = int_metric("remote_leak_segment_protect_local_content_items")
+    check(
+        checks,
+        "baseline.remote_leak_protected_items_not_higher",
+        current_remote_protected <= baseline_remote_protected + args.max_remote_leak_protected_items_increase,
+        severity="warn",
+        observed=current_remote_protected,
+        threshold=f"<= baseline {baseline_remote_protected} + {args.max_remote_leak_protected_items_increase}",
+        message="remote-leak protected-local-content queue does not grow from baseline",
+    )
+    current_remote_protected_sec, baseline_remote_protected_sec = float_metric("remote_leak_segment_protect_local_content_seconds")
+    check(
+        checks,
+        "baseline.remote_leak_protected_seconds_not_higher",
+        current_remote_protected_sec <= baseline_remote_protected_sec + args.max_remote_leak_protected_sec_increase,
+        severity="warn",
+        observed=round(current_remote_protected_sec, 3),
+        threshold=f"<= baseline {round(baseline_remote_protected_sec, 3)} + {args.max_remote_leak_protected_sec_increase}",
+        message="remote-leak protected-local-content seconds do not grow from baseline",
+    )
 
     baseline_sessions = baseline.get("sessions") if isinstance(baseline.get("sessions"), dict) else {}
     current_sessions = current.get("sessions") if isinstance(current.get("sessions"), dict) else {}
@@ -488,6 +530,10 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "max_local_recall_drop": args.max_local_recall_drop,
         "max_audio_judge_review_queue_increase": args.max_audio_judge_review_queue_increase,
         "max_operational_review_queue_increase": args.max_operational_review_queue_increase,
+        "max_local_recall_complete_blocking_increase": args.max_local_recall_complete_blocking_increase,
+        "max_local_recall_possible_lost_sec_increase": args.max_local_recall_possible_lost_sec_increase,
+        "max_remote_leak_protected_items_increase": args.max_remote_leak_protected_items_increase,
+        "max_remote_leak_protected_sec_increase": args.max_remote_leak_protected_sec_increase,
         "allowed_corpus_readiness": sorted(allowed_readiness),
     }
 

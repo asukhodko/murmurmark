@@ -181,7 +181,9 @@ corpus aggregation. Use `corpus remote-leak --plan` when you want to refresh onl
 `passed_with_warnings` means the hard no-regression gates are green, but some historical sessions or
 review queues still need cleanup before the whole repository is operationally ready.
 The optional baseline is private generated state under ignored `sessions/_reports/`.
-Use it before risky cleanup or ASR changes to catch regressions against the current corpus.
+Use it before risky cleanup or ASR changes to catch regressions against the current corpus:
+ready sessions, review burden, local-recall blockers/lost seconds and protected remote-leak queue
+growth.
 
 The lower-level scripts remain available for debugging specific files:
 

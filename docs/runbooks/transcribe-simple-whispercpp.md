@@ -628,8 +628,10 @@ Then compare future corpus refreshes with it:
 
 The baseline check catches drops in complete or `ready_for_notes` sessions, growth in `review_first`,
 review burden increases, audio judge training/accuracy regressions, lost baseline sessions and
-per-session drops in local recall or use gate. The baseline file lives under ignored generated
-reports and must not be committed when it is built from real meetings.
+per-session drops in local recall or use gate. It also catches growth in complete-session
+local-recall blockers, possible lost-`Me` seconds and protected remote-leak queue items/seconds.
+The baseline file lives under ignored generated reports and must not be committed when it is built
+from real meetings.
 
 `murmurmark export` is the user-facing handoff. It reads the selected transcript profile from
 per-session readiness, copies the Markdown verdict, notes and transcript into `exports/private/`,

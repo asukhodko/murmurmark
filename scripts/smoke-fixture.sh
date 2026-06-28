@@ -1742,6 +1742,20 @@ PY
   fi
   jq -e 'any(.checks[]; .id == "baseline.ready_for_notes_not_lower" and .status == "fail")' \
     "$gates_dir/with-bad-baseline/corpus_gates_report.json" >/dev/null
+  jq '.summary.complete_blocking_session_count = 1 | .summary.possible_lost_me_seconds = 2.5' \
+    "$local_recall_corpus_dir/local_recall_corpus_report.json" >"$gates_dir/local_recall_bad.json"
+  if "$repo_root/scripts/check-corpus-gates.py" \
+    "${gate_args[@]}" \
+    --local-recall "$gates_dir/local_recall_bad.json" \
+    --out-dir "$gates_dir/with-bad-local-recall" \
+    --baseline "$gates_dir/baseline.json" >/dev/null 2>&1; then
+    echo "expected corpus gate to fail against local-recall blocker regression" >&2
+    exit 1
+  fi
+  jq -e 'any(.checks[]; .id == "local_recall.no_complete_blocking_sessions" and .status == "fail")' \
+    "$gates_dir/with-bad-local-recall/corpus_gates_report.json" >/dev/null
+  jq -e 'any(.checks[]; .id == "baseline.local_recall_complete_blocking_not_higher" and .status == "fail")' \
+    "$gates_dir/with-bad-local-recall/corpus_gates_report.json" >/dev/null
   review_plan_dir="$workdir/review-plan"
   "$repo_root/scripts/build-review-plan.py" \
     --operational-readiness "$readiness_dir/operational_readiness_report.json" \

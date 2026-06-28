@@ -1080,7 +1080,10 @@ sessions/_reports/corpus-gates/
 
 `baseline.local.json` uses `murmurmark.corpus_gates_baseline/v1`. It is a private generated snapshot
 of aggregate metrics and per-session gates used by `check-corpus-gates.py --baseline`. A baseline
-built from real meeting sessions must stay under ignored `sessions/_reports/`.
+built from real meeting sessions must stay under ignored `sessions/_reports/`. Baseline comparison
+covers complete/ready session counts, review burden, audio judge metrics, per-session use/local
+recall gates, complete-session local-recall blockers, possible lost-`Me` seconds and protected
+remote-leak queue growth.
 
 Remote-leak segment corpus gates are intentionally warning-level. A pending queue means some `Me`
 regions may still contain unique local content mixed with remote leak and need segment-level repair

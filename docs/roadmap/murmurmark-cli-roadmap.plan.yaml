@@ -271,7 +271,7 @@ nodes:
     parent: corpus-regression
     status: done
     effort: 5
-    notes: "check-corpus-gates.py поддерживает --write-baseline и --baseline; baseline ловит регрессии по готовым сессиям, use_gate, review burden, local recall, corpus size и audio judge."
+    notes: "check-corpus-gates.py поддерживает --write-baseline и --baseline; baseline ловит регрессии по готовым сессиям, use_gate, review burden, local recall, local-recall blockers/lost seconds, protected remote-leak queue, corpus size и audio judge."
 
   corpus-review-export-blockers:
     title: "Review/export blockers"
