@@ -527,6 +527,9 @@ echo "$sessions_output" | grep -q '^      next: murmurmark process '
 "$bin" sessions --sessions-root "$workdir" --path-only --limit 1 | grep -q '/session$'
 "$bin" sessions --sessions-root "$workdir" --status incomplete --path-only --limit 1 | grep -q '/session$'
 "$bin" sessions --sessions-root "$workdir" --status incomplete --next-only --limit 1 | grep -q '^murmurmark process '
+sessions_json="$("$bin" sessions --sessions-root "$workdir" --status incomplete --json --limit 1)"
+printf '%s\n' "$sessions_json" | jq -e '.schema == "murmurmark.sessions_queue/v1" and .status_filter == "incomplete" and .shown == 1' >/dev/null
+printf '%s\n' "$sessions_json" | jq -e '.items[0].status == "incomplete" and (.items[0].next | startswith("murmurmark process "))' >/dev/null
 [[ -z "$("$bin" sessions --sessions-root "$workdir" --status exportable --next-only --limit 1)" ]]
 review_next_refresh_output="$("$bin" review next "$session")"
 assert_no_helper_prefix "$review_next_refresh_output"

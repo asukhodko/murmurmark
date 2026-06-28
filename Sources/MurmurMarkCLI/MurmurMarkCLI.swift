@@ -105,7 +105,7 @@ struct MurmurMark {
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
-          murmurmark sessions [--limit 10] [--status exportable|review_required|incomplete] [--path-only|--next-only]
+          murmurmark sessions [--limit 10] [--status exportable|review_required|incomplete] [--path-only|--next-only|--json]
                               [--sessions-root ./sessions]
           murmurmark latest [--sessions-root ./sessions]
           murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
@@ -514,6 +514,7 @@ enum PipelineCommands {
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
         let pathOnly = ArgumentEditing.takeFlag("path-only", from: &remaining)
         let nextOnly = ArgumentEditing.takeFlag("next-only", from: &remaining)
+        let json = ArgumentEditing.takeFlag("json", from: &remaining)
         let all = ArgumentEditing.takeFlag("all", from: &remaining)
         let statusFilter = ArgumentEditing.takeOption("status", from: &remaining)
         let limitText = ArgumentEditing.takeOption("limit", from: &remaining)
@@ -523,6 +524,9 @@ enum PipelineCommands {
         }
         if pathOnly && nextOnly {
             throw CLIError("sessions accepts either --path-only or --next-only, not both")
+        }
+        if json && (pathOnly || nextOnly) {
+            throw CLIError("sessions --json cannot be combined with --path-only or --next-only")
         }
 
         let allSessions = try SessionResolver.all(in: sessionsRoot)
@@ -540,6 +544,10 @@ enum PipelineCommands {
             for session in selected {
                 print(SessionListPrinter.nextCommand(for: session))
             }
+            return
+        }
+        if json {
+            try SessionListPrinter.printJSON(sessions: filtered, shown: selected, root: sessionsRoot, statusFilter: statusFilter)
             return
         }
         SessionListPrinter.print(sessions: filtered, shown: selected, root: sessionsRoot, limit: all ? nil : limit, statusFilter: statusFilter)
@@ -710,17 +718,19 @@ enum PipelineHelp {
     static func printSessions() {
         Swift.print("""
         usage: murmurmark sessions [--limit 10] [--all] [--status exportable|review_required|incomplete|blocked|missing_readiness]
-                                  [--path-only|--next-only] [--sessions-root ./sessions]
+                                  [--path-only|--next-only|--json] [--sessions-root ./sessions]
 
         Lists recent session packages and their current readiness state.
         Use --path-only when another command or script only needs session paths.
         Use --next-only to print only the next safe command for matching sessions.
+        Use --json when an agent needs a machine-readable queue snapshot.
 
         Common:
           murmurmark sessions
           murmurmark sessions --limit 5
           murmurmark sessions --status review_required
           murmurmark sessions --status review_required --next-only
+          murmurmark sessions --status exportable --json
           murmurmark sessions --path-only --limit 3
         """)
     }
@@ -803,6 +813,24 @@ enum PipelineHelp {
 }
 
 enum SessionListPrinter {
+    static func printJSON(sessions: [URL], shown: [URL], root: URL, statusFilter: String?) throws {
+        let payload: [String: Any] = [
+            "schema": "murmurmark.sessions_queue/v1",
+            "root": PathDisplay.display(root),
+            "status_filter": statusFilter.map { $0 as Any } ?? NSNull(),
+            "count": sessions.count,
+            "shown": shown.count,
+            "latest": sessions.first.map { PathDisplay.display($0) as Any } ?? NSNull(),
+            "items": shown.map(jsonItem),
+        ]
+        guard JSONSerialization.isValidJSONObject(payload) else {
+            throw CLIError("cannot render sessions queue JSON")
+        }
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+        FileHandle.standardOutput.write(data)
+        Swift.print("")
+    }
+
     static func print(sessions: [URL], shown: [URL], root: URL, limit: Int?, statusFilter: String?) {
         Swift.print("")
         Swift.print("sessions:")
@@ -840,6 +868,22 @@ enum SessionListPrinter {
         Swift.print("      profile: \(string(readiness?["selected_profile"]) ?? "unknown")")
         Swift.print("      verdict: \(string(readiness?["verdict"]) ?? "unknown")")
         Swift.print("      next: \(nextCommand(for: session, readiness: readiness))")
+    }
+
+    private static func jsonItem(_ session: URL) -> [String: Any] {
+        let readiness = readReadiness(session)
+        let readinessURL = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        return [
+            "session": PathDisplay.display(session),
+            "session_id": session.lastPathComponent,
+            "readiness_exists": readiness != nil,
+            "readiness_path": PathDisplay.display(readinessURL),
+            "status": status(for: session, readiness: readiness),
+            "gate": string(readiness?["use_gate"]) ?? "missing",
+            "profile": string(readiness?["selected_profile"]) ?? "unknown",
+            "verdict": string(readiness?["verdict"]) ?? "unknown",
+            "next": nextCommand(for: session, readiness: readiness),
+        ]
     }
 
     static func status(for session: URL) -> String {

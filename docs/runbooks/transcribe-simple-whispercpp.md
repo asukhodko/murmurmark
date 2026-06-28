@@ -105,7 +105,8 @@ should be refreshed first. If readiness is missing, `status` points to `murmurma
 Use `murmurmark sessions` to list recent session packages with their current readiness state and
 next safe command before choosing a target. Use `murmurmark sessions --status review_required
 --next-only` to print the current review queue as commands, or `--status exportable --path-only`
-when an export script needs only ready session paths.
+when an export script needs only ready session paths. Add `--json` when an agent needs structured
+`session`, `status`, `gate`, `profile`, `verdict` and `next` fields.
 Use `murmurmark next SESSION` when you only need the single command to run now; add `--refresh` when
 derived artifacts changed and readiness should be regenerated first. After a successful export,
 `next` follows the successful `export_manifest.json` and points to retention planning. If the export
