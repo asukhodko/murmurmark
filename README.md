@@ -256,7 +256,8 @@ session readiness, builds a session-local review plan when review is needed, and
 review-specific next commands.
 For `review_first` sessions, those next commands point to `murmurmark review plan`,
 `murmurmark review first-lane --session ...`, `murmurmark review workspace --session ...`,
-`murmurmark review workspace apply`, and `murmurmark review apply`.
+`murmurmark review lane apply ...`, `murmurmark review workspace apply`, and
+`murmurmark review apply`.
 Use `murmurmark review lane check_local_recall --session ...` when you need a specific lane rather
 than the automatically recommended first lane.
 `transcript.md` is the stable baseline output. Profile transcripts such as `transcript.shadow_v2.md`
@@ -329,6 +330,7 @@ murmurmark repair remote-leak ./sessions/<session>
 murmurmark review plan
 murmurmark review first-lane
 murmurmark review lane check_local_recall --session ./sessions/<session>
+murmurmark review lane apply check_local_recall --session ./sessions/<session>
 murmurmark review latest --lane fast_confirm_drop
 murmurmark review progress
 murmurmark review apply
@@ -627,9 +629,10 @@ one WAV, a Markdown index and an editable answer sheet per lane under
 to focus the workspace on one session.
 For one-off debugging, `scripts/build-review-lane-pack.py --lane fast_confirm_drop` creates a single
 WAV, a Markdown index and an editable answer sheet under `sessions/_reports/review-plan/lane-packs/`.
-After listening to that pack, edit the generated `review_lane_answers.<lane>.txt` file and let
-`scripts/apply-review-lane-pack-decisions.py --answers-file` copy those answers back into
-`review_decisions.jsonl`.
+After listening to that pack, edit the generated `review_lane_answers.<lane>.txt` file and run
+`murmurmark review lane apply <lane> --session SESSION` to copy those answers back into
+`review_decisions.jsonl`. The lower-level Python script remains available for debugging, but the
+Swift CLI uses the correct session-local paths by default.
 Each lane also has `review_lane_answers.<lane>.suggested.txt`; use it as a review aid, not as a
 silent replacement for listening when the meeting is medium-risk.
 When several lane answer sheets are edited, `murmurmark review workspace apply` applies
@@ -660,6 +663,7 @@ The normal manual review loop is available through the Swift CLI:
 .build/debug/murmurmark review plan
 .build/debug/murmurmark review first-lane
 .build/debug/murmurmark review lane check_local_recall --session latest
+.build/debug/murmurmark review lane apply check_local_recall --session latest
 .build/debug/murmurmark review workspace
 .build/debug/murmurmark review latest --lane fast_confirm_drop
 .build/debug/murmurmark review workspace apply

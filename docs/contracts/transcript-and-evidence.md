@@ -1725,9 +1725,10 @@ and utterance id arrays are copied from the review template so a lane pack remai
 when it is opened outside the full `review_plan.json`.
 
 Lane packs are listening aids only. The generated answer sheet starts with `answers=...`, where `.`
-means `todo`; it is not applied until `apply-review-lane-pack-decisions.py` is run. The generated
-`.suggested.txt` sheet mirrors existing `suggested_decision` values that are allowed for each row.
-It is a review aid, not a transcript edit by itself.
+means `todo`; it is not applied until `murmurmark review lane apply <lane>` or the lower-level
+`apply-review-lane-pack-decisions.py` script is run. The generated `.suggested.txt` sheet mirrors
+existing `suggested_decision` values that are allowed for each row. It is a review aid, not a
+transcript edit by itself.
 Lane packs do not modify transcript profiles.
 `murmurmark review workspace` builds all currently-open lane packs and writes:
 
@@ -1764,11 +1765,15 @@ The JSON uses `murmurmark.review_workspace/v1`:
 
 The workspace is a reviewer index only. It writes lane answer sheets with `answers=...` placeholders,
 where `.` means `todo`. It does not write decisions; use
-`murmurmark review workspace apply`, `apply-review-lane-pack-decisions.py`, or
+`murmurmark review workspace apply`, `murmurmark review lane apply <lane>`,
+`apply-review-lane-pack-decisions.py`, or
 `review-decisions-cli.py` for that.
-`apply-review-lane-pack-decisions.py` applies explicit reviewer answers for a lane pack back into
-the complete `review_decisions.jsonl`. It accepts either `--answers` with a compact answer string in
-pack order, or `--answers-file` pointing to a text file with an `answers=...` line:
+`murmurmark review lane apply <lane>` applies the lane's generated answer sheet using the normal
+session-local or corpus-local paths, and prints the next `murmurmark review apply` command.
+`apply-review-lane-pack-decisions.py` is the same operation as a lower-level script: it applies
+explicit reviewer answers for a lane pack back into the complete `review_decisions.jsonl`. It accepts
+either `--answers` with a compact answer string in pack order, or `--answers-file` pointing to a text
+file with an `answers=...` line:
 `d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.`/`n`/`t=todo`. The script validates
 each answer against `allowed_decisions`, writes `review_source: "lane_pack"`, and emits
 `review_lane_pack_apply_report.json`:

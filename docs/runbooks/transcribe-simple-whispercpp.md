@@ -766,46 +766,53 @@ The lower-level equivalent is:
 If the lane contains many short clips, build a single listening pack first:
 
 ```bash
-.build/debug/murmurmark review workspace --session latest
+.build/debug/murmurmark review workspace --session "$SESSION"
 
-afplay sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav
-less sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.md
-$EDITOR sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt
+afplay "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav"
+less "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.md"
+$EDITOR "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt"
 ```
 
 To prepare all remaining lanes at once:
 
 ```bash
-.build/debug/murmurmark review workspace
-less sessions/_reports/review-plan/review_workspace.md
+.build/debug/murmurmark review workspace --session "$SESSION"
+less "$SESSION/derived/readiness/review-plan/review_workspace.md"
 ```
 
 Then edit the answer sheet for the lane. Dots mean "not reviewed yet"; replace only the items you
 have actually checked:
 
 ```bash
-$EDITOR sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt
+$EDITOR "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt"
 ```
 
 Each lane also has a suggested answer sheet. It is useful for comparison after listening:
 
 ```bash
-less sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.suggested.txt
+less "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.suggested.txt"
 ```
 
 Then copy decisions from the answer sheet back into the full review file:
 
 ```bash
+.build/debug/murmurmark review lane apply fast_confirm_drop --session "$SESSION"
+```
+
+The lower-level equivalent is still useful for debugging exact paths:
+
+```bash
 .venv/bin/python scripts/apply-review-lane-pack-decisions.py \
-  sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.json \
-  --answers-file sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt \
-  --out sessions/_reports/review-plan/review_decisions.jsonl
+  "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.json" \
+  --template "$SESSION/derived/readiness/review-plan/review_decisions.template.jsonl" \
+  --answers-file "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt" \
+  --out "$SESSION/derived/readiness/review-plan/review_decisions.jsonl"
 ```
 
 If several lane answer sheets have been edited, apply the whole workspace instead:
 
 ```bash
-.build/debug/murmurmark review workspace apply
+.build/debug/murmurmark review workspace apply --session "$SESSION"
 ```
 
 To estimate what the generated suggestions would do without writing decisions:

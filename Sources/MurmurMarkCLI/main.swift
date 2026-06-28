@@ -1004,6 +1004,16 @@ enum ReviewNextCommand {
 
 enum ReviewLaneCommand {
     static func run(_ args: [String], sessionsRoot: URL) throws {
+        var args = args
+        if args.first == "apply" {
+            args.removeFirst()
+            try apply(args, sessionsRoot: sessionsRoot)
+            return
+        }
+        try build(args, sessionsRoot: sessionsRoot)
+    }
+
+    private static func build(_ args: [String], sessionsRoot: URL) throws {
         var forwarded = args
         let explicitLane = ArgumentEditing.takeOption("lane", from: &forwarded)
         let positionalLane: String?
@@ -1072,10 +1082,114 @@ enum ReviewLaneCommand {
         try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutURL)
     }
 
+    private static func apply(_ args: [String], sessionsRoot: URL) throws {
+        var forwarded = args
+        let explicitLane = ArgumentEditing.takeOption("lane", from: &forwarded)
+        let positionalLane: String?
+        if let first = forwarded.first, !first.hasPrefix("-") {
+            positionalLane = first
+            forwarded.removeFirst()
+        } else {
+            positionalLane = nil
+        }
+        guard let lane = explicitLane ?? positionalLane, !lane.isEmpty else {
+            throw CLIError("review lane apply requires a lane name, for example `murmurmark review lane apply check_local_recall`")
+        }
+
+        let explicitPlanOutDir = ArgumentEditing.takeOption("plan-out-dir", from: &forwarded)
+        let explicitOutDir = ArgumentEditing.takeOption("out-dir", from: &forwarded)
+        let explicitManifest = ArgumentEditing.takeOption("manifest", from: &forwarded)
+        let explicitTemplate = ArgumentEditing.takeOption("template", from: &forwarded)
+        let explicitDecisionsOut = ArgumentEditing.takeOption("decisions-out", from: &forwarded)
+        let explicitAnswersFile = ArgumentEditing.takeOption("answers-file", from: &forwarded)
+        let explicitAnswers = ArgumentEditing.takeOption("answers", from: &forwarded)
+        let reviewer = ArgumentEditing.takeOption("reviewer", from: &forwarded)
+        let sessionFilter = ArgumentEditing.takeOption("session", from: &forwarded)
+        let dryRun = ArgumentEditing.takeFlag("dry-run", from: &forwarded)
+        guard explicitAnswers == nil || explicitAnswersFile == nil else {
+            throw CLIError("pass either --answers or --answers-file, not both")
+        }
+        guard forwarded.isEmpty else {
+            throw CLIError("unexpected review lane apply arguments: \(forwarded.joined(separator: " "))")
+        }
+
+        let session = try sessionFilter.map { try SessionResolver.resolve($0, sessionsRoot: sessionsRoot) }
+        let planURL: URL
+        let lanePackOutURL: URL
+        if let session {
+            planURL = explicitPlanOutDir.map(PathURLs.fileURL)
+                ?? session.appendingPathComponent("derived/readiness/review-plan")
+            lanePackOutURL = explicitOutDir.map(PathURLs.fileURL)
+                ?? planURL.appendingPathComponent("lane-packs")
+        } else {
+            planURL = explicitPlanOutDir.map(PathURLs.fileURL)
+                ?? PathURLs.fileURL("sessions/_reports/review-plan")
+            lanePackOutURL = explicitOutDir.map(PathURLs.fileURL)
+                ?? planURL.appendingPathComponent("lane-packs")
+        }
+
+        let manifest = explicitManifest.map(PathURLs.fileURL)
+            ?? lanePackOutURL.appendingPathComponent("review_lane_pack.\(lane).json")
+        let template = explicitTemplate.map(PathURLs.fileURL)
+            ?? planURL.appendingPathComponent("review_decisions.template.jsonl")
+        let decisions = explicitDecisionsOut.map(PathURLs.fileURL)
+            ?? planURL.appendingPathComponent("review_decisions.jsonl")
+        let answersFile = explicitAnswers == nil
+            ? (explicitAnswersFile.map(PathURLs.fileURL)
+                ?? lanePackOutURL.appendingPathComponent("review_lane_answers.\(lane).txt"))
+            : nil
+
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: manifest.path) else {
+            let sessionArgument = session.map { " --session \($0.lastPathComponent)" } ?? ""
+            throw CLIError(
+                "lane pack manifest not found: \(PathDisplay.display(manifest)); " +
+                "build it first with `murmurmark review lane \(lane)\(sessionArgument)`"
+            )
+        }
+        guard fileManager.fileExists(atPath: template.path) else {
+            throw CLIError("review template not found: \(PathDisplay.display(template)); run `murmurmark review lane \(lane)` first")
+        }
+        if let answersFile {
+            guard fileManager.fileExists(atPath: answersFile.path) else {
+                throw CLIError("lane answers file not found: \(PathDisplay.display(answersFile)); edit the generated answer sheet or pass --answers")
+            }
+        }
+
+        var command = [
+            try script("apply-review-lane-pack-decisions.py").path,
+            manifest.path,
+            "--template", template.path,
+            "--out", decisions.path,
+        ]
+        if let explicitAnswers {
+            command += ["--answers", explicitAnswers]
+        } else if let answersFile {
+            command += ["--answers-file", answersFile.path]
+        }
+        if let reviewer {
+            command += ["--reviewer", reviewer]
+        }
+        if dryRun {
+            command.append("--dry-run")
+        }
+
+        try Tooling.runPath(try PythonRuntime.resolve(), command)
+        printLaneApply(LaneApplyPrintContext(
+            lane: lane,
+            session: session,
+            manifest: manifest,
+            answersFile: answersFile,
+            decisions: decisions,
+            dryRun: dryRun
+        ))
+    }
+
     static func printHelp() {
         print("""
         usage: murmurmark review lane LANE [--session latest|SESSION] [--out-dir PATH]
                murmurmark review lane --lane LANE [--session latest|SESSION] [--out-dir PATH]
+               murmurmark review lane apply LANE [--session latest|SESSION] [--answers-file PATH|--answers TEXT]
 
         Refreshes the review plan, then builds one explicit review lane pack.
         Use this when you want a specific lane such as check_local_recall instead of the
@@ -1098,6 +1212,12 @@ enum ReviewLaneCommand {
           --out-dir PATH                Lane pack directory. Default: sessions/_reports/review-plan/lane-packs
           --command-key KEY             Forwarded to build-review-lane-pack.py
           --include-reviewed            Forwarded to build-review-lane-pack.py
+
+        Apply options:
+          --answers-file PATH           Default: review_lane_answers.LANE.txt from the lane pack directory
+          --answers TEXT                Compact answers: d=drop_me, k=keep_me, r=needs_review, s=skip, .=todo
+          --decisions-out PATH          Default: review_decisions.jsonl in the review plan directory
+          --dry-run                     Validate answers without writing decisions
         """)
     }
 
@@ -1115,6 +1235,36 @@ enum ReviewLaneCommand {
             throw CLIError("review script not found: \(url.path)")
         }
         return url
+    }
+
+    private struct LaneApplyPrintContext {
+        let lane: String
+        let session: URL?
+        let manifest: URL
+        let answersFile: URL?
+        let decisions: URL
+        let dryRun: Bool
+    }
+
+    private static func printLaneApply(_ context: LaneApplyPrintContext) {
+        print("")
+        print("review_lane_apply:")
+        print("  lane: \(context.lane)")
+        if let session = context.session {
+            print("  session: \(session.lastPathComponent)")
+        }
+        print("  manifest: \(PathDisplay.display(context.manifest))")
+        if let answersFile = context.answersFile {
+            print("  answers: \(PathDisplay.display(answersFile))")
+        }
+        print("  decisions: \(PathDisplay.display(context.decisions))")
+        print("  dry_run: \(context.dryRun)")
+        let sessionArgument = context.session.map { " --session \($0.lastPathComponent)" } ?? ""
+        if context.dryRun {
+            print("  next: run without --dry-run, then `murmurmark review apply\(sessionArgument)`")
+        } else {
+            print("  next: murmurmark review apply\(sessionArgument)")
+        }
     }
 }
 

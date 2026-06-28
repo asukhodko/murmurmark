@@ -1828,6 +1828,25 @@ PY
   [[ -s "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.json" ]]
   jq -e '.schema == "murmurmark.review_lane_pack/v1" and .summary.item_count >= 1 and any(.items[]; .source == "local_recall_repair" and .input_profile == "local_recall_repair_v1" and (.utterance_ids | length) >= 1)' \
     "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.json" >/dev/null
+  python3 - "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.json" \
+    "$explicit_local_recall_lane_dir/review_lane_answers.check_local_recall.txt" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+count = int(manifest["summary"]["item_count"])
+Path(sys.argv[2]).write_text("# smoke answers\nanswers=" + ("r" * count) + "\n", encoding="utf-8")
+PY
+  explicit_local_recall_apply_output="$("$bin" review lane apply check_local_recall \
+    --session "$group_session" \
+    --out-dir "$explicit_local_recall_lane_dir" \
+    --reviewer smoke)"
+  echo "$explicit_local_recall_apply_output" | grep -q '^review_lane_apply:$'
+  echo "$explicit_local_recall_apply_output" | grep -q '^  next: murmurmark review apply --session '
+  [[ -s "$group_session/derived/readiness/review-plan/review_decisions.jsonl" ]]
+  jq -s 'any(.[]; .source == "local_recall_repair" and .input_profile == "local_recall_repair_v1" and .status == "reviewed" and .decision == "needs_review")' \
+    "$group_session/derived/readiness/review-plan/review_decisions.jsonl" >/dev/null
   jq -s 'all(.[]; (.primary_command | type) == "string")' "$review_plan_dir/review_plan_clusters.jsonl" >/dev/null
   jq -s 'all(.[]; .schema == "murmurmark.review_decision/v1" and .decision == "todo" and (.me_utterance_ids | type) == "array" and (.suggested_decision | IN("drop_me", "keep_me", "needs_review")))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .suggested_decision == "drop_me" and .decision == "todo")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
