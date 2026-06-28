@@ -1550,6 +1550,8 @@ EOF
     --report "$pipeline_plan" >/dev/null
   [[ -s "$pipeline_plan" ]]
   jq -e '.schema == "murmurmark.session_pipeline_run/v1" and .status == "planned" and (.steps | length) >= 10' "$pipeline_plan" >/dev/null
+  jq -e '.outputs.readiness_selected_profile == .outputs.selected_transcript_profile' "$pipeline_plan" >/dev/null
+  jq -e '.outputs.synthesis_selected_transcript_profile == "reviewed_v1"' "$pipeline_plan" >/dev/null
   jq -e 'all(.steps[]; (.started_at | type) == "string" and (.duration_sec | type) == "number")' "$pipeline_plan" >/dev/null
   jq -e 'any(.steps[]; .name == "plan_remote_leak_segment_repair")' "$pipeline_plan" >/dev/null
   jq -e 'any(.steps[]; .name == "session_readiness")' "$pipeline_plan" >/dev/null

@@ -1234,7 +1234,11 @@ derived/readiness/
     "quality_verdict": "derived/synthesis-simple/extractive/quality_verdict.json",
     "session_readiness": "derived/readiness/session_readiness.json",
     "selected_transcript_profile": "audit_cleanup_v4",
+    "synthesis_selected_transcript_profile": "audit_cleanup_v4",
+    "readiness_selected_profile": "audit_cleanup_v4",
     "verdict": "usable_with_review",
+    "synthesis_verdict": "usable_with_review",
+    "readiness_verdict": "usable_with_review",
     "use_gate": "review_first"
   },
   "steps": [

@@ -311,6 +311,12 @@ def main() -> int:
     remote_leak_plan_path = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json"
     quality = read_json(quality_path)
     readiness = read_json(readiness_path)
+    synthesis_profile = quality.get("selected_transcript_profile") if isinstance(quality, dict) else None
+    readiness_profile = readiness.get("selected_profile") if isinstance(readiness, dict) else None
+    synthesis_verdict = quality.get("verdict") if isinstance(quality, dict) else None
+    readiness_verdict = readiness.get("verdict") if isinstance(readiness, dict) else None
+    selected_profile = readiness_profile or synthesis_profile
+    selected_verdict = readiness_verdict or synthesis_verdict
     report = {
         "schema": SCHEMA,
         "generator": {"name": "run-session-pipeline", "version": SCRIPT_VERSION},
@@ -328,8 +334,12 @@ def main() -> int:
             "quality_verdict": rel(quality_path, session) if quality_path.exists() else None,
             "session_readiness": rel(readiness_path, session) if readiness_path.exists() else None,
             "remote_leak_segment_repair_plan": rel(remote_leak_plan_path, session) if remote_leak_plan_path.exists() else None,
-            "selected_transcript_profile": quality.get("selected_transcript_profile") if isinstance(quality, dict) else None,
-            "verdict": quality.get("verdict") if isinstance(quality, dict) else None,
+            "selected_transcript_profile": selected_profile,
+            "synthesis_selected_transcript_profile": synthesis_profile,
+            "readiness_selected_profile": readiness_profile,
+            "verdict": selected_verdict,
+            "synthesis_verdict": synthesis_verdict,
+            "readiness_verdict": readiness_verdict,
             "use_gate": readiness.get("use_gate") if isinstance(readiness, dict) else None,
         },
         "steps": results,
@@ -337,7 +347,7 @@ def main() -> int:
     write_json(report_path, report)
     print(f"pipeline_run_report: {report_path}")
     if report["outputs"]["selected_transcript_profile"]:
-        print(f"selected_transcript_profile: {report['outputs']['selected_transcript_profile']}")
+        print(f"selected_profile: {report['outputs']['selected_transcript_profile']}")
     if report["outputs"]["verdict"]:
         print(f"quality_verdict: {report['outputs']['verdict']}")
     return 0 if report["status"] in {"passed", "planned"} else 2
