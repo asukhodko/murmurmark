@@ -377,7 +377,7 @@ nodes:
     parent: quality-hardening
     status: current
     effort: 6
-    notes: "Первый conservative слой local_recall_repair_v1 вставляет только короткие Me-острова из possible_lost_me после micro-ASR и оставляет их needs_review; следующий шаг — корпусная оценка точности перед auto-promotion."
+    notes: "Первый conservative слой local_recall_repair_v1 вставляет только короткие Me-острова из possible_lost_me после micro-ASR и оставляет их needs_review; murmurmark corpus local-recall-repair собирает эффект по корпусу перед возможной auto-promotion."
 
   quality-local-recall-boundary-audit:
     title: "Boundary-aware local recall audit"

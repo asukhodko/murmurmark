@@ -118,6 +118,7 @@ struct MurmurMark {
           murmurmark corpus gate
           murmurmark corpus order [all|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus local-recall [all|./session...] [--audit] [--sessions-root ./sessions]
+          murmurmark corpus local-recall-repair [all|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus report
           murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
@@ -2126,7 +2127,10 @@ enum SynthesisPrinter {
 enum CorpusCommands {
     static func corpus(_ args: [String]) throws {
         guard let subcommand = args.first else {
-            throw CLIError("corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, local-recall, remote-leak, or report")
+            throw CLIError(
+                "corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, " +
+                    "local-recall, local-recall-repair, remote-leak, or report"
+            )
         }
         var forwarded = Array(args.dropFirst())
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
@@ -2134,7 +2138,7 @@ enum CorpusCommands {
         switch subcommand {
         case "process":
             if ArgumentEditing.hasHelpFlag(forwarded) {
-                printProcessHelp()
+                CorpusProcessHelp.print()
                 return
             }
             guard !ArgumentEditing.hasOption("out-dir", in: forwarded),
@@ -2152,6 +2156,7 @@ enum CorpusCommands {
             try operationalReadiness()
             try transcriptOrder(sessions: [], extraArgs: [])
             try CorpusLocalRecallCommands.report(sessions: [], extraArgs: [])
+            try CorpusLocalRecallRepairCommands.report(sessions: [], extraArgs: [])
             try CorpusRemoteLeakCommands.report(sessions: [], extraArgs: [])
             try gates(extraArgs: [])
             try CorpusPrinter.printSessionQuality()
@@ -2161,6 +2166,7 @@ enum CorpusCommands {
             try CorpusPrinter.printTaxonomy()
             try CorpusPrinter.printTranscriptOrder()
             try CorpusPrinter.printLocalRecallCorpus()
+            try CorpusPrinter.printLocalRecallRepairCorpus()
             try CorpusPrinter.printRemoteLeakSegment()
             try CorpusPrinter.printGates()
             try CorpusPrinter.printOperationalReadiness()
@@ -2241,6 +2247,8 @@ enum CorpusCommands {
             try CorpusPrinter.printTranscriptOrder(outDir: outDir)
         case "local-recall":
             try CorpusLocalRecallCommands.run(args: forwarded, sessionsRoot: sessionsRoot)
+        case "local-recall-repair":
+            try CorpusLocalRecallRepairCommands.run(args: forwarded, sessionsRoot: sessionsRoot)
         case "remote-leak":
             try CorpusRemoteLeakCommands.run(args: forwarded, sessionsRoot: sessionsRoot)
         case "report":
@@ -2351,8 +2359,11 @@ enum CorpusCommands {
         return url
     }
 
-    private static func printProcessHelp() {
-        print("""
+}
+
+enum CorpusProcessHelp {
+    static func print() {
+        Swift.print("""
         usage: murmurmark corpus process all|latest|./session... [options]
 
         Runs the local corpus quality loop:
@@ -2365,8 +2376,9 @@ enum CorpusCommands {
           7. report-operational-readiness.py
           8. report-transcript-order-corpus.py
           9. report-local-recall-corpus.py
-          10. report-remote-leak-segment-corpus.py
-          11. check-corpus-gates.py
+          10. report-local-recall-repair-corpus.py
+          11. report-remote-leak-segment-corpus.py
+          12. check-corpus-gates.py
 
         Options:
           --sessions-root PATH  Sessions directory for all/latest. Default: sessions
@@ -2381,11 +2393,13 @@ enum CorpusCommands {
               [--no-synthesize] [--sessions-root sessions]
           murmurmark corpus local-recall [all|latest|./session...] --audit
               [--audit-profile auto]
+          murmurmark corpus local-recall-repair [all|latest|./session...] --repair
+              [--repair-input-profile auto] [--repair-output-profile local_recall_repair_v1]
+              [--no-synthesize]
           murmurmark corpus remote-leak [all|latest|./session...] --plan
               [--session-quality sessions/_reports/session-quality/session_quality_report.json]
         """)
     }
-
 }
 
 enum CorpusRemoteLeakPlan {
@@ -2551,6 +2565,109 @@ enum CorpusLocalRecallCommands {
         let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CLIError("corpus local-recall script not found: \(url.path)")
+        }
+        return url
+    }
+}
+
+enum CorpusLocalRecallRepairCommands {
+    static func run(args: [String], sessionsRoot: URL) throws {
+        var forwarded = args
+        if ArgumentEditing.hasHelpFlag(forwarded) {
+            try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-local-recall-repair-corpus.py").path] + forwarded)
+            return
+        }
+        let repair = ArgumentEditing.takeFlag("repair", from: &forwarded)
+        let noSynthesize = ArgumentEditing.takeFlag("no-synthesize", from: &forwarded)
+        let repairInputProfile = ArgumentEditing.takeOption("repair-input-profile", from: &forwarded) ?? "auto"
+        let repairOutputProfile = ArgumentEditing.takeOption("repair-output-profile", from: &forwarded) ?? "local_recall_repair_v1"
+        let sessionQualityURL = PathURLs.fileURL(
+            ArgumentEditing.peekOption("session-quality", in: forwarded)
+                ?? "sessions/_reports/session-quality/session_quality_report.json"
+        )
+        let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/local-recall-repair")
+        let sessions = try takeOptionalSessions(from: &forwarded, sessionsRoot: sessionsRoot)
+        if repair {
+            let repairSessions = sessions.isEmpty
+                ? try CorpusOrderRepair.sessions(sessionQuality: sessionQualityURL, sessionsRoot: sessionsRoot)
+                : sessions
+            try runRepairs(
+                sessions: repairSessions,
+                inputProfile: repairInputProfile,
+                outputProfile: repairOutputProfile,
+                synthesize: !noSynthesize
+            )
+            try reportSessionQuality(sessions: repairSessions, outDir: sessionQualityURL.deletingLastPathComponent().path)
+        }
+        try report(sessions: sessions, extraArgs: forwarded)
+        try CorpusPrinter.printLocalRecallRepairCorpus(outDir: outDir)
+    }
+
+    static func report(sessions: [URL], extraArgs: [String]) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("report-local-recall-repair-corpus.py").path,
+        ] + sessions.map(\.path) + extraArgs)
+    }
+
+    private static func runRepairs(sessions: [URL], inputProfile: String, outputProfile: String, synthesize: Bool) throws {
+        let python = try PythonRuntime.resolve()
+        for session in sessions {
+            let auditStatus = try Tooling.runPathAllowingExitCodes(python, [
+                try script("audit-local-recall.py").path,
+                session.path,
+                "--profile", inputProfile,
+            ], allowedExitCodes: [0, 1])
+            guard auditStatus == 0 else {
+                continue
+            }
+            let repairStatus = try Tooling.runPathAllowingExitCodes(python, [
+                try script("apply-local-recall-repair.py").path,
+                session.path,
+                "--input-profile", inputProfile,
+                "--output-profile", outputProfile,
+            ], allowedExitCodes: [0, 2])
+            if repairStatus == 0, synthesize {
+                _ = try Tooling.runPathAllowingExitCodes(python, [
+                    try script("synthesize-simple-extractive.py").path,
+                    session.path,
+                    "--transcript-profile", outputProfile,
+                ], allowedExitCodes: [0, 2])
+            }
+        }
+    }
+
+    private static func reportSessionQuality(sessions: [URL], outDir: String) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("report-session-quality.py").path,
+        ] + sessions.map(\.path) + [
+            "--out-dir", outDir,
+            "--write-session-readiness",
+        ])
+    }
+
+    private static func takeOptionalSessions(from args: inout [String], sessionsRoot: URL) throws -> [URL] {
+        var targets: [String] = []
+        while let first = args.first, !first.hasPrefix("--") {
+            targets.append(first)
+            args.removeFirst()
+        }
+        if targets.isEmpty {
+            return []
+        }
+        if targets == ["all"] {
+            let sessions = try SessionResolver.all(in: sessionsRoot)
+            guard !sessions.isEmpty else { throw CLIError("no sessions with session.json found under \(sessionsRoot.path)") }
+            return sessions
+        }
+        return try targets.map { try SessionResolver.resolve($0, sessionsRoot: sessionsRoot) }
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("corpus local-recall-repair script not found: \(url.path)")
         }
         return url
     }
@@ -6491,6 +6608,23 @@ enum CorpusPrinter {
         if let seconds = double(summary["likely_harmless_seconds"]) {
             print(String(format: "  likely_harmless_seconds: %.2f", seconds))
         }
+        print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
+    }
+
+    static func printLocalRecallRepairCorpus(outDir: URL = PathURLs.fileURL("sessions/_reports/local-recall-repair")) throws {
+        let url = outDir.appendingPathComponent("local_recall_repair_corpus_report.json")
+        let payload = try JSONFiles.object(url)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        print("")
+        print("local_recall_repair_corpus:")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("local_recall_repair_corpus_report.md")))")
+        print("  repaired_sessions: \(int(summary["repaired_session_count"]) ?? 0) / \(int(summary["session_count"]) ?? 0)")
+        print("  sessions_with_repairs: \(int(summary["sessions_with_repairs"]) ?? 0)")
+        print("  applied_repairs: \(int(summary["applied_repairs"]) ?? 0)")
+        if let seconds = double(summary["inserted_me_seconds"]) {
+            print(String(format: "  inserted_me_seconds: %.2f", seconds))
+        }
+        print("  rejected_items: \(int(summary["rejected_items"]) ?? 0)")
         print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
     }
 

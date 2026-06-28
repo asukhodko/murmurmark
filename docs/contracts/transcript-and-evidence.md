@@ -667,6 +667,45 @@ the transcript. `summary.audit_by_label` keeps the raw local-recall audit labels
 review decisions. Its purpose is to keep possible lost-`Me` examples visible as a corpus regression
 queue without reopening already-reviewed items.
 
+`murmurmark corpus local-recall-repair` aggregates `local_recall_repair_v1` reports into:
+
+```text
+sessions/_reports/local-recall-repair/
+  local_recall_repair_corpus_report.json
+  local_recall_repair_corpus_items.jsonl
+  local_recall_repair_corpus_report.md
+```
+
+`local_recall_repair_corpus_report.json` uses
+`murmurmark.local_recall_repair_corpus_report/v1`:
+
+```json
+{
+  "schema": "murmurmark.local_recall_repair_corpus_report/v1",
+  "summary": {
+    "session_count": 10,
+    "repaired_session_count": 10,
+    "missing_repair_report_count": 0,
+    "sessions_with_repairs": 1,
+    "eligible_items": 2,
+    "applied_repairs": 1,
+    "inserted_me_seconds": 1.3,
+    "rejected_items": 8,
+    "recommended_next_step": "review_inserted_local_recall_repairs"
+  },
+  "policy": {
+    "mode": "explicit_profile",
+    "auto_promotion": false,
+    "inserted_me_turns_need_review": true
+  }
+}
+```
+
+`local_recall_repair_corpus_items.jsonl` uses
+`murmurmark.local_recall_repair_corpus_item/v1` and keeps inserted `Me` rows plus rejected
+local-recall repair items. This report is a promotion checkpoint: it shows whether
+`local_recall_repair_v1` produced useful candidates, but does not make the profile automatic.
+
 ### Remote Leak Segment Repair Plan
 
 `murmurmark repair remote-leak` is an audit-only planning step. It reads

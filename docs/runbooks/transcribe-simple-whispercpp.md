@@ -683,6 +683,15 @@ murmurmark synthesize "$SESSION" --transcript-profile local_recall_repair_v1
 
 Inserted `Me` turns stay `needs_review`, so this profile is for inspection and explicit use, not
 automatic promotion.
+For a corpus-level view of these candidate repairs:
+
+```bash
+murmurmark corpus local-recall-repair
+murmurmark corpus local-recall-repair all --repair --no-synthesize
+
+less sessions/_reports/local-recall-repair/local_recall_repair_corpus_report.md
+```
+
 `murmurmark corpus remote-leak` writes `sessions/_reports/remote-leak-segment/`. It aggregates
 per-session remote-leak segment plans into one corpus queue and keeps the same audit-only policy:
 no transcript profile and no raw audio are modified. `murmurmark corpus process all` refreshes these

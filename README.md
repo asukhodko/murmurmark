@@ -176,6 +176,11 @@ subtypes and writes an `action_plan`, so the next repair can target one narrow f
 `corpus local-recall` writes `sessions/_reports/local-recall/local_recall_corpus_report.*`.
 It aggregates possible lost-`Me` and local-recall review items across the corpus; `--audit` refreshes
 per-session local-recall audits first.
+`corpus local-recall-repair` writes
+`sessions/_reports/local-recall-repair/local_recall_repair_corpus_report.*`. It summarizes
+`local_recall_repair_v1` reports across sessions; `--repair` refreshes the candidate repair profile
+first. Inserted `Me` turns remain explicit `needs_review`, and the report does not promote the
+profile into `auto`.
 `murmurmark corpus process all` rebuilds per-session remote-leak plans before session-quality and
 corpus aggregation. Use `corpus remote-leak --plan` when you want to refresh only that queue.
 `passed_with_warnings` means the hard no-regression gates are green, but some historical sessions or
@@ -334,6 +339,8 @@ murmurmark corpus order
 murmurmark corpus order --repair
 murmurmark corpus local-recall
 murmurmark corpus local-recall --audit
+murmurmark corpus local-recall-repair
+murmurmark corpus local-recall-repair --repair --no-synthesize
 murmurmark corpus remote-leak
 murmurmark corpus remote-leak --plan
 murmurmark corpus report
