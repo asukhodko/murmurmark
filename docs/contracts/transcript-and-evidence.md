@@ -1823,7 +1823,16 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
       "pack_end": 9.62,
       "pack_start_time": "00:00.000",
       "pack_end_time": "00:09.620",
-      "suggested_decision": "drop_me"
+      "suggested_decision": "drop_me",
+      "suggested_decision_reason": "whole_me_duplicate",
+      "allowed_decisions": ["drop_me", "keep_me", "needs_review", "skip"],
+      "command_key": "stereo_clean_left_remote_right",
+      "command": "ffplay -hide_banner -loglevel error ...",
+      "text": "me: ... | remote: ...",
+      "evidence_text": [
+        {"role": "me", "text": "..."},
+        {"role": "remote", "text": "..."}
+      ]
     }
   ]
 }
@@ -1837,6 +1846,11 @@ when it is opened outside the full `review_plan.json`.
 The Swift CLI prints a compact handoff for the same manifest: selected lane, audio, Markdown, answer
 sheet, suggested answer sheet, the first `answers=...` line from the suggested sheet, and ready-to-run
 `afplay`, `$EDITOR`, `dry_run` and `apply` commands.
+
+The Markdown index is intentionally self-contained for human review. It starts with the compact
+shortcut protocol, then lists each item with allowed decisions, suggested decision reason, utterance
+ids, selected audio command and role-separated evidence text. Tooling should still read the JSON
+manifest; the Markdown is the reviewer-facing view.
 
 Lane packs are listening aids only. The generated answer sheet starts with `answers=...`, where `.`
 means `todo`; it is not applied until `murmurmark review lane apply <lane>` or the lower-level

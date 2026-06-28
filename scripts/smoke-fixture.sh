@@ -1576,6 +1576,10 @@ EOF
     --lane check_transcript_order \
     --out-dir "$order_lane_dir" >/dev/null
   jq -e '(.items | length == 1) and (.items[0].command_key == "mic_raw")' "$order_lane_dir/review_lane_pack.check_transcript_order.json" >/dev/null
+  grep -q '^## Review Items' "$order_lane_dir/review_lane_pack.check_transcript_order.md"
+  grep -q 'Suggested reason:' "$order_lane_dir/review_lane_pack.check_transcript_order.md"
+  grep -q 'Allowed: `keep_me`, `needs_review`, `skip`' "$order_lane_dir/review_lane_pack.check_transcript_order.md"
+  grep -q 'Command: `mic_raw`' "$order_lane_dir/review_lane_pack.check_transcript_order.md"
   python3 - "$order_lane_dir/review_lane_pack.check_transcript_order.wav" <<'PY'
 import json
 import subprocess
@@ -2210,6 +2214,10 @@ PY
   [[ -s "$first_lane_pack_dir/review_lane_pack.$first_lane.json" ]]
   [[ -s "$first_lane_pack_dir/review_lane_pack.$first_lane.md" ]]
   [[ -s "$first_lane_pack_dir/review_lane_answers.$first_lane.txt" ]]
+  grep -q '^## Review Items' "$first_lane_pack_dir/review_lane_pack.$first_lane.md"
+  grep -q 'Suggested reason:' "$first_lane_pack_dir/review_lane_pack.$first_lane.md"
+  grep -q 'Allowed:' "$first_lane_pack_dir/review_lane_pack.$first_lane.md"
+  grep -q 'Command:' "$first_lane_pack_dir/review_lane_pack.$first_lane.md"
   first_lane_apply_dry_run_output="$("$bin" review lane apply first \
     --plan-out-dir "$first_lane_plan_dir" \
     --out-dir "$first_lane_pack_dir" \
@@ -2267,6 +2275,10 @@ PY
   echo "$explicit_local_recall_lane_output" | grep -q '^  next: listen, edit answer_sheet, then apply'
   echo "$explicit_local_recall_lane_output" | grep -Eq -- "--out-dir .*explicit-local-recall-lane-pack"
   [[ -s "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.json" ]]
+  grep -q '^## Review Items' "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.md"
+  grep -q 'Suggested reason:' "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.md"
+  grep -q 'Allowed:' "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.md"
+  grep -q 'Command:' "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.md"
   jq -e '.schema == "murmurmark.review_lane_pack/v1" and .summary.item_count >= 1 and any(.items[]; .source == "local_recall_repair" and .input_profile == "local_recall_repair_v1" and (.utterance_ids | length) >= 1)' \
     "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.json" >/dev/null
   python3 - "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.json" \

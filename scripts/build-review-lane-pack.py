@@ -263,12 +263,92 @@ def clip_text(row: dict[str, Any]) -> str:
     return " | ".join(pieces)
 
 
+def evidence_text(row: dict[str, Any]) -> list[dict[str, str]]:
+    pieces: list[dict[str, str]] = []
+    for item in row.get("text") or []:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role") or item.get("source_track") or "?")
+        text = " ".join(str(item.get("text") or "").split())
+        if text:
+            pieces.append({"role": role, "text": text})
+    return pieces
+
+
 def format_time(seconds: float) -> str:
     total = max(0, int(seconds))
     minutes = total // 60
     secs = total % 60
     millis = int(round((seconds - int(seconds)) * 1000))
     return f"{minutes:02d}:{secs:02d}.{millis:03d}"
+
+
+def markdown_inline(value: Any) -> str:
+    text = str(value or "").replace("`", "\\`")
+    return f"`{text}`"
+
+
+def markdown_cell(value: Any) -> str:
+    return str(value or "").replace("|", "\\|").replace("\n", " ")
+
+
+def truncate_text(value: Any, limit: int = 420) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "…"
+
+
+def format_allowed_decisions(item: dict[str, Any]) -> str:
+    return ", ".join(markdown_inline(value) for value in sorted(allowed_decisions_for_item(item)))
+
+
+def format_utterance_ids(item: dict[str, Any]) -> str:
+    values: list[str] = []
+    for key in ("utterance_ids", "me_utterance_ids", "remote_utterance_ids"):
+        raw = item.get(key)
+        if isinstance(raw, list):
+            values.extend(str(value) for value in raw if value is not None)
+    unique = list(dict.fromkeys(values))
+    return ", ".join(markdown_inline(value) for value in unique) if unique else "-"
+
+
+def write_item_details(lines: list[str], item: dict[str, Any]) -> None:
+    source_id = item.get("source_audit_id") or f"item_{item.get('index')}"
+    label = item.get("label") or item.get("source") or "review"
+    confidence = item.get("suggested_decision_confidence")
+    confidence_text = f" ({confidence})" if confidence not in (None, "") else ""
+    reason = truncate_text(item.get("suggested_decision_reason") or "-", 520)
+    command = str(item.get("command") or "").strip()
+    lines.extend(
+        [
+            "",
+            f"### {item.get('index')}. {markdown_inline(source_id)} / {markdown_inline(label)}",
+            (
+                f"- Pack: {markdown_inline(item.get('pack_start_time'))}-"
+                f"{markdown_inline(item.get('pack_end_time'))}"
+            ),
+            f"- Session: {markdown_inline(item.get('session_id'))}",
+            f"- Suggested: {markdown_inline(item.get('suggested_decision'))}{confidence_text}",
+            f"- Suggested reason: {reason}",
+            f"- Allowed: {format_allowed_decisions(item)}",
+            f"- Utterances: {format_utterance_ids(item)}",
+            f"- Command: {markdown_inline(item.get('command_key'))}",
+        ]
+    )
+    if command:
+        lines.extend(["", "```bash", command, "```"])
+    evidence = item.get("evidence_text") if isinstance(item.get("evidence_text"), list) else []
+    if evidence:
+        lines.append("- Evidence:")
+        for piece in evidence:
+            if not isinstance(piece, dict):
+                continue
+            role = piece.get("role") or "?"
+            text = truncate_text(piece.get("text"), 700)
+            lines.append(f"  - {markdown_inline(role)}: {text}")
+    elif item.get("text"):
+        lines.append(f"- Evidence: {truncate_text(item.get('text'), 700)}")
 
 
 def write_markdown(path: Path, manifest: dict[str, Any]) -> None:
@@ -281,6 +361,9 @@ def write_markdown(path: Path, manifest: dict[str, Any]) -> None:
         f"Answers: `{manifest['outputs']['answer_sheet']}`",
         f"Suggested answers: `{manifest['outputs']['suggested_answer_sheet']}`",
         f"Duration: `{manifest['summary']['duration_sec']}` sec",
+        "",
+        "Decision shortcuts: `d=drop_me`, `k=keep_me`, `r/?=needs_review`, `s=skip`, `.=todo`.",
+        "Use only decisions listed in `Allowed` for each item.",
         "",
         "```bash",
         f"afplay {shlex.quote(manifest['outputs']['audio'])}",
@@ -297,12 +380,18 @@ def write_markdown(path: Path, manifest: dict[str, Any]) -> None:
         "|---:|---|---|---|---|---|",
     ]
     for item in manifest["items"]:
-        text = str(item.get("text") or "").replace("|", "\\|")
+        text = markdown_cell(truncate_text(item.get("text"), 260))
         lines.append(
             f"| {item['index']} | {item['pack_start_time']}-{item['pack_end_time']} | "
             f"`{item.get('session_id')}` | `{item.get('source_audit_id')}` | "
             f"`{item.get('suggested_decision')}` | {text} |"
         )
+    lines.extend(["", "## Review Items"])
+    if not manifest["items"]:
+        lines.append("")
+        lines.append("_No review items._")
+    for item in manifest["items"]:
+        write_item_details(lines, item)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
@@ -425,6 +514,7 @@ def main() -> int:
                     "pack_start_time": format_time(start),
                     "pack_end_time": format_time(end),
                     "text": clip_text(row),
+                    "evidence_text": evidence_text(row),
                 }
             )
             cursor = end + args.silence_sec

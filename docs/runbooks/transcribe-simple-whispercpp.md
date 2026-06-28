@@ -819,6 +819,10 @@ less "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_pack.fast_co
 $EDITOR "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt"
 ```
 
+The lane Markdown is a review artifact, not just an index. For each item it lists the allowed
+decisions, suggested reason, utterance ids, selected audio command and transcript evidence. This is
+usually enough to review a lane from the Markdown and answer sheet without opening the JSON manifest.
+
 To prepare all remaining lanes at once:
 
 ```bash

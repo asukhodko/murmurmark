@@ -671,6 +671,10 @@ suggested compact answers, `afplay` and `$EDITOR` commands, so the workspace can
 opening the JSON manifest first.
 For one-off debugging, `scripts/build-review-lane-pack.py --lane fast_confirm_drop` creates a single
 WAV, a Markdown index and an editable answer sheet under `sessions/_reports/review-plan/lane-packs/`.
+The Markdown index is meant to be readable on its own: it shows the compact shortcut protocol,
+allowed decisions per item, suggested decision reason, selected audio command, utterance ids and the
+text evidence used for the row. Use the JSON manifest when tooling needs the same data
+programmatically.
 After listening to that pack, edit the generated `review_lane_answers.<lane>.txt` file and run
 `murmurmark review lane apply <lane> --session SESSION` to copy those answers back into
 `review_decisions.jsonl`. Use `murmurmark review lane apply first --session SESSION` after
