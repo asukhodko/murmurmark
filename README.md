@@ -823,7 +823,8 @@ command when the dry run would close rows. After applying the lane, the CLI refr
 `review_decisions_progress.json`: if more rows remain it points back to
 the next remaining lane and the workspace flow. If that lane pack is already built, `review progress`
 points to the prepared `afplay`, `less`, `$EDITOR`, dry-run and apply commands instead of asking to
-build the same lane again. If progress does not exist yet, it falls back to
+build the same lane again. When the answer sheet already contains reviewed answers, the handoff
+promotes dry-run/apply ahead of replaying the audio. If progress does not exist yet, it falls back to
 `murmurmark review first-lane` and `review lane apply first`. It prints
 `murmurmark review apply` as the final batch step only when
 `murmurmark review progress --session SESSION` says the review file is ready. `review progress`

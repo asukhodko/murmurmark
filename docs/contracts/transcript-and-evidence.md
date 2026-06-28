@@ -1625,7 +1625,9 @@ operational-readiness reports; without `--refresh`, it only reads the existing r
 `murmurmark report corpus` when the report is missing. If the report's focus session/lane already
 has `review_lane_pack.<lane>.json`, the compact handoff may use that pack as source
 `review_lane_pack` and promote the prepared `afplay`/`less`/answer-sheet flow over rebuilding the
-same lane pack.
+same lane pack. It also prints `answer_sheet_status`; once the answer sheet contains reviewed
+answers, `command` switches to lane apply `--dry-run` and the non-dry-run apply command remains
+visible as the follow-up.
 The same terminal summary prints `handoff` commands for opening selected notes, transcript and
 quality verdict. When the derived status is `exportable`, it also prints export and retention
 commands. This is CLI presentation only; `outputs`, `next_commands`, gates and blockers remain the
@@ -2068,7 +2070,9 @@ session-local or corpus-local paths, and prints the next review command.
 the command also writes `review_decisions_progress.json` and only recommends `review apply` when
 `ready_for_batch_apply` is true. If `murmurmark review progress` finds an existing lane pack for the
 first remaining lane, it may expose `prepared_lane_pack`, `afplay`, `less`, `$EDITOR`, dry-run and
-apply commands as the next handoff instead of recommending another lane-pack build.
+apply commands as the next handoff instead of recommending another lane-pack build. It includes
+`answer_sheet_status`; when reviewed answers are present, `recommended_next` becomes the dry-run
+apply command for that lane.
 `murmurmark review lane apply <lane> --answers-source suggested` reads
 `review_lane_answers.<lane>.suggested.txt` instead of the manual sheet. This mode is explicit,
 prints `answers_source: suggested`, and is mutually exclusive with `--answers` and `--answers-file`;

@@ -558,7 +558,7 @@ mkdir -p "$corpus_next_lane_dir" "$corpus_next_root/_reports/operational-readine
 echo '{}' >"$corpus_next_session/session.json"
 touch "$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.wav"
 echo '# Review lane' >"$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.md"
-echo 'answers=' >"$corpus_next_lane_dir/review_lane_answers.check_unique_me_content.txt"
+echo 'answers=.' >"$corpus_next_lane_dir/review_lane_answers.check_unique_me_content.txt"
 jq -n --arg audio "$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.wav" \
   --arg markdown "$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.md" \
   --arg answer "$corpus_next_lane_dir/review_lane_answers.check_unique_me_content.txt" '{
@@ -587,9 +587,15 @@ jq -n --arg session "$corpus_next_session" '{
 corpus_lane_next_output="$("$bin" next corpus --sessions-root "$corpus_next_root")"
 assert_no_helper_prefix "$corpus_lane_next_output"
 echo "$corpus_lane_next_output" | grep -q '^  source: review_lane_pack$'
+echo "$corpus_lane_next_output" | grep -q '^  answer_sheet_status: todo reviewed=0/1'
 echo "$corpus_lane_next_output" | grep -q '^  command: afplay .*review_lane_pack.check_unique_me_content.wav'
 echo "$corpus_lane_next_output" | grep -q '^  read: less .*review_lane_pack.check_unique_me_content.md'
 echo "$corpus_lane_next_output" | grep -q '^  edit: \$EDITOR .*review_lane_answers.check_unique_me_content.txt'
+echo 'answers=k' >"$corpus_next_lane_dir/review_lane_answers.check_unique_me_content.txt"
+corpus_lane_answered_next_output="$("$bin" next corpus --sessions-root "$corpus_next_root")"
+assert_no_helper_prefix "$corpus_lane_answered_next_output"
+echo "$corpus_lane_answered_next_output" | grep -q '^  answer_sheet_status: complete reviewed=1/1'
+echo "$corpus_lane_answered_next_output" | grep -q '^  command: murmurmark review lane apply check_unique_me_content --session .* --dry-run'
 [[ -s "$workdir/_reports/session-quality/session_quality_report.json" ]]
 [[ -s "$workdir/_reports/operational-readiness/operational_readiness_report.json" ]]
 jq -e '(.export_blockers | index("pipeline_incomplete")) and (.review_blockers | index("pipeline_incomplete"))' "$session/derived/readiness/session_readiness.json" >/dev/null
@@ -819,10 +825,17 @@ review_progress_prepared_output="$("$bin" review progress --session "$review_nex
 assert_no_helper_prefix "$review_progress_prepared_output"
 echo "$review_progress_prepared_output" | grep -q '^  next_lane: check_local_recall'
 echo "$review_progress_prepared_output" | grep -q '^  prepared_lane_pack: .*review_lane_pack.check_local_recall.json'
+echo "$review_progress_prepared_output" | grep -q '^  answer_sheet_status: todo reviewed=0/1'
 echo "$review_progress_prepared_output" | grep -q '^  recommended_next: afplay .*review_lane_pack.check_local_recall.wav'
 echo "$review_progress_prepared_output" | grep -q '^    less .*review_lane_pack.check_local_recall.md'
 echo "$review_progress_prepared_output" | grep -q '^    \$EDITOR .*review_lane_answers.check_local_recall.txt'
 echo "$review_progress_prepared_output" | grep -q '^    murmurmark review lane apply check_local_recall --session .*review-next-session --dry-run'
+echo 'answers=k' >"$review_next_lane_pack_dir/review_lane_answers.check_local_recall.txt"
+review_progress_answered_output="$("$bin" review progress --session "$review_next_session")"
+assert_no_helper_prefix "$review_progress_answered_output"
+echo "$review_progress_answered_output" | grep -q '^  answer_sheet_status: complete reviewed=1/1'
+echo "$review_progress_answered_output" | grep -q '^  recommended_next: murmurmark review lane apply check_local_recall --session .*review-next-session --dry-run'
+echo "$review_progress_answered_output" | grep -q '^    murmurmark review lane apply check_local_recall --session .*review-next-session --dry-run'
 export_block_dir="$workdir/export-blocked"
 export_block_stdout="$workdir/export_blocked_stdout.txt"
 if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >"$export_block_stdout" 2>&1; then

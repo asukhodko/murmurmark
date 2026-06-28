@@ -117,7 +117,9 @@ Use `murmurmark next corpus` when operational-readiness reports already exist an
 next command across the whole working-meeting corpus. Add `--refresh` when session-quality and
 operational-readiness should be regenerated first, but heavier corpus diagnostics should stay as-is.
 If the focus session's recommended lane pack already exists, `next corpus` switches from “build the
-lane pack” to the prepared review handoff: `afplay`, `less`, `$EDITOR`, then lane apply.
+lane pack” to the prepared review handoff: `afplay`, `less`, `$EDITOR`, then lane apply. If the
+answer sheet already contains reviewed answers, the handoff promotes lane apply `--dry-run` ahead of
+replaying the audio.
 Use `murmurmark open SESSION` when you need the selected local artifact rather than the next action.
 It resolves paths from `session_readiness.json` and prints `less ...` commands for notes,
 transcript, verdict, readiness and audit reports; `--cat` streams one artifact to stdout.
@@ -861,7 +863,8 @@ matches `murmurmark report corpus` instead of falling back to raw row counts onl
 `review lane apply`, `review workspace`, `review progress` and workspace apply also print a headline
 `recommended_next`, so every review screen has one copyable next command. If `review progress` sees
 that the current `next_lane` already has a lane pack, it recommends the prepared
-`afplay`/`less`/`$EDITOR` handoff and lane apply commands instead of rebuilding that pack. The
+`afplay`/`less`/`$EDITOR` handoff and lane apply commands instead of rebuilding that pack. When the
+answer sheet has reviewed answers, it recommends lane apply `--dry-run` first. The
 workspace command prints every lane pack with suggested compact answers and the
 `afplay`/`$EDITOR` commands to use next, so normal review does not require opening
 `review_workspace.json`. After a successful single-session apply, the CLI prints the refreshed readiness summary

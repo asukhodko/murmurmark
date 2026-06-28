@@ -18,6 +18,9 @@ enum ReviewPrinter {
         }
         if let answerSheet = string(outputs["answer_sheet"]) {
             print("  answer_sheet: \(displayPath(answerSheet))")
+            if let state = answerSheetState(url: PathURLs.fileURL(answerSheet)) {
+                print("  answer_sheet_status: \(state.description)")
+            }
         }
         if let suggested = string(outputs["suggested_answer_sheet"]) {
             print("  suggested_answer_sheet: \(displayPath(suggested))")
@@ -40,7 +43,10 @@ enum ReviewPrinter {
         let listenCommand = string(outputs["audio"]).map { "afplay \(shellQuote(displayPath($0)))" }
         let readCommand = string(outputs["markdown"]).map { "less \(shellQuote(displayPath($0)))" }
         let editCommand = string(outputs["answer_sheet"]).map { "$EDITOR \(shellQuote(displayPath($0)))" }
-        let recommendedNext = listenCommand ?? readCommand ?? editCommand ?? "\(applyCommand) --dry-run"
+        let answerState = string(outputs["answer_sheet"]).flatMap { answerSheetState(url: PathURLs.fileURL($0)) }
+        let recommendedNext = answerState?.hasReviewedAnswers == true
+            ? "\(applyCommand) --dry-run"
+            : listenCommand ?? readCommand ?? editCommand ?? "\(applyCommand) --dry-run"
         print("  recommended_next: \(recommendedNext)")
         if let listenCommand {
             print("  listen: \(listenCommand)")
@@ -112,6 +118,42 @@ enum ReviewPrinter {
             return line
         }
         return nil
+    }
+
+    private struct AnswerSheetState {
+        let total: Int
+        let reviewed: Int
+
+        var hasReviewedAnswers: Bool {
+            reviewed > 0
+        }
+
+        var description: String {
+            let status: String
+            if total == 0 {
+                status = "empty"
+            } else if reviewed == 0 {
+                status = "todo"
+            } else if reviewed == total {
+                status = "complete"
+            } else {
+                status = "partial"
+            }
+            return "\(status) reviewed=\(reviewed)/\(total)"
+        }
+    }
+
+    private static func answerSheetState(url: URL) -> AnswerSheetState? {
+        guard let line = firstAnswersLine(url: url),
+              line.hasPrefix("answers=")
+        else {
+            return nil
+        }
+        let answers = String(line.dropFirst("answers=".count))
+            .filter { !$0.isWhitespace }
+            .map { Character(String($0).lowercased()) }
+        let reviewed = answers.filter { ![".", "n", "t"].contains($0) }.count
+        return AnswerSheetState(total: answers.count, reviewed: reviewed)
     }
 
     private static func shellQuote(_ value: String) -> String {
@@ -240,6 +282,9 @@ enum ReviewPrinter {
             if let edit = handoff.editCommand {
                 print("  edit: \(edit)")
             }
+            if let answerSheetStatus = handoff.answerSheetStatus {
+                print("  answer_sheet_status: \(answerSheetStatus)")
+            }
             print("  apply: \(handoff.applyCommand)")
             commands = handoff.commands
             afterReady = ["murmurmark review apply\(sessionArgument)"]
@@ -275,6 +320,7 @@ enum ReviewPrinter {
         let commands: [String]
         let readCommand: String?
         let editCommand: String?
+        let answerSheetStatus: String?
         let applyCommand: String
     }
 
@@ -294,19 +340,26 @@ enum ReviewPrinter {
         let audioCommand = existingOutputCommand(outputs["audio"], prefix: "afplay")
         let readCommand = existingOutputCommand(outputs["markdown"], prefix: "less")
         let editCommand = existingOutputCommand(outputs["answer_sheet"], prefix: "$EDITOR")
+        let answerState = string(outputs["answer_sheet"]).flatMap { answerSheetState(url: PathURLs.fileURL($0)) }
         let applyCommand = "murmurmark review lane apply \(lane)\(sessionArgument)"
+        let dryRunCommand = "\(applyCommand) --dry-run"
         var commands: [String] = []
-        if let audioCommand {
-            commands.append(audioCommand)
+        if answerState?.hasReviewedAnswers == true {
+            commands.append(dryRunCommand)
+            commands.append(applyCommand)
+        } else {
+            if let audioCommand {
+                commands.append(audioCommand)
+            }
+            if let readCommand {
+                commands.append(readCommand)
+            }
+            if let editCommand {
+                commands.append(editCommand)
+            }
+            commands.append(dryRunCommand)
+            commands.append(applyCommand)
         }
-        if let readCommand {
-            commands.append(readCommand)
-        }
-        if let editCommand {
-            commands.append(editCommand)
-        }
-        commands.append("\(applyCommand) --dry-run")
-        commands.append(applyCommand)
         commands.append("murmurmark review progress\(sessionArgument)")
         guard !commands.isEmpty else { return nil }
         return PreparedLanePackHandoff(
@@ -314,6 +367,7 @@ enum ReviewPrinter {
             commands: commands,
             readCommand: readCommand,
             editCommand: editCommand,
+            answerSheetStatus: answerState?.description,
             applyCommand: applyCommand
         )
     }

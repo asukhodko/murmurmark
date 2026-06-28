@@ -8566,6 +8566,12 @@ enum CorpusPrinter {
             if let answerSheet = lanePack.answerSheet {
                 print("  edit: $EDITOR \(shellQuote(PathDisplay.display(answerSheet)))")
             }
+            if let answerSheetStatus = lanePack.answerSheetStatus {
+                print("  answer_sheet_status: \(answerSheetStatus)")
+            }
+            if let dryRun = lanePack.dryRunCommand {
+                print("  dry_run: \(dryRun)")
+            }
             if let apply = lanePack.applyCommand {
                 print("  apply: \(apply)")
             }
@@ -8585,6 +8591,8 @@ enum CorpusPrinter {
         let manifest: URL
         let markdown: URL?
         let answerSheet: URL?
+        let answerSheetStatus: String?
+        let dryRunCommand: String?
         let applyCommand: String?
     }
 
@@ -8612,9 +8620,14 @@ enum CorpusPrinter {
         let audio = urlFromOutput(outputs["audio"])
         let markdown = urlFromOutput(outputs["markdown"])
         let answerSheet = urlFromOutput(outputs["answer_sheet"])
-        let primary = audio.map { "afplay \(shellQuote(PathDisplay.display($0)))" }
-            ?? markdown.map { "less \(shellQuote(PathDisplay.display($0)))" }
-            ?? answerSheet.map { "$EDITOR \(shellQuote(PathDisplay.display($0)))" }
+        let answerState = answerSheet.flatMap(answerSheetState)
+        let applyCommand = "murmurmark review lane apply \(lane) --session \(PathDisplay.display(session))"
+        let dryRunCommand = "\(applyCommand) --dry-run"
+        let primary = answerState?.hasReviewedAnswers == true
+            ? dryRunCommand
+            : audio.map { "afplay \(shellQuote(PathDisplay.display($0)))" }
+                ?? markdown.map { "less \(shellQuote(PathDisplay.display($0)))" }
+                ?? answerSheet.map { "$EDITOR \(shellQuote(PathDisplay.display($0)))" }
         guard let command = primary else { return nil }
 
         return PreparedLanePackHandoff(
@@ -8622,7 +8635,9 @@ enum CorpusPrinter {
             manifest: manifest,
             markdown: markdown,
             answerSheet: answerSheet,
-            applyCommand: "murmurmark review lane apply \(lane) --session \(PathDisplay.display(session))"
+            answerSheetStatus: answerState?.description,
+            dryRunCommand: dryRunCommand,
+            applyCommand: applyCommand
         )
     }
 
@@ -8640,6 +8655,50 @@ enum CorpusPrinter {
         guard let path = string(value), !path.isEmpty else { return nil }
         let url = PathURLs.fileURL(path)
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    private struct AnswerSheetState {
+        let total: Int
+        let reviewed: Int
+
+        var hasReviewedAnswers: Bool {
+            reviewed > 0
+        }
+
+        var description: String {
+            let status: String
+            if total == 0 {
+                status = "empty"
+            } else if reviewed == 0 {
+                status = "todo"
+            } else if reviewed == total {
+                status = "complete"
+            } else {
+                status = "partial"
+            }
+            return "\(status) reviewed=\(reviewed)/\(total)"
+        }
+    }
+
+    private static func answerSheetState(url: URL) -> AnswerSheetState? {
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            return nil
+        }
+        for rawLine in text.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty || line.hasPrefix("#") {
+                continue
+            }
+            guard line.hasPrefix("answers=") else {
+                return nil
+            }
+            let answers = String(line.dropFirst("answers=".count))
+                .filter { !$0.isWhitespace }
+                .map { Character(String($0).lowercased()) }
+            let reviewed = answers.filter { ![".", "n", "t"].contains($0) }.count
+            return AnswerSheetState(total: answers.count, reviewed: reviewed)
+        }
+        return nil
     }
 
     private static func corpusReportCommand(sessionsRoot: URL) -> String {
