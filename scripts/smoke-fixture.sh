@@ -1328,6 +1328,19 @@ EOF
   grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_stdout"
   jq -e '.schema == "murmurmark.review_workspace/v1" and any(.lanes[]; .lane == "check_local_recall" and .status == "ok")' "$cli_review_workspace_dir/review_workspace.json" >/dev/null
   cli_answer_sheet="$cli_review_workspace_dir/lane-packs/review_lane_answers.check_local_recall.txt"
+  cli_workspace_dry_run_out="$workdir/review_decisions_workspace_cli_dry_run.jsonl"
+  cli_workspace_dry_run_stdout="$workdir/review_workspace_cli_dry_run_stdout.txt"
+  "$repo_root/.build/debug/murmurmark" review workspace apply \
+    --workspace "$cli_review_workspace_dir/review_workspace.json" \
+    --template "$review_template" \
+    --out "$cli_workspace_dry_run_out" \
+    --report "$cli_review_workspace_dir/review_workspace_apply_dry_run_report.json" \
+    --dry-run >"$cli_workspace_dry_run_stdout"
+  [[ ! -e "$cli_workspace_dry_run_out" ]]
+  jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .dry_run == true and .summary.remaining_rows == 2' "$cli_review_workspace_dir/review_workspace_apply_dry_run_report.json" >/dev/null
+  grep -q '^review_workspace_apply:$' "$cli_workspace_dry_run_stdout"
+  grep -q '  dry_run: true' "$cli_workspace_dry_run_stdout"
+  grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_dry_run_stdout"
   sed 's/^answers=.*/answers=k/' "$cli_answer_sheet" >"$cli_answer_sheet.tmp"
   mv "$cli_answer_sheet.tmp" "$cli_answer_sheet"
   cli_workspace_apply_out="$workdir/review_decisions_workspace_cli_apply.jsonl"

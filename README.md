@@ -560,6 +560,8 @@ Each lane also has `review_lane_answers.<lane>.suggested.txt`; use it as a revie
 silent replacement for listening when the meeting is medium-risk.
 When several lane answer sheets are edited, `murmurmark review workspace apply` applies
 the whole `review_workspace.json` in one validated pass and then refreshes review progress.
+Use `murmurmark review workspace apply --dry-run` to write only the validation report and print the
+same handoff without changing `review_decisions.jsonl`.
 After `murmurmark review apply`, the CLI prints the next report command for the affected session or
 corpus.
 `scripts/report-review-decisions-progress.py` then shows how much of the queue is actually closed

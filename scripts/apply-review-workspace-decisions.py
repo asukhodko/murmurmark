@@ -62,6 +62,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--require-complete", action="store_true", help="Fail if any workspace answer is still todo.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and print a report without writing --out.")
+    parser.add_argument("--quiet", action="store_true", help="Write outputs and suppress human-readable stdout.")
     return parser.parse_args()
 
 
@@ -451,26 +452,27 @@ def main() -> int:
 
     if not args.dry_run and not rejected and not complete_error:
         write_jsonl(out, rows)
-    if not args.dry_run:
-        write_json(args.report.expanduser(), report)
+    write_json(args.report.expanduser(), report)
 
-    print(json.dumps(report["summary"], ensure_ascii=False))
-    if report["errors"]:
-        print(f"Errors: {len(report['errors'])}")
-        for row in report["errors"][:20]:
-            print(f"- {row.get('source_audit_id') or row.get('lane') or 'workspace'}: {row.get('reason')}")
-    if args.dry_run:
-        print("Dry run: no files written.")
-    elif rejected or complete_error:
-        print(f"Report: {args.report}")
-        print("No decisions file written because validation failed.")
-    else:
-        print(f"Written: {out}")
-        print(f"Report: {args.report}")
-        print(
-            "Next: .venv/bin/python scripts/report-review-decisions-progress.py "
-            f"--decisions {shlex.quote(str(out))}"
-        )
+    if not args.quiet:
+        print(json.dumps(report["summary"], ensure_ascii=False))
+        if report["errors"]:
+            print(f"Errors: {len(report['errors'])}")
+            for row in report["errors"][:20]:
+                print(f"- {row.get('source_audit_id') or row.get('lane') or 'workspace'}: {row.get('reason')}")
+        if args.dry_run:
+            print(f"Report: {args.report}")
+            print("Dry run: no decisions file written.")
+        elif rejected or complete_error:
+            print(f"Report: {args.report}")
+            print("No decisions file written because validation failed.")
+        else:
+            print(f"Written: {out}")
+            print(f"Report: {args.report}")
+            print(
+                "Next: .venv/bin/python scripts/report-review-decisions-progress.py "
+                f"--decisions {shlex.quote(str(out))}"
+            )
     return 1 if rejected or complete_error else 0
 
 

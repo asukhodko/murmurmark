@@ -631,7 +631,7 @@ enum ReviewCommands {
                 try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
             }
             try Tooling.runPath(try PythonRuntime.resolve(), [try script("build-review-workspace.py").path] + forwarded)
-            try ReviewPrinter.printWorkspace(outDir: workspaceOutDir(from: forwarded))
+            try ReviewPrinter.printWorkspace(outDir: ReviewPaths.workspaceOutDir(from: forwarded))
         case "apply":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-workspace-decisions.py").path] + forwarded)
@@ -640,11 +640,14 @@ enum ReviewCommands {
             if let session = ReviewSessionLocalPlan.takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot) {
                 ReviewSessionLocalPlan.addWorkspaceApplyDefaults(for: session, to: &forwarded)
             }
+            if !ArgumentEditing.hasOption("quiet", in: forwarded) {
+                forwarded.append("--quiet")
+            }
             try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-workspace-decisions.py").path] + forwarded)
+            try ReviewPrinter.printWorkspaceApply(report: ReviewPaths.workspaceApplyReport(from: forwarded))
             if !ArgumentEditing.hasOption("dry-run", in: forwarded) {
-                try ReviewPrinter.printWorkspaceApply(report: workspaceApplyReport(from: forwarded))
                 let defaultDecisions = PathURLs.fileURL("sessions/_reports/review-plan/review_decisions.jsonl")
-                if workspaceDecisionsOut(from: forwarded).standardizedFileURL.path == defaultDecisions.standardizedFileURL.path {
+                if ReviewPaths.workspaceDecisionsOut(from: forwarded).standardizedFileURL.path == defaultDecisions.standardizedFileURL.path {
                     try runProgress()
                     try ReviewPrinter.printProgress()
                 }
@@ -664,22 +667,6 @@ enum ReviewCommands {
                 index += 1
             }
         }
-    }
-
-    private static func workspaceOutDir(from args: [String]) -> URL {
-        PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: args) ?? "sessions/_reports/review-plan")
-    }
-
-    private static func workspaceApplyReport(from args: [String]) -> URL {
-        PathURLs.fileURL(ArgumentEditing.peekOption("report", in: args) ?? "sessions/_reports/review-plan/review_workspace_apply_report.json")
-    }
-
-    private static func applyReport(from args: [String]) -> URL {
-        PathURLs.fileURL(ArgumentEditing.peekOption("out", in: args) ?? "sessions/_reports/review-plan/review_decisions_apply_report.json")
-    }
-
-    private static func workspaceDecisionsOut(from args: [String]) -> URL {
-        PathURLs.fileURL(ArgumentEditing.peekOption("out", in: args) ?? "sessions/_reports/review-plan/review_decisions.jsonl")
     }
 
     private static func ensurePlanExists() throws {
@@ -778,7 +765,7 @@ enum ReviewCommands {
             "--synthesize",
             "--refresh-reports",
         ] + forwarded)
-        return applyReport(from: forwarded)
+        return ReviewPaths.applyReport(from: forwarded)
     }
 
     private static func script(_ name: String) throws -> URL {
@@ -882,6 +869,24 @@ enum ReviewSessionLocalPlan {
             throw CLIError("review script not found: \(url.path)")
         }
         return url
+    }
+}
+
+enum ReviewPaths {
+    static func workspaceOutDir(from args: [String]) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: args) ?? "sessions/_reports/review-plan")
+    }
+
+    static func workspaceApplyReport(from args: [String]) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("report", in: args) ?? "sessions/_reports/review-plan/review_workspace_apply_report.json")
+    }
+
+    static func applyReport(from args: [String]) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("out", in: args) ?? "sessions/_reports/review-plan/review_decisions_apply_report.json")
+    }
+
+    static func workspaceDecisionsOut(from args: [String]) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("out", in: args) ?? "sessions/_reports/review-plan/review_decisions.jsonl")
     }
 }
 
@@ -5864,6 +5869,7 @@ enum ReviewPrinter {
         print("  reviewed: \(int(summary["reviewed_count"]) ?? 0)")
         print("  remaining: \(int(summary["remaining_rows"]) ?? 0)")
         print("  rejected: \(int(summary["rejected_count"]) ?? 0)")
+        print("  dry_run: \(bool(payload["dry_run"]) ?? false)")
         print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
         let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
         if bool(summary["ready_for_batch_apply"]) == true {
