@@ -196,7 +196,7 @@ def write_answer_sheet(path: Path, manifest: dict[str, Any]) -> Path:
     lines = [
         f"# MurmurMark review answers for lane {manifest.get('lane')}",
         "# Listen to the lane WAV, then replace dots in answers=... with decisions.",
-        "# d=drop_me, k=keep_me, r/?=needs_review, s=skip, ./n/t=todo",
+        "# d=drop_me, c=drop_remote, k=keep_me, r/?=needs_review, s=skip, ./n/t=todo",
         "# Keep dots for items you have not reviewed yet.",
         f"answers={placeholders}",
         "",

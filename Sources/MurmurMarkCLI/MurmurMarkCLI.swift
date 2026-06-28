@@ -1400,7 +1400,7 @@ enum ReviewLaneCommand {
 
         Apply options:
           --answers-file PATH           Default: review_lane_answers.LANE.txt from the lane pack directory
-          --answers TEXT                Compact answers: d=drop_me, k=keep_me, r=needs_review, s=skip, .=todo
+          --answers TEXT                Compact answers: d=drop_me, c=drop_remote, k=keep_me, r=needs_review, s=skip, .=todo
           --answers-source manual|suggested
                                          Use the manual answer sheet or generated suggested sheet. Default: manual
           --decisions-out PATH          Default: review_decisions.jsonl in the review plan directory

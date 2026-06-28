@@ -1563,6 +1563,24 @@ EOF
     --limit 1 >"$lane_cli_stdout"
   jq -s '.[0].decision == "todo" and .[1].decision == "needs_review"' "$lane_cli_out" >/dev/null
   rg -q 'Progress: reviewed=1/1, remaining=0' "$lane_cli_stdout"
+
+  drop_remote_template="$workdir/review_decisions_drop_remote.template.jsonl"
+  cat >"$drop_remote_template" <<EOF
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","allowed_decisions":["drop_me","drop_remote","keep_me","needs_review","skip"],"session_id":"group-session","session":"$group_session","input_profile":"shadow_v2","source":"audio_review","source_audit_id":"arp_manual_drop_remote","label":"remote_duplicate","verdict":"probable_transcript_error","review_lane":"check_unique_me_content","review_action":"check_unique_me_content","suggested_decision":"needs_review","suggested_decision_confidence":"medium","suggested_decision_reason":"fixture remote row may be duplicate of local speech","me_utterance_ids":["utt_dup_me"],"remote_utterance_ids":["utt_dup_remote"],"utterance_ids":["utt_dup_me","utt_dup_remote"],"interval":{"start":0.5,"end":2.5,"duration_sec":2.0},"text":[{"id":"utt_dup_me","role":"Me","source_track":"mic","text":"Надо проверить deploy."},{"id":"utt_dup_remote","role":"Colleagues","source_track":"remote","text":"Надо проверить deploy."}],"commands":{},"reviewer":"","notes":""}
+EOF
+  drop_remote_decisions="$workdir/review_decisions_drop_remote.jsonl"
+  jq -c '.decision = "drop_remote" | .status = "reviewed"' "$drop_remote_template" >"$drop_remote_decisions"
+  "$repo_root/scripts/apply-review-decisions.py" "$group_session" \
+    --decisions "$drop_remote_decisions" \
+    --review-template "$drop_remote_template" \
+    --input-profile shadow_v2 \
+    --output-profile reviewed_drop_remote_fixture >/dev/null
+  drop_remote_report="$group_session/derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_drop_remote_fixture.json"
+  drop_remote_dialogue="$group_resolved/clean_dialogue.reviewed_drop_remote_fixture.json"
+  jq -e '.gates.passed == true and .summary.dropped_remote_utterances == 1 and .summary.dropped_me_utterances == 0 and .summary.drop_remote_decisions == 1' "$drop_remote_report" >/dev/null
+  jq -e 'any(.utterances[]; .id == "utt_dup_me" and .quality.human_review.decisions == ["drop_remote"] and .quality.needs_review == false)' "$drop_remote_dialogue" >/dev/null
+  jq -e 'all(.utterances[]; .id != "utt_dup_remote")' "$drop_remote_dialogue" >/dev/null
+
   lane_pack_dir="$workdir/review_lane_pack"
   "$repo_root/scripts/build-review-lane-pack.py" \
     --template "$review_template" \

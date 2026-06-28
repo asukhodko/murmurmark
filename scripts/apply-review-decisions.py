@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.2"
+SCRIPT_VERSION = "0.3.0"
 OUTPUT_PROFILE_DEFAULT = "reviewed_v1"
-VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
+VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 OPEN_DECISIONS = {"", "todo"}
 
 
@@ -225,12 +225,12 @@ def normalize_decision(row: dict[str, Any]) -> dict[str, Any]:
     if decision not in OPEN_DECISIONS and allowed and decision not in allowed:
         normalized["_invalid"] = True
         normalized["_invalid_reason"] = "decision_not_allowed_for_row"
-    if is_local_recall_decision(normalized) and decision == "drop_me":
+    if is_local_recall_decision(normalized) and decision in {"drop_me", "drop_remote"}:
         normalized["_invalid"] = True
-        normalized["_invalid_reason"] = "drop_me_is_not_supported_for_local_recall"
-    if is_transcript_order_decision(normalized) and decision == "drop_me":
+        normalized["_invalid_reason"] = f"{decision}_is_not_supported_for_local_recall"
+    if is_transcript_order_decision(normalized) and decision in {"drop_me", "drop_remote"}:
         normalized["_invalid"] = True
-        normalized["_invalid_reason"] = "drop_me_is_not_supported_for_transcript_order"
+        normalized["_invalid_reason"] = f"{decision}_is_not_supported_for_transcript_order"
     return normalized
 
 
@@ -390,6 +390,22 @@ def decision_me_ids(row: dict[str, Any]) -> list[str]:
     return out
 
 
+def decision_remote_ids(row: dict[str, Any]) -> list[str]:
+    ids = row.get("remote_utterance_ids")
+    if isinstance(ids, list) and ids:
+        return [str(item) for item in ids if item]
+    out: list[str] = []
+    for item in row.get("text") or []:
+        if not isinstance(item, dict):
+            continue
+        source = str(item.get("source_track") or "").lower()
+        role = str(item.get("role") or "").lower()
+        if source == "remote" or role in {"remote", "colleagues"}:
+            if item.get("id"):
+                out.append(str(item["id"]))
+    return out
+
+
 def decision_utterance_ids(row: dict[str, Any]) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
@@ -491,6 +507,7 @@ def main() -> int:
     by_id = {str(row.get("id")): row for row in utterances}
 
     per_utterance: dict[str, list[dict[str, Any]]] = {}
+    per_remote_utterance: dict[str, list[dict[str, Any]]] = {}
     transcript_order_by_utterance: dict[str, list[dict[str, Any]]] = {}
     audit_only_applied: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
@@ -503,6 +520,23 @@ def main() -> int:
             for utterance_id in decision_utterance_ids(row):
                 if utterance_id in by_id:
                     transcript_order_by_utterance.setdefault(utterance_id, []).append(row)
+            continue
+        if row.get("decision") == "drop_remote":
+            remote_ids = decision_remote_ids(row)
+            if not remote_ids:
+                rejected.append({**row, "reason": "missing_remote_utterance_id"})
+                continue
+            for utterance_id in remote_ids:
+                if utterance_id not in by_id:
+                    rejected.append({**row, "reason": "remote_utterance_not_found", "utterance_id": utterance_id})
+                    continue
+                if role_name(by_id[utterance_id]) != "Colleagues":
+                    rejected.append({**row, "reason": "target_is_not_remote", "utterance_id": utterance_id})
+                    continue
+                per_remote_utterance.setdefault(utterance_id, []).append(row)
+            for utterance_id in decision_me_ids(row):
+                if utterance_id in by_id and is_me(by_id[utterance_id]):
+                    per_utterance.setdefault(utterance_id, []).append(row)
             continue
         me_ids = decision_me_ids(row)
         if not me_ids:
@@ -519,7 +553,9 @@ def main() -> int:
 
     conflicts: list[dict[str, Any]] = []
     dropped_ids: set[str] = set()
+    dropped_remote_ids: set[str] = set()
     applied: list[dict[str, Any]] = []
+    remote_applied: list[dict[str, Any]] = []
     for utterance_id, rows in per_utterance.items():
         decisions_set = {str(row.get("decision")) for row in rows}
         if "drop_me" in decisions_set and (decisions_set - {"drop_me"}):
@@ -528,11 +564,18 @@ def main() -> int:
         if decisions_set == {"drop_me"}:
             dropped_ids.add(utterance_id)
         applied.extend({**row, "utterance_id": utterance_id} for row in rows)
+    for utterance_id, rows in per_remote_utterance.items():
+        decisions_set = {str(row.get("decision")) for row in rows}
+        if decisions_set != {"drop_remote"}:
+            conflicts.append({"remote_utterance_id": utterance_id, "decisions": sorted(decisions_set), "rows": rows})
+            continue
+        dropped_remote_ids.add(utterance_id)
+        remote_applied.extend({**row, "remote_utterance_id": utterance_id, "review_effect": "drop_remote"} for row in rows)
 
     output_utterances: list[dict[str, Any]] = []
     for row in utterances:
         utterance_id = str(row.get("id"))
-        if utterance_id in dropped_ids:
+        if utterance_id in dropped_ids or utterance_id in dropped_remote_ids:
             continue
         new_row = copy.deepcopy(row)
         rows = per_utterance.get(utterance_id, [])
@@ -551,13 +594,13 @@ def main() -> int:
             }
             if "needs_review" in decisions_set or utterance_id in {item.get("utterance_id") for item in conflicts}:
                 quality["needs_review"] = True
-            elif decisions_set == {"keep_me"}:
+            elif decisions_set <= {"keep_me", "drop_remote"}:
                 quality["needs_review"] = False
         add_review_quality(new_row, "transcript_order_review", order_rows, args.output_profile)
         output_utterances.append(new_row)
 
     overlaps = build_overlaps(output_utterances)
-    applied_all = applied + audit_only_applied
+    applied_all = applied + remote_applied + audit_only_applied
     local_recall_rows = [row for row in audit_only_applied if is_local_recall_decision(row)] + [
         row for row in applied if is_local_recall_repair_decision(row)
     ]
@@ -593,7 +636,13 @@ def main() -> int:
         "conflict_count": len(conflicts),
         "dropped_me_utterances": len(dropped_ids),
         "dropped_me_seconds": round(sum(safe_float(by_id[item].get("end")) - safe_float(by_id[item].get("start")) for item in dropped_ids), 3),
+        "dropped_remote_utterances": len(dropped_remote_ids),
+        "dropped_remote_seconds": round(
+            sum(safe_float(by_id[item].get("end")) - safe_float(by_id[item].get("start")) for item in dropped_remote_ids),
+            3,
+        ),
         "kept_me_decisions": sum(1 for row in applied if row.get("decision") == "keep_me"),
+        "drop_remote_decisions": sum(1 for row in remote_applied if row.get("decision") == "drop_remote"),
         "needs_review_decisions": sum(1 for row in applied if row.get("decision") == "needs_review"),
         "local_recall_decision_rows": len(local_recall_rows),
         "local_recall_cleared_decisions": len(local_recall_cleared),
@@ -712,6 +761,7 @@ def main() -> int:
     print(f"clean_dialogue: {resolved / f'clean_dialogue{output_suffix}.json'}")
     print(f"applied_decision_rows: {len(applied_all)}")
     print(f"dropped_me_utterances: {len(dropped_ids)}")
+    print(f"dropped_remote_utterances: {len(dropped_remote_ids)}")
     print(f"gates_passed: {gates['passed']}")
     return 0 if gates["passed"] else 2
 

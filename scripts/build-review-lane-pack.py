@@ -11,12 +11,14 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.0"
+SCRIPT_VERSION = "0.6.0"
 SCHEMA = "murmurmark.review_lane_pack/v1"
+KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 DECISION_SHORTCUTS = {
     "drop_me": "d",
+    "drop_remote": "c",
     "keep_me": "k",
     "needs_review": "r",
     "skip": "s",
@@ -546,7 +548,7 @@ def write_markdown(path: Path, manifest: dict[str, Any]) -> None:
         f"Suggested answers: `{manifest['outputs']['suggested_answer_sheet']}`",
         f"Duration: `{manifest['summary']['duration_sec']}` sec",
         "",
-        "Decision shortcuts: `d=drop_me`, `k=keep_me`, `r/?=needs_review`, `s=skip`, `.=todo`.",
+        "Decision shortcuts: `d=drop_me`, `c=drop_remote`, `k=keep_me`, `r/?=needs_review`, `s=skip`, `.=todo`.",
         "Use only decisions listed in `Allowed` for each item.",
         "",
         "```bash",
@@ -585,7 +587,7 @@ def allowed_decisions_for_item(item: dict[str, Any]) -> set[str]:
     values = item.get("allowed_decisions")
     if not isinstance(values, list) or not values:
         return set(DEFAULT_ALLOWED_DECISIONS)
-    allowed = {str(value) for value in values if str(value) in DEFAULT_ALLOWED_DECISIONS}
+    allowed = {str(value) for value in values if str(value) in KNOWN_REVIEW_DECISIONS}
     return allowed or set(DEFAULT_ALLOWED_DECISIONS)
 
 
@@ -605,7 +607,7 @@ def write_answer_sheet(path: Path, manifest: dict[str, Any], *, suggested: bool 
     lines = [
         f"# MurmurMark {title} for lane {manifest.get('lane')}",
         "# Listen to the lane WAV before applying decisions to medium-risk transcripts.",
-        "# d=drop_me, k=keep_me, r/?=needs_review, s=skip, ./n/t=todo",
+        "# d=drop_me, c=drop_remote, k=keep_me, r/?=needs_review, s=skip, ./n/t=todo",
         "# Keep dots for items you have not reviewed or cannot confidently classify.",
         f"answers={answers}",
         "",

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.5.0"
 SCHEMA = "murmurmark.review_plan/v1"
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 
@@ -20,7 +20,7 @@ REVIEW_LANES = {
     },
     "check_unique_me_content": {
         "title": "Check unique Me content",
-        "description": "Remote leak/duplicate may cover only part of Me. Keep real local speech; do not drop blindly.",
+        "description": "Remote leak/duplicate may cover only part of Me. Keep real local speech; drop remote only when remote is the duplicate.",
     },
     "check_local_recall": {
         "title": "Check local recall",
@@ -227,13 +227,45 @@ def item_list_values(item: dict[str, Any], key: str) -> list[str]:
     return []
 
 
+def item_text_utterance_ids(item: dict[str, Any], *, role: str) -> list[str]:
+    rows = item.get("text")
+    if not isinstance(rows, list):
+        return []
+    ids: list[str] = []
+    role = role.lower()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        source_track = str(row.get("source_track") or "").lower()
+        row_role = str(row.get("role") or "").lower()
+        if role == "remote":
+            matches = source_track == "remote" or row_role in {"remote", "colleagues"}
+        else:
+            matches = source_track == "mic" or row_role == "me"
+        value = row.get("id")
+        if matches and value is not None and str(value):
+            ids.append(str(value))
+    return ids
+
+
+def has_remote_utterance(item: dict[str, Any]) -> bool:
+    return bool(item_list_values(item, "remote_utterance_ids") or item_text_utterance_ids(item, role="remote"))
+
+
 def output_allowed_decisions(item: dict[str, Any]) -> list[str]:
     values = item.get("allowed_decisions")
     if isinstance(values, list) and values:
-        return [str(value) for value in values]
+        decisions = [str(value) for value in values]
+        if item.get("source") not in {"local_recall", "transcript_order"} and has_remote_utterance(item) and "drop_remote" not in decisions:
+            insert_at = decisions.index("drop_me") + 1 if "drop_me" in decisions else 0
+            decisions.insert(insert_at, "drop_remote")
+        return decisions
     if item.get("source") in {"local_recall", "transcript_order"}:
         return ["keep_me", "needs_review", "skip"]
-    return ["drop_me", "keep_me", "needs_review", "skip"]
+    decisions = ["drop_me", "keep_me", "needs_review", "skip"]
+    if has_remote_utterance(item):
+        decisions.insert(1, "drop_remote")
+    return decisions
 
 
 def first_me_utterance_id(item: dict[str, Any]) -> str:
@@ -510,6 +542,7 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
             "Listen to stereo_clean_left_remote_right first.",
             "Use suggested_decision as a hint only; it does not count until copied to decision.",
             "If Me contains only leaked remote speech, mark drop_me.",
+            "If remote contains a duplicate of the local speaker, mark drop_remote.",
             "If the duplicate covers only part of a longer Me utterance, do not drop it blindly; check unique local content.",
             "If Me contains real local speech or intentional repeat, mark keep_me.",
             "If the case is unclear, keep the transcript item and mark needs_review.",
@@ -528,12 +561,7 @@ def decision_template_rows(plan: dict[str, Any]) -> list[dict[str, Any]]:
         for item in cluster.get("items") or []:
             if not isinstance(item, dict):
                 continue
-            if isinstance(item.get("allowed_decisions"), list) and item.get("allowed_decisions"):
-                allowed_decisions = item["allowed_decisions"]
-            elif item.get("source") in {"local_recall", "transcript_order"}:
-                allowed_decisions = ["keep_me", "needs_review", "skip"]
-            else:
-                allowed_decisions = ["drop_me", "keep_me", "needs_review", "skip"]
+            allowed_decisions = output_allowed_decisions(item)
             rows.append(
                 {
                     "schema": "murmurmark.review_decision/v1",

@@ -474,7 +474,7 @@ def review_resolved_audio_ids(session: Path, profile: str) -> set[str]:
     for row in read_jsonl(path):
         if str(row.get("source") or "") != "audio_review":
             continue
-        if str(row.get("decision") or "") not in {"drop_me", "keep_me", "skip"}:
+        if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
             continue
         source_id = str(row.get("source_audit_id") or "")
         if source_id:

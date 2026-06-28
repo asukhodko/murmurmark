@@ -219,7 +219,7 @@ def review_resolved_audio_ids(session_path: Path, profile: str) -> set[str]:
     for row in read_jsonl(path):
         if str(row.get("source") or "") != "audio_review":
             continue
-        if str(row.get("decision") or "") not in {"drop_me", "keep_me", "skip"}:
+        if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
             continue
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
@@ -455,11 +455,23 @@ def item_text_utterance_ids(item: dict[str, Any], *, role: str) -> list[str]:
 def review_item_allowed_decisions(item: dict[str, Any]) -> list[str]:
     values = item.get("allowed_decisions")
     if isinstance(values, list) and values:
-        return [str(value) for value in values if value is not None and str(value)]
+        decisions = [str(value) for value in values if value is not None and str(value)]
+        source = str(item.get("source") or "")
+        if (
+            source not in {"local_recall", "transcript_order"}
+            and (item_list_values(item, "remote_utterance_ids") or item_text_utterance_ids(item, role="remote"))
+            and "drop_remote" not in decisions
+        ):
+            insert_at = decisions.index("drop_me") + 1 if "drop_me" in decisions else 0
+            decisions.insert(insert_at, "drop_remote")
+        return decisions
     source = str(item.get("source") or "")
     if source in {"local_recall", "transcript_order"}:
         return ["keep_me", "needs_review", "skip"]
-    return ["drop_me", "keep_me", "needs_review", "skip"]
+    decisions = ["drop_me", "keep_me", "needs_review", "skip"]
+    if item_list_values(item, "remote_utterance_ids") or item_text_utterance_ids(item, role="remote"):
+        decisions.insert(1, "drop_remote")
+    return decisions
 
 
 def first_me_utterance_id(item: dict[str, Any]) -> str:

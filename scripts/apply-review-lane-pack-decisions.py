@@ -10,12 +10,14 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.5.0"
 SCHEMA = "murmurmark.review_lane_pack_apply_report/v1"
-VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
+VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
+KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
 ANSWER_SHORTCUTS = {
     "d": "drop_me",
+    "c": "drop_remote",
     "k": "keep_me",
     "r": "needs_review",
     "s": "skip",
@@ -45,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     answers = parser.add_mutually_exclusive_group(required=True)
     answers.add_argument(
         "--answers",
-        help="Compact answers in pack order. d=drop_me, k=keep_me, r/?=needs_review, s=skip, ./n/t=todo.",
+        help="Compact answers in pack order. d=drop_me, c=drop_remote, k=keep_me, r/?=needs_review, s=skip, ./n/t=todo.",
     )
     answers.add_argument(
         "--answers-file",
@@ -122,7 +124,7 @@ def allowed_decisions(row: dict[str, Any]) -> set[str]:
     values = row.get("allowed_decisions")
     if not isinstance(values, list) or not values:
         return set(DEFAULT_ALLOWED_DECISIONS)
-    allowed = {str(value) for value in values if str(value) in DEFAULT_ALLOWED_DECISIONS}
+    allowed = {str(value) for value in values if str(value) in KNOWN_REVIEW_DECISIONS}
     return allowed or set(DEFAULT_ALLOWED_DECISIONS)
 
 

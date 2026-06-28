@@ -1029,7 +1029,7 @@ Use it as a medium-risk automation layer, not as proof that every remaining ques
 correct. `drop_me` is limited to clear whole-utterance duplicates/noise. `keep_me` closes review
 burden for strong local-support rows; unresolved rows remain in `review_first` sessions.
 
-Answer shortcuts are `d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.` or `n=todo`.
+Answer shortcuts are `d=drop_me`, `c=drop_remote`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.` or `n=todo`.
 Before applying decisions to transcripts, check progress and validation:
 
 ```bash
@@ -1043,19 +1043,21 @@ less sessions/_reports/review-plan/review_decisions_progress.md
 the same edited JSONL to every session mentioned in the review plan and can immediately regenerate
 extractive notes. Under the hood, `apply-review-decisions.py` writes a separate `reviewed_v1`
 profile for each session. The CLI wrapper prints the next `murmurmark report ...` command after a
-successful apply. It can drop whole reviewed `Me` utterances, clear review flags for
-confirmed local speech, close checked local-recall rows, or keep an item marked `needs_review`.
-Local-recall rows are audit-only: they do not add missing words to the transcript, and `drop_me` is
-not a valid decision for them. Transcript-order rows are audit-only for timeline content: review can
+successful apply. It can drop whole reviewed `Me` utterances, drop reviewed `Colleagues` utterances
+when remote contains a duplicate of local speech, clear review flags for confirmed local speech,
+close checked local-recall rows, or keep an item marked `needs_review`.
+Local-recall rows are audit-only: they do not add missing words to the transcript, and `drop_me` /
+`drop_remote` are not valid decisions for them. Transcript-order rows are audit-only for timeline content: review can
 clear or keep the chronology risk and records `quality.transcript_order_review` on affected
 utterances, but it does not move utterances or edit text. `reviewed_v1` gates pass only when
 the corresponding `review_decisions.template.jsonl` rows for that session are all closed with
-an allowed `drop_me`, `keep_me`, `needs_review`, or `skip`; a partial or invalid file is written for
+an allowed `drop_me`, `drop_remote`, `keep_me`, `needs_review`, or `skip`; a partial or invalid file is written for
 audit but is not selected by `auto`. The template includes `suggested_decision` hints, but they are
 not applied until the reviewer explicitly edits `decision`. For `remote_duplicate`, those hints are coverage-aware:
 if the duplicate covers only part of a longer `Me` utterance, the plan uses
 `check_unique_me_content` and suggests `needs_review`, because `drop_me` would remove the whole
-utterance. It does not edit `audit_cleanup_v1/v2/v3/v4/v5/v6`.
+utterance. In that lane, `drop_remote` is available when the reviewed remote utterance is the actual
+duplicate. It does not edit `audit_cleanup_v1/v2/v3/v4/v5/v6`.
 
 After closing a review file, prefer:
 

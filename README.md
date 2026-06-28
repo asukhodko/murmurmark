@@ -861,9 +861,10 @@ application edge case.
 
 `scripts/review-decisions-cli.py` is the fastest way to fill that checklist. It walks through
 `review_decisions.template.jsonl`, plays the preferred stereo clip, shows the `Me`/`remote` texts and
-writes `review_decisions.jsonl` after every answer. `Enter` accepts `suggested_decision`; `d`, `k`,
-`r` and `s` mean `drop_me`, `keep_me`, `needs_review` and `skip`. The CLI respects
-`allowed_decisions`, so `d=drop_me` is not accepted for audit-only local-recall rows. It also shows
+writes `review_decisions.jsonl` after every answer. `Enter` accepts `suggested_decision`; `d`, `c`,
+`k`, `r` and `s` mean `drop_me`, `drop_remote`, `keep_me`, `needs_review` and `skip`. The CLI respects
+`allowed_decisions`, so `d=drop_me` and `c=drop_remote` are not accepted for audit-only local-recall
+or transcript-order rows. It also shows
 nearby transcript turns from the reviewed profile, which helps distinguish leaked remote speech from
 real local replies. When a row has several clips, the CLI prints `audio=1:...` shortcuts; type the
 number to play that specific track without leaving the review flow. When all rows are closed, it
@@ -871,14 +872,17 @@ prints the `apply-review-decisions-batch.py --synthesize --refresh-reports` comm
 decisions into a fresh `reviewed_v1` profile and refreshed readiness reports.
 
 `scripts/apply-review-decisions.py` closes the manual review loop. After the CLI or a manual edit has
-filled each `decision` as `drop_me`, `keep_me`, `needs_review`, or `skip`, apply the decisions to a
-session. The script
+filled each `decision` as `drop_me`, `drop_remote`, `keep_me`, `needs_review`, or `skip`, apply the
+decisions to a session. The script
 writes a separate `reviewed_v1` profile and never changes the automatic cleanup profiles. The
 profile is eligible for `--transcript-profile auto` only when the review template has no remaining
 `todo` rows for that session and every row respects `allowed_decisions`; partial or invalid review
 stays as an audit artifact with failing gates.
 For local-recall rows, `drop_me` is invalid because there is no transcript utterance to drop.
 `keep_me` or `skip` closes the local-recall risk as checked; `needs_review` keeps it blocking.
+For audio-review rows, `drop_remote` removes the reviewed `Colleagues` utterance when the remote
+track contains a duplicate of local speech; use it only after listening confirms that remote, not
+`Me`, is the duplicate.
 The template also includes `suggested_decision` hints such as `drop_me` for probable duplicates, but
 they are never applied until the `decision` field is edited explicitly.
 For comparison, the suggested answer sheets can be applied into a separate shadow profile:

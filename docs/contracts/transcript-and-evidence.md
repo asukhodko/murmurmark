@@ -1820,9 +1820,10 @@ never move utterances and never edit transcript text. Their review rows include 
 link.
 `remote_duplicate` suggestions are coverage-aware. `drop_me` is suggested only when the suspicious
 interval covers almost all of the whole `Me` utterance and the text match is strong. Partial duplicates keep
-`allowed_decisions: ["drop_me", "keep_me", "needs_review", "skip"]`, but the hint becomes
+`drop_remote` in `allowed_decisions` when a reviewed remote utterance exists, but the hint becomes
 `needs_review` with `review_action: "check_unique_me_content"` and `review_features` records the
-coverage and text-similarity signals.
+coverage and text-similarity signals. Reviewers use `drop_remote` only when listening confirms that
+the remote row is a duplicate of local speech.
 
 `review_decisions.template.jsonl` contains editable `murmurmark.review_decision/v1` rows:
 
@@ -1831,7 +1832,7 @@ coverage and text-similarity signals.
   "schema": "murmurmark.review_decision/v1",
   "status": "todo",
   "decision": "todo",
-  "allowed_decisions": ["drop_me", "keep_me", "needs_review", "skip"],
+  "allowed_decisions": ["drop_me", "drop_remote", "keep_me", "needs_review", "skip"],
   "session_id": "2026-06-26_11-15-50",
   "input_profile": "audit_cleanup_v3",
   "source_audit_id": "arp_000020",
@@ -1916,7 +1917,7 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
       "pack_end_time": "00:09.620",
       "suggested_decision": "drop_me",
       "suggested_decision_reason": "whole_me_duplicate",
-      "allowed_decisions": ["drop_me", "keep_me", "needs_review", "skip"],
+      "allowed_decisions": ["drop_me", "drop_remote", "keep_me", "needs_review", "skip"],
       "command_key": "stereo_clean_left_remote_right",
       "command": "ffplay -hide_banner -loglevel error ...",
       "text": "me: ... | remote: ...",
@@ -2014,8 +2015,9 @@ use it with `--dry-run` before writing decisions.
 explicit reviewer answers for a lane pack back into the complete `review_decisions.jsonl`. It accepts
 either `--answers` with a compact answer string in pack order, or `--answers-file` pointing to a text
 file with an `answers=...` line:
-`d=drop_me`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.`/`n`/`t=todo`. The script validates
-each answer against `allowed_decisions`, writes `review_source: "lane_pack"`, and emits
+`d=drop_me`, `c=drop_remote`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and
+`.`/`n`/`t=todo`. The script validates each answer against `allowed_decisions`, writes
+`review_source: "lane_pack"`, and emits
 `review_lane_pack_apply_report.json`:
 
 ```json
@@ -2140,24 +2142,25 @@ sessions/_reports/review-plan/
   review_decisions_apply_report.json
 ```
 
-`drop_me` removes whole reviewed `Me` utterances. `keep_me` keeps the utterance and can clear its
-review flag. `needs_review` keeps the utterance marked for review. Conflicting decisions fail the
+`drop_me` removes whole reviewed `Me` utterances. `drop_remote` removes whole reviewed `Colleagues`
+utterances when the remote row is a duplicate of local speech. `keep_me` keeps the utterance and can
+clear its review flag. `needs_review` keeps the utterance marked for review. Conflicting decisions fail the
 `reviewed_v1` gates. Coverage is also a hard gate: every template row for that session must be
-closed with `drop_me`, `keep_me`, `needs_review`, or `skip`. If a row is missing or still `todo`,
+closed with `drop_me`, `drop_remote`, `keep_me`, `needs_review`, or `skip`. If a row is missing or still `todo`,
 the script still writes audit artifacts, but `review_decisions_report.reviewed_v1.json.gates.passed`
 is `false` and `--transcript-profile auto` must not select `reviewed_v1`.
-For `source: "local_recall"` rows, `drop_me` is invalid because the row points to a timeline-repair
+For `source: "local_recall"` rows, `drop_me` and `drop_remote` are invalid because the row points to a timeline-repair
 island, not a transcript utterance. `keep_me` and `skip` close that local-recall risk as checked;
 `needs_review` keeps it in the readiness burden. These rows are recorded in
 `review_decisions_applied.reviewed_v1.jsonl` with `review_effect: "audit_only_local_recall"`.
-For `source: "transcript_order"` rows, `drop_me` is also invalid. `keep_me` and `skip` close the
+For `source: "transcript_order"` rows, `drop_me` and `drop_remote` are also invalid. `keep_me` and `skip` close the
 chronology risk as checked; `needs_review` keeps it in the readiness burden. These rows are recorded
 with `review_effect: "audit_only_transcript_order"` and are mirrored into
 `quality.transcript_order_review` on affected utterances. This metadata may mark the utterance as
 still needing review, but it must not move utterances, split text, or edit timestamps.
 `review-decisions-cli.py` and `apply-review-decisions.py` must honor `allowed_decisions`; for
-example, they must not accept `drop_me` on `source: "local_recall"` rows even though `drop_me` is
-valid for ordinary audio-review rows.
+example, they must not accept `drop_me` or `drop_remote` on `source: "local_recall"` rows even though
+both decisions can be valid for ordinary audio-review rows.
 The CLI may also render nearby transcript context from `clean_dialogue.<input_profile>.json`. This
 context is display-only and must not change the decision schema or coverage accounting.
 It may expose numbered playback shortcuts for commands already present in the review row; those
