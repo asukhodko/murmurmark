@@ -254,7 +254,7 @@ verdict and audio-review report.
 `murmurmark review next SESSION` is the short terminal handoff for that same information: it refreshes
 session readiness, builds a session-local review plan when review is needed, and prints the
 review-specific next commands.
-For `review_first` sessions, those next commands point to `murmurmark review plan`,
+For `review_first` sessions, those next commands point to `murmurmark review next ...`,
 `murmurmark review first-lane --session ...`, `murmurmark review workspace --session ...`,
 `murmurmark review lane apply ...`, `murmurmark review workspace apply`,
 `murmurmark review progress --session ...`, and `murmurmark review apply`.
@@ -668,7 +668,6 @@ The normal manual review loop is available through the Swift CLI:
 
 ```bash
 .build/debug/murmurmark review next latest
-.build/debug/murmurmark review plan
 .build/debug/murmurmark review first-lane
 .build/debug/murmurmark review lane check_local_recall --session latest
 .build/debug/murmurmark review lane apply first --session latest

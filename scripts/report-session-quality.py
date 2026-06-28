@@ -1543,9 +1543,9 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
         commands.extend(
             [
                 {
-                    "id": "review_plan",
-                    "label": "Build the review queue for flagged regions.",
-                    "command": "murmurmark review plan",
+                    "id": "review_next",
+                    "label": "Refresh this session's review handoff and recommended first lane.",
+                    "command": f"murmurmark review next {session_arg}",
                 },
                 {
                     "id": "review_first_lane",

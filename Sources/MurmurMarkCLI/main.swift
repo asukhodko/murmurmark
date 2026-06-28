@@ -6543,8 +6543,8 @@ enum ReadinessPrinter {
         if !reviewBlockers.isEmpty || !exportBlockers.isEmpty || gate == "review_first" {
             return [
                 [
-                    "label": "Build the review queue for flagged regions.",
-                    "command": "murmurmark review plan",
+                    "label": "Refresh this session's review handoff and recommended first lane.",
+                    "command": "murmurmark review next \(sessionPath)",
                 ],
                 [
                     "label": "Build the recommended first review lane pack.",

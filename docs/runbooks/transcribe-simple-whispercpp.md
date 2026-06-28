@@ -584,7 +584,6 @@ work:
   --baseline sessions/_reports/corpus-gates/baseline.local.json
 
 .build/debug/murmurmark review next latest
-.build/debug/murmurmark review plan
 .build/debug/murmurmark review first-lane
 .build/debug/murmurmark review latest --lane fast_confirm_drop
 .build/debug/murmurmark review progress --session latest
