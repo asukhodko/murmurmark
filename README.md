@@ -286,6 +286,7 @@ murmurmark status latest
 murmurmark notes latest --kind verdict
 murmurmark notes latest
 murmurmark transcript latest
+murmurmark export latest --format markdown --include-json
 murmurmark retention plan latest
 less "$(murmurmark transcript latest --path-only)"
 ```
@@ -369,7 +370,7 @@ duplicate or ASR-noise classification. It never edits `shadow_v2`.
 swift build
 swift run murmurmark doctor
 swift run murmurmark doctor --strict
-scripts/build-release-bundle.sh
+scripts/build-release-bundle.sh --verify
 scripts/check-open-source-readiness.sh
 swift run murmurmark list-apps
 murmurmark record --target-bundle system
@@ -795,15 +796,15 @@ murmurmark review agent
 The normal manual review loop is available through the Swift CLI:
 
 ```bash
-.build/debug/murmurmark review next latest
-.build/debug/murmurmark review first-lane
-.build/debug/murmurmark review lane check_local_recall --session latest
-.build/debug/murmurmark review lane apply first --session latest
-.build/debug/murmurmark review workspace
-.build/debug/murmurmark review latest --lane fast_confirm_drop
-.build/debug/murmurmark review workspace apply --session latest
-.build/debug/murmurmark review progress --session latest
-.build/debug/murmurmark review apply --session latest
+murmurmark review next latest
+murmurmark review first-lane
+murmurmark review lane check_local_recall --session latest
+murmurmark review lane apply first --session latest
+murmurmark review workspace
+murmurmark review latest --lane fast_confirm_drop
+murmurmark review workspace apply --session latest
+murmurmark review progress --session latest
+murmurmark review apply --session latest
 ```
 
 `review next` writes its per-session review handoff under
@@ -846,7 +847,7 @@ they are never applied until the `decision` field is edited explicitly.
 For comparison, the suggested answer sheets can be applied into a separate shadow profile:
 
 ```bash
-.build/debug/murmurmark review workspace apply \
+murmurmark review workspace apply \
   --answers-source suggested \
   --out sessions/_reports/review-plan/review_decisions.suggested.jsonl
 

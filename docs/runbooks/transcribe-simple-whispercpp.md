@@ -593,30 +593,30 @@ Use the already-audited sessions to build a private corpus for future cleanup an
 work:
 
 ```bash
-.build/debug/murmurmark corpus build \
+murmurmark corpus build \
   sessions/<session-1> \
   sessions/<session-2> \
   --per-label 16 \
   --max-items 160
 
-.build/debug/murmurmark corpus evaluate
+murmurmark corpus evaluate
 
-.build/debug/murmurmark corpus train-audio-judge
+murmurmark corpus train-audio-judge
 
-.build/debug/murmurmark corpus taxonomy
+murmurmark corpus taxonomy
 
-.build/debug/murmurmark corpus gate
-.build/debug/murmurmark corpus gate \
+murmurmark corpus gate
+murmurmark corpus gate \
   --write-baseline sessions/_reports/corpus-gates/baseline.local.json
-.build/debug/murmurmark corpus gate \
+murmurmark corpus gate \
   --baseline sessions/_reports/corpus-gates/baseline.local.json
 
-.build/debug/murmurmark review next latest
-.build/debug/murmurmark review first-lane
-.build/debug/murmurmark review latest --lane fast_confirm_drop
-.build/debug/murmurmark review progress --session latest
-.build/debug/murmurmark review apply --session latest
-.build/debug/murmurmark export sessions/<session> --format markdown --include-json
+murmurmark review next latest
+murmurmark review first-lane
+murmurmark review latest --lane fast_confirm_drop
+murmurmark review progress --session latest
+murmurmark review apply --session latest
+murmurmark export sessions/<session> --format markdown --include-json
 
 less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
@@ -630,7 +630,7 @@ less sessions/_reports/review-plan/review_plan.md
 For a full refresh with all sessions under `./sessions`, use:
 
 ```bash
-.build/debug/murmurmark corpus process all --per-label 16 --max-items 160
+murmurmark corpus process all --per-label 16 --max-items 160
 ```
 
 `corpus gate` reads the generated session-quality, regression-corpus, audio-judge, transcript-order,
@@ -643,14 +643,14 @@ successfully. `failed` exits non-zero unless `--no-fail` is used.
 For risky algorithm changes, first save a private local baseline:
 
 ```bash
-.build/debug/murmurmark corpus gate \
+murmurmark corpus gate \
   --write-baseline sessions/_reports/corpus-gates/baseline.local.json
 ```
 
 Then compare future corpus refreshes with it:
 
 ```bash
-.build/debug/murmurmark corpus gate \
+murmurmark corpus gate \
   --baseline sessions/_reports/corpus-gates/baseline.local.json
 ```
 
@@ -841,7 +841,7 @@ readiness reports.
 To close only one lane, pass `--lane`, for example:
 
 ```bash
-.build/debug/murmurmark review latest --lane fast_confirm_drop
+murmurmark review latest --lane fast_confirm_drop
 ```
 
 The lower-level equivalent is:
@@ -856,7 +856,7 @@ The lower-level equivalent is:
 If the lane contains many short clips, build a single listening pack first:
 
 ```bash
-.build/debug/murmurmark review workspace --session "$SESSION"
+murmurmark review workspace --session "$SESSION"
 
 afplay "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav"
 less "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.md"
@@ -870,7 +870,7 @@ usually enough to review a lane from the Markdown and answer sheet without openi
 To prepare all remaining lanes at once:
 
 ```bash
-.build/debug/murmurmark review workspace --session "$SESSION"
+murmurmark review workspace --session "$SESSION"
 less "$SESSION/derived/readiness/review-plan/review_workspace.md"
 ```
 
@@ -890,7 +890,7 @@ less "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_answers.fast
 Then copy decisions from the answer sheet back into the full review file:
 
 ```bash
-.build/debug/murmurmark review lane apply first --session "$SESSION"
+murmurmark review lane apply first --session "$SESSION"
 ```
 
 `first` resolves to `review_queue_strategy.first_recommended_lane` from the session-local
@@ -944,7 +944,7 @@ The lower-level equivalent is still useful for debugging exact paths:
 If several lane answer sheets have been edited, apply the whole workspace instead:
 
 ```bash
-.build/debug/murmurmark review workspace apply --session "$SESSION"
+murmurmark review workspace apply --session "$SESSION"
 ```
 
 The apply output includes `lane_progress`. If rows are still `todo`, it prints the lane answer sheet
@@ -954,7 +954,7 @@ you need the evidence and allowed decisions again.
 To estimate what the generated suggestions would do without writing decisions:
 
 ```bash
-.build/debug/murmurmark review workspace apply --answers-source suggested --dry-run
+murmurmark review workspace apply --answers-source suggested --dry-run
 ```
 
 `murmurmark review workspace` prints `manual_flow`, optional `suggested_flow`, `after_apply`, and
@@ -966,7 +966,7 @@ To materialize those suggestions as a separate shadow transcript for comparison,
 decisions file and build `suggested_review_v1`:
 
 ```bash
-.build/debug/murmurmark review workspace apply \
+murmurmark review workspace apply \
   --answers-source suggested \
   --out sessions/_reports/review-plan/review_decisions.suggested.jsonl
 
