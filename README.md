@@ -313,7 +313,9 @@ Use `murmurmark report SESSION` when readiness should be refreshed. The CLI prin
 synthesis review item summary, next CLI commands, `handoff` open/export commands, and links to the
 transcript, notes, quality verdict and audio-review report.
 `recommended_next` prefers executable `murmurmark ...` actions from `next_commands`; read-only
-commands such as `less ...` remain visible under `next` and `open`.
+commands such as `less ...` remain visible under `next` and `open`. The underlying
+`session_readiness.json` stores the same `recommended_next`, `next_commands` and `open_commands`,
+so agents can continue without parsing terminal output.
 `murmurmark review next SESSION` is the short terminal handoff for that same information: it refreshes
 session readiness, builds a session-local review plan when review is needed, and prints the
 review-specific next commands. When a review plan exists, it also prints `first_lane_flow` for the

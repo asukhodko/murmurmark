@@ -94,7 +94,9 @@ It also contains `Next Commands`: the shortest CLI path from the current state, 
 `murmurmark process`, building the first recommended review lane, exporting Markdown, or planning
 retention. For `review_first`, the command chain runs `murmurmark review progress --session ...`
 after workspace answers have been copied, then ends with `murmurmark review apply` only when the
-decision file is ready.
+decision file is ready. The JSON also includes `recommended_next`, which is the primary
+action-oriented command for agents, and `open_commands`, which are read-only `less ...` commands for
+the selected verdict, notes, transcript and audit reports.
 
 `murmurmark status SESSION` prints a short status, `recommended_next`, handoff commands for opening
 the selected notes/transcript/verdict, the selected profile, verdict, review burden and synthesis

@@ -1604,11 +1604,60 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
     ]
 
 
+def preferred_next_command(next_commands: list[dict[str, str]]) -> str | None:
+    commands = [str(item.get("command") or "") for item in next_commands]
+    commands = [command for command in commands if command]
+    action_prefixes = (
+        "murmurmark process",
+        "murmurmark review",
+        "murmurmark export",
+        "murmurmark retention",
+        "murmurmark report",
+    )
+    for prefix in action_prefixes:
+        for command in commands:
+            if command.startswith(prefix):
+                return command
+    return commands[0] if commands else None
+
+
+def readiness_open_commands(session: Path, outputs: dict[str, Any]) -> list[dict[str, str]]:
+    labels = {
+        "quality_verdict": "Read the quality verdict first.",
+        "notes": "Read selected evidence-backed notes.",
+        "transcript": "Read the selected transcript.",
+        "audio_review_report": "Inspect audio-review risks.",
+        "remote_leak_segment_report": "Inspect remote-leak segment plan.",
+        "local_recall_review": "Inspect possible lost-Me regions.",
+        "transcript_order_review": "Inspect chronology-risk regions.",
+        "pipeline_run_report": "Inspect the latest pipeline run report.",
+    }
+    commands: list[dict[str, str]] = []
+    for key, label in labels.items():
+        item = outputs.get(key)
+        if not isinstance(item, dict) or not item.get("exists") or not item.get("path"):
+            continue
+        target = Path(str(item["path"]))
+        if not target.is_absolute():
+            target = session / target
+        commands.append(
+            {
+                "id": f"open_{key}",
+                "label": label,
+                "command": f"less {command_path(target)}",
+            }
+        )
+    return commands
+
+
 def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
     out_dir = session / "derived/readiness"
     out_dir.mkdir(parents=True, exist_ok=True)
     profile = str(row.get("selected_profile") or "missing")
     gate = str(row.get("use_gate") or "pipeline_incomplete")
+    outputs = readiness_outputs(session, profile)
+    next_commands = readiness_next_commands(session, row)
+    open_commands = readiness_open_commands(session, outputs)
     payload = {
         "schema": READINESS_SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -1626,7 +1675,9 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         "review_blockers": row.get("review_blockers") or [],
         "export_blockers": row.get("export_blockers") or [],
         "warnings": row.get("readiness_warnings") or [],
-        "next_commands": readiness_next_commands(session, row),
+        "recommended_next": preferred_next_command(next_commands),
+        "next_commands": next_commands,
+        "open_commands": open_commands,
         "metrics": {
             "meeting_duration_sec": row.get("meeting_duration_sec"),
             "review_burden_sec": row.get("review_burden_sec"),
@@ -1655,7 +1706,7 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "local_recall_needs_review_seconds": row.get("local_recall_needs_review_seconds"),
             "local_recall_recommended_next_step": row.get("local_recall_recommended_next_step"),
         },
-        "outputs": readiness_outputs(session, profile),
+        "outputs": outputs,
     }
     write_json_path = out_dir / "session_readiness.json"
     write_json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -1670,6 +1721,7 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         f"Selected profile: `{profile}`",
         f"Verdict: `{row.get('verdict')}`",
         f"Review burden: `{review_min:.2f} min` / `{review_pct:.2f}%`",
+        f"Recommended next: `{payload.get('recommended_next') or 'none'}`",
         "",
         "## Open First",
         "",
@@ -1703,6 +1755,13 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
                 f"- `{reason.get('id')}` / `{reason.get('severity')}`: {reason.get('message')} "
                 f"(value `{fmt(reason.get('value'))}`)"
             )
+    lines.extend(["", "## Open Commands", ""])
+    open_commands = payload.get("open_commands") or []
+    if open_commands:
+        for item in open_commands:
+            lines.append(f"- `{item['command']}` — {item['label']}")
+    else:
+        lines.append("- none")
     lines.extend(["", "## Next Commands", ""])
     next_commands = payload.get("next_commands") or []
     if next_commands:

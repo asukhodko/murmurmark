@@ -1511,6 +1511,7 @@ Explicit command-line flags override config values.
   "review_blockers": ["risk:audio_review_probable_errors"],
   "export_blockers": ["risk:audio_review_probable_errors"],
   "warnings": [],
+  "recommended_next": "murmurmark review next sessions/2026-06-26_15-32-02",
   "next_commands": [
     {
       "id": "review_next",
@@ -1536,6 +1537,18 @@ Explicit command-line flags override config values.
       "id": "review_apply",
       "label": "Apply closed review decisions and refresh reports when progress is ready.",
       "command": "murmurmark review apply"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_quality_verdict",
+      "label": "Read the quality verdict first.",
+      "command": "less sessions/2026-06-26_15-32-02/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v4.md"
+    },
+    {
+      "id": "open_notes",
+      "label": "Read selected evidence-backed notes.",
+      "command": "less sessions/2026-06-26_15-32-02/derived/synthesis-simple/extractive/notes.audit_cleanup_v4.md"
     }
   ],
   "metrics": {
@@ -1580,8 +1593,11 @@ Explicit command-line flags override config values.
 
 `session_readiness.md` is the human-readable view of the same object and should be opened before
 the transcript or notes. `export_blockers` is the machine-readable default export gate. `review_blockers`
-is the list a review workflow should close before a medium-risk handoff. `next_commands` is
-informational CLI guidance for the current state; gates and blockers remain the source of truth.
+is the list a review workflow should close before a medium-risk handoff. `recommended_next` is the
+single primary executable next step, using the same action-first preference as the Swift CLI.
+`next_commands` is the full executable command chain for the current state. `open_commands` is the
+read-only inspection chain for selected notes, transcript, verdict and audit reports. Gates and
+blockers remain the source of truth.
 The Swift CLI additionally prints a derived terminal-only `status`:
 
 - `exportable`: `ready_for_notes` and no export blockers;

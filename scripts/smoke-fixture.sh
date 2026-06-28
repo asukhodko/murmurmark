@@ -510,7 +510,9 @@ echo "$corpus_report_output" | grep -q '  next_command: '
 jq -e '(.export_blockers | index("pipeline_incomplete")) and (.review_blockers | index("pipeline_incomplete"))' "$session/derived/readiness/session_readiness.json" >/dev/null
 jq -e 'any(.use_gate_reasons[]; .id == "pipeline_incomplete" and .severity == "block")' "$session/derived/readiness/session_readiness.json" >/dev/null
 jq -e 'any(.next_commands[]; .id == "process_session" and (.command | contains("murmurmark process")))' "$session/derived/readiness/session_readiness.json" >/dev/null
+jq -e '(.recommended_next | startswith("murmurmark process ")) and (.open_commands | map(.command | startswith("less ")) | any)' "$session/derived/readiness/session_readiness.json" >/dev/null
 rg -n 'Next Commands' "$session/derived/readiness/session_readiness.md" >/dev/null
+rg -n 'Recommended next|Open Commands' "$session/derived/readiness/session_readiness.md" >/dev/null
 rg -n 'murmurmark process' "$session/derived/readiness/session_readiness.md" >/dev/null
 rg -n 'Synthesis Review|utterance_transcript_order_review' "$session/derived/session-quality/session_quality_report.md" >/dev/null
 python3 - "$repo_root" <<'PY'

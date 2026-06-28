@@ -6926,8 +6926,9 @@ enum ReadinessPrinter {
         let verdict = string(payload["verdict"]) ?? "unknown"
         let nextCommands = payload["next_commands"] as? [[String: Any]]
             ?? fallbackNextCommands(gate: gate, session: session, payload: payload)
+        let openCommands = payload["open_commands"] as? [[String: Any]] ?? []
         let status = readinessStatus(gate: gate, payload: payload)
-        let recommendedNext = preferredNextCommand(nextCommands)
+        let recommendedNext = string(payload["recommended_next"]) ?? preferredNextCommand(nextCommands)
         let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0) * 100
 
@@ -6946,10 +6947,18 @@ enum ReadinessPrinter {
         print(String(format: "  review_burden: %.2f min / %.2f%%", reviewSeconds / 60, reviewRatio))
         ReviewSummaryPrinter.printSynthesisReviewMetrics(metrics, indent: "  ")
         print("  open:")
-        for key in ["transcript", "notes", "quality_verdict", "audio_review_report", "local_recall_review", "transcript_order_review"] {
-            if let path = outputPath(key, outputs: outputs) {
-                let target = path.hasPrefix("/") ? URL(fileURLWithPath: path) : session.appendingPathComponent(path)
-                print("    \(key): \(PathDisplay.display(target))")
+        if openCommands.isEmpty {
+            for key in ["transcript", "notes", "quality_verdict", "audio_review_report", "local_recall_review", "transcript_order_review"] {
+                if let path = outputPath(key, outputs: outputs) {
+                    let target = path.hasPrefix("/") ? URL(fileURLWithPath: path) : session.appendingPathComponent(path)
+                    print("    \(key): \(PathDisplay.display(target))")
+                }
+            }
+        } else {
+            for item in openCommands {
+                guard let command = string(item["command"]), !command.isEmpty else { continue }
+                let label = string(item["label"]) ?? string(item["id"]) ?? "open"
+                print("    \(command) — \(label)")
             }
         }
         print("  next:")
