@@ -679,7 +679,8 @@ points first to `murmurmark corpus process all` when structural pipeline coverag
 otherwise to the first review lane/workspace commands.
 `murmurmark report corpus` prints the same operational handoff in compact form: the first
 `next_command`, plus `focus_session`, `focus_label`, `focus_reason` and `focus_next` when a concrete
-review target exists.
+review target exists. It also prints `sessions_in_scope` and `sessions_excluded` to make the
+working-meeting scope visible next to the full corpus count.
 Stale audio-judge queue rows are also ignored when the current audio-review audit has reclassified
 the source item as reliable.
 `murmurmark corpus order` writes a separate chronology-risk corpus report under
@@ -753,9 +754,9 @@ target is known. Use
 `murmurmark report corpus` when session-quality and operational-readiness need a refresh without
 rebuilding heavier corpus diagnostics.
 Operational readiness excludes obvious diagnostic/smoke sessions (`audio-input-*`, `*-talk-routed`,
-`*-talk-audio-input`, `smoke`, `test`, `talk-solo`, `voice-processing-smoke`) from the working-meeting
-scope. The files remain in `sessions/` for debugging, but they do not become next actions for the
-CLI MVP readiness loop.
+`*-talk-audio-input`, `smoke`, `test`, `talk-solo`, `voice-processing-smoke`) and known-duration
+captures shorter than 60 seconds from the working-meeting scope. The files remain in `sessions/` for
+debugging, but they do not become next actions for the CLI MVP readiness loop.
 Its `promotion_plan` section explains the current delta to `medium_risk_ready`: unresolved warnings,
 sessions not ready for notes, remaining review minutes, and the next action class.
 Its `Review Queue Strategy` section groups the remaining queue into lanes and shows the first useful
@@ -781,7 +782,8 @@ plan if needed, then prints the next review commands. `murmurmark review first-l
 "$SESSION"` now defaults to that session-local plan. The same is true for
 `murmurmark review workspace --session "$SESSION"`, `murmurmark review workspace apply --session
 "$SESSION"`, `murmurmark review progress --session "$SESSION"` and `murmurmark review apply --session
-"$SESSION"`. When a plan exists, `review next` prints `first_lane_flow` for the current blocker,
+"$SESSION"`. Existing non-empty session-local plans are preserved, so a prepared explicit lane pack
+is not overwritten by an empty refresh. When a plan exists, `review next` prints `first_lane_flow` for the current blocker,
 `quick_lane_flow` for the fastest confirm/drop pass when that is a different lane, and
 `workspace_flow` for reviewing all lanes. Each flow includes the build/listen and apply commands in
 order. It also prints why the first lane was chosen, which lane is the fastest quick pass, and the

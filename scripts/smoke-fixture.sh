@@ -470,6 +470,8 @@ corpus_report_output="$("$bin" report corpus --sessions-root "$workdir")"
 assert_no_helper_prefix "$corpus_report_output"
 echo "$corpus_report_output" | grep -q '^corpus:$'
 echo "$corpus_report_output" | grep -q '^operational_readiness:$'
+echo "$corpus_report_output" | grep -q '^  sessions_in_scope: '
+echo "$corpus_report_output" | grep -q '^  sessions_excluded: '
 echo "$corpus_report_output" | grep -q '  next_command: '
 [[ -s "$workdir/_reports/session-quality/session_quality_report.json" ]]
 [[ -s "$workdir/_reports/operational-readiness/operational_readiness_report.json" ]]
@@ -785,6 +787,7 @@ PY
     status: "completed",
     capture_mode: "fixture",
     created_at: "2026-01-01T00:00:00Z",
+    ended_at: "2026-01-01T00:01:00Z",
     files: {
       mic: [{path: "audio/mic/000001.caf"}],
       remote: [{path: "audio/remote/000001.caf"}]
@@ -1840,6 +1843,10 @@ EOF
 
   quality_dir="$workdir/session-quality"
   "$repo_root/scripts/report-session-quality.py" "$group_session" --out-dir "$quality_dir" >/dev/null
+  quality_tmp="$quality_dir/session_quality_report.tmp.json"
+  jq '(.sessions[0].meeting_duration_sec) = 100.0' \
+    "$quality_dir/session_quality_report.json" >"$quality_tmp"
+  mv "$quality_tmp" "$quality_dir/session_quality_report.json"
   jq -e '.sessions[0].audio_review_resolved_by_cleanup_count >= 1' "$quality_dir/session_quality_report.json" >/dev/null
   jq -e '.sessions[0].stages.transcript_order_audit == true and .sessions[0].transcript_order_probable_order_risk_count == 0' "$quality_dir/session_quality_report.json" >/dev/null
   jq -e '.sessions[0].stages.remote_leak_segment_plan == true and .sessions[0].remote_leak_segment_plan_protect_local_content_items >= 1' "$quality_dir/session_quality_report.json" >/dev/null
@@ -1994,6 +2001,10 @@ process_commands = module.build_next_commands(
 )
 assert process_commands[0]["command"] == "murmurmark process sessions/incomplete-order", process_commands
 PY
+  quality_tmp="$quality_dir/session_quality_report.tmp.json"
+  jq '(.sessions[0].meeting_duration_sec) = 100.0' \
+    "$quality_dir/session_quality_report.json" >"$quality_tmp"
+  mv "$quality_tmp" "$quality_dir/session_quality_report.json"
   readiness_dir="$workdir/operational-readiness"
   "$repo_root/scripts/report-operational-readiness.py" \
     --session-quality "$quality_dir/session_quality_report.json" \
@@ -2029,18 +2040,21 @@ assert spec and spec.loader
 spec.loader.exec_module(module)
 assert module.is_diagnostic_session({"session_id": "audio-input-smoke"})
 assert module.is_diagnostic_session({"session_id": "2026-06-23_10-45-26-talk-routed"})
+assert module.is_diagnostic_session({"session_id": "2026-06-22_22-58-53", "meeting_duration_sec": 48.5})
 assert not module.is_diagnostic_session({"session_id": "2026-06-24_15-03-52"})
+assert not module.is_diagnostic_session({"session_id": "2026-06-24_15-03-52", "meeting_duration_sec": 60})
 scoped, excluded = module.operational_scope(
     {
         "sessions": [
             {"session_id": "audio-input-smoke", "selected_profile": "missing", "pipeline_status": "incomplete"},
+            {"session_id": "2026-06-22_22-58-53", "selected_profile": "missing", "pipeline_status": "incomplete", "meeting_duration_sec": 48.5},
             {"session_id": "2026-06-24_15-03-52", "selected_profile": "audit_cleanup_v2", "pipeline_status": "complete", "verdict": "good", "meeting_duration_sec": 60},
         ]
     }
 )
 assert scoped["summary"]["session_count"] == 1, scoped
 assert scoped["summary"]["complete_pipeline_count"] == 1, scoped
-assert len(excluded) == 1, excluded
+assert len(excluded) == 2, excluded
 
 def item(source, label, verdict, score, idx):
     return {
@@ -2359,9 +2373,12 @@ PY
     echo "expected suggested answers-source to reject --answers" >&2
     exit 1
   fi
+  explicit_local_recall_plan_dir="$group_session/derived/readiness/review-plan"
   explicit_local_recall_lane_dir="$workdir/explicit-local-recall-lane-pack"
   explicit_local_recall_lane_output="$("$bin" review lane check_local_recall \
     --session "$group_session" \
+    --operational-readiness "$readiness_dir/operational_readiness_report.json" \
+    --plan-out-dir "$explicit_local_recall_plan_dir" \
     --out-dir "$explicit_local_recall_lane_dir")"
   echo "$explicit_local_recall_lane_output" | grep -q '^SESSION="'
   echo "$explicit_local_recall_lane_output" | grep -q '^review_lane_pack:$'
@@ -2397,6 +2414,7 @@ Path(sys.argv[2]).write_text("# smoke answers\nanswers=" + ("r" * count) + "\n",
 PY
   explicit_local_recall_apply_output="$("$bin" review lane apply check_local_recall \
     --session "$group_session" \
+    --plan-out-dir "$explicit_local_recall_plan_dir" \
     --out-dir "$explicit_local_recall_lane_dir" \
     --reviewer smoke)"
   echo "$explicit_local_recall_apply_output" | grep -q '^SESSION="'
@@ -2414,6 +2432,7 @@ PY
   echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review progress --session '
   explicit_local_recall_apply_dry_run_output="$("$bin" review lane apply check_local_recall \
     --session "$group_session" \
+    --plan-out-dir "$explicit_local_recall_plan_dir" \
     --out-dir "$explicit_local_recall_lane_dir" \
     --reviewer smoke \
     --dry-run)"

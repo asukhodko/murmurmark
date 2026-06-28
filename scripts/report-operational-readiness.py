@@ -10,6 +10,7 @@ from typing import Any
 
 SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
+MIN_OPERATIONAL_SESSION_DURATION_SEC = 60.0
 DIAGNOSTIC_SESSION_EXACT_IDS = {
     "smoke",
     "test",
@@ -107,7 +108,12 @@ def is_diagnostic_session(row: dict[str, Any]) -> bool:
     candidates = {session_id, label}
     if any(candidate in DIAGNOSTIC_SESSION_EXACT_IDS for candidate in candidates):
         return True
-    return any(marker in session_id or marker in label for marker in DIAGNOSTIC_SESSION_MARKERS)
+    if any(marker in session_id or marker in label for marker in DIAGNOSTIC_SESSION_MARKERS):
+        return True
+    if "meeting_duration_sec" in row:
+        duration = safe_float(row.get("meeting_duration_sec"))
+        return 0 < duration < MIN_OPERATIONAL_SESSION_DURATION_SEC
+    return False
 
 
 def aggregate_session_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:

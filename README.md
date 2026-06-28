@@ -130,7 +130,9 @@ those reports need to be rebuilt. Corpus commands keep per-session helper output
 CLI summary with the next useful command. `murmurmark report corpus` is narrower: it refreshes
 session-quality and operational-readiness without rebuilding heavier corpus diagnostics. When
 review work remains, the CLI summary also prints `focus_session`, the blocking label/reason and the
-first `murmurmark review ...` commands for that session.
+first `murmurmark review ...` commands for that session. Its readiness block also prints
+`sessions_in_scope` and `sessions_excluded`, so the corpus total can include old diagnostic captures
+without making them look like working meetings.
 
 Retention is explicit and local:
 
@@ -191,8 +193,9 @@ This command completes the refresh and prints summaries even when corpus gates a
 Operational readiness prefers a concrete `murmurmark process sessions/<id>` command only for the
 first incomplete high-value session. Complete but risky sessions stay in the review lane commands;
 the report does not ask you to rerun them as if artifacts were missing. Obvious diagnostic/smoke
-sessions such as `audio-input-*`, `*-talk-routed`, `smoke` and `test` are excluded from this
-operational scope, while their files remain available for manual debugging.
+sessions such as `audio-input-*`, `*-talk-routed`, `smoke` and `test`, plus known-duration captures
+shorter than 60 seconds, are excluded from this operational scope, while their files remain available
+for manual debugging.
 `corpus gate` writes `sessions/_reports/corpus-gates/corpus_gates_report.*`. It also reads the
 local-recall and remote-leak corpus reports when they exist. Complete sessions with blocking
 local-recall risk fail the gate; pending remote-leak segment queues are warnings, not hard failures.
@@ -774,8 +777,9 @@ The normal manual review loop is available through the Swift CLI:
 `SESSION/derived/readiness/review-plan/`. `review first-lane --session SESSION`,
 `review workspace --session SESSION`, `review workspace apply --session SESSION`,
 `review progress --session SESSION`, and `review apply --session SESSION` default to those
-session-local paths. Use `review first-lane`, `review workspace` or bare `review progress` when you
-want the global corpus queue.
+session-local paths. Existing non-empty session-local plans are preserved by workspace/progress
+commands, so an explicit lane pack is not replaced by an empty refresh. Use `review first-lane`,
+`review workspace` or bare `review progress` when you want the global corpus queue.
 
 Use the Python scripts directly only when debugging a specific review file, lane pack, or batch
 application edge case.

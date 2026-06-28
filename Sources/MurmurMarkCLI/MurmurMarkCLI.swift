@@ -1001,6 +1001,9 @@ enum ReviewSessionLocalPlan {
         let sessionQualityOut = readinessRoot.appendingPathComponent("session-quality")
         let operationalOut = readinessRoot.appendingPathComponent("operational-readiness")
         let planOut = readinessRoot.appendingPathComponent("review-plan")
+        if hasPreparedReviewPlan(planOut) {
+            return
+        }
         try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
             try script("report-session-quality.py").path,
             session.path,
@@ -1017,6 +1020,19 @@ enum ReviewSessionLocalPlan {
             "--operational-readiness", operationalOut.appendingPathComponent("operational_readiness_report.json").path,
             "--out-dir", planOut.path,
         ])
+    }
+
+    private static func hasPreparedReviewPlan(_ planOut: URL) -> Bool {
+        let plan = planOut.appendingPathComponent("review_plan.json")
+        let template = planOut.appendingPathComponent("review_decisions.template.jsonl")
+        guard FileManager.default.fileExists(atPath: plan.path) else {
+            return false
+        }
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: template.path),
+              let size = attributes[.size] as? NSNumber else {
+            return false
+        }
+        return size.intValue > 0
     }
 
     private static func planDir(_ session: URL) -> URL {
@@ -7409,6 +7425,8 @@ enum CorpusPrinter {
         print("operational_readiness:")
         print("  report: \(PathDisplay.display(outDir.appendingPathComponent("operational_readiness_report.md")))")
         print("  verdict: \(string(payload["operational_verdict"]) ?? "unknown")")
+        print("  sessions_in_scope: \(int(summary["session_count"]) ?? 0)")
+        print("  sessions_excluded: \(int(summary["excluded_diagnostic_session_count"]) ?? 0)")
         print("  sessions_ready_for_notes: \(int(useGates["ready_for_notes"]) ?? 0)")
         print("  sessions_review_first: \(int(useGates["review_first"]) ?? 0)")
         print(String(format: "  review_minutes: %.2f", reviewSeconds / 60))
