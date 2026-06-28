@@ -792,6 +792,9 @@ The normal manual review loop is available through the Swift CLI:
 session-local paths. Existing non-empty session-local plans are preserved by workspace/progress
 commands, so an explicit lane pack is not replaced by an empty refresh. Use `review first-lane`,
 `review workspace` or bare `review progress` when you want the global corpus queue.
+When a session-local plan exists, `review next` also shows packed `review_actions`, saved grouped
+rows and the remaining action count after the first lane, matching the units from
+`murmurmark report corpus`.
 
 Use the Python scripts directly only when debugging a specific review file, lane pack, or batch
 application edge case.

@@ -1700,7 +1700,9 @@ utterance. The estimate is not a substitute for rerunning `apply-review-decision
 planning aid for reaching `medium_risk_ready`.
 `murmurmark review next SESSION` prints the same strategy as a terminal handoff: `first_lane`,
 `quick_lane`, `first_lane_reason`, `after_first_lane`, `quick_lane_flow` and `workspace_flow`.
-These fields explain the review order; transcript changes still require explicit review answers.
+When the review plan carries packed-action metrics, it also prints `review_actions`,
+`grouped_review_rows` and `remaining_actions` in `after_first_lane`. These fields explain the review
+order; transcript changes still require explicit review answers.
 Top-level `next_commands` is the executable handoff: structural blockers such as too few complete
 pipelines point to the first concrete `murmurmark process sessions/<id>` target only when that target
 is still pipeline-incomplete, and fall back to `murmurmark corpus process all` when no incomplete

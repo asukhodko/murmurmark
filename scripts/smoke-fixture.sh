@@ -604,12 +604,18 @@ jq -n --arg session "$review_next_session" '{
 }' >"$review_next_session/derived/readiness/session_readiness.json"
 jq -n '{
   schema: "murmurmark.review_plan/v1",
-  summary: {by_review_lane: {check_transcript_order: 1}, raw_item_count: 1, cluster_count: 1},
+  summary: {
+    by_review_lane: {check_transcript_order: 2},
+    raw_item_count: 2,
+    review_action_count: 1,
+    grouped_review_row_count: 1,
+    cluster_count: 1
+  },
   review_queue_strategy: {
     first_recommended_lane: "check_transcript_order",
     quick_recommended_lane: "fast_confirm_drop",
     first_recommended_reason: "close_blocking_review_lane",
-    after_first_lane_estimate: {remaining_items: 3, remaining_minutes: 1.25}
+    after_first_lane_estimate: {remaining_items: 3, remaining_actions: 2, remaining_minutes: 1.25}
   }
 }' >"$review_next_plan_dir/review_plan.json"
 review_next_output="$("$bin" review next "$review_next_session" --no-refresh)"
@@ -617,10 +623,12 @@ echo "$review_next_output" | grep -q 'review_next:'
 echo "$review_next_output" | grep -q 'gate: review_first'
 echo "$review_next_output" | grep -q 'selected_profile: order_repair_v1'
 echo "$review_next_output" | grep -q 'plan: .*derived/readiness/review-plan/review_plan.json'
+echo "$review_next_output" | grep -q 'review_actions: 1'
+echo "$review_next_output" | grep -q 'grouped_review_rows: 1'
 echo "$review_next_output" | grep -q 'first_lane: check_transcript_order'
 echo "$review_next_output" | grep -q 'quick_lane: fast_confirm_drop'
 echo "$review_next_output" | grep -q 'first_lane_reason: close_blocking_review_lane'
-echo "$review_next_output" | grep -q 'after_first_lane: remaining_items=3 remaining_minutes=1.25'
+echo "$review_next_output" | grep -q 'after_first_lane: remaining_items=3 remaining_actions=2 remaining_minutes=1.25'
 echo "$review_next_output" | grep -q '^  first_lane_flow:$'
 echo "$review_next_output" | grep -q '^    build_and_listen: murmurmark review first-lane --session .*review-next-session'
 echo "$review_next_output" | grep -q '^    apply_answers: murmurmark review lane apply check_transcript_order --session .*review-next-session'

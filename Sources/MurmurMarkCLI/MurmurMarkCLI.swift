@@ -6951,6 +6951,12 @@ enum ReviewNextPrinter {
         let summary = payload["summary"] as? [String: Any] ?? [:]
         let strategy = payload["review_queue_strategy"] as? [String: Any] ?? [:]
         Swift.print("  plan: \(PathDisplay.display(planURL))")
+        if let actions = int(summary["review_action_count"]) {
+            Swift.print("  review_actions: \(actions)")
+        }
+        if let groupedRows = int(summary["grouped_review_row_count"]), groupedRows > 0 {
+            Swift.print("  grouped_review_rows: \(groupedRows)")
+        }
         if let firstLane = string(strategy["first_recommended_lane"]) {
             Swift.print("  first_lane: \(firstLane)")
         }
@@ -6962,8 +6968,20 @@ enum ReviewNextPrinter {
         }
         if let estimate = strategy["after_first_lane_estimate"] as? [String: Any] {
             let remainingItems = int(estimate["remaining_items"]) ?? 0
+            let remainingActions = int(estimate["remaining_actions"])
             let remainingMinutes = double(estimate["remaining_minutes"]) ?? 0.0
-            Swift.print(String(format: "  after_first_lane: remaining_items=%d remaining_minutes=%.2f", remainingItems, remainingMinutes))
+            if let remainingActions {
+                Swift.print(
+                    String(
+                        format: "  after_first_lane: remaining_items=%d remaining_actions=%d remaining_minutes=%.2f",
+                        remainingItems,
+                        remainingActions,
+                        remainingMinutes
+                    )
+                )
+            } else {
+                Swift.print(String(format: "  after_first_lane: remaining_items=%d remaining_minutes=%.2f", remainingItems, remainingMinutes))
+            }
         }
         if let lanes = summary["by_review_lane"] as? [String: Any], !lanes.isEmpty {
             Swift.print("  by_lane: \(compactJSON(lanes))")
