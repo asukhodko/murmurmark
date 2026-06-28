@@ -60,8 +60,9 @@ all print the next safe command for the current session state, so the terminal o
 quality verdict, readiness or audit reports.
 `sessions` is the quick picker for recent recordings: it shows each session path, label, time,
 duration, readiness status, review burden and the next safe command. Use `--status review_required
---next-only` to print the current review queue as copyable commands, or `--json` when an agent needs
-a machine-readable queue snapshot.
+--next-only` to print the current review queue as copyable commands, `--status exportable --next-only`
+for sessions still waiting for export, or `--status exported --next-only` for post-export retention
+steps. Use `--json` when an agent needs a machine-readable queue snapshot.
 `status` is the quickest dashboard for already-generated readiness; `report` refreshes readiness first.
 If readiness is not present yet, `status` and `next` point to `murmurmark process SESSION`.
 Use `murmurmark next corpus` after corpus reports exist when you need one concrete next command
@@ -70,7 +71,7 @@ operational-readiness reports first. If the recommended review lane pack is alre
 to the prepared audio/Markdown/answer-sheet handoff instead of rebuilding the same pack.
 After a successful export, `next` follows the export manifest and points to retention planning; pass
 `--export-manifest` when the bundle was written outside the default `exports/private/` directory.
-`status` and `report` start with a short status such as `exportable`, `review_required`, `incomplete` or `blocked`, plus
+`status` and `report` start with a short status such as `exported`, `exportable`, `review_required`, `incomplete` or `blocked`, plus
 `recommended_next` and `handoff` commands for opening the selected notes, transcript and verdict.
 
 ### Local Release Bundle

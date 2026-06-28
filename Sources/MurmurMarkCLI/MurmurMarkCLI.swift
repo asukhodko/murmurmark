@@ -106,7 +106,7 @@ struct MurmurMark {
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
-          murmurmark sessions [--limit 10] [--status exportable|review_required|incomplete] [--path-only|--next-only|--json]
+          murmurmark sessions [--limit 10] [--status exported|exportable|review_required|incomplete] [--path-only|--next-only|--json]
                               [--sessions-root ./sessions]
           murmurmark latest [--sessions-root ./sessions]
           murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
@@ -759,7 +759,7 @@ enum PipelineCommands {
 enum PipelineHelp {
     static func printSessions() {
         Swift.print("""
-        usage: murmurmark sessions [--limit 10] [--all] [--status exportable|review_required|incomplete|blocked|missing_readiness]
+        usage: murmurmark sessions [--limit 10] [--all] [--status exported|exportable|review_required|incomplete|blocked|missing_readiness]
                                   [--path-only|--next-only|--json] [--sessions-root ./sessions]
 
         Lists recent session packages and their current readiness state.
@@ -772,6 +772,7 @@ enum PipelineHelp {
           murmurmark sessions --limit 5
           murmurmark sessions --status review_required
           murmurmark sessions --status review_required --next-only
+          murmurmark sessions --status exported --next-only
           murmurmark sessions --status exportable --json
           murmurmark sessions --path-only --limit 3
         """)
@@ -924,6 +925,9 @@ enum SessionListPrinter {
             let ratio = double(item["review_burden_ratio"]) ?? 0
             Swift.print("      review_burden: \(formatMinutes(reviewSec)) / \(formatPercent(ratio))")
         }
+        if let exportManifest = string(item["export_manifest"]) {
+            Swift.print("      export_manifest: \(exportManifest)")
+        }
         Swift.print("      next: \(string(item["next"]) ?? "murmurmark status \(PathDisplay.display(session))")")
     }
 
@@ -934,6 +938,7 @@ enum SessionListPrinter {
         let readinessURL = session.appendingPathComponent("derived/readiness/session_readiness.json")
         let createdAt = string(sessionJSON?["created_at"]) ?? string(readiness?["created_at"])
         let endedAt = string(sessionJSON?["ended_at"]) ?? string(readiness?["ended_at"])
+        let exportHandoff = successfulExportHandoff(session: session, readiness: readiness)
         return [
             "session": PathDisplay.display(session),
             "session_id": session.lastPathComponent,
@@ -949,6 +954,7 @@ enum SessionListPrinter {
             "gate": string(readiness?["use_gate"]) ?? "missing",
             "profile": string(readiness?["selected_profile"]) ?? "unknown",
             "verdict": string(readiness?["verdict"]) ?? "unknown",
+            "export_manifest": exportHandoff.map { PathDisplay.display($0.manifest) as Any } ?? NSNull(),
             "next": nextCommand(for: session, readiness: readiness),
         ]
     }
@@ -977,7 +983,7 @@ enum SessionListPrinter {
         return try? JSONFiles.object(url)
     }
 
-    private static func status(for _: URL, readiness: [String: Any]?) -> String {
+    private static func status(for session: URL, readiness: [String: Any]?) -> String {
         guard let readiness else { return "missing_readiness" }
         let gate = string(readiness["use_gate"]) ?? "unknown"
         let exportBlockers = (readiness["export_blockers"] as? [Any] ?? []).map { String(describing: $0) }
@@ -986,6 +992,9 @@ enum SessionListPrinter {
             return "incomplete"
         }
         if gate == "ready_for_notes" && exportBlockers.isEmpty {
+            if successfulExportHandoff(session: session, readiness: readiness) != nil {
+                return "exported"
+            }
             return "exportable"
         }
         if gate == "review_first" || !reviewBlockers.isEmpty {
@@ -999,6 +1008,9 @@ enum SessionListPrinter {
 
     private static func nextCommand(for session: URL, readiness: [String: Any]?) -> String {
         if let readiness {
+            if let exportHandoff = successfulExportHandoff(session: session, readiness: readiness) {
+                return exportHandoff.command
+            }
             if let next = string(readiness["recommended_next"]), !next.isEmpty {
                 return next
             }
@@ -1009,6 +1021,41 @@ enum SessionListPrinter {
             return "murmurmark status \(PathDisplay.display(session))"
         }
         return "murmurmark process \(PathDisplay.display(session))"
+    }
+
+    private static func successfulExportHandoff(
+        session: URL,
+        readiness: [String: Any]?
+    ) -> (command: String, manifest: URL)? {
+        guard isExportable(readiness) else { return nil }
+        let manifestURL = PathURLs.fileURL("exports/private")
+            .appendingPathComponent(session.lastPathComponent)
+            .appendingPathComponent("export_manifest.json")
+        guard FileManager.default.fileExists(atPath: manifestURL.path),
+              let payload = try? JSONFiles.object(manifestURL)
+        else {
+            return nil
+        }
+        guard string(payload["schema"]) == "murmurmark.export_manifest/v1" else { return nil }
+        let status = string(payload["status"]) ?? ""
+        guard status == "exported" || status == "exported_with_warnings" else { return nil }
+        let blockers = payload["blockers"] as? [Any] ?? []
+        guard blockers.isEmpty else { return nil }
+        if let nextCommands = payload["next_commands"] as? [[String: Any]],
+           let command = ReadinessPrinter.preferredNextCommand(nextCommands) {
+            return (command, manifestURL)
+        }
+        if let next = string(payload["next"]), !next.isEmpty {
+            return (next, manifestURL)
+        }
+        return nil
+    }
+
+    private static func isExportable(_ readiness: [String: Any]?) -> Bool {
+        guard let readiness else { return false }
+        let gate = string(readiness["use_gate"]) ?? "unknown"
+        let exportBlockers = readiness["export_blockers"] as? [Any] ?? []
+        return gate == "ready_for_notes" && exportBlockers.isEmpty
     }
 
     private static func string(_ value: Any?) -> String? {

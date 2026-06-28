@@ -105,8 +105,9 @@ should be refreshed first. If readiness is missing, `status` points to `murmurma
 Use `murmurmark sessions` to list recent session packages with their current readiness state and
 next safe command before choosing a target. The list includes label, creation time, duration and
 review burden when readiness has those metrics. Use `murmurmark sessions --status review_required
---next-only` to print the current review queue as commands, or `--status exportable --path-only`
-when an export script needs only ready session paths. Add `--json` when an agent needs structured
+--next-only` to print the current review queue as commands, `--status exportable --path-only`
+when an export script needs only ready session paths, or `--status exported --next-only` when the
+next action should be retention planning. Add `--json` when an agent needs structured
 `session`, `label`, `duration_sec`, `review_burden_sec`, `status`, `gate`, `profile`, `verdict` and
 `next` fields.
 Use `murmurmark next SESSION` when you only need the single command to run now; add `--refresh` when

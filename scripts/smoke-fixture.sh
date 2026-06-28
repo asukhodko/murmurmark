@@ -951,6 +951,18 @@ echo "$ready_next_output" | grep -q '^  status: exportable$'
 echo "$ready_next_output" | grep -q '^  command: murmurmark retention plan '
 echo "$ready_next_output" | grep -q '^  source: export_manifest$'
 echo "$ready_next_output" | grep -q '^  export_manifest: '
+default_export_dir="$workdir/exports/private"
+"$repo_root/scripts/export-session-bundle.py" "$ready_export_session" --out-dir "$default_export_dir" >/dev/null
+default_sessions_output="$(cd "$workdir" && "$bin" sessions --sessions-root "$workdir" --status exported --limit 1)"
+assert_no_helper_prefix "$default_sessions_output"
+echo "$default_sessions_output" | grep -q '^      status: exported$'
+echo "$default_sessions_output" | grep -q '^      export_manifest: .*exports/private/export-ready-session/export_manifest.json$'
+echo "$default_sessions_output" | grep -q '^      next: murmurmark retention plan '
+default_exported_next="$(cd "$workdir" && "$bin" sessions --sessions-root "$workdir" --status exported --next-only --limit 1)"
+echo "$default_exported_next" | grep -q '^murmurmark retention plan '
+default_sessions_json="$(cd "$workdir" && "$bin" sessions --sessions-root "$workdir" --status exported --json --limit 1)"
+printf '%s\n' "$default_sessions_json" | jq -e '.items[0].status == "exported" and (.items[0].next | startswith("murmurmark retention plan ")) and (.items[0].export_manifest | endswith("exports/private/export-ready-session/export_manifest.json"))' >/dev/null
+[[ -z "$(cd "$workdir" && "$bin" sessions --sessions-root "$workdir" --status exportable --next-only --limit 1)" ]]
 
 audit_python=""
 if [[ -x "$repo_root/.venv/bin/python" ]] && "$repo_root/.venv/bin/python" - <<'PY' >/dev/null 2>&1

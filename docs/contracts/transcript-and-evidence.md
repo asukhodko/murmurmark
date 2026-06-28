@@ -1600,6 +1600,8 @@ read-only inspection chain for selected notes, transcript, verdict and audit rep
 blockers remain the source of truth.
 The Swift CLI additionally prints a derived terminal-only `status`:
 
+- `exported`: `ready_for_notes`, no export blockers and a successful default
+  `exports/private/<session>/export_manifest.json`;
 - `exportable`: `ready_for_notes` and no export blockers;
 - `review_required`: review blockers or `review_first`;
 - `incomplete`: pipeline-incomplete gate or blocker;
@@ -1618,6 +1620,9 @@ command. If the session is exportable and a successful `export_manifest.json` ex
 the manifest's post-export `next_commands` instead, usually retention planning. Forced exports or
 manifests with blockers do not override readiness. `--export-manifest` points `next` at a non-default
 export bundle.
+`murmurmark sessions` uses the same default export manifest check for queue status: exported
+sessions move from `exportable` to `exported`, and their `next` field points to retention instead of
+repeating export.
 `murmurmark next corpus` is the compact operational-readiness view for the whole sessions root. It
 prints `corpus_next.command`, operational verdict, review burden, focus metadata and alternatives
 from `operational_readiness_report.json`. With `--refresh`, it first regenerates session-quality and
