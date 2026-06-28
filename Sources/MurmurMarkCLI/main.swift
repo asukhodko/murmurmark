@@ -92,7 +92,7 @@ struct MurmurMark {
                                 [--reuse-asr-cache] [--plan-only] [--sessions-root ./sessions]
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
-          murmurmark review plan|progress|apply|first-lane
+          murmurmark review plan|progress|apply|first-lane|next
           murmurmark review agent [--session-quality sessions/_reports/session-quality/session_quality_report.json]
           murmurmark review workspace [build|apply] [--session latest|./session]
           murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
@@ -545,6 +545,12 @@ enum ReviewCommands {
             guard forwarded.isEmpty else { throw CLIError("review progress only accepts --help") }
             try runProgress()
             try ReviewPrinter.printProgress()
+        case "next":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                ReviewNextCommand.printHelp()
+                return
+            }
+            try ReviewNextCommand.run(forwarded, sessionsRoot: sessionsRoot)
         case "apply":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-decisions-batch.py").path] + forwarded)
@@ -561,7 +567,7 @@ enum ReviewCommands {
             try ReviewFirstLaneCommand.run(forwarded, sessionsRoot: sessionsRoot)
         case "agent":
             if ArgumentEditing.hasHelpFlag(forwarded) {
-                printAgentHelp()
+                ReviewAgentHelp.print()
                 return
             }
             try agent(forwarded)
@@ -768,8 +774,11 @@ enum ReviewCommands {
         return url
     }
 
-    private static func printAgentHelp() {
-        print("""
+}
+
+enum ReviewAgentHelp {
+    static func print() {
+        Swift.print("""
         usage: murmurmark review agent [options]
 
         Builds conservative agent_reviewed_v1 decisions from existing session-quality and audio-judge
@@ -791,7 +800,47 @@ enum ReviewCommands {
           --no-apply               Only build decisions and template.
         """)
     }
+}
 
+enum ReviewNextCommand {
+    static func run(_ args: [String], sessionsRoot: URL) throws {
+        var forwarded = args
+        let noRefresh = ArgumentEditing.takeFlag("no-refresh", from: &forwarded)
+        let target = forwarded.first ?? "latest"
+        if !forwarded.isEmpty {
+            forwarded.removeFirst()
+        }
+        guard forwarded.isEmpty else {
+            throw CLIError("review next accepts only SESSION|latest and --no-refresh")
+        }
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        if !noRefresh {
+            try Tooling.runPath(try PythonRuntime.resolve(), [
+                try script("report-session-quality.py").path,
+                session.path,
+                "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
+                "--write-session-readiness",
+            ])
+        }
+        try ReviewNextPrinter.print(session: session)
+    }
+
+    static func printHelp() {
+        print("""
+        usage: murmurmark review next [SESSION|latest] [--no-refresh]
+
+        Refreshes session readiness, then prints the next review-oriented command chain for that
+        session. Use --no-refresh when session_readiness.json is already current.
+        """)
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("review script not found: \(url.path)")
+        }
+        return url
+    }
 }
 
 enum ReviewFirstLaneCommand {
@@ -5192,6 +5241,118 @@ enum ReadinessPrinter {
                 "command": "less \(sessionPath)/derived/readiness/session_readiness.md",
             ],
         ]
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
+    }
+
+    private static func double(_ value: Any?) -> Double? {
+        if let number = value as? NSNumber { return number.doubleValue }
+        if let text = value as? String { return Double(text) }
+        return nil
+    }
+
+    private static func int(_ value: Any?) -> Int? {
+        if let number = value as? NSNumber { return number.intValue }
+        if let text = value as? String { return Int(text) }
+        return nil
+    }
+
+    private static func compactJSON(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return "\(value)"
+        }
+        return text
+    }
+}
+
+enum ReviewNextPrinter {
+    static func print(session: URL) throws {
+        let readinessURL = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        guard FileManager.default.fileExists(atPath: readinessURL.path) else {
+            Swift.print("")
+            Swift.print("review_next:")
+            Swift.print("  session: \(PathDisplay.display(session))")
+            Swift.print("  readiness: missing")
+            Swift.print("  next: murmurmark report \(PathDisplay.display(session))")
+            return
+        }
+
+        let payload = try JSONFiles.object(readinessURL)
+        let metrics = payload["metrics"] as? [String: Any] ?? [:]
+        let gate = string(payload["use_gate"]) ?? "unknown"
+        let profile = string(payload["selected_profile"]) ?? "unknown"
+        let verdict = string(payload["verdict"]) ?? "unknown"
+        let recommendation = string(payload["recommendation"]) ?? "unknown"
+        let reviewBlockers = payload["review_blockers"] as? [Any] ?? []
+        let exportBlockers = payload["export_blockers"] as? [Any] ?? []
+        let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+        let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0.0
+        let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0.0) * 100.0
+        let synthesisReviewCount = int(metrics["synthesis_review_item_count"]) ?? 0
+        let sessionPath = PathDisplay.display(session)
+
+        Swift.print("")
+        Swift.print("review_next:")
+        Swift.print("  session: \(sessionPath)")
+        Swift.print("  gate: \(gate)")
+        Swift.print("  recommendation: \(recommendation)")
+        Swift.print("  selected_profile: \(profile)")
+        Swift.print("  verdict: \(verdict)")
+        Swift.print(String(format: "  review_burden: %.2f min / %.2f%%", reviewSeconds / 60.0, reviewRatio))
+        if synthesisReviewCount > 0 {
+            Swift.print("  synthesis_review_items: \(synthesisReviewCount)")
+        }
+        if !reviewBlockers.isEmpty {
+            Swift.print("  review_blockers: \(compactJSON(reviewBlockers))")
+        }
+        if !exportBlockers.isEmpty {
+            Swift.print("  export_blockers: \(compactJSON(exportBlockers))")
+        }
+        printPlanHint()
+        Swift.print("  next:")
+        for command in focusedNextCommands(nextCommands, gate: gate, sessionPath: sessionPath) {
+            Swift.print("    \(command)")
+        }
+    }
+
+    private static func printPlanHint() {
+        let planURL = PathURLs.fileURL("sessions/_reports/review-plan/review_plan.json")
+        guard FileManager.default.fileExists(atPath: planURL.path),
+              let payload = try? JSONFiles.object(planURL)
+        else {
+            return
+        }
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        let strategy = payload["review_queue_strategy"] as? [String: Any] ?? [:]
+        if let firstLane = string(strategy["first_recommended_lane"]) {
+            Swift.print("  first_lane: \(firstLane)")
+        }
+        if let lanes = summary["by_review_lane"] as? [String: Any], !lanes.isEmpty {
+            Swift.print("  by_lane: \(compactJSON(lanes))")
+        }
+    }
+
+    private static func focusedNextCommands(_ rows: [[String: Any]], gate: String, sessionPath: String) -> [String] {
+        let commands = rows.compactMap { string($0["command"]) }.filter { !$0.isEmpty }
+        let reviewCommands = commands.filter { $0.contains("murmurmark review") }
+        if !reviewCommands.isEmpty {
+            return reviewCommands
+        }
+        if gate == "ready_for_notes" {
+            return [
+                "murmurmark export \(sessionPath) --format markdown --include-json",
+                "murmurmark retention plan \(sessionPath)",
+            ]
+        }
+        if gate.hasPrefix("pipeline_incomplete") {
+            return ["murmurmark process \(sessionPath)"]
+        }
+        return commands.isEmpty ? ["less \(sessionPath)/derived/readiness/session_readiness.md"] : commands
     }
 
     private static func string(_ value: Any?) -> String? {

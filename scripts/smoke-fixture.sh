@@ -476,6 +476,43 @@ order_ids = [item["id"] for item in order_commands]
 assert order_ids[0] == "inspect_transcript_order", order_ids
 assert "transcript_order_review.md" in order_commands[0]["command"], order_commands[0]
 PY
+review_next_session="$workdir/review-next-session"
+mkdir -p "$review_next_session/derived/readiness"
+jq -n '{
+  schema: "murmurmark.session/v1",
+  session_id: "review-next-fixture",
+  created_at: "2026-06-22T16:00:00.000Z",
+  ended_at: "2026-06-22T16:01:00.000Z",
+  status: "completed",
+  files: {mic: [], remote: []}
+}' >"$review_next_session/session.json"
+jq -n --arg session "$review_next_session" '{
+  schema: "murmurmark.session_readiness/v1",
+  session_id: "review-next-fixture",
+  session: $session,
+  use_gate: "review_first",
+  recommendation: "review flagged regions before medium-risk use",
+  selected_profile: "order_repair_v1",
+  verdict: "usable_with_review",
+  review_blockers: ["risk:transcript_order_risk"],
+  export_blockers: ["risk:transcript_order_risk"],
+  metrics: {
+    review_burden_sec: 12.0,
+    review_burden_ratio: 0.2,
+    synthesis_review_item_count: 1
+  },
+  next_commands: [
+    {id: "review_plan", label: "Build the review queue.", command: "murmurmark review plan"},
+    {id: "review_first_lane", label: "Build first lane.", command: ("murmurmark review first-lane --session " + $session)},
+    {id: "review_workspace", label: "Build workspace.", command: ("murmurmark review workspace --session " + $session)},
+    {id: "review_apply", label: "Apply decisions.", command: "murmurmark review apply"}
+  ]
+}' >"$review_next_session/derived/readiness/session_readiness.json"
+review_next_output="$("$bin" review next "$review_next_session" --no-refresh)"
+echo "$review_next_output" | grep -q 'review_next:'
+echo "$review_next_output" | grep -q 'gate: review_first'
+echo "$review_next_output" | grep -q 'selected_profile: order_repair_v1'
+echo "$review_next_output" | grep -q "murmurmark review first-lane --session $review_next_session"
 export_block_dir="$workdir/export-blocked"
 if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >/dev/null 2>&1; then
   echo "expected export to block incomplete session" >&2

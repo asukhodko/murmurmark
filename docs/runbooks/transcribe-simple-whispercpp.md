@@ -86,6 +86,9 @@ workspace answers have been closed.
 `murmurmark report SESSION` prints the same selected profile, verdict, review burden and synthesis
 review item summary, so the terminal output is enough to see whether notes still depend on risky
 utterances before opening the Markdown files.
+Use `murmurmark review next SESSION` when you only need the next review step for one session. It
+refreshes session readiness and prints the review-oriented command chain; pass `--no-refresh` to
+read an already current `session_readiness.json`.
 
 After export, keep a retention plan with the session:
 
@@ -534,6 +537,7 @@ work:
 .build/debug/murmurmark corpus gate \
   --baseline sessions/_reports/corpus-gates/baseline.local.json
 
+.build/debug/murmurmark review next latest
 .build/debug/murmurmark review plan
 .build/debug/murmurmark review first-lane
 .build/debug/murmurmark review latest --lane fast_confirm_drop
@@ -626,6 +630,10 @@ overlap, and `classify_audio` for anything else.
 Close the plan's `first_recommended_lane` first; it is usually `fast_confirm_drop`, but can change as
 the review queue changes. Keep the other lanes conservative unless the audio or chronology evidence
 is clear.
+`murmurmark review next "$SESSION"` is the quickest entry point for one session: it refreshes
+`session_readiness.json`, shows gate/profile/verdict/review burden, then prints the next review
+commands. Use it before deciding whether to build a lane pack, open the workspace, or apply already
+closed decisions.
 `murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended
 lane. Use it when you want the next concrete review artifact without manually copying commands from
 `review_plan.md`.

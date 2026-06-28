@@ -150,6 +150,7 @@ murmurmark corpus gate \
 murmurmark corpus gate \
   --baseline sessions/_reports/corpus-gates/baseline.local.json
 
+murmurmark review next latest
 murmurmark review plan
 murmurmark review agent
 ```
@@ -225,6 +226,8 @@ and extractive synthesis, then writes
 Read `session_readiness.md` first: it gives the session use gate, selected profile, review burden,
 synthesis review item summary, next CLI commands, and links to the transcript, notes, quality
 verdict and audio-review report.
+`murmurmark review next SESSION` is the short terminal handoff for that same information: it refreshes
+session readiness and prints the review-specific next commands.
 For `review_first` sessions, those next commands point to `murmurmark review plan`,
 `murmurmark review first-lane --session ...`, `murmurmark review workspace --session ...`,
 `murmurmark review workspace apply`, and `murmurmark review apply`.
@@ -571,6 +574,7 @@ murmurmark review agent
 The normal manual review loop is available through the Swift CLI:
 
 ```bash
+.build/debug/murmurmark review next latest
 .build/debug/murmurmark review plan
 .build/debug/murmurmark review first-lane
 .build/debug/murmurmark review workspace
