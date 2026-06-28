@@ -26,6 +26,10 @@ if [[ ! -x "$bin" ]]; then
   (cd "$repo_root" && swift build >/dev/null)
 fi
 
+doctor_output="$("$bin" doctor)"
+echo "$doctor_output" | grep -q '^next:$'
+echo "$doctor_output" | grep -q '^status: doctor completed$'
+
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-smoke.XXXXXX")"
 trap 'rm -rf "$workdir"' EXIT
 

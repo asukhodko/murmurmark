@@ -224,6 +224,7 @@ enum Commands {
         print("microphones: \(AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone], mediaType: .audio, position: .unspecified).devices.count)")
         print("readiness: \(report.readiness)")
         print("checks: ok=\(report.passed) warnings=\(report.warnings) failures=\(report.failures)")
+        report.printNext()
         print("status: doctor completed")
         if strict && report.failures > 0 {
             throw CLIError("doctor strict failed: \(report.failures) required checks failed")
@@ -321,6 +322,21 @@ struct DoctorReport {
         if let hint, !hint.isEmpty {
             print("      hint: \(hint)")
         }
+    }
+
+    func printNext() {
+        print("next:")
+        if failures > 0 {
+            print("  fix failed checks above")
+            print("  murmurmark doctor --strict")
+            return
+        }
+        if warnings > 0 {
+            print("  optional: resolve warnings above")
+        }
+        print("  murmurmark record")
+        print("  murmurmark process latest")
+        print("  murmurmark report latest")
     }
 }
 
