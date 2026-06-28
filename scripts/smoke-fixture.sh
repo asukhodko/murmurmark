@@ -1758,6 +1758,28 @@ PY
   [[ -s "$order_corpus_dir/transcript_order_corpus_report.md" ]]
   jq -e '.schema == "murmurmark.transcript_order_corpus_report/v1" and .summary.audited_session_count == 1 and .summary.complete_blocking_session_count == 0' \
     "$order_corpus_dir/transcript_order_corpus_report.json" >/dev/null
+  python3 - "$repo_root" <<'PY'
+import importlib.util
+from pathlib import Path
+import sys
+
+repo_root = Path(sys.argv[1])
+module_path = repo_root / "scripts/report-transcript-order-corpus.py"
+spec = importlib.util.spec_from_file_location("report_transcript_order_corpus", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+spec.loader.exec_module(module)
+review_commands = module.build_next_commands(
+    [{"session": "sessions/ready-order", "session_id": "ready-order", "probable_order_risk_seconds": 2.0}],
+    [],
+)
+assert review_commands[0]["command"] == "murmurmark review lane check_transcript_order --session sessions/ready-order", review_commands
+process_commands = module.build_next_commands(
+    [],
+    [{"session": "sessions/incomplete-order", "session_id": "incomplete-order", "probable_order_risk_seconds": 2.0}],
+)
+assert process_commands[0]["command"] == "murmurmark process sessions/incomplete-order", process_commands
+PY
   readiness_dir="$workdir/operational-readiness"
   "$repo_root/scripts/report-operational-readiness.py" \
     --session-quality "$quality_dir/session_quality_report.json" \

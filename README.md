@@ -289,7 +289,9 @@ profiles or raw audio. Its main purpose is to separate plain leak evidence from 
 `Me` still contains unique local content and whole-utterance deletion is unsafe.
 `murmurmark corpus order` aggregates those audits across the corpus and writes the current list of
 chronology regression candidates under `sessions/_reports/transcript-order/`; corpus gates read this
-report and fail if a complete session still has blocking chronology risk. Use
+report and fail if a complete session still has blocking chronology risk. The report points complete
+blocking sessions to `murmurmark review lane check_transcript_order --session ...`; incomplete
+blocking sessions go back through `murmurmark process ...`. Use
 `murmurmark corpus order --repair` when you want to refresh order audits for the sessions in the
 current session-quality report, try conservative
 `order_repair_v1` for each session, refresh session-quality, and then rebuild the corpus order

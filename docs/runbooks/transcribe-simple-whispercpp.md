@@ -666,7 +666,9 @@ Stale audio-judge queue rows are also ignored when the current audio-review audi
 the source item as reliable.
 `murmurmark corpus order` writes a separate chronology-risk corpus report under
 `sessions/_reports/transcript-order/`; read it when wrong reply order is the concern rather than
-audio leakage.
+audio leakage. The report writes `next_commands`: complete blocking sessions go to
+`murmurmark review lane check_transcript_order --session ...`, and incomplete sessions go back
+through `murmurmark process ...`.
 `murmurmark corpus local-recall` writes `sessions/_reports/local-recall/`. It aggregates
 possible lost `Me`, local-recall review and harmless missing-island explanations across the corpus.
 Use it when local speech recall is the concern. The report writes `next_commands`: complete sessions

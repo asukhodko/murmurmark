@@ -338,8 +338,68 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
         ),
         "missing_order_audits": missing,
         "review_items": review_items,
+        "next_commands": build_next_commands(complete_blocking, blocking),
     }
     return report, all_items
+
+
+def build_next_commands(complete_blocking: list[dict[str, Any]], blocking: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    commands: list[dict[str, Any]] = []
+    review_rows = sorted(
+        complete_blocking,
+        key=lambda row: (
+            -safe_float(row.get("probable_order_risk_seconds")),
+            -safe_float(row.get("needs_review_seconds")),
+            str(row.get("session_id") or ""),
+        ),
+    )
+    for row in review_rows:
+        session = str(row.get("session") or "")
+        session_id = str(row.get("session_id") or Path(session).name)
+        if not session:
+            continue
+        commands.append(
+            {
+                "id": f"review_transcript_order_{session_id}",
+                "label": f"Review transcript-order risks for {session_id}.",
+                "command": f"murmurmark review lane check_transcript_order --session {command_path(session)}",
+                "session_id": session_id,
+                "session": session,
+            }
+        )
+    if commands:
+        return commands
+    incomplete_rows = sorted(
+        blocking,
+        key=lambda row: (
+            -safe_float(row.get("probable_order_risk_seconds")),
+            -safe_float(row.get("needs_review_seconds")),
+            str(row.get("session_id") or ""),
+        ),
+    )
+    for row in incomplete_rows[:1]:
+        session = str(row.get("session") or "")
+        session_id = str(row.get("session_id") or Path(session).name)
+        if not session:
+            continue
+        commands.append(
+            {
+                "id": f"process_transcript_order_{session_id}",
+                "label": f"Complete the pipeline before reviewing transcript-order risks for {session_id}.",
+                "command": f"murmurmark process {command_path(session)}",
+                "session_id": session_id,
+                "session": session,
+            }
+        )
+    return commands
+
+
+def command_path(value: str) -> str:
+    path = Path(value)
+    try:
+        return str(path.relative_to(Path.cwd()))
+    except ValueError:
+        return value
 
 
 def format_time(seconds: float) -> str:
@@ -384,6 +444,12 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 f"gate `{row.get('use_gate')}`"
             )
         lines.append("")
+    next_commands = [row for row in report.get("next_commands", []) if isinstance(row, dict)]
+    if next_commands:
+        lines += ["## Next Commands", ""]
+        for row in next_commands[:10]:
+            lines.append(f"- {row.get('label')} `{row.get('command')}`")
+        lines.append("")
     items = report.get("review_items") if isinstance(report.get("review_items"), list) else []
     if items:
         lines += ["## Review Items", ""]
@@ -425,6 +491,9 @@ def main() -> int:
     print(f"blocking_sessions: {summary['blocking_session_count']}")
     print(f"probable_order_risk_seconds: {summary['probable_order_risk_seconds']}")
     print(f"recommended_next_step: {summary['recommended_next_step']}")
+    next_commands = [row for row in report.get("next_commands", []) if isinstance(row, dict)]
+    if next_commands:
+        print(f"next_command: {next_commands[0].get('command')}")
     return 0
 
 

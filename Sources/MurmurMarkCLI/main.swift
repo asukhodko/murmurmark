@@ -7263,6 +7263,7 @@ enum CorpusPrinter {
             print("  order_repair_unrepaired_order_risks: \(int(repair["unrepaired_order_risks"]) ?? 0)")
         }
         print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
+        printFirstNextCommand(payload)
     }
 
     static func printLocalRecallCorpus(outDir: URL = PathURLs.fileURL("sessions/_reports/local-recall")) throws {

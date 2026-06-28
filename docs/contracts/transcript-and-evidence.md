@@ -633,7 +633,16 @@ sessions/_reports/transcript-order/
       "resolved_order_risk_seconds": 2.0
     },
     "recommended_next_step": "review_incomplete_order_candidates"
-  }
+  },
+  "next_commands": [
+    {
+      "id": "review_transcript_order_2026-06-26_17-31-17",
+      "label": "Review transcript-order risks for 2026-06-26_17-31-17.",
+      "command": "murmurmark review lane check_transcript_order --session sessions/2026-06-26_17-31-17",
+      "session_id": "2026-06-26_17-31-17",
+      "session": "sessions/2026-06-26_17-31-17"
+    }
+  ]
 }
 ```
 
@@ -643,7 +652,8 @@ the path to the per-session review Markdown. `summary.order_repair` compares the
 with the effective metrics after `order_repair_v1` and records applied repairs, cleared sessions and
 remaining unrepaired risks. This report is read-only: it does not change review decisions or
 transcript profiles. Its purpose is to keep chronology-risk examples visible as a corpus regression
-queue.
+queue. `next_commands` points to `check_transcript_order` for the first complete blocking session,
+or to `murmurmark process ...` when only incomplete blocking sessions remain.
 
 `check-corpus-gates.py` reads this aggregate report via `--transcript-order` (default:
 `sessions/_reports/transcript-order/transcript_order_corpus_report.json`). It warns when the report
