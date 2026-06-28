@@ -393,7 +393,9 @@ echo "$notes_output" | grep -q '  notes: '
 echo "$notes_output" | grep -q '  verdict: '
 echo "$notes_output" | grep -q '  review_items: '
 echo "$notes_output" | grep -q '  review_item_types: .*utterance_transcript_order_review=1'
-echo "$notes_output" | grep -q '^  recommended_next: less '
+echo "$notes_output" | grep -q '^  recommended_next: murmurmark review next '
+echo "$notes_output" | grep -q '^    murmurmark review next '
+echo "$notes_output" | grep -q '^    less '
 notes_path_only="$("$bin" notes "$session" --path-only)"
 [[ "$notes_path_only" == */derived/synthesis-simple/extractive/notes.md ]]
 "$bin" notes "$session" --cat | grep -q '# Extractive Notes'
@@ -402,8 +404,9 @@ notes_path_only="$("$bin" notes "$session" --path-only)"
 transcript_output="$("$bin" transcript "$session")"
 echo "$transcript_output" | grep -q '^transcript:$'
 echo "$transcript_output" | grep -q '  profile: current'
-echo "$transcript_output" | grep -q '^  recommended_next: less '
-echo "$transcript_output" | grep -q '  next: less '
+echo "$transcript_output" | grep -q '^  recommended_next: murmurmark review next '
+echo "$transcript_output" | grep -q '^    murmurmark review next '
+echo "$transcript_output" | grep -q '^    less '
 transcript_path_only="$("$bin" transcript "$session" --path-only)"
 [[ "$transcript_path_only" == */derived/transcript-simple/whisper-cpp/resolved/transcript.md ]]
 "$bin" transcript latest --sessions-root "$workdir" --path-only | grep -q '/derived/transcript-simple/whisper-cpp/resolved/transcript.md$'

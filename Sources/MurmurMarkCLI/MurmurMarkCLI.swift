@@ -2500,12 +2500,19 @@ enum NotesCommands {
                 print("  \(key): \(PathDisplay.display(item))")
             }
         }
-        if let verdictPayload = try? JSONFiles.object(verdictJSONPath(session: session, profile: resolvedProfile)) {
+        let verdictPayload = try? JSONFiles.object(verdictJSONPath(session: session, profile: resolvedProfile))
+        if let verdictPayload {
             ReviewSummaryPrinter.printReviewSummary(verdictPayload["review_summary"], indent: "  ")
         }
+        let reviewNext = shouldReview(verdictPayload) ? "murmurmark review next \(PathDisplay.display(session))" : nil
+        let openCommand = "less \(PathDisplay.display(url))"
         print("  selected: \(kind)")
-        print("  recommended_next: less \(PathDisplay.display(url))")
-        print("  next: less \(PathDisplay.display(url))")
+        print("  recommended_next: \(reviewNext ?? openCommand)")
+        print("  next:")
+        if let reviewNext {
+            print("    \(reviewNext)")
+        }
+        print("    \(openCommand)")
     }
 
     private static func selectedProfile(_ requested: String, session: URL) throws -> String {
@@ -2537,6 +2544,22 @@ enum NotesCommands {
         let outDir = session.appendingPathComponent("derived/synthesis-simple/extractive")
         let suffix = profile == "current" ? "" : ".\(profile)"
         return outDir.appendingPathComponent("quality_verdict\(suffix).json")
+    }
+
+    private static func shouldReview(_ verdictPayload: [String: Any]?) -> Bool {
+        guard let verdictPayload else { return false }
+        let reviewSummary = verdictPayload["review_summary"] as? [String: Any] ?? [:]
+        let reviewCount = int(reviewSummary["review_item_count"]) ?? 0
+        let riskItems = verdictPayload["risk_items"] as? [Any] ?? []
+        let verdict = verdictPayload["verdict"] as? String ?? ""
+        return reviewCount > 0 || !riskItems.isEmpty || verdict == "usable_with_review"
+    }
+
+    private static func int(_ value: Any?) -> Int? {
+        if let value = value as? Int { return value }
+        if let value = value as? NSNumber { return value.intValue }
+        if let value = value as? String { return Int(value) }
+        return nil
     }
 
     private static func printHelp() {
@@ -2670,8 +2693,18 @@ enum TranscriptCommands {
         print("transcript:")
         print("  profile: \(profile)")
         print("  path: \(PathDisplay.display(url))")
-        print("  recommended_next: less \(PathDisplay.display(url))")
-        print("  next: less \(PathDisplay.display(url))")
+        let verdictPayload = try? JSONFiles.object(verdictJSONPath(session: session, profile: profile))
+        if let verdictPayload {
+            ReviewSummaryPrinter.printReviewSummary(verdictPayload["review_summary"], indent: "  ")
+        }
+        let reviewNext = shouldReview(verdictPayload) ? "murmurmark review next \(PathDisplay.display(session))" : nil
+        let openCommand = "less \(PathDisplay.display(url))"
+        print("  recommended_next: \(reviewNext ?? openCommand)")
+        print("  next:")
+        if let reviewNext {
+            print("    \(reviewNext)")
+        }
+        print("    \(openCommand)")
     }
 
     private static func selectedProfile(_ requested: String, session: URL) throws -> String {
@@ -2698,6 +2731,28 @@ enum TranscriptCommands {
             return resolved.appendingPathComponent("transcript.md")
         }
         return resolved.appendingPathComponent("transcript.\(profile).md")
+    }
+
+    private static func verdictJSONPath(session: URL, profile: String) -> URL {
+        let outDir = session.appendingPathComponent("derived/synthesis-simple/extractive")
+        let suffix = profile == "current" ? "" : ".\(profile)"
+        return outDir.appendingPathComponent("quality_verdict\(suffix).json")
+    }
+
+    private static func shouldReview(_ verdictPayload: [String: Any]?) -> Bool {
+        guard let verdictPayload else { return false }
+        let reviewSummary = verdictPayload["review_summary"] as? [String: Any] ?? [:]
+        let reviewCount = int(reviewSummary["review_item_count"]) ?? 0
+        let riskItems = verdictPayload["risk_items"] as? [Any] ?? []
+        let verdict = verdictPayload["verdict"] as? String ?? ""
+        return reviewCount > 0 || !riskItems.isEmpty || verdict == "usable_with_review"
+    }
+
+    private static func int(_ value: Any?) -> Int? {
+        if let value = value as? Int { return value }
+        if let value = value as? NSNumber { return value.intValue }
+        if let value = value as? String { return Int(value) }
+        return nil
     }
 
     private static func printHelp() {

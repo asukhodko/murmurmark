@@ -2748,6 +2748,8 @@ CLI entry point for the deterministic extractive synthesis layer. It wraps
 and next commands. When the verdict still has review items, risk items or `usable_with_review`, the
 Swift summary uses `murmurmark review next SESSION` as the primary handoff and omits export from
 `next`. Export is suggested from synthesis only for a `good` verdict without review work.
+The read-only `murmurmark notes` and `murmurmark transcript` summaries use the same review-aware
+handoff while still listing the `less ...` command for the selected artifact.
 
 ## `synthesis_policy.yaml`
 
