@@ -1592,6 +1592,9 @@ EOF
   grep -q '^    check_local_recall: status=ok reviewed=0 todo=1 rejected=0' "$cli_workspace_dry_run_stdout"
   grep -q '^      read: less ' "$cli_workspace_dry_run_stdout"
   grep -q '^      edit: \$EDITOR ' "$cli_workspace_dry_run_stdout"
+  grep -q '^  next_lane: check_local_recall' "$cli_workspace_dry_run_stdout"
+  grep -q '^    murmurmark review lane check_local_recall --session review_workspace_cli_session' "$cli_workspace_dry_run_stdout"
+  grep -q '^    murmurmark review lane apply check_local_recall --session review_workspace_cli_session' "$cli_workspace_dry_run_stdout"
   grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_dry_run_stdout"
   cli_workspace_suggested_dry_run_out="$workdir/review_decisions_workspace_cli_suggested_dry_run.jsonl"
   cli_workspace_suggested_dry_run_stdout="$workdir/review_workspace_cli_suggested_dry_run_stdout.txt"
@@ -2454,7 +2457,10 @@ PY
   assert_no_helper_prefix "$session_workspace_apply_dry_run_output"
   echo "$session_workspace_apply_dry_run_output" | grep -q '^SESSION="'
   echo "$session_workspace_apply_dry_run_output" | grep -q '^review_workspace_apply:$'
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^  next_lane: '
   echo "$session_workspace_apply_dry_run_output" | grep -q '^  next:$'
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review lane '
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review lane apply '
   echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review workspace apply --session '
   echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review progress --session '
   echo "$session_workspace_apply_dry_run_output" | grep -q '^  after_ready:$'

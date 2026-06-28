@@ -729,7 +729,7 @@ the whole `review_workspace.json` in one validated pass and then refreshes revie
 Use `murmurmark review workspace apply --dry-run` to write only the validation report and print the
 same handoff without changing `review_decisions.jsonl`. The apply output also prints per-lane
 progress, the remaining lane Markdown to read, answer sheets to edit, and the next
-workspace-apply/progress/apply commands. Workspace output also prints
+lane/workspace-apply/progress/apply commands. Workspace output also prints
 `manual_flow`, optional `suggested_flow`, and `after_apply`. It still prints `suggested_dry_run`
 and `suggested_apply` for the generated `.suggested.txt` sheets; keep the same rule as lane review
 and run the suggested path with `--dry-run` before writing decisions.

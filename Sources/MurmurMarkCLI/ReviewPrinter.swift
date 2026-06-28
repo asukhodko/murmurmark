@@ -375,13 +375,28 @@ enum ReviewPrinter {
             print("  next:")
             print("    murmurmark review apply\(sessionArgument)")
         } else {
+            if let nextLane = firstTodoWorkspaceLane(payload) {
+                print("  next_lane: \(nextLane)")
+            }
             print("  next:")
+            if let nextLane = firstTodoWorkspaceLane(payload) {
+                print("    murmurmark review lane \(nextLane)\(sessionArgument)")
+                print("    murmurmark review lane apply \(nextLane)\(sessionArgument)")
+            }
             print("    read/edit remaining lane answer sheets above")
             print("    murmurmark review workspace apply\(sessionArgument)")
             print("    murmurmark review progress\(sessionArgument)")
             print("  after_ready:")
             print("    murmurmark review apply\(sessionArgument)")
         }
+    }
+
+    private static func firstTodoWorkspaceLane(_ payload: [String: Any]) -> String? {
+        let lanes = payload["lanes"] as? [[String: Any]] ?? []
+        return lanes.first {
+            let summary = $0["summary"] as? [String: Any] ?? [:]
+            return (int(summary["todo_count"]) ?? 0) > 0
+        }.flatMap { string($0["lane"]) }
     }
 
     private static func workspaceApplyCommand(payload: [String: Any], outDir: URL, sessionID: String?) -> String {
