@@ -491,6 +491,28 @@ remote_leak_ids = [item["id"] for item in remote_leak_commands]
 assert remote_leak_ids[0] == "inspect_remote_leak_segment_plan", remote_leak_ids
 assert "remote_leak_segment_repair.md" in remote_leak_commands[0]["command"], remote_leak_commands[0]
 PY
+python3 - "$repo_root" <<'PY'
+import importlib.util
+from pathlib import Path
+import sys
+
+repo_root = Path(sys.argv[1])
+module_path = repo_root / "scripts/report-local-recall-corpus.py"
+spec = importlib.util.spec_from_file_location("report_local_recall_corpus", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+spec.loader.exec_module(module)
+review_commands = module.build_next_commands(
+    [{"session": "sessions/ready-local", "session_id": "ready-local", "meaningful_review_seconds": 2.5}],
+    [],
+)
+assert review_commands[0]["command"] == "murmurmark review lane check_local_recall --session sessions/ready-local", review_commands
+process_commands = module.build_next_commands(
+    [],
+    [{"session": "sessions/incomplete-local", "session_id": "incomplete-local", "meaningful_review_seconds": 2.5}],
+)
+assert process_commands[0]["command"] == "murmurmark process sessions/incomplete-local", process_commands
+PY
 review_next_session="$workdir/review-next-session"
 mkdir -p "$review_next_session/derived/readiness"
 review_next_plan_dir="$review_next_session/derived/readiness/review-plan"

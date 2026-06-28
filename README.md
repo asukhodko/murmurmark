@@ -475,6 +475,9 @@ islands such as `понял` or `окей` are also low-risk audit evidence, whi
 speech stays as a blocking `low_local_recall` risk. It never edits transcripts.
 `murmurmark corpus local-recall` aggregates those per-session audits into
 `sessions/_reports/local-recall/` so possible lost `Me` regions are visible as one corpus queue.
+When a complete session still has blocking local-recall evidence, the report includes the first
+`murmurmark review lane check_local_recall --session ...` command. If only incomplete sessions are
+left, it points to `murmurmark process ...` for the first one.
 
 `murmurmark repair local-recall` wraps `scripts/apply-local-recall-repair.py`. It reads
 `local_recall_items.jsonl`, runs micro-ASR on strong `possible_lost_me` local islands and writes a

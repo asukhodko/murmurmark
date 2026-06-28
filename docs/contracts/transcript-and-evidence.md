@@ -677,7 +677,16 @@ sessions/_reports/local-recall/
     "needs_review_seconds": 6.8,
     "likely_harmless_seconds": 12.4,
     "recommended_next_step": "review_complete_local_recall_items"
-  }
+  },
+  "next_commands": [
+    {
+      "id": "review_local_recall_2026-06-26_17-31-17",
+      "label": "Review local-recall items for 2026-06-26_17-31-17.",
+      "command": "murmurmark review lane check_local_recall --session sessions/2026-06-26_17-31-17",
+      "session_id": "2026-06-26_17-31-17",
+      "session": "sessions/2026-06-26_17-31-17"
+    }
+  ]
 }
 ```
 
@@ -687,7 +696,9 @@ path to `local_recall_review.md`. This report is read-only: it does not insert m
 the transcript. `summary.audit_by_label` keeps the raw local-recall audit labels; the top-level
 `possible_lost_me_*` and `needs_review_*` counters follow the effective session-quality metrics after
 review decisions. Its purpose is to keep possible lost-`Me` examples visible as a corpus regression
-queue without reopening already-reviewed items.
+queue without reopening already-reviewed items. `next_commands` points to `check_local_recall` for
+the first complete blocking session, or to `murmurmark process ...` when only incomplete blocking
+sessions remain.
 
 `murmurmark corpus local-recall-repair` aggregates `local_recall_repair_v1` reports into:
 

@@ -7285,6 +7285,9 @@ enum CorpusPrinter {
             print(String(format: "  likely_harmless_seconds: %.2f", seconds))
         }
         print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
+        if let command = (payload["next_commands"] as? [[String: Any]])?.compactMap({ string($0["command"]) }).first {
+            print("  next_command: \(command)")
+        }
     }
 
     static func printLocalRecallRepairCorpus(outDir: URL = PathURLs.fileURL("sessions/_reports/local-recall-repair")) throws {
@@ -7302,8 +7305,7 @@ enum CorpusPrinter {
         }
         print("  rejected_items: \(int(summary["rejected_items"]) ?? 0)")
         print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
-        if let nextCommands = payload["next_commands"] as? [[String: Any]],
-           let command = nextCommands.compactMap({ string($0["command"]) }).first {
+        if let command = (payload["next_commands"] as? [[String: Any]])?.compactMap({ string($0["command"]) }).first {
             print("  next_command: \(command)")
         }
     }

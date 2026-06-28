@@ -669,8 +669,9 @@ the source item as reliable.
 audio leakage.
 `murmurmark corpus local-recall` writes `sessions/_reports/local-recall/`. It aggregates
 possible lost `Me`, local-recall review and harmless missing-island explanations across the corpus.
-Use it when local speech recall is the concern. For a strong missed local island, use the candidate
-repair profile explicitly:
+Use it when local speech recall is the concern. The report writes `next_commands`: complete sessions
+go to `murmurmark review lane check_local_recall --session ...`; incomplete sessions go back through
+`murmurmark process ...`. For a strong missed local island, use the candidate repair profile explicitly:
 
 ```bash
 murmurmark repair local-recall "$SESSION" \
