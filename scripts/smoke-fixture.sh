@@ -887,6 +887,8 @@ EOF
   echo "$local_recall_cli_output" | grep -q '^audit:$'
   echo "$local_recall_cli_output" | grep -q '  kind: local_recall'
   echo "$local_recall_cli_output" | grep -q '  missing_islands: 3'
+  echo "$local_recall_cli_output" | grep -q '^  read: less '
+  echo "$local_recall_cli_output" | grep -q '^  recommended_next: murmurmark review next '
   local_recall_summary="$group_session/derived/audit/local-recall/local_recall_audit.json"
   [[ -s "$local_recall_summary" ]]
   [[ -s "$group_session/derived/audit/local-recall/local_recall_items.jsonl" ]]
@@ -1024,6 +1026,8 @@ EOF
   echo "$order_cli_output" | grep -q '^audit:$'
   echo "$order_cli_output" | grep -q '  kind: transcript_order'
   echo "$order_cli_output" | grep -q '  probable_order_risk: 1 / 2.00s'
+  echo "$order_cli_output" | grep -q '^  read: less '
+  echo "$order_cli_output" | grep -q '^  recommended_next: murmurmark review next '
   order_summary="$order_session/derived/audit/order/transcript_order_audit.json"
   [[ -s "$order_summary" ]]
   [[ -s "$order_session/derived/audit/order/transcript_order_items.jsonl" ]]
@@ -1262,6 +1266,8 @@ PY
   echo "$group_overlap_cli_output" | grep -q '^audit:$'
   echo "$group_overlap_cli_output" | grep -q '  kind: group_overlaps'
   echo "$group_overlap_cli_output" | grep -q '  overlaps: 4 /'
+  echo "$group_overlap_cli_output" | grep -q '^  read: less '
+  echo "$group_overlap_cli_output" | grep -q '^  recommended_next: murmurmark review next '
 
   group_audit="$group_session/derived/audit/group-overlaps/group_overlap_audit.jsonl"
   group_summary="$group_session/derived/audit/group-overlaps/group_overlap_summary.json"
@@ -1375,6 +1381,8 @@ EOF
   echo "$audio_review_cli_output" | grep -q '^audit:$'
   echo "$audio_review_cli_output" | grep -q '  kind: audio_review'
   echo "$audio_review_cli_output" | grep -q '  items:'
+  echo "$audio_review_cli_output" | grep -q '^  read: less '
+  echo "$audio_review_cli_output" | grep -q '^  recommended_next: murmurmark review next '
   review_pack="$group_session/derived/audit/audio-review-pack/review_pack_items.jsonl"
   review_summary="$group_session/derived/audit/audio-review-pack/audio_review_summary.json"
   [[ -s "$review_pack" ]]

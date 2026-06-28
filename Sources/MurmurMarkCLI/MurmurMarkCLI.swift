@@ -2033,7 +2033,12 @@ enum AuditPrinter {
             )
         )
         print("  recommendation: \(string(summary["recommended_next_step"]) ?? "unknown")")
-        print("  next: less \(PathDisplay.display(outDir.appendingPathComponent("local_recall_review.md")))")
+        let needsReview = int(summary["possible_lost_me_count"]) > 0 || int(summary["needs_review_count"]) > 0
+        printAuditHandoff(
+            session: session,
+            report: outDir.appendingPathComponent("local_recall_review.md"),
+            needsReview: needsReview
+        )
     }
 
     static func printGroupOverlaps(session: URL) throws {
@@ -2068,7 +2073,12 @@ enum AuditPrinter {
         if let verdict = string(adjustment["new"]) {
             print("  recommended_verdict: \(verdict) (informational)")
         }
-        print("  next: less \(PathDisplay.display(outDir.appendingPathComponent("group_overlap_review.md")))")
+        let needsReview = int(review["count"]) > 0 || double(harmful["seconds"]) > 0
+        printAuditHandoff(
+            session: session,
+            report: outDir.appendingPathComponent("group_overlap_review.md"),
+            needsReview: needsReview
+        )
     }
 
     static func printOrder(session: URL, args: [String]) throws {
@@ -2102,7 +2112,12 @@ enum AuditPrinter {
             )
         )
         print("  recommendation: \(string(summary["recommended_next_step"]) ?? "unknown")")
-        print("  next: less \(PathDisplay.display(outDir.appendingPathComponent("transcript_order_review.md")))")
+        let needsReview = int(summary["probable_order_risk_count"]) > 0 || int(summary["needs_review_count"]) > 0
+        printAuditHandoff(
+            session: session,
+            report: outDir.appendingPathComponent("transcript_order_review.md"),
+            needsReview: needsReview
+        )
     }
 
     static func printAudioReview(session: URL, args: [String]) throws {
@@ -2128,7 +2143,12 @@ enum AuditPrinter {
         print(String(format: "  likely_reliable: %d / %.2fs", int(reliable["count"]), double(reliable["seconds"])))
         print(String(format: "  needs_stronger_audio_judge: %d / %.2fs", int(stronger["count"]), double(stronger["seconds"])))
         print("  recommendation: \(string(payload["recommended_next_step"]) ?? "unknown")")
-        print("  next: less \(PathDisplay.display(outDir.appendingPathComponent("audio_review_report.md")))")
+        let needsReview = int(probable["count"]) > 0 || int(stronger["count"]) > 0
+        printAuditHandoff(
+            session: session,
+            report: outDir.appendingPathComponent("audio_review_report.md"),
+            needsReview: needsReview
+        )
     }
 
     private static func outputDir(args: [String], defaultURL: URL) -> URL {
@@ -2141,6 +2161,19 @@ enum AuditPrinter {
         print("  kind: \(kind)")
         print("  summary: missing")
         print("  expected: \(PathDisplay.display(expected))")
+    }
+
+    private static func printAuditHandoff(session: URL, report: URL, needsReview: Bool) {
+        let sessionPath = PathDisplay.display(session)
+        let readCommand = "less \(PathDisplay.display(report))"
+        let actionCommand = needsReview
+            ? "murmurmark review next \(sessionPath)"
+            : "murmurmark report \(sessionPath)"
+        print("  read: \(readCommand)")
+        print("  recommended_next: \(actionCommand)")
+        print("  next:")
+        print("    \(readCommand)")
+        print("    \(actionCommand)")
     }
 
     private static func dict(_ value: Any?) -> [String: Any] {

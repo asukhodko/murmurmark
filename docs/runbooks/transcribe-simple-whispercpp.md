@@ -242,7 +242,8 @@ less "$SESSION/derived/audit/local-recall/local_recall_review.md"
 ```
 
 The CLI prints a compact summary with missing-island counts, possible lost local speech,
-review seconds and the next report to inspect.
+review seconds, `read: less ...` for the Markdown report and `recommended_next`. If possible lost
+local speech is present, `recommended_next` points back into `murmurmark review next SESSION`.
 
 The audit reads only timeline-repair examples and Echo Guard `speaker_state.jsonl`. It writes under
 `derived/audit/local-recall/`, does not edit transcripts, and is used by
@@ -272,8 +273,9 @@ less "$SESSION/derived/audit/order/transcript_order_review.md"
 
 The audit reads `clean_dialogue` and `overlaps`, writes under `derived/audit/order/`, and never edits
 transcript profiles. `probable_order_risk` means a long `Me` turn wraps a `Colleagues` turn and has a
-tail after it; this is included in session readiness review burden and should go to review before
-using the transcript for precise chronology.
+local tail after it; this is included in session readiness review burden and should go to review
+before using the transcript for precise chronology. When such rows exist, the CLI `recommended_next`
+points to `murmurmark review next SESSION`.
 
 For the narrow safe case where the long `Me` turn can be split by saved source ASR segments, build an
 explicit repair profile:
@@ -449,7 +451,8 @@ less "$SESSION/derived/audit/audio-review-pack/audio_review_report.md"
 ```
 
 The CLI summary shows item counts, likely reliable seconds, probable transcript errors, stronger
-audio-judge demand and the next report to inspect.
+audio-judge demand, `read: less ...` for the Markdown report and `recommended_next`. Probable or
+uncertain transcript errors point back into `murmurmark review next SESSION`.
 
 The pack is written under `derived/audit/audio-review-pack/`. It includes short `mic_raw`,
 `remote`, `mic_clean`, `mic_role_masked` and stereo comparison clips for suspicious transcript

@@ -518,7 +518,8 @@ prints the manifest path, key output files and the matching retention commands.
 local-recall`, `murmurmark audit order`, `murmurmark audit group-overlaps` and `murmurmark audit audio-review` are the normal
 entry points; direct Python script calls remain useful for debugging.
 After every audit run, the CLI prints a compact handoff summary with the profile, key counters,
-recommendation and the report to open next.
+recommendation, `read: less ...` for the Markdown report and `recommended_next`. Risky audits point
+back to `murmurmark review next SESSION`; clean audits point to `murmurmark report SESSION`.
 
 The group overlap audit reads transcript overlaps, Echo Guard `speaker_state.jsonl`, and local audio derivatives, then writes `derived/audit/group-overlaps/`. It separates likely harmful `Me` duplicates or remote leakage from expected group-call double-talk and timing overlap. This is audit-only: no transcript, Echo Guard output, synthesis output, or `quality_verdict` is modified.
 
