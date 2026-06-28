@@ -111,6 +111,7 @@ struct MurmurMark {
           murmurmark corpus build all|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus evaluate
           murmurmark corpus train-audio-judge
+          murmurmark corpus taxonomy
           murmurmark corpus gate
           murmurmark corpus order [all|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus report
@@ -2028,7 +2029,7 @@ enum SynthesisPrinter {
 enum CorpusCommands {
     static func corpus(_ args: [String]) throws {
         guard let subcommand = args.first else {
-            throw CLIError("corpus requires process, build, evaluate, train-audio-judge, gate, order, or report")
+            throw CLIError("corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, or report")
         }
         var forwarded = Array(args.dropFirst())
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
@@ -2049,6 +2050,7 @@ enum CorpusCommands {
             try build(sessions: sessions, extraArgs: forwarded)
             try evaluate(extraArgs: [])
             try trainAudioJudge(extraArgs: [])
+            try taxonomy(extraArgs: [])
             try operationalReadiness()
             try transcriptOrder(sessions: [], extraArgs: [])
             try gates(extraArgs: [])
@@ -2056,6 +2058,7 @@ enum CorpusCommands {
             try CorpusPrinter.printBuild()
             try CorpusPrinter.printEvaluation()
             try CorpusPrinter.printAudioJudge()
+            try CorpusPrinter.printTaxonomy()
             try CorpusPrinter.printTranscriptOrder()
             try CorpusPrinter.printGates()
             try CorpusPrinter.printOperationalReadiness()
@@ -2088,6 +2091,14 @@ enum CorpusCommands {
             let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/audio-judge-v0")
             try trainAudioJudge(extraArgs: forwarded)
             try CorpusPrinter.printAudioJudge(outDir: outDir)
+        case "taxonomy":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-audio-error-taxonomy.py").path] + forwarded)
+                return
+            }
+            let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/audio-error-taxonomy")
+            try taxonomy(extraArgs: forwarded)
+            try CorpusPrinter.printTaxonomy(outDir: outDir)
         case "gate":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("check-corpus-gates.py").path] + forwarded)
@@ -2166,6 +2177,13 @@ enum CorpusCommands {
         ] + extraArgs)
     }
 
+    private static func taxonomy(extraArgs: [String]) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPath(python, [
+            try script("report-audio-error-taxonomy.py").path,
+        ] + extraArgs)
+    }
+
     private static func gates(extraArgs: [String]) throws {
         let python = try PythonRuntime.resolve()
         try Tooling.runPath(python, [
@@ -2236,9 +2254,10 @@ enum CorpusCommands {
           2. build-regression-corpus.py
           3. evaluate-regression-corpus.py
           4. train-audio-judge-v0.py
-          5. report-operational-readiness.py
-          6. report-transcript-order-corpus.py
-          7. check-corpus-gates.py
+          5. report-audio-error-taxonomy.py
+          6. report-operational-readiness.py
+          7. report-transcript-order-corpus.py
+          8. check-corpus-gates.py
 
         Options:
           --sessions-root PATH  Sessions directory for all/latest. Default: sessions
@@ -6014,6 +6033,10 @@ enum CorpusPrinter {
         let transcriptOrder = PathURLs.fileURL("sessions/_reports/transcript-order/transcript_order_corpus_report.json")
         let corpusGates = PathURLs.fileURL("sessions/_reports/corpus-gates/corpus_gates_report.json")
         let operationalReadiness = PathURLs.fileURL("sessions/_reports/operational-readiness/operational_readiness_report.json")
+        let taxonomy = PathURLs.fileURL("sessions/_reports/audio-error-taxonomy/audio_error_taxonomy_report.json")
+        if FileManager.default.fileExists(atPath: taxonomy.path) {
+            try printTaxonomy()
+        }
         if FileManager.default.fileExists(atPath: transcriptOrder.path) {
             try printTranscriptOrder()
         }
@@ -6081,6 +6104,26 @@ enum CorpusPrinter {
         print("  remaining_human_review_items: \(int(queue["remaining_human_review_items"]) ?? 0)")
         if let labels = queue["by_judge_label"] as? [String: Any] {
             print("  by_judge_label: \(compactJSON(labels))")
+        }
+    }
+
+    static func printTaxonomy(outDir: URL = PathURLs.fileURL("sessions/_reports/audio-error-taxonomy")) throws {
+        let url = outDir.appendingPathComponent("audio_error_taxonomy_report.json")
+        let payload = try JSONFiles.object(url)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        print("")
+        print("audio_error_taxonomy:")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("audio_error_taxonomy_report.md")))")
+        print("  items: \(int(summary["items"]) ?? 0)")
+        print("  sessions: \(int(summary["sessions"]) ?? 0)")
+        if let seconds = double(summary["attention_seconds"]) {
+            print(String(format: "  attention_seconds: %.2f", seconds))
+        }
+        if let missing = summary["missing_classes"] as? [Any], !missing.isEmpty {
+            print("  missing_classes: \(compactJSON(missing))")
+        }
+        if let focus = payload["focus_areas"] as? [[String: Any]], let first = focus.first {
+            print("  first_focus: \(string(first["area"]) ?? "unknown") -> \(string(first["next_action"]) ?? "unknown")")
         }
     }
 

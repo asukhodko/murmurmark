@@ -19,14 +19,15 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 5. `murmurmark cleanup` и `murmurmark synthesize` — готовы CLI-входы к cleanup-профилям и extractive notes.
 6. `murmurmark review SESSION` — готов базовый CLI-контур.
 7. `murmurmark corpus process all` — готов базовый контур качества по корпусу.
-8. `murmurmark corpus gate` — готов no-regression gate с локальным baseline-сравнением.
-9. `murmurmark export SESSION --format markdown|obsidian` — готов базовый пользовательский output-блок.
-10. `scripts/install-local.sh` — готов минимальный локальный install wrapper для команды `murmurmark`.
-11. `murmurmark doctor` — готов расширенный health check локальной установки и pipeline-зависимостей.
-12. `scripts/build-release-bundle.sh` — готов локальный release layout с manifest и без приватных данных.
-13. `murmurmark retention plan SESSION` — готов локальный retention plan; raw deletion защищён отдельным `apply`.
-14. `murmurmark retention payload SESSION` — готов provider payload manifest; default policy блокирует внешние payload’ы.
-15. `scripts/check-open-source-readiness.sh` — готов public-readiness gate; MIT LICENSE добавлена.
+8. `murmurmark corpus taxonomy` — готова сводная таксономия аудио-ошибок для следующей итерации качества.
+9. `murmurmark corpus gate` — готов no-regression gate с локальным baseline-сравнением.
+10. `murmurmark export SESSION --format markdown|obsidian` — готов базовый пользовательский output-блок.
+11. `scripts/install-local.sh` — готов минимальный локальный install wrapper для команды `murmurmark`.
+12. `murmurmark doctor` — готов расширенный health check локальной установки и pipeline-зависимостей.
+13. `scripts/build-release-bundle.sh` — готов локальный release layout с manifest и без приватных данных.
+14. `murmurmark retention plan SESSION` — готов локальный retention plan; raw deletion защищён отдельным `apply`.
+15. `murmurmark retention payload SESSION` — готов provider payload manifest; default policy блокирует внешние payload’ы.
+16. `scripts/check-open-source-readiness.sh` — готов public-readiness gate; MIT LICENSE добавлена.
 
 UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
 
@@ -39,7 +40,8 @@ UI App не является обязательной частью roadmap. Он
 - `review-loop` — ближайший этап: удобный CLI-review спорных участков; ручный workspace review и агентный `review agent` уже есть.
 - `quality-hardening` — ближайший этап: улучшение качества transcript без смены топологии; первый
   явный `order_repair_v1` уже чинит только те order-risk регионы, которые безопасно режутся по
-  сохранённым source ASR segments.
+  сохранённым source ASR segments. Следующий короткий шаг — таксономия аудио-ошибок поверх
+  corpus/audio-judge отчётов, чтобы чинить не всё подряд, а самый дорогой класс ошибок.
 - `evidence-notes` и `export-workflows` — пользовательские артефакты; базовый export готов, дальше нужны vault/docs/Jira proposals.
 - `retention-policy` и `packaging` — приватность, хранение raw audio, release layout, provider payload manifest и readiness gate; перед публикацией нужен публичный security contact.
 - `future-heavy-local`, `future-llm-synthesis`, `future-ui-app` — дальние ветки.

@@ -539,6 +539,8 @@ work:
 
 .build/debug/murmurmark corpus train-audio-judge
 
+.build/debug/murmurmark corpus taxonomy
+
 .build/debug/murmurmark corpus gate
 .build/debug/murmurmark corpus gate \
   --write-baseline sessions/_reports/corpus-gates/baseline.local.json
@@ -557,6 +559,7 @@ less sessions/_reports/regression-corpus/regression_corpus.md
 less sessions/_reports/regression-corpus/regression_corpus_evaluation.md
 less sessions/_reports/audio-judge-v0/audio_judge_v0_report.md
 less sessions/_reports/audio-judge-v0/audio_judge_v0_cv_predictions.jsonl
+less sessions/_reports/audio-error-taxonomy/audio_error_taxonomy_report.md
 less sessions/_reports/operational-readiness/operational_readiness_report.md
 less sessions/_reports/review-plan/review_plan.md
 ```
@@ -609,6 +612,10 @@ transcripts. Queue predictions are conservative: `drop_error` and `mark_only_err
 for cleanup/review work, not automatic review-burden reduction. `audit_cleanup_v3` consumes only
 high-confidence `drop_error` predictions that also pass the conservative cleanup gates. v4 can
 consume a few more strong duplicate predictions, but remains mark-only for leak/uncertain classes.
+`murmurmark corpus taxonomy` then combines the corpus, evaluation buckets, audio-judge predictions
+and session-quality state into one action map. Read it before changing cleanup or repair rules: it
+separates safe cleanup evidence, mark-only errors, uncertain regions, benign overlap guards and
+model/confidence gaps.
 The operational readiness report answers whether the current pipeline is usable for medium-risk
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first. Its review queue is also

@@ -788,6 +788,50 @@ When an operational readiness report exists, `train-audio-judge-v0.py` may also 
 
 These rows are shadow evidence. They do not modify a transcript by themselves.
 
+Audio error taxonomy is the action map over the same private reports:
+
+```text
+sessions/_reports/audio-error-taxonomy/
+  audio_error_taxonomy_report.json
+  audio_error_taxonomy_items.jsonl
+  audio_error_taxonomy_report.md
+```
+
+`audio_error_taxonomy_report.json` uses `murmurmark.audio_error_taxonomy_report/v1`:
+
+```json
+{
+  "schema": "murmurmark.audio_error_taxonomy_report/v1",
+  "summary": {
+    "items": 102,
+    "sessions": 10,
+    "total_seconds": 312.4
+  },
+  "by_class": {
+    "remote_duplicate": {
+      "items": 18,
+      "seconds": 44.2,
+      "recommended_action": "safe_cleanup_regression"
+    },
+    "lost_me": {
+      "items": 9,
+      "seconds": 21.8,
+      "recommended_action": "local_recall_repair"
+    }
+  },
+  "focus_areas": [
+    {
+      "class": "uncertain",
+      "reason": "many items still need stronger audio judgement"
+    }
+  ]
+}
+```
+
+The taxonomy report is read-only. It does not create transcript profiles and does not decide review
+items. It exists to choose the next quality-hardening task: safer duplicate cleanup, local-recall
+repair, boundary repair, stronger labels, or collecting more corpus examples.
+
 Corpus gates are generated after session quality, corpus evaluation, audio judge and operational
 readiness reports:
 

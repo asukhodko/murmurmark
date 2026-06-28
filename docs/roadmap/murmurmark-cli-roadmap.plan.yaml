@@ -230,6 +230,8 @@ nodes:
       corpus gate уже проверяет hard-инварианты и может сравнивать будущие прогоны
       с локальным baseline snapshot. Audio judge evaluation пишет out-of-fold audit;
       session readiness теперь явно разделяет review_blockers и export_blockers.
+      Следующий слой — audio-error taxonomy: сводка по классам ошибок, их цене,
+      покрытию, judge-ошибкам и рекомендуемому следующему ремонту.
 
   corpus-add-command:
     title: "corpus add"
@@ -278,6 +280,15 @@ nodes:
     status: done
     effort: 3
     notes: "session_readiness.json пишет use_gate_reasons, review_blockers, export_blockers и next_commands; export использует export_blockers как машинный gate."
+
+  corpus-error-taxonomy:
+    title: "Audio error taxonomy"
+    kind: task
+    parent: corpus-regression
+    deps: [corpus-audio-judge-refresh]
+    status: done
+    effort: 3
+    notes: "murmurmark corpus taxonomy собирает regression corpus, audio-judge и session-quality отчёты в одну карту классов ошибок и следующих безопасных действий."
 
   review-loop:
     title: "Review loop"
@@ -404,9 +415,10 @@ nodes:
     title: "Richer audio-judge labels"
     kind: task
     parent: quality-hardening
+    deps: [corpus-error-taxonomy]
     status: next
     effort: 6
-    notes: "Более точные метки: lost_me, remote_duplicate, asr_noise, timing_overlap, double_talk."
+    notes: "Более точные метки: lost_me, remote_duplicate, asr_noise, timing_overlap, double_talk. Начинается с taxonomy report, который показывает, какие метки уже покрыты, где judge путается и какой класс ошибок чинить следующим."
 
   evidence-notes:
     title: "Evidence-backed notes и quality verdict"

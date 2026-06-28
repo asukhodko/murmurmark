@@ -142,6 +142,8 @@ murmurmark corpus evaluate
 
 murmurmark corpus train-audio-judge
 
+murmurmark corpus taxonomy
+
 murmurmark corpus gate
 
 murmurmark corpus gate \
@@ -162,6 +164,10 @@ murmurmark corpus process all --per-label 16 --max-items 160
 ```
 
 `corpus gate` writes `sessions/_reports/corpus-gates/corpus_gates_report.*`.
+`corpus taxonomy` writes `sessions/_reports/audio-error-taxonomy/audio_error_taxonomy_report.*`.
+Use it after `corpus train-audio-judge` to see which error classes are already safe cleanup
+candidates, which are mark-only, which need better labels, and which sessions/examples should drive
+the next quality iteration.
 `passed_with_warnings` means the hard no-regression gates are green, but some historical sessions or
 review queues still need cleanup before the whole repository is operationally ready.
 The optional baseline is private generated state under ignored `sessions/_reports/`.
@@ -297,6 +303,7 @@ murmurmark corpus process all --per-label 16 --max-items 160
 murmurmark corpus build ./sessions/<session> --per-label 16 --max-items 160
 murmurmark corpus evaluate
 murmurmark corpus train-audio-judge
+murmurmark corpus taxonomy
 murmurmark corpus gate
 murmurmark corpus gate --write-baseline sessions/_reports/corpus-gates/baseline.local.json
 murmurmark corpus gate --baseline sessions/_reports/corpus-gates/baseline.local.json
@@ -341,6 +348,7 @@ murmurmark synthesize ./sessions/<session> --transcript-profile auto
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
 .venv/bin/python scripts/evaluate-regression-corpus.py
 .venv/bin/python scripts/train-audio-judge-v0.py
+.venv/bin/python scripts/report-audio-error-taxonomy.py
 .venv/bin/python scripts/report-operational-readiness.py
 .venv/bin/python scripts/report-transcript-order-corpus.py
 .venv/bin/python scripts/build-review-plan.py

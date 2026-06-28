@@ -1513,6 +1513,22 @@ EOF
   "$repo_root/scripts/report-session-quality.py" "$group_session" --out-dir "$quality_dir" >/dev/null
   jq -e '.sessions[0].audio_review_resolved_by_cleanup_count >= 1' "$quality_dir/session_quality_report.json" >/dev/null
   jq -e '.sessions[0].stages.transcript_order_audit == true and .sessions[0].transcript_order_probable_order_risk_count == 0' "$quality_dir/session_quality_report.json" >/dev/null
+
+  taxonomy_dir="$workdir/audio-error-taxonomy"
+  taxonomy_output="$("$bin" corpus taxonomy \
+    --corpus-dir "$corpus_dir" \
+    --audio-judge-dir "$judge_dir" \
+    --session-quality "$quality_dir/session_quality_report.json" \
+    --out-dir "$taxonomy_dir")"
+  echo "$taxonomy_output" | grep -q '^audio_error_taxonomy:$'
+  [[ -s "$taxonomy_dir/audio_error_taxonomy_report.json" ]]
+  [[ -s "$taxonomy_dir/audio_error_taxonomy_items.jsonl" ]]
+  [[ -s "$taxonomy_dir/audio_error_taxonomy_report.md" ]]
+  jq -e '.schema == "murmurmark.audio_error_taxonomy_report/v1"' "$taxonomy_dir/audio_error_taxonomy_report.json" >/dev/null
+  jq -e '.summary.items >= 2 and .policy.may_modify_transcript == false' "$taxonomy_dir/audio_error_taxonomy_report.json" >/dev/null
+  jq -e '.by_class.remote_duplicate.items >= 1 and .by_class.uncertain.items >= 1' "$taxonomy_dir/audio_error_taxonomy_report.json" >/dev/null
+  jq -s 'all(.[]; .schema == "murmurmark.audio_error_taxonomy_item/v1" and (.recommended_action | type) == "string")' "$taxonomy_dir/audio_error_taxonomy_items.jsonl" >/dev/null
+
   order_corpus_dir="$workdir/transcript-order-corpus"
   "$bin" corpus order "$group_session" \
     --session-quality "$quality_dir/session_quality_report.json" \
