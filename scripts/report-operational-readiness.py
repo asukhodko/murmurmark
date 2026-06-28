@@ -439,16 +439,28 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
         safe_float((item.get("interval") if isinstance(item.get("interval"), dict) else {}).get("duration_sec"))
         for item in review_queue
     )
+    blocker_lane_order = ("check_transcript_order", "check_local_recall", "check_unique_me_content")
+    first_lane = next((lane for lane in blocker_lane_order if safe_int(rows.get(lane, {}).get("items"))), None)
     fast = rows.get("fast_confirm_drop") or {}
     fast_items = safe_int(fast.get("items"))
-    fast_seconds = safe_float(fast.get("seconds"))
+    quick_lane = "fast_confirm_drop" if fast_items else None
+    first_lane = first_lane or quick_lane or (by_lane[0]["lane"] if by_lane else None)
+    first_row = rows.get(first_lane or "") or {}
+    first_items = safe_int(first_row.get("items"))
+    first_seconds = safe_float(first_row.get("seconds"))
     return {
         "by_lane": by_lane,
-        "first_recommended_lane": "fast_confirm_drop" if fast_items else (by_lane[0]["lane"] if by_lane else None),
+        "first_recommended_lane": first_lane,
+        "quick_recommended_lane": quick_lane,
+        "first_recommended_reason": (
+            "close_blocking_review_lane"
+            if first_lane and first_lane != quick_lane
+            else ("close_fast_confirm_drop" if first_lane else None)
+        ),
         "after_first_lane_estimate": {
-            "remaining_items": max(0, total_items - fast_items),
-            "remaining_seconds": round(max(0.0, total_seconds - fast_seconds), 3),
-            "remaining_minutes": round(max(0.0, total_seconds - fast_seconds) / 60.0, 2),
+            "remaining_items": max(0, total_items - first_items),
+            "remaining_seconds": round(max(0.0, total_seconds - first_seconds), 3),
+            "remaining_minutes": round(max(0.0, total_seconds - first_seconds) / 60.0, 2),
         },
         "commands": {
             "build_review_workspace": (
@@ -506,15 +518,15 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
             ),
             "build_first_lane_pack": (
                 "murmurmark review first-lane"
-                if fast_items
+                if first_lane
                 else None
             ),
             "review_first_lane": (
                 ".venv/bin/python scripts/apply-review-lane-pack-decisions.py "
-                "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.json "
-                "--answers-file sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt "
+                f"sessions/_reports/review-plan/lane-packs/review_lane_pack.{first_lane}.json "
+                f"--answers-file sessions/_reports/review-plan/lane-packs/review_lane_answers.{first_lane}.txt "
                 "--out sessions/_reports/review-plan/review_decisions.jsonl"
-                if fast_items
+                if first_lane
                 else None
             ),
         },

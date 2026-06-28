@@ -751,7 +751,9 @@ CLI MVP readiness loop.
 Its `promotion_plan` section explains the current delta to `medium_risk_ready`: unresolved warnings,
 sessions not ready for notes, remaining review minutes, and the next action class.
 Its `Review Queue Strategy` section groups the remaining queue into lanes and shows the first useful
-lane to close, usually `fast_confirm_drop`, plus the estimated queue that remains after that lane.
+lane to close. Export-blocking lanes such as transcript order, local recall, or unique `Me` content
+come first; `fast_confirm_drop` remains the quick lane when no blocking lane needs priority. The
+report also estimates the queue that remains after the first lane.
 `build-review-plan.py` turns that queue into a compact checklist. Use it when a session is
 `review_first`: listen to the listed stereo clips or local-recall mic snippets, decide whether each
 `Me` candidate is leaked remote speech, real local speech, lost local speech, order-risk, or unclear, then keep
@@ -760,8 +762,8 @@ The plan also assigns each row a `review_lane`: `fast_confirm_drop` for likely c
 rows, `check_unique_me_content` for partial duplicates and leaks, `check_local_recall` for possible
 missing local speech, `check_transcript_order` for chronology-risk rows, `confirm_benign` for likely
 harmless overlap, and `classify_audio` for anything else.
-Close the plan's `first_recommended_lane` first; it is usually `fast_confirm_drop`, but can change as
-the review queue changes. Keep the other lanes conservative unless the audio or chronology evidence
+Close the plan's `first_recommended_lane` first; it is chosen to reduce the current blocker, not just
+to pick the easiest audio. Keep the other lanes conservative unless the audio or chronology evidence
 is clear.
 `murmurmark review next "$SESSION"` is the quickest entry point for one session: it refreshes
 `session_readiness.json`, shows gate/profile/verdict/review burden, builds a session-local review

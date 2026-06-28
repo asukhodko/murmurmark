@@ -651,12 +651,12 @@ the row is marked
 The generated plan also splits the queue into `review_lane` groups:
 `fast_confirm_drop`, `check_unique_me_content`, `check_local_recall`, `check_transcript_order`,
 `confirm_benign`, and
-`classify_audio`. Use those lanes to clear complete duplicate/noise checks first and leave meaning-heavy
-checks for a slower pass. The plan carries the `first_recommended_lane` from operational readiness,
+`classify_audio`. Use those lanes to close the blocking lane first, then clear complete duplicate/noise
+checks or slower meaning-heavy checks. The plan carries the `first_recommended_lane` from operational readiness,
 and `murmurmark review first-lane` builds the corresponding lane pack directly, including WAV, Markdown
 index and editable answer sheet.
 `murmurmark review lane check_local_recall --session SESSION` builds one explicit lane pack, which is
-useful for checking local-recall repair insertions without first clearing the recommended fast lane.
+useful for checking local-recall repair insertions when you intentionally want that lane.
 To clear only the quickest lane, run the CLI with that lane; the output file still
 keeps the full template, so later passes can continue with the remaining lanes.
 For faster listening, `murmurmark review workspace` builds lane packs for all remaining lanes:

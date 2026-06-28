@@ -1956,6 +1956,16 @@ assert lanes["check_unique_me_content"] == 2, lanes
 assert lanes["check_local_recall"] == 2, lanes
 assert lanes["check_transcript_order"] == 2, lanes
 assert any(row["label"] == "probable_order_risk" for row in selected), selected
+strategy = module.review_queue_lane_summary(
+    [
+        item("audio_review", "asr_noise", "probable_transcript_error", 90, 1),
+        item("local_recall_repair", "local_recall_repair_inserted", "needs_review", 80, 2),
+    ]
+)
+assert strategy["first_recommended_lane"] == "check_local_recall", strategy
+assert strategy["quick_recommended_lane"] == "fast_confirm_drop", strategy
+assert strategy["first_recommended_reason"] == "close_blocking_review_lane", strategy
+assert "review_lane_pack.check_local_recall.json" in strategy["commands"]["review_first_lane"], strategy
 assert not module.duplicate_drop_hint_allowed({
     "review_features": {
         "me_overlap_coverage": 0.68,
