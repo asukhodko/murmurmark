@@ -156,7 +156,7 @@ enum ReviewPrinter {
         }
         printProgressLanes(payload)
         let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
-        printProgressNext(summary: summary, sessionID: sessionID)
+        printProgressNext(summary: summary, nextLane: firstRemainingLane(payload), sessionID: sessionID)
     }
 
     private static func printProgressLanes(_ payload: [String: Any]) {
@@ -173,12 +173,24 @@ enum ReviewPrinter {
         }
     }
 
-    private static func printProgressNext(summary: [String: Any], sessionID: String?) {
+    private static func firstRemainingLane(_ payload: [String: Any]) -> String? {
+        let lanes = payload["by_lane"] as? [[String: Any]] ?? []
+        return lanes.first { (int($0["remaining"]) ?? 0) > 0 }.flatMap { string($0["review_lane"]) }
+    }
+
+    private static func printProgressNext(summary: [String: Any], nextLane: String?, sessionID: String?) {
         let sessionArgument = sessionID.map { " --session \($0)" } ?? ""
+        if let nextLane {
+            print("  next_lane: \(nextLane)")
+        }
         print("  next:")
         if bool(summary["ready_for_batch_apply"]) == true {
             print("    murmurmark review apply\(sessionArgument)")
             return
+        }
+        if let nextLane {
+            print("    murmurmark review lane \(nextLane)\(sessionArgument)")
+            print("    murmurmark review lane apply \(nextLane)\(sessionArgument)")
         }
         print("    murmurmark review workspace\(sessionArgument)")
         print("    murmurmark review workspace apply\(sessionArgument)")
@@ -224,7 +236,7 @@ enum ReviewPrinter {
         if !FileManager.default.fileExists(atPath: template.path) {
             print("    review_template")
         }
-        printApplyNotReadyNext(sessionArgument: sessionArgument)
+        printApplyNotReadyNext(sessionArgument: sessionArgument, nextLane: nil)
     }
 
     static func printApplyNotReady(session: URL?, decisions: URL, progress: URL) throws {
@@ -240,13 +252,20 @@ enum ReviewPrinter {
         print("  remaining: \(int(summary["remaining"]) ?? 0)")
         print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
         printProgressLanes(payload)
-        printApplyNotReadyNext(sessionArgument: sessionArgument)
+        printApplyNotReadyNext(sessionArgument: sessionArgument, nextLane: firstRemainingLane(payload))
     }
 
-    private static func printApplyNotReadyNext(sessionArgument: String) {
+    private static func printApplyNotReadyNext(sessionArgument: String, nextLane: String?) {
+        if let nextLane {
+            print("  next_lane: \(nextLane)")
+        }
         print("  next:")
         print("    murmurmark review first-lane\(sessionArgument)")
         print("    murmurmark review lane apply first\(sessionArgument)")
+        if let nextLane {
+            print("    murmurmark review lane \(nextLane)\(sessionArgument)")
+            print("    murmurmark review lane apply \(nextLane)\(sessionArgument)")
+        }
         print("    murmurmark review workspace\(sessionArgument)")
         print("    murmurmark review workspace apply\(sessionArgument)")
         print("    murmurmark review progress\(sessionArgument)")
