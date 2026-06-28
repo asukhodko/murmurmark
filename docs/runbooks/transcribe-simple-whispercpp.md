@@ -720,9 +720,10 @@ per-session remote-leak segment plans into one corpus queue and keeps the same a
 no transcript profile and no raw audio are modified. `murmurmark corpus process all` refreshes these
 plans before session-quality and corpus aggregation. Use `corpus remote-leak --plan` when you only
 want to refresh the remote-leak queue. The report writes `next_commands`: missing plans point to
-`murmurmark corpus remote-leak --plan`, and protected-local-content intervals point to the first
-`remote_leak_segment_repair.md` report. `corpus gate` reads this aggregate report and warns when
-plans are missing or when protected-local-content leak intervals remain in the queue.
+`murmurmark corpus remote-leak --plan`, complete sessions with protected-local-content intervals
+point to `murmurmark review lane check_unique_me_content --session ...`, and incomplete sessions
+go back through `murmurmark process ...` first. `corpus gate` reads this aggregate report and warns
+when plans are missing or when protected-local-content leak intervals remain in the queue.
 `murmurmark corpus report` prints the existing session-quality summary and, when the files already
 exist, also prints short summaries for transcript-order, remote-leak, corpus-gates and
 operational-readiness. It does not rebuild those reports; it is the quick “what is the current state?” command after a heavier

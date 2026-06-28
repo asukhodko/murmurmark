@@ -851,7 +851,13 @@ sessions/_reports/remote-leak-segment/
     "protect_local_content_items": 15,
     "protect_local_content_seconds": 63.46,
     "sessions_with_protect_local_content": 3,
-    "recommended_next_step": "implement_segment_level_remote_leak_repair"
+    "reviewable_protect_local_content_items": 15,
+    "reviewable_protect_local_content_seconds": 63.46,
+    "reviewable_sessions_with_protect_local_content": 3,
+    "incomplete_protect_local_content_items": 0,
+    "incomplete_protect_local_content_seconds": 0.0,
+    "incomplete_sessions_with_protect_local_content": 0,
+    "recommended_next_step": "review_segment_level_remote_leak_risks"
   },
   "policy": {
     "mode": "audit_only",
@@ -860,9 +866,9 @@ sessions/_reports/remote-leak-segment/
   },
   "next_commands": [
     {
-      "id": "inspect_remote_leak_segment_2026-06-26_11-15-50",
-      "label": "Inspect protected remote-leak segments for 2026-06-26_11-15-50.",
-      "command": "less sessions/2026-06-26_11-15-50/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md",
+      "id": "review_remote_leak_segment_2026-06-26_11-15-50",
+      "label": "Review unique local content around protected remote-leak segments for 2026-06-26_11-15-50.",
+      "command": "murmurmark review lane check_unique_me_content --session sessions/2026-06-26_11-15-50",
       "session_id": "2026-06-26_11-15-50",
       "session": "sessions/2026-06-26_11-15-50"
     }
@@ -872,10 +878,12 @@ sessions/_reports/remote-leak-segment/
 
 `remote_leak_segment_corpus_items.jsonl` uses
 `murmurmark.remote_leak_segment_corpus_item/v1` and keeps session id, source audit id, diagnostic,
-proposal, interval, utterance ids and compact `Me`/`Colleagues` texts. This corpus report is the
-queue for future segment-level remote-leak repair work; it does not apply repairs. `next_commands`
-points to `murmurmark corpus remote-leak --plan` when plans are missing, or to the first protected
-segment report when local content must be inspected.
+proposal, interval, utterance ids, compact `Me`/`Colleagues` texts and `ready_for_review`. This
+corpus report is the queue for future segment-level remote-leak repair work; it does not apply
+repairs. `next_commands` points to `murmurmark corpus remote-leak --plan` when plans are missing,
+to `murmurmark review lane check_unique_me_content --session ...` for complete sessions with
+protected local content, or to `murmurmark process ...` when protected segments exist only in
+incomplete sessions.
 
 The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
 and writes under:

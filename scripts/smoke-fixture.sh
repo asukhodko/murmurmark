@@ -1706,13 +1706,15 @@ EOF
     --session-quality "$quality_dir/session_quality_report.json" \
     --out-dir "$remote_leak_corpus_dir")"
   echo "$remote_leak_corpus_output" | grep -q '^remote_leak_segment_corpus:'
-  echo "$remote_leak_corpus_output" | grep -q '  next_command: less .*remote_leak_segment_repair.md'
+  echo "$remote_leak_corpus_output" | grep -q 'reviewable_protect_local_content_items: '
+  echo "$remote_leak_corpus_output" | grep -q 'incomplete_protect_local_content_items: 1'
+  echo "$remote_leak_corpus_output" | grep -q '  next_command: murmurmark process '
   [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.json" ]]
   [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_items.jsonl" ]]
   [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.md" ]]
-  jq -e '.schema == "murmurmark.remote_leak_segment_corpus_report/v1" and .summary.protect_local_content_items >= 1 and .policy.may_modify_transcript == false and (.next_commands[0].command | test("^less .*/?remote_leak_segment_repair.md$"))' \
+  jq -e '.schema == "murmurmark.remote_leak_segment_corpus_report/v1" and .summary.protect_local_content_items >= 1 and .summary.reviewable_protect_local_content_items == 0 and .summary.incomplete_protect_local_content_items >= 1 and .policy.may_modify_transcript == false and (.next_commands[0].command | startswith("murmurmark process "))' \
     "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.json" >/dev/null
-  jq -s 'any(.[]; .schema == "murmurmark.remote_leak_segment_corpus_item/v1" and .diagnostic == "remote_leak_with_local_content_risk" and .whole_me_drop_allowed == false)' \
+  jq -s 'any(.[]; .schema == "murmurmark.remote_leak_segment_corpus_item/v1" and .diagnostic == "remote_leak_with_local_content_risk" and .whole_me_drop_allowed == false and .ready_for_review == false)' \
     "$remote_leak_corpus_dir/remote_leak_segment_corpus_items.jsonl" >/dev/null
   remote_leak_corpus_plan_dir="$workdir/remote-leak-segment-corpus-plan"
   "$bin" corpus remote-leak "$group_session" \
@@ -1742,14 +1744,18 @@ missing_commands = module.build_next_commands(
     args,
     [{"session": "sessions/missing-remote-leak", "session_id": "missing-remote-leak"}],
     [],
+    [],
 )
 assert missing_commands[0]["command"] == "murmurmark corpus remote-leak sessions/missing-remote-leak --plan", missing_commands
-protected_commands = module.build_next_commands(
+reviewable_commands = module.build_next_commands(
     args,
     [],
-    [{"session": "sessions/remote-risk", "session_id": "remote-risk", "report_path": "sessions/remote-risk/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md"}],
+    [{"session": "sessions/remote-risk", "session_id": "remote-risk", "interval": {"duration_sec": 2.0}}],
+    [{"session": "sessions/incomplete-remote-risk", "session_id": "incomplete-remote-risk", "interval": {"duration_sec": 3.0}}],
 )
-assert protected_commands[0]["command"].endswith("remote_leak_segment_repair.md"), protected_commands
+assert reviewable_commands[0]["command"] == "murmurmark review lane check_unique_me_content --session sessions/remote-risk", reviewable_commands
+assert reviewable_commands[1]["command"] == "murmurmark process sessions/incomplete-remote-risk", reviewable_commands
+assert reviewable_commands[1]["reason"] == "pipeline_incomplete", reviewable_commands
 PY
 
   taxonomy_dir="$workdir/audio-error-taxonomy"

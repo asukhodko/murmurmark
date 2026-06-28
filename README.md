@@ -175,7 +175,9 @@ the next quality iteration. The report also splits broad classes like `uncertain
 subtypes and writes an `action_plan`, so the next repair can target one narrow failure mode.
 `corpus remote-leak` writes `sessions/_reports/remote-leak-segment/remote_leak_segment_corpus_report.*`.
 When plans are missing, the report points to `murmurmark corpus remote-leak --plan`; when protected
-local-content intervals exist, it points to the first `remote_leak_segment_repair.md` report.
+local-content intervals exist in complete sessions, it points to
+`murmurmark review lane check_unique_me_content --session ...`; incomplete sessions are sent back
+through `murmurmark process ...` first.
 `corpus local-recall` writes `sessions/_reports/local-recall/local_recall_corpus_report.*`.
 It aggregates possible lost-`Me` and local-recall review items across the corpus; `--audit` refreshes
 per-session local-recall audits first.

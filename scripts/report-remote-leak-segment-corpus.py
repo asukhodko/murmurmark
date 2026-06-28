@@ -108,6 +108,7 @@ def compact_item(item: dict[str, Any], session_row: dict[str, Any]) -> dict[str,
     evidence = item.get("evidence") if isinstance(item.get("evidence"), dict) else {}
     text = evidence.get("text") if isinstance(evidence.get("text"), dict) else {}
     session = str(session_row.get("session") or "")
+    ready_for_review = session_ready_for_review(session_row)
     return {
         "schema": SCHEMA_ITEM,
         "session_id": str(session_row.get("session_id") or session_id_from_path(Path(session))),
@@ -115,6 +116,7 @@ def compact_item(item: dict[str, Any], session_row: dict[str, Any]) -> dict[str,
         "selected_profile": session_row.get("selected_profile"),
         "pipeline_status": session_row.get("pipeline_status"),
         "use_gate": session_row.get("use_gate"),
+        "ready_for_review": ready_for_review,
         "item_id": item.get("id"),
         "source_audit_id": item.get("source_audit_id"),
         "diagnostic": diagnostic.get("label"),
@@ -132,6 +134,11 @@ def compact_item(item: dict[str, Any], session_row: dict[str, Any]) -> dict[str,
         if session
         else None,
     }
+
+
+def session_ready_for_review(row: dict[str, Any]) -> bool:
+    use_gate = str(row.get("use_gate") or "")
+    return row.get("pipeline_status") == "complete" and not use_gate.startswith("pipeline_incomplete")
 
 
 def by_diagnostic(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -193,10 +200,20 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
         )
     )
     protected_items = [item for item in all_items if item.get("protect_local_content")]
+    reviewable_protected_items = [item for item in protected_items if item.get("ready_for_review") is True]
+    incomplete_protected_items = [item for item in protected_items if item.get("ready_for_review") is not True]
     sessions_with_protected = {
         str(row.get("session_id") or "")
         for row in session_summaries
         if safe_int(row.get("protect_local_content_items")) > 0
+    }
+    reviewable_sessions_with_protected = {
+        str(item.get("session_id") or "")
+        for item in reviewable_protected_items
+    }
+    incomplete_sessions_with_protected = {
+        str(item.get("session_id") or "")
+        for item in incomplete_protected_items
     }
     summary = {
         "session_count": len(rows),
@@ -207,10 +224,24 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
         "protect_local_content_items": len(protected_items),
         "protect_local_content_seconds": round(sum(safe_float((item.get("interval") or {}).get("duration_sec")) for item in protected_items), 3),
         "sessions_with_protect_local_content": len(sessions_with_protected),
+        "reviewable_protect_local_content_items": len(reviewable_protected_items),
+        "reviewable_protect_local_content_seconds": round(
+            sum(safe_float((item.get("interval") or {}).get("duration_sec")) for item in reviewable_protected_items),
+            3,
+        ),
+        "reviewable_sessions_with_protect_local_content": len(reviewable_sessions_with_protected),
+        "incomplete_protect_local_content_items": len(incomplete_protected_items),
+        "incomplete_protect_local_content_seconds": round(
+            sum(safe_float((item.get("interval") or {}).get("duration_sec")) for item in incomplete_protected_items),
+            3,
+        ),
+        "incomplete_sessions_with_protect_local_content": len(incomplete_sessions_with_protected),
         "by_diagnostic": by_diagnostic(all_items),
         "recommended_next_step": (
-            "implement_segment_level_remote_leak_repair"
-            if protected_items
+            "review_segment_level_remote_leak_risks"
+            if reviewable_protected_items
+            else "complete_pipeline_before_reviewing_remote_leak_segments"
+            if incomplete_protected_items
             else ("run_remote_leak_segment_plan_for_missing_sessions" if missing else "keep_remote_leak_mark_only")
         ),
     }
@@ -234,7 +265,7 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
         "missing_plans": missing,
         "review_items": all_items[: max(0, args.max_items)],
         "policy": {"mode": "audit_only", "may_modify_transcript": False, "may_modify_raw_audio": False},
-        "next_commands": build_next_commands(args, missing, protected_items),
+        "next_commands": build_next_commands(args, missing, reviewable_protected_items, incomplete_protected_items),
     }
     return report, all_items
 
@@ -242,7 +273,8 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
 def build_next_commands(
     args: argparse.Namespace,
     missing: list[dict[str, Any]],
-    protected_items: list[dict[str, Any]],
+    reviewable_protected_items: list[dict[str, Any]],
+    incomplete_protected_items: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     if missing:
         return [
@@ -252,21 +284,52 @@ def build_next_commands(
                 "command": remote_leak_plan_command(args),
             }
         ]
-    for item in protected_items:
-        report_path = str(item.get("report_path") or "")
+    commands: list[dict[str, Any]] = []
+    seen_sessions: set[str] = set()
+    for item in sorted(
+        reviewable_protected_items,
+        key=lambda row: (
+            -safe_float((row.get("interval") or {}).get("duration_sec")),
+            str(row.get("session_id") or ""),
+        ),
+    ):
         session = str(item.get("session") or "")
         session_id = str(item.get("session_id") or Path(session).name)
-        if report_path:
-            return [
-                {
-                    "id": f"inspect_remote_leak_segment_{session_id}",
-                    "label": f"Inspect protected remote-leak segments for {session_id}.",
-                    "command": f"less {command_path(report_path)}",
-                    "session_id": session_id,
-                    "session": session,
-                }
-            ]
-    return []
+        if not session or session_id in seen_sessions:
+            continue
+        seen_sessions.add(session_id)
+        commands.append(
+            {
+                "id": f"review_remote_leak_segment_{session_id}",
+                "label": f"Review unique local content around protected remote-leak segments for {session_id}.",
+                "command": f"murmurmark review lane check_unique_me_content --session {command_path(session)}",
+                "session_id": session_id,
+                "session": session,
+            }
+        )
+    for item in sorted(
+        incomplete_protected_items,
+        key=lambda row: (
+            -safe_float((row.get("interval") or {}).get("duration_sec")),
+            str(row.get("session_id") or ""),
+        ),
+    ):
+        session = str(item.get("session") or "")
+        session_id = str(item.get("session_id") or Path(session).name)
+        if not session or session_id in seen_sessions:
+            continue
+        seen_sessions.add(session_id)
+        commands.append(
+            {
+                "id": f"process_remote_leak_segment_{session_id}",
+                "label": f"Complete the pipeline before reviewing protected remote-leak segments for {session_id}.",
+                "command": f"murmurmark process {command_path(session)}",
+                "session_id": session_id,
+                "session": session,
+                "reason": "pipeline_incomplete",
+            }
+        )
+    return commands
 
 
 def remote_leak_plan_command(args: argparse.Namespace) -> str:
@@ -304,6 +367,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Items: `{summary.get('item_count')}` / `{summary.get('seconds')}` sec",
         f"- Protect local content: `{summary.get('protect_local_content_items')}` / `{summary.get('protect_local_content_seconds')}` sec",
         f"- Sessions with protected local content: `{summary.get('sessions_with_protect_local_content')}`",
+        f"- Reviewable protected local content: `{summary.get('reviewable_protect_local_content_items')}` / `{summary.get('reviewable_protect_local_content_seconds')}` sec",
+        f"- Incomplete protected local content: `{summary.get('incomplete_protect_local_content_items')}` / `{summary.get('incomplete_protect_local_content_seconds')}` sec",
         f"- Next: `{summary.get('recommended_next_step')}`",
         "",
     ]
@@ -314,7 +379,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             lines.append(
                 f"- `{row.get('session_id')}` `{row.get('selected_profile')}`: "
                 f"`{row.get('protect_local_content_items')}` items / `{row.get('protect_local_content_seconds')}` sec, "
-                f"gate `{row.get('use_gate')}`, report `less {row.get('report_path')}`"
+                f"pipeline `{row.get('pipeline_status')}`, gate `{row.get('use_gate')}`, "
+                f"report `less {row.get('report_path')}`"
             )
         lines.append("")
     next_commands = [row for row in report.get("next_commands", []) if isinstance(row, dict)]
@@ -364,6 +430,8 @@ def main() -> int:
     print(f"planned_sessions: {summary['planned_session_count']} / {summary['session_count']}")
     print(f"protect_local_content_items: {summary['protect_local_content_items']}")
     print(f"protect_local_content_seconds: {summary['protect_local_content_seconds']}")
+    print(f"reviewable_protect_local_content_items: {summary['reviewable_protect_local_content_items']}")
+    print(f"incomplete_protect_local_content_items: {summary['incomplete_protect_local_content_items']}")
     print(f"recommended_next_step: {summary['recommended_next_step']}")
     next_commands = [row for row in report.get("next_commands", []) if isinstance(row, dict)]
     if next_commands:
