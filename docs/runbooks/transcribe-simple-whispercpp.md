@@ -792,6 +792,9 @@ estimated queue after closing the first lane. The workspace command prints every
 `review_workspace.json`. After a successful single-session apply, the CLI prints the refreshed readiness summary
 so the next export or retention command is visible immediately. Use `murmurmark review first-lane`
 or bare `murmurmark review progress` for the global corpus queue.
+The review plan keeps both `raw_item_count` and `review_action_count`: raw items are source risks,
+while actions are answer-sheet decisions after safe grouping by `Me` utterance.
+`grouped_review_row_count` is the saved manual-action estimate.
 `murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended lane.
 With `--session`, its default paths are under `SESSION/derived/readiness/`; without `--session`, it
 uses the global corpus queue under `sessions/_reports/`.

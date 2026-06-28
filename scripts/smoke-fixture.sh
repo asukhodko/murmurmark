@@ -17,7 +17,7 @@ require_tool jq
 
 assert_no_helper_prefix() {
   local helper_prefix_re
-  helper_prefix_re='^(written|markdown|verdict|next_command|review_plan|review_decisions_progress|workspace|lanes|clusters|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped|transcript_order_audit|local_recall_audit|group_overlap_summary|audio_review_report|audio_review_summary|review_pack|audit_cleanup_report|clean_dialogue|transcript|applied_patches|dropped_me_duplicate_seconds|harmful_after|gates_passed|selected_transcript_profile|quality_verdict|notes|progress|retention_plan|provider_payload_manifest|mode|can_apply|applied|raw_audio|status|payload_files|blockers):'
+  helper_prefix_re='^(written|markdown|verdict|next_command|review_plan|review_decisions_progress|workspace|lanes|clusters|review_actions|grouped_review_rows|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped|transcript_order_audit|local_recall_audit|group_overlap_summary|audio_review_report|audio_review_summary|review_pack|audit_cleanup_report|clean_dialogue|transcript|applied_patches|dropped_me_duplicate_seconds|harmful_after|gates_passed|selected_transcript_profile|quality_verdict|notes|progress|retention_plan|provider_payload_manifest|mode|can_apply|applied|raw_audio|status|payload_files|blockers):'
   ! printf '%s\n' "$1" | grep -Eq "$helper_prefix_re"
   ! printf '%s\n' "$1" | grep -Eq '^reviewed=[0-9]+/'
 }
@@ -2345,7 +2345,13 @@ PY
   [[ -s "$review_plan_dir/review_plan.md" ]]
   [[ -s "$review_plan_dir/review_plan_clusters.jsonl" ]]
   [[ -s "$review_plan_dir/review_decisions.template.jsonl" ]]
-  jq -e '.schema == "murmurmark.review_plan/v1" and .summary.cluster_count >= 1' "$review_plan_dir/review_plan.json" >/dev/null
+  jq -e '
+    .schema == "murmurmark.review_plan/v1"
+    and .summary.cluster_count >= 1
+    and (.summary.review_action_count | type) == "number"
+    and (.summary.grouped_review_row_count | type) == "number"
+    and .summary.review_action_count <= .summary.raw_item_count
+  ' "$review_plan_dir/review_plan.json" >/dev/null
   jq -e '(.review_queue_strategy.first_recommended_lane | type) == "string"' "$review_plan_dir/review_plan.json" >/dev/null
   jq -e '(.review_queue_strategy.first_recommended_reason | type) == "string"' "$review_plan_dir/review_plan.json" >/dev/null
   grep -q 'Recommended First Lane' "$review_plan_dir/review_plan.md"

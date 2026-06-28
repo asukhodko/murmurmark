@@ -664,6 +664,9 @@ exists, while `first_recommended_lane` targets the current blocker. The report a
 estimated queue remaining after that first lane. `murmurmark report corpus` surfaces the first
 review target directly as `focus_session` and `focus_next`, so the next operator action is visible
 without opening the JSON report.
+The generated review plan keeps both `raw_item_count` and `review_action_count`: raw items are source
+risks, while actions are answer-sheet decisions after safe grouping by `Me` utterance.
+`grouped_review_row_count` is the saved manual-action estimate.
 `murmurmark review workspace` can then build all remaining lane packs, editable answer sheets
 and one `review_workspace.md` index for the reviewer.
 

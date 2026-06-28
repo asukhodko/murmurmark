@@ -9,8 +9,9 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.4.0"
 SCHEMA = "murmurmark.review_plan/v1"
+GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 
 REVIEW_LANES = {
     "fast_confirm_drop": {
@@ -219,6 +220,61 @@ def review_lane(source: str, label: str, action: str, suggestion: dict[str, Any]
     return "classify_audio"
 
 
+def item_list_values(item: dict[str, Any], key: str) -> list[str]:
+    values = item.get(key)
+    if isinstance(values, list):
+        return [str(value) for value in values if value is not None and str(value)]
+    return []
+
+
+def output_allowed_decisions(item: dict[str, Any]) -> list[str]:
+    values = item.get("allowed_decisions")
+    if isinstance(values, list) and values:
+        return [str(value) for value in values]
+    if item.get("source") in {"local_recall", "transcript_order"}:
+        return ["keep_me", "needs_review", "skip"]
+    return ["drop_me", "keep_me", "needs_review", "skip"]
+
+
+def first_me_utterance_id(item: dict[str, Any]) -> str:
+    me_ids = item_list_values(item, "me_utterance_ids")
+    if me_ids:
+        return me_ids[0]
+    utterance_ids = item_list_values(item, "utterance_ids")
+    return utterance_ids[0] if utterance_ids else ""
+
+
+def review_group_key(item: dict[str, Any]) -> str:
+    lane = str(item.get("review_lane") or "")
+    if lane not in GROUPABLE_REVIEW_LANES:
+        return ""
+    me_id = first_me_utterance_id(item)
+    if not me_id:
+        return ""
+    session_id = str(item.get("session_id") or item.get("session") or "")
+    label = str(item.get("label") or "")
+    action = str(item.get("review_action") or "")
+    allowed = ",".join(sorted(output_allowed_decisions(item)))
+    return f"{lane}:{session_id}:{label}:{action}:{allowed}:{me_id}"
+
+
+def review_action_groups(items: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    groups: list[list[dict[str, Any]]] = []
+    by_key: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        key = review_group_key(item)
+        if not key:
+            groups.append([item])
+            continue
+        group = by_key.get(key)
+        if group is None:
+            group = []
+            by_key[key] = group
+            groups.append(group)
+        group.append(item)
+    return groups
+
+
 def severity(label: str, verdict: str, confidence: float) -> str:
     if verdict == "probable_transcript_error" and label in {"remote_duplicate", "asr_noise"}:
         return "high"
@@ -387,6 +443,8 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
     by_label: Counter[str] = Counter()
     by_action: Counter[str] = Counter()
     by_lane: Counter[str] = Counter()
+    by_lane_actions: Counter[str] = Counter()
+    by_lane_grouped_rows: Counter[str] = Counter()
     lane_seconds: Counter[str] = Counter()
     for item in items:
         by_label[str(item.get("label") or "unknown")] += 1
@@ -394,12 +452,21 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
         lane = str(item.get("review_lane") or "classify_audio")
         by_lane[lane] += 1
         lane_seconds[lane] += safe_float(item["interval"].get("duration_sec"))
+    action_groups = review_action_groups(items)
+    for group in action_groups:
+        if not group:
+            continue
+        lane = str(group[0].get("review_lane") or "classify_audio")
+        by_lane_actions[lane] += 1
+        by_lane_grouped_rows[lane] += max(0, len(group) - 1)
     raw_seconds = sum(safe_float(item["interval"].get("duration_sec")) for item in items)
     listen_seconds = sum(safe_float(cluster.get("estimated_listen_sec")) for cluster in clusters)
     lanes = {
         lane: {
             **REVIEW_LANES.get(lane, REVIEW_LANES["classify_audio"]),
             "item_count": by_lane.get(lane, 0),
+            "action_count": by_lane_actions.get(lane, by_lane.get(lane, 0)),
+            "grouped_row_count": by_lane_grouped_rows.get(lane, 0),
             "raw_item_seconds": round(lane_seconds.get(lane, 0.0), 3),
         }
         for lane in sorted(by_lane)
@@ -421,6 +488,8 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
         },
         "summary": {
             "raw_item_count": len(items),
+            "review_action_count": len(action_groups),
+            "grouped_review_row_count": sum(max(0, len(group) - 1) for group in action_groups),
             "cluster_count": len(clusters),
             "sessions_with_review": len(by_session),
             "raw_item_seconds": round(raw_seconds, 3),
@@ -429,6 +498,8 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
             "by_label": dict(sorted(by_label.items())),
             "by_review_action": dict(sorted(by_action.items())),
             "by_review_lane": dict(sorted(by_lane.items())),
+            "by_review_lane_actions": dict(sorted(by_lane_actions.items())),
+            "by_review_lane_grouped_rows": dict(sorted(by_lane_grouped_rows.items())),
             "by_session": dict(sorted(by_session.items())),
         },
         "review_queue_strategy": review_queue_strategy,
@@ -507,6 +578,8 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
         "## Summary",
         "",
         f"- Raw review items: `{summary.get('raw_item_count')}`",
+        f"- Packed review actions: `{summary.get('review_action_count')}`",
+        f"- Grouped review rows saved: `{summary.get('grouped_review_row_count')}`",
         f"- Review clusters: `{summary.get('cluster_count')}`",
         f"- Sessions with review: `{summary.get('sessions_with_review')}`",
         f"- Estimated listening time: `{summary.get('estimated_listen_minutes')}` min",
@@ -550,8 +623,8 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
                 "",
                 "Use this section to close the queue safely: the recommended first lane targets the current blocker; quick confirm-drop candidates remain available as a separate lane.",
                 "",
-                "| Lane | Items | Raw sec | What to do |",
-                "|---|---:|---:|---|",
+                "| Lane | Rows | Actions | Grouped | Raw sec | What to do |",
+                "|---|---:|---:|---:|---:|---|",
             ]
         )
         lane_order = [
@@ -567,7 +640,8 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
             if not isinstance(row, dict):
                 continue
             lines.append(
-                f"| `{lane}` | {row.get('item_count')} | {safe_float(row.get('raw_item_seconds')):.2f} | "
+                f"| `{lane}` | {row.get('item_count')} | {row.get('action_count')} | "
+                f"{row.get('grouped_row_count')} | {safe_float(row.get('raw_item_seconds')):.2f} | "
                 f"{row.get('description')} |"
             )
         lines.extend(
@@ -650,6 +724,8 @@ def main() -> int:
     write_markdown(out_dir / "review_plan.md", plan)
     print(f"review_plan: {out_dir / 'review_plan.json'}")
     print(f"clusters: {len(plan['clusters'])}")
+    print(f"review_actions: {plan['summary']['review_action_count']}")
+    print(f"grouped_review_rows: {plan['summary']['grouped_review_row_count']}")
     print(f"estimated_listen_minutes: {plan['summary']['estimated_listen_minutes']}")
     return 0
 

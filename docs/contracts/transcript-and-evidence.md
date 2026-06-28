@@ -1706,6 +1706,8 @@ sessions/_reports/review-plan/
   "schema": "murmurmark.review_plan/v1",
   "summary": {
     "raw_item_count": 40,
+    "review_action_count": 32,
+    "grouped_review_row_count": 8,
     "cluster_count": 29,
     "sessions_with_review": 6,
     "estimated_listen_seconds": 215.52,
@@ -1735,6 +1737,8 @@ sessions/_reports/review-plan/
     "fast_confirm_drop": {
       "title": "Fast confirm drop",
       "item_count": 10,
+      "action_count": 10,
+      "grouped_row_count": 0,
       "raw_item_seconds": 24.3,
       "description": "Likely leaked remote/ASR noise. Listen once; if it is only non-local speech, accept drop_me."
     }

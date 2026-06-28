@@ -128,6 +128,8 @@ enum ReviewPrinter {
         print("  report: sessions/_reports/review-plan/review_plan.md")
         print("  clusters: \(int(summary["cluster_count"]) ?? 0)")
         print("  raw_items: \(int(summary["raw_item_count"]) ?? 0)")
+        print("  review_actions: \(int(summary["review_action_count"]) ?? int(summary["raw_item_count"]) ?? 0)")
+        print("  grouped_review_rows: \(int(summary["grouped_review_row_count"]) ?? 0)")
         print("  sessions_with_review: \(int(summary["sessions_with_review"]) ?? 0)")
         print("  estimated_listen_minutes: \(double(summary["estimated_listen_minutes"]) ?? 0)")
         if let lanes = summary["by_review_lane"] as? [String: Any] {
