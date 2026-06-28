@@ -1770,6 +1770,8 @@ where `.` means `todo`. It does not write decisions; use
 `review-decisions-cli.py` for that.
 `murmurmark review lane apply <lane>` applies the lane's generated answer sheet using the normal
 session-local or corpus-local paths, and prints the next `murmurmark review apply` command.
+`murmurmark review lane apply first` resolves `first` through
+`review_queue_strategy.first_recommended_lane` in the active `review_plan.json`.
 `apply-review-lane-pack-decisions.py` is the same operation as a lower-level script: it applies
 explicit reviewer answers for a lane pack back into the complete `review_decisions.jsonl`. It accepts
 either `--answers` with a compact answer string in pack order, or `--answers-file` pointing to a text

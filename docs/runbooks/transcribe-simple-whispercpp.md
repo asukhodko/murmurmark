@@ -796,8 +796,11 @@ less "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_answers.fast
 Then copy decisions from the answer sheet back into the full review file:
 
 ```bash
-.build/debug/murmurmark review lane apply fast_confirm_drop --session "$SESSION"
+.build/debug/murmurmark review lane apply first --session "$SESSION"
 ```
+
+`first` resolves to `review_queue_strategy.first_recommended_lane` from the session-local
+`review_plan.json`; pass an explicit lane name when you intentionally reviewed another lane.
 
 The lower-level equivalent is still useful for debugging exact paths:
 

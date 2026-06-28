@@ -93,7 +93,7 @@ struct MurmurMark {
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
           murmurmark review plan|progress|apply|first-lane|lane|next
-          murmurmark review lane apply LANE [--session latest|SESSION]
+          murmurmark review lane apply LANE|first [--session latest|SESSION]
           murmurmark review agent [--session-quality sessions/_reports/session-quality/session_quality_report.json]
           murmurmark review workspace [build|apply] [--session latest|./session]
           murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
@@ -1012,7 +1012,7 @@ enum ReviewHelp {
                murmurmark review next [SESSION|latest]
                murmurmark review first-lane [--session latest|SESSION]
                murmurmark review lane LANE [--session latest|SESSION]
-               murmurmark review lane apply LANE [--session latest|SESSION] [--answers-file PATH|--answers TEXT]
+               murmurmark review lane apply LANE|first [--session latest|SESSION] [--answers-file PATH|--answers TEXT]
                murmurmark review workspace [build|apply] [--session latest|SESSION]
                murmurmark review SESSION|latest [--lane LANE] [--no-play]
                murmurmark review progress
@@ -1026,7 +1026,7 @@ enum ReviewHelp {
           murmurmark review next latest
           murmurmark review first-lane --session latest
           # listen/edit the generated answer sheet
-          murmurmark review lane apply LANE --session latest
+          murmurmark review lane apply first --session latest
           murmurmark review apply --session latest
         """)
     }
@@ -1054,7 +1054,7 @@ enum ReviewLaneCommand {
         var args = args
         if args.first == "apply" {
             args.removeFirst()
-            try apply(args, sessionsRoot: sessionsRoot)
+            try ReviewLaneApplyCommand.run(args, sessionsRoot: sessionsRoot)
             return
         }
         try build(args, sessionsRoot: sessionsRoot)
@@ -1129,7 +1129,64 @@ enum ReviewLaneCommand {
         try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutURL)
     }
 
-    private static func apply(_ args: [String], sessionsRoot: URL) throws {
+    static func printHelp() {
+        print("""
+        usage: murmurmark review lane LANE [--session latest|SESSION] [--out-dir PATH]
+               murmurmark review lane --lane LANE [--session latest|SESSION] [--out-dir PATH]
+               murmurmark review lane apply LANE|first [--session latest|SESSION] [--answers-file PATH|--answers TEXT]
+
+        Refreshes the review plan, then builds one explicit review lane pack.
+        Use this when you want a specific lane such as check_local_recall instead of the
+        automatically recommended first lane.
+
+        Common lanes:
+          fast_confirm_drop
+          check_unique_me_content
+          check_local_recall
+          check_transcript_order
+          confirm_benign
+          classify_audio
+
+        With --session, defaults are session-local under SESSION/derived/readiness/.
+        Without --session, defaults are the global corpus review plan under sessions/_reports/.
+
+        Options:
+          --operational-readiness PATH  Default: sessions/_reports/operational-readiness/operational_readiness_report.json
+          --plan-out-dir PATH           Default: sessions/_reports/review-plan
+          --out-dir PATH                Lane pack directory. Default: sessions/_reports/review-plan/lane-packs
+          --command-key KEY             Forwarded to build-review-lane-pack.py
+          --include-reviewed            Forwarded to build-review-lane-pack.py
+
+        Apply options:
+          --answers-file PATH           Default: review_lane_answers.LANE.txt from the lane pack directory
+          --answers TEXT                Compact answers: d=drop_me, k=keep_me, r=needs_review, s=skip, .=todo
+          --decisions-out PATH          Default: review_decisions.jsonl in the review plan directory
+          --dry-run                     Validate answers without writing decisions
+
+        `first` resolves to review_queue_strategy.first_recommended_lane from review_plan.json.
+        """)
+    }
+
+    private static func buildPlan(extraArgs: [String], refreshOperational: Bool) throws {
+        let python = try PythonRuntime.resolve()
+        if refreshOperational {
+            try Tooling.runPath(python, [try script("report-operational-readiness.py").path])
+        }
+        try Tooling.runPath(python, [try script("build-review-plan.py").path] + extraArgs)
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("review script not found: \(url.path)")
+        }
+        return url
+    }
+
+}
+
+enum ReviewLaneApplyCommand {
+    static func run(_ args: [String], sessionsRoot: URL) throws {
         var forwarded = args
         let explicitLane = ArgumentEditing.takeOption("lane", from: &forwarded)
         let positionalLane: String?
@@ -1139,7 +1196,7 @@ enum ReviewLaneCommand {
         } else {
             positionalLane = nil
         }
-        guard let lane = explicitLane ?? positionalLane, !lane.isEmpty else {
+        guard let requestedLane = explicitLane ?? positionalLane, !requestedLane.isEmpty else {
             throw CLIError("review lane apply requires a lane name, for example `murmurmark review lane apply check_local_recall`")
         }
 
@@ -1175,6 +1232,7 @@ enum ReviewLaneCommand {
                 ?? planURL.appendingPathComponent("lane-packs")
         }
 
+        let lane = try resolveLane(requestedLane, planURL: planURL)
         let manifest = explicitManifest.map(PathURLs.fileURL)
             ?? lanePackOutURL.appendingPathComponent("review_lane_pack.\(lane).json")
         let template = explicitTemplate.map(PathURLs.fileURL)
@@ -1186,6 +1244,33 @@ enum ReviewLaneCommand {
                 ?? lanePackOutURL.appendingPathComponent("review_lane_answers.\(lane).txt"))
             : nil
 
+        try validateInputs(manifest: manifest, template: template, answersFile: answersFile, lane: lane, session: session)
+        try runApplyScript(LaneApplyScriptContext(
+            manifest: manifest,
+            template: template,
+            decisions: decisions,
+            answers: explicitAnswers,
+            answersFile: answersFile,
+            reviewer: reviewer,
+            dryRun: dryRun
+        ))
+        printLaneApply(LaneApplyPrintContext(
+            lane: lane,
+            session: session,
+            manifest: manifest,
+            answersFile: answersFile,
+            decisions: decisions,
+            dryRun: dryRun
+        ))
+    }
+
+    private static func validateInputs(
+        manifest: URL,
+        template: URL,
+        answersFile: URL?,
+        lane: String,
+        session: URL?
+    ) throws {
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: manifest.path) else {
             let sessionArgument = session.map { " --session \($0.lastPathComponent)" } ?? ""
@@ -1202,86 +1287,37 @@ enum ReviewLaneCommand {
                 throw CLIError("lane answers file not found: \(PathDisplay.display(answersFile)); edit the generated answer sheet or pass --answers")
             }
         }
+    }
 
+    private struct LaneApplyScriptContext {
+        let manifest: URL
+        let template: URL
+        let decisions: URL
+        let answers: String?
+        let answersFile: URL?
+        let reviewer: String?
+        let dryRun: Bool
+    }
+
+    private static func runApplyScript(_ context: LaneApplyScriptContext) throws {
         var command = [
             try script("apply-review-lane-pack-decisions.py").path,
-            manifest.path,
-            "--template", template.path,
-            "--out", decisions.path,
+            context.manifest.path,
+            "--template", context.template.path,
+            "--out", context.decisions.path,
         ]
-        if let explicitAnswers {
-            command += ["--answers", explicitAnswers]
-        } else if let answersFile {
+        if let answers = context.answers {
+            command += ["--answers", answers]
+        } else if let answersFile = context.answersFile {
             command += ["--answers-file", answersFile.path]
         }
-        if let reviewer {
+        if let reviewer = context.reviewer {
             command += ["--reviewer", reviewer]
         }
-        if dryRun {
+        if context.dryRun {
             command.append("--dry-run")
         }
-
         try Tooling.runPath(try PythonRuntime.resolve(), command)
-        printLaneApply(LaneApplyPrintContext(
-            lane: lane,
-            session: session,
-            manifest: manifest,
-            answersFile: answersFile,
-            decisions: decisions,
-            dryRun: dryRun
-        ))
-    }
-
-    static func printHelp() {
-        print("""
-        usage: murmurmark review lane LANE [--session latest|SESSION] [--out-dir PATH]
-               murmurmark review lane --lane LANE [--session latest|SESSION] [--out-dir PATH]
-               murmurmark review lane apply LANE [--session latest|SESSION] [--answers-file PATH|--answers TEXT]
-
-        Refreshes the review plan, then builds one explicit review lane pack.
-        Use this when you want a specific lane such as check_local_recall instead of the
-        automatically recommended first lane.
-
-        Common lanes:
-          fast_confirm_drop
-          check_unique_me_content
-          check_local_recall
-          check_transcript_order
-          confirm_benign
-          classify_audio
-
-        With --session, defaults are session-local under SESSION/derived/readiness/.
-        Without --session, defaults are the global corpus review plan under sessions/_reports/.
-
-        Options:
-          --operational-readiness PATH  Default: sessions/_reports/operational-readiness/operational_readiness_report.json
-          --plan-out-dir PATH           Default: sessions/_reports/review-plan
-          --out-dir PATH                Lane pack directory. Default: sessions/_reports/review-plan/lane-packs
-          --command-key KEY             Forwarded to build-review-lane-pack.py
-          --include-reviewed            Forwarded to build-review-lane-pack.py
-
-        Apply options:
-          --answers-file PATH           Default: review_lane_answers.LANE.txt from the lane pack directory
-          --answers TEXT                Compact answers: d=drop_me, k=keep_me, r=needs_review, s=skip, .=todo
-          --decisions-out PATH          Default: review_decisions.jsonl in the review plan directory
-          --dry-run                     Validate answers without writing decisions
-        """)
-    }
-
-    private static func buildPlan(extraArgs: [String], refreshOperational: Bool) throws {
-        let python = try PythonRuntime.resolve()
-        if refreshOperational {
-            try Tooling.runPath(python, [try script("report-operational-readiness.py").path])
-        }
-        try Tooling.runPath(python, [try script("build-review-plan.py").path] + extraArgs)
-    }
-
-    private static func script(_ name: String) throws -> URL {
-        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw CLIError("review script not found: \(url.path)")
-        }
-        return url
     }
 
     private struct LaneApplyPrintContext {
@@ -1312,6 +1348,34 @@ enum ReviewLaneCommand {
         } else {
             print("  next: murmurmark review apply\(sessionArgument)")
         }
+    }
+
+    private static func resolveLane(_ value: String, planURL: URL) throws -> String {
+        guard value == "first" else { return value }
+        let plan = planURL.appendingPathComponent("review_plan.json")
+        guard FileManager.default.fileExists(atPath: plan.path) else {
+            throw CLIError(
+                "review plan not found: \(PathDisplay.display(plan)); " +
+                "build it first with `murmurmark review first-lane`"
+            )
+        }
+        let payload = try JSONFiles.object(plan)
+        let strategy = payload["review_queue_strategy"] as? [String: Any] ?? [:]
+        guard let lane = strategy["first_recommended_lane"] as? String, !lane.isEmpty else {
+            throw CLIError(
+                "review plan does not contain review_queue_strategy.first_recommended_lane: " +
+                "\(PathDisplay.display(plan))"
+            )
+        }
+        return lane
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("review script not found: \(url.path)")
+        }
+        return url
     }
 }
 
@@ -6415,12 +6479,25 @@ enum ReviewNextPrinter {
     }
 
     private static func sessionLocalReviewCommands(sessionID: String, planOutDir: URL) -> [String] {
+        let firstLane = firstRecommendedLane(planOutDir: planOutDir) ?? "first"
         return [
             "murmurmark review first-lane --session \(sessionID)",
+            "murmurmark review lane apply \(firstLane) --session \(sessionID)",
             "murmurmark review workspace --session \(sessionID)",
             "murmurmark review workspace apply --session \(sessionID)",
             "murmurmark review apply --session \(sessionID)",
         ]
+    }
+
+    private static func firstRecommendedLane(planOutDir: URL) -> String? {
+        let plan = planOutDir.appendingPathComponent("review_plan.json")
+        guard FileManager.default.fileExists(atPath: plan.path),
+              let payload = try? JSONFiles.object(plan),
+              let strategy = payload["review_queue_strategy"] as? [String: Any]
+        else {
+            return nil
+        }
+        return string(strategy["first_recommended_lane"])
     }
 
     private static func string(_ value: Any?) -> String? {

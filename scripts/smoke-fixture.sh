@@ -464,8 +464,9 @@ commands = module.readiness_next_commands(
     {"use_gate": "review_first", "review_blockers": ["risk:audio_review_probable_errors"]},
 )
 ids = [item["id"] for item in commands]
-assert ids == ["review_plan", "review_first_lane", "review_workspace", "review_workspace_apply", "review_apply"], ids
+assert ids == ["review_plan", "review_first_lane", "review_lane_apply_first", "review_workspace", "review_workspace_apply", "review_apply"], ids
 assert any("murmurmark review first-lane --session sessions/review-session" == item["command"] for item in commands)
+assert any("murmurmark review lane apply first --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review workspace --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review workspace apply --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review apply --session sessions/review-session" == item["command"] for item in commands)
@@ -518,6 +519,7 @@ jq -n --arg session "$review_next_session" '{
   next_commands: [
     {id: "review_plan", label: "Build the review queue.", command: "murmurmark review plan"},
     {id: "review_first_lane", label: "Build first lane.", command: ("murmurmark review first-lane --session " + $session)},
+    {id: "review_lane_apply_first", label: "Apply first lane.", command: ("murmurmark review lane apply first --session " + $session)},
     {id: "review_workspace", label: "Build workspace.", command: ("murmurmark review workspace --session " + $session)},
     {id: "review_workspace_apply", label: "Apply workspace.", command: ("murmurmark review workspace apply --session " + $session)},
     {id: "review_apply", label: "Apply decisions.", command: ("murmurmark review apply --session " + $session)}
@@ -535,6 +537,7 @@ echo "$review_next_output" | grep -q 'selected_profile: order_repair_v1'
 echo "$review_next_output" | grep -q 'plan: .*derived/readiness/review-plan/review_plan.json'
 echo "$review_next_output" | grep -q 'first_lane: check_transcript_order'
 echo "$review_next_output" | grep -q 'murmurmark review first-lane --session .*review-next-session'
+echo "$review_next_output" | grep -q 'murmurmark review lane apply check_transcript_order --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review workspace --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review workspace apply --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review apply --session .*review-next-session'
@@ -1536,7 +1539,7 @@ EOF
   corpus_process_help="$("$bin" corpus process --help)"
   echo "$corpus_process_help" | grep -q 'plan-remote-leak-segment-repair.py'
   review_help="$("$bin" review --help)"
-  echo "$review_help" | grep -q 'murmurmark review lane apply LANE'
+  echo "$review_help" | grep -q 'murmurmark review lane apply LANE|first'
 
   corpus_dir="$workdir/regression-corpus"
   "$repo_root/scripts/build-regression-corpus.py" "$group_session" \
@@ -1822,6 +1825,12 @@ PY
   [[ -s "$first_lane_pack_dir/review_lane_pack.$first_lane.json" ]]
   [[ -s "$first_lane_pack_dir/review_lane_pack.$first_lane.md" ]]
   [[ -s "$first_lane_pack_dir/review_lane_answers.$first_lane.txt" ]]
+  first_lane_apply_dry_run_output="$("$bin" review lane apply first \
+    --plan-out-dir "$first_lane_plan_dir" \
+    --out-dir "$first_lane_pack_dir" \
+    --dry-run)"
+  echo "$first_lane_apply_dry_run_output" | grep -q '^review_lane_apply:$'
+  echo "$first_lane_apply_dry_run_output" | grep -q "^  lane: $first_lane"
   explicit_local_recall_lane_dir="$workdir/explicit-local-recall-lane-pack"
   explicit_local_recall_lane_output="$("$bin" review lane check_local_recall \
     --session "$group_session" \
