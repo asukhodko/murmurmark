@@ -1862,6 +1862,9 @@ PY
     --dry-run)"
   echo "$first_lane_apply_dry_run_output" | grep -q '^review_lane_apply:$'
   echo "$first_lane_apply_dry_run_output" | grep -q "^  lane: $first_lane"
+  echo "$first_lane_apply_dry_run_output" | grep -q '^  next: murmurmark review lane apply '
+  echo "$first_lane_apply_dry_run_output" | grep -Eq -- "--plan-out-dir .*first-lane-review-plan"
+  echo "$first_lane_apply_dry_run_output" | grep -Eq -- "--out-dir .*first-lane-pack"
   echo "$first_lane_output" | grep -q '^  next: edit answer_sheet, then `murmurmark review lane apply '
   echo "$first_lane_output" | grep -Eq -- "--plan-out-dir .*first-lane-review-plan"
   echo "$first_lane_output" | grep -Eq -- "--out-dir .*first-lane-pack"
@@ -1893,6 +1896,14 @@ PY
   echo "$explicit_local_recall_apply_output" | grep -q '^  progress: '
   echo "$explicit_local_recall_apply_output" | grep -q '^  ready_for_apply: false'
   echo "$explicit_local_recall_apply_output" | grep -q '^  next: murmurmark review workspace --session '
+  explicit_local_recall_apply_dry_run_output="$("$bin" review lane apply check_local_recall \
+    --session "$group_session" \
+    --out-dir "$explicit_local_recall_lane_dir" \
+    --reviewer smoke \
+    --dry-run)"
+  echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^  next: murmurmark review lane apply check_local_recall --session '
+  echo "$explicit_local_recall_apply_dry_run_output" | grep -Eq -- "--out-dir .*explicit-local-recall-lane-pack"
+  echo "$explicit_local_recall_apply_dry_run_output" | grep -q -- "--reviewer smoke"
   [[ -s "$group_session/derived/readiness/review-plan/review_decisions.jsonl" ]]
   [[ -s "$group_session/derived/readiness/review-plan/review_decisions_progress.json" ]]
   explicit_progress_output="$("$bin" review progress --session "$group_session")"

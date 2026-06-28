@@ -1253,6 +1253,21 @@ enum ReviewLaneCommand {
 
 }
 
+struct ReviewLaneApplyPrintContext {
+    let lane: String
+    let session: URL?
+    let manifest: URL
+    let template: URL
+    let planURL: URL
+    let lanePackOutURL: URL
+    let answers: String?
+    let answersFile: URL?
+    let decisions: URL
+    let reviewer: String?
+    let progress: URL?
+    let dryRun: Bool
+}
+
 enum ReviewLaneApplyCommand {
     static func run(_ args: [String], sessionsRoot: URL) throws {
         var forwarded = args
@@ -1323,12 +1338,17 @@ enum ReviewLaneApplyCommand {
             dryRun: dryRun
         ))
         let progress = dryRun ? nil : try runProgress(template: template, decisions: decisions, planURL: planURL)
-        printLaneApply(LaneApplyPrintContext(
+        printLaneApply(ReviewLaneApplyPrintContext(
             lane: lane,
             session: session,
             manifest: manifest,
+            template: template,
+            planURL: planURL,
+            lanePackOutURL: lanePackOutURL,
+            answers: explicitAnswers,
             answersFile: answersFile,
             decisions: decisions,
+            reviewer: reviewer,
             progress: progress,
             dryRun: dryRun
         ))
@@ -1402,17 +1422,7 @@ enum ReviewLaneApplyCommand {
         return progress
     }
 
-    private struct LaneApplyPrintContext {
-        let lane: String
-        let session: URL?
-        let manifest: URL
-        let answersFile: URL?
-        let decisions: URL
-        let progress: URL?
-        let dryRun: Bool
-    }
-
-    private static func printLaneApply(_ context: LaneApplyPrintContext) {
+    private static func printLaneApply(_ context: ReviewLaneApplyPrintContext) {
         print("")
         print("review_lane_apply:")
         print("  lane: \(context.lane)")
@@ -1431,7 +1441,8 @@ enum ReviewLaneApplyCommand {
         print("  dry_run: \(context.dryRun)")
         let sessionArgument = context.session.map { " --session \($0.lastPathComponent)" } ?? ""
         if context.dryRun {
-            print("  next: run without --dry-run, then `murmurmark review apply\(sessionArgument)`")
+            let nextCommand = ReviewLaneApplyNextCommand.command(context)
+            print("  next: \(nextCommand)")
         } else if context.progress.map(isReadyForApply) == true {
             print("  next: murmurmark review apply\(sessionArgument)")
         } else {
@@ -1501,6 +1512,61 @@ enum ReviewLaneApplyCommand {
             throw CLIError("review script not found: \(url.path)")
         }
         return url
+    }
+}
+
+enum ReviewLaneApplyNextCommand {
+    static func command(_ context: ReviewLaneApplyPrintContext) -> String {
+        var parts = ["murmurmark", "review", "lane", "apply", context.lane]
+        if let session = context.session {
+            parts += ["--session", session.lastPathComponent]
+        }
+
+        let defaultPlan = context.session?.appendingPathComponent("derived/readiness/review-plan")
+            ?? PathURLs.fileURL("sessions/_reports/review-plan")
+        appendPathOption("plan-out-dir", context.planURL, default: defaultPlan, to: &parts)
+        appendPathOption("out-dir", context.lanePackOutURL, default: context.planURL.appendingPathComponent("lane-packs"), to: &parts)
+        appendPathOption(
+            "manifest",
+            context.manifest,
+            default: context.lanePackOutURL.appendingPathComponent("review_lane_pack.\(context.lane).json"),
+            to: &parts
+        )
+        appendPathOption(
+            "template",
+            context.template,
+            default: context.planURL.appendingPathComponent("review_decisions.template.jsonl"),
+            to: &parts
+        )
+        appendPathOption(
+            "decisions-out",
+            context.decisions,
+            default: context.planURL.appendingPathComponent("review_decisions.jsonl"),
+            to: &parts
+        )
+        if let answers = context.answers {
+            parts += ["--answers", answers]
+        } else if let answersFile = context.answersFile {
+            appendPathOption(
+                "answers-file",
+                answersFile,
+                default: context.lanePackOutURL.appendingPathComponent("review_lane_answers.\(context.lane).txt"),
+                to: &parts
+            )
+        }
+        if let reviewer = context.reviewer {
+            parts += ["--reviewer", reviewer]
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private static func appendPathOption(_ name: String, _ value: URL, default defaultValue: URL, to parts: inout [String]) {
+        guard !samePath(value, defaultValue) else { return }
+        parts += ["--\(name)", PathDisplay.display(value)]
+    }
+
+    private static func samePath(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.standardizedFileURL.path == rhs.standardizedFileURL.path
     }
 }
 
