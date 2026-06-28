@@ -915,9 +915,10 @@ To estimate what the generated suggestions would do without writing decisions:
 .build/debug/murmurmark review workspace apply --answers-source suggested --dry-run
 ```
 
-`murmurmark review workspace` prints the same command as `suggested_dry_run` when suggested sheets
-are present. Dry-run still writes `review_workspace_apply_report.json`, so the CLI can print the same
-summary and next command without changing `review_decisions.jsonl`.
+`murmurmark review workspace` prints `manual_flow`, optional `suggested_flow`, `after_apply`, and
+the same command as `suggested_dry_run` when suggested sheets are present. Dry-run still writes
+`review_workspace_apply_report.json`, so the CLI can print the same summary and next command without
+changing `review_decisions.jsonl`.
 
 To materialize those suggestions as a separate shadow transcript for comparison, write a suggested
 decisions file and build `suggested_review_v1`:

@@ -730,8 +730,9 @@ Use `murmurmark review workspace apply --dry-run` to write only the validation r
 same handoff without changing `review_decisions.jsonl`. The apply output also prints per-lane
 progress, the remaining lane Markdown to read, answer sheets to edit, and the next
 workspace-apply/progress/apply commands. Workspace output also prints
-`suggested_dry_run` and `suggested_apply` for the generated `.suggested.txt` sheets; keep the same
-rule as lane review and run the suggested path with `--dry-run` before writing decisions.
+`manual_flow`, optional `suggested_flow`, and `after_apply`. It still prints `suggested_dry_run`
+and `suggested_apply` for the generated `.suggested.txt` sheets; keep the same rule as lane review
+and run the suggested path with `--dry-run` before writing decisions.
 After `murmurmark review apply`, the CLI prints the next report command for the affected session or
 corpus. For a single session it also prints the refreshed readiness summary, including the next
 export or retention commands when the session is ready.

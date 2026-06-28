@@ -323,11 +323,36 @@ enum ReviewPrinter {
         }
         let sessionID = sessionIDForSessionLocalPlan(outDir)
         let applyCommand = workspaceApplyCommand(payload: payload, outDir: outDir, sessionID: sessionID)
-        if okLanes.contains(where: { string($0["suggested_answer_sheet"]) != nil }) {
+        let hasSuggestedAnswerSheet = okLanes.contains { string($0["suggested_answer_sheet"]) != nil }
+        if hasSuggestedAnswerSheet {
             print("  suggested_dry_run: \(applyCommand) --answers-source suggested --dry-run")
             print("  suggested_apply: \(applyCommand) --answers-source suggested")
         }
-        print("  next: listen, read lane markdown, edit answer sheets, then `\(applyCommand)`")
+        printWorkspaceHandoff(
+            applyCommand: applyCommand,
+            sessionID: sessionID,
+            hasSuggestedAnswerSheet: hasSuggestedAnswerSheet
+        )
+    }
+
+    private static func printWorkspaceHandoff(
+        applyCommand: String,
+        sessionID: String?,
+        hasSuggestedAnswerSheet: Bool
+    ) {
+        let sessionArgument = sessionID.map { " --session \($0)" } ?? ""
+        print("  manual_flow:")
+        print("    dry_run: \(applyCommand) --dry-run")
+        print("    apply: \(applyCommand)")
+        if hasSuggestedAnswerSheet {
+            print("  suggested_flow:")
+            print("    dry_run: \(applyCommand) --answers-source suggested --dry-run")
+            print("    apply: \(applyCommand) --answers-source suggested")
+        }
+        print("  after_apply:")
+        print("    murmurmark review progress\(sessionArgument)")
+        print("    murmurmark review apply\(sessionArgument)")
+        print("  next: listen, read lane markdown, edit answer sheets, dry-run, apply, then progress")
     }
 
     static func printWorkspaceApply(report: URL) throws {

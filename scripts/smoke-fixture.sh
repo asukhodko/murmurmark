@@ -1559,7 +1559,16 @@ EOF
   grep -q '^      listen: afplay ' "$cli_workspace_stdout"
   grep -q '^      read: less ' "$cli_workspace_stdout"
   grep -q '^      edit: \$EDITOR ' "$cli_workspace_stdout"
-  grep -q '^  next: listen, read lane markdown, edit answer sheets, then `murmurmark review workspace apply --session review_workspace_cli_session`' "$cli_workspace_stdout"
+  grep -q '^  manual_flow:$' "$cli_workspace_stdout"
+  grep -q '^    dry_run: murmurmark review workspace apply --session review_workspace_cli_session --dry-run' "$cli_workspace_stdout"
+  grep -q '^    apply: murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_stdout"
+  grep -q '^  suggested_flow:$' "$cli_workspace_stdout"
+  grep -q '^    dry_run: murmurmark review workspace apply --session review_workspace_cli_session --answers-source suggested --dry-run' "$cli_workspace_stdout"
+  grep -q '^    apply: murmurmark review workspace apply --session review_workspace_cli_session --answers-source suggested' "$cli_workspace_stdout"
+  grep -q '^  after_apply:$' "$cli_workspace_stdout"
+  grep -q '^    murmurmark review progress --session review_workspace_cli_session' "$cli_workspace_stdout"
+  grep -q '^    murmurmark review apply --session review_workspace_cli_session' "$cli_workspace_stdout"
+  grep -q '^  next: listen, read lane markdown, edit answer sheets, dry-run, apply, then progress' "$cli_workspace_stdout"
   grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_stdout"
   grep -q '^  suggested_dry_run: murmurmark review workspace apply --session review_workspace_cli_session --answers-source suggested --dry-run' "$cli_workspace_stdout"
   grep -q '^  suggested_apply: murmurmark review workspace apply --session review_workspace_cli_session --answers-source suggested' "$cli_workspace_stdout"
@@ -2439,6 +2448,8 @@ PY
   echo "$session_workspace_output" | grep -q '^SESSION="'
   echo "$session_workspace_output" | grep -q '^review_workspace:$'
   echo "$session_workspace_output" | grep -q '^      read: less '
+  echo "$session_workspace_output" | grep -q '^  manual_flow:$'
+  echo "$session_workspace_output" | grep -q '^  after_apply:$'
   session_workspace_apply_dry_run_output="$("$bin" review workspace apply --session "$group_session" --dry-run)"
   assert_no_helper_prefix "$session_workspace_apply_dry_run_output"
   echo "$session_workspace_apply_dry_run_output" | grep -q '^SESSION="'
