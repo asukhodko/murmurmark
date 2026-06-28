@@ -299,6 +299,8 @@ Read `session_readiness.md` first, or run `murmurmark report SESSION` for the te
 CLI prints a short status, `recommended_next`, the session use gate, selected profile, review burden,
 synthesis review item summary, next CLI commands, `handoff` open/export commands, and links to the
 transcript, notes, quality verdict and audio-review report.
+`recommended_next` prefers executable `murmurmark ...` actions from `next_commands`; read-only
+commands such as `less ...` remain visible under `next` and `open`.
 `murmurmark review next SESSION` is the short terminal handoff for that same information: it refreshes
 session readiness, builds a session-local review plan when review is needed, and prints the
 review-specific next commands. When a review plan exists, it also prints `first_lane_flow` for the

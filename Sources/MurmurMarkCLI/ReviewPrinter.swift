@@ -574,7 +574,7 @@ enum ReviewPrinter {
         else {
             return nil
         }
-        return nextCommands.compactMap { string($0["command"]) }.first
+        return ReadinessPrinter.preferredNextCommand(nextCommands)
     }
 
     private static func string(_ value: Any?) -> String? {

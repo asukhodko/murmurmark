@@ -1552,7 +1552,11 @@ The Swift CLI additionally prints a derived terminal-only `status`:
 - `blocked`: hard no-use gate or export blockers not already classified as review/incomplete;
 - `check_required`: fallback for unusual states.
 
-`recommended_next` is the first command from `next_commands`.
+`recommended_next` is a terminal-only action-first view over `next_commands`: the CLI prefers the
+first command that starts with `murmurmark process`, `murmurmark review`, `murmurmark export`,
+`murmurmark retention`, or `murmurmark report`. If no such command exists, it falls back to the first
+command from `next_commands`. This keeps report-reading commands such as `less ...` visible while
+making the headline next step executable.
 The same terminal summary prints `handoff` commands for opening selected notes, transcript and
 quality verdict. When the derived status is `exportable`, it also prints export and retention
 commands. This is CLI presentation only; `outputs`, `next_commands`, gates and blockers remain the

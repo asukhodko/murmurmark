@@ -93,7 +93,8 @@ decision file is ready.
 `murmurmark report SESSION` prints a short status, `recommended_next`, handoff commands for opening
 the selected notes/transcript/verdict, the selected profile, verdict, review burden and synthesis
 review item summary. The terminal output is enough to see whether notes still depend on risky
-utterances before opening the Markdown files.
+utterances before opening the Markdown files. `recommended_next` prefers actionable `murmurmark ...`
+commands from `next_commands`; report-reading commands remain visible in `next` and `open`.
 Use `murmurmark review next SESSION` when you only need the next review step for one session. It
 refreshes session readiness, builds a session-local review plan under
 `SESSION/derived/readiness/review-plan/` when review is needed, and prints the review-oriented

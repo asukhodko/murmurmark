@@ -6681,7 +6681,7 @@ enum ReadinessPrinter {
         let nextCommands = payload["next_commands"] as? [[String: Any]]
             ?? fallbackNextCommands(gate: gate, session: session, payload: payload)
         let status = readinessStatus(gate: gate, payload: payload)
-        let recommendedNext = nextCommands.compactMap { string($0["command"]) }.first
+        let recommendedNext = preferredNextCommand(nextCommands)
         let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0) * 100
 
@@ -6733,6 +6733,23 @@ enum ReadinessPrinter {
         if let verdicts = summary["by_verdict"] as? [String: Any] {
             print("  by_verdict: \(compactJSON(verdicts))")
         }
+    }
+
+    static func preferredNextCommand(_ nextCommands: [[String: Any]]) -> String? {
+        let commands = nextCommands.compactMap { string($0["command"]) }.filter { !$0.isEmpty }
+        let actionPrefixes = [
+            "murmurmark process",
+            "murmurmark review",
+            "murmurmark export",
+            "murmurmark retention",
+            "murmurmark report",
+        ]
+        for prefix in actionPrefixes {
+            if let command = commands.first(where: { $0.hasPrefix(prefix) }) {
+                return command
+            }
+        }
+        return commands.first
     }
 
     private static func outputPath(_ key: String, outputs: [String: Any]) -> String? {
