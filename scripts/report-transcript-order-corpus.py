@@ -11,7 +11,7 @@ from typing import Any
 
 SCHEMA_REPORT = "murmurmark.transcript_order_corpus_report/v1"
 SCHEMA_ITEM = "murmurmark.transcript_order_corpus_item/v1"
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 
 
 def parse_args() -> argparse.Namespace:
@@ -264,6 +264,41 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
             "seconds": round(sum(safe_float(row.get("needs_review_seconds")) for row in session_summaries), 3),
         },
     }
+    audit_probable_order_risk_count = sum(safe_int(row.get("audit_probable_order_risk_count")) for row in session_summaries)
+    audit_probable_order_risk_seconds = round(
+        sum(safe_float(row.get("audit_probable_order_risk_seconds")) for row in session_summaries),
+        3,
+    )
+    effective_probable_order_risk_count = effective_by_label["probable_order_risk"]["count"]
+    effective_probable_order_risk_seconds = effective_by_label["probable_order_risk"]["seconds"]
+    repaired_sessions = [
+        row
+        for row in session_summaries
+        if safe_int(row.get("transcript_order_repair_applied_repairs")) > 0
+    ]
+    repair_cleared_sessions = [
+        row
+        for row in repaired_sessions
+        if safe_int(row.get("probable_order_risk_count")) == 0 and not row.get("blocking_order_risk")
+    ]
+    repair_partial_sessions = [
+        row
+        for row in repaired_sessions
+        if safe_int(row.get("probable_order_risk_count")) > 0 or row.get("blocking_order_risk")
+    ]
+    repair_summary = {
+        "sessions_with_repair": len(repaired_sessions),
+        "cleared_session_count": len(repair_cleared_sessions),
+        "partial_session_count": len(repair_partial_sessions),
+        "applied_repairs": sum(safe_int(row.get("transcript_order_repair_applied_repairs")) for row in session_summaries),
+        "unrepaired_order_risks": sum(safe_int(row.get("transcript_order_repair_unrepaired_order_risks")) for row in session_summaries),
+        "audit_probable_order_risk_count": audit_probable_order_risk_count,
+        "audit_probable_order_risk_seconds": audit_probable_order_risk_seconds,
+        "effective_probable_order_risk_count": effective_probable_order_risk_count,
+        "effective_probable_order_risk_seconds": effective_probable_order_risk_seconds,
+        "resolved_order_risk_count": max(0, audit_probable_order_risk_count - effective_probable_order_risk_count),
+        "resolved_order_risk_seconds": round(max(0.0, audit_probable_order_risk_seconds - effective_probable_order_risk_seconds), 3),
+    }
     report = {
         "schema": SCHEMA_REPORT,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -285,6 +320,7 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
             "probable_order_risk_seconds": effective_by_label["probable_order_risk"]["seconds"],
             "needs_review_count": effective_by_label["needs_review"]["count"],
             "needs_review_seconds": effective_by_label["needs_review"]["seconds"],
+            "order_repair": repair_summary,
             "recommended_next_step": (
                 "close_complete_order_regressions"
                 if complete_blocking
@@ -325,6 +361,19 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Next: `{summary.get('recommended_next_step')}`",
         "",
     ]
+    repair = summary.get("order_repair") if isinstance(summary.get("order_repair"), dict) else {}
+    if repair:
+        lines += [
+            "## Order Repair Effect",
+            "",
+            f"- Sessions with repair: `{repair.get('sessions_with_repair')}`",
+            f"- Cleared sessions: `{repair.get('cleared_session_count')}`",
+            f"- Partial sessions: `{repair.get('partial_session_count')}`",
+            f"- Applied repairs: `{repair.get('applied_repairs')}`",
+            f"- Unrepaired order risks: `{repair.get('unrepaired_order_risks')}`",
+            f"- Resolved order risk: `{repair.get('resolved_order_risk_count')}` / `{repair.get('resolved_order_risk_seconds')}` sec",
+            "",
+        ]
     sessions = [row for row in report.get("sessions", []) if isinstance(row, dict) and row.get("blocking_order_risk")]
     if sessions:
         lines += ["## Blocking Sessions", ""]

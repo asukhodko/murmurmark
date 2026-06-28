@@ -860,13 +860,19 @@ EOF
     --session-quality "$order_repair_quality_dir/session_quality_report.json" \
     --out-dir "$order_repair_corpus_dir")"
   echo "$order_repair_corpus_output" | grep -q '^transcript_order_corpus:'
+  echo "$order_repair_corpus_output" | grep -q '  order_repair_applied_repairs: 1'
+  echo "$order_repair_corpus_output" | grep -q '  order_repair_cleared_sessions: 1'
   jq -e '
     .sessions[0].selected_profile == "order_repair_v1" and
     .sessions[0].transcript_order_repair_applied_repairs == 1 and
     .summary.probable_order_risk_count == 0 and
     .summary.probable_order_risk_seconds == 0 and
     .summary.complete_blocking_session_count == 0 and
-    .summary.audit_by_label.probable_order_risk.count == 1
+    .summary.audit_by_label.probable_order_risk.count == 1 and
+    .summary.order_repair.sessions_with_repair == 1 and
+    .summary.order_repair.cleared_session_count == 1 and
+    .summary.order_repair.applied_repairs == 1 and
+    .summary.order_repair.resolved_order_risk_count == 1
   ' "$order_repair_corpus_dir/transcript_order_corpus_report.json" >/dev/null
 
   order_partial_session="$workdir/order-partial-session"

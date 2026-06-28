@@ -542,10 +542,21 @@ sessions/_reports/transcript-order/
     "missing_order_audit_count": 0,
     "blocking_session_count": 2,
     "complete_blocking_session_count": 0,
-    "probable_order_risk_count": 1,
-    "probable_order_risk_seconds": 2.0,
+    "probable_order_risk_count": 0,
+    "probable_order_risk_seconds": 0.0,
     "needs_review_count": 23,
     "needs_review_seconds": 173.42,
+    "order_repair": {
+      "sessions_with_repair": 1,
+      "cleared_session_count": 1,
+      "partial_session_count": 0,
+      "applied_repairs": 1,
+      "unrepaired_order_risks": 0,
+      "audit_probable_order_risk_count": 1,
+      "effective_probable_order_risk_count": 0,
+      "resolved_order_risk_count": 1,
+      "resolved_order_risk_seconds": 2.0
+    },
     "recommended_next_step": "review_incomplete_order_candidates"
   }
 }
@@ -553,9 +564,11 @@ sessions/_reports/transcript-order/
 
 `transcript_order_corpus_items.jsonl` uses `murmurmark.transcript_order_corpus_item/v1` and keeps
 the session id, selected profile, label, interval, utterance ids, short `Me`/`Colleagues` texts and
-the path to the per-session review Markdown. This report is read-only: it does not change review
-decisions or transcript profiles. Its purpose is to keep chronology-risk examples visible as a
-corpus regression queue.
+the path to the per-session review Markdown. `summary.order_repair` compares the original order audit
+with the effective metrics after `order_repair_v1` and records applied repairs, cleared sessions and
+remaining unrepaired risks. This report is read-only: it does not change review decisions or
+transcript profiles. Its purpose is to keep chronology-risk examples visible as a corpus regression
+queue.
 
 `check-corpus-gates.py` reads this aggregate report via `--transcript-order` (default:
 `sessions/_reports/transcript-order/transcript_order_corpus_report.json`). It warns when the report

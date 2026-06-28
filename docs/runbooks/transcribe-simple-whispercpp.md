@@ -306,7 +306,9 @@ Without `--repair`, the command only aggregates existing order audits. With `--r
 sessions from the current session-quality report, refreshes their order audit, writes conservative
 `order_repair_v1`, refreshes session-quality and then rebuilds the corpus order report. Pass explicit
 session paths or `all` when you need a different target set. This report is the practical list of
-chronology regression candidates.
+chronology regression candidates. Its `summary.order_repair` block shows the corpus-level repair
+effect: sessions with repair, cleared sessions, applied repairs, remaining unrepaired order risks and
+resolved order-risk seconds.
 For remote leak, `--plan` refreshes only the audit-only segment plans, then rebuilds the corpus
 summary. It still does not apply transcript edits.
 Complete sessions with

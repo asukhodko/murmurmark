@@ -274,7 +274,8 @@ report and fail if a complete session still has blocking chronology risk. Use
 `murmurmark corpus order --repair` when you want to refresh order audits for the sessions in the
 current session-quality report, try conservative
 `order_repair_v1` for each session, refresh session-quality, and then rebuild the corpus order
-summary in one pass.
+summary in one pass. The corpus report includes an `order_repair` summary with applied repairs,
+cleared sessions and remaining unrepaired order risks.
 `murmurmark audit group-overlaps` classifies `Me`/`Colleagues` timeline overlaps into harmful, benign
 and review buckets, writes listenable clips, and does not change transcripts or quality verdicts by itself.
 `murmurmark cleanup` is the conservative cleanup over audit evidence. It writes separate

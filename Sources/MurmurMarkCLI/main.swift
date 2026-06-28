@@ -6314,6 +6314,11 @@ enum CorpusPrinter {
         if let seconds = double(summary["needs_review_seconds"]) {
             print(String(format: "  needs_review_seconds: %.2f", seconds))
         }
+        if let repair = summary["order_repair"] as? [String: Any] {
+            print("  order_repair_applied_repairs: \(int(repair["applied_repairs"]) ?? 0)")
+            print("  order_repair_cleared_sessions: \(int(repair["cleared_session_count"]) ?? 0)")
+            print("  order_repair_unrepaired_order_risks: \(int(repair["unrepaired_order_risks"]) ?? 0)")
+        }
         print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
     }
 

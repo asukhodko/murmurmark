@@ -419,7 +419,7 @@ nodes:
     parent: quality-hardening
     status: current
     effort: 5
-    notes: "murmurmark audit order уже выявляет длинные Me-блоки поверх remote, входит в process/session-quality/corpus gates, имеет audit-only review lane и корпусный report через murmurmark corpus order. Первый безопасный repair-контур order_repair_v1 умеет явно разрезать Me-блок только по сохранённым source ASR segments; следующий шаг — прогнать его на корпусе и расширять только доказанные случаи."
+    notes: "murmurmark audit order уже выявляет длинные Me-блоки поверх remote, входит в process/session-quality/corpus gates, имеет audit-only review lane и корпусный report через murmurmark corpus order. Первый безопасный repair-контур order_repair_v1 умеет явно разрезать Me-блок только по сохранённым source ASR segments; corpus report теперь показывает aggregate repair effect, чтобы расширять repair только по доказанным случаям."
 
   quality-boundary-repair:
     title: "Start/end boundary repair"
