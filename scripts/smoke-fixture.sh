@@ -15,6 +15,12 @@ require_tool ffmpeg
 require_tool ffprobe
 require_tool jq
 
+assert_no_helper_prefix() {
+  local helper_prefix_re
+  helper_prefix_re='^(written|markdown|verdict|next_command|review_plan|clusters|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped|transcript_order_audit|local_recall_audit|group_overlap_summary|audio_review_report|audio_review_summary|review_pack|audit_cleanup_report|clean_dialogue|transcript|applied_patches|dropped_me_duplicate_seconds|harmful_after|gates_passed|selected_transcript_profile|quality_verdict|notes|progress):'
+  ! printf '%s\n' "$1" | grep -Eq "$helper_prefix_re"
+}
+
 if [[ ! -x "$bin" ]]; then
   (cd "$repo_root" && swift build >/dev/null)
 fi
@@ -439,12 +445,12 @@ jq -e '.sessions[0].use_gate == "pipeline_incomplete"' "$session/derived/session
 jq -e '.schema == "murmurmark.session_readiness/v1" and .use_gate == "pipeline_incomplete"' "$session/derived/readiness/session_readiness.json" >/dev/null
 jq -e '.metrics.synthesis_review_item_count >= 1 and any(.metrics.synthesis_review_top_types[]; .type == "utterance_transcript_order_review")' "$session/derived/readiness/session_readiness.json" >/dev/null
 report_output="$("$bin" report "$session")"
-! echo "$report_output" | grep -Eq '^(written|markdown|verdict|next_command):'
+assert_no_helper_prefix "$report_output"
 echo "$report_output" | grep -q '^readiness:$'
 echo "$report_output" | grep -q '  synthesis_review_items: '
 echo "$report_output" | grep -q '  synthesis_review_types: .*utterance_transcript_order_review=1'
 corpus_report_output="$("$bin" report corpus --sessions-root "$workdir")"
-! echo "$corpus_report_output" | grep -Eq '^(written|markdown|verdict|next_command):'
+assert_no_helper_prefix "$corpus_report_output"
 echo "$corpus_report_output" | grep -q '^corpus:$'
 echo "$corpus_report_output" | grep -q '^operational_readiness:$'
 echo "$corpus_report_output" | grep -q '  next_command: '
@@ -777,6 +783,7 @@ EOF
 EOF
 
   local_recall_cli_output="$("$bin" audit local-recall "$group_session" --profile shadow_v2)"
+  assert_no_helper_prefix "$local_recall_cli_output"
   echo "$local_recall_cli_output" | grep -q '^audit:$'
   echo "$local_recall_cli_output" | grep -q '  kind: local_recall'
   echo "$local_recall_cli_output" | grep -q '  missing_islands: 3'
@@ -913,6 +920,7 @@ PY
 Надо сначала проверить логи.
 EOF
   order_cli_output="$("$bin" audit order "$order_session" --profile shadow_v2)"
+  assert_no_helper_prefix "$order_cli_output"
   echo "$order_cli_output" | grep -q '^audit:$'
   echo "$order_cli_output" | grep -q '  kind: transcript_order'
   echo "$order_cli_output" | grep -q '  probable_order_risk: 1 / 2.00s'
@@ -1150,6 +1158,7 @@ PY
     --review-threshold-sec 2.0 \
     --write-clips \
     --max-clips 10)"
+  assert_no_helper_prefix "$group_overlap_cli_output"
   echo "$group_overlap_cli_output" | grep -q '^audit:$'
   echo "$group_overlap_cli_output" | grep -q '  kind: group_overlaps'
   echo "$group_overlap_cli_output" | grep -q '  overlaps: 4 /'
@@ -1220,6 +1229,7 @@ EOF
     --input-profile shadow_v2 \
     --output-profile audit_cleanup_v1 \
     --mode conservative)"
+  assert_no_helper_prefix "$cleanup_cli_output"
   echo "$cleanup_cli_output" | grep -q '^cleanup:$'
   echo "$cleanup_cli_output" | grep -q '  output_profile: audit_cleanup_v1'
   echo "$cleanup_cli_output" | grep -q '  applied_patches: 2'
@@ -1249,6 +1259,7 @@ EOF
   jq -s 'any(.[]; .target.utterance_id == "utt_action_me" and .safety_checks.has_protected_action_decision_risk_marker == true)' "$cleanup_rejected" >/dev/null
 
   synthesize_cli_output="$("$bin" synthesize "$group_session" --transcript-profile audit_cleanup_v1)"
+  assert_no_helper_prefix "$synthesize_cli_output"
   echo "$synthesize_cli_output" | grep -q '^synthesis:$'
   echo "$synthesize_cli_output" | grep -q '  selected_profile: audit_cleanup_v1'
   echo "$synthesize_cli_output" | grep -q '  review_items: '
@@ -1260,6 +1271,7 @@ EOF
     --profile audit_cleanup_v1 \
     --write-clips \
     --max-items 20)"
+  assert_no_helper_prefix "$audio_review_cli_output"
   echo "$audio_review_cli_output" | grep -q '^audit:$'
   echo "$audio_review_cli_output" | grep -q '  kind: audio_review'
   echo "$audio_review_cli_output" | grep -q '  items:'

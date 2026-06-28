@@ -1758,23 +1758,23 @@ enum AuditCommands {
 
         switch subcommand {
         case "local-recall":
-            try Tooling.runPath(python, [try script("audit-local-recall.py").path, session.path] + remaining)
+            try Tooling.runPathQuiet(python, [try script("audit-local-recall.py").path, session.path] + remaining)
             try AuditPrinter.printLocalRecall(session: session, args: remaining)
         case "order":
-            try Tooling.runPath(python, [try script("audit-transcript-order.py").path, session.path] + remaining)
+            try Tooling.runPathQuiet(python, [try script("audit-transcript-order.py").path, session.path] + remaining)
             try AuditPrinter.printOrder(session: session, args: remaining)
         case "group-overlaps":
-            try Tooling.runPath(python, [try script("audit-group-overlaps.py").path, session.path] + remaining)
+            try Tooling.runPathQuiet(python, [try script("audit-group-overlaps.py").path, session.path] + remaining)
             try AuditPrinter.printGroupOverlaps(session: session)
         case "audio-review":
             let packArgs = defaulted(remaining, option: "profile", value: "audit_cleanup_v2")
             let packDir = ArgumentEditing.peekOption("out-dir", in: packArgs)
-            try Tooling.runPath(python, [try script("build-audio-review-pack.py").path, session.path] + packArgs)
+            try Tooling.runPathQuiet(python, [try script("build-audio-review-pack.py").path, session.path] + packArgs)
             var auditArgs = [try script("audit-audio-review-pack.py").path, session.path]
             if let packDir {
                 auditArgs += ["--pack-dir", packDir, "--out-dir", packDir]
             }
-            try Tooling.runPath(python, auditArgs)
+            try Tooling.runPathQuiet(python, auditArgs)
             try AuditPrinter.printAudioReview(session: session, args: packArgs)
         default:
             throw CLIError("unknown audit command: \(subcommand)")
@@ -2008,7 +2008,7 @@ enum CleanupCommands {
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
 
-        let status = try Tooling.runPathAllowingExitCodes(
+        let status = try Tooling.runPathQuietAllowingExitCodes(
             try PythonRuntime.resolve(),
             [try script().path, session.path] + remaining,
             allowedExitCodes: [0, 2]
@@ -2125,7 +2125,7 @@ enum SynthesisCommands {
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
-        try Tooling.runPath(try PythonRuntime.resolve(), [try script().path, session.path] + remaining)
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), [try script().path, session.path] + remaining)
         try SynthesisPrinter.printSummary(session: session)
     }
 
