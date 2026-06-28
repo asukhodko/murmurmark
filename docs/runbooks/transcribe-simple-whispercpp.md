@@ -869,6 +869,9 @@ checklist is complete. `review progress` also prints `by_lane`, so the remaining
 without opening the JSON report.
 If `review apply --session "$SESSION"` is called before `review_decisions.jsonl` exists, it prints
 `status: not_ready`, the missing file and the workspace/progress commands to run next.
+If the decisions file exists but the checklist still has `todo` rows, it refreshes
+`review_decisions_progress.json`, prints `reviewed`, `remaining` and `by_lane`, then points back to
+workspace/progress without running batch apply.
 
 The lower-level equivalent is still useful for debugging exact paths:
 

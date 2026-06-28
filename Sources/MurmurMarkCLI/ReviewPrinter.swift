@@ -208,6 +208,24 @@ enum ReviewPrinter {
         print("    murmurmark review progress\(sessionArgument)")
     }
 
+    static func printApplyNotReady(session: URL?, decisions: URL, progress: URL) throws {
+        let payload = try JSONFiles.object(progress)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        let sessionArgument = session.map { " --session \($0.lastPathComponent)" } ?? ""
+        print("")
+        print("review_apply:")
+        print("  status: not_ready")
+        print("  decisions: \(PathDisplay.display(decisions))")
+        print("  progress: \(PathDisplay.display(progress))")
+        print("  reviewed: \(int(summary["reviewed"]) ?? 0)/\(int(summary["total"]) ?? 0)")
+        print("  remaining: \(int(summary["remaining"]) ?? 0)")
+        print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
+        printProgressLanes(payload)
+        print("  next:")
+        print("    murmurmark review workspace\(sessionArgument)")
+        print("    murmurmark review progress\(sessionArgument)")
+    }
+
     static func printAgentBuild(report: URL) throws {
         let payload = try JSONFiles.object(report)
         let summary = payload["summary"] as? [String: Any] ?? [:]

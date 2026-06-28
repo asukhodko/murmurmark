@@ -629,6 +629,23 @@ echo "$review_apply_missing_output" | grep -q '^  status: not_ready'
 echo "$review_apply_missing_output" | grep -q '^    decisions'
 echo "$review_apply_missing_output" | grep -q '^    murmurmark review workspace --session .*review-next-session'
 echo "$review_apply_missing_output" | grep -q '^    murmurmark review progress --session .*review-next-session'
+cat >"$review_next_plan_dir/review_decisions.template.jsonl" <<EOF
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"review-next-fixture","session":"$review_next_session","input_profile":"order_repair_v1","source_audit_id":"progress_not_ready","label":"local_recall","verdict":"needs_review","review_lane":"check_local_recall","review_action":"check_local_recall","suggested_decision":"needs_review","suggested_decision_confidence":"medium","allowed_decisions":["drop_me","keep_me","needs_review","skip"],"me_utterance_ids":["utt_progress_me"],"utterance_ids":["utt_progress_me"],"interval":{"start":1.0,"end":4.0,"duration_sec":3.0},"text":[{"id":"utt_progress_me","role":"Me","source_track":"mic","text":"Нужно проверить."}],"commands":{}}
+EOF
+cp "$review_next_plan_dir/review_decisions.template.jsonl" "$review_next_plan_dir/review_decisions.jsonl"
+review_apply_not_ready_output="$("$bin" review apply --session "$review_next_session")"
+assert_no_helper_prefix "$review_apply_not_ready_output"
+echo "$review_apply_not_ready_output" | grep -q '^SESSION="'
+echo "$review_apply_not_ready_output" | grep -q '^review_apply:$'
+echo "$review_apply_not_ready_output" | grep -q '^  status: not_ready'
+echo "$review_apply_not_ready_output" | grep -q '^  progress: '
+echo "$review_apply_not_ready_output" | grep -q '^  reviewed: 0/1'
+echo "$review_apply_not_ready_output" | grep -q '^  remaining: 1'
+echo "$review_apply_not_ready_output" | grep -q '^  ready_for_apply: false'
+echo "$review_apply_not_ready_output" | grep -q '^  by_lane:$'
+echo "$review_apply_not_ready_output" | grep -q '^    check_local_recall: reviewed=0/1 remaining=1'
+echo "$review_apply_not_ready_output" | grep -q '^    murmurmark review workspace --session .*review-next-session'
+echo "$review_apply_not_ready_output" | grep -q '^    murmurmark review progress --session .*review-next-session'
 export_block_dir="$workdir/export-blocked"
 export_block_stdout="$workdir/export_blocked_stdout.txt"
 if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >"$export_block_stdout" 2>&1; then

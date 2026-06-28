@@ -671,12 +671,26 @@ enum ReviewCommands {
             }
             let decisions = ReviewPaths.reviewApplyDecisions(from: preflightArgs)
             let template = ReviewPaths.reviewApplyTemplate(from: preflightArgs)
+            let progress = ReviewPaths.reviewApplyProgress(decisions: decisions)
             if !FileManager.default.fileExists(atPath: decisions.path)
                 || !FileManager.default.fileExists(atPath: template.path) {
                 if let session {
                     print("SESSION=\"\(PathDisplay.display(session))\"")
                 }
                 ReviewPrinter.printApplyNotReady(session: session, decisions: decisions, template: template)
+                return
+            }
+            try ReviewProgressRunner.run(args: [
+                "--template", template.path,
+                "--decisions", decisions.path,
+                "--out", progress.path,
+                "--markdown", progress.deletingPathExtension().appendingPathExtension("md").path,
+            ])
+            if !ReviewPaths.isProgressReadyForApply(progress) {
+                if let session {
+                    print("SESSION=\"\(PathDisplay.display(session))\"")
+                }
+                try ReviewPrinter.printApplyNotReady(session: session, decisions: decisions, progress: progress)
                 return
             }
             let report = try apply(forwarded, sessionsRoot: sessionsRoot)
@@ -1036,6 +1050,19 @@ enum ReviewPaths {
             ArgumentEditing.peekOption("review-template", in: args)
                 ?? "sessions/_reports/review-plan/review_decisions.template.jsonl"
         )
+    }
+
+    static func reviewApplyProgress(decisions: URL) -> URL {
+        decisions.deletingLastPathComponent().appendingPathComponent("review_decisions_progress.json")
+    }
+
+    static func isProgressReadyForApply(_ progress: URL) -> Bool {
+        guard let payload = try? JSONFiles.object(progress),
+              let summary = payload["summary"] as? [String: Any]
+        else {
+            return false
+        }
+        return (summary["ready_for_batch_apply"] as? Bool) == true
     }
 
     static func workspaceDecisionsOut(from args: [String]) -> URL {

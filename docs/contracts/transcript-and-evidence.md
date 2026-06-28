@@ -2144,6 +2144,8 @@ The Swift `murmurmark review apply` wrapper performs a preflight before running 
 If the decisions file or review template is missing, it prints `review_apply: status: not_ready`,
 the missing path kind and the next `review workspace` / `review progress` commands instead of
 surfacing the lower-level Python failure.
+If the files exist but `review_decisions_progress.json` is not `ready_for_batch_apply`, the wrapper
+prints the progress summary and lane breakdown, then exits without running the batch command.
 
 The report includes coverage evidence:
 
