@@ -288,7 +288,7 @@ nodes:
     deps: [corpus-audio-judge-refresh]
     status: done
     effort: 3
-    notes: "murmurmark corpus taxonomy собирает regression corpus, audio-judge и session-quality отчёты в одну карту классов ошибок и следующих безопасных действий."
+    notes: "murmurmark corpus taxonomy собирает regression corpus, audio-judge и session-quality отчёты в одну карту классов ошибок и следующих безопасных действий. Внутри широких классов пишет diagnostic subtypes, например uncertain_duplicate_vs_leak и remote_leak_with_local_content_risk."
 
   review-loop:
     title: "Review loop"

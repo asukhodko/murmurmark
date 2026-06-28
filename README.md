@@ -167,7 +167,8 @@ murmurmark corpus process all --per-label 16 --max-items 160
 `corpus taxonomy` writes `sessions/_reports/audio-error-taxonomy/audio_error_taxonomy_report.*`.
 Use it after `corpus train-audio-judge` to see which error classes are already safe cleanup
 candidates, which are mark-only, which need better labels, and which sessions/examples should drive
-the next quality iteration.
+the next quality iteration. The report also splits broad classes like `uncertain` into diagnostic
+subtypes, so the next repair can target one narrow failure mode.
 `passed_with_warnings` means the hard no-regression gates are green, but some historical sessions or
 review queues still need cleanup before the whole repository is operationally ready.
 The optional baseline is private generated state under ignored `sessions/_reports/`.

@@ -615,7 +615,9 @@ consume a few more strong duplicate predictions, but remains mark-only for leak/
 `murmurmark corpus taxonomy` then combines the corpus, evaluation buckets, audio-judge predictions
 and session-quality state into one action map. Read it before changing cleanup or repair rules: it
 separates safe cleanup evidence, mark-only errors, uncertain regions, benign overlap guards and
-model/confidence gaps.
+model/confidence gaps. It also writes diagnostic subtypes such as `uncertain_duplicate_vs_leak` and
+`remote_leak_with_local_content_risk`; use those subtypes to choose the next narrow repair instead
+of retuning all audio-review labels at once.
 The operational readiness report answers whether the current pipeline is usable for medium-risk
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first. Its review queue is also

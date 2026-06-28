@@ -159,6 +159,109 @@ def recommended_action(label: str, readiness_bucket: str, cv_row: dict[str, Any]
     return CLASS_ACTIONS.get(label, "collect_more_evidence")
 
 
+def diagnostic_for(row: dict[str, Any], label: str, readiness_bucket: str) -> dict[str, Any]:
+    scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
+    text = row.get("text_features") if isinstance(row.get("text_features"), dict) else {}
+    local = safe_float(scores.get("local_support"))
+    remote = safe_float(scores.get("remote_similarity"))
+    duplicate = safe_float(scores.get("remote_duplicate"))
+    leak = safe_float(scores.get("remote_leak"))
+    reliable = safe_float(scores.get("likely_reliable"))
+    similarity = safe_float(text.get("similarity"))
+    token_count = len(str(text.get("me_text") or "").split())
+    seconds = duration(row)
+
+    if label == "uncertain":
+        if duplicate >= 80 and leak >= 70 and abs(duplicate - leak) <= 10:
+            return {
+                "label": "uncertain_duplicate_vs_leak",
+                "reason": "remote duplicate and remote leak scores are both high and close",
+                "suggested_next_action": "tighten_duplicate_vs_leak_rules",
+            }
+        if local >= 55 and remote >= 35 and similarity < 0.60:
+            return {
+                "label": "uncertain_possible_double_talk",
+                "reason": "local support is present while remote is active and text is different",
+                "suggested_next_action": "double_talk_label_refinement",
+            }
+        if local <= 30 and remote >= 70:
+            return {
+                "label": "uncertain_remote_dominant",
+                "reason": "remote similarity is high and local support is weak",
+                "suggested_next_action": "review_as_remote_leak_or_duplicate",
+            }
+        if local >= 60 or reliable >= 60:
+            return {
+                "label": "uncertain_local_supported",
+                "reason": "local reliability metrics are strong but not decisive",
+                "suggested_next_action": "protect_local_speech_gate",
+            }
+        if seconds <= 1.2 or token_count <= 2:
+            return {
+                "label": "uncertain_short_boundary",
+                "reason": "short boundary-like fragment",
+                "suggested_next_action": "boundary_repair_or_keep_review",
+            }
+        return {
+            "label": "uncertain_conflicting_metrics",
+            "reason": "current scores do not separate one class cleanly",
+            "suggested_next_action": "collect_more_labels_or_stronger_audio_judge",
+        }
+
+    if label == "remote_leak":
+        if similarity >= 0.65 or duplicate >= 70:
+            return {
+                "label": "remote_leak_duplicate_like",
+                "reason": "leak row also looks textually similar to remote",
+                "suggested_next_action": "check_if_cleanup_gate_can_cover",
+            }
+        if local >= 40 and similarity < 0.55:
+            return {
+                "label": "remote_leak_with_local_content_risk",
+                "reason": "local support or unique text makes whole-utterance deletion unsafe",
+                "suggested_next_action": "mark_only_or_segment_level_repair",
+            }
+        return {
+            "label": "remote_leak_plain",
+            "reason": "remote leak is likely but not safely droppable as a whole utterance",
+            "suggested_next_action": "segment_level_echo_or_role_mask_repair",
+        }
+
+    if label == "asr_noise":
+        return {
+            "label": "asr_noise_short" if seconds <= 2.5 else "asr_noise_long",
+            "reason": "short low-support ASR fragment" if seconds <= 2.5 else "longer ASR noise candidate needs review",
+            "suggested_next_action": "cleanup_candidate_review",
+        }
+
+    if label == "lost_me":
+        return {
+            "label": "lost_me_local_recall",
+            "reason": "possible local speech was not represented in the selected transcript",
+            "suggested_next_action": "local_recall_repair",
+        }
+
+    if label in {"double_talk", "timing_overlap"} and readiness_bucket == "needs_audio_judge":
+        return {
+            "label": f"{label}_ambiguous",
+            "reason": "benign overlap class is not strong enough yet",
+            "suggested_next_action": "review_as_false_positive_guard",
+        }
+
+    if label in {"double_talk", "timing_overlap", "likely_reliable"}:
+        return {
+            "label": f"{label}_guard",
+            "reason": "use as a false-positive guard for cleanup and repair",
+            "suggested_next_action": "keep_as_regression_guard",
+        }
+
+    return {
+        "label": label,
+        "reason": "no more specific diagnostic subtype",
+        "suggested_next_action": CLASS_ACTIONS.get(label, "collect_more_evidence"),
+    }
+
+
 def needs_attention(item: dict[str, Any]) -> bool:
     if item["readiness_bucket"] in {"needs_audio_judge", "mark_only_regression", "weak_cleanup_positive"}:
         return True
@@ -188,6 +291,7 @@ def build_items(
         label = str(row.get("label") or "unknown")
         bucket = str(eval_row.get("readiness_bucket") or "unknown")
         action = recommended_action(label, bucket, cv_row)
+        diagnostic = diagnostic_for(row, label, bucket)
         item = {
             "schema": SCHEMA_ITEM,
             "id": item_id,
@@ -200,8 +304,12 @@ def build_items(
             "seconds": round(duration(row), 3),
             "readiness_bucket": bucket,
             "recommended_action": action,
+            "diagnostic": diagnostic,
             "target_use": row.get("target_use", []),
             "priority_score": row.get("priority_score"),
+            "scores": row.get("scores") if isinstance(row.get("scores"), dict) else {},
+            "text_features": row.get("text_features") if isinstance(row.get("text_features"), dict) else {},
+            "classification": row.get("classification") if isinstance(row.get("classification"), dict) else {},
             "utterance_ids": row.get("utterance_ids", []),
             "interval": row.get("interval"),
             "cv": {
@@ -264,6 +372,52 @@ def summarize_class(items: list[dict[str, Any]]) -> dict[str, Any]:
             for item in attention[:5]
         ],
     }
+
+
+def summarize_diagnostics(items: list[dict[str, Any]]) -> dict[str, Any]:
+    buckets: dict[str, dict[str, Any]] = {}
+    for item in items:
+        diagnostic = item.get("diagnostic") if isinstance(item.get("diagnostic"), dict) else {}
+        label = str(diagnostic.get("label") or "unknown")
+        value = buckets.setdefault(
+            label,
+            {
+                "items": 0,
+                "seconds": 0.0,
+                "classes": Counter(),
+                "actions": Counter(),
+                "attention_items": 0,
+                "top_examples": [],
+            },
+        )
+        value["items"] += 1
+        value["seconds"] += safe_float(item.get("seconds"))
+        value["classes"][str(item.get("class") or "unknown")] += 1
+        value["actions"][str(diagnostic.get("suggested_next_action") or item.get("recommended_action") or "unknown")] += 1
+        if item.get("needs_attention"):
+            value["attention_items"] += 1
+        if len(value["top_examples"]) < 5:
+            value["top_examples"].append(
+                {
+                    "id": item.get("id"),
+                    "session_id": item.get("session_id"),
+                    "class": item.get("class"),
+                    "seconds": item.get("seconds"),
+                    "reason": diagnostic.get("reason"),
+                    "utterance_ids": item.get("utterance_ids", []),
+                }
+            )
+    output: dict[str, Any] = {}
+    for label, value in sorted(buckets.items()):
+        output[label] = {
+            "items": value["items"],
+            "seconds": round(value["seconds"], 3),
+            "classes": dict(sorted(value["classes"].items())),
+            "suggested_actions": dict(sorted(value["actions"].items())),
+            "attention_items": value["attention_items"],
+            "top_examples": value["top_examples"],
+        }
+    return output
 
 
 def build_focus_areas(by_class: dict[str, dict[str, Any]], missing_classes: list[str]) -> list[dict[str, Any]]:
@@ -358,6 +512,7 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
             "missing_classes": missing_classes,
         },
         "by_class": by_class,
+        "by_diagnostic": summarize_diagnostics(items),
         "focus_areas": build_focus_areas(by_class, missing_classes),
         "audio_judge": {
             "readiness": judge_report.get("readiness"),
@@ -422,6 +577,13 @@ def write_markdown(path: Path, report: dict[str, Any], items: list[dict[str, Any
             )
     else:
         lines.append("- none")
+    lines.extend(["", "## Diagnostic Subtypes", ""])
+    lines.extend(["| Diagnostic | Items | Seconds | Attention | Suggested actions |", "| --- | ---: | ---: | ---: | --- |"])
+    for label, stats in report["by_diagnostic"].items():
+        actions = ", ".join(f"{key}: {value}" for key, value in stats.get("suggested_actions", {}).items())
+        lines.append(
+            f"| `{label}` | `{stats['items']}` | `{stats['seconds']}` | `{stats['attention_items']}` | `{actions}` |"
+        )
     lines.extend(["", "## Top Attention Examples", ""])
     for item in [row for row in items if row.get("needs_attention")][:25]:
         interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
@@ -430,6 +592,8 @@ def write_markdown(path: Path, report: dict[str, Any], items: list[dict[str, Any
                 f"### {item.get('id')} `{item.get('class')}` {item.get('session_id')} {interval.get('start_time', '')}-{interval.get('end_time', '')}",
                 "",
                 f"- Action: `{item.get('recommended_action')}`",
+                f"- Diagnostic: `{(item.get('diagnostic') or {}).get('label')}`",
+                f"- Diagnostic reason: {(item.get('diagnostic') or {}).get('reason')}",
                 f"- Readiness bucket: `{item.get('readiness_bucket')}`",
                 f"- CV: `{(item.get('cv') or {}).get('label')}` correct `{(item.get('cv') or {}).get('correct')}`",
                 f"- Utterances: `{', '.join(item.get('utterance_ids') or [])}`",

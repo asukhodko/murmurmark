@@ -819,6 +819,15 @@ sessions/_reports/audio-error-taxonomy/
       "recommended_action": "local_recall_repair"
     }
   },
+  "by_diagnostic": {
+    "uncertain_duplicate_vs_leak": {
+      "items": 7,
+      "seconds": 18.6,
+      "suggested_actions": {
+        "tighten_duplicate_vs_leak_rules": 7
+      }
+    }
+  },
   "focus_areas": [
     {
       "class": "uncertain",
@@ -831,6 +840,10 @@ sessions/_reports/audio-error-taxonomy/
 The taxonomy report is read-only. It does not create transcript profiles and does not decide review
 items. It exists to choose the next quality-hardening task: safer duplicate cleanup, local-recall
 repair, boundary repair, stronger labels, or collecting more corpus examples.
+Each `audio_error_taxonomy_items.jsonl` row keeps the original class plus a deterministic
+`diagnostic.label`, for example `uncertain_duplicate_vs_leak`, `uncertain_remote_dominant`,
+`remote_leak_with_local_content_risk`, or `timing_overlap_guard`. These labels are not human truth;
+they are a routing layer for the next agent or reviewer.
 
 Corpus gates are generated after session quality, corpus evaluation, audio judge and operational
 readiness reports:
