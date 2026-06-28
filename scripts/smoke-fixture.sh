@@ -1583,6 +1583,7 @@ EOF
   [[ -s "$cli_review_workspace_dir/review_workspace.json" ]]
   grep -q '^  rows: ' "$cli_workspace_stdout"
   grep -q '^  items: ' "$cli_workspace_stdout"
+  grep -q '^  recommended_next: afplay ' "$cli_workspace_stdout"
   grep -q '^  lane_packs:$' "$cli_workspace_stdout"
   grep -q '^    check_local_recall: items=.* rows=' "$cli_workspace_stdout"
   grep -q '^      listen: afplay ' "$cli_workspace_stdout"
@@ -2473,6 +2474,7 @@ PY
   grep -q 'Command:' "$first_lane_pack_dir/review_lane_pack.$first_lane.md"
   echo "$first_lane_output" | grep -q '^  rows: '
   echo "$first_lane_output" | grep -q '^  items: '
+  echo "$first_lane_output" | grep -q '^  recommended_next: afplay '
   first_lane_apply_dry_run_output="$("$bin" review lane apply first \
     --plan-out-dir "$first_lane_plan_dir" \
     --out-dir "$first_lane_pack_dir" \
@@ -2540,6 +2542,7 @@ PY
   ! echo "$explicit_local_recall_lane_output" | grep -Eq '^(review_plan|clusters|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped):'
   echo "$explicit_local_recall_lane_output" | grep -q '^  rows: '
   echo "$explicit_local_recall_lane_output" | grep -q '^  items: '
+  echo "$explicit_local_recall_lane_output" | grep -q '^  recommended_next: afplay '
   echo "$explicit_local_recall_lane_output" | grep -q '^  suggested_answers: answers='
   echo "$explicit_local_recall_lane_output" | grep -q '^  listen: afplay '
   echo "$explicit_local_recall_lane_output" | grep -q '^  read: less '
@@ -2619,6 +2622,7 @@ PY
   echo "$explicit_progress_output" | grep -q '^  by_lane:$'
   echo "$explicit_progress_output" | grep -q '^    check_local_recall: reviewed='
   echo "$explicit_progress_output" | grep -q '^  next_lane: check_unique_me_content'
+  echo "$explicit_progress_output" | grep -q '^  recommended_next: murmurmark review lane check_unique_me_content --session '
   echo "$explicit_progress_output" | grep -q '^  next:$'
   echo "$explicit_progress_output" | grep -q '^    murmurmark review lane check_unique_me_content --session '
   echo "$explicit_progress_output" | grep -q '^    murmurmark review lane apply check_unique_me_content --session '
@@ -2633,6 +2637,7 @@ PY
   assert_no_helper_prefix "$session_workspace_output"
   echo "$session_workspace_output" | grep -q '^SESSION="'
   echo "$session_workspace_output" | grep -q '^review_workspace:$'
+  echo "$session_workspace_output" | grep -q '^  recommended_next: afplay '
   echo "$session_workspace_output" | grep -q '^      read: less '
   echo "$session_workspace_output" | grep -q '^  manual_flow:$'
   echo "$session_workspace_output" | grep -q '^  after_apply:$'
@@ -2640,6 +2645,7 @@ PY
   assert_no_helper_prefix "$session_workspace_apply_dry_run_output"
   echo "$session_workspace_apply_dry_run_output" | grep -q '^SESSION="'
   echo "$session_workspace_apply_dry_run_output" | grep -q '^review_workspace_apply:$'
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^  recommended_next: murmurmark review lane '
   echo "$session_workspace_apply_dry_run_output" | grep -q '^  next_lane: '
   echo "$session_workspace_apply_dry_run_output" | grep -q '^  next:$'
   echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review lane '

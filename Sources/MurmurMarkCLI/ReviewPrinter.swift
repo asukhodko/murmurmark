@@ -37,14 +37,19 @@ enum ReviewPrinter {
         }
         print("  skipped: \(int(summary["skipped_count"]) ?? 0)")
         let applyCommand = laneApplyCommand(lane: lane, session: session, planOutDir: planOutDir, outDir: outDir)
-        if let audio = string(outputs["audio"]) {
-            print("  listen: afplay \(shellQuote(displayPath(audio)))")
+        let listenCommand = string(outputs["audio"]).map { "afplay \(shellQuote(displayPath($0)))" }
+        let readCommand = string(outputs["markdown"]).map { "less \(shellQuote(displayPath($0)))" }
+        let editCommand = string(outputs["answer_sheet"]).map { "$EDITOR \(shellQuote(displayPath($0)))" }
+        let recommendedNext = listenCommand ?? readCommand ?? editCommand ?? "\(applyCommand) --dry-run"
+        print("  recommended_next: \(recommendedNext)")
+        if let listenCommand {
+            print("  listen: \(listenCommand)")
         }
-        if let markdown = string(outputs["markdown"]) {
-            print("  read: less \(shellQuote(displayPath(markdown)))")
+        if let readCommand {
+            print("  read: \(readCommand)")
         }
-        if let answerSheet = string(outputs["answer_sheet"]) {
-            print("  edit: $EDITOR \(shellQuote(displayPath(answerSheet)))")
+        if let editCommand {
+            print("  edit: \(editCommand)")
         }
         print("  dry_run: \(applyCommand) --dry-run")
         print("  apply: \(applyCommand)")
@@ -220,20 +225,36 @@ enum ReviewPrinter {
         if let nextLane {
             print("  next_lane: \(nextLane)")
         }
-        print("  next:")
+        let commands: [String]
+        let afterReady: [String]
         if bool(summary["ready_for_batch_apply"]) == true {
-            print("    murmurmark review apply\(sessionArgument)")
-            return
+            commands = ["murmurmark review apply\(sessionArgument)"]
+            afterReady = []
+        } else {
+            var nextCommands: [String] = []
+            if let nextLane {
+                nextCommands.append("murmurmark review lane \(nextLane)\(sessionArgument)")
+                nextCommands.append("murmurmark review lane apply \(nextLane)\(sessionArgument)")
+            }
+            nextCommands.append("murmurmark review workspace\(sessionArgument)")
+            nextCommands.append("murmurmark review workspace apply\(sessionArgument)")
+            nextCommands.append("murmurmark review progress\(sessionArgument)")
+            commands = nextCommands
+            afterReady = ["murmurmark review apply\(sessionArgument)"]
         }
-        if let nextLane {
-            print("    murmurmark review lane \(nextLane)\(sessionArgument)")
-            print("    murmurmark review lane apply \(nextLane)\(sessionArgument)")
+        if let first = commands.first {
+            print("  recommended_next: \(first)")
         }
-        print("    murmurmark review workspace\(sessionArgument)")
-        print("    murmurmark review workspace apply\(sessionArgument)")
-        print("    murmurmark review progress\(sessionArgument)")
-        print("  after_ready:")
-        print("    murmurmark review apply\(sessionArgument)")
+        print("  next:")
+        for command in commands {
+            print("    \(command)")
+        }
+        if !afterReady.isEmpty {
+            print("  after_ready:")
+            for command in afterReady {
+                print("    \(command)")
+            }
+        }
     }
 
     static func printApply(report: URL) throws {
@@ -368,6 +389,9 @@ enum ReviewPrinter {
         }
         print(String(format: "  listen_minutes: %.2f", durationSeconds / 60))
         print("  by_lane: \(compactJSON(byLane))")
+        if let recommended = firstWorkspaceReviewCommand(okLanes) {
+            print("  recommended_next: \(recommended)")
+        }
         if !okLanes.isEmpty {
             print("  lane_packs:")
             for lane in okLanes {
@@ -425,12 +449,17 @@ enum ReviewPrinter {
         let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
         let sessionArgument = sessionID.map { " --session \($0)" } ?? ""
         if bool(summary["ready_for_batch_apply"]) == true {
+            print("  recommended_next: murmurmark review apply\(sessionArgument)")
             print("  next:")
             print("    murmurmark review apply\(sessionArgument)")
         } else {
             if let nextLane = firstTodoWorkspaceLane(payload) {
                 print("  next_lane: \(nextLane)")
             }
+            let recommended = firstTodoWorkspaceLane(payload)
+                .map { "murmurmark review lane \($0)\(sessionArgument)" }
+                ?? "murmurmark review workspace apply\(sessionArgument)"
+            print("  recommended_next: \(recommended)")
             print("  next:")
             if let nextLane = firstTodoWorkspaceLane(payload) {
                 print("    murmurmark review lane \(nextLane)\(sessionArgument)")
@@ -450,6 +479,21 @@ enum ReviewPrinter {
             let summary = $0["summary"] as? [String: Any] ?? [:]
             return (int(summary["todo_count"]) ?? 0) > 0
         }.flatMap { string($0["lane"]) }
+    }
+
+    private static func firstWorkspaceReviewCommand(_ lanes: [[String: Any]]) -> String? {
+        for lane in lanes {
+            if let audio = string(lane["audio"]) {
+                return "afplay \(shellQuote(displayPath(audio)))"
+            }
+            if let markdown = string(lane["markdown"]) {
+                return "less \(shellQuote(displayPath(markdown)))"
+            }
+            if let answerSheet = string(lane["answer_sheet"]) {
+                return "$EDITOR \(shellQuote(displayPath(answerSheet)))"
+            }
+        }
+        return nil
     }
 
     private static func workspaceApplyCommand(payload: [String: Any], outDir: URL, sessionID: String?) -> String {
