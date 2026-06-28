@@ -7449,9 +7449,12 @@ enum CorpusPrinter {
         if let reason = string(first["reason"]) {
             print("  focus_reason: \(reason)")
         }
+        let sessionArg = sessionID.hasPrefix("sessions/") || sessionID.hasPrefix("./sessions/")
+            ? sessionID
+            : "sessions/\(sessionID)"
         print("  focus_next:")
-        print("    murmurmark review next \(sessionID)")
-        print("    murmurmark review first-lane --session \(sessionID)")
+        print("    murmurmark review next \(sessionArg)")
+        print("    murmurmark review first-lane --session \(sessionArg)")
     }
 
     private static func firstReviewFocus(_ payload: [String: Any]) -> [String: Any]? {

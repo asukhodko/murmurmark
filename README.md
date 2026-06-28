@@ -665,8 +665,9 @@ reason it was chosen. `quick_recommended_lane` still points to the fastest confi
 exists, while `first_recommended_lane` targets the current blocker. The report also shows the
 estimated queue remaining after that first lane. It reports both raw queue rows and packed review
 actions, so the remaining work reflects grouped rows that can be answered once per `Me` utterance.
-`murmurmark report corpus` surfaces the first
-review target directly as `focus_session` and `focus_next`, so the next operator action is visible
+When a concrete review target is known, top-level `next_commands` and `murmurmark report corpus`
+include `--session sessions/<id>` rather than a generic corpus-wide review command. The report also
+surfaces the same target as `focus_session` and `focus_next`, so the next operator action is visible
 without opening the JSON report.
 The generated review plan keeps both `raw_item_count` and `review_action_count`: raw items are source
 risks, while actions are answer-sheet decisions after safe grouping by `Me` utterance.

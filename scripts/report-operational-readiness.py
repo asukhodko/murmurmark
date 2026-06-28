@@ -1057,6 +1057,7 @@ def promotion_plan(
     ]
     queue_by_session.sort(key=lambda row: (-safe_float(row.get("seconds")), str(row.get("session_id"))))
     queue_strategy = review_queue_lane_summary(review_queue)
+    review_focus = review_queue_focus(review_queue)
     queue_actions = {
         "review_action_count": safe_int(queue_strategy.get("review_action_count")),
         "grouped_review_row_count": safe_int(queue_strategy.get("grouped_review_row_count")),
@@ -1115,8 +1116,69 @@ def promotion_plan(
         ],
         "review_queue_by_session": queue_by_session,
         "review_queue_strategy": queue_strategy,
+        "review_focus": review_focus,
         "next_actions": next_actions,
     }
+
+
+def session_cli_arg(value: Any) -> str | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if text.startswith("./sessions/") or text.startswith("sessions/"):
+        return text
+    parts = Path(text).parts
+    if "sessions" in parts:
+        index = parts.index("sessions")
+        if len(parts) > index + 1:
+            return f"sessions/{parts[index + 1]}"
+    return f"sessions/{Path(text).name}"
+
+
+def review_queue_focus(review_queue: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not review_queue:
+        return None
+    item = review_queue[0]
+    target = session_cli_arg(item.get("session_id") or item.get("session"))
+    if not target:
+        return None
+    return {
+        "session_id": Path(target).name,
+        "session_arg": target,
+        "source_audit_id": item.get("source_audit_id"),
+        "label": item.get("label"),
+        "reason": item.get("reason"),
+        "review_lane": item.get("review_lane") or review_lane(item),
+    }
+
+
+def first_review_target(promotion: dict[str, Any]) -> str | None:
+    focus = promotion.get("review_focus") if isinstance(promotion.get("review_focus"), dict) else {}
+    target = session_cli_arg(focus.get("session_arg") or focus.get("session_id"))
+    if target:
+        return target
+    targets = promotion.get("session_targets")
+    if isinstance(targets, list):
+        for row in targets:
+            if not isinstance(row, dict):
+                continue
+            if row.get("recommended_action") == "rerun_pipeline_or_fix_artifacts":
+                continue
+            use_gate = str(row.get("use_gate") or "")
+            if use_gate == "ready_for_notes" or use_gate.startswith("pipeline_incomplete"):
+                continue
+            target = session_cli_arg(row.get("session_id") or row.get("session"))
+            if target:
+                return target
+    by_session = promotion.get("review_queue_by_session")
+    if isinstance(by_session, list):
+        for row in by_session:
+            if not isinstance(row, dict):
+                continue
+            target = session_cli_arg(row.get("session_id") or row.get("session"))
+            if target:
+                return target
+    return None
 
 
 def session_target_action(row: dict[str, Any]) -> str:
@@ -1379,18 +1441,20 @@ def build_next_commands(blockers: list[str], promotion: dict[str, Any]) -> list[
     strategy = promotion.get("review_queue_strategy") if isinstance(promotion.get("review_queue_strategy"), dict) else {}
     first_lane = str(strategy.get("first_recommended_lane") or "")
     if first_lane:
+        review_target = first_review_target(promotion)
+        session_option = f" --session {review_target}" if review_target else ""
         commands.append(
             {
                 "id": "review_first_lane",
                 "label": f"Build the first review lane pack ({first_lane}).",
-                "command": "murmurmark review first-lane",
+                "command": f"murmurmark review first-lane{session_option}",
             }
         )
         commands.append(
             {
                 "id": "review_workspace",
                 "label": "Build all review lane packs and answer sheets.",
-                "command": "murmurmark review workspace",
+                "command": f"murmurmark review workspace{session_option}",
             }
         )
     if not commands:

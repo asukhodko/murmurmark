@@ -2279,6 +2279,15 @@ review_next = module.build_next_commands(
     {"review_queue_strategy": {"first_recommended_lane": "fast_confirm_drop"}},
 )
 assert review_next[0]["command"] == "murmurmark review first-lane", review_next
+focused_review_next = module.build_next_commands(
+    [],
+    {
+        "review_queue_strategy": {"first_recommended_lane": "check_transcript_order"},
+        "review_focus": {"session_id": "focus-session"},
+    },
+)
+assert focused_review_next[0]["command"] == "murmurmark review first-lane --session sessions/focus-session", focused_review_next
+assert focused_review_next[1]["command"] == "murmurmark review workspace --session sessions/focus-session", focused_review_next
 PY
   gates_dir="$workdir/corpus-gates"
   gate_args=(

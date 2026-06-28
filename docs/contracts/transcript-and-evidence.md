@@ -1668,12 +1668,12 @@ sessions/_reports/operational-readiness/
     {
       "id": "review_first_lane",
       "label": "Build the first review lane pack (fast_confirm_drop).",
-      "command": "murmurmark review first-lane"
+      "command": "murmurmark review first-lane --session sessions/2026-06-26_11-15-50"
     },
     {
       "id": "review_workspace",
       "label": "Build all review lane packs and answer sheets.",
-      "command": "murmurmark review workspace"
+      "command": "murmurmark review workspace --session sessions/2026-06-26_11-15-50"
     }
   ]
 }
@@ -1705,8 +1705,10 @@ Top-level `next_commands` is the executable handoff: structural blockers such as
 pipelines point to the first concrete `murmurmark process sessions/<id>` target only when that target
 is still pipeline-incomplete, and fall back to `murmurmark corpus process all` when no incomplete
 target is known. Complete but risky sessions stay in review-oriented commands instead of being
-reported as process targets. Review queues point to `murmurmark review first-lane` and
-`murmurmark review workspace`.
+reported as process targets. When a concrete review focus is known, review queues point to
+`murmurmark review first-lane --session sessions/<id>` and
+`murmurmark review workspace --session sessions/<id>`. If no focus session can be inferred, they
+fall back to corpus-wide review commands.
 `murmurmark review first-lane` reads this strategy from `review_plan.json` and builds the matching
 lane pack through `build-review-lane-pack.py`.
 
