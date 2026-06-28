@@ -224,9 +224,7 @@ enum ReviewPrinter {
         if !FileManager.default.fileExists(atPath: template.path) {
             print("    review_template")
         }
-        print("  next:")
-        print("    murmurmark review workspace\(sessionArgument)")
-        print("    murmurmark review progress\(sessionArgument)")
+        printApplyNotReadyNext(sessionArgument: sessionArgument)
     }
 
     static func printApplyNotReady(session: URL?, decisions: URL, progress: URL) throws {
@@ -242,8 +240,15 @@ enum ReviewPrinter {
         print("  remaining: \(int(summary["remaining"]) ?? 0)")
         print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
         printProgressLanes(payload)
+        printApplyNotReadyNext(sessionArgument: sessionArgument)
+    }
+
+    private static func printApplyNotReadyNext(sessionArgument: String) {
         print("  next:")
+        print("    murmurmark review first-lane\(sessionArgument)")
+        print("    murmurmark review lane apply first\(sessionArgument)")
         print("    murmurmark review workspace\(sessionArgument)")
+        print("    murmurmark review workspace apply\(sessionArgument)")
         print("    murmurmark review progress\(sessionArgument)")
     }
 

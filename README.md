@@ -712,7 +712,8 @@ visible without reading the runbook.
 `review lane apply --dry-run` writes `review_lane_pack_apply_report.json`, prints the lane result and
 the exact non-dry-run command. After applying the lane, the CLI refreshes
 `review_decisions_progress.json`: if more rows remain it points back to
-`murmurmark review workspace`, and it prints `murmurmark review apply` only when
+`murmurmark review first-lane`, `review lane apply first` and the workspace flow. It prints
+`murmurmark review apply` as the final batch step only when
 `murmurmark review progress --session SESSION` says the review file is ready.
 Each lane also has `review_lane_answers.<lane>.suggested.txt`; use it as a review aid, not as a
 silent replacement for listening when the meeting is medium-risk. Lane-pack output also prints
