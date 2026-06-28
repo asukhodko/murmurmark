@@ -145,7 +145,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default=os.environ.get("MURMURMARK_WHISPER_MODEL", DEFAULT_MODEL))
     parser.add_argument("--language", default="ru")
     parser.add_argument("--whisper-cli", default=os.environ.get("WHISPER_CLI", "whisper-cli"))
-    parser.add_argument("--murmurmark-bin", default=".build/debug/murmurmark")
+    parser.add_argument(
+        "--murmurmark-bin",
+        default=None,
+        help="MurmurMark executable. Default: MURMURMARK_BIN, then murmurmark from PATH, then .build/debug/murmurmark.",
+    )
     parser.add_argument("--prompt-file", type=Path, default=None)
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--max-context", type=int, default=0)
@@ -226,6 +230,21 @@ def suffixed_name(filename: str, artifact_suffix: str) -> str:
 
 def expand(path: str) -> Path:
     return Path(path).expanduser().resolve()
+
+
+def resolve_murmurmark_bin(explicit: str | None) -> str:
+    if explicit:
+        return explicit
+    env_value = os.environ.get("MURMURMARK_BIN")
+    if env_value:
+        return env_value
+    from_path = shutil.which("murmurmark")
+    if from_path:
+        return from_path
+    debug_bin = Path(__file__).resolve().parents[1] / ".build/debug/murmurmark"
+    if debug_bin.exists():
+        return str(debug_bin)
+    return "murmurmark"
 
 
 def read_prompt(path: Path | None) -> str | None:
@@ -4444,6 +4463,7 @@ def write_repair_comparison(
 def main() -> int:
     args = parse_args()
     session = args.session.resolve()
+    args.murmurmark_bin = resolve_murmurmark_bin(args.murmurmark_bin)
     model = expand(args.model)
     whisper_cli = shutil.which(args.whisper_cli) or args.whisper_cli
     prompt = read_prompt(args.prompt_file)

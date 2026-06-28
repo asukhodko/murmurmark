@@ -11,8 +11,8 @@ Start from a normal ScreenCaptureKit session:
 ```bash
 SESSION=./sessions/<session>
 
-.build/debug/murmurmark inspect "$SESSION"
-.build/debug/murmurmark preprocess "$SESSION" --echo diagnostic
+murmurmark inspect "$SESSION"
+murmurmark preprocess "$SESSION" --echo diagnostic
 ```
 
 The session should show:
@@ -186,14 +186,14 @@ This check is useful only when the fit window is remote-dominant and the later p
 Run the current recommended whole-session cleaner:
 
 ```bash
-.build/debug/murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir
-.build/debug/murmurmark inspect "$SESSION" --echo
+murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir
+murmurmark inspect "$SESSION" --echo
 ```
 
 The default policy is `preserve_local`: ambiguous remote-active regions are preserved as mildly cleaned audio and flagged in `speaker_state.jsonl`. For stricter role protection, use:
 
 ```bash
-.build/debug/murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir --echo-policy role_safe
+murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir --echo-policy role_safe
 ```
 
 For maximum silence of remote-active mic regions, use `--echo-policy strict_silence`; this can delete local overlap speech.

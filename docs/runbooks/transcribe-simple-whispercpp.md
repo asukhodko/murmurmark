@@ -140,7 +140,7 @@ speakers, run Echo Guard first:
 ```bash
 SESSION=./sessions/<session>
 
-.build/debug/murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir
+murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir
 ```
 
 Run simple transcription:
@@ -158,6 +158,9 @@ The script does three things:
 1. Runs `murmurmark export-audio`.
 2. Runs `whisper-cli` for `derived/asr/mic.wav` and `derived/asr/remote.wav`.
 3. Builds raw segments, candidate utterances, role decisions, clean dialogue, and Markdown.
+
+When called directly, it resolves the MurmurMark executable as `MURMURMARK_BIN`, then `murmurmark`
+from `PATH`, then `.build/debug/murmurmark` as a development fallback.
 
 By default the bridge runs `whisper-cli` with `--max-context 0`, short ASR windows, and a
 small overlap between windows. This avoids feeding a whole meeting into Whisper as one long file,

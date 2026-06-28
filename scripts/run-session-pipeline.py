@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -31,7 +33,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional whisper prompt file. Ignored when omitted or when the file does not exist.",
     )
-    parser.add_argument("--murmurmark-bin", type=Path, default=Path(".build/debug/murmurmark"))
+    parser.add_argument(
+        "--murmurmark-bin",
+        type=Path,
+        default=None,
+        help="MurmurMark executable. Default: MURMURMARK_BIN, then murmurmark from PATH, then .build/debug/murmurmark.",
+    )
     parser.add_argument(
         "--audio-judge-queue",
         type=Path,
@@ -74,6 +81,21 @@ def read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def resolve_murmurmark_bin(explicit: Path | None, repo_root: Path) -> str:
+    if explicit is not None:
+        return str(explicit.expanduser())
+    env_value = os.environ.get("MURMURMARK_BIN")
+    if env_value:
+        return env_value
+    from_path = shutil.which("murmurmark")
+    if from_path:
+        return from_path
+    debug_bin = repo_root / ".build/debug/murmurmark"
+    if debug_bin.exists():
+        return str(debug_bin)
+    return "murmurmark"
 
 
 def rel(path: Path, base: Path) -> str:
@@ -399,6 +421,7 @@ def print_pipeline_summary(report: dict[str, Any], report_path: Path, repo_root:
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parents[1]
+    args.murmurmark_bin = resolve_murmurmark_bin(args.murmurmark_bin, repo_root)
     session = args.session.expanduser()
     report_path = args.report.expanduser() if args.report else session / "derived/pipeline-run/pipeline_run_report.json"
     steps = build_steps(args, repo_root, session)

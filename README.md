@@ -423,16 +423,16 @@ murmurmark export ./sessions/<session> --format obsidian
 murmurmark retention plan ./sessions/<session>
 murmurmark retention payload ./sessions/<session>
 murmurmark retention apply ./sessions/<session> --policy ./policy.json --confirm-delete-raw
-.build/debug/murmurmark preprocess ./sessions/<session> --echo diagnostic
-.build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine linear_baseline
-.build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine local_fir
-.build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine local_fir --echo-policy role_safe
-.build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine speexdsp
-.build/debug/murmurmark preprocess ./sessions/<session> --echo clean --echo-engine webrtc-apm
-.build/debug/murmurmark reconcile-transcript ./sessions/<session>
-.build/debug/murmurmark inspect ./sessions/<session>
-.build/debug/murmurmark inspect ./sessions/<session> --echo
-.build/debug/murmurmark export-audio ./sessions/<session>
+murmurmark preprocess ./sessions/<session> --echo diagnostic
+murmurmark preprocess ./sessions/<session> --echo clean --echo-engine linear_baseline
+murmurmark preprocess ./sessions/<session> --echo clean --echo-engine local_fir
+murmurmark preprocess ./sessions/<session> --echo clean --echo-engine local_fir --echo-policy role_safe
+murmurmark preprocess ./sessions/<session> --echo clean --echo-engine speexdsp
+murmurmark preprocess ./sessions/<session> --echo clean --echo-engine webrtc-apm
+murmurmark reconcile-transcript ./sessions/<session>
+murmurmark inspect ./sessions/<session>
+murmurmark inspect ./sessions/<session> --echo
+murmurmark export-audio ./sessions/<session>
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session>
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --prompt-file domain-packs/<domain>/whisper-prompt.ru.txt
 .venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --repair-profile shadow_v2 --skip-export --skip-transcribe
@@ -471,6 +471,10 @@ murmurmark review agent
 .venv/bin/python scripts/echo-guard-fir-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-local-subtract-lab.py ./sessions/<session> --start-sec <seconds>
 ```
+
+When called directly, `scripts/run-session-pipeline.py` and `scripts/transcribe-simple-whispercpp.py`
+resolve the MurmurMark executable as `MURMURMARK_BIN`, then `murmurmark` from `PATH`, then
+`.build/debug/murmurmark` as a development fallback.
 
 Use `murmurmark status SESSION` to inspect the existing readiness dashboard. Use
 `murmurmark report SESSION` after changing review decisions, cleanup profiles, exports, retention

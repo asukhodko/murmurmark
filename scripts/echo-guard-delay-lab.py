@@ -165,7 +165,7 @@ def main() -> int:
     remote_path, mic_path = default_audio_paths(session)
     if not remote_path.exists() or not mic_path.exists():
         raise SystemExit(
-            "working audio not found; run: .build/debug/murmurmark preprocess "
+            "working audio not found; run: murmurmark preprocess "
             f"{session} --echo diagnostic"
         )
 
