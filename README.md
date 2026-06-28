@@ -403,70 +403,29 @@ Everyday CLI commands:
 
 ```bash
 murmurmark doctor
-murmurmark doctor --strict
-murmurmark list-apps
 murmurmark record --target-bundle system
-murmurmark latest
-murmurmark sessions
-murmurmark sessions --limit 5
-murmurmark sessions --status review_required --next-only
-murmurmark sessions --status exportable --json
-murmurmark config print
 murmurmark process latest
-murmurmark open latest --kind notes
-murmurmark open latest --kind transcript --command-only
-murmurmark process ./sessions/<session> --force-asr
-murmurmark process ./sessions/<session> --plan-only --skip-build
-murmurmark next ./sessions/<session>
-murmurmark next latest --refresh
-murmurmark next corpus
-murmurmark next corpus --refresh
-murmurmark open ./sessions/<session> --kind all
-murmurmark status ./sessions/<session>
+murmurmark next latest
 murmurmark status latest
-murmurmark report ./sessions/<session>
+murmurmark open latest --kind notes
+murmurmark review next latest
+murmurmark export latest --format markdown --include-json
+murmurmark retention plan latest
+```
+
+Operational queues and quality maintenance:
+
+```bash
+murmurmark sessions
+murmurmark sessions --status review_required --next-only
+murmurmark sessions --status exportable --next-only
+murmurmark sessions --status exported --next-only
 murmurmark report corpus
-murmurmark notes ./sessions/<session>
-murmurmark notes latest --kind verdict --path-only
-murmurmark transcript ./sessions/<session>
-murmurmark transcript latest --path-only
-murmurmark audit local-recall ./sessions/<session> --profile shadow_v2
-murmurmark audit order ./sessions/<session> --profile auto
-murmurmark audit group-overlaps ./sessions/<session> --profile shadow_v2 --write-clips
-murmurmark audit audio-review ./sessions/<session> --profile audit_cleanup_v2 --write-clips
-murmurmark repair order ./sessions/<session> --input-profile auto --output-profile order_repair_v1
-murmurmark repair local-recall ./sessions/<session> --input-profile auto --output-profile local_recall_repair_v1
-murmurmark repair remote-leak ./sessions/<session>
-murmurmark review first-lane
-murmurmark review workspace
-murmurmark review lane check_local_recall --session ./sessions/<session>
-murmurmark review lane apply first --session ./sessions/<session>
-murmurmark review latest --lane fast_confirm_drop
-murmurmark review progress --session ./sessions/<session>
-murmurmark review apply --session ./sessions/<session>
-murmurmark review agent
+murmurmark next corpus
 murmurmark corpus process all --per-label 16 --max-items 160
-murmurmark corpus build ./sessions/<session> --per-label 16 --max-items 160
-murmurmark corpus evaluate
-murmurmark corpus train-audio-judge
-murmurmark corpus taxonomy
 murmurmark corpus gate
-murmurmark corpus gate --write-baseline sessions/_reports/corpus-gates/baseline.local.json
-murmurmark corpus gate --baseline sessions/_reports/corpus-gates/baseline.local.json
-murmurmark corpus order
-murmurmark corpus order --repair
-murmurmark corpus local-recall
-murmurmark corpus local-recall --audit
-murmurmark corpus local-recall-repair
-murmurmark corpus local-recall-repair --repair --no-synthesize
-murmurmark corpus remote-leak
-murmurmark corpus remote-leak --plan
-murmurmark corpus report
-murmurmark export ./sessions/<session> --format markdown --include-json
-murmurmark export ./sessions/<session> --format obsidian
-murmurmark retention plan ./sessions/<session>
-murmurmark retention payload ./sessions/<session>
-murmurmark retention apply ./sessions/<session> --policy ./policy.json --confirm-delete-raw
+murmurmark review workspace --session latest
+murmurmark review workspace apply --session latest --dry-run
 ```
 
 Advanced CLI diagnostics:

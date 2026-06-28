@@ -99,10 +99,8 @@ struct MurmurMark {
           murmurmark export latest --format markdown --include-json
           murmurmark retention plan latest
 
-        Usage:
+        Main usage:
           murmurmark doctor [--strict]
-          murmurmark list-apps
-          murmurmark list-audio-devices
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
@@ -156,10 +154,16 @@ struct MurmurMark {
           murmurmark retention payload ./session|latest [--policy examples/retention-policy.local-first.json]
                              [--export-manifest ./exports/private/session/export_manifest.json] [--provider name]
           murmurmark config print [--config murmurmark.config.json]
+
+        Setup and diagnostics:
+          murmurmark list-apps
+          murmurmark list-audio-devices
+          murmurmark inspect ./session
+
+        Advanced/debugging:
           murmurmark preprocess ./session [--echo diagnostic|clean] [--echo-engine linear_baseline|local_fir|speexdsp|webrtc-apm]
                               [--echo-policy preserve_local|role_safe|strict_silence]
           murmurmark reconcile-transcript ./session [--in ./transcript.rich.json] [--out ./transcript.rich.json]
-          murmurmark inspect ./session
           murmurmark export-audio ./session [--sample-rate 16000]
 
         Notes:
@@ -185,6 +189,7 @@ struct MurmurMark {
           export creates a local user-facing Markdown or Obsidian bundle and blocks readiness export blockers by default.
           retention plans or applies local retention policy; raw deletion requires apply plus --confirm-delete-raw.
           config shows local defaults loaded by process/export.
+          advanced/debugging commands are normally called by process; use them directly only to inspect one pipeline layer.
         """)
     }
 }
