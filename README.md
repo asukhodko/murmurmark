@@ -32,6 +32,21 @@ can be run from any directory. During development, `.build/debug/murmurmark` and
 permissions. It reports warnings without failing by default and prints the next normal CLI commands;
 use `murmurmark doctor --strict` in automation when required checks must fail the command.
 
+Normal CLI loop:
+
+```bash
+murmurmark doctor
+murmurmark record --target-bundle system
+murmurmark process latest
+murmurmark report latest
+# Follow printed review commands when the gate is review_first.
+murmurmark export latest --format markdown --include-json
+murmurmark retention plan latest
+```
+
+`report`, `review progress`, blocked `export` and retention commands all print the next safe command
+for the current session state, so the terminal output is the main handoff.
+
 ### Local Release Bundle
 
 To create an inspectable local bundle from tracked project files:

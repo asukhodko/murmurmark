@@ -1745,6 +1745,11 @@ EOF
   jq -e 'any(.steps[]; .name == "session_readiness")' "$pipeline_plan" >/dev/null
   corpus_process_help="$("$bin" corpus process --help)"
   echo "$corpus_process_help" | grep -q 'plan-remote-leak-segment-repair.py'
+  main_help="$("$bin" --help)"
+  echo "$main_help" | grep -q '^Normal flow:$'
+  echo "$main_help" | grep -q '^  murmurmark record --target-bundle system$'
+  echo "$main_help" | grep -q '^  murmurmark process latest$'
+  echo "$main_help" | grep -q '^  murmurmark export latest --format markdown --include-json$'
   review_help="$("$bin" review --help)"
   echo "$review_help" | grep -q 'murmurmark review lane apply LANE|first'
   echo "$review_help" | grep -q 'murmurmark review progress \[--session latest|SESSION\]'

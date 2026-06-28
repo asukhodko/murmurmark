@@ -80,6 +80,15 @@ struct MurmurMark {
         print("""
         MurmurMark \(MurmurMark.version)
 
+        Normal flow:
+          murmurmark doctor
+          murmurmark record --target-bundle system
+          murmurmark process latest
+          murmurmark report latest
+          # follow printed review commands when the gate is review_first
+          murmurmark export latest --format markdown --include-json
+          murmurmark retention plan latest
+
         Usage:
           murmurmark doctor [--strict]
           murmurmark list-apps
