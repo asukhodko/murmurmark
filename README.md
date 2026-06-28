@@ -4,7 +4,12 @@ MurmurMark is a local-first macOS meeting capture and notes pipeline.
 
 It records the user's microphone and the selected meeting application's audio into separate local tracks, without virtual audio devices, without changing the meeting app's audio routing, and without uploading raw audio by default. The recording package is then processed into a speaker-aware transcript, evidence-backed meeting notes, and documentation updates under an explicit privacy policy.
 
-The repository now contains a first minimal Swift CLI plus local transcript and extractive notes scripts. Its current scope is capture, Echo Guard preprocessing, simple `Me`/`Colleagues` transcription, timeline repair for common mic/remote ordering failures, quality verdicts, and evidence-backed extractive notes. Full diarization and generative synthesis remain documented future work. When synthesis still has review risk, its handoff points to `murmurmark review next` and does not advertise export as the next step.
+The repository now contains a Swift CLI that wraps the local recording and processing pipeline end to
+end: capture, Echo Guard preprocessing, `Me`/`Colleagues` transcription, timeline repair, audit
+cleanup, review handoff, quality verdicts, evidence-backed extractive notes, export bundles and
+retention planning. Full diarization and generative synthesis remain documented future work. When
+synthesis still has review risk, its handoff points to `murmurmark review next` and does not
+advertise export as the next step.
 
 ## Current CLI
 
@@ -925,17 +930,17 @@ Before trying cleanup on a real speaker-bleed session, run the [Echo Guard delay
 MurmurMark Capture
   -> mic.caf + remote.caf + session.json + events.jsonl
 
-MurmurMark Transcribe
-  -> transcript.rich.json + speaker_map.json + quality_report.json
+MurmurMark Process
+  -> Echo Guard audio + transcript-simple profiles + quality reports
 
-MurmurMark Evidence
-  -> utterance citations + corrections + review flags
+MurmurMark Review
+  -> readiness gate + review plan + optional reviewed transcript profile
 
 MurmurMark Synthesis
-  -> quality verdict, extractive notes, potential decisions/actions/risks, docs patches later
+  -> quality verdict + evidence-backed notes + transcript Markdown
 
-MurmurMark Policy
-  -> privacy modes, retention, redaction, provider approvals
+MurmurMark Handoff
+  -> Markdown/Obsidian export bundle + retention/payload manifests
 ```
 
 ## v1 Decisions
@@ -965,7 +970,7 @@ MurmurMark Policy
 - [docs/security/privacy-and-threat-model.md](docs/security/privacy-and-threat-model.md): privacy defaults and threat model.
 - [docs/runbooks/first-recording.md](docs/runbooks/first-recording.md): first local recording check.
 - [docs/runbooks/echo-guard-lab.md](docs/runbooks/echo-guard-lab.md): delay and candidate-clip investigation before echo cleanup.
-- [docs/runbooks/transcribe-simple-whispercpp.md](docs/runbooks/transcribe-simple-whispercpp.md): temporary local transcription with whisper.cpp.
+- [docs/runbooks/transcribe-simple-whispercpp.md](docs/runbooks/transcribe-simple-whispercpp.md): local transcription and repair path with whisper.cpp.
 - [docs/decisions/tradeoffs.md](docs/decisions/tradeoffs.md): accepted and rejected tradeoffs.
 - [docs/rfc/0001-v1-scope.md](docs/rfc/0001-v1-scope.md): implementation RFC for v1.
 - [docs/adr/](docs/adr/): architecture decision records.
