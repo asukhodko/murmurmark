@@ -3388,14 +3388,17 @@ enum ExportCommands {
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
         let effectiveArgs = config.exportDefaults(unless: forwarded) + forwarded
-        let status = try Tooling.runPathAllowingExitCodes(try PythonRuntime.resolve(), [
+        let outDir = exportOutDir(from: effectiveArgs)
+        let status = try Tooling.runPathQuietAllowingExitCodes(try PythonRuntime.resolve(), [
             try script().path,
             session.path,
         ] + effectiveArgs, allowedExitCodes: [0, 2])
         if status == 2 {
+            try ExportPrinter.printBlocked(session: session, outDir: outDir)
+            fflush(stdout)
             throw CLIError("export blocked; follow the printed next step or pass --force for debugging")
         }
-        try ExportPrinter.printManifest(session: session, outDir: exportOutDir(from: effectiveArgs))
+        try ExportPrinter.printManifest(session: session, outDir: outDir)
     }
 
     private static func script() throws -> URL {
@@ -6787,6 +6790,34 @@ enum ReviewNextPrinter {
 }
 
 enum ExportPrinter {
+    static func printBlocked(session: URL, outDir: URL) throws {
+        let blockedURL = outDir.appendingPathComponent("\(session.lastPathComponent).export_blocked.json")
+        guard FileManager.default.fileExists(atPath: blockedURL.path) else {
+            print("")
+            print("export_blocked: missing")
+            print("  expected: \(PathDisplay.display(blockedURL))")
+            return
+        }
+
+        let payload = try JSONFiles.object(blockedURL)
+        let blockers = payload["blockers"] as? [Any] ?? []
+        let warnings = payload["warnings"] as? [Any] ?? []
+        let next = string(payload["next"]) ?? "murmurmark report \(PathDisplay.display(session))"
+        let profile = string(payload["selected_profile"]) ?? string(payload["requested_profile"]) ?? "unknown"
+        let format = string(payload["format"]) ?? "unknown"
+
+        print("")
+        print("export_blocked:")
+        print("  report: \(PathDisplay.display(blockedURL))")
+        print("  profile: \(profile)")
+        print("  format: \(format)")
+        print("  blockers: \(compactJSON(blockers))")
+        if !warnings.isEmpty {
+            print("  warnings: \(compactJSON(warnings))")
+        }
+        print("  next: \(next)")
+    }
+
     static func printManifest(session: URL, outDir: URL) throws {
         let manifestURL = outDir
             .appendingPathComponent(session.lastPathComponent)

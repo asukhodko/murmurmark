@@ -617,8 +617,14 @@ if "$bin" export "$session" --out-dir "$cli_export_block_dir" >"$cli_export_bloc
   echo "expected Swift export to block incomplete session" >&2
   exit 1
 fi
-grep -q '^next: .*murmurmark process' "$cli_export_block_stdout"
+grep -q '^export_blocked:$' "$cli_export_block_stdout"
+grep -q '^  blockers: .*pipeline_incomplete' "$cli_export_block_stdout"
+grep -q '^  next: .*murmurmark process' "$cli_export_block_stdout"
 grep -q 'error: export blocked; follow the printed next step or pass --force for debugging' "$cli_export_block_stdout"
+if grep -q '^export blocked:' "$cli_export_block_stdout"; then
+  echo "Swift export leaked raw helper output" >&2
+  exit 1
+fi
 if grep -q 'python exited with 2' "$cli_export_block_stdout"; then
   echo "blocked export leaked generic python exit error" >&2
   exit 1
