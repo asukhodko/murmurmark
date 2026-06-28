@@ -7785,6 +7785,12 @@ enum CorpusPrinter {
         if let label = string(first["label"]) {
             print("  focus_label: \(label)")
         }
+        if let lane = focusLane(payload, focus: first, sessionID: sessionID) {
+            print("  focus_lane: \(lane)")
+        }
+        if let action = focusAction(payload, focus: first, sessionID: sessionID) {
+            print("  focus_action: \(action)")
+        }
         if let reason = string(first["reason"]) {
             print("  focus_reason: \(reason)")
         }
@@ -7794,6 +7800,45 @@ enum CorpusPrinter {
         print("  focus_next:")
         print("    murmurmark review next \(sessionArg)")
         print("    murmurmark review first-lane --session \(sessionArg)")
+    }
+
+    private static func focusLane(_ payload: [String: Any], focus: [String: Any], sessionID: String) -> String? {
+        if let lane = string(focus["review_lane"]) {
+            return lane
+        }
+        let plan = payload["promotion_plan"] as? [String: Any] ?? [:]
+        let reviewFocus = plan["review_focus"] as? [String: Any] ?? [:]
+        if sameSession(reviewFocus["session_id"], sessionID) || sameSession(reviewFocus["session_arg"], sessionID),
+           let lane = string(reviewFocus["review_lane"]) {
+            return lane
+        }
+        let bySession = plan["review_queue_by_session"] as? [[String: Any]] ?? []
+        for row in bySession where sameSession(row["session_id"], sessionID) || sameSession(row["session"], sessionID) {
+            if let lane = string(row["first_review_lane"]) {
+                return lane
+            }
+        }
+        return nil
+    }
+
+    private static func focusAction(_ payload: [String: Any], focus: [String: Any], sessionID: String) -> String? {
+        if let action = string(focus["review_action"]) {
+            return action
+        }
+        guard let lane = focusLane(payload, focus: focus, sessionID: sessionID) else {
+            return nil
+        }
+        return lane
+    }
+
+    private static func sameSession(_ value: Any?, _ sessionID: String) -> Bool {
+        guard let text = string(value), !text.isEmpty else {
+            return false
+        }
+        if text == sessionID {
+            return true
+        }
+        return URL(fileURLWithPath: text).lastPathComponent == sessionID
     }
 
     private static func firstReviewFocus(_ payload: [String: Any]) -> [String: Any]? {
