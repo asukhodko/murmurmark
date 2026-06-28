@@ -2484,6 +2484,7 @@ PY
   echo "$first_lane_apply_dry_run_output" | grep -q "^  lane: $first_lane"
   echo "$first_lane_apply_dry_run_output" | grep -q '^  report: '
   echo "$first_lane_apply_dry_run_output" | grep -q '^  lane_result: reviewed=0 todo='
+  echo "$first_lane_apply_dry_run_output" | grep -q '^  recommended_next: murmurmark review lane apply '
   echo "$first_lane_apply_dry_run_output" | grep -q '^  next:$'
   echo "$first_lane_apply_dry_run_output" | grep -q '^    murmurmark review lane apply '
   echo "$first_lane_apply_dry_run_output" | grep -Eq -- "--plan-out-dir .*first-lane-review-plan"
@@ -2605,6 +2606,7 @@ PY
   ! echo "$explicit_local_recall_apply_dry_run_output" | grep -Eq '^(\{"manifest_items"|Dry run:)'
   echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^  report: '
   echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^  lane_result: reviewed='
+  echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^  recommended_next: murmurmark review lane apply check_local_recall --session '
   echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^  next:$'
   echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^    murmurmark review lane apply check_local_recall --session '
   echo "$explicit_local_recall_apply_dry_run_output" | grep -Eq -- "--out-dir .*explicit-local-recall-lane-pack"

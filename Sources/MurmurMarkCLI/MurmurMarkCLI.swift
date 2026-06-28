@@ -1592,13 +1592,20 @@ enum ReviewLaneApplyCommand {
         let sessionArgument = context.session.map { " --session \(PathDisplay.display($0))" } ?? ""
         if context.dryRun {
             let nextCommand = ReviewLaneApplyNextCommand.command(context)
+            print("  recommended_next: \(nextCommand)")
             print("  next:")
             print("    \(nextCommand)")
         } else if context.progress.map(isReadyForApply) == true {
+            print("  recommended_next: murmurmark review apply\(sessionArgument)")
             print("  next:")
             print("    murmurmark review apply\(sessionArgument)")
         } else {
-            if let nextLane = context.progress.flatMap(firstRemainingLane) {
+            let nextLane = context.progress.flatMap(firstRemainingLane)
+            let recommendedNext = nextLane
+                .map { "murmurmark review lane \($0)\(sessionArgument)" }
+                ?? "murmurmark review workspace\(sessionArgument)"
+            print("  recommended_next: \(recommendedNext)")
+            if let nextLane {
                 print("  next_lane: \(nextLane)")
                 print("  next:")
                 print("    murmurmark review lane \(nextLane)\(sessionArgument)")
