@@ -44,7 +44,7 @@ murmurmark export latest --format markdown --include-json
 murmurmark retention plan latest
 ```
 
-`report`, `review progress`, blocked `export` and retention commands all print the next safe command
+`report`, `review progress`, `export` and retention commands all print the next safe command
 for the current session state, so the terminal output is the main handoff. `report` starts with a
 short status such as `exportable`, `review_required`, `incomplete` or `blocked`, plus
 `recommended_next` and `handoff` commands for opening the selected notes, transcript and verdict.
@@ -512,7 +512,7 @@ frontmatter Markdown note plus the same manifest. Export blocks sessions whose
 hard quality failures and unfinished review do not silently become finished artifacts. A blocked
 export prints `recommended_next`, structured next commands and writes `*.export_blocked.json`; `--force` keeps the
 blockers in `export_manifest.json` and is meant for debugging. After a successful export, the CLI
-prints the manifest path, key output files and the matching retention commands.
+prints `recommended_next`, the manifest path, key output files and the matching retention commands.
 
 `murmurmark audit` wraps the local audit scripts through the project Python runtime. `murmurmark audit
 local-recall`, `murmurmark audit order`, `murmurmark audit group-overlaps` and `murmurmark audit audio-review` are the normal

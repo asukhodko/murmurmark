@@ -228,6 +228,7 @@ retention_plan_output="$("$bin" retention plan "$session")"
 assert_no_helper_prefix "$retention_plan_output"
 echo "$retention_plan_output" | grep -q '^retention:$'
 echo "$retention_plan_output" | grep -q '  raw_audio_files: 2'
+echo "$retention_plan_output" | grep -q '^  recommended_next: murmurmark export '
 echo "$retention_plan_output" | grep -q '  next:'
 [[ -s "$session/derived/retention/retention_plan.json" ]]
 jq -e '.schema == "murmurmark.retention_plan/v1"' "$session/derived/retention/retention_plan.json" >/dev/null
@@ -239,6 +240,7 @@ assert_no_helper_prefix "$retention_payload_output"
 echo "$retention_payload_output" | grep -q '^retention_payload:$'
 echo "$retention_payload_output" | grep -q '  sends_data: false'
 echo "$retention_payload_output" | grep -q '  raw_audio_included: false'
+echo "$retention_payload_output" | grep -q '^  recommended_next: inspect '
 [[ -s "$session/derived/retention/provider_payload_manifest.json" ]]
 jq -e '.schema == "murmurmark.provider_payload_manifest/v1"' "$session/derived/retention/provider_payload_manifest.json" >/dev/null
 jq -e '.status == "blocked" and .sends_data == false and .raw_audio_included == false' "$session/derived/retention/provider_payload_manifest.json" >/dev/null
@@ -728,6 +730,7 @@ export_stdout="$workdir/export_forced_stdout.txt"
 "$bin" export "$session" --force --out-dir "$export_force_dir" --include-json >"$export_stdout"
 [[ -s "$export_force_dir/$(basename "$session")/export_manifest.json" ]]
 rg -n '^export:|manifest:|retention plan|retention payload' "$export_stdout" >/dev/null
+grep -q '^  recommended_next: murmurmark retention plan ' "$export_stdout"
 jq -e '.schema == "murmurmark.export_manifest/v1" and (.status | startswith("exported")) and (.files.transcript_md.path | type == "string")' \
   "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
 

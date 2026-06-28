@@ -3735,6 +3735,7 @@ enum RetentionPrinter {
         let actionCounts = count(actions, by: "planned_action")
         let appliedCounts = count(actions, by: "applied_action")
         let exportManifest = exportPath(from: export)
+        let exportManifestReady = exportManifest.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
 
         print("")
         print("retention:")
@@ -3756,12 +3757,15 @@ enum RetentionPrinter {
         if !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
-        print("  next:")
-        if let exportManifest {
-            print("    murmurmark retention payload \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(exportManifest))")
+        let recommendedNext: String
+        if let exportManifest, exportManifestReady {
+            recommendedNext = "murmurmark retention payload \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(exportManifest))"
         } else {
-            print("    murmurmark export \(PathDisplay.display(session)) --format markdown --include-json")
+            recommendedNext = "murmurmark export \(PathDisplay.display(session)) --format markdown --include-json"
         }
+        print("  recommended_next: \(recommendedNext)")
+        print("  next:")
+        print("    \(recommendedNext)")
     }
 
     private static func printPayload(session: URL, args: [String]) throws {
@@ -3801,6 +3805,7 @@ enum RetentionPrinter {
         if !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
+        print("  recommended_next: inspect \(PathDisplay.display(manifestURL)) before any external handoff")
         print("  next:")
         print("    inspect \(PathDisplay.display(manifestURL)) before any external handoff")
     }
@@ -7242,6 +7247,7 @@ enum ExportPrinter {
         if !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
+        print("  recommended_next: murmurmark retention plan \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(manifestURL))")
         print("  open:")
         for key in ["index", "obsidian_note", "quality_verdict_md", "notes_md", "transcript_md"] {
             if let path = exportedPath(key, files: files) {
