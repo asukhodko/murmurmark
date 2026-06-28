@@ -47,6 +47,7 @@ murmurmark retention plan latest
 `status`, `report`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
 all print the next safe command for the current session state, so the terminal output is the main handoff.
 `status` is the quickest dashboard for already-generated readiness; `report` refreshes readiness first.
+If readiness is not present yet, `status` points to `murmurmark process SESSION`.
 Both start with a short status such as `exportable`, `review_required`, `incomplete` or `blocked`, plus
 `recommended_next` and `handoff` commands for opening the selected notes, transcript and verdict.
 

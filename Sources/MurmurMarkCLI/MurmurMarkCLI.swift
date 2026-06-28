@@ -6757,7 +6757,13 @@ enum ReadinessPrinter {
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
         guard FileManager.default.fileExists(atPath: url.path) else {
             print("\(label): missing")
-            print("hint: run `murmurmark report \(PathDisplay.display(session))`")
+            let sessionPath = PathDisplay.display(session)
+            print("  session: \(sessionPath)")
+            print("  expected: \(PathDisplay.display(url))")
+            print("  recommended_next: murmurmark process \(sessionPath)")
+            print("  next:")
+            print("    murmurmark process \(sessionPath)")
+            print("    murmurmark report \(sessionPath)")
             return
         }
         let payload = try JSONFiles.object(url)

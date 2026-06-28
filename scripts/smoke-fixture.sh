@@ -439,6 +439,17 @@ grep -q 'utt_simple_006' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -q 'Давайте проголосуем' "$session/derived/synthesis-simple/extractive/notes.md"
 ! grep -Eq '^### .*: (если|есть|меня|потому)(, (если|есть|меня|потому))*$' "$session/derived/synthesis-simple/extractive/notes.md"
 
+raw_status_session="$workdir/_raw-status-session"
+mkdir -p "$raw_status_session"
+cp "$session/session.json" "$raw_status_session/session.json"
+raw_status_output="$("$bin" status "$raw_status_session")"
+assert_no_helper_prefix "$raw_status_output"
+echo "$raw_status_output" | grep -q '^readiness: missing$'
+echo "$raw_status_output" | grep -q '^  session: '
+echo "$raw_status_output" | grep -q '^  expected: '
+echo "$raw_status_output" | grep -q '^  recommended_next: murmurmark process '
+echo "$raw_status_output" | grep -q '^    murmurmark process '
+
 "$repo_root/scripts/report-session-quality.py" \
   "$session" \
   --label "session=smoke fixture" \
