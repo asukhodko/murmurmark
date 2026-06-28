@@ -368,7 +368,7 @@ def duplicate_drop_hint_allowed(item: dict[str, Any]) -> bool:
     coverage = safe_float(features.get("me_overlap_coverage"))
     similarity = safe_float(features.get("text_similarity"))
     containment = safe_float(features.get("token_containment"))
-    return coverage >= 0.60 and (similarity >= 0.75 or containment >= 0.75)
+    return coverage >= 0.80 and (similarity >= 0.92 or containment >= 0.75)
 
 
 def review_lane(item: dict[str, Any]) -> str:

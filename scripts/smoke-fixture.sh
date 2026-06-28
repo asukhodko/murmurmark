@@ -1886,6 +1886,27 @@ assert lanes["check_unique_me_content"] == 2, lanes
 assert lanes["check_local_recall"] == 2, lanes
 assert lanes["check_transcript_order"] == 2, lanes
 assert any(row["label"] == "probable_order_risk" for row in selected), selected
+assert not module.duplicate_drop_hint_allowed({
+    "review_features": {
+        "me_overlap_coverage": 0.68,
+        "text_similarity": 0.86,
+        "token_containment": 0.43,
+    }
+})
+assert module.duplicate_drop_hint_allowed({
+    "review_features": {
+        "me_overlap_coverage": 0.91,
+        "text_similarity": 0.93,
+        "token_containment": 0.50,
+    }
+})
+assert module.duplicate_drop_hint_allowed({
+    "review_features": {
+        "me_overlap_coverage": 0.91,
+        "text_similarity": 0.70,
+        "token_containment": 0.80,
+    }
+})
 burden = module.session_review_burden(
     {
         "session_id": "order-repair-session",
@@ -2018,6 +2039,38 @@ PY
   jq -e '.schema == "murmurmark.review_plan/v1" and .summary.cluster_count >= 1' "$review_plan_dir/review_plan.json" >/dev/null
   jq -e '(.review_queue_strategy.first_recommended_lane | type) == "string"' "$review_plan_dir/review_plan.json" >/dev/null
   grep -q 'Recommended First Lane' "$review_plan_dir/review_plan.md"
+  python3 - "$repo_root" <<'PY'
+import importlib.util
+from pathlib import Path
+import sys
+
+repo_root = Path(sys.argv[1])
+module_path = repo_root / "scripts/build-review-plan.py"
+spec = importlib.util.spec_from_file_location("build_review_plan", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+spec.loader.exec_module(module)
+unsafe_partial_duplicate = {
+    "review_features": {
+        "me_overlap_coverage": 0.68,
+        "text_similarity": 0.86,
+        "token_containment": 0.43,
+    }
+}
+safe_whole_duplicate = {
+    "review_features": {
+        "me_overlap_coverage": 0.91,
+        "text_similarity": 0.93,
+        "token_containment": 0.50,
+    }
+}
+assert not module.duplicate_drop_hint_allowed(unsafe_partial_duplicate)
+assert module.review_action("remote_duplicate", "probable_transcript_error", unsafe_partial_duplicate) == "check_unique_me_content"
+assert module.suggested_decision("remote_duplicate", "probable_transcript_error", 0.92, unsafe_partial_duplicate)["suggested_decision"] == "needs_review"
+assert module.duplicate_drop_hint_allowed(safe_whole_duplicate)
+assert module.review_action("remote_duplicate", "probable_transcript_error", safe_whole_duplicate) == "confirm_drop_or_keep_me"
+assert module.suggested_decision("remote_duplicate", "probable_transcript_error", 0.92, safe_whole_duplicate)["suggested_decision"] == "drop_me"
+PY
   first_lane_plan_dir="$workdir/first-lane-review-plan"
   first_lane_pack_dir="$workdir/first-lane-pack"
   first_lane_output="$("$bin" review first-lane \
@@ -2090,8 +2143,8 @@ PY
   jq -s 'all(.[]; .schema == "murmurmark.review_decision/v1" and .decision == "todo" and (.me_utterance_ids | type) == "array" and (.suggested_decision | IN("drop_me", "keep_me", "needs_review")))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .suggested_decision == "drop_me" and .decision == "todo")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .source == "local_recall_repair" and .input_profile == "local_recall_repair_v1" and (.allowed_decisions | index("drop_me")) and (.me_utterance_ids | length) >= 1)' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
-  jq -s 'all(.[]; .label != "remote_duplicate" or .suggested_decision != "drop_me" or ((.review_features.me_overlap_coverage // 0) >= 0.6))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
-  jq -s 'all(.[]; .label != "remote_duplicate" or ((.review_features.me_overlap_coverage // 0) >= 0.55) or .suggested_decision == "needs_review")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
+  jq -s 'all(.[]; .label != "remote_duplicate" or .suggested_decision != "drop_me" or (((.review_features.me_overlap_coverage // 0) >= 0.8) and (((.review_features.text_similarity // 0) >= 0.92) or ((.review_features.token_containment // 0) >= 0.75))))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
+  jq -s 'all(.[]; .label != "remote_duplicate" or (((.review_features.me_overlap_coverage // 0) >= 0.8) and (((.review_features.text_similarity // 0) >= 0.92) or ((.review_features.token_containment // 0) >= 0.75))) or .suggested_decision == "needs_review")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .label == "lost_me" and .review_action == "check_lost_local_speech")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
 
   agent_review_dir="$workdir/agent-review"

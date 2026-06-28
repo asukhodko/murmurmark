@@ -643,13 +643,14 @@ missing text into the transcript. Transcript-order rows are also audit-only for 
 they can clear or keep the chronology risk, and `apply-review-decisions.py` records the result in
 `quality.transcript_order_review` on affected utterances, but it does not move utterances or edit
 text. The plan itself is audit-only and does not edit transcript profiles.
-For `remote_duplicate`, `drop_me` is suggested only when the duplicate covers enough of the whole
-`Me` utterance. If the overlap is only a slice of a longer local utterance, the row is marked
+For `remote_duplicate`, `drop_me` is suggested only when the duplicate covers almost all of the
+`Me` utterance and the text match is strong. If the overlap is only a slice of a longer local utterance,
+the row is marked
 `check_unique_me_content` and the safe default is `needs_review`.
 The generated plan also splits the queue into `review_lane` groups:
 `fast_confirm_drop`, `check_unique_me_content`, `check_local_recall`, `check_transcript_order`,
 `confirm_benign`, and
-`classify_audio`. Use those lanes to clear easy duplicate/noise checks first and leave meaning-heavy
+`classify_audio`. Use those lanes to clear complete duplicate/noise checks first and leave meaning-heavy
 checks for a slower pass. The plan carries the `first_recommended_lane` from operational readiness,
 and `murmurmark review first-lane` builds the corresponding lane pack directly, including WAV, Markdown
 index and editable answer sheet.

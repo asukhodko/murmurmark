@@ -755,10 +755,10 @@ lane to close, usually `fast_confirm_drop`, plus the estimated queue that remain
 `review_first`: listen to the listed stereo clips or local-recall mic snippets, decide whether each
 `Me` candidate is leaked remote speech, real local speech, lost local speech, order-risk, or unclear, then keep
 unclear cases marked for review.
-The plan also assigns each row a `review_lane`: `fast_confirm_drop` for likely duplicate/noise rows,
-`check_unique_me_content` for partial duplicates and leaks, `check_local_recall` for possible missing
-local speech, `check_transcript_order` for chronology-risk rows, `confirm_benign` for likely harmless
-overlap, and `classify_audio` for anything else.
+The plan also assigns each row a `review_lane`: `fast_confirm_drop` for likely complete duplicate/noise
+rows, `check_unique_me_content` for partial duplicates and leaks, `check_local_recall` for possible
+missing local speech, `check_transcript_order` for chronology-risk rows, `confirm_benign` for likely
+harmless overlap, and `classify_audio` for anything else.
 Close the plan's `first_recommended_lane` first; it is usually `fast_confirm_drop`, but can change as
 the review queue changes. Keep the other lanes conservative unless the audio or chronology evidence
 is clear.
