@@ -1914,6 +1914,12 @@ EOF
   grep -q '^    run: inspect$' "$workdir/pipeline-plan.out"
   grep -q '^    run: session_readiness$' "$workdir/pipeline-plan.out"
   grep -q '^  recommended_next: murmurmark process ' "$workdir/pipeline-plan.out"
+  grep -q '^pipeline_run:$' "$workdir/pipeline-plan.out"
+  grep -q '^  status: planned$' "$workdir/pipeline-plan.out"
+  grep -q '^  selected_profile: ' "$workdir/pipeline-plan.out"
+  grep -q '^  verdict: ' "$workdir/pipeline-plan.out"
+  grep -q '^  recommended_next: murmurmark process ' "$workdir/pipeline-plan.out"
+  ! grep -q '^pipeline_run_report:' "$workdir/pipeline-plan.out"
   ! grep -q '^\[planned\]' "$workdir/pipeline-plan.out"
   [[ -s "$pipeline_plan" ]]
   jq -e '.schema == "murmurmark.session_pipeline_run/v1" and .status == "planned" and (.steps | length) >= 10' "$pipeline_plan" >/dev/null

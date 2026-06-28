@@ -371,6 +371,31 @@ def print_pipeline_plan(steps: list[dict[str, Any]], session: Path, report_path:
     print(f"  recommended_next: murmurmark process {session_arg}", flush=True)
 
 
+def print_pipeline_summary(report: dict[str, Any], report_path: Path, repo_root: Path) -> None:
+    status = str(report.get("status") or "unknown")
+    session = Path(str(report.get("session") or ""))
+    session_arg = rel(session, repo_root) if str(session) else "SESSION"
+    outputs = report.get("outputs") if isinstance(report.get("outputs"), dict) else {}
+    selected_profile = outputs.get("selected_transcript_profile")
+    verdict = outputs.get("verdict")
+    if status == "planned":
+        recommended_next = f"murmurmark process {session_arg}"
+    elif status == "passed":
+        recommended_next = f"murmurmark report {session_arg}"
+    else:
+        recommended_next = f"less {rel(report_path, repo_root)}"
+
+    print("", flush=True)
+    print("pipeline_run:", flush=True)
+    print(f"  report: {rel(report_path, repo_root)}", flush=True)
+    print(f"  status: {status}", flush=True)
+    if selected_profile:
+        print(f"  selected_profile: {selected_profile}", flush=True)
+    if verdict:
+        print(f"  verdict: {verdict}", flush=True)
+    print(f"  recommended_next: {recommended_next}", flush=True)
+
+
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parents[1]
@@ -440,11 +465,7 @@ def main() -> int:
         "steps": results,
     }
     write_json(report_path, report)
-    print(f"pipeline_run_report: {report_path}", flush=True)
-    if report["outputs"]["selected_transcript_profile"]:
-        print(f"selected_profile: {report['outputs']['selected_transcript_profile']}", flush=True)
-    if report["outputs"]["verdict"]:
-        print(f"quality_verdict: {report['outputs']['verdict']}", flush=True)
+    print_pipeline_summary(report, report_path, repo_root)
     return 0 if report["status"] in {"passed", "planned"} else 2
 
 
