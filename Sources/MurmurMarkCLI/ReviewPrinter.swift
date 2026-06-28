@@ -325,8 +325,12 @@ enum ReviewPrinter {
             let reviewed = int(summary["reviewed_count"]) ?? 0
             let todo = int(summary["todo_count"]) ?? 0
             let rejected = int(summary["rejected_count"]) ?? 0
+            let markdown = string(lane["markdown"])
             let answerSheet = string(lane["answer_sheet"])
             print("    \(name): status=\(status) reviewed=\(reviewed) todo=\(todo) rejected=\(rejected)")
+            if todo > 0, let markdown {
+                print("      read: less \(shellQuote(markdown))")
+            }
             if todo > 0, let answerSheet {
                 print("      edit: $EDITOR \(shellQuote(answerSheet))")
             }

@@ -1523,6 +1523,7 @@ EOF
   grep -q '  dry_run: true' "$cli_workspace_dry_run_stdout"
   grep -q '^  lane_progress:$' "$cli_workspace_dry_run_stdout"
   grep -q '^    check_local_recall: status=ok reviewed=0 todo=1 rejected=0' "$cli_workspace_dry_run_stdout"
+  grep -q '^      read: less ' "$cli_workspace_dry_run_stdout"
   grep -q '^      edit: \$EDITOR ' "$cli_workspace_dry_run_stdout"
   grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_dry_run_stdout"
   cli_workspace_suggested_dry_run_out="$workdir/review_decisions_workspace_cli_suggested_dry_run.jsonl"

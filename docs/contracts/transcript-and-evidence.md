@@ -1967,6 +1967,7 @@ The JSON uses `murmurmark.review_workspace_apply_report/v1`:
     {
       "lane": "fast_confirm_drop",
       "status": "ok",
+      "markdown": "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.md",
       "answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt",
       "summary": {
         "reviewed_count": 2,
@@ -1979,7 +1980,8 @@ The JSON uses `murmurmark.review_workspace_apply_report/v1`:
 ```
 
 The Swift CLI prints `lane_progress` from the `lanes` array. For each lane it shows status,
-reviewed/todo/rejected counts and the remaining answer sheet to edit when `todo_count > 0`.
+reviewed/todo/rejected counts, then the remaining lane Markdown and answer sheet when
+`todo_count > 0`.
 
 `report-review-decisions-progress.py` summarizes the current edited review file before applying it:
 

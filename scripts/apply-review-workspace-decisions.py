@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.1"
+SCRIPT_VERSION = "0.3.2"
 SCHEMA = "murmurmark.review_workspace_apply_report/v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -311,6 +311,7 @@ def apply_lane(
         }
 
     manifest = read_json(manifest_path)
+    manifest_outputs = manifest.get("outputs") if isinstance(manifest.get("outputs"), dict) else {}
     items = manifest_items(manifest)
     manifest_summary = manifest.get("summary") if isinstance(manifest.get("summary"), dict) else {}
     skipped_count = safe_int(manifest_summary.get("skipped_count"))
@@ -329,6 +330,7 @@ def apply_lane(
             "lane": lane,
             "status": "failed",
             "manifest": str(manifest_path),
+            "markdown": manifest_outputs.get("markdown"),
             "answer_sheet": str(answer_sheet),
             "answer_key": lane_input.get("answer_key"),
             "summary": {"applied_count": 0, "reviewed_count": 0, "todo_count": 0, "rejected_count": len(rejected)},
@@ -382,6 +384,7 @@ def apply_lane(
         "lane": lane,
         "status": "failed" if rejected else "ok",
         "manifest": str(manifest_path),
+        "markdown": manifest_outputs.get("markdown"),
         "answer_sheet": str(answer_sheet),
         "answer_key": lane_input.get("answer_key"),
         "summary": {

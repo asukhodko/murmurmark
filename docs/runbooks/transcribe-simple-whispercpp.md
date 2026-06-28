@@ -883,7 +883,8 @@ If several lane answer sheets have been edited, apply the whole workspace instea
 ```
 
 The apply output includes `lane_progress`. If rows are still `todo`, it prints the lane answer sheet
-that still needs editing before `review apply` can safely run.
+that still needs editing before `review apply` can safely run, plus the lane Markdown to read when
+you need the evidence and allowed decisions again.
 
 To estimate what the generated suggestions would do without writing decisions:
 
