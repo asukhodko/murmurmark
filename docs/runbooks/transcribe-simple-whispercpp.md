@@ -839,7 +839,8 @@ Then copy decisions from the answer sheet back into the full review file:
 
 `first` resolves to `review_queue_strategy.first_recommended_lane` from the session-local
 `review_plan.json`; pass an explicit lane name when you intentionally reviewed another lane. The
-lane-pack command prints the exact `review lane apply ...` command for the generated answer sheet.
+lane-pack command prints the suggested compact answer line, `afplay`, `$EDITOR`, dry-run and exact
+`review lane apply ...` command for the generated answer sheet.
 `review lane apply --dry-run` also prints the exact non-dry-run command. Applying the lane refreshes
 `review_decisions_progress.json` and prints the next safe command: continue with the review workspace
 while rows remain, or run `review progress --session "$SESSION"` before `review apply` once the

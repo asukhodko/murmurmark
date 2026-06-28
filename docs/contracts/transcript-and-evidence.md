@@ -1828,6 +1828,10 @@ display but is not guaranteed to be unique across clustered review rows. `source
 and utterance id arrays are copied from the review template so a lane pack remains auditable even
 when it is opened outside the full `review_plan.json`.
 
+The Swift CLI prints a compact handoff for the same manifest: selected lane, audio, Markdown, answer
+sheet, suggested answer sheet, the first `answers=...` line from the suggested sheet, and ready-to-run
+`afplay`, `$EDITOR`, `dry_run` and `apply` commands.
+
 Lane packs are listening aids only. The generated answer sheet starts with `answers=...`, where `.`
 means `todo`; it is not applied until `murmurmark review lane apply <lane>` or the lower-level
 `apply-review-lane-pack-decisions.py` script is run. The generated `.suggested.txt` sheet mirrors

@@ -6795,10 +6795,22 @@ enum ReviewPrinter {
         }
         if let suggested = string(outputs["suggested_answer_sheet"]) {
             print("  suggested_answer_sheet: \(suggested)")
+            if let suggestedLine = firstAnswersLine(url: PathURLs.fileURL(suggested)) {
+                print("  suggested_answers: \(suggestedLine)")
+            }
         }
         print("  items: \(int(summary["item_count"]) ?? 0)")
         print("  skipped: \(int(summary["skipped_count"]) ?? 0)")
-        print("  next: edit answer_sheet, then `\(laneApplyCommand(lane: lane, session: session, planOutDir: planOutDir, outDir: outDir))`")
+        let applyCommand = laneApplyCommand(lane: lane, session: session, planOutDir: planOutDir, outDir: outDir)
+        if let audio = string(outputs["audio"]) {
+            print("  listen: afplay \(shellQuote(audio))")
+        }
+        if let answerSheet = string(outputs["answer_sheet"]) {
+            print("  edit: $EDITOR \(shellQuote(answerSheet))")
+        }
+        print("  dry_run: \(applyCommand) --dry-run")
+        print("  apply: \(applyCommand)")
+        print("  next: listen, edit answer_sheet, then apply")
     }
 
     private static func laneApplyCommand(lane: String, session: URL?, planOutDir: URL?, outDir: URL) -> String {
@@ -6822,6 +6834,27 @@ enum ReviewPrinter {
 
     private static func samePath(_ lhs: URL, _ rhs: URL) -> Bool {
         lhs.standardizedFileURL.path == rhs.standardizedFileURL.path
+    }
+
+    private static func firstAnswersLine(url: URL) -> String? {
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            return nil
+        }
+        for rawLine in text.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty || line.hasPrefix("#") {
+                continue
+            }
+            return line
+        }
+        return nil
+    }
+
+    private static func shellQuote(_ value: String) -> String {
+        if value.range(of: #"^[A-Za-z0-9_./:@%+=,-]+$"#, options: .regularExpression) != nil {
+            return value
+        }
+        return "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     static func printPlan() throws {

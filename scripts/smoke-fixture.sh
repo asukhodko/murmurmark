@@ -2091,7 +2091,12 @@ PY
   echo "$first_lane_apply_dry_run_output" | grep -q '^  next: murmurmark review lane apply '
   echo "$first_lane_apply_dry_run_output" | grep -Eq -- "--plan-out-dir .*first-lane-review-plan"
   echo "$first_lane_apply_dry_run_output" | grep -Eq -- "--out-dir .*first-lane-pack"
-  echo "$first_lane_output" | grep -q '^  next: edit answer_sheet, then `murmurmark review lane apply '
+  echo "$first_lane_output" | grep -q '^  suggested_answers: answers='
+  echo "$first_lane_output" | grep -q '^  listen: afplay '
+  echo "$first_lane_output" | grep -q '^  edit: \$EDITOR '
+  echo "$first_lane_output" | grep -q '^  dry_run: murmurmark review lane apply '
+  echo "$first_lane_output" | grep -q '^  apply: murmurmark review lane apply '
+  echo "$first_lane_output" | grep -q '^  next: listen, edit answer_sheet, then apply'
   echo "$first_lane_output" | grep -Eq -- "--plan-out-dir .*first-lane-review-plan"
   echo "$first_lane_output" | grep -Eq -- "--out-dir .*first-lane-pack"
   explicit_local_recall_lane_dir="$workdir/explicit-local-recall-lane-pack"
@@ -2099,7 +2104,12 @@ PY
     --session "$group_session" \
     --out-dir "$explicit_local_recall_lane_dir")"
   echo "$explicit_local_recall_lane_output" | grep -q '^review_lane_pack:$'
-  echo "$explicit_local_recall_lane_output" | grep -q '^  next: edit answer_sheet, then `murmurmark review lane apply check_local_recall --session '
+  echo "$explicit_local_recall_lane_output" | grep -q '^  suggested_answers: answers='
+  echo "$explicit_local_recall_lane_output" | grep -q '^  listen: afplay '
+  echo "$explicit_local_recall_lane_output" | grep -q '^  edit: \$EDITOR '
+  echo "$explicit_local_recall_lane_output" | grep -q '^  dry_run: murmurmark review lane apply check_local_recall --session '
+  echo "$explicit_local_recall_lane_output" | grep -q '^  apply: murmurmark review lane apply check_local_recall --session '
+  echo "$explicit_local_recall_lane_output" | grep -q '^  next: listen, edit answer_sheet, then apply'
   echo "$explicit_local_recall_lane_output" | grep -Eq -- "--out-dir .*explicit-local-recall-lane-pack"
   [[ -s "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.json" ]]
   jq -e '.schema == "murmurmark.review_lane_pack/v1" and .summary.item_count >= 1 and any(.items[]; .source == "local_recall_repair" and .input_profile == "local_recall_repair_v1" and (.utterance_ids | length) >= 1)' \
