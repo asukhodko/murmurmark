@@ -442,6 +442,12 @@ report_output="$("$bin" report "$session")"
 echo "$report_output" | grep -q '^readiness:$'
 echo "$report_output" | grep -q '  synthesis_review_items: '
 echo "$report_output" | grep -q '  synthesis_review_types: .*utterance_transcript_order_review=1'
+corpus_report_output="$("$bin" report corpus --sessions-root "$workdir")"
+echo "$corpus_report_output" | grep -q '^corpus:$'
+echo "$corpus_report_output" | grep -q '^operational_readiness:$'
+echo "$corpus_report_output" | grep -q '  next_command: '
+[[ -s "$workdir/_reports/session-quality/session_quality_report.json" ]]
+[[ -s "$workdir/_reports/operational-readiness/operational_readiness_report.json" ]]
 jq -e '(.export_blockers | index("pipeline_incomplete")) and (.review_blockers | index("pipeline_incomplete"))' "$session/derived/readiness/session_readiness.json" >/dev/null
 jq -e 'any(.use_gate_reasons[]; .id == "pipeline_incomplete" and .severity == "block")' "$session/derived/readiness/session_readiness.json" >/dev/null
 jq -e 'any(.next_commands[]; .id == "process_session" and (.command | contains("murmurmark process")))' "$session/derived/readiness/session_readiness.json" >/dev/null

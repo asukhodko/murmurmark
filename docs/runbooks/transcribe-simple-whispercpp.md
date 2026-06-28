@@ -742,7 +742,8 @@ non-zero gate is useful for CI or release checks. Operational readiness points t
 `murmurmark process sessions/<id>` target only for pipeline-incomplete sessions; complete risky
 sessions remain review targets. It falls back to `murmurmark corpus process all` when no incomplete
 target is known. Use
-`murmurmark report corpus` when only session-quality needs a refresh.
+`murmurmark report corpus` when session-quality and operational-readiness need a refresh without
+rebuilding heavier corpus diagnostics.
 Operational readiness excludes obvious diagnostic/smoke sessions (`audio-input-*`, `*-talk-routed`,
 `*-talk-audio-input`, `smoke`, `test`, `talk-solo`, `voice-processing-smoke`) from the working-meeting
 scope. The files remain in `sessions/` for debugging, but they do not become next actions for the

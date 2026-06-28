@@ -528,12 +528,24 @@ enum PipelineCommands {
             guard remaining.isEmpty else { throw CLIError("report corpus only supports --sessions-root") }
             let sessions = try SessionResolver.all(in: sessionsRoot)
             guard !sessions.isEmpty else { throw CLIError("no sessions with session.json found under \(sessionsRoot.path)") }
+            let reportsRoot = sessionsRoot.appendingPathComponent("_reports")
+            let sessionQualityOut = reportsRoot.appendingPathComponent("session-quality")
+            let operationalReadinessOut = reportsRoot.appendingPathComponent("operational-readiness")
             let command = [script.path] + sessions.map(\.path) + [
-                "--out-dir", "sessions/_reports/session-quality",
+                "--out-dir", sessionQualityOut.path,
                 "--write-session-readiness",
             ]
             try Tooling.runPath(python, command)
-            try ReadinessPrinter.printCorpus(report: PathURLs.fileURL("sessions/_reports/session-quality/session_quality_report.json"))
+            try Tooling.runPath(python, [
+                PathURLs.fileURL("scripts/report-operational-readiness.py").path,
+                "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
+                "--corpus-evaluation", reportsRoot.appendingPathComponent("regression-corpus/regression_corpus_evaluation.json").path,
+                "--audio-judge", reportsRoot.appendingPathComponent("audio-judge-v0/audio_judge_v0_report.json").path,
+                "--audio-judge-queue", reportsRoot.appendingPathComponent("audio-judge-v0/audio_judge_v0_queue_predictions.jsonl").path,
+                "--out-dir", operationalReadinessOut.path,
+            ])
+            try ReadinessPrinter.printCorpus(report: sessionQualityOut.appendingPathComponent("session_quality_report.json"))
+            try CorpusPrinter.printOperationalReadiness(outDir: operationalReadinessOut)
             return
         }
 
@@ -7072,15 +7084,17 @@ enum CorpusPrinter {
         printFirstNextCommand(payload)
     }
 
-    static func printOperationalReadiness() throws {
-        let url = PathURLs.fileURL("sessions/_reports/operational-readiness/operational_readiness_report.json")
+    static func printOperationalReadiness(
+        outDir: URL = PathURLs.fileURL("sessions/_reports/operational-readiness")
+    ) throws {
+        let url = outDir.appendingPathComponent("operational_readiness_report.json")
         let payload = try JSONFiles.object(url)
         let summary = payload["summary"] as? [String: Any] ?? [:]
         let useGates = summary["use_gates"] as? [String: Any] ?? [:]
         let reviewSeconds = double(summary["total_review_burden_sec"]) ?? 0
         print("")
         print("operational_readiness:")
-        print("  report: sessions/_reports/operational-readiness/operational_readiness_report.md")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("operational_readiness_report.md")))")
         print("  verdict: \(string(payload["operational_verdict"]) ?? "unknown")")
         print("  sessions_ready_for_notes: \(int(useGates["ready_for_notes"]) ?? 0)")
         print("  sessions_review_first: \(int(useGates["review_first"]) ?? 0)")

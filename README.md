@@ -110,8 +110,8 @@ less sessions/_reports/session-quality/session_quality_report.md
 When corpus order, remote-leak, gate and readiness reports already exist, `murmurmark corpus report`
 also prints their short summaries without rebuilding them. Use `murmurmark corpus process all` when
 those reports need to be rebuilt. Corpus commands keep per-session helper output quiet and print one
-CLI summary with the next useful command. `murmurmark report corpus` is narrower: it refreshes the
-session-quality report.
+CLI summary with the next useful command. `murmurmark report corpus` is narrower: it refreshes
+session-quality and operational-readiness without rebuilding heavier corpus diagnostics.
 
 Retention is explicit and local:
 
