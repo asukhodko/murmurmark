@@ -31,6 +31,9 @@ enum ReviewPrinter {
         if let audio = string(outputs["audio"]) {
             print("  listen: afplay \(shellQuote(audio))")
         }
+        if let markdown = string(outputs["markdown"]) {
+            print("  read: less \(shellQuote(markdown))")
+        }
         if let answerSheet = string(outputs["answer_sheet"]) {
             print("  edit: $EDITOR \(shellQuote(answerSheet))")
         }
@@ -40,7 +43,7 @@ enum ReviewPrinter {
             print("  suggested_dry_run: \(applyCommand) --answers-source suggested --dry-run")
             print("  suggested_apply: \(applyCommand) --answers-source suggested")
         }
-        print("  next: listen, edit answer_sheet, then apply")
+        print("  next: listen, read markdown, edit answer_sheet, then apply")
     }
 
     private static func laneApplyCommand(lane: String, session: URL?, planOutDir: URL?, outDir: URL) -> String {
@@ -241,7 +244,7 @@ enum ReviewPrinter {
             print("  suggested_dry_run: \(applyCommand) --answers-source suggested --dry-run")
             print("  suggested_apply: \(applyCommand) --answers-source suggested")
         }
-        print("  next: edit lane answer sheets, then `\(applyCommand)`")
+        print("  next: listen, read lane markdown, edit answer sheets, then `\(applyCommand)`")
     }
 
     static func printWorkspaceApply(report: URL) throws {
@@ -354,6 +357,9 @@ enum ReviewPrinter {
         print(String(format: "    %@: items=%d minutes=%.2f%@", name, items, minutes, suffix))
         if let audio = string(lane["audio"]) {
             print("      listen: afplay \(shellQuote(audio))")
+        }
+        if let markdown = string(lane["markdown"]) {
+            print("      read: less \(shellQuote(markdown))")
         }
         if let answerSheet = string(lane["answer_sheet"]) {
             print("      edit: $EDITOR \(shellQuote(answerSheet))")

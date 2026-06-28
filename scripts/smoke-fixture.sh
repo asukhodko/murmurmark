@@ -1499,7 +1499,9 @@ EOF
   grep -q '^  lane_packs:$' "$cli_workspace_stdout"
   grep -q '^    check_local_recall: items=' "$cli_workspace_stdout"
   grep -q '^      listen: afplay ' "$cli_workspace_stdout"
+  grep -q '^      read: less ' "$cli_workspace_stdout"
   grep -q '^      edit: \$EDITOR ' "$cli_workspace_stdout"
+  grep -q '^  next: listen, read lane markdown, edit answer sheets, then `murmurmark review workspace apply --session review_workspace_cli_session`' "$cli_workspace_stdout"
   grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_stdout"
   grep -q '^  suggested_dry_run: murmurmark review workspace apply --session review_workspace_cli_session --answers-source suggested --dry-run' "$cli_workspace_stdout"
   grep -q '^  suggested_apply: murmurmark review workspace apply --session review_workspace_cli_session --answers-source suggested' "$cli_workspace_stdout"
@@ -2238,6 +2240,7 @@ PY
   echo "$first_lane_apply_dry_run_output" | grep -Eq -- "--out-dir .*first-lane-pack"
   echo "$first_lane_output" | grep -q '^  suggested_answers: answers='
   echo "$first_lane_output" | grep -q '^  listen: afplay '
+  echo "$first_lane_output" | grep -q '^  read: less '
   echo "$first_lane_output" | grep -q '^  edit: \$EDITOR '
   echo "$first_lane_output" | grep -q '^  dry_run: murmurmark review lane apply '
   echo "$first_lane_output" | grep -q '^  apply: murmurmark review lane apply '
@@ -2245,7 +2248,7 @@ PY
   echo "$first_lane_output" | grep -q '^  suggested_apply: murmurmark review lane apply '
   echo "$first_lane_output" | grep -q -- '--answers-source suggested --dry-run'
   echo "$first_lane_output" | grep -q -- '--answers-source suggested'
-  echo "$first_lane_output" | grep -q '^  next: listen, edit answer_sheet, then apply'
+  echo "$first_lane_output" | grep -q '^  next: listen, read markdown, edit answer_sheet, then apply'
   echo "$first_lane_output" | grep -Eq -- "--plan-out-dir .*first-lane-review-plan"
   echo "$first_lane_output" | grep -Eq -- "--out-dir .*first-lane-pack"
   first_lane_suggested_dry_run_output="$("$bin" review lane apply first \
@@ -2275,12 +2278,13 @@ PY
   ! echo "$explicit_local_recall_lane_output" | grep -Eq '^(review_plan|clusters|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped):'
   echo "$explicit_local_recall_lane_output" | grep -q '^  suggested_answers: answers='
   echo "$explicit_local_recall_lane_output" | grep -q '^  listen: afplay '
+  echo "$explicit_local_recall_lane_output" | grep -q '^  read: less '
   echo "$explicit_local_recall_lane_output" | grep -q '^  edit: \$EDITOR '
   echo "$explicit_local_recall_lane_output" | grep -q '^  dry_run: murmurmark review lane apply check_local_recall --session '
   echo "$explicit_local_recall_lane_output" | grep -q '^  apply: murmurmark review lane apply check_local_recall --session '
   echo "$explicit_local_recall_lane_output" | grep -q '^  suggested_dry_run: murmurmark review lane apply check_local_recall --session '
   echo "$explicit_local_recall_lane_output" | grep -q '^  suggested_apply: murmurmark review lane apply check_local_recall --session '
-  echo "$explicit_local_recall_lane_output" | grep -q '^  next: listen, edit answer_sheet, then apply'
+  echo "$explicit_local_recall_lane_output" | grep -q '^  next: listen, read markdown, edit answer_sheet, then apply'
   echo "$explicit_local_recall_lane_output" | grep -Eq -- "--out-dir .*explicit-local-recall-lane-pack"
   [[ -s "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.json" ]]
   grep -q '^## Review Items' "$explicit_local_recall_lane_dir/review_lane_pack.check_local_recall.md"
@@ -2336,6 +2340,7 @@ PY
   assert_no_helper_prefix "$session_workspace_output"
   echo "$session_workspace_output" | grep -q '^SESSION="'
   echo "$session_workspace_output" | grep -q '^review_workspace:$'
+  echo "$session_workspace_output" | grep -q '^      read: less '
   session_workspace_apply_dry_run_output="$("$bin" review workspace apply --session "$group_session" --dry-run)"
   assert_no_helper_prefix "$session_workspace_apply_dry_run_output"
   echo "$session_workspace_apply_dry_run_output" | grep -q '^SESSION="'

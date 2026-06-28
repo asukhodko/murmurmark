@@ -1848,7 +1848,7 @@ when it is opened outside the full `review_plan.json`.
 
 The Swift CLI prints a compact handoff for the same manifest: selected lane, audio, Markdown, answer
 sheet, suggested answer sheet, the first `answers=...` line from the suggested sheet, and ready-to-run
-`afplay`, `$EDITOR`, `dry_run` and `apply` commands.
+`afplay`, `less`, `$EDITOR`, `dry_run` and `apply` commands.
 
 The Markdown index is intentionally self-contained for human review. It starts with the compact
 shortcut protocol, then lists each item with allowed decisions, suggested decision reason, utterance
