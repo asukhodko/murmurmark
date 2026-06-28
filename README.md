@@ -256,8 +256,8 @@ session readiness, builds a session-local review plan when review is needed, and
 review-specific next commands.
 For `review_first` sessions, those next commands point to `murmurmark review plan`,
 `murmurmark review first-lane --session ...`, `murmurmark review workspace --session ...`,
-`murmurmark review lane apply ...`, `murmurmark review workspace apply`, and
-`murmurmark review apply`.
+`murmurmark review lane apply ...`, `murmurmark review workspace apply`,
+`murmurmark review progress --session ...`, and `murmurmark review apply`.
 Use `murmurmark review lane check_local_recall --session ...` when you need a specific lane rather
 than the automatically recommended first lane.
 `transcript.md` is the stable baseline output. Profile transcripts such as `transcript.shadow_v2.md`
@@ -636,7 +636,7 @@ After listening to that pack, edit the generated `review_lane_answers.<lane>.txt
 script remains available for debugging, but the Swift CLI uses the correct session-local paths by
 default. After applying the lane, the CLI refreshes `review_decisions_progress.json`: if more rows
 remain it points back to `murmurmark review workspace`, and it prints `murmurmark review apply` only
-when the review file is ready.
+when `murmurmark review progress --session SESSION` says the review file is ready.
 Each lane also has `review_lane_answers.<lane>.suggested.txt`; use it as a review aid, not as a
 silent replacement for listening when the meeting is medium-risk.
 When several lane answer sheets are edited, `murmurmark review workspace apply` applies

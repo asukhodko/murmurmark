@@ -464,11 +464,12 @@ commands = module.readiness_next_commands(
     {"use_gate": "review_first", "review_blockers": ["risk:audio_review_probable_errors"]},
 )
 ids = [item["id"] for item in commands]
-assert ids == ["review_plan", "review_first_lane", "review_lane_apply_first", "review_workspace", "review_workspace_apply", "review_apply"], ids
+assert ids == ["review_plan", "review_first_lane", "review_lane_apply_first", "review_workspace", "review_workspace_apply", "review_progress", "review_apply"], ids
 assert any("murmurmark review first-lane --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review lane apply first --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review workspace --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review workspace apply --session sessions/review-session" == item["command"] for item in commands)
+assert any("murmurmark review progress --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review apply --session sessions/review-session" == item["command"] for item in commands)
 order_commands = module.readiness_next_commands(
     Path("sessions/order-session"),
@@ -522,6 +523,7 @@ jq -n --arg session "$review_next_session" '{
     {id: "review_lane_apply_first", label: "Apply first lane.", command: ("murmurmark review lane apply first --session " + $session)},
     {id: "review_workspace", label: "Build workspace.", command: ("murmurmark review workspace --session " + $session)},
     {id: "review_workspace_apply", label: "Apply workspace.", command: ("murmurmark review workspace apply --session " + $session)},
+    {id: "review_progress", label: "Check progress.", command: ("murmurmark review progress --session " + $session)},
     {id: "review_apply", label: "Apply decisions.", command: ("murmurmark review apply --session " + $session)}
   ]
 }' >"$review_next_session/derived/readiness/session_readiness.json"
@@ -540,6 +542,7 @@ echo "$review_next_output" | grep -q 'murmurmark review first-lane --session .*r
 echo "$review_next_output" | grep -q 'murmurmark review lane apply check_transcript_order --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review workspace --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review workspace apply --session .*review-next-session'
+echo "$review_next_output" | grep -q 'murmurmark review progress --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review apply --session .*review-next-session'
 export_block_dir="$workdir/export-blocked"
 if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >/dev/null 2>&1; then

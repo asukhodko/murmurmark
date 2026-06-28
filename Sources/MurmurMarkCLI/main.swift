@@ -6490,6 +6490,10 @@ enum ReadinessPrinter {
                     "command": "murmurmark review workspace apply --session \(sessionPath)",
                 ],
                 [
+                    "label": "Check whether enough review decisions are closed for batch apply.",
+                    "command": "murmurmark review progress --session \(sessionPath)",
+                ],
+                [
                     "label": "Apply closed review decisions and refresh reports when progress is ready.",
                     "command": "murmurmark review apply --session \(sessionPath)",
                 ],
@@ -6651,6 +6655,7 @@ enum ReviewNextPrinter {
             "murmurmark review lane apply \(firstLane) --session \(sessionID)",
             "murmurmark review workspace --session \(sessionID)",
             "murmurmark review workspace apply --session \(sessionID)",
+            "murmurmark review progress --session \(sessionID)",
             "murmurmark review apply --session \(sessionID)",
         ]
     }

@@ -80,8 +80,9 @@ Read `derived/readiness/session_readiness.md` before using a meeting result. It 
 
 It also contains `Next Commands`: the shortest CLI path from the current state, such as rerunning
 `murmurmark process`, building the first recommended review lane, exporting Markdown, or planning
-retention. For `review_first`, the command chain ends with `murmurmark review apply` after the
-workspace answers have been closed.
+retention. For `review_first`, the command chain runs `murmurmark review progress --session ...`
+after workspace answers have been copied, then ends with `murmurmark review apply` only when the
+decision file is ready.
 
 `murmurmark report SESSION` prints the same selected profile, verdict, review burden and synthesis
 review item summary, so the terminal output is enough to see whether notes still depend on risky
@@ -803,7 +804,8 @@ Then copy decisions from the answer sheet back into the full review file:
 `first` resolves to `review_queue_strategy.first_recommended_lane` from the session-local
 `review_plan.json`; pass an explicit lane name when you intentionally reviewed another lane. The
 command also refreshes `review_decisions_progress.json` and prints the next safe command: continue
-with the review workspace while rows remain, or run `review apply` once the checklist is complete.
+with the review workspace while rows remain, or run `review progress --session "$SESSION"` before
+`review apply` once the checklist is complete.
 
 The lower-level equivalent is still useful for debugging exact paths:
 

@@ -1568,6 +1568,11 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
                     "command": f"murmurmark review workspace apply --session {session_arg}",
                 },
                 {
+                    "id": "review_progress",
+                    "label": "Check whether enough review decisions are closed for batch apply.",
+                    "command": f"murmurmark review progress --session {session_arg}",
+                },
+                {
                     "id": "review_apply",
                     "label": "Apply closed review decisions and refresh reports when progress is ready.",
                     "command": f"murmurmark review apply --session {session_arg}",
