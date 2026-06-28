@@ -686,6 +686,7 @@ sessions/_reports/local-recall-repair/
     "session_count": 10,
     "repaired_session_count": 10,
     "missing_repair_report_count": 0,
+    "missing_input_session_count": 0,
     "sessions_with_repairs": 1,
     "eligible_items": 2,
     "applied_repairs": 1,

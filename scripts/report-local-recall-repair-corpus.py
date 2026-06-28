@@ -203,26 +203,38 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
         )
 
     rejection_reasons = Counter(str(item.get("reason") or "unknown") for item in items if item.get("kind") == "rejection")
+    statuses = Counter(str(row.get("status") or "unknown") for row in session_summaries)
     patches = [item for item in items if item.get("kind") == "patch"]
     sessions_with_repairs = {str(item.get("session_id") or "") for item in patches}
+    missing_input_sessions = statuses["missing_inputs"]
+    applied_repairs = sum(safe_int(row.get("applied_repairs")) for row in session_summaries)
+    eligible_items = sum(safe_int(row.get("eligible_items")) for row in session_summaries)
+    if patches:
+        next_step = "review_inserted_local_recall_repairs"
+    elif missing:
+        next_step = "run_local_recall_repair_for_missing_sessions"
+    elif eligible_items > applied_repairs:
+        next_step = "improve_local_recall_micro_asr"
+    elif missing_input_sessions:
+        next_step = "ignore_missing_inputs_or_run_full_pipeline_for_old_sessions"
+    else:
+        next_step = "keep_local_recall_repair_explicit"
     summary = {
         "session_count": len(rows),
         "repaired_session_count": len(session_summaries),
         "missing_repair_report_count": len(missing),
+        "by_status": dict(sorted(statuses.items())),
+        "missing_input_session_count": missing_input_sessions,
         "sessions_with_repairs": len(sessions_with_repairs),
         "source_items": sum(safe_int(row.get("source_items")) for row in session_summaries),
-        "eligible_items": sum(safe_int(row.get("eligible_items")) for row in session_summaries),
+        "eligible_items": eligible_items,
         "planned_repairs": sum(safe_int(row.get("planned_repairs")) for row in session_summaries),
-        "applied_repairs": sum(safe_int(row.get("applied_repairs")) for row in session_summaries),
+        "applied_repairs": applied_repairs,
         "inserted_me_seconds": round(sum(safe_float(row.get("inserted_me_seconds")) for row in session_summaries), 3),
         "rejected_items": sum(safe_int(row.get("rejected_items")) for row in session_summaries),
         "rejection_reasons": dict(sorted(rejection_reasons.items())),
         "gates_failed_sessions": sum(1 for row in session_summaries if row.get("gates_passed") is not True),
-        "recommended_next_step": (
-            "review_inserted_local_recall_repairs"
-            if patches
-            else ("run_local_recall_repair_for_missing_sessions" if missing else "keep_local_recall_repair_explicit")
-        ),
+        "recommended_next_step": next_step,
     }
     report = {
         "schema": SCHEMA_REPORT,
@@ -269,6 +281,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         "",
         f"- Sessions: `{summary.get('repaired_session_count')}` / `{summary.get('session_count')}` with repair reports",
         f"- Missing repair reports: `{summary.get('missing_repair_report_count')}`",
+        f"- Missing inputs: `{summary.get('missing_input_session_count')}`",
         f"- Sessions with repairs: `{summary.get('sessions_with_repairs')}`",
         f"- Applied repairs: `{summary.get('applied_repairs')}` / `{summary.get('inserted_me_seconds')}` sec",
         f"- Eligible items: `{summary.get('eligible_items')}`",

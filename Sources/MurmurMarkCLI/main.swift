@@ -2613,14 +2613,11 @@ enum CorpusLocalRecallRepairCommands {
     private static func runRepairs(sessions: [URL], inputProfile: String, outputProfile: String, synthesize: Bool) throws {
         let python = try PythonRuntime.resolve()
         for session in sessions {
-            let auditStatus = try Tooling.runPathAllowingExitCodes(python, [
+            _ = try Tooling.runPathAllowingExitCodes(python, [
                 try script("audit-local-recall.py").path,
                 session.path,
                 "--profile", inputProfile,
             ], allowedExitCodes: [0, 1])
-            guard auditStatus == 0 else {
-                continue
-            }
             let repairStatus = try Tooling.runPathAllowingExitCodes(python, [
                 try script("apply-local-recall-repair.py").path,
                 session.path,
