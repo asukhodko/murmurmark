@@ -5847,7 +5847,11 @@ enum ReviewPrinter {
         print("  items: \(itemCount)")
         print(String(format: "  listen_minutes: %.2f", durationSeconds / 60))
         print("  by_lane: \(compactJSON(byLane))")
-        print("  next: edit lane answer sheets, then `murmurmark review workspace apply`")
+        if let sessionID = sessionIDForSessionLocalPlan(outDir) {
+            print("  next: edit lane answer sheets, then `murmurmark review workspace apply --session \(sessionID)`")
+        } else {
+            print("  next: edit lane answer sheets, then `murmurmark review workspace apply`")
+        }
     }
 
     static func printWorkspaceApply(report: URL) throws {
@@ -5861,11 +5865,33 @@ enum ReviewPrinter {
         print("  remaining: \(int(summary["remaining_rows"]) ?? 0)")
         print("  rejected: \(int(summary["rejected_count"]) ?? 0)")
         print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
+        let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
         if bool(summary["ready_for_batch_apply"]) == true {
-            print("  next: murmurmark review apply")
+            if let sessionID {
+                print("  next: murmurmark review apply --session \(sessionID)")
+            } else {
+                print("  next: murmurmark review apply")
+            }
+        } else if let sessionID {
+            print("  next: edit remaining lane answer sheets, then `murmurmark review workspace apply --session \(sessionID)`")
         } else {
             print("  next: murmurmark review progress")
         }
+    }
+
+    private static func sessionIDForSessionLocalPlan(_ outDir: URL) -> String? {
+        let plan = outDir.standardizedFileURL
+        guard plan.lastPathComponent == "review-plan" else { return nil }
+        let readiness = plan.deletingLastPathComponent()
+        let derived = readiness.deletingLastPathComponent()
+        let session = derived.deletingLastPathComponent()
+        guard readiness.lastPathComponent == "readiness",
+              derived.lastPathComponent == "derived",
+              !session.lastPathComponent.isEmpty
+        else {
+            return nil
+        }
+        return session.lastPathComponent
     }
 
     private static func bool(_ value: Any?) -> Bool? {
