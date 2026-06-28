@@ -6,7 +6,8 @@ It must prove the architecture: safe capture, durable session package, local tra
 
 ## Current Status
 
-As of 2026-06-24, MurmurMark has crossed from documentation-only planning into a usable CLI MVP for local capture and transcript preparation.
+As of the current CLI roadmap, MurmurMark has crossed from documentation-only planning into a usable
+local workflow for capture, transcript preparation, review, export and retention planning.
 
 Working now:
 
@@ -27,7 +28,7 @@ Still future:
 - heavy-local ASR stack with specialized models;
 - strict glossary/domain correction beyond the current whisper prompt;
 - polished generative notes, decisions and action extraction;
-- automated raw retention/deletion policy;
+- hardened raw retention/deletion policy;
 - Obsidian/docs/ticket export flows.
 
 ## Scope
@@ -36,7 +37,7 @@ Included:
 
 - macOS local capture design;
 - CLI-first capture workflow;
-- native menubar UX design;
+- optional future app UX concept;
 - session package contract;
 - local heavy transcription profile;
 - long-meeting windowing design;
@@ -47,6 +48,8 @@ Included:
 Implemented in the current CLI spike:
 
 - `doctor`, `list-apps`, `record`, `inspect`, `preprocess`, `export-audio` and `reconcile-transcript`;
+- `process`, `status`, `report`, `audit`, `cleanup`, `repair`, `synthesize`, `notes`, `transcript`,
+  `review`, `corpus`, `export` and `retention`;
 - normal ScreenCaptureKit capture path for separate mic and remote audio;
 - session package creation and inspection;
 - Echo Guard diagnostics and derived cleanup engines;
@@ -77,7 +80,8 @@ Excluded from v1 scope or not implemented yet:
 
 ### CLI
 
-The CLI must use the same capture core as the GUI.
+The CLI is the primary v1 product path. Any future GUI should reuse the same capture and pipeline
+contracts instead of introducing a separate workflow.
 
 Required commands:
 
@@ -87,14 +91,20 @@ murmurmark list-apps
 murmurmark list-audio-devices
 murmurmark record --target-bundle com.microsoft.teams2 --mic default --out ./session
 murmurmark inspect ./session
-murmurmark export-audio ./session --asr-chunks derived/asr --sample-rate 16000
-murmurmark transcribe ./session --profile heavy-local
-murmurmark synthesize ./session --profile local-only
+murmurmark process ./session
+murmurmark status ./session
+murmurmark review next ./session
+murmurmark export ./session --format markdown --include-json
+murmurmark retention plan ./session
 ```
 
-### Menubar App
+### Optional Future App
 
-Required controls:
+The v1 product path is the CLI. A future menu bar or desktop app is useful only after the CLI
+workflow is stable, and should expose the same commands and artifacts rather than creating a second
+pipeline.
+
+Possible controls:
 
 - target app picker;
 - microphone picker;
@@ -107,7 +117,7 @@ Required controls:
 
 ### Transcription
 
-The v1 heavy-local path should support:
+Future heavy-local validators or replacements may support:
 
 - remote primary ASR through VibeVoice-ASR;
 - remote diarization through pyannote Community-1;
@@ -129,7 +139,8 @@ Current MVP transcription is narrower:
 
 The heavy-local stack above remains a future replacement or validation layer, not the current implementation.
 
-Qwen3-ASR and Qwen3-ForcedAligner are planned v1.x or v2 validators unless implementation effort is small after the primary pipeline works.
+Qwen3-ASR, Qwen3-ForcedAligner and similar models remain future validators unless implementation
+effort is small after the primary CLI pipeline is stable.
 
 ### Synthesis
 
@@ -137,10 +148,10 @@ Synthesis must be separate from transcription.
 
 Inputs:
 
-- `transcript.rich.json`;
-- `quality_report.json`;
-- `speaker_map.json`;
-- `corrections.jsonl`;
+- selected `clean_dialogue*.json` profile;
+- `quality_report*.json`;
+- `quality_verdict.json`;
+- `corrections.jsonl` and audit JSON/JSONL evidence;
 - domain pack;
 - meeting context;
 - optional retrieved docs/tickets/notes.

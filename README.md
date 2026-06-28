@@ -530,13 +530,13 @@ session/
 
 Echo Guard M0/M0.5/M1/M2/M2.5/M3 is implemented. The preprocess step materializes ASR/AEC working audio under `derived/preprocess/audio/`, writes `echo_diagnostics.json`, `echo_segments.jsonl` and, for `--echo clean`, a conservative `echo_suppression_report.json`. Cleanup engines currently available are `linear_baseline`, `local_fir`, `speexdsp` and `webrtc-apm`; the external engines build or invoke small local helpers when their toolchains are available.
 
-`local_fir` is the current recommended experimental cleaner for real speaker-bleed sessions. It fits short local FIR echo models from the already separated `remote` and `mic` tracks, writes a listenable `mic_clean_local_fir.wav`, a selected `mic_role_masked_for_asr.wav`, a compact `mic_role_preview.wav` for auditioning retained mic regions, and promotes the role-masked file to `mic_for_asr.wav` only when its quality gate accepts the candidate. It also writes `derived/preprocess/mic_asr_segments/segments_manifest.json` for future chunk-based mic ASR. `reconcile-transcript` marks mic utterances that match delayed remote speech and updates `quality_report.json`. Raw capture stays untouched.
+`local_fir` is the current recommended cleaner for real speaker-bleed sessions. It fits short local FIR echo models from the already separated `remote` and `mic` tracks, writes a listenable `mic_clean_local_fir.wav`, a selected `mic_role_masked_for_asr.wav`, a compact `mic_role_preview.wav` for auditioning retained mic regions, and promotes the role-masked file to `mic_for_asr.wav` only when its quality gate accepts the candidate. It also writes `derived/preprocess/mic_asr_segments/segments_manifest.json` for future chunk-based mic ASR. `reconcile-transcript` marks mic utterances that match delayed remote speech and updates `quality_report.json`. Raw capture stays untouched.
 
 For `local_fir`, `--echo-policy preserve_local` is the default because it avoids deleting local speech in ambiguous remote-active regions. It mutes detected silence, passes local-only speech raw, and passes remote-active ambiguous chunks as mildly cleaned/flagged audio. `--echo-policy role_safe` hard-mutes only high-confidence `remote_only` regions. `--echo-policy strict_silence` mutes all remote-active regions, knowingly sacrificing overlap speech.
 
 `export-audio` uses `derived/preprocess/audio/mic_for_asr.wav` when Echo Guard has created it; otherwise it exports the raw mic capture.
 
-The temporary transcription bridge is `scripts/transcribe-simple-whispercpp.py`. It runs `export-audio`, prepares ASR-only speech-band `mic` audio and normalized `remote` audio, calls local `whisper-cli` on short overlapping windows, creates raw segment and candidate JSON, runs timeline repair plus role reconciliation, then writes `clean_dialogue.json`, `role_decisions.json`, `overlaps.json`, `quality_report.json`, `timeline_repair_report.json`, `transcript.md` and `transcript.simple.json` under `derived/transcript-simple/whisper-cpp/resolved/`. ASR preparation never changes raw capture. See [docs/runbooks/transcribe-simple-whispercpp.md](docs/runbooks/transcribe-simple-whispercpp.md).
+The current transcription layer is `scripts/transcribe-simple-whispercpp.py`, normally reached through `murmurmark process`. It runs `export-audio`, prepares ASR-only speech-band `mic` audio and normalized `remote` audio, calls local `whisper-cli` on short overlapping windows, creates raw segment and candidate JSON, runs timeline repair plus role reconciliation, then writes `clean_dialogue.json`, `role_decisions.json`, `overlaps.json`, `quality_report.json`, `timeline_repair_report.json`, `transcript.md` and `transcript.simple.json` under `derived/transcript-simple/whisper-cpp/resolved/`. ASR preparation never changes raw capture. See [docs/runbooks/transcribe-simple-whispercpp.md](docs/runbooks/transcribe-simple-whispercpp.md).
 
 The first synthesis bridge is `murmurmark synthesize`. It wraps
 `scripts/synthesize-simple-extractive.py`, reads only transcript-derived JSON, chooses the best safe
@@ -945,8 +945,8 @@ MurmurMark Handoff
 
 ## v1 Decisions
 
-- Intended remote audio capture: Core Audio Process Tap for the meeting app.
-- Current minimal remote audio capture: ScreenCaptureKit audio output.
+- Current remote audio capture: ScreenCaptureKit app/system audio output.
+- Future precise remote capture option: Core Audio Process Tap for the meeting app.
 - Microphone capture: AUHAL/Core Audio for a selected input device.
 - Raw format: two independent CAF streams, not one stereo L/R file.
 - No virtual audio devices by default.
@@ -979,15 +979,14 @@ MurmurMark Handoff
 
 ## Implementation Posture
 
-The intended repository shape is still a monorepo, but the first implemented piece is deliberately narrow:
+The repository is CLI-first today. Future UI work should reuse the same session, processing and
+export contracts instead of creating a parallel product path:
 
 ```text
-apps/macos/                 native menubar app, later
-Sources/MurmurMarkCLI/      current minimal recorder CLI
-Sources/MurmurMarkCaptureCore/
-pipeline/                   Python-heavy ASR and synthesis code, later
-docs/                       current focus
+Sources/MurmurMarkCLI/      current CLI: record/process/report/review/export/retention
+scripts/                    local processing, audit, review and synthesis helpers
+docs/                       architecture, contracts, runbooks and roadmap
 examples/                   domain packs and sample policies
 ```
 
-The ScreenCaptureKit backend is a working bridge for the first local smoke tests. The documented Core Audio Process Tap backend remains the target design for more precise per-application capture.
+The ScreenCaptureKit backend is the current working capture backend. The documented Core Audio Process Tap backend remains a future option for more precise per-application capture.

@@ -118,7 +118,8 @@ Acceptance:
 
 ### M5: Heavy-Local Transcription
 
-Status: partially implemented through a temporary `whisper.cpp` bridge, not through the final heavy-local stack.
+Status: implemented for the current CLI through the local `whisper.cpp` path. The heavier ASR,
+forced-alignment and diarization stack remains a future validator or replacement.
 
 Current implemented path:
 
@@ -128,16 +129,22 @@ Current implemented path:
 - treats `mic` as candidate `Me`;
 - repairs long mic candidates that cross remote intervals;
 - runs micro-ASR on short local islands;
-- writes baseline and `shadow_v2` transcript artifacts;
+- writes baseline, `shadow_v2`, cleanup and reviewed transcript artifacts;
+- writes quality verdicts and evidence-backed extractive notes;
+- exports Markdown/Obsidian bundles and retention/payload manifests;
 - keeps uncertainty and audit evidence in JSON/JSONL reports.
 
-Full M5 acceptance:
+Current M5 acceptance:
 
 - remote track processed by primary ASR;
-- remote diarization processed independently;
 - mic track processed through selected `mic_for_asr`;
 - remote-like mic utterances are not treated as the user's speech;
-- `transcript.rich.json`, `speaker_map.json`, `quality_report.json`, `transcript.md` emitted.
+- `clean_dialogue*.json`, `quality_report*.json`, `transcript*.md`, quality verdict and notes emitted.
+
+Future M5+ acceptance:
+
+- remote diarization processed independently;
+- `transcript.rich.json` and `speaker_map.json` emitted as stable rich artifacts.
 
 ### M6: Evidence-Backed Synthesis
 

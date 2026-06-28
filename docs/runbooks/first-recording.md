@@ -157,4 +157,6 @@ Echo diagnostics are optional for the minimal capture workflow. They are useful 
 
 ## Known Limitation
 
-The first CLI build uses ScreenCaptureKit as a bridge backend. It proves the session package and export path. The target backend remains Core Audio Process Tap, as described in ADR-0001 and ADR-0008.
+The current CLI uses ScreenCaptureKit as the working capture backend. The target Core Audio Process
+Tap design remains documented in ADR-0001 and ADR-0008 as a future option for more precise
+per-application capture.
