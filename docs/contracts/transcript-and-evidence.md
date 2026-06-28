@@ -350,6 +350,8 @@ derived/audit/local-recall/
 
 `murmurmark audit local-recall` prints a compact CLI summary after writing these files: profile,
 missing-island count, possible lost local speech, review seconds, recommendation and report path.
+An existing but empty `timeline_repair_examples*.jsonl` is a valid zero-item audit result. It must
+produce `status: ok`, `audited_missing_island_count: 0`, and an empty `local_recall_items.jsonl`.
 
 `local_recall_audit.json` uses `murmurmark.local_recall_audit/v1`:
 

@@ -494,7 +494,8 @@ and islands whose text is already covered by the remote transcript are treated a
 coverage rather than missing meeting content. Short islands that sit exactly on parent/child/remote
 guard boundaries are labelled as likely harmless boundary fragments. Short acknowledgement-only
 islands such as `понял` or `окей` are also low-risk audit evidence, while stronger unrecovered local
-speech stays as a blocking `low_local_recall` risk. It never edits transcripts.
+speech stays as a blocking `low_local_recall` risk. An empty timeline-repair examples file is a valid
+zero-islands audit result, not a missing-input failure. It never edits transcripts.
 `murmurmark corpus local-recall` aggregates those per-session audits into
 `sessions/_reports/local-recall/` so possible lost `Me` regions are visible as one corpus queue.
 When a complete session still has blocking local-recall evidence, the report includes the first

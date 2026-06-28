@@ -242,6 +242,8 @@ review seconds and the next report to inspect.
 The audit reads only timeline-repair examples and Echo Guard `speaker_state.jsonl`. It writes under
 `derived/audit/local-recall/`, does not edit transcripts, and is used by
 `report-session-quality.py` to decide whether low local recall should block `ready_for_notes`.
+An existing but empty `timeline_repair_examples*.jsonl` means timeline repair found no unrecovered
+local islands; the audit should finish as `status: ok` with zero items.
 If an unrecovered local island is already covered by nearby remote transcript text, the audit labels
 it `likely_harmless_remote_covered`: content is preserved, and the remaining risk is attribution,
 not missing meeting substance. Short islands on parent, recovered-child or remote-guard boundaries

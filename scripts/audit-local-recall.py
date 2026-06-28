@@ -557,7 +557,7 @@ def main() -> int:
     report = read_json(report_path)
     examples = read_jsonl(examples_path)
     speaker_states = read_jsonl(speaker_state_path)
-    if not report or not examples:
+    if not report or not examples_path.exists():
         payload = {
             "schema": SCHEMA_AUDIT,
             "version": SCRIPT_VERSION,
