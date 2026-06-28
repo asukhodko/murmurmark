@@ -2103,6 +2103,7 @@ PY
     --out-dir "$first_lane_pack_dir" \
     --dry-run)"
   echo "$first_lane_apply_dry_run_output" | grep -q '^review_lane_apply:$'
+  ! echo "$first_lane_apply_dry_run_output" | grep -Eq '^(\{"manifest_items"|Dry run:)'
   echo "$first_lane_apply_dry_run_output" | grep -q "^  lane: $first_lane"
   echo "$first_lane_apply_dry_run_output" | grep -q '^  next: murmurmark review lane apply '
   echo "$first_lane_apply_dry_run_output" | grep -Eq -- "--plan-out-dir .*first-lane-review-plan"
@@ -2120,6 +2121,7 @@ PY
     --session "$group_session" \
     --out-dir "$explicit_local_recall_lane_dir")"
   echo "$explicit_local_recall_lane_output" | grep -q '^review_lane_pack:$'
+  ! echo "$explicit_local_recall_lane_output" | grep -Eq '^(review_plan|clusters|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped):'
   echo "$explicit_local_recall_lane_output" | grep -q '^  suggested_answers: answers='
   echo "$explicit_local_recall_lane_output" | grep -q '^  listen: afplay '
   echo "$explicit_local_recall_lane_output" | grep -q '^  edit: \$EDITOR '
@@ -2145,6 +2147,7 @@ PY
     --out-dir "$explicit_local_recall_lane_dir" \
     --reviewer smoke)"
   echo "$explicit_local_recall_apply_output" | grep -q '^review_lane_apply:$'
+  ! echo "$explicit_local_recall_apply_output" | grep -Eq '^(\{"manifest_items"|progress:|markdown:)'
   echo "$explicit_local_recall_apply_output" | grep -q '^  progress: '
   echo "$explicit_local_recall_apply_output" | grep -q '^  ready_for_apply: false'
   echo "$explicit_local_recall_apply_output" | grep -q '^  next: murmurmark review workspace --session '
@@ -2153,6 +2156,7 @@ PY
     --out-dir "$explicit_local_recall_lane_dir" \
     --reviewer smoke \
     --dry-run)"
+  ! echo "$explicit_local_recall_apply_dry_run_output" | grep -Eq '^(\{"manifest_items"|Dry run:)'
   echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^  next: murmurmark review lane apply check_local_recall --session '
   echo "$explicit_local_recall_apply_dry_run_output" | grep -Eq -- "--out-dir .*explicit-local-recall-lane-pack"
   echo "$explicit_local_recall_apply_dry_run_output" | grep -q -- "--reviewer smoke"

@@ -1208,7 +1208,7 @@ enum ReviewLaneCommand {
         if let session {
             laneArgs += ["--session", session.lastPathComponent]
         }
-        try Tooling.runPath(try PythonRuntime.resolve(), laneArgs + forwarded)
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), laneArgs + forwarded)
         try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutURL, session: session, planOutDir: planURL)
     }
 
@@ -1253,9 +1253,9 @@ enum ReviewLaneCommand {
     private static func buildPlan(extraArgs: [String], refreshOperational: Bool) throws {
         let python = try PythonRuntime.resolve()
         if refreshOperational {
-            try Tooling.runPath(python, [try script("report-operational-readiness.py").path])
+            try Tooling.runPathQuiet(python, [try script("report-operational-readiness.py").path])
         }
-        try Tooling.runPath(python, [try script("build-review-plan.py").path] + extraArgs)
+        try Tooling.runPathQuiet(python, [try script("build-review-plan.py").path] + extraArgs)
     }
 
     private static func script(_ name: String) throws -> URL {
@@ -1422,12 +1422,12 @@ enum ReviewLaneApplyCommand {
         if context.dryRun {
             command.append("--dry-run")
         }
-        try Tooling.runPath(try PythonRuntime.resolve(), command)
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), command)
     }
 
     private static func runProgress(template: URL, decisions: URL, planURL: URL) throws -> URL {
         let progress = planURL.appendingPathComponent("review_decisions_progress.json")
-        try Tooling.runPath(try PythonRuntime.resolve(), [
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
             try script("report-review-decisions-progress.py").path,
             "--template", template.path,
             "--decisions", decisions.path,
