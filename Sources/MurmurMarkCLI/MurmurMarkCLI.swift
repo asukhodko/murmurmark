@@ -105,7 +105,8 @@ struct MurmurMark {
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
-          murmurmark sessions [--limit 10] [--path-only] [--sessions-root ./sessions]
+          murmurmark sessions [--limit 10] [--status exportable|review_required|incomplete] [--path-only|--next-only]
+                              [--sessions-root ./sessions]
           murmurmark latest [--sessions-root ./sessions]
           murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
@@ -512,22 +513,36 @@ enum PipelineCommands {
         var remaining = args
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
         let pathOnly = ArgumentEditing.takeFlag("path-only", from: &remaining)
+        let nextOnly = ArgumentEditing.takeFlag("next-only", from: &remaining)
         let all = ArgumentEditing.takeFlag("all", from: &remaining)
+        let statusFilter = ArgumentEditing.takeOption("status", from: &remaining)
         let limitText = ArgumentEditing.takeOption("limit", from: &remaining)
         let limit = try parsePositiveLimit(limitText, defaultValue: 10)
         guard remaining.isEmpty else {
             throw CLIError("unexpected sessions arguments: \(remaining.joined(separator: " "))")
         }
+        if pathOnly && nextOnly {
+            throw CLIError("sessions accepts either --path-only or --next-only, not both")
+        }
 
-        let sessions = try SessionResolver.all(in: sessionsRoot)
-        let selected = all ? sessions : Array(sessions.prefix(limit))
+        let allSessions = try SessionResolver.all(in: sessionsRoot)
+        let filtered = statusFilter.map { expected in
+            allSessions.filter { SessionListPrinter.status(for: $0) == expected }
+        } ?? allSessions
+        let selected = all ? filtered : Array(filtered.prefix(limit))
         if pathOnly {
             for session in selected {
                 print(PathDisplay.display(session))
             }
             return
         }
-        SessionListPrinter.print(sessions: sessions, shown: selected, root: sessionsRoot, limit: all ? nil : limit)
+        if nextOnly {
+            for session in selected {
+                print(SessionListPrinter.nextCommand(for: session))
+            }
+            return
+        }
+        SessionListPrinter.print(sessions: filtered, shown: selected, root: sessionsRoot, limit: all ? nil : limit, statusFilter: statusFilter)
     }
 
     static func latest(_ args: [String]) throws {
@@ -694,14 +709,18 @@ enum PipelineCommands {
 enum PipelineHelp {
     static func printSessions() {
         Swift.print("""
-        usage: murmurmark sessions [--limit 10] [--all] [--path-only] [--sessions-root ./sessions]
+        usage: murmurmark sessions [--limit 10] [--all] [--status exportable|review_required|incomplete|blocked|missing_readiness]
+                                  [--path-only|--next-only] [--sessions-root ./sessions]
 
         Lists recent session packages and their current readiness state.
         Use --path-only when another command or script only needs session paths.
+        Use --next-only to print only the next safe command for matching sessions.
 
         Common:
           murmurmark sessions
           murmurmark sessions --limit 5
+          murmurmark sessions --status review_required
+          murmurmark sessions --status review_required --next-only
           murmurmark sessions --path-only --limit 3
         """)
     }
@@ -784,10 +803,13 @@ enum PipelineHelp {
 }
 
 enum SessionListPrinter {
-    static func print(sessions: [URL], shown: [URL], root: URL, limit: Int?) {
+    static func print(sessions: [URL], shown: [URL], root: URL, limit: Int?, statusFilter: String?) {
         Swift.print("")
         Swift.print("sessions:")
         Swift.print("  root: \(PathDisplay.display(root))")
+        if let statusFilter {
+            Swift.print("  status_filter: \(statusFilter)")
+        }
         Swift.print("  count: \(sessions.count)")
         if let latest = sessions.first {
             Swift.print("  latest: \(PathDisplay.display(latest))")
@@ -813,11 +835,19 @@ enum SessionListPrinter {
         let readiness = readReadiness(session)
         let sessionPath = PathDisplay.display(session)
         Swift.print("    - session: \(sessionPath)")
-        Swift.print("      status: \(status(readiness))")
+        Swift.print("      status: \(status(for: session, readiness: readiness))")
         Swift.print("      gate: \(string(readiness?["use_gate"]) ?? "missing")")
         Swift.print("      profile: \(string(readiness?["selected_profile"]) ?? "unknown")")
         Swift.print("      verdict: \(string(readiness?["verdict"]) ?? "unknown")")
-        Swift.print("      next: \(nextCommand(readiness, session: session))")
+        Swift.print("      next: \(nextCommand(for: session, readiness: readiness))")
+    }
+
+    static func status(for session: URL) -> String {
+        status(for: session, readiness: readReadiness(session))
+    }
+
+    static func nextCommand(for session: URL) -> String {
+        nextCommand(for: session, readiness: readReadiness(session))
     }
 
     private static func readReadiness(_ session: URL) -> [String: Any]? {
@@ -828,7 +858,7 @@ enum SessionListPrinter {
         return try? JSONFiles.object(url)
     }
 
-    private static func status(_ readiness: [String: Any]?) -> String {
+    private static func status(for _: URL, readiness: [String: Any]?) -> String {
         guard let readiness else { return "missing_readiness" }
         let gate = string(readiness["use_gate"]) ?? "unknown"
         let exportBlockers = (readiness["export_blockers"] as? [Any] ?? []).map { String(describing: $0) }
@@ -848,7 +878,7 @@ enum SessionListPrinter {
         return "check_required"
     }
 
-    private static func nextCommand(_ readiness: [String: Any]?, session: URL) -> String {
+    private static func nextCommand(for session: URL, readiness: [String: Any]?) -> String {
         if let readiness {
             if let next = string(readiness["recommended_next"]), !next.isEmpty {
                 return next

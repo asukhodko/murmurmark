@@ -525,6 +525,9 @@ echo "$sessions_output" | grep -q '^    - session: '
 echo "$sessions_output" | grep -q '^      status: incomplete$'
 echo "$sessions_output" | grep -q '^      next: murmurmark process '
 "$bin" sessions --sessions-root "$workdir" --path-only --limit 1 | grep -q '/session$'
+"$bin" sessions --sessions-root "$workdir" --status incomplete --path-only --limit 1 | grep -q '/session$'
+"$bin" sessions --sessions-root "$workdir" --status incomplete --next-only --limit 1 | grep -q '^murmurmark process '
+[[ -z "$("$bin" sessions --sessions-root "$workdir" --status exportable --next-only --limit 1)" ]]
 review_next_refresh_output="$("$bin" review next "$session")"
 assert_no_helper_prefix "$review_next_refresh_output"
 echo "$review_next_refresh_output" | grep -q '^review_next:$'

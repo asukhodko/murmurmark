@@ -164,7 +164,7 @@ nodes:
     parent: cli-orchestration
     status: done
     effort: 2
-    notes: "Лёгкий список последних session packages с readiness-статусом, выбранным профилем, verdict и next-командой; удобнее, чем выбирать только через latest."
+    notes: "Лёгкий список последних session packages с readiness-статусом, выбранным профилем, verdict и next-командой; поддерживает фильтр по статусу и next-only режим для review/export очередей."
 
   cli-report-command:
     title: "murmurmark status/report SESSION и report corpus"
