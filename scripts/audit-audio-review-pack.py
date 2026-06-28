@@ -517,8 +517,6 @@ def main() -> int:
     pack_dir = args.pack_dir or session / "derived/audit/audio-review-pack"
     out_dir = args.out_dir or pack_dir
     items = read_jsonl(pack_dir / "review_pack_items.jsonl")
-    if not items:
-        raise SystemExit(f"missing or empty review pack: {pack_dir / 'review_pack_items.jsonl'}")
     pack_summary = read_json(pack_dir / "review_pack_summary.json")
     records = [audit_item(item) for item in items]
     summary = summarize(records, pack_summary)

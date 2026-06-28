@@ -554,7 +554,8 @@ with local audio/text metrics. The output separates likely reliable regions, pro
 and regions that should go to a stronger local audio judge. It is audit-only and never edits transcript
 profiles or raw capture. When local metrics disagree only between benign explanations such as
 double-talk, timing overlap and reliable local speech, the audit treats the item as likely reliable
-instead of sending it to the stronger-judge queue.
+instead of sending it to the stronger-judge queue. An empty review pack is a valid no-op: the audit
+still writes empty `audio_review_*` outputs and lets the session pipeline continue.
 
 `audit_cleanup_v2` is the conservative cleanup profile that consumes the audio review audit. It reads
 `audit_cleanup_v1` plus `derived/audit/audio-review-pack/audio_review_audit.jsonl`, then writes a

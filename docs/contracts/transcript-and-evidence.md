@@ -904,6 +904,10 @@ derived/audit/audio-review-pack/
 item count, likely reliable seconds, probable transcript error seconds, stronger-audio-judge demand
 and report path.
 
+An empty `review_pack_items.jsonl` is valid. In that case `audio_review_audit.jsonl` is empty,
+`audio_review_summary.json.items` is `0`, `recommended_next_step` is
+`no_extra_audio_judge_needed_for_current_pack`, and the pipeline should continue.
+
 `review_pack_items.jsonl` contains suspicious regions collected from `needs_review`, transcript
 overlaps, group overlap audit and audit-cleanup rejections:
 
