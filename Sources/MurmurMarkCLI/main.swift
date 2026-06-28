@@ -6125,6 +6125,11 @@ enum CorpusPrinter {
         if let focus = payload["focus_areas"] as? [[String: Any]], let first = focus.first {
             print("  first_focus: \(string(first["area"]) ?? "unknown") -> \(string(first["next_action"]) ?? "unknown")")
         }
+        if let plan = payload["action_plan"] as? [[String: Any]], let first = plan.first {
+            let work = string(first["next_work"]) ?? "unknown"
+            let diagnostic = string(first["diagnostic"]) ?? "unknown"
+            print("  first_action: \(work) (\(diagnostic))")
+        }
     }
 
     static func printGates(outDir: URL = PathURLs.fileURL("sessions/_reports/corpus-gates")) throws {

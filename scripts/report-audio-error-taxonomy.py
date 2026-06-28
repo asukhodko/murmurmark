@@ -35,6 +35,69 @@ CLASS_ACTIONS = {
     "likely_reliable": "false_positive_guard",
 }
 
+ACTION_BLUEPRINTS = {
+    "remote_leak_with_local_content_risk": {
+        "priority": 100,
+        "next_work": "segment_level_remote_leak_repair",
+        "deliverable": "audit-only segment suggestions for leak regions that preserve unique Me content",
+        "reason": "whole-utterance deletion is unsafe, but the leak still hurts transcript quality",
+    },
+    "uncertain_duplicate_vs_leak": {
+        "priority": 90,
+        "next_work": "tighten_duplicate_vs_leak_rules",
+        "deliverable": "fixture-backed split between droppable duplicate and mark-only leak",
+        "reason": "duplicate and leak scores are both high, so current cleanup cannot choose safely",
+    },
+    "uncertain_conflicting_metrics": {
+        "priority": 80,
+        "next_work": "stronger_audio_judge_or_review_labels",
+        "deliverable": "reviewed labels or extra local features for conflicting-score examples",
+        "reason": "current metrics do not separate one class cleanly",
+    },
+    "double_talk_ambiguous": {
+        "priority": 65,
+        "next_work": "double_talk_guard_refinement",
+        "deliverable": "false-positive guard examples for benign overlap",
+        "reason": "double-talk should not become accidental deletion",
+    },
+    "timing_overlap_ambiguous": {
+        "priority": 60,
+        "next_work": "timing_overlap_guard_refinement",
+        "deliverable": "boundary/overlap guard examples for transcript ordering and cleanup",
+        "reason": "timing overlap is usually benign but can look like duplicate evidence",
+    },
+    "asr_noise_short": {
+        "priority": 55,
+        "next_work": "asr_noise_cleanup_gate_review",
+        "deliverable": "stricter short-noise cleanup gate with regression examples",
+        "reason": "short ASR noise may be safely removable, but weak positives need review",
+    },
+    "lost_me_local_recall": {
+        "priority": 50,
+        "next_work": "local_recall_repair",
+        "deliverable": "local recall repair candidate or explicit review item",
+        "reason": "possible local speech loss cannot be fixed by duplicate cleanup",
+    },
+    "remote_leak_duplicate_like": {
+        "priority": 45,
+        "next_work": "duplicate_like_leak_gate_check",
+        "deliverable": "evidence whether this leak subtype can enter conservative cleanup",
+        "reason": "text similarity suggests a duplicate, but the parent class is mark-only leak",
+    },
+    "uncertain_remote_dominant": {
+        "priority": 40,
+        "next_work": "remote_dominant_review",
+        "deliverable": "reviewed label: duplicate, leak, or benign boundary",
+        "reason": "remote evidence dominates, but the class is still uncertain",
+    },
+    "uncertain_possible_double_talk": {
+        "priority": 35,
+        "next_work": "possible_double_talk_review",
+        "deliverable": "reviewed double-talk label or local-speech protection rule",
+        "reason": "local and remote evidence can both be real speech",
+    },
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Summarize MurmurMark audio error classes and next quality actions.")
@@ -384,6 +447,7 @@ def summarize_diagnostics(items: list[dict[str, Any]]) -> dict[str, Any]:
             {
                 "items": 0,
                 "seconds": 0.0,
+                "attention_seconds": 0.0,
                 "classes": Counter(),
                 "actions": Counter(),
                 "attention_items": 0,
@@ -396,6 +460,7 @@ def summarize_diagnostics(items: list[dict[str, Any]]) -> dict[str, Any]:
         value["actions"][str(diagnostic.get("suggested_next_action") or item.get("recommended_action") or "unknown")] += 1
         if item.get("needs_attention"):
             value["attention_items"] += 1
+            value["attention_seconds"] += safe_float(item.get("seconds"))
         if len(value["top_examples"]) < 5:
             value["top_examples"].append(
                 {
@@ -412,12 +477,47 @@ def summarize_diagnostics(items: list[dict[str, Any]]) -> dict[str, Any]:
         output[label] = {
             "items": value["items"],
             "seconds": round(value["seconds"], 3),
+            "attention_seconds": round(value["attention_seconds"], 3),
             "classes": dict(sorted(value["classes"].items())),
             "suggested_actions": dict(sorted(value["actions"].items())),
             "attention_items": value["attention_items"],
             "top_examples": value["top_examples"],
         }
     return output
+
+
+def build_action_plan(by_diagnostic: dict[str, Any]) -> list[dict[str, Any]]:
+    plan: list[dict[str, Any]] = []
+    for label, stats in by_diagnostic.items():
+        attention_items = safe_int(stats.get("attention_items"))
+        if attention_items <= 0:
+            continue
+        blueprint = ACTION_BLUEPRINTS.get(
+            label,
+            {
+                "priority": 10,
+                "next_work": "inspect_diagnostic_examples",
+                "deliverable": "reviewed examples or a sharper diagnostic rule",
+                "reason": "diagnostic subtype still has attention items",
+            },
+        )
+        attention_seconds = safe_float(stats.get("attention_seconds"))
+        plan.append(
+            {
+                "diagnostic": label,
+                "priority": blueprint["priority"],
+                "items": stats.get("items"),
+                "seconds": stats.get("seconds"),
+                "attention_items": attention_items,
+                "attention_seconds": round(attention_seconds, 3),
+                "next_work": blueprint["next_work"],
+                "deliverable": blueprint["deliverable"],
+                "reason": blueprint["reason"],
+                "top_examples": stats.get("top_examples", [])[:3],
+            }
+        )
+    plan.sort(key=lambda item: (-safe_int(item.get("priority")), -safe_float(item.get("attention_seconds")), str(item.get("diagnostic") or "")))
+    return plan[:10]
 
 
 def build_focus_areas(by_class: dict[str, dict[str, Any]], missing_classes: list[str]) -> list[dict[str, Any]]:
@@ -491,6 +591,7 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
     for item in items:
         by_class_rows[str(item.get("class") or "unknown")].append(item)
     by_class = {label: summarize_class(rows) for label, rows in sorted(by_class_rows.items())}
+    by_diagnostic = summarize_diagnostics(items)
     missing_classes = [label for label in EXPECTED_CLASSES if label not in by_class]
     attention = [item for item in items if item.get("needs_attention")]
     total_seconds = sum(safe_float(item.get("seconds")) for item in items)
@@ -512,7 +613,8 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
             "missing_classes": missing_classes,
         },
         "by_class": by_class,
-        "by_diagnostic": summarize_diagnostics(items),
+        "by_diagnostic": by_diagnostic,
+        "action_plan": build_action_plan(by_diagnostic),
         "focus_areas": build_focus_areas(by_class, missing_classes),
         "audio_judge": {
             "readiness": judge_report.get("readiness"),
@@ -561,6 +663,27 @@ def write_markdown(path: Path, report: dict[str, Any], items: list[dict[str, Any
             f"| `{label}` | `{stats['items']}` | `{stats['seconds']}` | `{stats['attention_items']}` | "
             f"`{stats['cv_error_items']}` | `{stats['recommended_action']}` |"
         )
+    lines.extend(["", "## Action Plan", ""])
+    if report["action_plan"]:
+        for index, row in enumerate(report["action_plan"], start=1):
+            lines.extend(
+                [
+                    f"### {index}. `{row.get('next_work')}`",
+                    "",
+                    f"- Diagnostic: `{row.get('diagnostic')}`",
+                    f"- Attention: `{row.get('attention_items')}` items / `{row.get('attention_seconds')}` sec",
+                    f"- Why: {row.get('reason')}",
+                    f"- Deliverable: {row.get('deliverable')}",
+                ]
+            )
+            for example in row.get("top_examples", []):
+                lines.append(
+                    f"- Example: `{example.get('id')}` `{example.get('session_id')}` "
+                    f"{example.get('seconds')} sec, utterances `{', '.join(example.get('utterance_ids') or [])}`"
+                )
+            lines.append("")
+    else:
+        lines.append("- none")
     lines.extend(["", "## Focus Areas", ""])
     if report["focus_areas"]:
         for row in report["focus_areas"]:

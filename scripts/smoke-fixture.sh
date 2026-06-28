@@ -1521,6 +1521,7 @@ EOF
     --session-quality "$quality_dir/session_quality_report.json" \
     --out-dir "$taxonomy_dir")"
   echo "$taxonomy_output" | grep -q '^audio_error_taxonomy:$'
+  echo "$taxonomy_output" | grep -q '  first_action: '
   [[ -s "$taxonomy_dir/audio_error_taxonomy_report.json" ]]
   [[ -s "$taxonomy_dir/audio_error_taxonomy_items.jsonl" ]]
   [[ -s "$taxonomy_dir/audio_error_taxonomy_report.md" ]]
@@ -1528,6 +1529,7 @@ EOF
   jq -e '.summary.items >= 2 and .policy.may_modify_transcript == false' "$taxonomy_dir/audio_error_taxonomy_report.json" >/dev/null
   jq -e '.by_class.remote_duplicate.items >= 1 and .by_class.uncertain.items >= 1' "$taxonomy_dir/audio_error_taxonomy_report.json" >/dev/null
   jq -e '.by_diagnostic | type == "object" and has("uncertain_conflicting_metrics")' "$taxonomy_dir/audio_error_taxonomy_report.json" >/dev/null
+  jq -e '.action_plan | type == "array" and length >= 1 and (.[0].next_work | type) == "string"' "$taxonomy_dir/audio_error_taxonomy_report.json" >/dev/null
   jq -s 'all(.[]; .schema == "murmurmark.audio_error_taxonomy_item/v1" and (.recommended_action | type) == "string" and (.diagnostic.label | type) == "string")' "$taxonomy_dir/audio_error_taxonomy_items.jsonl" >/dev/null
 
   order_corpus_dir="$workdir/transcript-order-corpus"

@@ -617,7 +617,8 @@ and session-quality state into one action map. Read it before changing cleanup o
 separates safe cleanup evidence, mark-only errors, uncertain regions, benign overlap guards and
 model/confidence gaps. It also writes diagnostic subtypes such as `uncertain_duplicate_vs_leak` and
 `remote_leak_with_local_content_risk`; use those subtypes to choose the next narrow repair instead
-of retuning all audio-review labels at once.
+of retuning all audio-review labels at once. Its `action_plan` section is the shortest handoff for
+the next agent: it names the diagnostic subtype, the next work item and the expected deliverable.
 The operational readiness report answers whether the current pipeline is usable for medium-risk
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first. Its review queue is also

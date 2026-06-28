@@ -823,11 +823,19 @@ sessions/_reports/audio-error-taxonomy/
     "uncertain_duplicate_vs_leak": {
       "items": 7,
       "seconds": 18.6,
+      "attention_seconds": 18.6,
       "suggested_actions": {
         "tighten_duplicate_vs_leak_rules": 7
       }
     }
   },
+  "action_plan": [
+    {
+      "diagnostic": "remote_leak_with_local_content_risk",
+      "next_work": "segment_level_remote_leak_repair",
+      "deliverable": "audit-only segment suggestions for leak regions that preserve unique Me content"
+    }
+  ],
   "focus_areas": [
     {
       "class": "uncertain",
@@ -844,6 +852,8 @@ Each `audio_error_taxonomy_items.jsonl` row keeps the original class plus a dete
 `diagnostic.label`, for example `uncertain_duplicate_vs_leak`, `uncertain_remote_dominant`,
 `remote_leak_with_local_content_risk`, or `timing_overlap_guard`. These labels are not human truth;
 they are a routing layer for the next agent or reviewer.
+`action_plan` is also routing metadata. It names the next narrow engineering work and expected
+deliverable, but it does not apply patches.
 
 Corpus gates are generated after session quality, corpus evaluation, audio judge and operational
 readiness reports:
