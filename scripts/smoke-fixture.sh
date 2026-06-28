@@ -1908,9 +1908,13 @@ EOF
     --skip-build \
     --reuse-asr-cache \
     --report "$pipeline_plan" >"$workdir/pipeline-plan.out"
-  grep -q '^\[skip\] swift_build' "$workdir/pipeline-plan.out"
-  grep -q '^\[plan\] inspect' "$workdir/pipeline-plan.out"
-  grep -q '^\[planned\] session_readiness' "$workdir/pipeline-plan.out"
+  grep -q '^pipeline_plan:$' "$workdir/pipeline-plan.out"
+  grep -q '^  mode: plan_only$' "$workdir/pipeline-plan.out"
+  grep -q '^    skip: swift_build (--skip-build)$' "$workdir/pipeline-plan.out"
+  grep -q '^    run: inspect$' "$workdir/pipeline-plan.out"
+  grep -q '^    run: session_readiness$' "$workdir/pipeline-plan.out"
+  grep -q '^  recommended_next: murmurmark process ' "$workdir/pipeline-plan.out"
+  ! grep -q '^\[planned\]' "$workdir/pipeline-plan.out"
   [[ -s "$pipeline_plan" ]]
   jq -e '.schema == "murmurmark.session_pipeline_run/v1" and .status == "planned" and (.steps | length) >= 10' "$pipeline_plan" >/dev/null
   jq -e '.outputs.readiness_selected_profile == .outputs.selected_transcript_profile' "$pipeline_plan" >/dev/null

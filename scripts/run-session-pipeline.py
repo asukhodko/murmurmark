@@ -351,6 +351,26 @@ def print_step_result(result: dict[str, Any]) -> None:
                 print(f"{key}:\n{tail}", flush=True)
 
 
+def print_pipeline_plan(steps: list[dict[str, Any]], session: Path, report_path: Path, repo_root: Path) -> None:
+    enabled = [item for item in steps if item["enabled"]]
+    skipped = [item for item in steps if not item["enabled"]]
+    session_arg = rel(session, repo_root)
+    print("pipeline_plan:", flush=True)
+    print(f"  session: {session_arg}", flush=True)
+    print("  mode: plan_only", flush=True)
+    print(f"  enabled_steps: {len(enabled)}", flush=True)
+    print(f"  skipped_steps: {len(skipped)}", flush=True)
+    print("  steps:", flush=True)
+    for item in steps:
+        if item["enabled"]:
+            print(f"    run: {item['name']}", flush=True)
+        else:
+            reason = item.get("skip_reason") or "disabled"
+            print(f"    skip: {item['name']} ({reason})", flush=True)
+    print(f"  report: {rel(report_path, repo_root)}", flush=True)
+    print(f"  recommended_next: murmurmark process {session_arg}", flush=True)
+
+
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parents[1]
@@ -361,8 +381,12 @@ def main() -> int:
     started_at = datetime.now(timezone.utc).isoformat()
     final_status = "passed"
 
+    if args.plan_only:
+        print_pipeline_plan(steps, session, report_path, repo_root)
+
     for item in steps:
-        print_step_start(item, args.plan_only)
+        if not args.plan_only:
+            print_step_start(item, args.plan_only)
         result = run_step(
             item,
             repo_root,
@@ -370,7 +394,8 @@ def main() -> int:
             progress_interval_sec=args.progress_interval_sec,
         )
         results.append(result)
-        print_step_result(result)
+        if not args.plan_only:
+            print_step_result(result)
         if result["status"] == "failed":
             final_status = "failed"
             break
