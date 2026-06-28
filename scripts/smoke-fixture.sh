@@ -953,6 +953,12 @@ echo "$ready_next_output" | grep -q '^  source: export_manifest$'
 echo "$ready_next_output" | grep -q '^  export_manifest: '
 default_export_dir="$workdir/exports/private"
 "$repo_root/scripts/export-session-bundle.py" "$ready_export_session" --out-dir "$default_export_dir" >/dev/null
+default_status_output="$(cd "$workdir" && "$bin" status "$ready_export_session")"
+assert_no_helper_prefix "$default_status_output"
+echo "$default_status_output" | grep -q '^  status: exported$'
+echo "$default_status_output" | grep -q '^  export_manifest: .*exports/private/export-ready-session/export_manifest.json$'
+echo "$default_status_output" | grep -q '^  recommended_next: murmurmark retention plan '
+echo "$default_status_output" | grep -q '^    retention: murmurmark retention plan '
 default_sessions_output="$(cd "$workdir" && "$bin" sessions --sessions-root "$workdir" --status exported --limit 1)"
 assert_no_helper_prefix "$default_sessions_output"
 echo "$default_sessions_output" | grep -q '^      status: exported$'

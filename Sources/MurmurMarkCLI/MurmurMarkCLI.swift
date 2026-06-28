@@ -7689,8 +7689,9 @@ enum ReadinessPrinter {
         let nextCommands = payload["next_commands"] as? [[String: Any]]
             ?? fallbackNextCommands(gate: gate, session: session, payload: payload)
         let openCommands = payload["open_commands"] as? [[String: Any]] ?? []
-        let status = readinessStatus(gate: gate, payload: payload)
-        let recommendedNext = string(payload["recommended_next"]) ?? preferredNextCommand(nextCommands)
+        let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil)
+        let status = exportHandoff == nil ? readinessStatus(gate: gate, payload: payload) : "exported"
+        let recommendedNext = exportHandoff?.command ?? string(payload["recommended_next"]) ?? preferredNextCommand(nextCommands)
         let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0) * 100
 
@@ -7698,10 +7699,13 @@ enum ReadinessPrinter {
         print("\(label):")
         print("  session: \(PathDisplay.display(session))")
         print("  status: \(status)")
+        if let manifest = exportHandoff?.manifest {
+            print("  export_manifest: \(PathDisplay.display(manifest))")
+        }
         if let recommendedNext {
             print("  recommended_next: \(recommendedNext)")
         }
-        printHandoff(status: status, session: session, outputs: outputs)
+        printHandoff(status: status, session: session, outputs: outputs, exportHandoff: exportHandoff)
         print("  gate: \(gate)")
         print("  recommendation: \(recommendation)")
         print("  selected_profile: \(profile)")
@@ -7775,12 +7779,19 @@ enum ReadinessPrinter {
         return item["path"] as? String
     }
 
-    private static func printHandoff(status: String, session: URL, outputs: [String: Any]) {
+    private static func printHandoff(
+        status: String,
+        session: URL,
+        outputs: [String: Any],
+        exportHandoff: (command: String, manifest: URL)? = nil
+    ) {
         var commands: [(String, String)] = []
         appendOpenCommand("open_notes", outputKey: "notes", session: session, outputs: outputs, to: &commands)
         appendOpenCommand("open_transcript", outputKey: "transcript", session: session, outputs: outputs, to: &commands)
         appendOpenCommand("open_verdict", outputKey: "quality_verdict", session: session, outputs: outputs, to: &commands)
-        if status == "exportable" {
+        if let exportHandoff {
+            commands.append(("retention", exportHandoff.command))
+        } else if status == "exportable" {
             let sessionPath = PathDisplay.display(session)
             commands.append(("export", "murmurmark export \(sessionPath) --format markdown --include-json"))
             commands.append(("retention", "murmurmark retention plan \(sessionPath)"))

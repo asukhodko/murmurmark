@@ -1613,6 +1613,9 @@ prefer the first command that starts with `murmurmark process`, `murmurmark revi
 `murmurmark export`, `murmurmark retention`, or `murmurmark report`. If no such command exists, they
 fall back to the first command from `next_commands`. This keeps report-reading commands such as
 `less ...` visible while making the headline next step executable.
+`murmurmark status SESSION` and `murmurmark report SESSION` use the default export manifest check
+for their terminal summary: after a successful default export they print status `exported`,
+`export_manifest` and retention as `recommended_next`.
 `murmurmark next SESSION` is the compact view over this same object. It prints one primary
 `command`, status, gate, selected profile, verdict and the first read-only `open_commands` item. With
 `--refresh`, it regenerates session readiness through `report-session-quality.py` before reading the

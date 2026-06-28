@@ -111,9 +111,10 @@ next action should be retention planning. Add `--json` when an agent needs struc
 `session`, `label`, `duration_sec`, `review_burden_sec`, `status`, `gate`, `profile`, `verdict` and
 `next` fields.
 Use `murmurmark next SESSION` when you only need the single command to run now; add `--refresh` when
-derived artifacts changed and readiness should be regenerated first. After a successful export,
-`next` follows the successful `export_manifest.json` and points to retention planning. If the export
-used a non-default output directory, pass `--export-manifest ./path/to/export_manifest.json`.
+derived artifacts changed and readiness should be regenerated first. After a successful default
+export, `status`, `sessions` and `next` follow the successful `export_manifest.json` and point to
+retention planning. If the export used a non-default output directory, pass
+`--export-manifest ./path/to/export_manifest.json` to `next`.
 Use `murmurmark next corpus` when operational-readiness reports already exist and you need the one
 next command across the whole working-meeting corpus. Add `--refresh` when session-quality and
 operational-readiness should be regenerated first, but heavier corpus diagnostics should stay as-is.
