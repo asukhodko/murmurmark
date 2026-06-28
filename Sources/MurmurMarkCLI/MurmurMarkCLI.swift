@@ -33,6 +33,8 @@ struct MurmurMark {
                 try PipelineCommands.process(args)
             case "status":
                 try PipelineCommands.status(args)
+            case "next":
+                try PipelineCommands.next(args)
             case "report":
                 try PipelineCommands.report(args)
             case "review":
@@ -86,6 +88,7 @@ struct MurmurMark {
           murmurmark doctor
           murmurmark record --target-bundle system
           murmurmark process latest
+          murmurmark next latest
           murmurmark status latest
           # follow printed review commands when the gate is review_first
           murmurmark export latest --format markdown --include-json
@@ -104,6 +107,7 @@ struct MurmurMark {
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
                                 [--progress-interval-sec 60] [--config murmurmark.config.json] [--sessions-root ./sessions]
           murmurmark status [./session|latest] [--sessions-root ./sessions]
+          murmurmark next [./session|latest] [--refresh] [--sessions-root ./sessions]
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
           murmurmark review plan|progress|apply|first-lane|lane|next
@@ -158,6 +162,7 @@ struct MurmurMark {
           Without --out, recording creates a unique directory under ./sessions.
           process runs the current post-recording pipeline and prints the readiness summary.
           status prints the current readiness dashboard without recomputing reports.
+          next prints the single recommended next command from readiness.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review wraps the current review-plan, agent-review, review CLI, progress and apply scripts.
           audit wraps the transcript order, local recall, group overlap and audio-review audit scripts through the project Python runtime.
@@ -554,6 +559,26 @@ enum PipelineCommands {
         try ReadinessPrinter.printSession(session)
     }
 
+    static func next(_ args: [String]) throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            PipelineHelp.printNext()
+            return
+        }
+        var remaining = args
+        let refresh = ArgumentEditing.takeFlag("refresh", from: &remaining)
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let target = remaining.isEmpty ? "latest" : remaining.removeFirst()
+        guard remaining.isEmpty else {
+            throw CLIError("unexpected next arguments: \(remaining.joined(separator: " "))")
+        }
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        if refresh {
+            try refreshReadiness(session)
+        }
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        try ReadinessPrinter.printNext(session)
+    }
+
     static func report(_ args: [String]) throws {
         if ArgumentEditing.hasHelpFlag(args) {
             PipelineHelp.printReport()
@@ -607,6 +632,20 @@ enum PipelineCommands {
         ])
         try ReadinessPrinter.printSession(session)
     }
+
+    private static func refreshReadiness(_ session: URL) throws {
+        let python = try PythonRuntime.resolve()
+        let script = PathURLs.fileURL("scripts/report-session-quality.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("session quality reporter not found: \(script.path)")
+        }
+        try Tooling.runPathQuiet(python, [
+            script.path,
+            session.path,
+            "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
+            "--write-session-readiness",
+        ])
+    }
 }
 
 enum PipelineHelp {
@@ -650,6 +689,21 @@ enum PipelineHelp {
           murmurmark status
           murmurmark status latest
           murmurmark status ./sessions/<id>
+        """)
+    }
+
+    static func printNext() {
+        Swift.print("""
+        usage: murmurmark next [./session|latest] [--refresh] [--sessions-root ./sessions]
+
+        Prints the single recommended next command from session_readiness.json.
+        Defaults to latest when no session is provided. Use --refresh to update readiness first
+        without rerunning ASR, Echo Guard or audits.
+
+        Common:
+          murmurmark next
+          murmurmark next latest
+          murmurmark next ./sessions/<id> --refresh
         """)
     }
 
@@ -6904,6 +6958,48 @@ enum SessionResolver {
 }
 
 enum ReadinessPrinter {
+    static func printNext(_ session: URL) throws {
+        let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        let sessionPath = PathDisplay.display(session)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            print("")
+            print("next:")
+            print("  status: missing_readiness")
+            print("  command: murmurmark process \(sessionPath)")
+            print("  reason: session_readiness.json is missing")
+            print("  read: murmurmark status \(sessionPath)")
+            return
+        }
+
+        let payload = try JSONFiles.object(url)
+        let gate = string(payload["use_gate"]) ?? "unknown"
+        let profile = string(payload["selected_profile"]) ?? "unknown"
+        let verdict = string(payload["verdict"]) ?? "unknown"
+        let nextCommands = payload["next_commands"] as? [[String: Any]]
+            ?? fallbackNextCommands(gate: gate, session: session, payload: payload)
+        let openCommands = payload["open_commands"] as? [[String: Any]] ?? []
+        let status = readinessStatus(gate: gate, payload: payload)
+        let command = string(payload["recommended_next"]) ?? preferredNextCommand(nextCommands) ?? "murmurmark status \(sessionPath)"
+
+        print("")
+        print("next:")
+        print("  status: \(status)")
+        print("  command: \(command)")
+        print("  gate: \(gate)")
+        print("  selected_profile: \(profile)")
+        print("  verdict: \(verdict)")
+        if let firstOpen = openCommands.compactMap({ string($0["command"]) }).first {
+            print("  open_first: \(firstOpen)")
+        }
+        if nextCommands.count > 1 {
+            print("  alternatives:")
+            for item in nextCommands.dropFirst().prefix(4) {
+                guard let alternative = string(item["command"]), !alternative.isEmpty else { continue }
+                print("    \(alternative)")
+            }
+        }
+    }
+
     static func printSession(_ session: URL, label: String = "readiness") throws {
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
         guard FileManager.default.fileExists(atPath: url.path) else {

@@ -452,6 +452,11 @@ echo "$raw_status_output" | grep -q '^  session: '
 echo "$raw_status_output" | grep -q '^  expected: '
 echo "$raw_status_output" | grep -q '^  recommended_next: murmurmark process '
 echo "$raw_status_output" | grep -q '^    murmurmark process '
+raw_next_output="$("$bin" next "$raw_status_session")"
+assert_no_helper_prefix "$raw_next_output"
+echo "$raw_next_output" | grep -q '^next:$'
+echo "$raw_next_output" | grep -q '^  status: missing_readiness$'
+echo "$raw_next_output" | grep -q '^  command: murmurmark process '
 
 "$repo_root/scripts/report-session-quality.py" \
   "$session" \
@@ -487,6 +492,12 @@ assert_no_helper_prefix "$status_output"
 echo "$status_output" | grep -q '^readiness:$'
 echo "$status_output" | grep -q '^  status: incomplete$'
 echo "$status_output" | grep -q '^  recommended_next: murmurmark process '
+next_output="$("$bin" next "$session")"
+assert_no_helper_prefix "$next_output"
+echo "$next_output" | grep -q '^next:$'
+echo "$next_output" | grep -q '^  status: incomplete$'
+echo "$next_output" | grep -q '^  command: murmurmark process '
+echo "$next_output" | grep -q '^  open_first: less '
 retention_readiness_output="$("$bin" retention plan "$session")"
 assert_no_helper_prefix "$retention_readiness_output"
 echo "$retention_readiness_output" | grep -q '^retention:$'
@@ -2055,6 +2066,7 @@ EOF
   echo "$main_help" | grep -q '^Normal flow:$'
   echo "$main_help" | grep -q '^  murmurmark record --target-bundle system$'
   echo "$main_help" | grep -q '^  murmurmark process latest$'
+  echo "$main_help" | grep -q '^  murmurmark next latest$'
   echo "$main_help" | grep -q '^  murmurmark status latest$'
   echo "$main_help" | grep -q '^  murmurmark export latest --format markdown --include-json$'
   review_help="$("$bin" review --help)"
@@ -2067,6 +2079,9 @@ EOF
   status_help="$("$bin" status --help)"
   echo "$status_help" | grep -q 'usage: murmurmark status'
   echo "$status_help" | grep -q 'without recomputing reports'
+  next_help="$("$bin" next --help)"
+  echo "$next_help" | grep -q 'usage: murmurmark next'
+  echo "$next_help" | grep -q 'single recommended next command'
   report_help="$("$bin" report --help)"
   echo "$report_help" | grep -q 'usage: murmurmark report'
   echo "$report_help" | grep -q 'Use `murmurmark status` when you only need to inspect'

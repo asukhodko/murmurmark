@@ -43,6 +43,7 @@ Normal CLI loop:
 murmurmark doctor
 murmurmark record --target-bundle system
 murmurmark process latest
+murmurmark next latest
 murmurmark status latest
 # Follow printed review commands when the gate is review_first.
 murmurmark export latest --format markdown --include-json
@@ -51,9 +52,10 @@ murmurmark retention plan latest
 
 `status`, `report`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
 all print the next safe command for the current session state, so the terminal output is the main handoff.
+`next` is the shortest answer when you only need the one command to run now.
 `status` is the quickest dashboard for already-generated readiness; `report` refreshes readiness first.
-If readiness is not present yet, `status` points to `murmurmark process SESSION`.
-Both start with a short status such as `exportable`, `review_required`, `incomplete` or `blocked`, plus
+If readiness is not present yet, `status` and `next` point to `murmurmark process SESSION`.
+`status` and `report` start with a short status such as `exportable`, `review_required`, `incomplete` or `blocked`, plus
 `recommended_next` and `handoff` commands for opening the selected notes, transcript and verdict.
 
 ### Local Release Bundle
@@ -387,6 +389,8 @@ murmurmark config print
 murmurmark process latest
 murmurmark process ./sessions/<session> --force-asr
 murmurmark process ./sessions/<session> --plan-only --skip-build
+murmurmark next ./sessions/<session>
+murmurmark next latest --refresh
 murmurmark status ./sessions/<session>
 murmurmark status latest
 murmurmark report ./sessions/<session>
