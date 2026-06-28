@@ -1194,7 +1194,7 @@ enum ReviewLaneCommand {
             laneArgs += ["--session", session.lastPathComponent]
         }
         try Tooling.runPath(try PythonRuntime.resolve(), laneArgs + forwarded)
-        try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutURL)
+        try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutURL, session: session, planOutDir: planURL)
     }
 
     static func printHelp() {
@@ -1563,7 +1563,7 @@ enum ReviewFirstLaneCommand {
             "--lane", lane,
             "--out-dir", lanePackOutURL.path,
         ] + forwarded)
-        try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutURL)
+        try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutURL, session: session, planOutDir: planURL)
     }
 
     static func printHelp() {
@@ -6702,7 +6702,7 @@ enum ReviewNextPrinter {
 }
 
 enum ReviewPrinter {
-    static func printLanePack(lane: String, outDir: URL) throws {
+    static func printLanePack(lane: String, outDir: URL, session: URL? = nil, planOutDir: URL? = nil) throws {
         let manifestURL = outDir.appendingPathComponent("review_lane_pack.\(lane).json")
         let payload = try JSONFiles.object(manifestURL)
         let outputs = payload["outputs"] as? [String: Any] ?? [:]
@@ -6725,6 +6725,30 @@ enum ReviewPrinter {
         }
         print("  items: \(int(summary["item_count"]) ?? 0)")
         print("  skipped: \(int(summary["skipped_count"]) ?? 0)")
+        print("  next: edit answer_sheet, then `\(laneApplyCommand(lane: lane, session: session, planOutDir: planOutDir, outDir: outDir))`")
+    }
+
+    private static func laneApplyCommand(lane: String, session: URL?, planOutDir: URL?, outDir: URL) -> String {
+        var parts = ["murmurmark", "review", "lane", "apply", lane]
+        if let session {
+            parts += ["--session", session.lastPathComponent]
+        }
+        if let planOutDir {
+            let defaultPlan = session?.appendingPathComponent("derived/readiness/review-plan")
+                ?? PathURLs.fileURL("sessions/_reports/review-plan")
+            if !samePath(planOutDir, defaultPlan) {
+                parts += ["--plan-out-dir", PathDisplay.display(planOutDir)]
+            }
+            let defaultOut = planOutDir.appendingPathComponent("lane-packs")
+            if !samePath(outDir, defaultOut) {
+                parts += ["--out-dir", PathDisplay.display(outDir)]
+            }
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private static func samePath(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.standardizedFileURL.path == rhs.standardizedFileURL.path
     }
 
     static func printPlan() throws {

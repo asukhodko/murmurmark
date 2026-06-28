@@ -804,9 +804,10 @@ Then copy decisions from the answer sheet back into the full review file:
 
 `first` resolves to `review_queue_strategy.first_recommended_lane` from the session-local
 `review_plan.json`; pass an explicit lane name when you intentionally reviewed another lane. The
-command also refreshes `review_decisions_progress.json` and prints the next safe command: continue
-with the review workspace while rows remain, or run `review progress --session "$SESSION"` before
-`review apply` once the checklist is complete.
+lane-pack command prints the exact `review lane apply ...` command for the generated answer sheet.
+Applying the lane also refreshes `review_decisions_progress.json` and prints the next safe command:
+continue with the review workspace while rows remain, or run `review progress --session "$SESSION"`
+before `review apply` once the checklist is complete.
 
 The lower-level equivalent is still useful for debugging exact paths:
 
