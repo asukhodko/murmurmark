@@ -709,8 +709,9 @@ If `review apply` is run before a decisions file exists, or while review progres
 rows, it prints `status: not_ready`, the missing file or progress summary, and the
 `review workspace` / `review progress` commands to run next instead of exposing a low-level Python
 error or starting batch apply too early.
-`scripts/report-review-decisions-progress.py` then shows how much of the queue is actually closed
-before running the heavier batch apply.
+`murmurmark review progress --session SESSION` then shows how much of the queue is actually closed,
+prints the remaining work by lane, and gives the exact workspace/apply/progress command chain before
+the heavier batch apply.
 
 `murmurmark review agent` is the automatic medium-risk layer. It reads the current session-quality
 report, audio-review audit rows and the audio-judge queue, then writes and applies a reduced

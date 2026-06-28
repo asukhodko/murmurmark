@@ -864,15 +864,14 @@ dry run. `review lane apply --dry-run` writes `review_lane_pack_apply_report.jso
 `lane_result`, so you can see how many items would become reviewed or remain `todo` before writing
 `review_decisions.jsonl`.
 `review lane apply --dry-run` also prints the exact non-dry-run command. Applying the lane refreshes
-`review_decisions_progress.json` and prints the next safe command: continue with the review workspace
-while rows remain, or run `review progress --session "$SESSION"` before `review apply` once the
-checklist is complete. `review progress` also prints `by_lane`, so the remaining review work is visible
-without opening the JSON report.
+`review_decisions_progress.json` and prints the next safe command. `review progress --session
+"$SESSION"` prints `by_lane` plus the workspace/apply/progress chain while rows remain, and prints
+`review apply --session "$SESSION"` only when the checklist is ready for the batch apply.
 If `review apply --session "$SESSION"` is called before `review_decisions.jsonl` exists, it prints
 `status: not_ready`, the missing file and the workspace/progress commands to run next.
 If the decisions file exists but the checklist still has `todo` rows, it refreshes
 `review_decisions_progress.json`, prints `reviewed`, `remaining` and `by_lane`, then points back to
-workspace/progress without running batch apply.
+workspace/workspace-apply/progress without running batch apply.
 
 The lower-level equivalent is still useful for debugging exact paths:
 

@@ -139,17 +139,7 @@ enum ReviewPrinter {
         }
         printProgressLanes(payload)
         let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
-        if bool(summary["ready_for_batch_apply"]) == true {
-            if let sessionID {
-                print("  next: murmurmark review apply --session \(sessionID)")
-            } else {
-                print("  next: murmurmark review apply")
-            }
-        } else if let sessionID {
-            print("  next: murmurmark review workspace --session \(sessionID)")
-        } else {
-            print("  next: murmurmark review workspace")
-        }
+        printProgressNext(summary: summary, sessionID: sessionID)
     }
 
     private static func printProgressLanes(_ payload: [String: Any]) {
@@ -164,6 +154,20 @@ enum ReviewPrinter {
             let minutes = (double(lane["remaining_seconds"]) ?? 0) / 60
             print(String(format: "    %@: reviewed=%d/%d remaining=%d minutes=%.2f", name, reviewed, total, remaining, minutes))
         }
+    }
+
+    private static func printProgressNext(summary: [String: Any], sessionID: String?) {
+        let sessionArgument = sessionID.map { " --session \($0)" } ?? ""
+        print("  next:")
+        if bool(summary["ready_for_batch_apply"]) == true {
+            print("    murmurmark review apply\(sessionArgument)")
+            return
+        }
+        print("    murmurmark review workspace\(sessionArgument)")
+        print("    murmurmark review workspace apply\(sessionArgument)")
+        print("    murmurmark review progress\(sessionArgument)")
+        print("  after_ready:")
+        print("    murmurmark review apply\(sessionArgument)")
     }
 
     static func printApply(report: URL) throws {
