@@ -774,8 +774,8 @@ sessions, the next command points back to `murmurmark process ...` first.
 
 `murmurmark repair remote-leak` is an audit-only planning step. It reads
 `derived/audit/audio-review-pack/audio_review_audit.jsonl`, selects rows where
-`classification.label == "remote_leak"` and `classification.verdict == "probable_transcript_error"`,
-and writes:
+`classification.verdict == "probable_transcript_error"` and the label is either `remote_leak` or a
+partial `remote_duplicate` that is unsafe for whole-utterance deletion, and writes:
 
 ```text
 derived/transcript-simple/whisper-cpp/remote-leak-repair/
@@ -801,8 +801,8 @@ derived/transcript-simple/whisper-cpp/remote-leak-repair/
   },
   "action_plan": [
     {
-      "next_work": "implement_segment_level_remote_leak_repair",
-      "diagnostic": "remote_leak_with_local_content_risk"
+      "next_work": "implement_segment_level_remote_overlap_repair",
+      "diagnostic": "protected_local_content_risk"
     }
   ],
   "policy": {
@@ -817,7 +817,7 @@ derived/transcript-simple/whisper-cpp/remote-leak-repair/
 `remote_leak_segment_repair_items.jsonl` uses
 `murmurmark.remote_leak_segment_repair_item/v1`. Each item keeps the source audit id, interval,
 utterance ids, compact utterances, diagnostic label, proposed future patch type, scores, text/audio
-evidence and ready clip commands from the source audit. v1 has three diagnostics:
+evidence and ready clip commands from the source audit. v1 has five diagnostics:
 
 - `remote_leak_with_local_content_risk`: local support or unique `Me` text makes whole-utterance
   deletion unsafe; future work should split or re-ASR local islands.
@@ -825,9 +825,14 @@ evidence and ready clip commands from the source audit. v1 has three diagnostics
   mark-only until stronger evidence exists.
 - `remote_leak_plain`: likely leak evidence without enough local content; keep explicit mark-only
   evidence.
+- `remote_duplicate_with_local_content_risk`: the duplicate is only part of a `Me` utterance, or the
+  `Me` utterance has unique/protected local content; future work should preserve the unique local
+  prefix/suffix and remove only verified duplicate segments.
+- `remote_duplicate_whole_drop_candidate`: the duplicate likely belongs to the existing
+  whole-utterance cleanup/review path, not the segment repair queue.
 
 The planner never writes a transcript profile and never changes raw CAF files. Its job is to turn a
-wide `remote_leak` bucket into the next safe repair queue.
+wide `remote_leak`/partial-duplicate bucket into the next safe repair queue.
 
 `murmurmark corpus remote-leak` aggregates those per-session plans into:
 
@@ -869,7 +874,7 @@ sessions/_reports/remote-leak-segment/
   "next_commands": [
     {
       "id": "review_remote_leak_segment_2026-06-26_11-15-50",
-      "label": "Review unique local content around protected remote-leak segments for 2026-06-26_11-15-50.",
+      "label": "Review unique local content around protected remote leak/duplicate segments for 2026-06-26_11-15-50.",
       "command": "murmurmark review lane check_unique_me_content --session sessions/2026-06-26_11-15-50",
       "session_id": "2026-06-26_11-15-50",
       "session": "sessions/2026-06-26_11-15-50"

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA_PLAN = "murmurmark.remote_leak_segment_repair_plan/v1"
 SCHEMA_ITEM = "murmurmark.remote_leak_segment_repair_item/v1"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
@@ -62,7 +62,7 @@ DOMAIN_TERMS = {
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build an audit-only plan for segment-level remote leak repair.")
+    parser = argparse.ArgumentParser(description="Build an audit-only plan for segment-level remote leak/duplicate repair.")
     parser.add_argument("session", type=Path)
     parser.add_argument(
         "--audit",
@@ -150,6 +150,28 @@ def domain_terms(text: Any) -> list[str]:
     return sorted({token for token in tokens(text) if token in DOMAIN_TERMS})
 
 
+def has_protected_marker(text: Any) -> bool:
+    lowered = str(text or "").lower().replace("ё", "е")
+    return any(
+        marker in lowered
+        for marker in (
+            "надо",
+            "нужно",
+            "давай",
+            "давайте",
+            "решили",
+            "договорились",
+            "согласовали",
+            "риск",
+            "проблем",
+            "вопрос",
+            "блокер",
+            "проверь",
+            "посмотрю",
+        )
+    )
+
+
 def role_of(row: dict[str, Any]) -> str:
     role = str(row.get("role") or "").lower()
     source = str(row.get("source_track") or "").lower()
@@ -173,20 +195,99 @@ def compact_utterance(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def interval_coverage(row: dict[str, Any], role: str) -> float:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    start = safe_float(interval.get("start"))
+    end = safe_float(interval.get("end"))
+    if end <= start:
+        return 0.0
+    coverages: list[float] = []
+    for utterance in row.get("utterances") or []:
+        if not isinstance(utterance, dict) or role_of(utterance) != role:
+            continue
+        utterance_start = safe_float(utterance.get("start"))
+        utterance_end = safe_float(utterance.get("end"))
+        duration = max(0.0, utterance_end - utterance_start)
+        if duration <= 0.0:
+            continue
+        overlap = max(0.0, min(end, utterance_end) - max(start, utterance_start))
+        coverages.append(overlap / duration)
+    return max(coverages, default=0.0)
+
+
+def row_me_text(row: dict[str, Any]) -> str:
+    features = row.get("features") if isinstance(row.get("features"), dict) else {}
+    text = features.get("text") if isinstance(features.get("text"), dict) else {}
+    return str(text.get("me_text") or " ".join(
+        str(utterance.get("text") or "")
+        for utterance in row.get("utterances") or []
+        if isinstance(utterance, dict) and role_of(utterance) == "me"
+    ))
+
+
+def row_remote_text(row: dict[str, Any]) -> str:
+    features = row.get("features") if isinstance(row.get("features"), dict) else {}
+    text = features.get("text") if isinstance(features.get("text"), dict) else {}
+    return str(text.get("remote_text") or " ".join(
+        str(utterance.get("text") or "")
+        for utterance in row.get("utterances") or []
+        if isinstance(utterance, dict) and role_of(utterance) == "remote"
+    ))
+
+
+def duplicate_needs_segment_review(row: dict[str, Any], min_local_support: float) -> bool:
+    scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
+    features = row.get("features") if isinstance(row.get("features"), dict) else {}
+    text = features.get("text") if isinstance(features.get("text"), dict) else {}
+    me_text = row_me_text(row)
+    remote_text = row_remote_text(row)
+    unique_tokens = sorted(set(content_tokens(me_text)) - set(content_tokens(remote_text)))
+    local = safe_float(scores.get("local_support"))
+    duplicate = safe_float(scores.get("remote_duplicate"))
+    containment = safe_float(text.get("containment"))
+    me_coverage = interval_coverage(row, "me")
+    looks_like_full_duplicate = (
+        me_coverage >= 0.80
+        and containment >= 0.75
+        and duplicate >= 70
+        and local < min_local_support
+        and len(unique_tokens) <= 2
+        and not has_protected_marker(me_text)
+    )
+    return not looks_like_full_duplicate
+
+
 def remote_leak_diagnostic(row: dict[str, Any], min_local_support: float) -> dict[str, Any]:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    label = str(classification.get("label") or "")
     scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
     features = row.get("features") if isinstance(row.get("features"), dict) else {}
     text = features.get("text") if isinstance(features.get("text"), dict) else {}
     local = safe_float(scores.get("local_support"))
     duplicate = safe_float(scores.get("remote_duplicate"))
     similarity = safe_float(text.get("similarity"))
-    me_text = text.get("me_text") or " ".join(
-        str(utterance.get("text") or "")
-        for utterance in row.get("utterances") or []
-        if isinstance(utterance, dict) and role_of(utterance) == "me"
-    )
-    unique_tokens = content_tokens(me_text)
+    me_text = row_me_text(row)
+    remote_text = row_remote_text(row)
+    unique_tokens = sorted(set(content_tokens(me_text)) - set(content_tokens(remote_text)))
     terms = domain_terms(me_text)
+    me_coverage = interval_coverage(row, "me")
+
+    if label == "remote_duplicate":
+        if duplicate_needs_segment_review(row, min_local_support):
+            return {
+                "label": "remote_duplicate_with_local_content_risk",
+                "reason": "duplicate row is unsafe for whole-Me deletion; preserve unique local content",
+                "protect_local_content": True,
+                "me_overlap_coverage": round(me_coverage, 6),
+                "unique_me_content_token_count": len(unique_tokens),
+            }
+        return {
+            "label": "remote_duplicate_whole_drop_candidate",
+            "reason": "duplicate likely covers the whole Me utterance and should stay in fast-confirm cleanup",
+            "protect_local_content": False,
+            "me_overlap_coverage": round(me_coverage, 6),
+            "unique_me_content_token_count": len(unique_tokens),
+        }
 
     if similarity >= 0.65 or duplicate >= 70:
         return {
@@ -209,6 +310,20 @@ def remote_leak_diagnostic(row: dict[str, Any], min_local_support: float) -> dic
 
 def proposed_strategy(diagnostic: dict[str, Any]) -> dict[str, Any]:
     label = diagnostic.get("label")
+    if label == "remote_duplicate_with_local_content_risk":
+        return {
+            "action": "segment_level_repair_candidate",
+            "future_patch_type": "split_or_text_repair_unique_me_segments",
+            "whole_me_drop_allowed": False,
+            "notes": "Do not drop the whole Me utterance; future repair must preserve unique local prefix/suffix text.",
+        }
+    if label == "remote_duplicate_whole_drop_candidate":
+        return {
+            "action": "defer_to_fast_confirm_drop",
+            "future_patch_type": "whole_utterance_drop_review",
+            "whole_me_drop_allowed": True,
+            "notes": "This item should be handled by the existing whole-utterance cleanup/review path.",
+        }
     if label == "remote_leak_with_local_content_risk":
         return {
             "action": "segment_level_repair_candidate",
@@ -281,13 +396,16 @@ def build_item(row: dict[str, Any], index: int, min_local_support: float) -> dic
     }
 
 
-def selected_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def selected_rows(rows: list[dict[str, Any]], min_local_support: float) -> list[dict[str, Any]]:
     output = []
     for row in rows:
         classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
-        if classification.get("label") != "remote_leak":
+        label = classification.get("label")
+        if label not in {"remote_leak", "remote_duplicate"}:
             continue
         if classification.get("verdict") != "probable_transcript_error":
+            continue
+        if label == "remote_duplicate" and not duplicate_needs_segment_review(row, min_local_support):
             continue
         output.append(row)
     output.sort(
@@ -323,10 +441,10 @@ def summarize(items: list[dict[str, Any]], session: Path, audit_path: Path) -> d
         },
         "action_plan": [
             {
-                "next_work": "implement_segment_level_remote_leak_repair",
-                "diagnostic": "remote_leak_with_local_content_risk",
+                "next_work": "implement_segment_level_remote_overlap_repair",
+                "diagnostic": "protected_local_content_risk",
                 "items": len(protect),
-                "deliverable": "separate transcript profile that protects Me text and only edits verified leak segments",
+                "deliverable": "separate transcript profile that protects Me text and only edits verified leak/duplicate segments",
             }
         ]
         if protect
@@ -350,7 +468,7 @@ def summarize(items: list[dict[str, Any]], session: Path, audit_path: Path) -> d
 def write_markdown(path: Path, plan: dict[str, Any], items: list[dict[str, Any]]) -> None:
     summary = plan["summary"]
     lines = [
-        "# Remote Leak Segment Repair Plan",
+        "# Remote Leak / Duplicate Segment Repair Plan",
         "",
         "Audit-only plan. It does not edit transcript profiles or raw audio.",
         "",
@@ -406,7 +524,10 @@ def main() -> int:
     audit_path = args.audit or session / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
     out_dir = suffix_path(session, args.out_dir)
     rows = read_jsonl(audit_path)
-    items = [build_item(row, index, args.min_local_support) for index, row in enumerate(selected_rows(rows), start=1)]
+    items = [
+        build_item(row, index, args.min_local_support)
+        for index, row in enumerate(selected_rows(rows, args.min_local_support), start=1)
+    ]
     plan = summarize(items, session, audit_path)
     out_dir.mkdir(parents=True, exist_ok=True)
     write_json(out_dir / "remote_leak_segment_repair_plan.json", plan)

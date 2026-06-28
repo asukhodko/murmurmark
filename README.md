@@ -334,8 +334,9 @@ or `transcript.audit_cleanup_v2.md` are separate candidates; the selected profil
 steps for already audited sessions, usually run after the private regression and audio-judge reports
 exist under `sessions/_reports/`.
 The normal single-session runner also builds the audit-only remote-leak segment plan after
-audio-review. If a session has `remote_leak` errors where `Me` may still contain unique local
-content, readiness links to `remote_leak_segment_repair.md` before any future repair work.
+audio-review. If a session has `remote_leak` errors or partial `remote_duplicate` rows where `Me`
+may still contain unique local content, readiness links to `remote_leak_segment_repair.md` before
+any future repair work.
 `murmurmark audit order` finds long `Me` turns that cross a `Colleagues` turn and continue after it:
 these are the main remaining risk for wrong reply order in an otherwise readable transcript. Blocking
 order risks are included in readiness review burden and block export until reviewed.
@@ -348,10 +349,11 @@ pass and at least one repair was applied, session-quality/readiness and synthesi
 `order_repair_v1`. Fully repaired sessions clear the order-risk burden; partial repairs keep the
 remaining unsafe regions as explicit review items.
 `murmurmark repair remote-leak` is audit-only. It reads `audio_review_audit.jsonl`, selects
-`remote_leak` rows that look like probable transcript errors, and writes a segment-level repair plan
-under `derived/transcript-simple/whisper-cpp/remote-leak-repair/`. It does not edit transcript
-profiles or raw audio. Its main purpose is to separate plain leak evidence from leak intervals where
-`Me` still contains unique local content and whole-utterance deletion is unsafe.
+`remote_leak` rows and partial `remote_duplicate` rows that look like probable transcript errors,
+and writes a segment-level repair plan under
+`derived/transcript-simple/whisper-cpp/remote-leak-repair/`. It does not edit transcript profiles
+or raw audio. Its main purpose is to separate plain leak evidence from leak/duplicate intervals
+where `Me` still contains unique local content and whole-utterance deletion is unsafe.
 `murmurmark corpus order` aggregates those audits across the corpus and writes the current list of
 chronology regression candidates under `sessions/_reports/transcript-order/`; corpus gates read this
 report and fail if a complete session still has blocking chronology risk. The report points complete
@@ -623,9 +625,10 @@ and marked `quality.transcript_order_repair.status = needs_review`.
 
 `murmurmark repair remote-leak` wraps `scripts/plan-remote-leak-segment-repair.py`. It is not a
 cleanup profile. It reads the audio-review audit, writes a segment-level plan and keeps
-`whole_me_drop_allowed = false` for every item. This is the next safe input for future remote-leak
-work: first identify intervals that need split/re-ASR or mark-only treatment, then add a separate
-repair profile only when the corpus evidence is good enough.
+`whole_me_drop_allowed = false` for protected local-content items. This is the next safe input for
+future remote-leak/remote-duplicate work: first identify intervals that need split/re-ASR/text
+repair or mark-only treatment, then add a separate repair profile only when the corpus evidence is
+good enough.
 
 Audit-informed cleanup is `murmurmark cleanup`. It wraps `scripts/apply-audit-cleanup.py`, reads
 `clean_dialogue.shadow_v2.json` and the group overlap audit, then writes only `audit_cleanup_v1`

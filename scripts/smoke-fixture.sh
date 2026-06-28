@@ -2096,7 +2096,7 @@ EOF
     --out-dir "$remote_leak_corpus_dir")"
   echo "$remote_leak_corpus_output" | grep -q '^remote_leak_segment_corpus:'
   echo "$remote_leak_corpus_output" | grep -q 'reviewable_protect_local_content_items: '
-  echo "$remote_leak_corpus_output" | grep -q 'incomplete_protect_local_content_items: 1'
+  echo "$remote_leak_corpus_output" | grep -Eq 'incomplete_protect_local_content_items: [1-9]'
   echo "$remote_leak_corpus_output" | grep -q '  next_command: murmurmark process '
   [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.json" ]]
   [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_items.jsonl" ]]

@@ -2416,7 +2416,7 @@ enum RepairCommands {
 
         order writes a separate transcript profile with conservative transcript-order repairs.
         local-recall writes a separate transcript profile with conservative inserted Me islands.
-        remote-leak writes an audit-only segment repair plan and never edits transcript profiles.
+        remote-leak writes an audit-only leak/duplicate segment repair plan and never edits transcript profiles.
         """)
     }
 }

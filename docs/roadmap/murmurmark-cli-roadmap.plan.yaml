@@ -411,7 +411,7 @@ nodes:
     deps: [corpus-error-taxonomy, quality-remote-duplicate-safety]
     status: done
     effort: 2
-    notes: "murmurmark repair remote-leak строит audit-only план по audio_review remote_leak probable errors, отделяет plain leak от remote_leak_with_local_content_risk и явно запрещает whole-Me drop/raw edits."
+    notes: "murmurmark repair remote-leak строит audit-only план по audio_review remote_leak probable errors и частичным remote_duplicate rows, отделяет plain leak от protected-local-content risks и явно запрещает raw edits/whole-Me drop для защищённых интервалов."
 
   quality-remote-leak-corpus-queue:
     title: "Remote leak corpus queue"

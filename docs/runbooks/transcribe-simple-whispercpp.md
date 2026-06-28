@@ -354,8 +354,9 @@ chronology risk.
 
 ## Remote Leak Segment Plan
 
-Remote leak needs a different safety shape. A `remote_leak` region can still contain real local
-content from `Me`, so the next safe step is an audit-only segment plan:
+Remote leak and partial remote duplicates need a different safety shape. A `remote_leak` region or
+a `remote_duplicate` row can still contain real local content from `Me`, so the next safe step is an
+audit-only segment plan:
 
 ```bash
 murmurmark repair remote-leak "$SESSION"
@@ -366,12 +367,13 @@ jq '.summary, .action_plan, .policy' \
 ```
 
 The planner reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, selects
-`remote_leak` rows with `probable_transcript_error`, and writes only
+`remote_leak` rows and partial `remote_duplicate` rows with `probable_transcript_error`, and writes only
 `remote_leak_segment_repair_*` artifacts. It does not edit transcript profiles, Echo Guard outputs,
 or raw CAF files. Items with unique local `Me` content are labelled
-`remote_leak_with_local_content_risk`; those are future segment-level repair candidates, not
-whole-utterance drops. The full `murmurmark process` pipeline runs this planner automatically after
-audio-review; the manual command is useful when you have refreshed only the audio-review audit.
+`remote_leak_with_local_content_risk` or `remote_duplicate_with_local_content_risk`; those are future
+segment-level repair candidates, not whole-utterance drops. The full `murmurmark process` pipeline
+runs this planner automatically after audio-review; the manual command is useful when you have
+refreshed only the audio-review audit.
 
 ## Group Overlap Audit
 
@@ -688,10 +690,11 @@ consume a few more strong duplicate predictions, but remains mark-only for leak/
 `murmurmark corpus taxonomy` then combines the corpus, evaluation buckets, audio-judge predictions
 and session-quality state into one action map. Read it before changing cleanup or repair rules: it
 separates safe cleanup evidence, mark-only errors, uncertain regions, benign overlap guards and
-model/confidence gaps. It also writes diagnostic subtypes such as `uncertain_duplicate_vs_leak` and
-`remote_leak_with_local_content_risk`; use those subtypes to choose the next narrow repair instead
-of retuning all audio-review labels at once. Its `action_plan` section is the shortest handoff for
-the next agent: it names the diagnostic subtype, the next work item and the expected deliverable.
+model/confidence gaps. It also writes diagnostic subtypes such as `uncertain_duplicate_vs_leak`,
+`remote_leak_with_local_content_risk` and `remote_duplicate_with_local_content_risk`; use those
+subtypes to choose the next narrow repair instead of retuning all audio-review labels at once. Its
+`action_plan` section is the shortest handoff for the next agent: it names the diagnostic subtype,
+the next work item and the expected deliverable.
 The operational readiness report answers whether the current pipeline is usable for medium-risk
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first. Its review queue is also
@@ -760,7 +763,8 @@ If the inserted repair belongs to an incomplete session, the report prints `murm
 first and leaves the inserted turn out of the reviewable count until the session is complete.
 
 `murmurmark corpus remote-leak` writes `sessions/_reports/remote-leak-segment/`. It aggregates
-per-session remote-leak segment plans into one corpus queue and keeps the same audit-only policy:
+per-session remote-leak/remote-duplicate segment plans into one corpus queue and keeps the same
+audit-only policy:
 no transcript profile and no raw audio are modified. `murmurmark corpus process all` refreshes these
 plans before session-quality and corpus aggregation. Use `corpus remote-leak --plan` when you only
 want to refresh the remote-leak queue. The report writes `next_commands`: missing plans point to

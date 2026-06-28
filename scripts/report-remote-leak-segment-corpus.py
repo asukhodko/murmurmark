@@ -301,7 +301,7 @@ def build_next_commands(
         commands.append(
             {
                 "id": f"review_remote_leak_segment_{session_id}",
-                "label": f"Review unique local content around protected remote-leak segments for {session_id}.",
+                "label": f"Review unique local content around protected remote leak/duplicate segments for {session_id}.",
                 "command": f"murmurmark review lane check_unique_me_content --session {command_path(session)}",
                 "session_id": session_id,
                 "session": session,
