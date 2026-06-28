@@ -322,6 +322,7 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
         write_json(blocked_path, manifest)
         print(f"export blocked: {blocked_path}")
         print("blockers: " + ", ".join(blockers))
+        print("next: " + str(manifest["next"]))
         raise SystemExit(2)
 
     out_dir = args.out_dir / session.name

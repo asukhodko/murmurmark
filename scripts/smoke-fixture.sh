@@ -545,10 +545,12 @@ echo "$review_next_output" | grep -q 'murmurmark review workspace apply --sessio
 echo "$review_next_output" | grep -q 'murmurmark review progress --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review apply --session .*review-next-session'
 export_block_dir="$workdir/export-blocked"
-if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >/dev/null 2>&1; then
+export_block_stdout="$workdir/export_blocked_stdout.txt"
+if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >"$export_block_stdout" 2>&1; then
   echo "expected export to block incomplete session" >&2
   exit 1
 fi
+grep -q '^next: .*murmurmark process' "$export_block_stdout"
 [[ -s "$export_block_dir/$(basename "$session").export_blocked.json" ]]
 jq -e '.status == "blocked" and (.blockers | index("pipeline_incomplete")) and (.readiness.export_blockers | index("pipeline_incomplete"))' \
   "$export_block_dir/$(basename "$session").export_blocked.json" >/dev/null
