@@ -720,6 +720,33 @@ EOF
   jq -s 'any(.[]; .label == "possible_lost_me")' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
   jq -s 'any(.[]; .label == "likely_harmless_ack_fragment" and .parent_is_acknowledgement == true)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
   jq -s 'any(.[]; .label == "likely_harmless_boundary_fragment" and .boundary.boundary_fragment == true)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
+  python3 - "$group_session/derived/audit/local-recall/local_recall_items.jsonl" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+for row in rows:
+    if row.get("label") == "possible_lost_me":
+        row["repair_candidate"] = {"text": "Я возьму логи.", "score": 0.82}
+path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
+PY
+  local_recall_repair_output="$("$bin" repair local-recall "$group_session" \
+    --input-profile shadow_v2 \
+    --skip-micro-asr)"
+  echo "$local_recall_repair_output" | grep -q '^repair:$'
+  echo "$local_recall_repair_output" | grep -q '  kind: local_recall'
+  echo "$local_recall_repair_output" | grep -q '  applied_repairs: 1'
+  local_recall_repair_report="$group_session/derived/transcript-simple/whisper-cpp/local-recall-repair/local_recall_repair_report.local_recall_repair_v1.json"
+  local_recall_repair_dialogue="$group_resolved/clean_dialogue.local_recall_repair_v1.json"
+  [[ -s "$local_recall_repair_report" ]]
+  [[ -s "$local_recall_repair_dialogue" ]]
+  jq -e '.gates.passed == true and .summary.applied_repairs == 1' "$local_recall_repair_report" >/dev/null
+  jq -e 'any(.utterances[]; .id == "local_recall_repair_v1_local_recall_0003" and .speaker_label == "Me" and .text == "Я возьму логи.")' "$local_recall_repair_dialogue" >/dev/null
+  "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" \
+    --transcript-profile local_recall_repair_v1 >/dev/null
+  [[ -s "$group_session/derived/synthesis-simple/extractive/quality_verdict.local_recall_repair_v1.json" ]]
 
   "$bin" audit order "$group_session" --profile shadow_v2 >/dev/null
   jq -e '.schema == "murmurmark.transcript_order_audit/v1" and .status == "ok" and .summary.probable_order_risk_count == 0' \

@@ -669,7 +669,20 @@ the source item as reliable.
 audio leakage.
 `murmurmark corpus local-recall` writes `sessions/_reports/local-recall/`. It aggregates
 possible lost `Me`, local-recall review and harmless missing-island explanations across the corpus.
-Use it when local speech recall is the concern.
+Use it when local speech recall is the concern. For a strong missed local island, use the candidate
+repair profile explicitly:
+
+```bash
+murmurmark repair local-recall "$SESSION" \
+  --input-profile auto \
+  --output-profile local_recall_repair_v1
+
+murmurmark transcript "$SESSION" --profile local_recall_repair_v1
+murmurmark synthesize "$SESSION" --transcript-profile local_recall_repair_v1
+```
+
+Inserted `Me` turns stay `needs_review`, so this profile is for inspection and explicit use, not
+automatic promotion.
 `murmurmark corpus remote-leak` writes `sessions/_reports/remote-leak-segment/`. It aggregates
 per-session remote-leak segment plans into one corpus queue and keeps the same audit-only policy:
 no transcript profile and no raw audio are modified. `murmurmark corpus process all` refreshes these

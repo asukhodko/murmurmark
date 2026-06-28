@@ -537,6 +537,7 @@ def parse_args() -> argparse.Namespace:
             "agent_reviewed_v1",
             "suggested_review_v1",
             "order_repair_v1",
+            "local_recall_repair_v1",
         ),
         default="auto",
         help="Transcript artifact profile to synthesize from.",
@@ -626,6 +627,7 @@ def source_profile_paths(resolved_dir: Path, requested_profile: str) -> dict[str
         "audit_cleanup_report": resolved_dir.parent / "audit-cleanup" / f"audit_cleanup_report{suffix}.json",
         "review_decisions_report": resolved_dir.parent / "review-decisions" / f"review_decisions_report{suffix}.json",
         "order_repair_report": resolved_dir.parent / "order-repair" / f"transcript_order_repair_report{suffix}.json",
+        "local_recall_repair_report": resolved_dir.parent / "local-recall-repair" / f"local_recall_repair_report{suffix}.json",
     }
 
 
@@ -811,6 +813,34 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
                 }
             )
         return "order_repair_v1", paths, repair_comparison, risk_items
+
+    if requested_profile == "local_recall_repair_v1":
+        paths = source_profile_paths(resolved_dir, "local_recall_repair_v1")
+        comparison, error = read_json(paths["repair_comparison"])
+        if error is None and isinstance(comparison, dict):
+            repair_comparison = comparison
+        repair_report, repair_error = read_json(paths["local_recall_repair_report"])
+        if repair_error is not None:
+            risk_items.append({"type": "missing_local_recall_repair_report", "severity": "high", "reason": repair_error})
+        elif not isinstance(repair_report, dict) or not isinstance(repair_report.get("gates"), dict) or repair_report["gates"].get("passed") is not True:
+            risk_items.append(
+                {
+                    "type": "local_recall_repair_gates_failed",
+                    "severity": "high",
+                    "reason": "local-recall repair profile was requested but repair gates did not pass",
+                }
+            )
+        else:
+            summary = repair_report.get("summary") if isinstance(repair_report.get("summary"), dict) else {}
+            if safe_number(summary.get("applied_repairs")) > 0:
+                risk_items.append(
+                    {
+                        "type": "inserted_local_recall_me_turns_need_review",
+                        "severity": "medium",
+                        "reason": "local-recall repair inserted Me turns that should be checked before external export",
+                    }
+                )
+        return "local_recall_repair_v1", paths, repair_comparison, risk_items
 
     if requested_profile == "shadow_v2":
         paths = source_profile_paths(resolved_dir, "shadow_v2")
@@ -2258,6 +2288,7 @@ def main() -> int:
         "agent_reviewed_v1",
         "suggested_review_v1",
         "order_repair_v1",
+        "local_recall_repair_v1",
     }:
         profile_suffix = selected_profile
         profile_aliases = {

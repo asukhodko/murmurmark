@@ -375,9 +375,9 @@ nodes:
     title: "Better local recall repair"
     kind: task
     parent: quality-hardening
-    status: next
+    status: current
     effort: 6
-    notes: "Меньше пропусков коротких Me-реплик, особенно в начале/конце и на быстрых ack."
+    notes: "Первый conservative слой local_recall_repair_v1 вставляет только короткие Me-острова из possible_lost_me после micro-ASR и оставляет их needs_review; следующий шаг — корпусная оценка точности перед auto-promotion."
 
   quality-local-recall-boundary-audit:
     title: "Boundary-aware local recall audit"

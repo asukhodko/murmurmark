@@ -315,6 +315,7 @@ murmurmark audit order ./sessions/<session> --profile auto
 murmurmark audit group-overlaps ./sessions/<session> --profile shadow_v2 --write-clips
 murmurmark audit audio-review ./sessions/<session> --profile audit_cleanup_v2 --write-clips
 murmurmark repair order ./sessions/<session> --input-profile auto --output-profile order_repair_v1
+murmurmark repair local-recall ./sessions/<session> --input-profile auto --output-profile local_recall_repair_v1
 murmurmark repair remote-leak ./sessions/<session>
 murmurmark review plan
 murmurmark review first-lane
@@ -369,6 +370,8 @@ murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v5
 murmurmark cleanup ./sessions/<session> --input-profile audit_cleanup_v5 --output-profile audit_cleanup_v6
 murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v6
 murmurmark repair order ./sessions/<session> --input-profile auto --output-profile order_repair_v1
+murmurmark repair local-recall ./sessions/<session> --input-profile auto --output-profile local_recall_repair_v1
+murmurmark synthesize ./sessions/<session> --transcript-profile local_recall_repair_v1
 murmurmark synthesize ./sessions/<session> --transcript-profile auto
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session> --write-session-readiness
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
@@ -456,6 +459,13 @@ islands such as `понял` or `окей` are also low-risk audit evidence, whi
 speech stays as a blocking `low_local_recall` risk. It never edits transcripts.
 `murmurmark corpus local-recall` aggregates those per-session audits into
 `sessions/_reports/local-recall/` so possible lost `Me` regions are visible as one corpus queue.
+
+`murmurmark repair local-recall` wraps `scripts/apply-local-recall-repair.py`. It reads
+`local_recall_items.jsonl`, runs micro-ASR on strong `possible_lost_me` local islands and writes a
+separate `local_recall_repair_v1` profile. Inserted `Me` turns are always marked `needs_review`;
+baseline, cleanup and order profiles are not modified. Use this profile explicitly when checking
+whether a missed short local phrase was recovered:
+`murmurmark synthesize SESSION --transcript-profile local_recall_repair_v1`.
 
 The transcript order audit reads `clean_dialogue` and `overlaps`, then writes
 `derived/audit/order/`. It highlights long `Me` turns that wrap a `Colleagues` turn and have a

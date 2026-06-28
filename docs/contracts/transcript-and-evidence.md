@@ -406,6 +406,59 @@ as "понял" or "окей" without work markers or unique meeting content. `l
 means the missing island is short and sits on a known timeline boundary, so it is tracked as low-risk
 boundary timing noise rather than a lost local turn.
 
+`murmurmark repair local-recall` is the first conservative repair layer for this queue. It writes a
+separate profile and does not modify `shadow_v2`, cleanup, order repair or reviewed profiles.
+The v1 repair may insert only whole short `Me` utterances from `possible_lost_me` items when the
+local state is strong, remote state is weak and micro-ASR produces a non-empty text that is not too
+similar to nearby remote text. Inserted rows are marked `quality.needs_review = true`.
+
+Profile outputs:
+
+```text
+derived/transcript-simple/whisper-cpp/resolved/
+  clean_dialogue.local_recall_repair_v1.json
+  transcript.local_recall_repair_v1.md
+  transcript.simple.local_recall_repair_v1.json
+  quality_report.local_recall_repair_v1.json
+  overlaps.local_recall_repair_v1.json
+
+derived/transcript-simple/whisper-cpp/local-recall-repair/
+  local_recall_repair_report.local_recall_repair_v1.json
+  local_recall_repair_patches.local_recall_repair_v1.jsonl
+  local_recall_repair_rejected.local_recall_repair_v1.jsonl
+  local_recall_repair_micro_runs.local_recall_repair_v1.jsonl
+  local_recall_repair.local_recall_repair_v1.md
+```
+
+`local_recall_repair_report.local_recall_repair_v1.json` uses
+`murmurmark.local_recall_repair_report/v1`:
+
+```json
+{
+  "schema": "murmurmark.local_recall_repair_report/v1",
+  "input_profile": "order_repair_v1",
+  "output_profile": "local_recall_repair_v1",
+  "summary": {
+    "source_items": 3,
+    "eligible_items": 1,
+    "applied_repairs": 1,
+    "inserted_me_seconds": 1.3,
+    "rejected_items": 2
+  },
+  "gates": {
+    "passed": true,
+    "hard_failures": [],
+    "warnings": []
+  }
+}
+```
+
+Applied patches use `murmurmark.local_recall_repair_patch/v1`; rejected items use
+`murmurmark.local_recall_repair_rejection/v1` with a machine-readable reason. Synthesis accepts
+`--transcript-profile local_recall_repair_v1` explicitly and adds a review risk when inserted local
+turns exist. Auto-promotion is intentionally left out until corpus evidence proves that the inserted
+turns reduce lost local speech without increasing remote leak.
+
 The transcript order audit explains remaining chronology risk from long `Me` utterances crossing
 remote turns. It is audit-only and writes under:
 

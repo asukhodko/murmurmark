@@ -104,6 +104,8 @@ struct MurmurMark {
                              [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
                                 [--mode conservative] [--sessions-root ./sessions]
+          murmurmark repair local-recall ./session|latest [--input-profile auto] [--output-profile local_recall_repair_v1]
+                                       [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair remote-leak ./session|latest [--sessions-root ./sessions]
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
           murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
@@ -1473,6 +1475,16 @@ enum RepairCommands {
             if status != 0 {
                 throw CLIError("order repair gates did not pass; inspect transcript_order_repair_report before promoting the profile")
             }
+        case "local-recall":
+            let status = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("apply-local-recall-repair.py").path, session.path] + remaining,
+                allowedExitCodes: [0, 2]
+            )
+            try RepairPrinter.printLocalRecallSummary(session: session, args: remaining)
+            if status != 0 {
+                throw CLIError("local-recall repair gates did not pass; inspect local_recall_repair_report before promoting the profile")
+            }
         case "remote-leak":
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
@@ -1497,9 +1509,12 @@ enum RepairCommands {
         usage:
           murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
                                 [--mode conservative] [--sessions-root ./sessions]
+          murmurmark repair local-recall ./session|latest [--input-profile auto] [--output-profile local_recall_repair_v1]
+                                       [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair remote-leak ./session|latest [--sessions-root ./sessions]
 
         order writes a separate transcript profile with conservative transcript-order repairs.
+        local-recall writes a separate transcript profile with conservative inserted Me islands.
         remote-leak writes an audit-only segment repair plan and never edits transcript profiles.
         """)
     }
@@ -1888,6 +1903,43 @@ enum CleanupPrinter {
 }
 
 enum RepairPrinter {
+    static func printLocalRecallSummary(session: URL, args: [String]) throws {
+        let profile = ArgumentEditing.peekOption("output-profile", in: args) ?? "local_recall_repair_v1"
+        let suffix = profile == "current" ? "" : ".\(profile)"
+        let repairDir = session.appendingPathComponent("derived/transcript-simple/whisper-cpp/local-recall-repair")
+        let reportURL = repairDir.appendingPathComponent("local_recall_repair_report\(suffix).json")
+        guard FileManager.default.fileExists(atPath: reportURL.path) else {
+            print("")
+            print("repair:")
+            print("  kind: local_recall")
+            print("  report: missing")
+            print("  expected: \(PathDisplay.display(reportURL))")
+            return
+        }
+
+        let payload = try JSONFiles.object(reportURL)
+        let summary = dict(payload["summary"])
+        let gates = dict(payload["gates"])
+        print("")
+        print("repair:")
+        print("  kind: local_recall")
+        print("  report: \(PathDisplay.display(reportURL))")
+        print("  input_profile: \(string(payload["input_profile"]) ?? "unknown")")
+        print("  output_profile: \(string(payload["output_profile"]) ?? profile)")
+        print("  eligible_items: \(int(summary["eligible_items"]))")
+        print("  applied_repairs: \(int(summary["applied_repairs"]))")
+        print("  inserted_me_seconds: \(summary["inserted_me_seconds"] ?? 0)")
+        print("  rejected_items: \(int(summary["rejected_items"]))")
+        print("  gates_passed: \(bool(gates["passed"]))")
+        if let warnings = gates["warnings"] as? [Any], !warnings.isEmpty {
+            print("  warnings: \(compactJSON(warnings))")
+        }
+        print("  next:")
+        print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
+        print("    murmurmark transcript \(PathDisplay.display(session)) --profile \(profile)")
+        print("    murmurmark report \(PathDisplay.display(session))")
+    }
+
     static func printOrderSummary(session: URL, args: [String]) throws {
         let profile = ArgumentEditing.peekOption("output-profile", in: args) ?? "order_repair_v1"
         let suffix = profile == "current" ? "" : ".\(profile)"
