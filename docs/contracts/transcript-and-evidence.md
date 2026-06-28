@@ -1005,7 +1005,7 @@ they are a routing layer for the next agent or reviewer.
 deliverable, but it does not apply patches.
 
 Corpus gates are generated after session quality, corpus evaluation, audio judge, transcript-order,
-remote-leak segment corpus and operational readiness reports:
+local-recall, remote-leak segment corpus and operational readiness reports:
 
 ```text
 sessions/_reports/corpus-gates/
@@ -1036,6 +1036,8 @@ sessions/_reports/corpus-gates/
     "ready_for_notes": 6,
     "audio_judge_cv_accuracy": 0.970297,
     "total_review_burden_ratio": 0.007082,
+    "local_recall_complete_blocking_sessions": 0,
+    "local_recall_possible_lost_me_seconds": 0.0,
     "remote_leak_segment_item_count": 15,
     "remote_leak_segment_protect_local_content_items": 15
   },
@@ -1053,6 +1055,13 @@ sessions/_reports/corpus-gates/
       "severity": "fail",
       "observed": 0,
       "threshold": "0 sessions"
+    },
+    {
+      "id": "local_recall.no_complete_blocking_sessions",
+      "status": "pass",
+      "severity": "fail",
+      "observed": 0,
+      "threshold": "0 complete sessions"
     },
     {
       "id": "remote_leak_segment.no_protected_local_content",
@@ -1076,6 +1085,10 @@ built from real meeting sessions must stay under ignored `sessions/_reports/`.
 Remote-leak segment corpus gates are intentionally warning-level. A pending queue means some `Me`
 regions may still contain unique local content mixed with remote leak and need segment-level repair
 or review. It must not be treated as permission for whole-utterance deletion.
+
+Local-recall corpus gates are stricter: a complete session with remaining blocking possible lost
+`Me` speech fails `local_recall.no_complete_blocking_sessions`. Missing local-recall corpus reports
+or missing per-session audits remain warnings for backwards compatibility.
 
 The post-recording runner writes a per-session execution manifest:
 

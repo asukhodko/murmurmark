@@ -606,10 +606,11 @@ For a full refresh with all sessions under `./sessions`, use:
 ```
 
 `corpus gate` reads the generated session-quality, regression-corpus, audio-judge, transcript-order,
-remote-leak segment corpus and operational readiness JSON reports, then writes
-`sessions/_reports/corpus-gates/corpus_gates_report.json` and `.md`. Remote-leak segment queues are
-reported as warnings: they are review/repair backlog, not hard no-regression failures. `passed` or
-`passed_with_warnings` exits successfully. `failed` exits non-zero unless `--no-fail` is used.
+local-recall, remote-leak segment corpus and operational readiness JSON reports, then writes
+`sessions/_reports/corpus-gates/corpus_gates_report.json` and `.md`. Complete sessions with blocking
+local-recall risk fail the gate. Remote-leak segment queues are reported as warnings: they are
+review/repair backlog, not hard no-regression failures. `passed` or `passed_with_warnings` exits
+successfully. `failed` exits non-zero unless `--no-fail` is used.
 
 For risky algorithm changes, first save a private local baseline:
 

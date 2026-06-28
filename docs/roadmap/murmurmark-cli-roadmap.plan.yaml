@@ -255,7 +255,7 @@ nodes:
     parent: corpus-regression
     status: done
     effort: 5
-    notes: "murmurmark corpus gate проверяет coverage, transcript-инварианты, corpus readiness, audio judge, review burden и warning-очередь remote-leak segment repair."
+    notes: "murmurmark corpus gate проверяет coverage, transcript-инварианты, corpus readiness, audio judge, review burden, local-recall corpus blockers и warning-очередь remote-leak segment repair."
 
   corpus-audio-judge-refresh:
     title: "Audio judge evaluation"

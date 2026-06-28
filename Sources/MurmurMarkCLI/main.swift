@@ -6382,6 +6382,12 @@ enum CorpusPrinter {
         print("  complete_pipeline_count: \(int(summary["complete_pipeline_count"]) ?? 0)")
         print("  ready_for_notes: \(int(summary["ready_for_notes"]) ?? 0)")
         print("  review_first: \(int(summary["review_first"]) ?? 0)")
+        if let blocking = int(summary["local_recall_complete_blocking_sessions"]) {
+            print("  local_recall_complete_blocking_sessions: \(blocking)")
+        }
+        if let seconds = double(summary["local_recall_possible_lost_me_seconds"]) {
+            print(String(format: "  local_recall_possible_lost_me_seconds: %.2f", seconds))
+        }
         if let remoteLeakItems = int(summary["remote_leak_segment_item_count"]) {
             print("  remote_leak_segment_items: \(remoteLeakItems)")
         }

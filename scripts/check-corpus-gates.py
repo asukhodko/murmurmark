@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA_REPORT = "murmurmark.corpus_gates_report/v1"
 SCHEMA_BASELINE = "murmurmark.corpus_gates_baseline/v1"
 
@@ -46,6 +46,11 @@ def parse_args() -> argparse.Namespace:
         "--transcript-order",
         type=Path,
         default=Path("sessions/_reports/transcript-order/transcript_order_corpus_report.json"),
+    )
+    parser.add_argument(
+        "--local-recall",
+        type=Path,
+        default=Path("sessions/_reports/local-recall/local_recall_corpus_report.json"),
     )
     parser.add_argument(
         "--remote-leak-segment-corpus",
@@ -181,6 +186,10 @@ def build_baseline_snapshot(
     audio_remaining: int,
     operational_verdict: str,
     operational_queue: int,
+    local_recall_missing_audit_count: int,
+    local_recall_complete_blocking: int,
+    local_recall_possible_lost_me_seconds: float,
+    local_recall_needs_review_seconds: float,
     remote_leak_item_count: int,
     remote_leak_missing_plan_count: int,
     remote_leak_protect_local_content_items: int,
@@ -218,6 +227,7 @@ def build_baseline_snapshot(
             "audio_judge": str(args.audio_judge),
             "operational_readiness": str(args.operational_readiness),
             "transcript_order": str(args.transcript_order),
+            "local_recall": str(args.local_recall),
             "remote_leak_segment_corpus": str(args.remote_leak_segment_corpus),
         },
         "metrics": {
@@ -235,6 +245,10 @@ def build_baseline_snapshot(
             "audio_judge_remaining_review_items": audio_remaining,
             "operational_verdict": operational_verdict or None,
             "operational_review_queue_items": operational_queue,
+            "local_recall_missing_audit_count": local_recall_missing_audit_count,
+            "local_recall_complete_blocking_sessions": local_recall_complete_blocking,
+            "local_recall_possible_lost_me_seconds": round(local_recall_possible_lost_me_seconds, 3),
+            "local_recall_needs_review_seconds": round(local_recall_needs_review_seconds, 3),
             "remote_leak_segment_item_count": remote_leak_item_count,
             "remote_leak_segment_missing_plan_count": remote_leak_missing_plan_count,
             "remote_leak_segment_protect_local_content_items": remote_leak_protect_local_content_items,
@@ -438,6 +452,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     audio_judge = read_json(args.audio_judge)
     operational = read_json(args.operational_readiness)
     transcript_order = read_json(args.transcript_order)
+    local_recall = read_json(args.local_recall)
     remote_leak_segment = read_json(args.remote_leak_segment_corpus)
 
     checks: list[dict[str, Any]] = []
@@ -447,6 +462,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "audio_judge": str(args.audio_judge),
         "operational_readiness": str(args.operational_readiness),
         "transcript_order": str(args.transcript_order),
+        "local_recall": str(args.local_recall),
         "remote_leak_segment_corpus": str(args.remote_leak_segment_corpus),
     }
     thresholds = {
@@ -475,7 +491,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "allowed_corpus_readiness": sorted(allowed_readiness),
     }
 
-    required_inputs = {key: path for key, path in inputs.items() if key != "remote_leak_segment_corpus"}
+    required_inputs = {key: path for key, path in inputs.items() if key not in {"local_recall", "remote_leak_segment_corpus"}}
     for key, path in required_inputs.items():
         check(
             checks,
@@ -493,6 +509,15 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         observed=str(args.remote_leak_segment_corpus),
         threshold="valid JSON object",
         message="remote-leak segment corpus report exists; corpus process rebuilds it automatically",
+    )
+    check(
+        checks,
+        "input.local_recall",
+        local_recall is not None,
+        severity="warn",
+        observed=str(args.local_recall),
+        threshold="valid JSON object",
+        message="local-recall corpus report exists; corpus process rebuilds it automatically",
     )
 
     complete = complete_sessions(session_quality)
@@ -697,6 +722,15 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     order_complete_blocking = safe_int(order_summary.get("complete_blocking_session_count"))
     order_audited_sessions = safe_int(order_summary.get("audited_session_count"))
     order_session_count = safe_int(order_summary.get("session_count"))
+    local_recall_summary = local_recall.get("summary") if isinstance(local_recall, dict) else {}
+    local_recall_summary = local_recall_summary if isinstance(local_recall_summary, dict) else {}
+    local_recall_schema = str(local_recall.get("schema") if isinstance(local_recall, dict) else "")
+    local_recall_missing_audit_count = safe_int(local_recall_summary.get("missing_local_recall_audit_count"))
+    local_recall_complete_blocking = safe_int(local_recall_summary.get("complete_blocking_session_count"))
+    local_recall_audited_sessions = safe_int(local_recall_summary.get("audited_session_count"))
+    local_recall_session_count = safe_int(local_recall_summary.get("session_count"))
+    local_recall_possible_lost_me_seconds = safe_float(local_recall_summary.get("possible_lost_me_seconds"))
+    local_recall_needs_review_seconds = safe_float(local_recall_summary.get("needs_review_seconds"))
     remote_leak_summary = remote_leak_segment.get("summary") if isinstance(remote_leak_segment, dict) else {}
     remote_leak_summary = remote_leak_summary if isinstance(remote_leak_summary, dict) else {}
     remote_leak_schema = str(remote_leak_segment.get("schema") if isinstance(remote_leak_segment, dict) else "")
@@ -722,6 +756,33 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         threshold="0 complete sessions",
         message="no complete session has blocking transcript order risk in the corpus order report",
     )
+    if local_recall is not None:
+        check(
+            checks,
+            "local_recall.schema",
+            local_recall_schema == "murmurmark.local_recall_corpus_report/v1",
+            severity="warn",
+            observed=local_recall_schema,
+            threshold="murmurmark.local_recall_corpus_report/v1",
+            message="local-recall corpus report uses the expected schema",
+        )
+        check(
+            checks,
+            "local_recall.audits_complete",
+            local_recall_missing_audit_count == 0,
+            severity="warn",
+            observed=local_recall_missing_audit_count,
+            threshold="0 missing local-recall audits",
+            message="local-recall corpus report covers every session in its scope",
+        )
+        check(
+            checks,
+            "local_recall.no_complete_blocking_sessions",
+            local_recall_complete_blocking == 0,
+            observed=local_recall_complete_blocking,
+            threshold="0 complete sessions",
+            message="no complete session has blocking local-recall risk in the corpus local-recall report",
+        )
     if remote_leak_segment is not None:
         check(
             checks,
@@ -806,6 +867,10 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         audio_remaining=audio_remaining,
         operational_verdict=operational_verdict,
         operational_queue=operational_queue,
+        local_recall_missing_audit_count=local_recall_missing_audit_count,
+        local_recall_complete_blocking=local_recall_complete_blocking,
+        local_recall_possible_lost_me_seconds=local_recall_possible_lost_me_seconds,
+        local_recall_needs_review_seconds=local_recall_needs_review_seconds,
         remote_leak_item_count=remote_leak_item_count,
         remote_leak_missing_plan_count=remote_leak_missing_plan_count,
         remote_leak_protect_local_content_items=remote_leak_protect_local_content_items,
@@ -852,6 +917,12 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "transcript_order_session_count": order_session_count,
             "transcript_order_missing_audits": order_missing_audits,
             "transcript_order_complete_blocking_sessions": order_complete_blocking,
+            "local_recall_audited_sessions": local_recall_audited_sessions,
+            "local_recall_session_count": local_recall_session_count,
+            "local_recall_missing_audits": local_recall_missing_audit_count,
+            "local_recall_complete_blocking_sessions": local_recall_complete_blocking,
+            "local_recall_possible_lost_me_seconds": round(local_recall_possible_lost_me_seconds, 3),
+            "local_recall_needs_review_seconds": round(local_recall_needs_review_seconds, 3),
             "remote_leak_segment_item_count": remote_leak_item_count,
             "remote_leak_segment_missing_plan_count": remote_leak_missing_plan_count,
             "remote_leak_segment_protect_local_content_items": remote_leak_protect_local_content_items,
