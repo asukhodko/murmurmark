@@ -1685,10 +1685,11 @@ EOF
     --session-quality "$quality_dir/session_quality_report.json" \
     --out-dir "$remote_leak_corpus_dir")"
   echo "$remote_leak_corpus_output" | grep -q '^remote_leak_segment_corpus:'
+  echo "$remote_leak_corpus_output" | grep -q '  next_command: less .*remote_leak_segment_repair.md'
   [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.json" ]]
   [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_items.jsonl" ]]
   [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.md" ]]
-  jq -e '.schema == "murmurmark.remote_leak_segment_corpus_report/v1" and .summary.protect_local_content_items >= 1 and .policy.may_modify_transcript == false' \
+  jq -e '.schema == "murmurmark.remote_leak_segment_corpus_report/v1" and .summary.protect_local_content_items >= 1 and .policy.may_modify_transcript == false and (.next_commands[0].command | test("^less .*/?remote_leak_segment_repair.md$"))' \
     "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.json" >/dev/null
   jq -s 'any(.[]; .schema == "murmurmark.remote_leak_segment_corpus_item/v1" and .diagnostic == "remote_leak_with_local_content_risk" and .whole_me_drop_allowed == false)' \
     "$remote_leak_corpus_dir/remote_leak_segment_corpus_items.jsonl" >/dev/null
@@ -1699,6 +1700,36 @@ EOF
     --out-dir "$remote_leak_corpus_plan_dir" >/dev/null
   jq -e '.summary.planned_session_count == 1 and .summary.protect_local_content_items >= 1' \
     "$remote_leak_corpus_plan_dir/remote_leak_segment_corpus_report.json" >/dev/null
+  python3 - "$repo_root" <<'PY'
+import importlib.util
+from pathlib import Path
+from types import SimpleNamespace
+import sys
+
+repo_root = Path(sys.argv[1])
+module_path = repo_root / "scripts/report-remote-leak-segment-corpus.py"
+spec = importlib.util.spec_from_file_location("report_remote_leak_segment_corpus", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+spec.loader.exec_module(module)
+args = SimpleNamespace(
+    sessions=[Path("sessions/missing-remote-leak")],
+    session_quality=Path("sessions/_reports/session-quality/session_quality_report.json"),
+    out_dir=Path("sessions/_reports/remote-leak-segment"),
+)
+missing_commands = module.build_next_commands(
+    args,
+    [{"session": "sessions/missing-remote-leak", "session_id": "missing-remote-leak"}],
+    [],
+)
+assert missing_commands[0]["command"] == "murmurmark corpus remote-leak sessions/missing-remote-leak --plan", missing_commands
+protected_commands = module.build_next_commands(
+    args,
+    [],
+    [{"session": "sessions/remote-risk", "session_id": "remote-risk", "report_path": "sessions/remote-risk/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md"}],
+)
+assert protected_commands[0]["command"].endswith("remote_leak_segment_repair.md"), protected_commands
+PY
 
   taxonomy_dir="$workdir/audio-error-taxonomy"
   taxonomy_output="$("$bin" corpus taxonomy \

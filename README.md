@@ -173,6 +173,8 @@ candidates, which are mark-only, which need better labels, and which sessions/ex
 the next quality iteration. The report also splits broad classes like `uncertain` into diagnostic
 subtypes and writes an `action_plan`, so the next repair can target one narrow failure mode.
 `corpus remote-leak` writes `sessions/_reports/remote-leak-segment/remote_leak_segment_corpus_report.*`.
+When plans are missing, the report points to `murmurmark corpus remote-leak --plan`; when protected
+local-content intervals exist, it points to the first `remote_leak_segment_repair.md` report.
 `corpus local-recall` writes `sessions/_reports/local-recall/local_recall_corpus_report.*`.
 It aggregates possible lost-`Me` and local-recall review items across the corpus; `--audit` refreshes
 per-session local-recall audits first.
@@ -185,7 +187,8 @@ profile into `auto`. When inserted repairs exist, the corpus report includes the
 micro-ASR diagnostics and can recover short boundary-shifted rows when Whisper recognized text but
 the row midpoint landed just outside the local island.
 `murmurmark corpus process all` rebuilds per-session remote-leak plans before session-quality and
-corpus aggregation. Use `corpus remote-leak --plan` when you want to refresh only that queue.
+corpus aggregation. Use `corpus remote-leak --plan` when you want to refresh only that queue; the
+aggregate report prints that command when plans are missing.
 `passed_with_warnings` means the hard no-regression gates are green, but some historical sessions or
 review queues still need cleanup before the whole repository is operationally ready.
 The optional baseline is private generated state under ignored `sessions/_reports/`.

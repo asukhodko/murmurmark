@@ -7285,9 +7285,7 @@ enum CorpusPrinter {
             print(String(format: "  likely_harmless_seconds: %.2f", seconds))
         }
         print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
-        if let command = (payload["next_commands"] as? [[String: Any]])?.compactMap({ string($0["command"]) }).first {
-            print("  next_command: \(command)")
-        }
+        printFirstNextCommand(payload)
     }
 
     static func printLocalRecallRepairCorpus(outDir: URL = PathURLs.fileURL("sessions/_reports/local-recall-repair")) throws {
@@ -7305,9 +7303,7 @@ enum CorpusPrinter {
         }
         print("  rejected_items: \(int(summary["rejected_items"]) ?? 0)")
         print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
-        if let command = (payload["next_commands"] as? [[String: Any]])?.compactMap({ string($0["command"]) }).first {
-            print("  next_command: \(command)")
-        }
+        printFirstNextCommand(payload)
     }
 
     static func printRemoteLeakSegment(outDir: URL = PathURLs.fileURL("sessions/_reports/remote-leak-segment")) throws {
@@ -7324,6 +7320,7 @@ enum CorpusPrinter {
             print(String(format: "  protect_local_content_seconds: %.2f", seconds))
         }
         print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
+        printFirstNextCommand(payload)
     }
 
     static func printOperationalReadiness() throws {
@@ -7366,6 +7363,13 @@ enum CorpusPrinter {
             return "\(value)"
         }
         return text
+    }
+}
+
+private func printFirstNextCommand(_ payload: [String: Any]) {
+    let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+    if let command = nextCommands.compactMap({ $0["command"] as? String }).first {
+        print("  next_command: \(command)")
     }
 }
 

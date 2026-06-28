@@ -234,8 +234,59 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
         "missing_plans": missing,
         "review_items": all_items[: max(0, args.max_items)],
         "policy": {"mode": "audit_only", "may_modify_transcript": False, "may_modify_raw_audio": False},
+        "next_commands": build_next_commands(args, missing, protected_items),
     }
     return report, all_items
+
+
+def build_next_commands(
+    args: argparse.Namespace,
+    missing: list[dict[str, Any]],
+    protected_items: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if missing:
+        return [
+            {
+                "id": "plan_remote_leak_segments",
+                "label": "Build missing remote-leak segment plans.",
+                "command": remote_leak_plan_command(args),
+            }
+        ]
+    for item in protected_items:
+        report_path = str(item.get("report_path") or "")
+        session = str(item.get("session") or "")
+        session_id = str(item.get("session_id") or Path(session).name)
+        if report_path:
+            return [
+                {
+                    "id": f"inspect_remote_leak_segment_{session_id}",
+                    "label": f"Inspect protected remote-leak segments for {session_id}.",
+                    "command": f"less {command_path(report_path)}",
+                    "session_id": session_id,
+                    "session": session,
+                }
+            ]
+    return []
+
+
+def remote_leak_plan_command(args: argparse.Namespace) -> str:
+    parts = ["murmurmark", "corpus", "remote-leak"]
+    if args.sessions:
+        parts.extend(command_path(str(path)) for path in args.sessions)
+    parts.append("--plan")
+    if args.session_quality != Path("sessions/_reports/session-quality/session_quality_report.json"):
+        parts.extend(["--session-quality", command_path(str(args.session_quality))])
+    if args.out_dir != Path("sessions/_reports/remote-leak-segment"):
+        parts.extend(["--out-dir", command_path(str(args.out_dir))])
+    return " ".join(parts)
+
+
+def command_path(value: str) -> str:
+    path = Path(value)
+    try:
+        return str(path.relative_to(Path.cwd()))
+    except ValueError:
+        return value
 
 
 def format_time(seconds: float) -> str:
@@ -265,6 +316,12 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 f"`{row.get('protect_local_content_items')}` items / `{row.get('protect_local_content_seconds')}` sec, "
                 f"gate `{row.get('use_gate')}`, report `less {row.get('report_path')}`"
             )
+        lines.append("")
+    next_commands = [row for row in report.get("next_commands", []) if isinstance(row, dict)]
+    if next_commands:
+        lines += ["## Next Commands", ""]
+        for row in next_commands[:10]:
+            lines.append(f"- {row.get('label')} `{row.get('command')}`")
         lines.append("")
     items = report.get("review_items") if isinstance(report.get("review_items"), list) else []
     if items:
@@ -308,6 +365,9 @@ def main() -> int:
     print(f"protect_local_content_items: {summary['protect_local_content_items']}")
     print(f"protect_local_content_seconds: {summary['protect_local_content_seconds']}")
     print(f"recommended_next_step: {summary['recommended_next_step']}")
+    next_commands = [row for row in report.get("next_commands", []) if isinstance(row, dict)]
+    if next_commands:
+        print(f"next_command: {next_commands[0].get('command')}")
     return 0
 
 

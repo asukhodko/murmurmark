@@ -838,14 +838,25 @@ sessions/_reports/remote-leak-segment/
     "mode": "audit_only",
     "may_modify_transcript": false,
     "may_modify_raw_audio": false
-  }
+  },
+  "next_commands": [
+    {
+      "id": "inspect_remote_leak_segment_2026-06-26_11-15-50",
+      "label": "Inspect protected remote-leak segments for 2026-06-26_11-15-50.",
+      "command": "less sessions/2026-06-26_11-15-50/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md",
+      "session_id": "2026-06-26_11-15-50",
+      "session": "sessions/2026-06-26_11-15-50"
+    }
+  ]
 }
 ```
 
 `remote_leak_segment_corpus_items.jsonl` uses
 `murmurmark.remote_leak_segment_corpus_item/v1` and keeps session id, source audit id, diagnostic,
 proposal, interval, utterance ids and compact `Me`/`Colleagues` texts. This corpus report is the
-queue for future segment-level remote-leak repair work; it does not apply repairs.
+queue for future segment-level remote-leak repair work; it does not apply repairs. `next_commands`
+points to `murmurmark corpus remote-leak --plan` when plans are missing, or to the first protected
+segment report when local content must be inspected.
 
 The audio review pack is the local handoff format for agent-driven audio checks. It is audit-only
 and writes under:
