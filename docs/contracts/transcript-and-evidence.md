@@ -720,7 +720,16 @@ sessions/_reports/local-recall-repair/
     "mode": "explicit_profile",
     "auto_promotion": false,
     "inserted_me_turns_need_review": true
-  }
+  },
+  "next_commands": [
+    {
+      "id": "review_local_recall_repair_2026-06-26_17-31-17",
+      "label": "Review inserted local-recall repairs for 2026-06-26_17-31-17.",
+      "command": "murmurmark review lane check_local_recall --session sessions/2026-06-26_17-31-17",
+      "session_id": "2026-06-26_17-31-17",
+      "session": "sessions/2026-06-26_17-31-17"
+    }
+  ]
 }
 ```
 

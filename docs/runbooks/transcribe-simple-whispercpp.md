@@ -700,6 +700,13 @@ murmurmark corpus local-recall-repair all --repair --no-synthesize
 less sessions/_reports/local-recall-repair/local_recall_repair_corpus_report.md
 ```
 
+When inserted repairs exist, the corpus report writes `next_commands` and the CLI prints the first
+review command, for example:
+
+```bash
+murmurmark review lane check_local_recall --session ./sessions/<session>
+```
+
 `murmurmark corpus remote-leak` writes `sessions/_reports/remote-leak-segment/`. It aggregates
 per-session remote-leak segment plans into one corpus queue and keeps the same audit-only policy:
 no transcript profile and no raw audio are modified. `murmurmark corpus process all` refreshes these

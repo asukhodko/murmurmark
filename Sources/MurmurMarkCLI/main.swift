@@ -7302,6 +7302,10 @@ enum CorpusPrinter {
         }
         print("  rejected_items: \(int(summary["rejected_items"]) ?? 0)")
         print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
+        if let nextCommands = payload["next_commands"] as? [[String: Any]],
+           let command = nextCommands.compactMap({ string($0["command"]) }).first {
+            print("  next_command: \(command)")
+        }
     }
 
     static func printRemoteLeakSegment(outDir: URL = PathURLs.fileURL("sessions/_reports/remote-leak-segment")) throws {

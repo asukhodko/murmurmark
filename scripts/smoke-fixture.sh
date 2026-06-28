@@ -1649,10 +1649,11 @@ EOF
     --out-dir "$local_recall_repair_corpus_dir")"
   echo "$local_recall_repair_corpus_output" | grep -q '^local_recall_repair_corpus:'
   echo "$local_recall_repair_corpus_output" | grep -q '  applied_repairs: 1'
+  echo "$local_recall_repair_corpus_output" | grep -q '  next_command: murmurmark review lane check_local_recall --session '
   [[ -s "$local_recall_repair_corpus_dir/local_recall_repair_corpus_report.json" ]]
   [[ -s "$local_recall_repair_corpus_dir/local_recall_repair_corpus_items.jsonl" ]]
   [[ -s "$local_recall_repair_corpus_dir/local_recall_repair_corpus_report.md" ]]
-  jq -e '.schema == "murmurmark.local_recall_repair_corpus_report/v1" and .summary.repaired_session_count == 1 and .summary.applied_repairs == 1 and .policy.auto_promotion == false' \
+  jq -e '.schema == "murmurmark.local_recall_repair_corpus_report/v1" and .summary.repaired_session_count == 1 and .summary.applied_repairs == 1 and .policy.auto_promotion == false and (.next_commands | length) == 1 and (.next_commands[0].command | startswith("murmurmark review lane check_local_recall --session "))' \
     "$local_recall_repair_corpus_dir/local_recall_repair_corpus_report.json" >/dev/null
   jq -s 'any(.[]; .schema == "murmurmark.local_recall_repair_corpus_item/v1" and .kind == "patch" and .utterance_id == "local_recall_repair_v1_local_recall_0003")' \
     "$local_recall_repair_corpus_dir/local_recall_repair_corpus_items.jsonl" >/dev/null

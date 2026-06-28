@@ -236,6 +236,15 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
         "gates_failed_sessions": sum(1 for row in session_summaries if row.get("gates_passed") is not True),
         "recommended_next_step": next_step,
     }
+    next_commands = build_next_commands(
+        sorted(
+            patches,
+            key=lambda item: (
+                -safe_float(item.get("duration_sec")),
+                str(item.get("session_id") or ""),
+            ),
+        )
+    )
     report = {
         "schema": SCHEMA_REPORT,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -265,8 +274,38 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
             ),
         )[: max(0, args.max_items)],
         "policy": {"mode": "explicit_profile", "auto_promotion": False, "inserted_me_turns_need_review": True},
+        "next_commands": next_commands,
     }
     return report, items
+
+
+def build_next_commands(patches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    commands: list[dict[str, Any]] = []
+    seen_sessions: set[str] = set()
+    for item in patches:
+        session = str(item.get("session") or "")
+        session_id = str(item.get("session_id") or Path(session).name)
+        if not session or session_id in seen_sessions:
+            continue
+        seen_sessions.add(session_id)
+        commands.append(
+            {
+                "id": f"review_local_recall_repair_{session_id}",
+                "label": f"Review inserted local-recall repairs for {session_id}.",
+                "command": f"murmurmark review lane check_local_recall --session {command_path(session)}",
+                "session_id": session_id,
+                "session": session,
+            }
+        )
+    return commands
+
+
+def command_path(value: str) -> str:
+    path = Path(value)
+    try:
+        return str(path.relative_to(Path.cwd()))
+    except ValueError:
+        return value
 
 
 def format_time(seconds: Any) -> str:
@@ -298,6 +337,12 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 f"repairs `{row.get('applied_repairs')}`, inserted `{row.get('inserted_me_seconds')}`s, "
                 f"report `less {row.get('report_path')}`"
             )
+        lines.append("")
+    next_commands = [row for row in report.get("next_commands", []) if isinstance(row, dict)]
+    if next_commands:
+        lines += ["## Next Commands", ""]
+        for row in next_commands[:10]:
+            lines.append(f"- {row.get('label')} `{row.get('command')}`")
         lines.append("")
     items = [item for item in report.get("items", []) if isinstance(item, dict) and item.get("kind") == "patch"]
     if items:
@@ -343,6 +388,9 @@ def main() -> int:
     print(f"applied_repairs: {summary['applied_repairs']}")
     print(f"inserted_me_seconds: {summary['inserted_me_seconds']}")
     print(f"recommended_next_step: {summary['recommended_next_step']}")
+    next_commands = [row for row in report.get("next_commands", []) if isinstance(row, dict)]
+    if next_commands:
+        print(f"next_command: {next_commands[0].get('command')}")
     return 0
 
 
