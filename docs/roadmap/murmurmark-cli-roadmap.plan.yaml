@@ -33,7 +33,7 @@ nodes:
     title: "MurmurMark CLI"
     kind: summary
     status: current
-    effort: 273
+    effort: 275
     notes: |
       Roadmap CLI-версии MurmurMark.
 
@@ -135,7 +135,7 @@ nodes:
     parent: murmurmark-cli
     deps: [foundation-done]
     status: current
-    effort: 28
+    effort: 30
     notes: |
       Текущий набор скриптов постепенно становится пользовательской CLI-поверхностью.
       Уже есть process, latest, report, audit, plan-only и readiness summary. Остались полировка
@@ -191,6 +191,15 @@ nodes:
     status: done
     effort: 4
     notes: "process/report печатают gate, выбранный профиль, verdict, review burden, next commands и основные output paths."
+
+  cli-open-command:
+    title: "murmurmark open SESSION"
+    kind: task
+    parent: cli-orchestration
+    deps: [readiness-single-output]
+    status: done
+    effort: 2
+    notes: "Короткий CLI-вход к выбранным локальным артефактам из readiness: notes, transcript, verdict, readiness и audit reports; поддерживает path-only, command-only и cat."
 
   cli-config-model-prompt:
     title: "Consistent config/model/prompt handling"

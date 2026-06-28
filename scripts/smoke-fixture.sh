@@ -500,6 +500,15 @@ echo "$next_output" | grep -q '^next:$'
 echo "$next_output" | grep -q '^  status: incomplete$'
 echo "$next_output" | grep -q '^  command: murmurmark process '
 echo "$next_output" | grep -q '^  open_first: less '
+open_output="$("$bin" open "$session")"
+assert_no_helper_prefix "$open_output"
+echo "$open_output" | grep -q '^open:$'
+echo "$open_output" | grep -q '^  selected: notes$'
+echo "$open_output" | grep -q '^  command: less '
+"$bin" open "$session" --kind verdict --cat | grep -q '# Quality Verdict'
+"$bin" open latest --sessions-root "$workdir" --kind transcript --command-only | grep -q '^less .*/transcript.md$'
+"$bin" open "$session" --kind all | grep -q 'Transcript'
+"$bin" open "$session" --kind readiness --path-only | grep -q '/derived/readiness/session_readiness.md$'
 retention_readiness_output="$("$bin" retention plan "$session")"
 assert_no_helper_prefix "$retention_readiness_output"
 echo "$retention_readiness_output" | grep -q '^retention:$'

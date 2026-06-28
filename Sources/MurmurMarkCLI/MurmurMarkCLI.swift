@@ -35,6 +35,8 @@ struct MurmurMark {
                 try PipelineCommands.status(args)
             case "next":
                 try PipelineCommands.next(args)
+            case "open":
+                try OpenCommands.open(args)
             case "report":
                 try PipelineCommands.report(args)
             case "review":
@@ -108,6 +110,7 @@ struct MurmurMark {
                                 [--progress-interval-sec 60] [--config murmurmark.config.json] [--sessions-root ./sessions]
           murmurmark status [./session|latest] [--sessions-root ./sessions]
           murmurmark next [./session|latest] [--refresh] [--export-manifest ./export_manifest.json] [--sessions-root ./sessions]
+          murmurmark open [./session|latest] [--kind notes|transcript|verdict|readiness|audio-review] [--path-only|--command-only|--cat]
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
           murmurmark review plan|progress|apply|first-lane|lane|next
@@ -163,6 +166,7 @@ struct MurmurMark {
           process runs the current post-recording pipeline and prints the readiness summary.
           status prints the current readiness dashboard without recomputing reports.
           next prints the single recommended next command from readiness.
+          open prints or streams the selected local output artifact from readiness.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review wraps the current review-plan, agent-review, review CLI, progress and apply scripts.
           audit wraps the transcript order, local recall, group overlap and audio-review audit scripts through the project Python runtime.
@@ -723,6 +727,264 @@ enum PipelineHelp {
           murmurmark report latest
           murmurmark report ./sessions/<id>
           murmurmark report corpus
+        """)
+    }
+}
+
+enum OpenCommands {
+    static func open(_ args: [String]) throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+        var remaining = args
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let kind = canonicalKind(ArgumentEditing.takeOption("kind", from: &remaining) ?? "notes")
+        let pathOnly = ArgumentEditing.takeFlag("path-only", from: &remaining)
+        let commandOnly = ArgumentEditing.takeFlag("command-only", from: &remaining)
+        let cat = ArgumentEditing.takeFlag("cat", from: &remaining)
+        let target = remaining.isEmpty ? "latest" : remaining.removeFirst()
+        guard remaining.isEmpty else {
+            throw CLIError("unexpected open arguments: \(remaining.joined(separator: " "))")
+        }
+        if cat && kind == "all" {
+            throw CLIError("open --cat requires a single --kind")
+        }
+
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        let payload = try readinessPayload(session)
+        let profile = string(payload["selected_profile"]) ?? "current"
+        let targets = resolvedTargets(kind: kind, session: session, payload: payload)
+        guard !targets.isEmpty else {
+            let sessionPath = PathDisplay.display(session)
+            throw CLIError("no openable artifact for kind '\(kind)' in \(sessionPath); run `murmurmark report \(sessionPath)`")
+        }
+
+        if cat {
+            let data = try Data(contentsOf: targets[0].url)
+            FileHandle.standardOutput.write(data)
+            return
+        }
+        if pathOnly {
+            for target in targets {
+                print(PathDisplay.display(target.url))
+            }
+            return
+        }
+        if commandOnly {
+            for target in targets {
+                print(target.command)
+            }
+            return
+        }
+
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        print("")
+        print("open:")
+        print("  profile: \(profile)")
+        if kind == "all" {
+            print("  selected: all")
+            print("  commands:")
+            for target in targets {
+                print("    \(target.command) — \(target.label)")
+            }
+            return
+        }
+        let selectedTarget = targets[0]
+        print("  selected: \(selectedTarget.id)")
+        print("  path: \(PathDisplay.display(selectedTarget.url))")
+        print("  command: \(selectedTarget.command)")
+        print("  recommended_next: \(selectedTarget.command)")
+        print("  next:")
+        print("    \(selectedTarget.command)")
+    }
+
+    private struct OpenTarget {
+        let id: String
+        let label: String
+        let url: URL
+
+        var command: String {
+            "less \(PathDisplay.display(url))"
+        }
+    }
+
+    private static let orderedKinds = [
+        "notes",
+        "transcript",
+        "verdict",
+        "readiness",
+        "audio_review",
+        "local_recall",
+        "transcript_order",
+        "review_items",
+        "evidence",
+        "pipeline_run",
+    ]
+
+    private static func readinessPayload(_ session: URL) throws -> [String: Any] {
+        let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            let sessionPath = PathDisplay.display(session)
+            throw CLIError("session_readiness.json not found for \(sessionPath); run `murmurmark process \(sessionPath)`")
+        }
+        return try JSONFiles.object(url)
+    }
+
+    private static func resolvedTargets(kind: String, session: URL, payload: [String: Any]) -> [OpenTarget] {
+        let kinds = kind == "all" ? orderedKinds : [kind]
+        return kinds.compactMap { itemKind in
+            guard let url = url(for: itemKind, session: session, payload: payload) else { return nil }
+            return OpenTarget(id: itemKind, label: label(for: itemKind), url: url)
+        }
+    }
+
+    private static func url(for kind: String, session: URL, payload: [String: Any]) -> URL? {
+        if kind == "readiness" {
+            return existing(session.appendingPathComponent("derived/readiness/session_readiness.md"))
+        }
+        let outputKey = outputKey(for: kind)
+        let outputs = payload["outputs"] as? [String: Any] ?? [:]
+        if let outputKey,
+           let url = outputURL(outputKey, outputs: outputs, session: session) {
+            return url
+        }
+        return fallbackURL(for: kind, session: session, profile: string(payload["selected_profile"]) ?? "current")
+    }
+
+    private static func outputURL(_ key: String, outputs: [String: Any], session: URL) -> URL? {
+        guard let item = outputs[key] as? [String: Any],
+              let path = item["path"] as? String,
+              !path.isEmpty
+        else {
+            return nil
+        }
+        let url = path.hasPrefix("/") ? PathURLs.fileURL(path) : session.appendingPathComponent(path)
+        return existing(url)
+    }
+
+    private static func fallbackURL(for kind: String, session: URL, profile: String) -> URL? {
+        let suffix = profile == "current" ? "" : ".\(profile)"
+        let synthesis = session.appendingPathComponent("derived/synthesis-simple/extractive")
+        let resolved = session.appendingPathComponent("derived/transcript-simple/whisper-cpp/resolved")
+        let direct: URL
+        switch kind {
+        case "notes":
+            direct = synthesis.appendingPathComponent("notes\(suffix).md")
+        case "transcript":
+            direct = resolved.appendingPathComponent(profile == "current" ? "transcript.md" : "transcript\(suffix).md")
+        case "verdict":
+            direct = synthesis.appendingPathComponent("quality_verdict\(suffix).md")
+        case "review_items":
+            direct = synthesis.appendingPathComponent("review_items\(suffix).jsonl")
+        case "evidence":
+            direct = synthesis.appendingPathComponent("evidence_notes\(suffix).json")
+        case "audio_review":
+            direct = session.appendingPathComponent("derived/audit/audio-review-pack/audio_review_report.md")
+        case "local_recall":
+            direct = session.appendingPathComponent("derived/audit/local-recall/local_recall_review.md")
+        case "transcript_order":
+            direct = session.appendingPathComponent("derived/audit/order/transcript_order_review.md")
+        case "pipeline_run":
+            direct = session.appendingPathComponent("derived/pipeline-run/pipeline_run_report.json")
+        default:
+            return nil
+        }
+        return existing(direct)
+    }
+
+    private static func existing(_ url: URL) -> URL? {
+        FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    private static func outputKey(for kind: String) -> String? {
+        switch kind {
+        case "notes":
+            return "notes"
+        case "transcript":
+            return "transcript"
+        case "verdict":
+            return "quality_verdict"
+        case "review_items":
+            return "review_items"
+        case "evidence":
+            return "evidence_notes"
+        case "audio_review":
+            return "audio_review_report"
+        case "local_recall":
+            return "local_recall_review"
+        case "transcript_order":
+            return "transcript_order_review"
+        case "pipeline_run":
+            return "pipeline_run_report"
+        default:
+            return nil
+        }
+    }
+
+    private static func canonicalKind(_ raw: String) -> String {
+        switch raw {
+        case "quality-verdict", "quality_verdict":
+            return "verdict"
+        case "review-items", "review_items":
+            return "review_items"
+        case "audio-review", "audio_review":
+            return "audio_review"
+        case "local-recall", "local_recall":
+            return "local_recall"
+        case "order", "transcript-order", "transcript_order":
+            return "transcript_order"
+        case "pipeline-run", "pipeline_run":
+            return "pipeline_run"
+        default:
+            return raw
+        }
+    }
+
+    private static func label(for kind: String) -> String {
+        switch kind {
+        case "notes":
+            return "Notes"
+        case "transcript":
+            return "Transcript"
+        case "verdict":
+            return "Quality verdict"
+        case "readiness":
+            return "Session readiness"
+        case "audio_review":
+            return "Audio review report"
+        case "local_recall":
+            return "Local recall review"
+        case "transcript_order":
+            return "Transcript order review"
+        case "review_items":
+            return "Review items"
+        case "evidence":
+            return "Evidence notes JSON"
+        case "pipeline_run":
+            return "Pipeline run report"
+        default:
+            return kind
+        }
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
+    }
+
+    private static func printHelp() {
+        print("""
+        usage: murmurmark open [SESSION|latest] [--kind notes|transcript|verdict|readiness|audio-review|local-recall|order|all]
+                             [--path-only|--command-only|--cat] [--sessions-root ./sessions]
+
+        Resolves local output artifacts from session_readiness.json and prints the safest way to
+        inspect them. Default kind is notes. Use --cat to stream one artifact to stdout.
+
+        Common:
+          murmurmark open latest
+          murmurmark open latest --kind transcript --command-only
+          murmurmark open latest --kind verdict --cat
+          murmurmark open latest --kind all
         """)
     }
 }

@@ -44,6 +44,7 @@ murmurmark doctor
 murmurmark record --target-bundle system
 murmurmark process latest
 murmurmark next latest
+murmurmark open latest --kind notes
 murmurmark status latest
 # Follow printed review commands when the gate is review_first.
 murmurmark export latest --format markdown --include-json
@@ -53,6 +54,8 @@ murmurmark retention plan latest
 `status`, `report`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
 all print the next safe command for the current session state, so the terminal output is the main handoff.
 `next` is the shortest answer when you only need the one command to run now.
+`open` is the shortest answer when you need to inspect the selected local output: notes, transcript,
+quality verdict, readiness or audit reports.
 `status` is the quickest dashboard for already-generated readiness; `report` refreshes readiness first.
 If readiness is not present yet, `status` and `next` point to `murmurmark process SESSION`.
 After a successful export, `next` follows the export manifest and points to retention planning; pass
@@ -294,6 +297,8 @@ murmurmark record --target-bundle system
 murmurmark process latest
 
 murmurmark status latest
+murmurmark open latest --kind notes
+murmurmark open latest --kind transcript --command-only
 murmurmark notes latest --kind verdict
 murmurmark notes latest
 murmurmark transcript latest
@@ -391,10 +396,13 @@ murmurmark record --target-bundle system
 murmurmark latest
 murmurmark config print
 murmurmark process latest
+murmurmark open latest --kind notes
+murmurmark open latest --kind transcript --command-only
 murmurmark process ./sessions/<session> --force-asr
 murmurmark process ./sessions/<session> --plan-only --skip-build
 murmurmark next ./sessions/<session>
 murmurmark next latest --refresh
+murmurmark open ./sessions/<session> --kind all
 murmurmark status ./sessions/<session>
 murmurmark status latest
 murmurmark report ./sessions/<session>

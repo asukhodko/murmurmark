@@ -106,6 +106,9 @@ Use `murmurmark next SESSION` when you only need the single command to run now; 
 derived artifacts changed and readiness should be regenerated first. After a successful export,
 `next` follows the successful `export_manifest.json` and points to retention planning. If the export
 used a non-default output directory, pass `--export-manifest ./path/to/export_manifest.json`.
+Use `murmurmark open SESSION` when you need the selected local artifact rather than the next action.
+It resolves paths from `session_readiness.json` and prints `less ...` commands for notes,
+transcript, verdict, readiness and audit reports; `--cat` streams one artifact to stdout.
 The rule of thumb is simple: `status` reads the current dashboard, `report` refreshes it after
 review, cleanup, export, retention or other derived artifacts changed.
 The terminal output is enough to see whether notes still depend on risky
@@ -247,6 +250,8 @@ murmurmark notes "$SESSION" --kind verdict
 murmurmark notes "$SESSION"
 murmurmark notes "$SESSION" --path-only
 murmurmark transcript "$SESSION"
+murmurmark open "$SESSION" --kind notes
+murmurmark open "$SESSION" --kind transcript --command-only
 less "$(murmurmark transcript "$SESSION" --path-only)"
 ```
 
