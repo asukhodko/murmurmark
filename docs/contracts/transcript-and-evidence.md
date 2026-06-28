@@ -1421,9 +1421,14 @@ Explicit command-line flags override config values.
   "warnings": [],
   "next_commands": [
     {
-      "id": "review_plan",
-      "label": "Build the review queue for flagged regions.",
-      "command": "murmurmark review plan"
+      "id": "review_next",
+      "label": "Refresh this session's review handoff and recommended first lane.",
+      "command": "murmurmark review next sessions/2026-06-26_15-32-02"
+    },
+    {
+      "id": "review_first_lane",
+      "label": "Build the recommended first review lane pack.",
+      "command": "murmurmark review first-lane --session sessions/2026-06-26_15-32-02"
     },
     {
       "id": "review_workspace",

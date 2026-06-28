@@ -1649,7 +1649,7 @@ enum ReviewFirstLaneCommand {
 
         Useful next step after:
           murmurmark corpus report
-          murmurmark review plan
+          murmurmark review next SESSION
 
         Use `murmurmark review lane check_local_recall --session SESSION` to build a specific lane.
         """)

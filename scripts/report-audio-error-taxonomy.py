@@ -624,7 +624,8 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
         },
         "session_quality": session_quality_summary(args.session_quality),
         "next_commands": [
-            "murmurmark review plan",
+            "murmurmark review first-lane",
+            "murmurmark review workspace",
             "murmurmark review agent",
             "murmurmark corpus gate",
         ],

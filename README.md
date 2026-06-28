@@ -154,7 +154,8 @@ murmurmark corpus gate \
   --baseline sessions/_reports/corpus-gates/baseline.local.json
 
 murmurmark review next latest
-murmurmark review plan
+murmurmark review first-lane
+murmurmark review workspace
 murmurmark review agent
 ```
 
@@ -336,8 +337,8 @@ murmurmark audit audio-review ./sessions/<session> --profile audit_cleanup_v2 --
 murmurmark repair order ./sessions/<session> --input-profile auto --output-profile order_repair_v1
 murmurmark repair local-recall ./sessions/<session> --input-profile auto --output-profile local_recall_repair_v1
 murmurmark repair remote-leak ./sessions/<session>
-murmurmark review plan
 murmurmark review first-lane
+murmurmark review workspace
 murmurmark review lane check_local_recall --session ./sessions/<session>
 murmurmark review lane apply first --session ./sessions/<session>
 murmurmark review latest --lane fast_confirm_drop
@@ -631,8 +632,7 @@ The generated plan also splits the queue into `review_lane` groups:
 `confirm_benign`, and
 `classify_audio`. Use those lanes to clear easy duplicate/noise checks first and leave meaning-heavy
 checks for a slower pass. The plan carries the `first_recommended_lane` from operational readiness,
-and `murmurmark review plan` prints the matching `murmurmark review latest --lane ...` command.
-`murmurmark review first-lane` builds the corresponding lane pack directly, including WAV, Markdown
+and `murmurmark review first-lane` builds the corresponding lane pack directly, including WAV, Markdown
 index and editable answer sheet.
 `murmurmark review lane check_local_recall --session SESSION` builds one explicit lane pack, which is
 useful for checking local-recall repair insertions without first clearing the recommended fast lane.
@@ -696,8 +696,8 @@ The normal manual review loop is available through the Swift CLI:
 `SESSION/derived/readiness/review-plan/`. `review first-lane --session SESSION`,
 `review workspace --session SESSION`, `review workspace apply --session SESSION`,
 `review progress --session SESSION`, and `review apply --session SESSION` default to those
-session-local paths. Use `review plan` or bare `review progress` when you want the global corpus
-queue.
+session-local paths. Use `review first-lane`, `review workspace` or bare `review progress` when you
+want the global corpus queue.
 
 Use the Python scripts directly only when debugging a specific review file, lane pack, or batch
 application edge case.

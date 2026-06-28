@@ -203,12 +203,7 @@ def blocked_export_next(session: Path, readiness: dict[str, Any] | None, blocker
     session_arg = command_path(session)
     if "pipeline_incomplete" in blockers or any(str(item).startswith("missing:") for item in blockers):
         return f"run `murmurmark process {session_arg}` and rerun export, or use --force only for debugging"
-    return (
-        "`murmurmark review plan`; "
-        f"`murmurmark review workspace --session {session_arg}`; "
-        "`murmurmark review workspace apply`; "
-        "then rerun export, or use --force only for debugging"
-    )
+    return f"`murmurmark review next {session_arg}`; rerun export after blockers are closed, or use --force only for debugging"
 
 
 def copy_file(src: Path, dst: Path) -> dict[str, Any]:

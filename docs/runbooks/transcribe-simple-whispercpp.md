@@ -636,7 +636,7 @@ from real meetings.
 `murmurmark export` is the user-facing handoff. It reads the selected transcript profile from
 per-session readiness, copies the Markdown verdict, notes and transcript into `exports/private/`,
 and writes `export_manifest.json`. It blocks sessions with readiness `export_blockers` by default;
-use `murmurmark review plan` first when review is required, or pass `--force` only for debugging.
+use `murmurmark review next SESSION` first when review is required, or pass `--force` only for debugging.
 After a successful export, the CLI prints the manifest path, key output files and the retention
 commands that should use the same manifest.
 
@@ -747,8 +747,8 @@ plan if needed, then prints the next review commands. `murmurmark review first-l
 `murmurmark review workspace --session "$SESSION"`, `murmurmark review workspace apply --session
 "$SESSION"`, `murmurmark review progress --session "$SESSION"` and `murmurmark review apply --session
 "$SESSION"`. After a successful single-session apply, the CLI prints the refreshed readiness summary
-so the next export or retention command is visible immediately. Use `murmurmark review plan` or bare
-`murmurmark review progress` for the global corpus queue.
+so the next export or retention command is visible immediately. Use `murmurmark review first-lane`
+or bare `murmurmark review progress` for the global corpus queue.
 `murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended lane.
 With `--session`, its default paths are under `SESSION/derived/readiness/`; without `--session`, it
 uses the global corpus queue under `sessions/_reports/`.
