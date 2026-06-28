@@ -99,9 +99,10 @@ struct MurmurMark {
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
           murmurmark latest [--sessions-root ./sessions]
-          murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--force-asr]
-                                [--reuse-asr-cache] [--plan-only] [--progress-interval-sec 60]
-                                [--sessions-root ./sessions]
+          murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
+                                [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
+                                [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
+                                [--progress-interval-sec 60] [--config murmurmark.config.json] [--sessions-root ./sessions]
           murmurmark status [./session|latest] [--sessions-root ./sessions]
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
@@ -622,16 +623,18 @@ enum PipelineHelp {
 
     static func printProcess() {
         Swift.print("""
-        usage: murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--force-asr]
-                                [--reuse-asr-cache] [--plan-only] [--progress-interval-sec 60]
-                                [--sessions-root ./sessions]
+        usage: murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
+                                [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
+                                [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
+                                [--progress-interval-sec 60] [--config murmurmark.config.json] [--sessions-root ./sessions]
 
         Runs scripts/run-session-pipeline.py for one recorded session, then prints readiness.
         Defaults come from murmurmark.config.json when present; explicit CLI flags win.
+        The --skip-* flags are for debugging or refreshing only selected derived layers.
 
         Common:
           murmurmark process latest
-          murmurmark process ./sessions/<id> --plan-only
+          murmurmark process ./sessions/<id> --plan-only --skip-build
           murmurmark process ./sessions/<id> --progress-interval-sec 30
         """)
     }
