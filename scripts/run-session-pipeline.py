@@ -174,6 +174,12 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
         ),
         step("audit_audio_review_pack", [py, str(repo_root / "scripts/audit-audio-review-pack.py"), str(session)], enabled=not args.skip_audits, reason="--skip-audits"),
         step(
+            "plan_remote_leak_segment_repair",
+            [py, str(repo_root / "scripts/plan-remote-leak-segment-repair.py"), str(session)],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+        ),
+        step(
             "cleanup_v2",
             [py, str(repo_root / "scripts/apply-audit-cleanup.py"), str(session), "--input-profile", "audit_cleanup_v1", "--output-profile", "audit_cleanup_v2", "--mode", "conservative"],
             enabled=not args.skip_cleanup,
@@ -302,6 +308,7 @@ def main() -> int:
 
     quality_path = session / "derived/synthesis-simple/extractive/quality_verdict.json"
     readiness_path = session / "derived/readiness/session_readiness.json"
+    remote_leak_plan_path = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json"
     quality = read_json(quality_path)
     readiness = read_json(readiness_path)
     report = {
@@ -320,6 +327,7 @@ def main() -> int:
         "outputs": {
             "quality_verdict": rel(quality_path, session) if quality_path.exists() else None,
             "session_readiness": rel(readiness_path, session) if readiness_path.exists() else None,
+            "remote_leak_segment_repair_plan": rel(remote_leak_plan_path, session) if remote_leak_plan_path.exists() else None,
             "selected_transcript_profile": quality.get("selected_transcript_profile") if isinstance(quality, dict) else None,
             "verdict": quality.get("verdict") if isinstance(quality, dict) else None,
             "use_gate": readiness.get("use_gate") if isinstance(readiness, dict) else None,

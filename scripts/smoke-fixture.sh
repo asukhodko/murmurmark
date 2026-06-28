@@ -476,6 +476,17 @@ order_commands = module.readiness_next_commands(
 order_ids = [item["id"] for item in order_commands]
 assert order_ids[0] == "inspect_transcript_order", order_ids
 assert "transcript_order_review.md" in order_commands[0]["command"], order_commands[0]
+remote_leak_commands = module.readiness_next_commands(
+    Path("sessions/leak-session"),
+    {
+        "use_gate": "review_first",
+        "review_blockers": ["risk:remote_leak_segment_repair_candidates"],
+        "risk_flags": ["remote_leak_segment_repair_candidates"],
+    },
+)
+remote_leak_ids = [item["id"] for item in remote_leak_commands]
+assert remote_leak_ids[0] == "inspect_remote_leak_segment_plan", remote_leak_ids
+assert "remote_leak_segment_repair.md" in remote_leak_commands[0]["command"], remote_leak_commands[0]
 PY
 review_next_session="$workdir/review-next-session"
 mkdir -p "$review_next_session/derived/readiness"
@@ -1487,6 +1498,7 @@ EOF
   [[ -s "$pipeline_plan" ]]
   jq -e '.schema == "murmurmark.session_pipeline_run/v1" and .status == "planned" and (.steps | length) >= 10' "$pipeline_plan" >/dev/null
   jq -e 'all(.steps[]; (.started_at | type) == "string" and (.duration_sec | type) == "number")' "$pipeline_plan" >/dev/null
+  jq -e 'any(.steps[]; .name == "plan_remote_leak_segment_repair")' "$pipeline_plan" >/dev/null
   jq -e 'any(.steps[]; .name == "session_readiness")' "$pipeline_plan" >/dev/null
 
   corpus_dir="$workdir/regression-corpus"
@@ -1528,6 +1540,12 @@ EOF
   "$repo_root/scripts/report-session-quality.py" "$group_session" --out-dir "$quality_dir" >/dev/null
   jq -e '.sessions[0].audio_review_resolved_by_cleanup_count >= 1' "$quality_dir/session_quality_report.json" >/dev/null
   jq -e '.sessions[0].stages.transcript_order_audit == true and .sessions[0].transcript_order_probable_order_risk_count == 0' "$quality_dir/session_quality_report.json" >/dev/null
+  jq -e '.sessions[0].stages.remote_leak_segment_plan == true and .sessions[0].remote_leak_segment_plan_protect_local_content_items >= 1' "$quality_dir/session_quality_report.json" >/dev/null
+  jq -e '(.sessions[0].risk_flags | index("remote_leak_segment_repair_candidates"))' "$quality_dir/session_quality_report.json" >/dev/null
+  "$repo_root/scripts/report-session-quality.py" "$group_session" --out-dir "$workdir/group-readiness-quality" --write-session-readiness >/dev/null
+  jq -e '(.risk_flags | index("remote_leak_segment_repair_candidates")) and .metrics.remote_leak_segment_plan_protect_local_content_items >= 1 and .outputs.remote_leak_segment_report.exists == true' \
+    "$group_session/derived/readiness/session_readiness.json" >/dev/null
+  grep -q 'remote_leak_segment_report' "$group_session/derived/readiness/session_readiness.md"
 
   taxonomy_dir="$workdir/audio-error-taxonomy"
   taxonomy_output="$("$bin" corpus taxonomy \

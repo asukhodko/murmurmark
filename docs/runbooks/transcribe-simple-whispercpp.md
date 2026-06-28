@@ -328,7 +328,8 @@ The planner reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, se
 `remote_leak_segment_repair_*` artifacts. It does not edit transcript profiles, Echo Guard outputs,
 or raw CAF files. Items with unique local `Me` content are labelled
 `remote_leak_with_local_content_risk`; those are future segment-level repair candidates, not
-whole-utterance drops.
+whole-utterance drops. The full `murmurmark process` pipeline runs this planner automatically after
+audio-review; the manual command is useful when you have refreshed only the audio-review audit.
 
 ## Group Overlap Audit
 

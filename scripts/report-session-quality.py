@@ -300,6 +300,7 @@ def stage_status(session: Path) -> dict[str, bool]:
     audio_review = session / "derived/audit/audio-review-pack"
     order_audit = session / "derived/audit/order"
     order_repair = session / "derived/transcript-simple/whisper-cpp/order-repair"
+    remote_leak_repair = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair"
     return {
         "capture": (session / "session.json").exists()
         and (session / "audio/mic/000001.caf").exists()
@@ -312,6 +313,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         "group_overlap_audit": (session / "derived/audit/group-overlaps/group_overlap_summary.json").exists(),
         "transcript_order_audit": (order_audit / "transcript_order_audit.json").exists()
         and (order_audit / "transcript_order_items.jsonl").exists(),
+        "remote_leak_segment_plan": (remote_leak_repair / "remote_leak_segment_repair_plan.json").exists()
+        and (remote_leak_repair / "remote_leak_segment_repair_items.jsonl").exists(),
         "audit_cleanup_v1": (resolved / "quality_report.audit_cleanup_v1.json").exists()
         and (resolved / "clean_dialogue.audit_cleanup_v1.json").exists()
         and (cleanup / "audit_cleanup_report.audit_cleanup_v1.json").exists(),
@@ -678,6 +681,7 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
         resolved_by_review_count = 0
         resolved_intervals: list[tuple[float, float]] = []
         resolved_by_review_intervals: list[tuple[float, float]] = []
+        remote_leak_intervals: list[tuple[float, float]] = []
         active_count = 0
         active_intervals: list[tuple[float, float]] = []
         for row in audit_rows:
@@ -700,9 +704,12 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
             active_count += 1
             active_intervals.append((start, end))
             classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+            label = str(classification.get("label") or "")
             verdict = str(classification.get("verdict") or "")
             if verdict == "probable_transcript_error":
                 verdict = "probable_error"
+                if label == "remote_leak":
+                    remote_leak_intervals.append((start, end))
             if verdict in buckets:
                 buckets[verdict]["count"] += 1
                 buckets[verdict]["intervals"].append((start, end))
@@ -726,6 +733,8 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
             "audio_review_resolved_by_cleanup_seconds": union_seconds(resolved_intervals),
             "audio_review_resolved_by_review_count": resolved_by_review_count,
             "audio_review_resolved_by_review_seconds": union_seconds(resolved_by_review_intervals),
+            "audio_review_remote_leak_probable_error_count": len(remote_leak_intervals),
+            "audio_review_remote_leak_probable_error_seconds": union_seconds(remote_leak_intervals),
             "audio_review_raw_probable_error_count": safe_int(raw_error.get("count")),
             "audio_review_raw_probable_error_seconds": round_or_none(raw_error.get("seconds")),
             "audio_review_raw_stronger_judge_count": safe_int(raw_stronger.get("count")),
@@ -740,6 +749,8 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
         if isinstance(audio_summary.get("needs_stronger_audio_judge"), dict)
         else {}
     )
+    by_label = audio_summary.get("by_label") if isinstance(audio_summary.get("by_label"), dict) else {}
+    remote_leak = by_label.get("remote_leak") if isinstance(by_label.get("remote_leak"), dict) else {}
     return {
         "audio_review_items": safe_int(audio_summary.get("items")),
         "audio_review_reliable_count": safe_int(reliable.get("count")),
@@ -748,7 +759,32 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
         "audio_review_probable_error_seconds": round_or_none(error.get("seconds")),
         "audio_review_stronger_judge_count": safe_int(stronger.get("count")),
         "audio_review_stronger_judge_seconds": round_or_none(stronger.get("seconds")),
+        "audio_review_remote_leak_probable_error_count": safe_int(remote_leak.get("count")),
+        "audio_review_remote_leak_probable_error_seconds": round_or_none(remote_leak.get("seconds")),
         "audio_review_recommended_next_step": audio_summary.get("recommended_next_step"),
+    }
+
+
+def remote_leak_segment_plan_metrics(plan: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(plan, dict):
+        return {
+            "remote_leak_segment_plan_status": "missing",
+            "remote_leak_segment_plan_items": None,
+            "remote_leak_segment_plan_seconds": None,
+            "remote_leak_segment_plan_protect_local_content_items": None,
+            "remote_leak_segment_plan_protect_local_content_seconds": None,
+            "remote_leak_segment_plan_next_work": None,
+        }
+    summary = plan.get("summary") if isinstance(plan.get("summary"), dict) else {}
+    action_plan = plan.get("action_plan") if isinstance(plan.get("action_plan"), list) else []
+    first_action = action_plan[0] if action_plan and isinstance(action_plan[0], dict) else {}
+    return {
+        "remote_leak_segment_plan_status": "ok",
+        "remote_leak_segment_plan_items": safe_int(summary.get("items")),
+        "remote_leak_segment_plan_seconds": round_or_none(summary.get("seconds")),
+        "remote_leak_segment_plan_protect_local_content_items": safe_int(summary.get("protect_local_content_items")),
+        "remote_leak_segment_plan_protect_local_content_seconds": round_or_none(summary.get("protect_local_content_seconds")),
+        "remote_leak_segment_plan_next_work": first_action.get("next_work"),
     }
 
 
@@ -951,6 +987,9 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
     audio_error_seconds = safe_float(row.get("audio_review_probable_error_seconds")) or 0.0
     if audio_error_count >= 3 or audio_error_seconds >= 10.0:
         flags.append("audio_review_probable_errors")
+    remote_leak_protect = safe_int(row.get("remote_leak_segment_plan_protect_local_content_items")) or 0
+    if remote_leak_protect:
+        flags.append("remote_leak_segment_repair_candidates")
     audio_judge_count = safe_int(row.get("audio_review_stronger_judge_count")) or 0
     audio_judge_seconds = safe_float(row.get("audio_review_stronger_judge_seconds")) or 0.0
     if audio_judge_count >= 20 or audio_judge_seconds >= 60.0:
@@ -1078,6 +1117,9 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     evidence = read_evidence(session, profile)
     group_summary = read_json(session / "derived/audit/group-overlaps/group_overlap_summary.json")
     audio_summary = read_json(session / "derived/audit/audio-review-pack/audio_review_summary.json")
+    remote_leak_plan = read_json(
+        session / "derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json"
+    )
     local_recall = read_json(session / "derived/audit/local-recall/local_recall_audit.json")
     order_audit = read_json(session / "derived/audit/order/transcript_order_audit.json")
     local_fir = read_json(session / "derived/preprocess/echo/local_fir_report.json")
@@ -1177,6 +1219,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(review_decision_metrics(review_report))
     row.update(synthesis_review_metrics(verdict))
     row.update(audio_review_metrics(audio_summary, session, profile))
+    row.update(remote_leak_segment_plan_metrics(remote_leak_plan))
     row.update(local_recall_metrics(local_recall, review_report))
     row.update(transcript_order_metrics(order_audit, review_report, order_repair_report))
     row["risk_flags"] = risk_flags(row)
@@ -1273,6 +1316,10 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "audio_review_items",
         "audio_review_probable_error_count",
         "audio_review_stronger_judge_count",
+        "audio_review_remote_leak_probable_error_count",
+        "remote_leak_segment_plan_items",
+        "remote_leak_segment_plan_protect_local_content_items",
+        "remote_leak_segment_plan_next_work",
         "risk_flags",
         "review_blockers",
         "export_blockers",
@@ -1410,6 +1457,10 @@ def readiness_outputs(session: Path, profile: str) -> dict[str, Any]:
         "evidence_notes": synthesis / f"evidence_notes{suffix(profile)}.json",
         "review_items": synthesis / f"review_items{suffix(profile)}.jsonl",
         "audio_review_report": session / "derived/audit/audio-review-pack/audio_review_report.md",
+        "remote_leak_segment_report": session
+        / "derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md",
+        "remote_leak_segment_plan": session
+        / "derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json",
         "local_recall_review": session / "derived/audit/local-recall/local_recall_review.md",
         "transcript_order_review": session / "derived/audit/order/transcript_order_review.md",
         "pipeline_run_report": session / "derived/pipeline-run/pipeline_run_report.json",
@@ -1471,6 +1522,22 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
                     "id": "inspect_transcript_order",
                     "label": "Inspect chronology-risk regions before relying on reply order.",
                     "command": f"less {command_path(session / 'derived/audit/order/transcript_order_review.md')}",
+                }
+            )
+        if "remote_leak_segment_repair_candidates" in (row.get("risk_flags") or []):
+            commands.append(
+                {
+                    "id": "inspect_remote_leak_segment_plan",
+                    "label": "Inspect remote-leak intervals where Me may still contain local content.",
+                    "command": f"less {command_path(session / 'derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md')}",
+                }
+            )
+        elif safe_int(row.get("audio_review_remote_leak_probable_error_count")):
+            commands.append(
+                {
+                    "id": "plan_remote_leak_segment_repair",
+                    "label": "Build an audit-only plan for remote-leak regions before deciding how to repair them.",
+                    "command": f"murmurmark repair remote-leak {session_arg}",
                 }
             )
         commands.extend(
@@ -1561,6 +1628,13 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "audio_review_probable_error_seconds": row.get("audio_review_probable_error_seconds"),
             "audio_review_stronger_judge_count": row.get("audio_review_stronger_judge_count"),
             "audio_review_stronger_judge_seconds": row.get("audio_review_stronger_judge_seconds"),
+            "audio_review_remote_leak_probable_error_count": row.get("audio_review_remote_leak_probable_error_count"),
+            "audio_review_remote_leak_probable_error_seconds": row.get("audio_review_remote_leak_probable_error_seconds"),
+            "remote_leak_segment_plan_items": row.get("remote_leak_segment_plan_items"),
+            "remote_leak_segment_plan_seconds": row.get("remote_leak_segment_plan_seconds"),
+            "remote_leak_segment_plan_protect_local_content_items": row.get("remote_leak_segment_plan_protect_local_content_items"),
+            "remote_leak_segment_plan_protect_local_content_seconds": row.get("remote_leak_segment_plan_protect_local_content_seconds"),
+            "remote_leak_segment_plan_next_work": row.get("remote_leak_segment_plan_next_work"),
             "needs_review_count": row.get("needs_review_count"),
             "needs_review_ratio": row.get("needs_review_ratio"),
             "audit_harmful_seconds_after": row.get("audit_harmful_seconds_after"),
@@ -1590,7 +1664,7 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         "## Open First",
         "",
     ]
-    for key in ("quality_verdict", "notes", "transcript", "audio_review_report", "local_recall_review"):
+    for key in ("quality_verdict", "notes", "transcript", "audio_review_report", "remote_leak_segment_report", "local_recall_review"):
         item = payload["outputs"].get(key) or {}
         if item.get("exists"):
             lines.append(f"- `{key}`: `{item['path']}`")

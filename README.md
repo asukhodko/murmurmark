@@ -245,6 +245,9 @@ or `transcript.audit_cleanup_v2.md` are separate candidates; the selected profil
 `audit_cleanup_v5/v6` are not part of the normal single-session runner. They are corpus/review-plan
 steps for already audited sessions, usually run after the private regression and audio-judge reports
 exist under `sessions/_reports/`.
+The normal single-session runner also builds the audit-only remote-leak segment plan after
+audio-review. If a session has `remote_leak` errors where `Me` may still contain unique local
+content, readiness links to `remote_leak_segment_repair.md` before any future repair work.
 `murmurmark audit order` finds long `Me` turns that cross a `Colleagues` turn and continue after it:
 these are the main remaining risk for wrong reply order in an otherwise readable transcript. Blocking
 order risks are included in readiness review burden and block export until reviewed.
