@@ -1632,6 +1632,11 @@ enum ReviewLaneApplyCommand {
         print("  dry_run: \(context.dryRun)")
         let sessionArgument = context.session.map { " --session \(PathDisplay.display($0))" } ?? ""
         if context.dryRun {
+            let summary = laneApplySummary(context.applyReport)
+            if summary.todo > 0 || summary.reviewed == 0 {
+                printIncompleteDryRunNext(context, sessionArgument: sessionArgument)
+                return
+            }
             let nextCommand = ReviewLaneApplyNextCommand.command(context)
             print("  recommended_next: \(nextCommand)")
             print("  next:")
@@ -1662,18 +1667,54 @@ enum ReviewLaneApplyCommand {
         }
     }
 
+    private static func printIncompleteDryRunNext(_ context: ReviewLaneApplyPrintContext, sessionArgument: String) {
+        let nextCommand = context.answersFile
+            .map { "$EDITOR \(PathDisplay.display($0))" }
+            ?? "murmurmark review lane \(context.lane)\(sessionArgument)"
+        let markdown = context.lanePackOutURL.appendingPathComponent("review_lane_pack.\(context.lane).md")
+        let retry = ReviewLaneApplyNextCommand.command(context) + " --dry-run"
+        print("  recommended_next: \(nextCommand)")
+        print("  next:")
+        if FileManager.default.fileExists(atPath: markdown.path) {
+            print("    less \(PathDisplay.display(markdown))")
+        }
+        if let answersFile = context.answersFile {
+            print("    $EDITOR \(PathDisplay.display(answersFile))")
+        } else {
+            print("    murmurmark review lane \(context.lane)\(sessionArgument)")
+        }
+        print("    \(retry)")
+    }
+
     private static func printLaneApplyReport(_ report: URL) {
+        let summary = laneApplySummary(report)
+        guard summary.exists else { return }
+        print("  report: \(PathDisplay.display(report))")
+        print("  lane_items: \(summary.items)")
+        print("  lane_result: reviewed=\(summary.reviewed) todo=\(summary.todo) rejected=\(summary.rejected)")
+    }
+
+    private struct LaneApplySummary {
+        let exists: Bool
+        let items: Int
+        let reviewed: Int
+        let todo: Int
+        let rejected: Int
+    }
+
+    private static func laneApplySummary(_ report: URL) -> LaneApplySummary {
         guard let payload = try? JSONFiles.object(report),
               let summary = payload["summary"] as? [String: Any]
         else {
-            return
+            return LaneApplySummary(exists: false, items: 0, reviewed: 0, todo: 0, rejected: 0)
         }
-        print("  report: \(PathDisplay.display(report))")
-        print("  lane_items: \(int(summary["manifest_items"]) ?? 0)")
-        let reviewed = int(summary["reviewed_count"]) ?? 0
-        let todo = int(summary["todo_count"]) ?? 0
-        let rejected = int(summary["rejected_count"]) ?? 0
-        print("  lane_result: reviewed=\(reviewed) todo=\(todo) rejected=\(rejected)")
+        return LaneApplySummary(
+            exists: true,
+            items: int(summary["manifest_items"]) ?? 0,
+            reviewed: int(summary["reviewed_count"]) ?? 0,
+            todo: int(summary["todo_count"]) ?? 0,
+            rejected: int(summary["rejected_count"]) ?? 0
+        )
     }
 
     private static func printProgressSummary(_ progress: URL) {

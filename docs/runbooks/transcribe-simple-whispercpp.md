@@ -907,7 +907,8 @@ It also prints `suggested_dry_run` and `suggested_apply`; these call
 dry run. `review lane apply --dry-run` writes `review_lane_pack_apply_report.json` and prints
 `lane_result`, so you can see how many items would become reviewed or remain `todo` before writing
 `review_decisions.jsonl`.
-`review lane apply --dry-run` also prints the exact non-dry-run command under `next`. Applying the
+When rows remain `todo`, the dry run points back to the lane Markdown and answer sheet. When the dry
+run would close rows, it prints the exact non-dry-run command under `next`. Applying the
 lane refreshes `review_decisions_progress.json` and prints the next remaining lane before the
 workspace fallback. When batch apply is
 not ready yet, `review apply --session "$SESSION"` points to `next_lane` when progress exists, or to

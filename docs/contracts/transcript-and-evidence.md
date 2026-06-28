@@ -2027,7 +2027,8 @@ each answer against `allowed_decisions`, writes `review_source: "lane_pack"`, an
 ```
 
 `--dry-run` writes the same report without changing `review_decisions.jsonl`. The Swift CLI prints
-that report as `lane_items` and `lane_result` before showing the next non-dry-run command.
+that report as `lane_items` and `lane_result`. If rows remain `todo`, it points back to the lane
+Markdown and answer sheet; otherwise it shows the next non-dry-run command.
 
 `murmurmark review workspace apply` applies every lane answer sheet referenced by
 `review_workspace.json` into one `review_decisions.jsonl`. It validates item counts, answer

@@ -2544,9 +2544,11 @@ PY
   echo "$first_lane_apply_dry_run_output" | grep -q "^  lane: $first_lane"
   echo "$first_lane_apply_dry_run_output" | grep -q '^  report: '
   echo "$first_lane_apply_dry_run_output" | grep -q '^  lane_result: reviewed=0 todo='
-  echo "$first_lane_apply_dry_run_output" | grep -q '^  recommended_next: murmurmark review lane apply '
+  echo "$first_lane_apply_dry_run_output" | grep -q '^  recommended_next: \$EDITOR '
   echo "$first_lane_apply_dry_run_output" | grep -q '^  next:$'
-  echo "$first_lane_apply_dry_run_output" | grep -q '^    murmurmark review lane apply '
+  echo "$first_lane_apply_dry_run_output" | grep -q '^    less '
+  echo "$first_lane_apply_dry_run_output" | grep -q '^    \$EDITOR '
+  echo "$first_lane_apply_dry_run_output" | grep -q '^    murmurmark review lane apply .* --dry-run'
   echo "$first_lane_apply_dry_run_output" | grep -Eq -- "--plan-out-dir .*first-lane-review-plan"
   echo "$first_lane_apply_dry_run_output" | grep -Eq -- "--out-dir .*first-lane-pack"
   echo "$first_lane_output" | grep -q '^  suggested_answers: answers='

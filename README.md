@@ -738,7 +738,8 @@ sheet, plus the `afplay`, `less` for the lane Markdown, `$EDITOR` and dry-run co
 They also print `manual_flow`, optional `suggested_flow`, and `after_apply`, so the safe order is
 visible without reading the runbook.
 `review lane apply --dry-run` writes `review_lane_pack_apply_report.json`, prints the lane result and
-the exact non-dry-run command. After applying the lane, the CLI refreshes
+either points back to the answer sheet when rows are still `todo`, or prints the exact non-dry-run
+command when the dry run would close rows. After applying the lane, the CLI refreshes
 `review_decisions_progress.json`: if more rows remain it points back to
 the next remaining lane and the workspace flow. If progress does not exist yet, it falls back to
 `murmurmark review first-lane` and `review lane apply first`. It prints
