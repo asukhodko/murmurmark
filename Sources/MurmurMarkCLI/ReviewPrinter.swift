@@ -57,7 +57,7 @@ enum ReviewPrinter {
     }
 
     private static func printLanePackHandoff(applyCommand: String, session: URL?, hasSuggestedAnswerSheet: Bool) {
-        let sessionArgument = session.map { " --session \($0.lastPathComponent)" } ?? ""
+        let sessionArgument = session.map { " --session \(PathDisplay.display($0))" } ?? ""
         print("  manual_flow:")
         print("    dry_run: \(applyCommand) --dry-run")
         print("    apply: \(applyCommand)")
@@ -75,7 +75,7 @@ enum ReviewPrinter {
     private static func laneApplyCommand(lane: String, session: URL?, planOutDir: URL?, outDir: URL) -> String {
         var parts = ["murmurmark", "review", "lane", "apply", lane]
         if let session {
-            parts += ["--session", session.lastPathComponent]
+            parts += ["--session", PathDisplay.display(session)]
         }
         if let planOutDir {
             let defaultPlan = session?.appendingPathComponent("derived/readiness/review-plan")
@@ -262,7 +262,7 @@ enum ReviewPrinter {
     }
 
     static func printApplyNotReady(session: URL?, decisions: URL, template: URL) {
-        let sessionArgument = session.map { " --session \($0.lastPathComponent)" } ?? ""
+        let sessionArgument = session.map { " --session \(PathDisplay.display($0))" } ?? ""
         print("")
         print("review_apply:")
         print("  status: not_ready")
@@ -281,7 +281,7 @@ enum ReviewPrinter {
     static func printApplyNotReady(session: URL?, decisions: URL, progress: URL) throws {
         let payload = try JSONFiles.object(progress)
         let summary = payload["summary"] as? [String: Any] ?? [:]
-        let sessionArgument = session.map { " --session \($0.lastPathComponent)" } ?? ""
+        let sessionArgument = session.map { " --session \(PathDisplay.display($0))" } ?? ""
         print("")
         print("review_apply:")
         print("  status: not_ready")
@@ -522,7 +522,7 @@ enum ReviewPrinter {
         else {
             return nil
         }
-        return session.lastPathComponent
+        return PathDisplay.display(session)
     }
 
     private static func printWorkspaceLane(_ lane: [String: Any]) {

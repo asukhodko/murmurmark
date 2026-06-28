@@ -1511,7 +1511,7 @@ enum ReviewLaneApplyCommand {
     ) throws {
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: manifest.path) else {
-            let sessionArgument = session.map { " --session \($0.lastPathComponent)" } ?? ""
+            let sessionArgument = session.map { " --session \(PathDisplay.display($0))" } ?? ""
             throw CLIError(
                 "lane pack manifest not found: \(PathDisplay.display(manifest)); " +
                 "build it first with `murmurmark review lane \(lane)\(sessionArgument)`"
@@ -1575,7 +1575,7 @@ enum ReviewLaneApplyCommand {
         print("review_lane_apply:")
         print("  lane: \(context.lane)")
         if let session = context.session {
-            print("  session: \(session.lastPathComponent)")
+            print("  session: \(PathDisplay.display(session))")
         }
         print("  manifest: \(PathDisplay.display(context.manifest))")
         if let answersFile = context.answersFile {
@@ -1589,7 +1589,7 @@ enum ReviewLaneApplyCommand {
             printProgressSummary(progress)
         }
         print("  dry_run: \(context.dryRun)")
-        let sessionArgument = context.session.map { " --session \($0.lastPathComponent)" } ?? ""
+        let sessionArgument = context.session.map { " --session \(PathDisplay.display($0))" } ?? ""
         if context.dryRun {
             let nextCommand = ReviewLaneApplyNextCommand.command(context)
             print("  next:")
@@ -1713,7 +1713,7 @@ enum ReviewLaneApplyNextCommand {
     static func command(_ context: ReviewLaneApplyPrintContext) -> String {
         var parts = ["murmurmark", "review", "lane", "apply", context.lane]
         if let session = context.session {
-            parts += ["--session", session.lastPathComponent]
+            parts += ["--session", PathDisplay.display(session)]
         }
 
         let defaultPlan = context.session?.appendingPathComponent("derived/readiness/review-plan")
@@ -6917,7 +6917,6 @@ enum ReviewNextPrinter {
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0.0) * 100.0
         let synthesisReviewCount = int(metrics["synthesis_review_item_count"]) ?? 0
         let sessionPath = PathDisplay.display(session)
-        let sessionID = session.lastPathComponent
 
         Swift.print("")
         Swift.print("review_next:")
@@ -6937,35 +6936,34 @@ enum ReviewNextPrinter {
             Swift.print("  export_blockers: \(compactJSON(exportBlockers))")
         }
         printPlanHint(planOutDir: planOutDir)
-        printReviewFlowsIfPlanExists(sessionID: sessionID, planOutDir: planOutDir)
+        printReviewFlowsIfPlanExists(sessionArg: sessionPath, planOutDir: planOutDir)
         Swift.print("  next:")
         for command in focusedNextCommands(
             nextCommands,
             gate: gate,
             sessionPath: sessionPath,
-            sessionID: sessionID,
             planOutDir: planOutDir
         ) {
             Swift.print("    \(command)")
         }
     }
 
-    private static func printReviewFlowsIfPlanExists(sessionID: String, planOutDir: URL) {
+    private static func printReviewFlowsIfPlanExists(sessionArg: String, planOutDir: URL) {
         guard FileManager.default.fileExists(atPath: planOutDir.appendingPathComponent("review_plan.json").path) else {
             return
         }
         let firstLane = firstRecommendedLane(planOutDir: planOutDir) ?? "first"
         Swift.print("  first_lane_flow:")
-        Swift.print("    build_and_listen: murmurmark review first-lane --session \(sessionID)")
-        Swift.print("    apply_answers: murmurmark review lane apply \(firstLane) --session \(sessionID)")
+        Swift.print("    build_and_listen: murmurmark review first-lane --session \(sessionArg)")
+        Swift.print("    apply_answers: murmurmark review lane apply \(firstLane) --session \(sessionArg)")
         if let quickLane = quickRecommendedLane(planOutDir: planOutDir), quickLane != firstLane {
             Swift.print("  quick_lane_flow:")
-            Swift.print("    build_and_listen: murmurmark review lane \(quickLane) --session \(sessionID)")
-            Swift.print("    apply_answers: murmurmark review lane apply \(quickLane) --session \(sessionID)")
+            Swift.print("    build_and_listen: murmurmark review lane \(quickLane) --session \(sessionArg)")
+            Swift.print("    apply_answers: murmurmark review lane apply \(quickLane) --session \(sessionArg)")
         }
         Swift.print("  workspace_flow:")
-        Swift.print("    build_and_listen: murmurmark review workspace --session \(sessionID)")
-        Swift.print("    apply_answers: murmurmark review workspace apply --session \(sessionID)")
+        Swift.print("    build_and_listen: murmurmark review workspace --session \(sessionArg)")
+        Swift.print("    apply_answers: murmurmark review workspace apply --session \(sessionArg)")
     }
 
     private static func printPlanHint(planOutDir: URL) {
@@ -7019,11 +7017,10 @@ enum ReviewNextPrinter {
         _ rows: [[String: Any]],
         gate: String,
         sessionPath: String,
-        sessionID: String,
         planOutDir: URL
     ) -> [String] {
         if FileManager.default.fileExists(atPath: planOutDir.appendingPathComponent("review_plan.json").path) {
-            return sessionLocalReviewCommands(sessionID: sessionID, planOutDir: planOutDir)
+            return sessionLocalReviewCommands(sessionArg: sessionPath, planOutDir: planOutDir)
         }
         let commands = rows.compactMap { string($0["command"]) }.filter { !$0.isEmpty }
         let reviewCommands = commands.filter { $0.contains("murmurmark review") }
@@ -7042,23 +7039,23 @@ enum ReviewNextPrinter {
         return commands.isEmpty ? ["less \(sessionPath)/derived/readiness/session_readiness.md"] : commands
     }
 
-    private static func sessionLocalReviewCommands(sessionID: String, planOutDir: URL) -> [String] {
+    private static func sessionLocalReviewCommands(sessionArg: String, planOutDir: URL) -> [String] {
         let firstLane = firstRecommendedLane(planOutDir: planOutDir) ?? "first"
         var commands = [
-            "murmurmark review first-lane --session \(sessionID)",
-            "murmurmark review lane apply \(firstLane) --session \(sessionID)",
+            "murmurmark review first-lane --session \(sessionArg)",
+            "murmurmark review lane apply \(firstLane) --session \(sessionArg)",
         ]
         if let quickLane = quickRecommendedLane(planOutDir: planOutDir), quickLane != firstLane {
             commands += [
-                "murmurmark review lane \(quickLane) --session \(sessionID)",
-                "murmurmark review lane apply \(quickLane) --session \(sessionID)",
+                "murmurmark review lane \(quickLane) --session \(sessionArg)",
+                "murmurmark review lane apply \(quickLane) --session \(sessionArg)",
             ]
         }
         commands += [
-            "murmurmark review workspace --session \(sessionID)",
-            "murmurmark review workspace apply --session \(sessionID)",
-            "murmurmark review progress --session \(sessionID)",
-            "murmurmark review apply --session \(sessionID)",
+            "murmurmark review workspace --session \(sessionArg)",
+            "murmurmark review workspace apply --session \(sessionArg)",
+            "murmurmark review progress --session \(sessionArg)",
+            "murmurmark review apply --session \(sessionArg)",
         ]
         return commands
     }
