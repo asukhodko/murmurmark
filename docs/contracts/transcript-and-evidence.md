@@ -2140,6 +2140,10 @@ machine-generated review marks as if they were human review.
 `refresh_reports[]`. Each row stores the command, return code, and output tails for the refreshed
 `session-quality`, `operational-readiness`, and `review-plan` commands. The batch command must fail
 if any refreshed report command fails, so stale readiness reports are not silently treated as current.
+The Swift `murmurmark review apply` wrapper performs a preflight before running the batch command.
+If the decisions file or review template is missing, it prints `review_apply: status: not_ready`,
+the missing path kind and the next `review workspace` / `review progress` commands instead of
+surfacing the lower-level Python failure.
 
 The report includes coverage evidence:
 

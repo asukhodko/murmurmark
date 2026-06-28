@@ -867,6 +867,8 @@ dry run. `review lane apply --dry-run` writes `review_lane_pack_apply_report.jso
 while rows remain, or run `review progress --session "$SESSION"` before `review apply` once the
 checklist is complete. `review progress` also prints `by_lane`, so the remaining review work is visible
 without opening the JSON report.
+If `review apply --session "$SESSION"` is called before `review_decisions.jsonl` exists, it prints
+`status: not_ready`, the missing file and the workspace/progress commands to run next.
 
 The lower-level equivalent is still useful for debugging exact paths:
 

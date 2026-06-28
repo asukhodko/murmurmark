@@ -665,6 +665,20 @@ enum ReviewCommands {
             }
             try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
             let session = ReviewSessionLocalPlan.sessionOption(from: forwarded, sessionsRoot: sessionsRoot)
+            var preflightArgs = forwarded
+            if let session {
+                ReviewSessionLocalPlan.addReviewApplyDefaults(for: session, to: &preflightArgs)
+            }
+            let decisions = ReviewPaths.reviewApplyDecisions(from: preflightArgs)
+            let template = ReviewPaths.reviewApplyTemplate(from: preflightArgs)
+            if !FileManager.default.fileExists(atPath: decisions.path)
+                || !FileManager.default.fileExists(atPath: template.path) {
+                if let session {
+                    print("SESSION=\"\(PathDisplay.display(session))\"")
+                }
+                ReviewPrinter.printApplyNotReady(session: session, decisions: decisions, template: template)
+                return
+            }
             let report = try apply(forwarded, sessionsRoot: sessionsRoot)
             if let session {
                 print("SESSION=\"\(PathDisplay.display(session))\"")
@@ -1011,6 +1025,17 @@ enum ReviewPaths {
 
     static func applyReport(from args: [String]) -> URL {
         PathURLs.fileURL(ArgumentEditing.peekOption("out", in: args) ?? "sessions/_reports/review-plan/review_decisions_apply_report.json")
+    }
+
+    static func reviewApplyDecisions(from args: [String]) -> URL {
+        PathURLs.fileURL(ArgumentEditing.peekOption("decisions", in: args) ?? "sessions/_reports/review-plan/review_decisions.jsonl")
+    }
+
+    static func reviewApplyTemplate(from args: [String]) -> URL {
+        PathURLs.fileURL(
+            ArgumentEditing.peekOption("review-template", in: args)
+                ?? "sessions/_reports/review-plan/review_decisions.template.jsonl"
+        )
     }
 
     static func workspaceDecisionsOut(from args: [String]) -> URL {

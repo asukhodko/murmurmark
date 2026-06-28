@@ -189,6 +189,25 @@ enum ReviewPrinter {
         }
     }
 
+    static func printApplyNotReady(session: URL?, decisions: URL, template: URL) {
+        let sessionArgument = session.map { " --session \($0.lastPathComponent)" } ?? ""
+        print("")
+        print("review_apply:")
+        print("  status: not_ready")
+        print("  decisions: \(PathDisplay.display(decisions))")
+        print("  review_template: \(PathDisplay.display(template))")
+        print("  missing:")
+        if !FileManager.default.fileExists(atPath: decisions.path) {
+            print("    decisions")
+        }
+        if !FileManager.default.fileExists(atPath: template.path) {
+            print("    review_template")
+        }
+        print("  next:")
+        print("    murmurmark review workspace\(sessionArgument)")
+        print("    murmurmark review progress\(sessionArgument)")
+    }
+
     static func printAgentBuild(report: URL) throws {
         let payload = try JSONFiles.object(report)
         let summary = payload["summary"] as? [String: Any] ?? [:]

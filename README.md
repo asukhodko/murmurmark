@@ -705,6 +705,9 @@ rule as lane review and run the suggested path with `--dry-run` before writing d
 After `murmurmark review apply`, the CLI prints the next report command for the affected session or
 corpus. For a single session it also prints the refreshed readiness summary, including the next
 export or retention commands when the session is ready.
+If `review apply` is run before a decisions file exists, it prints `status: not_ready`, the missing
+file and the `review workspace` / `review progress` commands to run next instead of exposing a
+low-level Python error.
 `scripts/report-review-decisions-progress.py` then shows how much of the queue is actually closed
 before running the heavier batch apply.
 

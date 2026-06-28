@@ -621,6 +621,14 @@ echo "$review_next_output" | grep -q 'murmurmark review workspace --session .*re
 echo "$review_next_output" | grep -q 'murmurmark review workspace apply --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review progress --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review apply --session .*review-next-session'
+review_apply_missing_output="$("$bin" review apply --session "$review_next_session")"
+assert_no_helper_prefix "$review_apply_missing_output"
+echo "$review_apply_missing_output" | grep -q '^SESSION="'
+echo "$review_apply_missing_output" | grep -q '^review_apply:$'
+echo "$review_apply_missing_output" | grep -q '^  status: not_ready'
+echo "$review_apply_missing_output" | grep -q '^    decisions'
+echo "$review_apply_missing_output" | grep -q '^    murmurmark review workspace --session .*review-next-session'
+echo "$review_apply_missing_output" | grep -q '^    murmurmark review progress --session .*review-next-session'
 export_block_dir="$workdir/export-blocked"
 export_block_stdout="$workdir/export_blocked_stdout.txt"
 if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >"$export_block_stdout" 2>&1; then
