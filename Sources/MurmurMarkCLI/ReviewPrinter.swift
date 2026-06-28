@@ -303,16 +303,17 @@ enum ReviewPrinter {
         print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
         printWorkspaceApplyLanes(payload)
         let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
+        let sessionArgument = sessionID.map { " --session \($0)" } ?? ""
         if bool(summary["ready_for_batch_apply"]) == true {
-            if let sessionID {
-                print("  next: murmurmark review apply --session \(sessionID)")
-            } else {
-                print("  next: murmurmark review apply")
-            }
-        } else if let sessionID {
-            print("  next: edit remaining lane answer sheets, then `murmurmark review workspace apply --session \(sessionID)`")
+            print("  next:")
+            print("    murmurmark review apply\(sessionArgument)")
         } else {
-            print("  next: edit remaining lane answer sheets, then `murmurmark review workspace apply`")
+            print("  next:")
+            print("    read/edit remaining lane answer sheets above")
+            print("    murmurmark review workspace apply\(sessionArgument)")
+            print("    murmurmark review progress\(sessionArgument)")
+            print("  after_ready:")
+            print("    murmurmark review apply\(sessionArgument)")
         }
     }
 

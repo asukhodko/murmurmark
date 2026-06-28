@@ -1567,11 +1567,15 @@ enum ReviewLaneApplyCommand {
         let sessionArgument = context.session.map { " --session \($0.lastPathComponent)" } ?? ""
         if context.dryRun {
             let nextCommand = ReviewLaneApplyNextCommand.command(context)
-            print("  next: \(nextCommand)")
+            print("  next:")
+            print("    \(nextCommand)")
         } else if context.progress.map(isReadyForApply) == true {
-            print("  next: murmurmark review apply\(sessionArgument)")
+            print("  next:")
+            print("    murmurmark review apply\(sessionArgument)")
         } else {
-            print("  next: murmurmark review workspace\(sessionArgument)")
+            print("  next:")
+            print("    murmurmark review workspace\(sessionArgument)")
+            print("    murmurmark review progress\(sessionArgument)")
         }
     }
 

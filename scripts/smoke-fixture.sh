@@ -2272,7 +2272,8 @@ PY
   echo "$first_lane_apply_dry_run_output" | grep -q "^  lane: $first_lane"
   echo "$first_lane_apply_dry_run_output" | grep -q '^  report: '
   echo "$first_lane_apply_dry_run_output" | grep -q '^  lane_result: reviewed=0 todo='
-  echo "$first_lane_apply_dry_run_output" | grep -q '^  next: murmurmark review lane apply '
+  echo "$first_lane_apply_dry_run_output" | grep -q '^  next:$'
+  echo "$first_lane_apply_dry_run_output" | grep -q '^    murmurmark review lane apply '
   echo "$first_lane_apply_dry_run_output" | grep -Eq -- "--plan-out-dir .*first-lane-review-plan"
   echo "$first_lane_apply_dry_run_output" | grep -Eq -- "--out-dir .*first-lane-pack"
   echo "$first_lane_output" | grep -q '^  suggested_answers: answers='
@@ -2297,7 +2298,8 @@ PY
   echo "$first_lane_suggested_dry_run_output" | grep -q '^  answers_source: suggested'
   echo "$first_lane_suggested_dry_run_output" | grep -q '^  lane_result: reviewed='
   echo "$first_lane_suggested_dry_run_output" | grep -q 'review_lane_answers\..*\.suggested\.txt'
-  echo "$first_lane_suggested_dry_run_output" | grep -q '^  next: murmurmark review lane apply .* --answers-source suggested'
+  echo "$first_lane_suggested_dry_run_output" | grep -q '^  next:$'
+  echo "$first_lane_suggested_dry_run_output" | grep -q '^    murmurmark review lane apply .* --answers-source suggested'
   ! echo "$first_lane_suggested_dry_run_output" | grep -Eq '^(\{"manifest_items"|Dry run:)'
   if "$bin" review lane apply first \
       --plan-out-dir "$first_lane_plan_dir" \
@@ -2352,7 +2354,9 @@ PY
   echo "$explicit_local_recall_apply_output" | grep -q '^  lane_result: reviewed='
   echo "$explicit_local_recall_apply_output" | grep -q '^  progress: '
   echo "$explicit_local_recall_apply_output" | grep -q '^  ready_for_apply: false'
-  echo "$explicit_local_recall_apply_output" | grep -q '^  next: murmurmark review workspace --session '
+  echo "$explicit_local_recall_apply_output" | grep -q '^  next:$'
+  echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review workspace --session '
+  echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review progress --session '
   explicit_local_recall_apply_dry_run_output="$("$bin" review lane apply check_local_recall \
     --session "$group_session" \
     --out-dir "$explicit_local_recall_lane_dir" \
@@ -2362,7 +2366,8 @@ PY
   ! echo "$explicit_local_recall_apply_dry_run_output" | grep -Eq '^(\{"manifest_items"|Dry run:)'
   echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^  report: '
   echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^  lane_result: reviewed='
-  echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^  next: murmurmark review lane apply check_local_recall --session '
+  echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^  next:$'
+  echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^    murmurmark review lane apply check_local_recall --session '
   echo "$explicit_local_recall_apply_dry_run_output" | grep -Eq -- "--out-dir .*explicit-local-recall-lane-pack"
   echo "$explicit_local_recall_apply_dry_run_output" | grep -q -- "--reviewer smoke"
   [[ -s "$group_session/derived/readiness/review-plan/review_decisions.jsonl" ]]
@@ -2392,6 +2397,11 @@ PY
   assert_no_helper_prefix "$session_workspace_apply_dry_run_output"
   echo "$session_workspace_apply_dry_run_output" | grep -q '^SESSION="'
   echo "$session_workspace_apply_dry_run_output" | grep -q '^review_workspace_apply:$'
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^  next:$'
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review workspace apply --session '
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review progress --session '
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^  after_ready:$'
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review apply --session '
   jq -s 'all(.[]; (.primary_command | type) == "string")' "$review_plan_dir/review_plan_clusters.jsonl" >/dev/null
   jq -s 'all(.[]; .schema == "murmurmark.review_decision/v1" and .decision == "todo" and (.me_utterance_ids | type) == "array" and (.suggested_decision | IN("drop_me", "keep_me", "needs_review")))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .suggested_decision == "drop_me" and .decision == "todo")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
