@@ -6650,6 +6650,7 @@ enum ReadinessPrinter {
         if let recommendedNext {
             print("  recommended_next: \(recommendedNext)")
         }
+        printHandoff(status: status, session: session, outputs: outputs)
         print("  gate: \(gate)")
         print("  recommendation: \(recommendation)")
         print("  selected_profile: \(profile)")
@@ -6696,6 +6697,35 @@ enum ReadinessPrinter {
         guard let item = outputs[key] as? [String: Any] else { return nil }
         guard (item["exists"] as? Bool) == true else { return nil }
         return item["path"] as? String
+    }
+
+    private static func printHandoff(status: String, session: URL, outputs: [String: Any]) {
+        var commands: [(String, String)] = []
+        appendOpenCommand("open_notes", outputKey: "notes", session: session, outputs: outputs, to: &commands)
+        appendOpenCommand("open_transcript", outputKey: "transcript", session: session, outputs: outputs, to: &commands)
+        appendOpenCommand("open_verdict", outputKey: "quality_verdict", session: session, outputs: outputs, to: &commands)
+        if status == "exportable" {
+            let sessionPath = PathDisplay.display(session)
+            commands.append(("export", "murmurmark export \(sessionPath) --format markdown --include-json"))
+            commands.append(("retention", "murmurmark retention plan \(sessionPath)"))
+        }
+        guard !commands.isEmpty else { return }
+        print("  handoff:")
+        for (name, command) in commands {
+            print("    \(name): \(command)")
+        }
+    }
+
+    private static func appendOpenCommand(
+        _ name: String,
+        outputKey: String,
+        session: URL,
+        outputs: [String: Any],
+        to commands: inout [(String, String)]
+    ) {
+        guard let path = outputPath(outputKey, outputs: outputs) else { return }
+        let target = path.hasPrefix("/") ? PathURLs.fileURL(path) : session.appendingPathComponent(path)
+        commands.append((name, "less \(PathDisplay.display(target))"))
     }
 
     private static func fallbackNextCommands(gate: String, session: URL, payload: [String: Any]) -> [[String: Any]] {

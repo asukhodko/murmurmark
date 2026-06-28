@@ -47,7 +47,7 @@ murmurmark retention plan latest
 `report`, `review progress`, blocked `export` and retention commands all print the next safe command
 for the current session state, so the terminal output is the main handoff. `report` starts with a
 short status such as `exportable`, `review_required`, `incomplete` or `blocked`, plus
-`recommended_next`.
+`recommended_next` and `handoff` commands for opening the selected notes, transcript and verdict.
 
 ### Local Release Bundle
 
@@ -290,8 +290,8 @@ Long stages also emit a heartbeat such as `[run] transcribe_current still runnin
 Use `--progress-interval-sec 0` to disable these heartbeat lines.
 Read `session_readiness.md` first, or run `murmurmark report SESSION` for the terminal version. The
 CLI prints a short status, `recommended_next`, the session use gate, selected profile, review burden,
-synthesis review item summary, next CLI commands, and links to the transcript, notes, quality verdict
-and audio-review report.
+synthesis review item summary, next CLI commands, `handoff` open/export commands, and links to the
+transcript, notes, quality verdict and audio-review report.
 `murmurmark review next SESSION` is the short terminal handoff for that same information: it refreshes
 session readiness, builds a session-local review plan when review is needed, and prints the
 review-specific next commands. When a review plan exists, it also prints `quick_lane_flow` and
