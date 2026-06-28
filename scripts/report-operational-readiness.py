@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.1"
+SCRIPT_VERSION = "0.3.2"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 MIN_OPERATIONAL_SESSION_DURATION_SEC = 60.0
@@ -1030,6 +1030,7 @@ def promotion_plan(
     not_ready = [row for row in burdens if row.get("use_gate") != "ready_for_notes"]
     high_burden = sorted(not_ready, key=lambda row: safe_float(row.get("review_burden_ratio")), reverse=True)
     by_session: dict[str, dict[str, Any]] = {}
+    by_session_items: dict[str, list[dict[str, Any]]] = {}
     for item in review_queue:
         session_id = str(item.get("session_id") or "unknown")
         row = by_session.setdefault(
@@ -1041,20 +1042,27 @@ def promotion_plan(
                 "labels": {},
             },
         )
+        by_session_items.setdefault(session_id, []).append(item)
         row["items"] += 1
         interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
         row["seconds"] += safe_float(interval.get("duration_sec"))
         label = str(item.get("label") or "unknown")
         row["labels"][label] = row["labels"].get(label, 0) + 1
-    queue_by_session = [
-        {
-            **row,
-            "minutes": round(safe_float(row.get("seconds")) / 60.0, 2),
-            "seconds": round(safe_float(row.get("seconds")), 3),
-            "labels": dict(sorted((row.get("labels") or {}).items())),
-        }
-        for row in by_session.values()
-    ]
+    queue_by_session = []
+    for row in by_session.values():
+        session_id = str(row.get("session_id") or "")
+        session_strategy = review_queue_lane_summary(by_session_items.get(session_id, []))
+        queue_by_session.append(
+            {
+                **row,
+                "minutes": round(safe_float(row.get("seconds")) / 60.0, 2),
+                "seconds": round(safe_float(row.get("seconds")), 3),
+                "labels": dict(sorted((row.get("labels") or {}).items())),
+                "first_review_lane": session_strategy.get("first_recommended_lane"),
+                "first_review_reason": session_strategy.get("first_recommended_reason"),
+                "by_review_lane": session_strategy.get("by_lane") or [],
+            }
+        )
     queue_by_session.sort(key=lambda row: (-safe_float(row.get("seconds")), str(row.get("session_id"))))
     queue_strategy = review_queue_lane_summary(review_queue)
     review_focus = review_queue_focus(review_queue)
@@ -1179,6 +1187,38 @@ def first_review_target(promotion: dict[str, Any]) -> str | None:
             if target:
                 return target
     return None
+
+
+def same_session_target(left: Any, right: Any) -> bool:
+    left_arg = session_cli_arg(left)
+    right_arg = session_cli_arg(right)
+    if not left_arg or not right_arg:
+        return False
+    return left_arg == right_arg or Path(left_arg).name == Path(right_arg).name
+
+
+def first_review_lane_for_target(promotion: dict[str, Any], review_target: str | None) -> str | None:
+    if review_target:
+        queue_by_session = promotion.get("review_queue_by_session")
+        if isinstance(queue_by_session, list):
+            for row in queue_by_session:
+                if not isinstance(row, dict):
+                    continue
+                if not same_session_target(row.get("session_id") or row.get("session"), review_target):
+                    continue
+                lane = str(row.get("first_review_lane") or "")
+                if lane:
+                    return lane
+
+        focus = promotion.get("review_focus") if isinstance(promotion.get("review_focus"), dict) else {}
+        if same_session_target(focus.get("session_arg") or focus.get("session_id"), review_target):
+            lane = str(focus.get("review_lane") or "")
+            if lane:
+                return lane
+
+    strategy = promotion.get("review_queue_strategy") if isinstance(promotion.get("review_queue_strategy"), dict) else {}
+    lane = str(strategy.get("first_recommended_lane") or "")
+    return lane or None
 
 
 def session_target_action(row: dict[str, Any]) -> str:
@@ -1438,10 +1478,9 @@ def build_next_commands(blockers: list[str], promotion: dict[str, Any]) -> list[
                     "command": "murmurmark corpus process all",
                 }
             )
-    strategy = promotion.get("review_queue_strategy") if isinstance(promotion.get("review_queue_strategy"), dict) else {}
-    first_lane = str(strategy.get("first_recommended_lane") or "")
+    review_target = first_review_target(promotion)
+    first_lane = first_review_lane_for_target(promotion, review_target)
     if first_lane:
-        review_target = first_review_target(promotion)
         session_option = f" --session {review_target}" if review_target else ""
         commands.append(
             {

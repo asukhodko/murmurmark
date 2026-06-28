@@ -2398,9 +2398,13 @@ focused_review_next = module.build_next_commands(
     {
         "review_queue_strategy": {"first_recommended_lane": "check_transcript_order"},
         "review_focus": {"session_id": "focus-session"},
+        "review_queue_by_session": [
+            {"session_id": "focus-session", "first_review_lane": "check_unique_me_content"}
+        ],
     },
 )
 assert focused_review_next[0]["command"] == "murmurmark review first-lane --session sessions/focus-session", focused_review_next
+assert "(check_unique_me_content)" in focused_review_next[0]["label"], focused_review_next
 assert focused_review_next[1]["command"] == "murmurmark review workspace --session sessions/focus-session", focused_review_next
 PY
   gates_dir="$workdir/corpus-gates"
