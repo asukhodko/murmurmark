@@ -1975,8 +1975,10 @@ EOF
   echo "$process_help" | grep -q 'usage: murmurmark process'
   status_help="$("$bin" status --help)"
   echo "$status_help" | grep -q 'usage: murmurmark status'
+  echo "$status_help" | grep -q 'without recomputing reports'
   report_help="$("$bin" report --help)"
   echo "$report_help" | grep -q 'usage: murmurmark report'
+  echo "$report_help" | grep -q 'Use `murmurmark status` when you only need to inspect'
   corpus_help="$("$bin" corpus --help)"
   echo "$corpus_help" | grep -q 'usage:'
   echo "$corpus_help" | grep -q 'murmurmark corpus process all'

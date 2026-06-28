@@ -468,6 +468,10 @@ murmurmark review agent
 .venv/bin/python scripts/echo-guard-local-subtract-lab.py ./sessions/<session> --start-sec <seconds>
 ```
 
+Use `murmurmark status SESSION` to inspect the existing readiness dashboard. Use
+`murmurmark report SESSION` after changing review decisions, cleanup profiles, exports, retention
+state, or other derived artifacts that should refresh readiness.
+
 Development check:
 
 ```bash

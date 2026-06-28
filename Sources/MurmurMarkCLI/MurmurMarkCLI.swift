@@ -656,7 +656,13 @@ enum PipelineHelp {
                murmurmark report corpus [--sessions-root ./sessions]
 
         Refreshes session-quality/readiness reports without rerunning ASR, Echo Guard or audits.
+        Use `murmurmark status` when you only need to inspect already generated readiness.
         Use `report corpus` for a summary over all sessions under --sessions-root.
+
+        Common:
+          murmurmark report latest
+          murmurmark report ./sessions/<id>
+          murmurmark report corpus
         """)
     }
 }
