@@ -1318,6 +1318,7 @@ struct ReviewLaneApplyPrintContext {
     let answersFile: URL?
     let answersSource: String
     let decisions: URL
+    let applyReport: URL
     let reviewer: String?
     let progress: URL?
     let dryRun: Bool
@@ -1390,6 +1391,7 @@ enum ReviewLaneApplyCommand {
         let answersFile = explicitAnswers == nil
             ? (explicitAnswersFile.map(PathURLs.fileURL) ?? defaultAnswersFile)
             : nil
+        let applyReport = decisions.deletingLastPathComponent().appendingPathComponent("review_lane_pack_apply_report.json")
 
         try validateInputs(manifest: manifest, template: template, answersFile: answersFile, lane: lane, session: session)
         try runApplyScript(LaneApplyScriptContext(
@@ -1416,6 +1418,7 @@ enum ReviewLaneApplyCommand {
             answersFile: answersFile,
             answersSource: answersSource,
             decisions: decisions,
+            applyReport: applyReport,
             reviewer: reviewer,
             progress: progress,
             dryRun: dryRun
@@ -1503,6 +1506,7 @@ enum ReviewLaneApplyCommand {
         }
         print("  answers_source: \(context.answersSource)")
         print("  decisions: \(PathDisplay.display(context.decisions))")
+        printLaneApplyReport(context.applyReport)
         if let progress = context.progress {
             print("  progress: \(PathDisplay.display(progress))")
             printProgressSummary(progress)
@@ -1517,6 +1521,20 @@ enum ReviewLaneApplyCommand {
         } else {
             print("  next: murmurmark review workspace\(sessionArgument)")
         }
+    }
+
+    private static func printLaneApplyReport(_ report: URL) {
+        guard let payload = try? JSONFiles.object(report),
+              let summary = payload["summary"] as? [String: Any]
+        else {
+            return
+        }
+        print("  report: \(PathDisplay.display(report))")
+        print("  lane_items: \(int(summary["manifest_items"]) ?? 0)")
+        let reviewed = int(summary["reviewed_count"]) ?? 0
+        let todo = int(summary["todo_count"]) ?? 0
+        let rejected = int(summary["rejected_count"]) ?? 0
+        print("  lane_result: reviewed=\(reviewed) todo=\(todo) rejected=\(rejected)")
     }
 
     private static func printProgressSummary(_ progress: URL) {

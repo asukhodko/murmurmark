@@ -859,7 +859,9 @@ evidence text before editing the answer sheet.
 It also prints `suggested_dry_run` and `suggested_apply`; these call
 `review lane apply ... --answers-source suggested`, read
 `review_lane_answers.<lane>.suggested.txt`, and are meant for explicit reviewer-approved use after a
-dry run.
+dry run. `review lane apply --dry-run` writes `review_lane_pack_apply_report.json` and prints
+`lane_result`, so you can see how many items would become reviewed or remain `todo` before writing
+`review_decisions.jsonl`.
 `review lane apply --dry-run` also prints the exact non-dry-run command. Applying the lane refreshes
 `review_decisions_progress.json` and prints the next safe command: continue with the review workspace
 while rows remain, or run `review progress --session "$SESSION"` before `review apply` once the

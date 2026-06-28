@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.3.1"
 SCHEMA = "murmurmark.review_lane_pack_apply_report/v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -265,7 +265,7 @@ def main() -> int:
     report_path = out.with_name("review_lane_pack_apply_report.json")
     if not args.dry_run:
         write_jsonl(out, rows)
-        write_json(report_path, report)
+    write_json(report_path, report)
     print(json.dumps(report["summary"], ensure_ascii=False))
     if rejected:
         print(f"Rejected: {len(rejected)}")
