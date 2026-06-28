@@ -462,6 +462,10 @@ echo "$report_output" | grep -q '^    open_transcript: less '
 echo "$report_output" | grep -q '^    open_verdict: less '
 echo "$report_output" | grep -q '  synthesis_review_items: '
 echo "$report_output" | grep -q '  synthesis_review_types: .*utterance_transcript_order_review=1'
+review_next_refresh_output="$("$bin" review next "$session")"
+assert_no_helper_prefix "$review_next_refresh_output"
+echo "$review_next_refresh_output" | grep -q '^review_next:$'
+echo "$review_next_refresh_output" | grep -q '^  next:$'
 corpus_report_output="$("$bin" report corpus --sessions-root "$workdir")"
 assert_no_helper_prefix "$corpus_report_output"
 echo "$corpus_report_output" | grep -q '^corpus:$'

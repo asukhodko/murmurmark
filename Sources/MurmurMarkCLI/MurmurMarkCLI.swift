@@ -1127,19 +1127,19 @@ enum ReviewNextCommand {
         let operationalOut = readinessRoot.appendingPathComponent("operational-readiness")
         let reviewPlanOut = readinessRoot.appendingPathComponent("review-plan")
         if !noRefresh {
-            try Tooling.runPath(try PythonRuntime.resolve(), [
+            try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
                 try script("report-session-quality.py").path,
                 session.path,
                 "--out-dir", sessionQualityOut.path,
                 "--write-session-readiness",
             ])
             if !noPlan, try needsReview(session: session) {
-                try Tooling.runPath(try PythonRuntime.resolve(), [
+                try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
                     try script("report-operational-readiness.py").path,
                     "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
                     "--out-dir", operationalOut.path,
                 ])
-                try Tooling.runPath(try PythonRuntime.resolve(), [
+                try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
                     try script("build-review-plan.py").path,
                     "--operational-readiness", operationalOut.appendingPathComponent("operational_readiness_report.json").path,
                     "--out-dir", reviewPlanOut.path,
