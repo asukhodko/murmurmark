@@ -201,6 +201,9 @@ The lower-level scripts remain available for debugging specific files:
 ```bash
 .venv/bin/python scripts/report-operational-readiness.py
 
+# The report also writes next_commands: corpus process for structural blockers,
+# otherwise the first review lane/workspace commands.
+
 .venv/bin/python scripts/build-review-plan.py
 
 .venv/bin/python scripts/review-decisions-cli.py \

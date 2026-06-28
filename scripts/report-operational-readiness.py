@@ -1070,7 +1070,46 @@ def build_report(
         "review_queue": review_queue,
         "promotion_plan": promotion,
         "recommendations": recommendations(verdict, blockers, warnings),
+        "next_commands": build_next_commands(blockers, promotion),
     }
+
+
+def build_next_commands(blockers: list[str], promotion: dict[str, Any]) -> list[dict[str, str]]:
+    commands: list[dict[str, str]] = []
+    if "not_enough_complete_pipelines" in blockers:
+        commands.append(
+            {
+                "id": "process_corpus",
+                "label": "Rebuild the corpus pipeline so operational readiness has enough complete sessions.",
+                "command": "murmurmark corpus process all",
+            }
+        )
+    strategy = promotion.get("review_queue_strategy") if isinstance(promotion.get("review_queue_strategy"), dict) else {}
+    first_lane = str(strategy.get("first_recommended_lane") or "")
+    if first_lane:
+        commands.append(
+            {
+                "id": "review_first_lane",
+                "label": f"Build the first review lane pack ({first_lane}).",
+                "command": "murmurmark review first-lane",
+            }
+        )
+        commands.append(
+            {
+                "id": "review_workspace",
+                "label": "Build all review lane packs and answer sheets.",
+                "command": "murmurmark review workspace",
+            }
+        )
+    if not commands:
+        commands.append(
+            {
+                "id": "corpus_report",
+                "label": "Refresh the current corpus status view.",
+                "command": "murmurmark corpus report",
+            }
+        )
+    return commands
 
 
 def recommendations(verdict: str, blockers: list[str], warnings: list[str]) -> list[str]:
@@ -1109,9 +1148,22 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Audio judge remaining review items: `{((report['summary'].get('audio_judge_review_queue') or {}).get('remaining_human_review_items'))}`",
         f"- Audio judge resolved by selected profile: `{((report['summary'].get('audio_judge_review_queue') or {}).get('resolved_by_selected_profile_items'))}`",
         "",
-        "## Blockers",
+        "## Next Commands",
         "",
     ]
+    next_commands = [item for item in report.get("next_commands", []) if isinstance(item, dict)]
+    if next_commands:
+        for item in next_commands:
+            lines.append(f"- {item.get('label')} `{item.get('command')}`")
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "## Blockers",
+            "",
+        ]
+    )
     if report["blockers"]:
         lines.extend(f"- `{item}`" for item in report["blockers"])
     else:
@@ -1293,6 +1345,9 @@ def main() -> int:
     write_markdown(out_dir / "operational_readiness_report.md", report)
     print(f"verdict: {report['operational_verdict']}")
     print(f"written: {out_dir / 'operational_readiness_report.json'}")
+    next_commands = [item for item in report.get("next_commands", []) if isinstance(item, dict)]
+    if next_commands:
+        print(f"next_command: {next_commands[0].get('command')}")
     return 0
 
 

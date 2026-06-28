@@ -1794,6 +1794,7 @@ PY
   jq -e '.summary.audio_judge_readiness | type == "string"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'all(.session_review_burden[]; (.use_gate | type) == "string")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.review_queue | type == "array"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.next_commands | type == "array" and length >= 1 and (.[0].command | type) == "string"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.promotion_plan.review_queue_strategy.by_lane | type == "array"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.promotion_plan.review_queue_strategy.after_first_lane_estimate.remaining_items | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'any(.review_queue[]; (.source == "local_recall" and .label == "lost_me") or (.source == "local_recall_repair" and .label == "local_recall_repair_inserted"))' "$readiness_dir/operational_readiness_report.json" >/dev/null
@@ -1841,6 +1842,16 @@ assert lanes["check_unique_me_content"] == 2, lanes
 assert lanes["check_local_recall"] == 2, lanes
 assert lanes["check_transcript_order"] == 2, lanes
 assert any(row["label"] == "probable_order_risk" for row in selected), selected
+blocked_next = module.build_next_commands(
+    ["not_enough_complete_pipelines"],
+    {"review_queue_strategy": {"first_recommended_lane": "fast_confirm_drop"}},
+)
+assert blocked_next[0]["command"] == "murmurmark corpus process all", blocked_next
+review_next = module.build_next_commands(
+    [],
+    {"review_queue_strategy": {"first_recommended_lane": "fast_confirm_drop"}},
+)
+assert review_next[0]["command"] == "murmurmark review first-lane", review_next
 PY
   gates_dir="$workdir/corpus-gates"
   gate_args=(

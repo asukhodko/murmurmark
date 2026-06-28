@@ -661,7 +661,9 @@ the next agent: it names the diagnostic subtype, the next work item and the expe
 The operational readiness report answers whether the current pipeline is usable for medium-risk
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first. Its review queue is also
-profile-aware: already-resolved cleanup items are not shown as remaining work.
+profile-aware: already-resolved cleanup items are not shown as remaining work. Its `next_commands`
+points first to `murmurmark corpus process all` when structural pipeline coverage is the blocker,
+otherwise to the first review lane/workspace commands.
 Stale audio-judge queue rows are also ignored when the current audio-review audit has reclassified
 the source item as reliable.
 `murmurmark corpus order` writes a separate chronology-risk corpus report under

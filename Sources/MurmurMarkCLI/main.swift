@@ -7337,7 +7337,7 @@ enum CorpusPrinter {
         print("  sessions_ready_for_notes: \(int(useGates["ready_for_notes"]) ?? 0)")
         print("  sessions_review_first: \(int(useGates["review_first"]) ?? 0)")
         print(String(format: "  review_minutes: %.2f", reviewSeconds / 60))
-        print("  next: murmurmark review plan")
+        printFirstNextCommand(payload)
     }
 
     private static func string(_ value: Any?) -> String? {
