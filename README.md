@@ -366,13 +366,12 @@ duplicate or ASR-noise classification. It never edits `shadow_v2`.
 
 ### Command Reference
 
+Everyday CLI commands:
+
 ```bash
-swift build
-swift run murmurmark doctor
-swift run murmurmark doctor --strict
-scripts/build-release-bundle.sh --verify
-scripts/check-open-source-readiness.sh
-swift run murmurmark list-apps
+murmurmark doctor
+murmurmark doctor --strict
+murmurmark list-apps
 murmurmark record --target-bundle system
 murmurmark latest
 murmurmark config print
@@ -401,6 +400,7 @@ murmurmark review lane apply first --session ./sessions/<session>
 murmurmark review latest --lane fast_confirm_drop
 murmurmark review progress --session ./sessions/<session>
 murmurmark review apply --session ./sessions/<session>
+murmurmark review agent
 murmurmark corpus process all --per-label 16 --max-items 160
 murmurmark corpus build ./sessions/<session> --per-label 16 --max-items 160
 murmurmark corpus evaluate
@@ -423,6 +423,11 @@ murmurmark export ./sessions/<session> --format obsidian
 murmurmark retention plan ./sessions/<session>
 murmurmark retention payload ./sessions/<session>
 murmurmark retention apply ./sessions/<session> --policy ./policy.json --confirm-delete-raw
+```
+
+Advanced CLI diagnostics:
+
+```bash
 murmurmark preprocess ./sessions/<session> --echo diagnostic
 murmurmark preprocess ./sessions/<session> --echo clean --echo-engine linear_baseline
 murmurmark preprocess ./sessions/<session> --echo clean --echo-engine local_fir
@@ -433,10 +438,6 @@ murmurmark reconcile-transcript ./sessions/<session>
 murmurmark inspect ./sessions/<session>
 murmurmark inspect ./sessions/<session> --echo
 murmurmark export-audio ./sessions/<session>
-.venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session>
-.venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --prompt-file domain-packs/<domain>/whisper-prompt.ru.txt
-.venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --repair-profile shadow_v2 --skip-export --skip-transcribe
-.venv/bin/python scripts/run-session-pipeline.py ./sessions/<session>
 murmurmark synthesize ./sessions/<session> --transcript-profile auto
 murmurmark cleanup ./sessions/<session> --input-profile shadow_v2 --output-profile audit_cleanup_v1
 murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v1
@@ -446,7 +447,6 @@ murmurmark cleanup ./sessions/<session> --input-profile audit_cleanup_v2 --outpu
 murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v3
 murmurmark cleanup ./sessions/<session> --input-profile audit_cleanup_v3 --output-profile audit_cleanup_v4 --audio-judge-queue sessions/_reports/audio-judge-v0/audio_judge_v0_queue_predictions.jsonl
 murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v4
-.venv/bin/python scripts/apply-suggested-cleanup.py
 murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v5
 murmurmark cleanup ./sessions/<session> --input-profile audit_cleanup_v5 --output-profile audit_cleanup_v6
 murmurmark synthesize ./sessions/<session> --transcript-profile audit_cleanup_v6
@@ -454,6 +454,28 @@ murmurmark repair order ./sessions/<session> --input-profile auto --output-profi
 murmurmark repair local-recall ./sessions/<session> --input-profile auto --output-profile local_recall_repair_v1
 murmurmark synthesize ./sessions/<session> --transcript-profile local_recall_repair_v1
 murmurmark synthesize ./sessions/<session> --transcript-profile auto
+```
+
+Development and release checks:
+
+```bash
+swift build
+swift run murmurmark doctor
+swift run murmurmark doctor --strict
+swift run murmurmark list-apps
+scripts/build-release-bundle.sh --verify
+scripts/check-open-source-readiness.sh
+scripts/check.sh
+```
+
+Internal scripts are still available when debugging one layer or comparing a CLI wrapper with its
+underlying implementation:
+
+```bash
+.venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session>
+.venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --prompt-file domain-packs/<domain>/whisper-prompt.ru.txt
+.venv/bin/python scripts/transcribe-simple-whispercpp.py ./sessions/<session> --repair-profile shadow_v2 --skip-export --skip-transcribe
+.venv/bin/python scripts/run-session-pipeline.py ./sessions/<session>
 .venv/bin/python scripts/report-session-quality.py ./sessions/<session> --write-session-readiness
 .venv/bin/python scripts/build-regression-corpus.py ./sessions/<session>
 .venv/bin/python scripts/evaluate-regression-corpus.py
@@ -463,10 +485,10 @@ murmurmark synthesize ./sessions/<session> --transcript-profile auto
 .venv/bin/python scripts/report-transcript-order-corpus.py
 .venv/bin/python scripts/report-remote-leak-segment-corpus.py
 .venv/bin/python scripts/build-review-plan.py
-murmurmark review agent
 .venv/bin/python scripts/review-decisions-cli.py --template sessions/_reports/review-plan/review_decisions.template.jsonl --out sessions/_reports/review-plan/review_decisions.jsonl
 .venv/bin/python scripts/apply-review-decisions-batch.py --decisions sessions/_reports/review-plan/review_decisions.jsonl --synthesize
 .venv/bin/python scripts/apply-review-decisions.py ./sessions/<session> --decisions sessions/_reports/review-plan/review_decisions.jsonl
+.venv/bin/python scripts/apply-suggested-cleanup.py
 .venv/bin/python scripts/echo-guard-delay-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-fir-lab.py ./sessions/<session>
 .venv/bin/python scripts/echo-guard-local-subtract-lab.py ./sessions/<session> --start-sec <seconds>
