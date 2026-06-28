@@ -1549,6 +1549,10 @@ EOF
   corpus_help="$("$bin" corpus --help)"
   echo "$corpus_help" | grep -q 'usage:'
   echo "$corpus_help" | grep -q 'murmurmark corpus process all'
+  export_help="$("$bin" export)"
+  echo "$export_help" | grep -q 'usage: murmurmark export'
+  export_flag_help="$("$bin" export --help)"
+  echo "$export_flag_help" | grep -q 'usage: murmurmark export'
 
   corpus_dir="$workdir/regression-corpus"
   "$repo_root/scripts/build-regression-corpus.py" "$group_session" \

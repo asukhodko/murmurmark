@@ -3275,11 +3275,14 @@ enum CorpusOrderHelp {
 
 enum ExportCommands {
     static func export(_ args: [String]) throws {
-        if ArgumentEditing.hasHelpFlag(args) {
-            try Tooling.runPath(try PythonRuntime.resolve(), [try script().path] + args)
+        if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
             return
         }
-        guard let target = args.first else { throw CLIError("export requires a session path or latest") }
+        guard let target = args.first else {
+            printHelp()
+            return
+        }
         var forwarded = Array(args.dropFirst())
         let config = try MurmurMarkConfig.load(from: ArgumentEditing.takeOption("config", from: &forwarded))
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
@@ -3304,6 +3307,17 @@ enum ExportCommands {
 
     private static func exportOutDir(from args: [String]) -> URL {
         PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: args) ?? "exports/private")
+    }
+
+    private static func printHelp() {
+        print("""
+        usage: murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto]
+                               [--out-dir exports/private] [--include-json] [--force]
+                               [--sessions-root ./sessions]
+
+        Creates a local user-facing Markdown or Obsidian bundle. By default export refuses sessions
+        with readiness export blockers; pass --force only after consciously accepting that risk.
+        """)
     }
 }
 
