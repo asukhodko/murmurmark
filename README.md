@@ -644,7 +644,8 @@ the whole `review_workspace.json` in one validated pass and then refreshes revie
 Use `murmurmark review workspace apply --dry-run` to write only the validation report and print the
 same handoff without changing `review_decisions.jsonl`.
 After `murmurmark review apply`, the CLI prints the next report command for the affected session or
-corpus.
+corpus. For a single session it also prints the refreshed readiness summary, including the next
+export or retention commands when the session is ready.
 `scripts/report-review-decisions-progress.py` then shows how much of the queue is actually closed
 before running the heavier batch apply.
 

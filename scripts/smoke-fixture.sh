@@ -1934,6 +1934,9 @@ PY
     --audio-judge-queue "$judge_dir/audio_judge_v0_queue_predictions.jsonl")"
   echo "$latest_apply_output" | grep -q '^  report: .*review_decisions_apply.latest.json'
   echo "$latest_apply_output" | grep -q '^  next: murmurmark report '
+  echo "$latest_apply_output" | grep -q '^readiness:$'
+  echo "$latest_apply_output" | grep -q '^  selected_profile: '
+  echo "$latest_apply_output" | grep -q '^  next:'
   jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.session_count == 1 and .summary.failed_sessions == 0' "$latest_apply_report" >/dev/null
 fi
 

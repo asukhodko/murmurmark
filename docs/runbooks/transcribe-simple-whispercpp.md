@@ -733,8 +733,9 @@ plan if needed, then prints the next review commands. `murmurmark review first-l
 "$SESSION"` now defaults to that session-local plan. The same is true for
 `murmurmark review workspace --session "$SESSION"`, `murmurmark review workspace apply --session
 "$SESSION"`, `murmurmark review progress --session "$SESSION"` and `murmurmark review apply --session
-"$SESSION"`. Use `murmurmark review plan` or bare `murmurmark review progress` for the global corpus
-queue.
+"$SESSION"`. After a successful single-session apply, the CLI prints the refreshed readiness summary
+so the next export or retention command is visible immediately. Use `murmurmark review plan` or bare
+`murmurmark review progress` for the global corpus queue.
 `murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended lane.
 With `--session`, its default paths are under `SESSION/derived/readiness/`; without `--session`, it
 uses the global corpus queue under `sessions/_reports/`.

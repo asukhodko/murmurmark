@@ -6794,6 +6794,7 @@ enum ReviewPrinter {
             print("  next: less \(PathDisplay.display(report))")
         } else if let session = singleAppliedSession(sessions) {
             print("  next: murmurmark report \(session)")
+            try printAppliedSessionReadiness(session)
         } else if !sessions.isEmpty {
             print("  next: murmurmark report corpus")
         }
@@ -6899,6 +6900,15 @@ enum ReviewPrinter {
     private static func singleAppliedSession(_ sessions: [[String: Any]]) -> String? {
         let names = sessions.compactMap { string($0["session"]) }.filter { !$0.isEmpty }
         return names.count == 1 ? names[0] : nil
+    }
+
+    private static func printAppliedSessionReadiness(_ session: String) throws {
+        let sessionURL = PathURLs.fileURL(session)
+        let readiness = sessionURL.appendingPathComponent("derived/readiness/session_readiness.json")
+        guard FileManager.default.fileExists(atPath: readiness.path) else {
+            return
+        }
+        try ReadinessPrinter.printSession(sessionURL)
     }
 
     private static func string(_ value: Any?) -> String? {
