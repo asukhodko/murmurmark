@@ -1254,12 +1254,14 @@ enum ReviewLaneApplyCommand {
             reviewer: reviewer,
             dryRun: dryRun
         ))
+        let progress = dryRun ? nil : try runProgress(template: template, decisions: decisions, planURL: planURL)
         printLaneApply(LaneApplyPrintContext(
             lane: lane,
             session: session,
             manifest: manifest,
             answersFile: answersFile,
             decisions: decisions,
+            progress: progress,
             dryRun: dryRun
         ))
     }
@@ -1320,12 +1322,25 @@ enum ReviewLaneApplyCommand {
         try Tooling.runPath(try PythonRuntime.resolve(), command)
     }
 
+    private static func runProgress(template: URL, decisions: URL, planURL: URL) throws -> URL {
+        let progress = planURL.appendingPathComponent("review_decisions_progress.json")
+        try Tooling.runPath(try PythonRuntime.resolve(), [
+            try script("report-review-decisions-progress.py").path,
+            "--template", template.path,
+            "--decisions", decisions.path,
+            "--out", progress.path,
+            "--markdown", planURL.appendingPathComponent("review_decisions_progress.md").path,
+        ])
+        return progress
+    }
+
     private struct LaneApplyPrintContext {
         let lane: String
         let session: URL?
         let manifest: URL
         let answersFile: URL?
         let decisions: URL
+        let progress: URL?
         let dryRun: Bool
     }
 
@@ -1341,13 +1356,55 @@ enum ReviewLaneApplyCommand {
             print("  answers: \(PathDisplay.display(answersFile))")
         }
         print("  decisions: \(PathDisplay.display(context.decisions))")
+        if let progress = context.progress {
+            print("  progress: \(PathDisplay.display(progress))")
+            printProgressSummary(progress)
+        }
         print("  dry_run: \(context.dryRun)")
         let sessionArgument = context.session.map { " --session \($0.lastPathComponent)" } ?? ""
         if context.dryRun {
             print("  next: run without --dry-run, then `murmurmark review apply\(sessionArgument)`")
-        } else {
+        } else if context.progress.map(isReadyForApply) == true {
             print("  next: murmurmark review apply\(sessionArgument)")
+        } else {
+            print("  next: murmurmark review workspace\(sessionArgument)")
         }
+    }
+
+    private static func printProgressSummary(_ progress: URL) {
+        guard let payload = try? JSONFiles.object(progress),
+              let summary = payload["summary"] as? [String: Any]
+        else {
+            return
+        }
+        let reviewed = int(summary["reviewed"]) ?? 0
+        let total = int(summary["total"]) ?? 0
+        let remaining = int(summary["remaining"]) ?? 0
+        let ready = bool(summary["ready_for_batch_apply"]) ?? false
+        print("  reviewed: \(reviewed)/\(total)")
+        print("  remaining: \(remaining)")
+        print("  ready_for_apply: \(ready)")
+    }
+
+    private static func isReadyForApply(_ progress: URL) -> Bool {
+        guard let payload = try? JSONFiles.object(progress),
+              let summary = payload["summary"] as? [String: Any]
+        else {
+            return false
+        }
+        return bool(summary["ready_for_batch_apply"]) == true
+    }
+
+    private static func bool(_ value: Any?) -> Bool? {
+        if let value = value as? Bool { return value }
+        if let text = value as? String { return ["true", "yes", "1"].contains(text.lowercased()) }
+        return nil
+    }
+
+    private static func int(_ value: Any?) -> Int? {
+        if let number = value as? NSNumber { return number.intValue }
+        if let text = value as? String { return Int(text) }
+        return nil
     }
 
     private static func resolveLane(_ value: String, planURL: URL) throws -> String {

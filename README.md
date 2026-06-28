@@ -634,7 +634,9 @@ After listening to that pack, edit the generated `review_lane_answers.<lane>.txt
 `review_decisions.jsonl`. Use `murmurmark review lane apply first --session SESSION` after
 `review first-lane`; `first` resolves to the lane named in `review_plan.json`. The lower-level Python
 script remains available for debugging, but the Swift CLI uses the correct session-local paths by
-default.
+default. After applying the lane, the CLI refreshes `review_decisions_progress.json`: if more rows
+remain it points back to `murmurmark review workspace`, and it prints `murmurmark review apply` only
+when the review file is ready.
 Each lane also has `review_lane_answers.<lane>.suggested.txt`; use it as a review aid, not as a
 silent replacement for listening when the meeting is medium-risk.
 When several lane answer sheets are edited, `murmurmark review workspace apply` applies

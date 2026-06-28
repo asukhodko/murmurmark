@@ -800,7 +800,9 @@ Then copy decisions from the answer sheet back into the full review file:
 ```
 
 `first` resolves to `review_queue_strategy.first_recommended_lane` from the session-local
-`review_plan.json`; pass an explicit lane name when you intentionally reviewed another lane.
+`review_plan.json`; pass an explicit lane name when you intentionally reviewed another lane. The
+command also refreshes `review_decisions_progress.json` and prints the next safe command: continue
+with the review workspace while rows remain, or run `review apply` once the checklist is complete.
 
 The lower-level equivalent is still useful for debugging exact paths:
 
