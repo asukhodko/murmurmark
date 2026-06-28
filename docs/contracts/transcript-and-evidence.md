@@ -1891,11 +1891,12 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
 display but is not guaranteed to be unique across clustered review rows. `source`, `input_profile`
 and utterance id arrays are copied from the review template so a lane pack remains auditable even
 when it is opened outside the full `review_plan.json`.
-For `check_transcript_order`, `build-review-lane-pack.py` may group several rows that point to the
-same long `Me` utterance. In that case `grouped` is `true`, `group_size` is greater than `1`, and
-`review_row_keys` / `source_audit_ids` contain every underlying row. Applying one answer to that
-pack item writes the same decision to each listed review row; no transcript profile is edited until
-the normal review batch apply step runs.
+For lanes such as `check_transcript_order`, `check_unique_me_content` and `classify_audio`,
+`build-review-lane-pack.py` may group several rows that point to the same `Me` utterance. In that
+case `grouped` is `true`, `group_size` is greater than `1`, and `review_row_keys` /
+`source_audit_ids` contain every underlying row. Applying one answer to that pack item writes the
+same decision to each listed review row; no transcript profile is edited until the normal review
+batch apply step runs.
 
 The Swift CLI prints a compact handoff for the same manifest: selected lane, audio, Markdown, answer
 sheet, suggested answer sheet, the first `answers=...` line from the suggested sheet, and ready-to-run

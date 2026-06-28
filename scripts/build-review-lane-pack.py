@@ -11,9 +11,10 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.5.0"
 SCHEMA = "murmurmark.review_lane_pack/v1"
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
+GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 DECISION_SHORTCUTS = {
     "drop_me": "d",
     "keep_me": "k",
@@ -48,7 +49,7 @@ def parse_args() -> argparse.Namespace:
         "--group-related",
         choices=["auto", "off"],
         default="auto",
-        help="Group related review rows into one pack item when safe. Currently groups transcript-order rows by Me utterance.",
+        help="Group related review rows into one pack item when safe. Groups selected lanes by Me utterance.",
     )
     return parser.parse_args()
 
@@ -146,13 +147,17 @@ def first_me_utterance_id(row: dict[str, Any]) -> str:
 def related_group_key(row: dict[str, Any], mode: str) -> str:
     if mode != "auto":
         return ""
-    if str(row.get("review_lane") or "") != "check_transcript_order":
+    lane = str(row.get("review_lane") or "")
+    if lane not in GROUPABLE_REVIEW_LANES:
         return ""
     me_id = first_me_utterance_id(row)
     if not me_id:
         return ""
     session_id = str(row.get("session_id") or row.get("session") or "")
-    return f"check_transcript_order:{session_id}:{me_id}"
+    label = str(row.get("label") or "")
+    action = str(row.get("review_action") or "")
+    allowed = ",".join(sorted(allowed_decisions_for_item(row)))
+    return f"{lane}:{session_id}:{label}:{action}:{allowed}:{me_id}"
 
 
 def group_selected_rows(rows: list[dict[str, Any]], mode: str) -> list[list[dict[str, Any]]]:
@@ -207,7 +212,7 @@ def group_suggested_reason(rows: list[dict[str, Any]]) -> str:
         return str(reason)
     if len(rows) <= 1:
         return str(rows[0].get("suggested_decision_reason") or "")
-    return f"grouped_{len(rows)}_transcript_order_rows_for_same_me_utterance"
+    return f"grouped_{len(rows)}_review_rows_for_same_me_utterance"
 
 
 def group_clip_text(rows: list[dict[str, Any]]) -> str:

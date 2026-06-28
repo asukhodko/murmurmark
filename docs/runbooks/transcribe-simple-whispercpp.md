@@ -868,9 +868,10 @@ lane-pack command prints the suggested compact answer line, `afplay`, `$EDITOR`,
 `review lane apply ...` command for the generated answer sheet. It also prints `read: less ...` for
 the lane Markdown, which is the fastest place to inspect allowed decisions, suggested reasons and
 evidence text before editing the answer sheet.
-For `check_transcript_order`, the pack groups repeated risks for the same long `Me` utterance. The
-answer sheet still has one character per pack item, but a grouped item can apply that answer to
-several underlying review rows; the Markdown shows the grouped row count and source audit ids.
+For lanes such as `check_transcript_order`, `check_unique_me_content` and `classify_audio`, the pack
+groups repeated risks for the same `Me` utterance. The answer sheet still has one character per pack
+item, but a grouped item can apply that answer to several underlying review rows; the Markdown shows
+the grouped row count and source audit ids.
 The CLI output prints both source `rows` and packed `items`, plus `grouped_rows_saved` when grouping
 was applied.
 It also prints `manual_flow`, optional `suggested_flow`, and `after_apply`, so a reviewer can follow

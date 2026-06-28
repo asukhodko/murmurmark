@@ -1730,6 +1730,35 @@ EOF
     length == 2
     and all(.[]; .decision == "keep_me" and .status == "reviewed" and .review_lane_pack_group_size == 2)
   ' "$order_group_workspace_out" >/dev/null
+  unique_group_template="$workdir/review_decisions_unique_group.template.jsonl"
+  unique_group_out="$workdir/review_decisions_unique_group.jsonl"
+  unique_group_lane_dir="$workdir/review_lane_pack_unique_group"
+  cat >"$unique_group_template" <<EOF
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source":"audio_review","source_audit_id":"unique_group_001","label":"remote_leak","verdict":"needs_stronger_audio_judge","review_lane":"check_unique_me_content","review_action":"check_unique_me_content","suggested_decision":"needs_review","suggested_decision_confidence":"medium","allowed_decisions":["keep_me","needs_review","skip"],"me_utterance_ids":["utt_unique_group_me"],"remote_utterance_ids":["utt_unique_group_remote_a"],"utterance_ids":["utt_unique_group_me","utt_unique_group_remote_a"],"interval":{"start":6.0,"end":7.0,"duration_sec":1.0},"text":[{"id":"utt_unique_group_me","role":"Me","source_track":"mic","text":"Локальная реплика с уникальным смыслом."},{"id":"utt_unique_group_remote_a","role":"Colleagues","source_track":"remote","text":"Первое пересечение."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 5.000 -t 2.500 \"$group_session/audio/mic/000001.caf\""}}
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source":"audio_review","source_audit_id":"unique_group_002","label":"remote_leak","verdict":"needs_stronger_audio_judge","review_lane":"check_unique_me_content","review_action":"check_unique_me_content","suggested_decision":"needs_review","suggested_decision_confidence":"medium","allowed_decisions":["keep_me","needs_review","skip"],"me_utterance_ids":["utt_unique_group_me"],"remote_utterance_ids":["utt_unique_group_remote_b"],"utterance_ids":["utt_unique_group_me","utt_unique_group_remote_b"],"interval":{"start":8.0,"end":9.0,"duration_sec":1.0},"text":[{"id":"utt_unique_group_me","role":"Me","source_track":"mic","text":"Локальная реплика с уникальным смыслом."},{"id":"utt_unique_group_remote_b","role":"Colleagues","source_track":"remote","text":"Второе пересечение."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 7.000 -t 2.500 \"$group_session/audio/mic/000001.caf\""}}
+EOF
+  "$repo_root/scripts/build-review-lane-pack.py" \
+    --template "$unique_group_template" \
+    --lane check_unique_me_content \
+    --out-dir "$unique_group_lane_dir" >/dev/null
+  jq -e '
+    .summary.selected_rows == 2
+    and .summary.item_count == 1
+    and .summary.grouped_item_count == 1
+    and .items[0].grouped == true
+    and .items[0].group_size == 2
+    and (.items[0].review_row_keys | length == 2)
+    and (.items[0].source_audit_ids == ["unique_group_001", "unique_group_002"])
+  ' "$unique_group_lane_dir/review_lane_pack.check_unique_me_content.json" >/dev/null
+  "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
+    "$unique_group_lane_dir/review_lane_pack.check_unique_me_content.json" \
+    --template "$unique_group_template" \
+    --out "$unique_group_out" \
+    --answers k >/dev/null
+  jq -s '
+    length == 2
+    and all(.[]; .decision == "keep_me" and .status == "reviewed" and .review_lane_pack_group_size == 2)
+  ' "$unique_group_out" >/dev/null
   "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
     "$duplicate_lane_dir/review_lane_pack.fast_confirm_drop.json" \
     --template "$duplicate_source_template" \
