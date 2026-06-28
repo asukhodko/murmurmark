@@ -411,7 +411,7 @@ nodes:
     deps: [quality-remote-leak-segment-plan]
     status: done
     effort: 2
-    notes: "murmurmark corpus remote-leak агрегирует per-session segment plans в одну очередь по корпусу; --plan пересобирает планы перед агрегацией, но не применяет transcript edits."
+    notes: "murmurmark corpus remote-leak агрегирует per-session segment plans в одну очередь по корпусу; --plan пересобирает планы перед агрегацией. murmurmark corpus process all делает этот refresh автоматически перед session-quality. Transcript edits не применяются."
 
   quality-order-regressions:
     title: "Transcript order regression cases"

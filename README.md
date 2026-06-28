@@ -171,7 +171,8 @@ candidates, which are mark-only, which need better labels, and which sessions/ex
 the next quality iteration. The report also splits broad classes like `uncertain` into diagnostic
 subtypes and writes an `action_plan`, so the next repair can target one narrow failure mode.
 `corpus remote-leak` writes `sessions/_reports/remote-leak-segment/remote_leak_segment_corpus_report.*`.
-Use `--plan` when you want to rebuild per-session remote-leak plans before aggregating them.
+`murmurmark corpus process all` rebuilds per-session remote-leak plans before session-quality and
+corpus aggregation. Use `corpus remote-leak --plan` when you want to refresh only that queue.
 `passed_with_warnings` means the hard no-regression gates are green, but some historical sessions or
 review queues still need cleanup before the whole repository is operationally ready.
 The optional baseline is private generated state under ignored `sessions/_reports/`.

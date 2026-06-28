@@ -1500,6 +1500,8 @@ EOF
   jq -e 'all(.steps[]; (.started_at | type) == "string" and (.duration_sec | type) == "number")' "$pipeline_plan" >/dev/null
   jq -e 'any(.steps[]; .name == "plan_remote_leak_segment_repair")' "$pipeline_plan" >/dev/null
   jq -e 'any(.steps[]; .name == "session_readiness")' "$pipeline_plan" >/dev/null
+  corpus_process_help="$("$bin" corpus process --help)"
+  echo "$corpus_process_help" | grep -q 'plan-remote-leak-segment-repair.py'
 
   corpus_dir="$workdir/regression-corpus"
   "$repo_root/scripts/build-regression-corpus.py" "$group_session" \

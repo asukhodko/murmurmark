@@ -2090,6 +2090,7 @@ enum CorpusCommands {
                 throw CLIError("corpus process uses default report directories; run build/evaluate/train-audio-judge separately for custom paths")
             }
             let sessions = try takeSessions(from: &forwarded, sessionsRoot: sessionsRoot)
+            try CorpusRemoteLeakPlan.run(sessions: sessions)
             try reportSessionQuality(sessions: sessions)
             try build(sessions: sessions, extraArgs: forwarded)
             try evaluate(extraArgs: [])
@@ -2298,15 +2299,16 @@ enum CorpusCommands {
         usage: murmurmark corpus process all|latest|./session... [options]
 
         Runs the local corpus quality loop:
-          1. report-session-quality.py
-          2. build-regression-corpus.py
-          3. evaluate-regression-corpus.py
-          4. train-audio-judge-v0.py
-          5. report-audio-error-taxonomy.py
-          6. report-operational-readiness.py
-          7. report-transcript-order-corpus.py
-          8. report-remote-leak-segment-corpus.py
-          9. check-corpus-gates.py
+          1. plan-remote-leak-segment-repair.py
+          2. report-session-quality.py
+          3. build-regression-corpus.py
+          4. evaluate-regression-corpus.py
+          5. train-audio-judge-v0.py
+          6. report-audio-error-taxonomy.py
+          7. report-operational-readiness.py
+          8. report-transcript-order-corpus.py
+          9. report-remote-leak-segment-corpus.py
+          10. check-corpus-gates.py
 
         Options:
           --sessions-root PATH  Sessions directory for all/latest. Default: sessions

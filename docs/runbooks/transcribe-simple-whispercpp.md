@@ -657,8 +657,9 @@ the source item as reliable.
 audio leakage.
 `murmurmark corpus remote-leak` writes `sessions/_reports/remote-leak-segment/`. It aggregates
 per-session remote-leak segment plans into one corpus queue and keeps the same audit-only policy:
-no transcript profile and no raw audio are modified. Use `--plan` to refresh per-session plans
-before aggregating.
+no transcript profile and no raw audio are modified. `murmurmark corpus process all` refreshes these
+plans before session-quality and corpus aggregation. Use `corpus remote-leak --plan` when you only
+want to refresh the remote-leak queue.
 `murmurmark corpus report` prints the existing session-quality summary and, when the files already
 exist, also prints short summaries for transcript-order, remote-leak, corpus-gates and
 operational-readiness. It does not rebuild those reports; it is the quick “what is the current state?” command after a heavier
