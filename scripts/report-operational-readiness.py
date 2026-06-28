@@ -852,11 +852,7 @@ def promotion_plan(
                 "review_burden_min": round(safe_float(row.get("review_burden_sec")) / 60.0, 2),
                 "review_burden_ratio": row.get("review_burden_ratio"),
                 "risk_flags": row.get("risk_flags") or [],
-                "recommended_action": (
-                    "close_review_decisions_or_improve_cleanup"
-                    if row.get("use_gate") == "review_first"
-                    else "rerun_pipeline_or_fix_artifacts"
-                ),
+                "recommended_action": session_target_action(row),
             }
             for row in high_burden
         ],
@@ -864,6 +860,23 @@ def promotion_plan(
         "review_queue_strategy": queue_strategy,
         "next_actions": next_actions,
     }
+
+
+def session_target_action(row: dict[str, Any]) -> str:
+    use_gate = str(row.get("use_gate") or "")
+    selected_profile = str(row.get("selected_profile") or "")
+    flags = {str(item) for item in (row.get("risk_flags") or [])}
+    missing_artifacts = any(item.startswith("missing:") for item in flags)
+    if (
+        use_gate.startswith("pipeline_incomplete")
+        or selected_profile in {"", "missing", "None"}
+        or "no_audit_cleanup_profile" in flags
+        or missing_artifacts
+    ):
+        return "rerun_pipeline_or_fix_artifacts"
+    if use_gate == "ready_for_notes":
+        return "use_notes_with_normal_caution"
+    return "close_review_decisions_or_improve_cleanup"
 
 
 def active_audio_judge_queue_summary(sessions: list[dict[str, Any]], predictions: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -1131,6 +1144,9 @@ def first_pipeline_target(promotion: dict[str, Any]) -> str | None:
         if not isinstance(target, dict):
             continue
         if target.get("recommended_action") != "rerun_pipeline_or_fix_artifacts":
+            continue
+        use_gate = str(target.get("use_gate") or "")
+        if not use_gate.startswith("pipeline_incomplete"):
             continue
         session_id = str(target.get("session_id") or "").strip()
         if not session_id:

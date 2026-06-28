@@ -737,8 +737,9 @@ operational-readiness. It does not rebuild those reports; it is the quick “wha
 `murmurmark corpus process all`. The process command completes the refresh and prints summaries even
 when corpus gates are currently `failed`; run `murmurmark corpus gate` separately when a strict
 non-zero gate is useful for CI or release checks. Operational readiness points to a concrete
-`murmurmark process sessions/<id>` target when the promotion plan already identifies one; it falls
-back to `murmurmark corpus process all` only when no specific target is known. Use
+`murmurmark process sessions/<id>` target only for pipeline-incomplete sessions; complete risky
+sessions remain review targets. It falls back to `murmurmark corpus process all` when no incomplete
+target is known. Use
 `murmurmark report corpus` when only session-quality needs a refresh.
 Its `promotion_plan` section explains the current delta to `medium_risk_ready`: unresolved warnings,
 sessions not ready for notes, remaining review minutes, and the next action class.

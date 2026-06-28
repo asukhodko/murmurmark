@@ -169,9 +169,9 @@ murmurmark corpus process all --per-label 16 --max-items 160
 This command completes the refresh and prints summaries even when corpus gates are currently
 `failed`; use the printed review/process next commands to reduce the blockers. Run
 `murmurmark corpus gate` separately when you need a strict non-zero gate for CI or release checks.
-Operational readiness prefers a concrete `murmurmark process sessions/<id>` command for the first
-incomplete high-value session; it falls back to `murmurmark corpus process all` only when no specific
-session target is available.
+Operational readiness prefers a concrete `murmurmark process sessions/<id>` command only for the
+first incomplete high-value session. Complete but risky sessions stay in the review lane commands;
+the report does not ask you to rerun them as if artifacts were missing.
 `corpus gate` writes `sessions/_reports/corpus-gates/corpus_gates_report.*`. It also reads the
 local-recall and remote-leak corpus reports when they exist. Complete sessions with blocking
 local-recall risk fail the gate; pending remote-leak segment queues are warnings, not hard failures.

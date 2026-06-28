@@ -1890,12 +1890,27 @@ blocked_next = module.build_next_commands(
         "session_targets": [
             {
                 "session_id": "fixture-session",
+                "use_gate": "pipeline_incomplete",
                 "recommended_action": "rerun_pipeline_or_fix_artifacts",
             }
         ],
     },
 )
 assert blocked_next[0]["command"] == "murmurmark process sessions/fixture-session", blocked_next
+review_only_next = module.build_next_commands(
+    ["not_enough_complete_pipelines"],
+    {
+        "review_queue_strategy": {"first_recommended_lane": "fast_confirm_drop"},
+        "session_targets": [
+            {
+                "session_id": "risky-complete-session",
+                "use_gate": "do_not_use_without_manual_review",
+                "recommended_action": "close_review_decisions_or_improve_cleanup",
+            }
+        ],
+    },
+)
+assert review_only_next[0]["command"] == "murmurmark corpus process all", review_only_next
 blocked_fallback = module.build_next_commands(
     ["not_enough_complete_pipelines"],
     {"review_queue_strategy": {"first_recommended_lane": "fast_confirm_drop"}},
