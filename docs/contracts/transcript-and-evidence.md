@@ -1401,7 +1401,9 @@ the blockers, the readiness payload, legacy text `next`, structured `next_comman
 
 The Swift CLI reads successful `export_manifest.json` files and blocked `*.export_blocked.json`
 files, then prints a short handoff summary with output files, retention commands, or structured next
-commands.
+commands. When an export was forced while blockers remain, `recommended_next` follows readiness back
+to `murmurmark process` or `murmurmark review next`; retention commands are printed only under
+`debug_retention`.
 
 ## Retention Plan
 

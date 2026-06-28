@@ -666,6 +666,8 @@ per-session readiness, copies the Markdown verdict, notes and transcript into `e
 and writes `export_manifest.json`. It blocks sessions with readiness `export_blockers` by default;
 blocked export prints structured next commands from readiness plus rerun/debug export commands. Use
 `murmurmark review next SESSION` first when review is required, or pass `--force` only for debugging.
+Forced exports with blockers keep retention commands under `debug_retention` and keep the primary
+handoff on the unfinished `process` or `review` work.
 After a successful export, the CLI prints the manifest path, key output files and the retention
 commands that should use the same manifest.
 

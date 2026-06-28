@@ -759,8 +759,9 @@ export_force_dir="$workdir/export-forced"
 export_stdout="$workdir/export_forced_stdout.txt"
 "$bin" export "$session" --force --out-dir "$export_force_dir" --include-json >"$export_stdout"
 [[ -s "$export_force_dir/$(basename "$session")/export_manifest.json" ]]
-rg -n '^export:|manifest:|retention plan|retention payload' "$export_stdout" >/dev/null
-grep -q '^  recommended_next: murmurmark retention plan ' "$export_stdout"
+rg -n '^export:|manifest:|debug_retention:|retention plan|retention payload' "$export_stdout" >/dev/null
+grep -q '^  recommended_next: murmurmark process ' "$export_stdout"
+grep -q '^  debug_retention:$' "$export_stdout"
 jq -e '.schema == "murmurmark.export_manifest/v1" and (.status | startswith("exported")) and (.files.transcript_md.path | type == "string")' \
   "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
 

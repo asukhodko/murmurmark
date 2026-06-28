@@ -7445,7 +7445,12 @@ enum ExportPrinter {
         if !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
-        print("  recommended_next: murmurmark retention plan \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(manifestURL))")
+        let retentionPlan = "murmurmark retention plan \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(manifestURL))"
+        let retentionPayload = "murmurmark retention payload \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(manifestURL))"
+        let isReadyExport = blockers.isEmpty && useGate == "ready_for_notes" && !status.contains("forced")
+        let reviewNext = readinessNextCommand(session: session) ?? "murmurmark review next \(PathDisplay.display(session))"
+        let recommendedNext = isReadyExport ? retentionPlan : reviewNext
+        print("  recommended_next: \(recommendedNext)")
         print("  open:")
         for key in ["index", "obsidian_note", "quality_verdict_md", "notes_md", "transcript_md"] {
             if let path = exportedPath(key, files: files) {
@@ -7453,8 +7458,40 @@ enum ExportPrinter {
             }
         }
         print("  next:")
-        print("    murmurmark retention plan \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(manifestURL))")
-        print("    murmurmark retention payload \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(manifestURL))")
+        if isReadyExport {
+            print("    \(retentionPlan)")
+            print("    \(retentionPayload)")
+        } else {
+            print("    \(reviewNext)")
+            print("    murmurmark report \(PathDisplay.display(session))")
+            print("  debug_retention:")
+            print("    \(retentionPlan)")
+            print("    \(retentionPayload)")
+        }
+    }
+
+    private static func readinessNextCommand(session: URL) -> String? {
+        let readinessURL = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        guard FileManager.default.fileExists(atPath: readinessURL.path),
+              let payload = try? JSONFiles.object(readinessURL)
+        else {
+            return nil
+        }
+        if let nextCommands = payload["next_commands"] as? [[String: Any]],
+           let command = ReadinessPrinter.preferredNextCommand(nextCommands) {
+            return command
+        }
+        let gate = string(payload["use_gate"]) ?? ""
+        let exportBlockers = strings(payload["export_blockers"])
+        let reviewBlockers = strings(payload["review_blockers"])
+        let sessionPath = PathDisplay.display(session)
+        if gate.hasPrefix("pipeline_incomplete") || exportBlockers.contains("pipeline_incomplete") {
+            return "murmurmark process \(sessionPath)"
+        }
+        if gate == "review_first" || !reviewBlockers.isEmpty || !exportBlockers.isEmpty {
+            return "murmurmark review next \(sessionPath)"
+        }
+        return nil
     }
 
     private static func exportedPath(_ key: String, files: [String: Any]) -> URL? {
@@ -7468,6 +7505,10 @@ enum ExportPrinter {
 
     private static func string(_ value: Any?) -> String? {
         value as? String
+    }
+
+    private static func strings(_ value: Any?) -> [String] {
+        (value as? [Any] ?? []).map { String(describing: $0) }
     }
 
     private static func compactJSON(_ value: Any) -> String {
