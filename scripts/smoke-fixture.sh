@@ -439,10 +439,12 @@ jq -e '.sessions[0].use_gate == "pipeline_incomplete"' "$session/derived/session
 jq -e '.schema == "murmurmark.session_readiness/v1" and .use_gate == "pipeline_incomplete"' "$session/derived/readiness/session_readiness.json" >/dev/null
 jq -e '.metrics.synthesis_review_item_count >= 1 and any(.metrics.synthesis_review_top_types[]; .type == "utterance_transcript_order_review")' "$session/derived/readiness/session_readiness.json" >/dev/null
 report_output="$("$bin" report "$session")"
+! echo "$report_output" | grep -Eq '^(written|markdown|verdict|next_command):'
 echo "$report_output" | grep -q '^readiness:$'
 echo "$report_output" | grep -q '  synthesis_review_items: '
 echo "$report_output" | grep -q '  synthesis_review_types: .*utterance_transcript_order_review=1'
 corpus_report_output="$("$bin" report corpus --sessions-root "$workdir")"
+! echo "$corpus_report_output" | grep -Eq '^(written|markdown|verdict|next_command):'
 echo "$corpus_report_output" | grep -q '^corpus:$'
 echo "$corpus_report_output" | grep -q '^operational_readiness:$'
 echo "$corpus_report_output" | grep -q '  next_command: '

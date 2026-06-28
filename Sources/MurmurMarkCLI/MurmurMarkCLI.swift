@@ -535,8 +535,8 @@ enum PipelineCommands {
                 "--out-dir", sessionQualityOut.path,
                 "--write-session-readiness",
             ]
-            try Tooling.runPath(python, command)
-            try Tooling.runPath(python, [
+            try Tooling.runPathQuiet(python, command)
+            try Tooling.runPathQuiet(python, [
                 PathURLs.fileURL("scripts/report-operational-readiness.py").path,
                 "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
                 "--corpus-evaluation", reportsRoot.appendingPathComponent("regression-corpus/regression_corpus_evaluation.json").path,
@@ -552,7 +552,7 @@ enum PipelineCommands {
         guard remaining.isEmpty else { throw CLIError("unexpected report arguments: \(remaining.joined(separator: " "))") }
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         print("SESSION=\"\(PathDisplay.display(session))\"")
-        try Tooling.runPath(python, [
+        try Tooling.runPathQuiet(python, [
             script.path,
             session.path,
             "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
