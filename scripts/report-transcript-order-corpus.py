@@ -123,6 +123,46 @@ def label_seconds(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     }
 
 
+def has_metric(row: dict[str, Any], key: str) -> bool:
+    return key in row and row.get(key) is not None
+
+
+def effective_order_metrics(session_row: dict[str, Any], audit_summary: dict[str, Any]) -> dict[str, Any]:
+    probable_count = (
+        safe_int(session_row.get("transcript_order_probable_order_risk_count"))
+        if has_metric(session_row, "transcript_order_probable_order_risk_count")
+        else safe_int(audit_summary.get("probable_order_risk_count"))
+    )
+    probable_seconds = (
+        safe_float(session_row.get("transcript_order_probable_order_risk_seconds"))
+        if has_metric(session_row, "transcript_order_probable_order_risk_seconds")
+        else safe_float(audit_summary.get("probable_order_risk_seconds"))
+    )
+    needs_count = (
+        safe_int(session_row.get("transcript_order_needs_review_count"))
+        if has_metric(session_row, "transcript_order_needs_review_count")
+        else safe_int(audit_summary.get("needs_review_count"))
+    )
+    needs_seconds = (
+        safe_float(session_row.get("transcript_order_review_seconds"))
+        if has_metric(session_row, "transcript_order_review_seconds")
+        else safe_float(audit_summary.get("needs_review_seconds"))
+    )
+    blocking = (
+        bool(session_row.get("transcript_order_blocking_order_risk"))
+        if has_metric(session_row, "transcript_order_blocking_order_risk")
+        else bool(audit_summary.get("blocking_order_risk"))
+    )
+    return {
+        "probable_order_risk_count": probable_count,
+        "probable_order_risk_seconds": round(probable_seconds, 3),
+        "needs_review_count": needs_count,
+        "needs_review_seconds": round(needs_seconds, 3),
+        "blocking_order_risk": blocking,
+        "recommended_next_step": session_row.get("transcript_order_recommended_next_step") or audit_summary.get("recommended_next_step"),
+    }
+
+
 def compact_item(row: dict[str, Any], session_row: dict[str, Any]) -> dict[str, Any]:
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
     utterances = row.get("utterances") if isinstance(row.get("utterances"), dict) else {}
@@ -174,6 +214,7 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
             )
             continue
         summary = audit.get("summary") if isinstance(audit.get("summary"), dict) else {}
+        metrics = effective_order_metrics(session_row, summary)
         compacted = [compact_item(item, session_row) for item in items]
         all_items.extend(compacted)
         session_summaries.append(
@@ -185,12 +226,13 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
                 "use_gate": session_row.get("use_gate"),
                 "status": audit.get("status"),
                 "audited_overlap_count": safe_int(summary.get("audited_overlap_count")),
-                "probable_order_risk_count": safe_int(summary.get("probable_order_risk_count")),
-                "probable_order_risk_seconds": round(safe_float(summary.get("probable_order_risk_seconds")), 3),
-                "needs_review_count": safe_int(summary.get("needs_review_count")),
-                "needs_review_seconds": round(safe_float(summary.get("needs_review_seconds")), 3),
-                "blocking_order_risk": bool(summary.get("blocking_order_risk")),
-                "recommended_next_step": summary.get("recommended_next_step"),
+                "audit_probable_order_risk_count": safe_int(summary.get("probable_order_risk_count")),
+                "audit_probable_order_risk_seconds": round(safe_float(summary.get("probable_order_risk_seconds")), 3),
+                "audit_needs_review_count": safe_int(summary.get("needs_review_count")),
+                "audit_needs_review_seconds": round(safe_float(summary.get("needs_review_seconds")), 3),
+                **metrics,
+                "transcript_order_repair_applied_repairs": safe_int(session_row.get("transcript_order_repair_applied_repairs")),
+                "transcript_order_repair_unrepaired_order_risks": safe_int(session_row.get("transcript_order_repair_unrepaired_order_risks")),
             }
         )
 
@@ -205,11 +247,23 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
     complete_blocking = [
         row for row in blocking if row.get("pipeline_status") == "complete" or row.get("use_gate") in {"ready_for_notes", "review_first"}
     ]
+    active_blocking_sessions = {str(row.get("session_id") or "") for row in blocking}
     review_items = [
         item
         for item in all_items
         if item.get("label") in {"probable_order_risk", "needs_review"}
+        and str(item.get("session_id") or "") in active_blocking_sessions
     ][: max(0, args.max_review_items)]
+    effective_by_label = {
+        "probable_order_risk": {
+            "count": sum(safe_int(row.get("probable_order_risk_count")) for row in session_summaries),
+            "seconds": round(sum(safe_float(row.get("probable_order_risk_seconds")) for row in session_summaries), 3),
+        },
+        "needs_review": {
+            "count": sum(safe_int(row.get("needs_review_count")) for row in session_summaries),
+            "seconds": round(sum(safe_float(row.get("needs_review_seconds")) for row in session_summaries), 3),
+        },
+    }
     report = {
         "schema": SCHEMA_REPORT,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -223,27 +277,14 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[st
             "audited_session_count": len(session_summaries),
             "missing_order_audit_count": len(missing),
             "item_count": len(all_items),
-            "by_label": label_seconds(all_items),
+            "audit_by_label": label_seconds(all_items),
+            "by_label": effective_by_label,
             "blocking_session_count": len(blocking),
             "complete_blocking_session_count": len(complete_blocking),
-            "probable_order_risk_count": sum(1 for item in all_items if item.get("label") == "probable_order_risk"),
-            "probable_order_risk_seconds": round(
-                sum(
-                    safe_float((item.get("interval") or {}).get("duration_sec"))
-                    for item in all_items
-                    if item.get("label") == "probable_order_risk"
-                ),
-                3,
-            ),
-            "needs_review_count": sum(1 for item in all_items if item.get("label") == "needs_review"),
-            "needs_review_seconds": round(
-                sum(
-                    safe_float((item.get("interval") or {}).get("duration_sec"))
-                    for item in all_items
-                    if item.get("label") == "needs_review"
-                ),
-                3,
-            ),
+            "probable_order_risk_count": effective_by_label["probable_order_risk"]["count"],
+            "probable_order_risk_seconds": effective_by_label["probable_order_risk"]["seconds"],
+            "needs_review_count": effective_by_label["needs_review"]["count"],
+            "needs_review_seconds": effective_by_label["needs_review"]["seconds"],
             "recommended_next_step": (
                 "close_complete_order_regressions"
                 if complete_blocking

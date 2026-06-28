@@ -249,7 +249,11 @@ pass and at least one repair was applied, session-quality/readiness and synthesi
 remaining unsafe regions as explicit review items.
 `murmurmark corpus order` aggregates those audits across the corpus and writes the current list of
 chronology regression candidates under `sessions/_reports/transcript-order/`; corpus gates read this
-report and fail if a complete session still has blocking chronology risk.
+report and fail if a complete session still has blocking chronology risk. Use
+`murmurmark corpus order --repair` when you want to refresh order audits for the sessions in the
+current session-quality report, try conservative
+`order_repair_v1` for each session, refresh session-quality, and then rebuild the corpus order
+summary in one pass.
 `murmurmark audit group-overlaps` classifies `Me`/`Colleagues` timeline overlaps into harmful, benign
 and review buckets, writes listenable clips, and does not change transcripts or quality verdicts by itself.
 `murmurmark cleanup` is the conservative cleanup over audit evidence. It writes separate
@@ -297,6 +301,7 @@ murmurmark corpus gate
 murmurmark corpus gate --write-baseline sessions/_reports/corpus-gates/baseline.local.json
 murmurmark corpus gate --baseline sessions/_reports/corpus-gates/baseline.local.json
 murmurmark corpus order
+murmurmark corpus order --repair
 murmurmark corpus report
 murmurmark export ./sessions/<session> --format markdown --include-json
 murmurmark export ./sessions/<session> --format obsidian

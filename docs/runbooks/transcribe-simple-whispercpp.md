@@ -292,12 +292,18 @@ For corpus work, aggregate order risks after the usual session-quality report:
 
 ```bash
 murmurmark corpus order
+murmurmark corpus order --repair
 
 jq '.summary' sessions/_reports/transcript-order/transcript_order_corpus_report.json
 less sessions/_reports/transcript-order/transcript_order_corpus_report.md
 ```
 
-This report is the practical list of chronology regression candidates. Complete sessions with
+Without `--repair`, the command only aggregates existing order audits. With `--repair`, it uses the
+sessions from the current session-quality report, refreshes their order audit, writes conservative
+`order_repair_v1`, refreshes session-quality and then rebuilds the corpus order report. Pass explicit
+session paths or `all` when you need a different target set. This report is the practical list of
+chronology regression candidates.
+Complete sessions with
 blocking order risk fail `check-corpus-gates.py` through `transcript.no_blocking_order_risk`; partial
 historical sessions remain visible as review material without blocking the complete-session gate.
 `check-corpus-gates.py` also reads the aggregate report itself and fails

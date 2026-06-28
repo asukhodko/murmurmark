@@ -112,7 +112,7 @@ struct MurmurMark {
           murmurmark corpus evaluate
           murmurmark corpus train-audio-judge
           murmurmark corpus gate
-          murmurmark corpus order [all|./session...] [--sessions-root ./sessions]
+          murmurmark corpus order [all|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus report
           murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
                              [--include-json] [--force] [--sessions-root ./sessions]
@@ -2070,11 +2070,32 @@ enum CorpusCommands {
             try CorpusPrinter.printGates(outDir: outDir)
         case "order":
             if ArgumentEditing.hasHelpFlag(forwarded) {
-                try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-transcript-order-corpus.py").path] + forwarded)
+                printOrderHelp()
                 return
             }
+            let repair = ArgumentEditing.takeFlag("repair", from: &forwarded)
+            let noSynthesize = ArgumentEditing.takeFlag("no-synthesize", from: &forwarded)
+            let repairInputProfile = ArgumentEditing.takeOption("repair-input-profile", from: &forwarded) ?? "auto"
+            let repairOutputProfile = ArgumentEditing.takeOption("repair-output-profile", from: &forwarded) ?? "order_repair_v1"
+            let sessionQualityURL = PathURLs.fileURL(
+                ArgumentEditing.peekOption("session-quality", in: forwarded)
+                    ?? "sessions/_reports/session-quality/session_quality_report.json"
+            )
+            let sessionQualityOutDir = sessionQualityURL.deletingLastPathComponent().path
             let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/transcript-order")
             let sessions = try takeOptionalSessions(from: &forwarded, sessionsRoot: sessionsRoot)
+            if repair {
+                let repairSessions = sessions.isEmpty
+                    ? try corpusOrderRepairSessions(sessionQuality: sessionQualityURL, sessionsRoot: sessionsRoot)
+                    : sessions
+                try repairTranscriptOrder(
+                    sessions: repairSessions,
+                    inputProfile: repairInputProfile,
+                    outputProfile: repairOutputProfile,
+                    synthesize: !noSynthesize
+                )
+                try reportSessionQuality(sessions: repairSessions, outDir: sessionQualityOutDir)
+            }
             try transcriptOrder(sessions: sessions, extraArgs: forwarded)
             try CorpusPrinter.printTranscriptOrder(outDir: outDir)
         case "report":
@@ -2086,12 +2107,12 @@ enum CorpusCommands {
         }
     }
 
-    private static func reportSessionQuality(sessions: [URL]) throws {
+    private static func reportSessionQuality(sessions: [URL], outDir: String = "sessions/_reports/session-quality") throws {
         let python = try PythonRuntime.resolve()
         try Tooling.runPath(python, [
             try script("report-session-quality.py").path,
         ] + sessions.map(\.path) + [
-            "--out-dir", "sessions/_reports/session-quality",
+            "--out-dir", outDir,
             "--write-session-readiness",
         ])
     }
@@ -2129,6 +2150,52 @@ enum CorpusCommands {
         try Tooling.runPath(python, [
             try script("report-transcript-order-corpus.py").path,
         ] + sessions.map(\.path) + extraArgs)
+    }
+
+    private static func repairTranscriptOrder(sessions: [URL], inputProfile: String, outputProfile: String, synthesize: Bool) throws {
+        let python = try PythonRuntime.resolve()
+        for session in sessions {
+            let auditStatus = try Tooling.runPathAllowingExitCodes(python, [
+                try script("audit-transcript-order.py").path,
+                session.path,
+                "--profile", inputProfile,
+            ], allowedExitCodes: [0, 2])
+            guard auditStatus == 0 else {
+                continue
+            }
+            let repairStatus = try Tooling.runPathAllowingExitCodes(python, [
+                try script("apply-transcript-order-repair.py").path,
+                session.path,
+                "--input-profile", inputProfile,
+                "--output-profile", outputProfile,
+            ], allowedExitCodes: [0, 2])
+            if repairStatus == 0, synthesize {
+                _ = try Tooling.runPathAllowingExitCodes(python, [
+                    try script("synthesize-simple-extractive.py").path,
+                    session.path,
+                    "--transcript-profile", outputProfile,
+                ], allowedExitCodes: [0, 2])
+            }
+        }
+    }
+
+    private static func corpusOrderRepairSessions(sessionQuality: URL, sessionsRoot: URL) throws -> [URL] {
+        if FileManager.default.fileExists(atPath: sessionQuality.path),
+           let rows = try JSONFiles.object(sessionQuality)["sessions"] as? [Any] {
+            let sessions = rows.compactMap { row -> URL? in
+                guard let dict = row as? [String: Any],
+                      let session = dict["session"] as? String,
+                      !session.isEmpty
+                else {
+                    return nil
+                }
+                return try? SessionResolver.resolve(session, sessionsRoot: sessionsRoot)
+            }
+            if !sessions.isEmpty {
+                return sessions
+            }
+        }
+        return try SessionResolver.all(in: sessionsRoot)
     }
 
     private static func operationalReadiness() throws {
@@ -2197,6 +2264,31 @@ enum CorpusCommands {
           --max-items N         Forwarded to build-regression-corpus.py
           --copy-clips          Forwarded to build-regression-corpus.py
           --no-copy-clips       Forwarded to build-regression-corpus.py
+
+        Order repair:
+          murmurmark corpus order [all|latest|./session...] --repair
+              [--repair-input-profile auto] [--repair-output-profile order_repair_v1]
+              [--no-synthesize] [--sessions-root sessions]
+        """)
+    }
+
+    private static func printOrderHelp() {
+        print("""
+        usage: murmurmark corpus order [all|latest|./session...] [--repair] [options]
+
+        Aggregates transcript-order audits into a corpus report. With --repair, first refreshes
+        the order audit, writes a conservative order_repair_v1 profile for each target session,
+        refreshes session quality, then rebuilds the corpus order report.
+
+        Options:
+          --sessions-root PATH             Sessions directory for all/latest. Default: sessions
+          --session-quality PATH           Input session quality report for aggregation.
+                                           With --repair, its parent directory is refreshed first.
+          --out-dir PATH                   Output directory. Default: sessions/_reports/transcript-order
+          --max-review-items N             Max review rows in Markdown.
+          --repair-input-profile NAME      Default: auto
+          --repair-output-profile NAME     Default: order_repair_v1
+          --no-synthesize                  Skip refreshing notes/verdict for the repair profile.
         """)
     }
 }
