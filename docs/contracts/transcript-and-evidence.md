@@ -1921,8 +1921,9 @@ sessions/_reports/review-plan/
   lane-packs/review_lane_answers.<lane>.txt
 ```
 
-The Swift CLI also prints a per-lane handoff from `review_workspace.json`: item count, estimated
-minutes, suggested `answers=...`, and ready `afplay`/`$EDITOR` commands for each lane pack.
+The Swift CLI also prints a per-lane handoff from `review_workspace.json`: source row count, packed
+item count, grouped rows saved, estimated minutes, suggested `answers=...`, and ready
+`afplay`/`$EDITOR` commands for each lane pack.
 
 The JSON uses `murmurmark.review_workspace/v1`:
 
@@ -1939,7 +1940,10 @@ The JSON uses `murmurmark.review_workspace/v1`:
     {
       "lane": "fast_confirm_drop",
       "status": "ok",
+      "selected_rows": 10,
       "items": 10,
+      "grouped_item_count": 0,
+      "grouped_row_count": 0,
       "audio": "sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav",
       "answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt",
       "suggested_answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.suggested.txt"

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.4.0"
 SCHEMA = "murmurmark.review_workspace/v1"
 LANE_ORDER = [
     "fast_confirm_drop",
@@ -177,6 +177,9 @@ def build_lane_pack(
         "lane": lane,
         "status": "ok",
         "items": summary.get("item_count", 0),
+        "selected_rows": summary.get("selected_rows", summary.get("item_count", 0)),
+        "grouped_item_count": summary.get("grouped_item_count", 0),
+        "grouped_row_count": summary.get("grouped_row_count", 0),
         "skipped": summary.get("skipped_count", 0),
         "duration_sec": summary.get("duration_sec", 0.0),
         "audio": outputs.get("audio"),
@@ -228,8 +231,8 @@ def write_markdown(path: Path, workspace: dict[str, Any]) -> None:
         "",
         "## Lanes",
         "",
-        "| Lane | Items | Duration sec | Skipped | Audio | Index | Answers | Suggested | Apply answers |",
-        "|---|---:|---:|---:|---|---|---|---|---|",
+        "| Lane | Rows | Items | Grouped | Duration sec | Skipped | Audio | Index | Answers | Suggested | Apply answers |",
+        "|---|---:|---:|---:|---:|---:|---|---|---|---|---|",
     ]
     for lane in workspace.get("lanes") or []:
         audio = lane.get("audio") or ""
@@ -244,7 +247,8 @@ def write_markdown(path: Path, workspace: dict[str, Any]) -> None:
             else ""
         )
         lines.append(
-            f"| `{lane.get('lane')}` | {lane.get('items')} | {lane.get('duration_sec')} | {lane.get('skipped')} | "
+            f"| `{lane.get('lane')}` | {lane.get('selected_rows')} | {lane.get('items')} | "
+            f"{lane.get('grouped_row_count')} | {lane.get('duration_sec')} | {lane.get('skipped')} | "
             f"`{audio}` | `{markdown}` | `{answer_sheet}` | `{suggested_answer_sheet}` | `{apply_cmd}` |"
         )
     lines.extend(

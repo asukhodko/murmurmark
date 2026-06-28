@@ -25,7 +25,16 @@ enum ReviewPrinter {
                 print("  suggested_answers: \(suggestedLine)")
             }
         }
-        print("  items: \(int(summary["item_count"]) ?? 0)")
+        let selectedRows = int(summary["selected_rows"]) ?? int(summary["item_count"]) ?? 0
+        let items = int(summary["item_count"]) ?? 0
+        let groupedItems = int(summary["grouped_item_count"]) ?? 0
+        let groupedRows = int(summary["grouped_row_count"]) ?? 0
+        print("  rows: \(selectedRows)")
+        print("  items: \(items)")
+        if groupedItems > 0 || groupedRows > 0 {
+            print("  grouped_items: \(groupedItems)")
+            print("  grouped_rows_saved: \(groupedRows)")
+        }
         print("  skipped: \(int(summary["skipped_count"]) ?? 0)")
         let applyCommand = laneApplyCommand(lane: lane, session: session, planOutDir: planOutDir, outDir: outDir)
         if let audio = string(outputs["audio"]) {
@@ -299,6 +308,8 @@ enum ReviewPrinter {
         let lanes = payload["lanes"] as? [[String: Any]] ?? []
         let okLanes = lanes.filter { string($0["status"]) == "ok" }
         let itemCount = okLanes.reduce(0) { $0 + (int($1["items"]) ?? 0) }
+        let rowCount = okLanes.reduce(0) { $0 + (int($1["selected_rows"]) ?? int($1["items"]) ?? 0) }
+        let groupedRows = okLanes.reduce(0) { $0 + (int($1["grouped_row_count"]) ?? 0) }
         let durationSeconds = okLanes.reduce(0.0) { $0 + (double($1["duration_sec"]) ?? 0) }
         var byLane: [String: Int] = [:]
         for lane in okLanes {
@@ -312,7 +323,11 @@ enum ReviewPrinter {
         print("  index: \(PathDisplay.display(outDir.appendingPathComponent("review_workspace.md")))")
         print("  lanes: \(lanes.count)")
         print("  ok_lanes: \(okLanes.count)")
+        print("  rows: \(rowCount)")
         print("  items: \(itemCount)")
+        if groupedRows > 0 {
+            print("  grouped_rows_saved: \(groupedRows)")
+        }
         print(String(format: "  listen_minutes: %.2f", durationSeconds / 60))
         print("  by_lane: \(compactJSON(byLane))")
         if !okLanes.isEmpty {
@@ -479,10 +494,13 @@ enum ReviewPrinter {
     private static func printWorkspaceLane(_ lane: [String: Any]) {
         let name = string(lane["lane"]) ?? "unknown"
         let items = int(lane["items"]) ?? 0
+        let rows = int(lane["selected_rows"]) ?? items
+        let groupedRows = int(lane["grouped_row_count"]) ?? 0
         let minutes = (double(lane["duration_sec"]) ?? 0) / 60
         let suggested = string(lane["suggested_answer_sheet"]).flatMap { firstAnswersLine(url: PathURLs.fileURL($0)) }
         let suffix = suggested.map { " suggested=\($0)" } ?? ""
-        print(String(format: "    %@: items=%d minutes=%.2f%@", name, items, minutes, suffix))
+        let grouping = groupedRows > 0 ? " rows=\(rows) grouped_saved=\(groupedRows)" : " rows=\(rows)"
+        print(String(format: "    %@: items=%d%@ minutes=%.2f%@", name, items, grouping, minutes, suffix))
         if let audio = string(lane["audio"]) {
             print("      listen: afplay \(shellQuote(audio))")
         }

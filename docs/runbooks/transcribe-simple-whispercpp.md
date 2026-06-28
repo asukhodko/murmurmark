@@ -871,6 +871,8 @@ evidence text before editing the answer sheet.
 For `check_transcript_order`, the pack groups repeated risks for the same long `Me` utterance. The
 answer sheet still has one character per pack item, but a grouped item can apply that answer to
 several underlying review rows; the Markdown shows the grouped row count and source audit ids.
+The CLI output prints both source `rows` and packed `items`, plus `grouped_rows_saved` when grouping
+was applied.
 It also prints `manual_flow`, optional `suggested_flow`, and `after_apply`, so a reviewer can follow
 the terminal handoff through dry-run, apply and progress without opening this runbook.
 It also prints `suggested_dry_run` and `suggested_apply`; these call

@@ -1511,7 +1511,7 @@ EOF
   [[ -s "$lane_pack_dir/review_lane_pack.check_local_recall.md" ]]
   [[ -s "$lane_pack_dir/review_lane_answers.check_local_recall.txt" ]]
   [[ -s "$lane_pack_dir/review_lane_answers.check_local_recall.suggested.txt" ]]
-  jq -e '.schema == "murmurmark.review_lane_pack/v1" and .summary.item_count == 1 and .items[0].source_audit_id == "local_recall_0001"' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
+  jq -e '.schema == "murmurmark.review_lane_pack/v1" and .summary.selected_rows == 1 and .summary.item_count == 1 and .items[0].source_audit_id == "local_recall_0001"' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   jq -e '.outputs.answer_sheet | endswith("review_lane_answers.check_local_recall.txt")' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   jq -e '.outputs.suggested_answer_sheet | endswith("review_lane_answers.check_local_recall.suggested.txt")' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   grep -q '^answers=\.$' "$lane_pack_dir/review_lane_answers.check_local_recall.txt"
@@ -1523,7 +1523,11 @@ EOF
     --out-dir "$review_workspace_dir" >/dev/null
   [[ -s "$review_workspace_dir/review_workspace.json" ]]
   [[ -s "$review_workspace_dir/review_workspace.md" ]]
-  jq -e '.schema == "murmurmark.review_workspace/v1" and (.lanes | length) >= 1 and any(.lanes[]; .lane == "check_local_recall" and .status == "ok")' "$review_workspace_dir/review_workspace.json" >/dev/null
+  jq -e '
+    .schema == "murmurmark.review_workspace/v1"
+    and (.lanes | length) >= 1
+    and any(.lanes[]; .lane == "check_local_recall" and .status == "ok" and .selected_rows == 1 and .grouped_row_count == 0)
+  ' "$review_workspace_dir/review_workspace.json" >/dev/null
   answer_sheet="$review_workspace_dir/lane-packs/review_lane_answers.check_local_recall.txt"
   [[ -s "$answer_sheet" ]]
   grep -q '^answers=\.$' "$answer_sheet"
@@ -1557,8 +1561,10 @@ EOF
     --out-dir "$cli_review_workspace_dir" >"$cli_workspace_stdout"
   assert_no_helper_prefix "$(cat "$cli_workspace_stdout")"
   [[ -s "$cli_review_workspace_dir/review_workspace.json" ]]
+  grep -q '^  rows: ' "$cli_workspace_stdout"
+  grep -q '^  items: ' "$cli_workspace_stdout"
   grep -q '^  lane_packs:$' "$cli_workspace_stdout"
-  grep -q '^    check_local_recall: items=' "$cli_workspace_stdout"
+  grep -q '^    check_local_recall: items=.* rows=' "$cli_workspace_stdout"
   grep -q '^      listen: afplay ' "$cli_workspace_stdout"
   grep -q '^      read: less ' "$cli_workspace_stdout"
   grep -q '^      edit: \$EDITOR ' "$cli_workspace_stdout"
@@ -1575,7 +1581,7 @@ EOF
   grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_stdout"
   grep -q '^  suggested_dry_run: murmurmark review workspace apply --session review_workspace_cli_session --answers-source suggested --dry-run' "$cli_workspace_stdout"
   grep -q '^  suggested_apply: murmurmark review workspace apply --session review_workspace_cli_session --answers-source suggested' "$cli_workspace_stdout"
-  jq -e '.schema == "murmurmark.review_workspace/v1" and any(.lanes[]; .lane == "check_local_recall" and .status == "ok")' "$cli_review_workspace_dir/review_workspace.json" >/dev/null
+  jq -e '.schema == "murmurmark.review_workspace/v1" and any(.lanes[]; .lane == "check_local_recall" and .status == "ok" and .selected_rows == 1)' "$cli_review_workspace_dir/review_workspace.json" >/dev/null
   cli_answer_sheet="$cli_review_workspace_dir/lane-packs/review_lane_answers.check_local_recall.txt"
   cli_workspace_dry_run_out="$workdir/review_decisions_workspace_cli_dry_run.jsonl"
   cli_workspace_dry_run_stdout="$workdir/review_workspace_cli_dry_run_stdout.txt"
@@ -2364,6 +2370,8 @@ PY
   grep -q 'Suggested reason:' "$first_lane_pack_dir/review_lane_pack.$first_lane.md"
   grep -q 'Allowed:' "$first_lane_pack_dir/review_lane_pack.$first_lane.md"
   grep -q 'Command:' "$first_lane_pack_dir/review_lane_pack.$first_lane.md"
+  echo "$first_lane_output" | grep -q '^  rows: '
+  echo "$first_lane_output" | grep -q '^  items: '
   first_lane_apply_dry_run_output="$("$bin" review lane apply first \
     --plan-out-dir "$first_lane_plan_dir" \
     --out-dir "$first_lane_pack_dir" \
@@ -2429,6 +2437,8 @@ PY
   echo "$explicit_local_recall_lane_output" | grep -q '^SESSION="'
   echo "$explicit_local_recall_lane_output" | grep -q '^review_lane_pack:$'
   ! echo "$explicit_local_recall_lane_output" | grep -Eq '^(review_plan|clusters|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped):'
+  echo "$explicit_local_recall_lane_output" | grep -q '^  rows: '
+  echo "$explicit_local_recall_lane_output" | grep -q '^  items: '
   echo "$explicit_local_recall_lane_output" | grep -q '^  suggested_answers: answers='
   echo "$explicit_local_recall_lane_output" | grep -q '^  listen: afplay '
   echo "$explicit_local_recall_lane_output" | grep -q '^  read: less '

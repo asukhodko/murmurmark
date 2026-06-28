@@ -695,7 +695,7 @@ For faster listening, `murmurmark review workspace` builds lane packs for all re
 one WAV, a Markdown index and an editable answer sheet per lane under
 `sessions/_reports/review-plan/lane-packs/`. Use `--session latest` or `--session ./sessions/<id>`
 to focus the workspace on one session. The CLI output lists each lane pack with item count,
-suggested compact answers, `afplay` and `$EDITOR` commands, so the workspace can be reviewed without
+source row count, grouped rows saved, suggested compact answers, `afplay` and `$EDITOR` commands, so the workspace can be reviewed without
 opening the JSON manifest first.
 For one-off debugging, `scripts/build-review-lane-pack.py --lane fast_confirm_drop` creates a single
 WAV, a Markdown index and an editable answer sheet under `sessions/_reports/review-plan/lane-packs/`.
