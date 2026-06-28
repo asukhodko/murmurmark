@@ -1607,7 +1607,10 @@ enum ReviewLaneApplyCommand {
                 print("  next:")
             }
             print("    murmurmark review workspace\(sessionArgument)")
+            print("    murmurmark review workspace apply\(sessionArgument)")
             print("    murmurmark review progress\(sessionArgument)")
+            print("  after_ready:")
+            print("    murmurmark review apply\(sessionArgument)")
         }
     }
 
@@ -1637,6 +1640,13 @@ enum ReviewLaneApplyCommand {
         let ready = bool(summary["ready_for_batch_apply"]) ?? false
         print("  reviewed: \(reviewed)/\(total)")
         print("  remaining: \(remaining)")
+        if let actionCount = int(summary["action_count"]) {
+            print("  review_actions: \(int(summary["reviewed_actions"]) ?? 0)/\(actionCount)")
+            print("  remaining_actions: \(int(summary["remaining_actions"]) ?? 0)")
+        }
+        if let groupedRows = int(summary["grouped_review_row_count"]), groupedRows > 0 {
+            print("  grouped_review_rows: \(groupedRows)")
+        }
         print("  ready_for_apply: \(ready)")
     }
 

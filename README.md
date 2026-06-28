@@ -731,8 +731,8 @@ the next remaining lane and the workspace flow. If progress does not exist yet, 
 `murmurmark review first-lane` and `review lane apply first`. It prints
 `murmurmark review apply` as the final batch step only when
 `murmurmark review progress --session SESSION` says the review file is ready. `review progress`
-also prints `next_lane` and the exact `review lane ...` / `review lane apply ...` commands for the
-first remaining lane.
+also prints raw row progress, packed review-action progress, `next_lane` and the exact
+`review lane ...` / `review lane apply ...` commands for the first remaining lane.
 Each lane also has `review_lane_answers.<lane>.suggested.txt`; use it as a review aid, not as a
 silent replacement for listening when the meeting is medium-risk. Lane-pack output also prints
 `suggested_dry_run` and `suggested_apply`; those commands use

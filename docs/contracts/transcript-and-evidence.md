@@ -2080,7 +2080,8 @@ sessions/_reports/review-plan/
 ```
 
 The JSON uses `murmurmark.review_decisions_progress/v1` and reports totals, remaining raw-audio
-seconds, grouped progress by `review_lane` and `session_id`, and validation errors:
+seconds, packed review-action progress, grouped progress by `review_lane` and `session_id`, and
+validation errors:
 
 ```json
 {
@@ -2089,6 +2090,11 @@ seconds, grouped progress by `review_lane` and `session_id`, and validation erro
     "total": 40,
     "reviewed": 10,
     "remaining": 30,
+    "action_count": 34,
+    "reviewed_actions": 9,
+    "remaining_actions": 25,
+    "grouped_review_row_count": 6,
+    "remaining_grouped_review_row_count": 5,
     "remaining_minutes": 1.28,
     "invalid_rows": 0,
     "ready_for_batch_apply": false
@@ -2096,8 +2102,8 @@ seconds, grouped progress by `review_lane` and `session_id`, and validation erro
 }
 ```
 
-The Swift CLI prints the same lane breakdown as `by_lane`, with reviewed/total, remaining count and
-remaining minutes per lane, then prints the next safe command.
+The Swift CLI prints the same lane breakdown as `by_lane`, with reviewed/total, remaining row count,
+remaining action count and remaining minutes per lane, then prints the next safe command.
 
 After review, `apply-review-decisions.py` consumes the edited decision file and writes a separate
 `reviewed_v1` transcript profile:

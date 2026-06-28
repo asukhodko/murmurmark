@@ -1767,6 +1767,20 @@ EOF
     length == 2
     and all(.[]; .decision == "keep_me" and .status == "reviewed" and .review_lane_pack_group_size == 2)
   ' "$unique_group_out" >/dev/null
+  "$repo_root/scripts/report-review-decisions-progress.py" \
+    --template "$unique_group_template" \
+    --decisions "$unique_group_out" \
+    --out "$workdir/review_decisions_unique_group_progress.json" \
+    --markdown "$workdir/review_decisions_unique_group_progress.md" >/dev/null
+  jq -e '
+    .summary.total == 2
+    and .summary.action_count == 1
+    and .summary.reviewed_actions == 1
+    and .summary.remaining_actions == 0
+    and .summary.grouped_review_row_count == 1
+    and .summary.ready_for_batch_apply == true
+    and .by_lane[0].action_count == 1
+  ' "$workdir/review_decisions_unique_group_progress.json" >/dev/null
   "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
     "$duplicate_lane_dir/review_lane_pack.fast_confirm_drop.json" \
     --template "$duplicate_source_template" \
@@ -1778,7 +1792,16 @@ EOF
     --decisions "$lane_pack_apply_out" \
     --out "$workdir/review_decisions_progress.json" \
     --markdown "$workdir/review_decisions_progress.md" >/dev/null
-  jq -e '.schema == "murmurmark.review_decisions_progress/v1" and .summary.reviewed == 1 and .summary.remaining == 1 and .summary.invalid_rows == 0 and (.by_lane | length) == 2' "$workdir/review_decisions_progress.json" >/dev/null
+  jq -e '
+    .schema == "murmurmark.review_decisions_progress/v1"
+    and .summary.reviewed == 1
+    and .summary.remaining == 1
+    and .summary.action_count >= 1
+    and .summary.remaining_actions >= 1
+    and .summary.invalid_rows == 0
+    and (.by_lane | length) == 2
+  ' "$workdir/review_decisions_progress.json" >/dev/null
+  rg -q 'Review actions:' "$workdir/review_decisions_progress.md"
   rg -q 'Ready for batch apply: `False`' "$workdir/review_decisions_progress.md"
   local_cli_template="$workdir/review_decisions_local_only.template.jsonl"
   local_cli_out="$workdir/review_decisions_local_only.jsonl"
@@ -2546,12 +2569,17 @@ PY
   echo "$explicit_local_recall_apply_output" | grep -q '^  lane_result: reviewed='
   echo "$explicit_local_recall_apply_output" | grep -q '^  progress: '
   echo "$explicit_local_recall_apply_output" | grep -q '^  ready_for_apply: false'
+  echo "$explicit_local_recall_apply_output" | grep -q '^  review_actions: '
+  echo "$explicit_local_recall_apply_output" | grep -q '^  remaining_actions: '
   echo "$explicit_local_recall_apply_output" | grep -q '^  next_lane: check_unique_me_content'
   echo "$explicit_local_recall_apply_output" | grep -q '^  next:$'
   echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review lane check_unique_me_content --session '
   echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review lane apply check_unique_me_content --session '
   echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review workspace --session '
+  echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review workspace apply --session '
   echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review progress --session '
+  echo "$explicit_local_recall_apply_output" | grep -q '^  after_ready:$'
+  echo "$explicit_local_recall_apply_output" | grep -q '^    murmurmark review apply --session '
   explicit_local_recall_apply_dry_run_output="$("$bin" review lane apply check_local_recall \
     --session "$group_session" \
     --plan-out-dir "$explicit_local_recall_plan_dir" \
@@ -2574,6 +2602,8 @@ PY
   echo "$explicit_progress_output" | grep -q '^review_progress:$'
   echo "$explicit_progress_output" | grep -q 'derived/readiness/review-plan/review_decisions_progress.md'
   echo "$explicit_progress_output" | grep -q '^  ready_for_apply: false'
+  echo "$explicit_progress_output" | grep -q '^  review_actions: '
+  echo "$explicit_progress_output" | grep -q '^  remaining_actions: '
   echo "$explicit_progress_output" | grep -q '^  by_lane:$'
   echo "$explicit_progress_output" | grep -q '^    check_local_recall: reviewed='
   echo "$explicit_progress_output" | grep -q '^  next_lane: check_unique_me_content'

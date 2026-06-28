@@ -899,9 +899,9 @@ workspace fallback. When batch apply is
 not ready yet, `review apply --session "$SESSION"` points to `next_lane` when progress exists, or to
 `review first-lane` / `review lane apply first` when no decisions file exists yet. It keeps the
 workspace flow as fallback instead of leaving the reviewer to inspect JSON. `review progress --session
-"$SESSION"` prints `by_lane`, `next_lane`, lane-specific build/apply commands, plus the
-workspace/apply/progress chain while rows remain. It prints `review apply --session "$SESSION"` only
-when the checklist is ready for the batch apply.
+"$SESSION"` prints row progress, packed review-action progress, `by_lane`, `next_lane`,
+lane-specific build/apply commands, plus the workspace/apply/progress chain while rows remain. It
+prints `review apply --session "$SESSION"` only when the checklist is ready for the batch apply.
 If `review apply --session "$SESSION"` is called before `review_decisions.jsonl` exists, it prints
 `status: not_ready`, the missing file and the first-lane/workspace/progress commands to run next.
 If the decisions file exists but the checklist still has `todo` rows, it refreshes

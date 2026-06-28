@@ -159,6 +159,13 @@ enum ReviewPrinter {
         print("  report: \(PathDisplay.display(markdown))")
         print("  reviewed: \(int(summary["reviewed"]) ?? 0)/\(int(summary["total"]) ?? 0)")
         print("  remaining: \(int(summary["remaining"]) ?? 0)")
+        if let actionCount = int(summary["action_count"]) {
+            print("  review_actions: \(int(summary["reviewed_actions"]) ?? 0)/\(actionCount)")
+            print("  remaining_actions: \(int(summary["remaining_actions"]) ?? 0)")
+        }
+        if let groupedRows = int(summary["grouped_review_row_count"]), groupedRows > 0 {
+            print("  grouped_review_rows: \(groupedRows)")
+        }
         print("  remaining_minutes: \(double(summary["remaining_minutes"]) ?? 0)")
         print("  invalid_rows: \(int(summary["invalid_rows"]) ?? 0)")
         print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
@@ -179,8 +186,23 @@ enum ReviewPrinter {
             let total = int(lane["total"]) ?? 0
             let reviewed = int(lane["reviewed"]) ?? 0
             let remaining = int(lane["remaining"]) ?? 0
+            let remainingActions = int(lane["remaining_actions"])
             let minutes = (double(lane["remaining_seconds"]) ?? 0) / 60
-            print(String(format: "    %@: reviewed=%d/%d remaining=%d minutes=%.2f", name, reviewed, total, remaining, minutes))
+            if let remainingActions {
+                print(
+                    String(
+                        format: "    %@: reviewed=%d/%d remaining=%d actions=%d minutes=%.2f",
+                        name,
+                        reviewed,
+                        total,
+                        remaining,
+                        remainingActions,
+                        minutes
+                    )
+                )
+            } else {
+                print(String(format: "    %@: reviewed=%d/%d remaining=%d minutes=%.2f", name, reviewed, total, remaining, minutes))
+            }
         }
     }
 

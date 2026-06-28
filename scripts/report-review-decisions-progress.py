@@ -9,10 +9,11 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA = "murmurmark.review_decisions_progress/v1"
 VALID_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip", "todo", ""}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
+GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -115,6 +116,76 @@ def row_seconds(row: dict[str, Any]) -> float:
         return 0.0
 
 
+def item_list_values(item: dict[str, Any], key: str) -> list[str]:
+    values = item.get(key)
+    if isinstance(values, list):
+        return [str(value) for value in values if value is not None and str(value)]
+    return []
+
+
+def output_allowed_decisions(item: dict[str, Any]) -> list[str]:
+    values = item.get("allowed_decisions")
+    if isinstance(values, list) and values:
+        return [str(value) for value in values if value is not None and str(value)]
+    return sorted(DEFAULT_ALLOWED_DECISIONS)
+
+
+def first_me_utterance_id(item: dict[str, Any]) -> str:
+    me_ids = item_list_values(item, "me_utterance_ids")
+    if me_ids:
+        return me_ids[0]
+    utterance_ids = item_list_values(item, "utterance_ids")
+    return utterance_ids[0] if utterance_ids else ""
+
+
+def review_group_key(item: dict[str, Any]) -> str:
+    lane = str(item.get("review_lane") or "")
+    if lane not in GROUPABLE_REVIEW_LANES:
+        return ""
+    me_id = first_me_utterance_id(item)
+    if not me_id:
+        return ""
+    session_id = str(item.get("session_id") or item.get("session") or "")
+    label = str(item.get("label") or "")
+    action = str(item.get("review_action") or "")
+    allowed = ",".join(sorted(output_allowed_decisions(item)))
+    return f"{lane}:{session_id}:{label}:{action}:{allowed}:{me_id}"
+
+
+def review_action_groups(items: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    groups: list[list[dict[str, Any]]] = []
+    by_key: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        key = review_group_key(item)
+        if not key:
+            groups.append([item])
+            continue
+        group = by_key.get(key)
+        if group is None:
+            group = []
+            by_key[key] = group
+            groups.append(group)
+        group.append(item)
+    return groups
+
+
+def action_progress(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    groups = review_action_groups(rows)
+    reviewed_actions = sum(1 for group in groups if all(is_reviewed(row) for row in group))
+    remaining_actions = len(groups) - reviewed_actions
+    return {
+        "action_count": len(groups),
+        "reviewed_actions": reviewed_actions,
+        "remaining_actions": remaining_actions,
+        "grouped_review_row_count": sum(max(0, len(group) - 1) for group in groups),
+        "remaining_grouped_review_row_count": sum(
+            max(0, len(group) - 1)
+            for group in groups
+            if not all(is_reviewed(row) for row in group)
+        ),
+    }
+
+
 def validate_row(row: dict[str, Any]) -> list[str]:
     decision = normalized_decision(row)
     errors: list[str] = []
@@ -136,12 +207,14 @@ def progress_bucket(rows: list[dict[str, Any]], key: str) -> list[dict[str, Any]
         total = len(group)
         seconds = sum(row_seconds(row) for row in group)
         remaining_seconds = sum(row_seconds(row) for row in group if not is_reviewed(row))
+        actions = action_progress(group)
         result.append(
             {
                 key: name,
                 "total": total,
                 "reviewed": reviewed,
                 "remaining": total - reviewed,
+                **actions,
                 "reviewed_ratio": round(reviewed / total, 6) if total else 0.0,
                 "seconds": round(seconds, 3),
                 "remaining_seconds": round(remaining_seconds, 3),
@@ -176,6 +249,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     total_seconds = sum(row_seconds(row) for row in rows)
     remaining_seconds = sum(row_seconds(row) for row in rows if not is_reviewed(row))
     decisions = Counter(normalized_decision(row) for row in rows)
+    actions = action_progress(rows)
     return {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -188,6 +262,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "total": total,
             "reviewed": reviewed,
             "remaining": remaining,
+            **actions,
             "reviewed_ratio": round(reviewed / total, 6) if total else 0.0,
             "seconds": round(total_seconds, 3),
             "remaining_seconds": round(remaining_seconds, 3),
@@ -210,25 +285,27 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         "",
         f"- Reviewed: `{summary['reviewed']}/{summary['total']}`",
         f"- Remaining: `{summary['remaining']}` items / `{summary['remaining_minutes']}` min raw audio",
+        f"- Review actions: `{summary['reviewed_actions']}/{summary['action_count']}` reviewed, `{summary['remaining_actions']}` remaining",
+        f"- Grouped review rows: `{summary['grouped_review_row_count']}` saved, `{summary['remaining_grouped_review_row_count']}` still open",
         f"- Invalid rows: `{summary['invalid_rows']}`",
         f"- Ready for batch apply: `{summary['ready_for_batch_apply']}`",
         f"- Decisions: `{summary['decisions']}`",
         "",
         "## By Lane",
         "",
-        "| Lane | Reviewed | Remaining | Remaining sec | Decisions |",
+        "| Lane | Rows Reviewed | Actions Remaining | Remaining sec | Decisions |",
         "|---|---:|---:|---:|---|",
     ]
     for row in report.get("by_lane") or []:
         lines.append(
             f"| `{row.get('review_lane')}` | {row.get('reviewed')}/{row.get('total')} | "
-            f"{row.get('remaining')} | {row.get('remaining_seconds')} | `{row.get('decisions')}` |"
+            f"{row.get('remaining_actions')} | {row.get('remaining_seconds')} | `{row.get('decisions')}` |"
         )
-    lines.extend(["", "## By Session", "", "| Session | Reviewed | Remaining | Remaining sec | Decisions |", "|---|---:|---:|---:|---|"])
+    lines.extend(["", "## By Session", "", "| Session | Rows Reviewed | Actions Remaining | Remaining sec | Decisions |", "|---|---:|---:|---:|---|"])
     for row in report.get("by_session") or []:
         lines.append(
             f"| `{row.get('session_id')}` | {row.get('reviewed')}/{row.get('total')} | "
-            f"{row.get('remaining')} | {row.get('remaining_seconds')} | `{row.get('decisions')}` |"
+            f"{row.get('remaining_actions')} | {row.get('remaining_seconds')} | `{row.get('decisions')}` |"
         )
     if report.get("errors"):
         lines.extend(["", "## Errors", ""])
