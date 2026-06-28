@@ -619,6 +619,7 @@ jq -n '{
   }
 }' >"$review_next_plan_dir/review_plan.json"
 review_next_output="$("$bin" review next "$review_next_session" --no-refresh)"
+echo "$review_next_output" | grep -q '^SESSION="'
 echo "$review_next_output" | grep -q 'review_next:'
 echo "$review_next_output" | grep -q 'gate: review_first'
 echo "$review_next_output" | grep -q 'selected_profile: order_repair_v1'
@@ -629,6 +630,7 @@ echo "$review_next_output" | grep -q 'first_lane: check_transcript_order'
 echo "$review_next_output" | grep -q 'quick_lane: fast_confirm_drop'
 echo "$review_next_output" | grep -q 'first_lane_reason: close_blocking_review_lane'
 echo "$review_next_output" | grep -q 'after_first_lane: remaining_items=3 remaining_actions=2 remaining_minutes=1.25'
+echo "$review_next_output" | grep -q '^  recommended_next: murmurmark review first-lane --session .*review-next-session'
 echo "$review_next_output" | grep -q '^  first_lane_flow:$'
 echo "$review_next_output" | grep -q '^    build_and_listen: murmurmark review first-lane --session .*review-next-session'
 echo "$review_next_output" | grep -q '^    apply_answers: murmurmark review lane apply check_transcript_order --session .*review-next-session'

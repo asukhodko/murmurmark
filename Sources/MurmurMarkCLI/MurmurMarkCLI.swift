@@ -6894,13 +6894,16 @@ enum ReadinessPrinter {
 
 enum ReviewNextPrinter {
     static func print(session: URL, planOutDir: URL) throws {
+        let sessionPath = PathDisplay.display(session)
         let readinessURL = session.appendingPathComponent("derived/readiness/session_readiness.json")
         guard FileManager.default.fileExists(atPath: readinessURL.path) else {
+            Swift.print("SESSION=\"\(sessionPath)\"")
             Swift.print("")
             Swift.print("review_next:")
-            Swift.print("  session: \(PathDisplay.display(session))")
+            Swift.print("  session: \(sessionPath)")
             Swift.print("  readiness: missing")
-            Swift.print("  next: murmurmark report \(PathDisplay.display(session))")
+            Swift.print("  recommended_next: murmurmark report \(sessionPath)")
+            Swift.print("  next: murmurmark report \(sessionPath)")
             return
         }
 
@@ -6916,8 +6919,14 @@ enum ReviewNextPrinter {
         let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0.0
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0.0) * 100.0
         let synthesisReviewCount = int(metrics["synthesis_review_item_count"]) ?? 0
-        let sessionPath = PathDisplay.display(session)
+        let focusedCommands = focusedNextCommands(
+            nextCommands,
+            gate: gate,
+            sessionPath: sessionPath,
+            planOutDir: planOutDir
+        )
 
+        Swift.print("SESSION=\"\(sessionPath)\"")
         Swift.print("")
         Swift.print("review_next:")
         Swift.print("  session: \(sessionPath)")
@@ -6936,14 +6945,12 @@ enum ReviewNextPrinter {
             Swift.print("  export_blockers: \(compactJSON(exportBlockers))")
         }
         printPlanHint(planOutDir: planOutDir)
+        if let recommended = focusedCommands.first {
+            Swift.print("  recommended_next: \(recommended)")
+        }
         printReviewFlowsIfPlanExists(sessionArg: sessionPath, planOutDir: planOutDir)
         Swift.print("  next:")
-        for command in focusedNextCommands(
-            nextCommands,
-            gate: gate,
-            sessionPath: sessionPath,
-            planOutDir: planOutDir
-        ) {
+        for command in focusedCommands {
             Swift.print("    \(command)")
         }
     }
