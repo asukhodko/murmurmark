@@ -130,6 +130,8 @@ less "$SESSION/derived/retention/provider_payload_manifest.json"
 The CLI prints a compact summary after each retention command, including action counts,
 blockers/warnings and the next safe command. If readiness is not exportable yet, retention points
 back to `murmurmark process` or `murmurmark review next` instead of suggesting a blocked export.
+The JSON artifacts store the same handoff: `retention_plan.json` and
+`provider_payload_manifest.json` include `recommended_next`, `next_commands` and `open_commands`.
 The JSON files remain the source of truth.
 
 The default policy keeps raw audio and records that raw audio is not copied into export bundles.

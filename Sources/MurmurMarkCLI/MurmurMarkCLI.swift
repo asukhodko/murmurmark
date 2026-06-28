@@ -3954,6 +3954,7 @@ enum RetentionPrinter {
         let appliedCounts = count(actions, by: "applied_action")
         let exportManifest = exportPath(from: export)
         let exportManifestReady = exportManifest.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+        let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
 
         print("")
         print("retention:")
@@ -3976,7 +3977,9 @@ enum RetentionPrinter {
             print("  warnings: \(compactJSON(warnings))")
         }
         let recommendedNext: String
-        if let exportManifest, exportManifestReady {
+        if let command = ReadinessPrinter.preferredNextCommand(nextCommands) {
+            recommendedNext = command
+        } else if let exportManifest, exportManifestReady {
             recommendedNext = "murmurmark retention payload \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(exportManifest))"
         } else if let readinessNext = readinessNextCommand(session: session) {
             recommendedNext = readinessNext
@@ -3985,7 +3988,15 @@ enum RetentionPrinter {
         }
         print("  recommended_next: \(recommendedNext)")
         print("  next:")
-        print("    \(recommendedNext)")
+        if nextCommands.isEmpty {
+            print("    \(recommendedNext)")
+        } else {
+            for item in nextCommands {
+                if let command = string(item["command"]) {
+                    print("    \(command)")
+                }
+            }
+        }
     }
 
     private static func readinessNextCommand(session: URL) -> String? {
@@ -4032,6 +4043,7 @@ enum RetentionPrinter {
         let blockers = payload["blockers"] as? [Any] ?? []
         let warnings = payload["warnings"] as? [Any] ?? []
         let export = payload["export_manifest"] as? [String: Any] ?? [:]
+        let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
 
         print("")
         print("retention_payload:")
@@ -4051,9 +4063,19 @@ enum RetentionPrinter {
         if !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
-        print("  recommended_next: inspect \(PathDisplay.display(manifestURL)) before any external handoff")
+        let recommendedNext = ReadinessPrinter.preferredNextCommand(nextCommands)
+            ?? "less \(PathDisplay.display(manifestURL))"
+        print("  recommended_next: \(recommendedNext)")
         print("  next:")
-        print("    inspect \(PathDisplay.display(manifestURL)) before any external handoff")
+        if nextCommands.isEmpty {
+            print("    \(recommendedNext)")
+        } else {
+            for item in nextCommands {
+                if let command = string(item["command"]) {
+                    print("    \(command)")
+                }
+            }
+        }
     }
 
     private static func outputURL(option: String, in args: [String], defaultURL: URL) -> URL {

@@ -95,7 +95,12 @@ The plan records:
 - planned action per raw file;
 - external provider policy;
 - warnings;
-- whether the plan can be applied.
+- whether the plan can be applied;
+- `recommended_next`, `next_commands` and `open_commands` for the next retention/export step.
+
+If an export manifest is present, the plan treats it as successful only when the manifest belongs to
+the same session. A stale or mismatched `exports/private/<session>/export_manifest.json` is reported
+as `export_manifest_session_mismatch` and cannot unlock retention payload or raw-audio deletion.
 
 Plan mode never deletes files.
 
@@ -160,12 +165,32 @@ Required fields:
   "payload_file_count": 0,
   "payload_bytes": 0,
   "raw_audio_included": false,
-  "sends_data": false
+  "sends_data": false,
+  "recommended_next": "less SESSION/derived/retention/provider_payload_manifest.json",
+  "next_commands": [
+    {
+      "id": "inspect_payload_manifest",
+      "command": "less SESSION/derived/retention/provider_payload_manifest.json"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_provider_payload_manifest",
+      "command": "less SESSION/derived/retention/provider_payload_manifest.json"
+    }
+  ]
 }
 ```
 
 `status: ready_for_review` means the payload inventory is policy-compatible.
 It is not approval to upload automatically.
+
+`provider_payload_manifest.json` is also self-guiding: `recommended_next` points to inspecting the
+manifest before any external handoff, `next_commands` contains that inspection command, and
+`open_commands` links the payload and export manifests.
+
+The payload manifest applies the same session-match check to the export manifest before inventorying
+files for an external provider.
 
 ## Apply
 

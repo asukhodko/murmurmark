@@ -4,12 +4,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shlex
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.1.1"
 PLAN_SCHEMA = "murmurmark.retention_plan/v1"
 POLICY_SCHEMA = "murmurmark.retention_policy/v1"
 AUDIT_SCHEMA = "murmurmark.retention_audit_event/v1"
@@ -59,6 +60,20 @@ def rel(path: Path, base: Path) -> str:
         return str(path.relative_to(base))
     except ValueError:
         return str(path)
+
+
+def command_path(path: Path) -> str:
+    if not path.is_absolute():
+        return shlex.quote(str(path))
+    try:
+        display = path.resolve().relative_to(Path.cwd().resolve())
+    except ValueError:
+        display = path
+    return shlex.quote(str(display))
+
+
+def command_item(id_: str, label: str, command: str) -> dict[str, str]:
+    return {"id": id_, "label": label, "command": command}
 
 
 def sha256_file(path: Path) -> str:
@@ -121,7 +136,17 @@ def default_export_manifest(session: Path) -> Path:
     return Path("exports/private") / session.name / "export_manifest.json"
 
 
-def export_status(path: Path | None) -> dict[str, Any]:
+def export_manifest_matches_session(manifest: dict[str, Any], session: Path) -> bool:
+    manifest_session = manifest.get("session")
+    if isinstance(manifest_session, str) and manifest_session.strip():
+        try:
+            return Path(manifest_session).expanduser().resolve() == session.expanduser().resolve()
+        except OSError:
+            return False
+    return str(manifest.get("session_id") or "") == session_id(session)
+
+
+def export_status(path: Path | None, session: Path) -> dict[str, Any]:
     if not path:
         return {"path": None, "found": False, "valid": False, "successful": False, "reason": "missing_export_manifest_path"}
     manifest = read_json(path)
@@ -129,12 +154,23 @@ def export_status(path: Path | None) -> dict[str, Any]:
         return {"path": str(path), "found": path.exists(), "valid": False, "successful": False, "reason": "invalid_or_missing_export_manifest"}
     blockers = manifest.get("blockers") if isinstance(manifest.get("blockers"), list) else []
     status = manifest.get("status")
-    successful = status in {"exported", "exported_with_warnings"} and not blockers
+    valid = manifest.get("schema") == "murmurmark.export_manifest/v1"
+    session_matches = valid and export_manifest_matches_session(manifest, session)
+    successful = valid and session_matches and status in {"exported", "exported_with_warnings"} and not blockers
+    reason = None
+    if not valid:
+        reason = "unsupported_export_manifest_schema"
+    elif not session_matches:
+        reason = "export_manifest_session_mismatch"
+    elif not successful:
+        reason = "export_not_successful"
     return {
         "path": str(path),
         "found": True,
-        "valid": manifest.get("schema") == "murmurmark.export_manifest/v1",
+        "valid": valid,
+        "session_matches": session_matches,
         "successful": successful,
+        "reason": reason,
         "status": status,
         "blockers": blockers,
         "selected_profile": manifest.get("selected_profile"),
@@ -179,7 +215,7 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
     policy_path = args.policy.expanduser()
     policy = load_policy(policy_path)
     export_manifest = args.export_manifest.expanduser() if args.export_manifest else default_export_manifest(session)
-    export = export_status(export_manifest)
+    export = export_status(export_manifest, session)
     actions, warnings = build_actions(session, policy, export)
 
     delete_actions = [item for item in actions if item.get("planned_action") == "delete_raw_audio"]
@@ -212,6 +248,92 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
         "applied": False,
         "audit_log": str(session / "derived/retention/retention_audit.jsonl"),
     }
+
+
+def normalize_command_items(items: Any) -> list[dict[str, str]]:
+    commands: list[dict[str, str]] = []
+    if not isinstance(items, list):
+        return commands
+    for item in items:
+        if not isinstance(item, dict) or not item.get("command"):
+            continue
+        commands.append(
+            command_item(
+                str(item.get("id") or f"step_{len(commands) + 1}"),
+                str(item.get("label") or "Run the next readiness step."),
+                str(item["command"]),
+            )
+        )
+    return commands
+
+
+def readiness_handoff(session: Path) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:
+    readiness = read_json(session / "derived/readiness/session_readiness.json")
+    if not readiness:
+        return None, []
+    gate = str(readiness.get("use_gate") or "")
+    if gate == "ready_for_notes":
+        return readiness, []
+    commands = normalize_command_items(readiness.get("next_commands"))
+    if commands:
+        return readiness, commands
+    if gate.startswith("pipeline_incomplete"):
+        return readiness, [
+            command_item(
+                "process_session",
+                "Run or refresh the full post-recording pipeline.",
+                f"murmurmark process {command_path(session)}",
+            )
+        ]
+    return readiness, [
+        command_item(
+            "review_next",
+            "Refresh this session's review handoff.",
+            f"murmurmark review next {command_path(session)}",
+        )
+    ]
+
+
+def add_handoff(plan: dict[str, Any], out: Path) -> None:
+    session = Path(str(plan["session"]))
+    export = plan.get("export_manifest") if isinstance(plan.get("export_manifest"), dict) else {}
+    export_path = Path(str(export.get("path"))) if export.get("path") else None
+    readiness, readiness_next = readiness_handoff(session)
+    next_commands: list[dict[str, str]] = []
+    open_commands: list[dict[str, str]] = [
+        command_item("open_retention_plan", "Inspect retention plan.", f"less {command_path(out)}")
+    ]
+    if readiness:
+        open_commands.append(
+            command_item(
+                "open_session_readiness",
+                "Inspect session readiness before retention/export decisions.",
+                f"less {command_path(session / 'derived/readiness/session_readiness.md')}",
+            )
+        )
+    if export_path:
+        open_commands.append(command_item("open_export_manifest", "Inspect export manifest.", f"less {command_path(export_path)}"))
+    if export.get("successful") and export_path:
+        next_commands.append(
+            command_item(
+                "retention_payload",
+                "Inventory any external-provider payload before handoff.",
+                f"murmurmark retention payload {command_path(session)} --export-manifest {command_path(export_path)}",
+            )
+        )
+    elif readiness_next:
+        next_commands.extend(readiness_next)
+    else:
+        next_commands.append(
+            command_item(
+                "export_markdown",
+                "Export a local Markdown handoff bundle before retention decisions.",
+                f"murmurmark export {command_path(session)} --format markdown --include-json",
+            )
+        )
+    plan["recommended_next"] = next_commands[0]["command"]
+    plan["next_commands"] = next_commands
+    plan["open_commands"] = open_commands
 
 
 def apply_plan(plan: dict[str, Any]) -> list[dict[str, Any]]:
@@ -250,6 +372,7 @@ def main() -> int:
     session = args.session.expanduser()
     out = args.out.expanduser() if args.out else session / "derived/retention/retention_plan.json"
     plan = build_plan(args)
+    add_handoff(plan, out)
     events = apply_plan(plan)
     write_json(out, plan)
     append_jsonl(session / "derived/retention/retention_audit.jsonl", events)

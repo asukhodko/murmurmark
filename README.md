@@ -161,6 +161,8 @@ less "$SESSION/derived/retention/provider_payload_manifest.json"
 Both commands print a short handoff summary: selected plan or payload manifest, raw-audio action
 counts, blockers/warnings, and the next safe command. If readiness is not exportable yet, retention
 points back to the current `process` or `review` step instead of suggesting a blocked export.
+`retention_plan.json` and `provider_payload_manifest.json` also store `recommended_next`,
+`next_commands` and `open_commands`, so post-export privacy steps are machine-readable.
 
 The tracked default policy is [examples/retention-policy.local-first.json](examples/retention-policy.local-first.json).
 It keeps raw audio, forbids copying raw audio to export bundles and disables external providers.

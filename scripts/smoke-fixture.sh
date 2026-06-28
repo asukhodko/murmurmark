@@ -236,16 +236,18 @@ echo "$retention_plan_output" | grep -q '  next:'
 jq -e '.schema == "murmurmark.retention_plan/v1"' "$session/derived/retention/retention_plan.json" >/dev/null
 jq -e '.policy.external_providers.allow == false' "$session/derived/retention/retention_plan.json" >/dev/null
 jq -e 'all(.actions[]; .planned_action == "keep_raw_audio")' "$session/derived/retention/retention_plan.json" >/dev/null
+jq -e '(.recommended_next | startswith("murmurmark export ")) and (.next_commands | length) == 1 and (.open_commands | map(.id) | index("open_retention_plan"))' "$session/derived/retention/retention_plan.json" >/dev/null
 
 retention_payload_output="$("$bin" retention payload "$session")"
 assert_no_helper_prefix "$retention_payload_output"
 echo "$retention_payload_output" | grep -q '^retention_payload:$'
 echo "$retention_payload_output" | grep -q '  sends_data: false'
 echo "$retention_payload_output" | grep -q '  raw_audio_included: false'
-echo "$retention_payload_output" | grep -q '^  recommended_next: inspect '
+echo "$retention_payload_output" | grep -q '^  recommended_next: less '
 [[ -s "$session/derived/retention/provider_payload_manifest.json" ]]
 jq -e '.schema == "murmurmark.provider_payload_manifest/v1"' "$session/derived/retention/provider_payload_manifest.json" >/dev/null
 jq -e '.status == "blocked" and .sends_data == false and .raw_audio_included == false' "$session/derived/retention/provider_payload_manifest.json" >/dev/null
+jq -e '(.recommended_next | startswith("less ")) and (.next_commands | length) == 1 and (.open_commands | map(.id) | index("open_provider_payload_manifest"))' "$session/derived/retention/provider_payload_manifest.json" >/dev/null
 
 mkdir -p "$session/derived/transcript/resolved"
 jq -n '{

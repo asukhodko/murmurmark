@@ -4,12 +4,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shlex
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.1.1"
 SCHEMA = "murmurmark.provider_payload_manifest/v1"
 POLICY_SCHEMA = "murmurmark.retention_policy/v1"
 EXPORT_SCHEMA = "murmurmark.export_manifest/v1"
@@ -46,6 +47,20 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def command_path(path: Path) -> str:
+    if not path.is_absolute():
+        return shlex.quote(str(path))
+    try:
+        display = path.resolve().relative_to(Path.cwd().resolve())
+    except ValueError:
+        display = path
+    return shlex.quote(str(display))
+
+
+def command_item(id_: str, label: str, command: str) -> dict[str, str]:
+    return {"id": id_, "label": label, "command": command}
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -57,6 +72,16 @@ def sha256_file(path: Path) -> str:
 def session_id(session: Path) -> str:
     payload = read_json(session / "session.json") or {}
     return str(payload.get("session_id") or session.name)
+
+
+def export_manifest_matches_session(manifest: dict[str, Any], session: Path) -> bool:
+    manifest_session = manifest.get("session")
+    if isinstance(manifest_session, str) and manifest_session.strip():
+        try:
+            return Path(manifest_session).expanduser().resolve() == session.expanduser().resolve()
+        except OSError:
+            return False
+    return str(manifest.get("session_id") or "") == session_id(session)
 
 
 def load_policy(path: Path) -> dict[str, Any]:
@@ -139,18 +164,23 @@ def build_manifest(args: argparse.Namespace) -> dict[str, Any]:
         candidates: list[dict[str, Any]] = []
     else:
         blockers_in_export = export.get("blockers") if isinstance(export.get("blockers"), list) else []
+        valid_export_schema = export.get("schema") == EXPORT_SCHEMA
+        session_matches = valid_export_schema and export_manifest_matches_session(export, session)
         export_status = {
             "path": str(export_path),
             "found": True,
-            "valid": export.get("schema") == EXPORT_SCHEMA,
+            "valid": valid_export_schema,
+            "session_matches": session_matches,
             "status": export.get("status"),
             "blockers": blockers_in_export,
             "selected_profile": export.get("selected_profile"),
             "verdict": export.get("verdict"),
             "use_gate": export.get("use_gate"),
         }
-        if export.get("schema") != EXPORT_SCHEMA:
+        if not valid_export_schema:
             blockers.append("unsupported_export_manifest_schema")
+        if valid_export_schema and not session_matches:
+            blockers.append("export_manifest_session_mismatch")
         if export.get("status") not in {"exported", "exported_with_warnings"}:
             blockers.append("export_not_successful")
         if blockers_in_export:
@@ -191,11 +221,31 @@ def build_manifest(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def add_handoff(payload: dict[str, Any], export_path: Path, out: Path) -> None:
+    open_commands = [
+        command_item("open_provider_payload_manifest", "Inspect provider payload manifest.", f"less {command_path(out)}")
+    ]
+    if export_path:
+        open_commands.append(command_item("open_export_manifest", "Inspect export manifest.", f"less {command_path(export_path)}"))
+    next_commands = [
+        command_item(
+            "inspect_payload_manifest",
+            "Inspect the payload manifest before any external handoff.",
+            f"less {command_path(out)}",
+        )
+    ]
+    payload["recommended_next"] = next_commands[0]["command"]
+    payload["next_commands"] = next_commands
+    payload["open_commands"] = open_commands
+
+
 def main() -> int:
     args = parse_args()
     session = args.session.expanduser()
     out = args.out.expanduser() if args.out else session / "derived/retention/provider_payload_manifest.json"
     manifest = build_manifest(args)
+    export_path = args.export_manifest.expanduser() if args.export_manifest else default_export_manifest(session)
+    add_handoff(manifest, export_path, out)
     write_json(out, manifest)
     print(f"provider_payload_manifest: {out}")
     print(f"status: {manifest['status']}")
