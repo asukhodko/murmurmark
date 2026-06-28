@@ -620,12 +620,10 @@ enum ReviewCommands {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("build-review-workspace.py").path] + forwarded)
                 return
             }
-            if let session = sessionOption(from: forwarded, sessionsRoot: sessionsRoot) {
-                try prepareSessionLocalReviewPlanIfNeeded(session: session)
-                addOption("template", sessionLocalReviewPlan(session).appendingPathComponent("review_decisions.template.jsonl").path, to: &forwarded)
-                addOption("decisions", sessionLocalReviewPlan(session).appendingPathComponent("review_decisions.jsonl").path, to: &forwarded)
-                addOption("out-dir", sessionLocalReviewPlan(session).path, to: &forwarded)
-                replaceSessionFilter(in: &forwarded, with: session.lastPathComponent)
+            if let session = ReviewSessionLocalPlan.sessionOption(from: forwarded, sessionsRoot: sessionsRoot) {
+                try ReviewSessionLocalPlan.prepareIfNeeded(session: session)
+                ReviewSessionLocalPlan.addBuildDefaults(for: session, to: &forwarded)
+                ReviewSessionLocalPlan.replaceSessionFilter(in: &forwarded, with: session.lastPathComponent)
             } else if !ArgumentEditing.hasOption("template", in: forwarded) {
                 try ensurePlanExists()
                 try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
@@ -639,12 +637,8 @@ enum ReviewCommands {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-workspace-decisions.py").path] + forwarded)
                 return
             }
-            if let session = takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot) {
-                let plan = sessionLocalReviewPlan(session)
-                addOption("workspace", plan.appendingPathComponent("review_workspace.json").path, to: &forwarded)
-                addOption("template", plan.appendingPathComponent("review_decisions.template.jsonl").path, to: &forwarded)
-                addOption("out", plan.appendingPathComponent("review_decisions.jsonl").path, to: &forwarded)
-                addOption("report", plan.appendingPathComponent("review_workspace_apply_report.json").path, to: &forwarded)
+            if let session = ReviewSessionLocalPlan.takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot) {
+                ReviewSessionLocalPlan.addWorkspaceApplyDefaults(for: session, to: &forwarded)
             }
             try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-workspace-decisions.py").path] + forwarded)
             if !ArgumentEditing.hasOption("dry-run", in: forwarded) {
@@ -670,65 +664,6 @@ enum ReviewCommands {
                 index += 1
             }
         }
-    }
-
-    private static func sessionOption(from args: [String], sessionsRoot: URL) -> URL? {
-        guard let value = ArgumentEditing.peekOption("session", in: args) else { return nil }
-        return try? SessionResolver.resolve(value, sessionsRoot: sessionsRoot)
-    }
-
-    private static func takeSessionOption(from args: inout [String], sessionsRoot: URL) -> URL? {
-        guard let value = ArgumentEditing.peekOption("session", in: args),
-              let session = try? SessionResolver.resolve(value, sessionsRoot: sessionsRoot)
-        else {
-            return nil
-        }
-        _ = ArgumentEditing.takeOption("session", from: &args)
-        return session
-    }
-
-    private static func replaceSessionFilter(in args: inout [String], with value: String) {
-        var index = 0
-        while index < args.count {
-            if args[index] == "--session", index + 1 < args.count {
-                args[index + 1] = value
-                index += 2
-            } else {
-                index += 1
-            }
-        }
-    }
-
-    private static func addOption(_ key: String, _ value: String, to args: inout [String]) {
-        guard !ArgumentEditing.hasOption(key, in: args) else { return }
-        args += ["--\(key)", value]
-    }
-
-    private static func sessionLocalReviewPlan(_ session: URL) -> URL {
-        session.appendingPathComponent("derived/readiness/review-plan")
-    }
-
-    private static func prepareSessionLocalReviewPlanIfNeeded(session: URL) throws {
-        let readinessRoot = session.appendingPathComponent("derived/readiness")
-        let sessionQualityOut = readinessRoot.appendingPathComponent("session-quality")
-        let operationalOut = readinessRoot.appendingPathComponent("operational-readiness")
-        let planOut = readinessRoot.appendingPathComponent("review-plan")
-        try Tooling.runPath(try PythonRuntime.resolve(), [
-            try script("report-session-quality.py").path,
-            session.path,
-            "--out-dir", sessionQualityOut.path,
-            "--write-session-readiness",
-        ])
-        try Tooling.runPath(try PythonRuntime.resolve(), [
-            try script("report-operational-readiness.py").path,
-            "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
-            "--out-dir", operationalOut.path,
-        ])
-        try Tooling.runPath(try PythonRuntime.resolve(), [
-            try script("build-review-plan.py").path,
-            "--operational-readiness", operationalOut.appendingPathComponent("operational_readiness_report.json").path,
-            "--out-dir", planOut.path,
-        ])
     }
 
     private static func workspaceOutDir(from args: [String]) -> URL {
@@ -831,14 +766,8 @@ enum ReviewCommands {
 
     private static func apply(_ args: [String], sessionsRoot: URL) throws -> URL {
         var forwarded = args
-        if let session = takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot) {
-            let plan = sessionLocalReviewPlan(session)
-            addOption("decisions", plan.appendingPathComponent("review_decisions.jsonl").path, to: &forwarded)
-            addOption("review-template", plan.appendingPathComponent("review_decisions.template.jsonl").path, to: &forwarded)
-            addOption("out", plan.appendingPathComponent("review_decisions_apply_report.json").path, to: &forwarded)
-            addOption("session-quality-out-dir", session.appendingPathComponent("derived/readiness/session-quality").path, to: &forwarded)
-            addOption("operational-readiness-out-dir", session.appendingPathComponent("derived/readiness/operational-readiness").path, to: &forwarded)
-            addOption("review-plan-out-dir", plan.path, to: &forwarded)
+        if let session = ReviewSessionLocalPlan.takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot) {
+            ReviewSessionLocalPlan.addReviewApplyDefaults(for: session, to: &forwarded)
             forwarded += ["--session", session.lastPathComponent]
         }
         let python = try PythonRuntime.resolve()
@@ -860,6 +789,100 @@ enum ReviewCommands {
         return url
     }
 
+}
+
+enum ReviewSessionLocalPlan {
+    static func sessionOption(from args: [String], sessionsRoot: URL) -> URL? {
+        guard let value = ArgumentEditing.peekOption("session", in: args) else { return nil }
+        return try? SessionResolver.resolve(value, sessionsRoot: sessionsRoot)
+    }
+
+    static func takeSessionOption(from args: inout [String], sessionsRoot: URL) -> URL? {
+        guard let value = ArgumentEditing.peekOption("session", in: args),
+              let session = try? SessionResolver.resolve(value, sessionsRoot: sessionsRoot)
+        else {
+            return nil
+        }
+        _ = ArgumentEditing.takeOption("session", from: &args)
+        return session
+    }
+
+    static func addBuildDefaults(for session: URL, to args: inout [String]) {
+        let plan = planDir(session)
+        addOption("template", plan.appendingPathComponent("review_decisions.template.jsonl").path, to: &args)
+        addOption("decisions", plan.appendingPathComponent("review_decisions.jsonl").path, to: &args)
+        addOption("out-dir", plan.path, to: &args)
+    }
+
+    static func addWorkspaceApplyDefaults(for session: URL, to args: inout [String]) {
+        let plan = planDir(session)
+        addOption("workspace", plan.appendingPathComponent("review_workspace.json").path, to: &args)
+        addOption("template", plan.appendingPathComponent("review_decisions.template.jsonl").path, to: &args)
+        addOption("out", plan.appendingPathComponent("review_decisions.jsonl").path, to: &args)
+        addOption("report", plan.appendingPathComponent("review_workspace_apply_report.json").path, to: &args)
+    }
+
+    static func addReviewApplyDefaults(for session: URL, to args: inout [String]) {
+        let plan = planDir(session)
+        addOption("decisions", plan.appendingPathComponent("review_decisions.jsonl").path, to: &args)
+        addOption("review-template", plan.appendingPathComponent("review_decisions.template.jsonl").path, to: &args)
+        addOption("out", plan.appendingPathComponent("review_decisions_apply_report.json").path, to: &args)
+        addOption("session-quality-out-dir", session.appendingPathComponent("derived/readiness/session-quality").path, to: &args)
+        addOption("operational-readiness-out-dir", session.appendingPathComponent("derived/readiness/operational-readiness").path, to: &args)
+        addOption("review-plan-out-dir", plan.path, to: &args)
+    }
+
+    static func replaceSessionFilter(in args: inout [String], with value: String) {
+        var index = 0
+        while index < args.count {
+            if args[index] == "--session", index + 1 < args.count {
+                args[index + 1] = value
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+    }
+
+    static func prepareIfNeeded(session: URL) throws {
+        let readinessRoot = session.appendingPathComponent("derived/readiness")
+        let sessionQualityOut = readinessRoot.appendingPathComponent("session-quality")
+        let operationalOut = readinessRoot.appendingPathComponent("operational-readiness")
+        let planOut = readinessRoot.appendingPathComponent("review-plan")
+        try Tooling.runPath(try PythonRuntime.resolve(), [
+            try script("report-session-quality.py").path,
+            session.path,
+            "--out-dir", sessionQualityOut.path,
+            "--write-session-readiness",
+        ])
+        try Tooling.runPath(try PythonRuntime.resolve(), [
+            try script("report-operational-readiness.py").path,
+            "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
+            "--out-dir", operationalOut.path,
+        ])
+        try Tooling.runPath(try PythonRuntime.resolve(), [
+            try script("build-review-plan.py").path,
+            "--operational-readiness", operationalOut.appendingPathComponent("operational_readiness_report.json").path,
+            "--out-dir", planOut.path,
+        ])
+    }
+
+    private static func planDir(_ session: URL) -> URL {
+        session.appendingPathComponent("derived/readiness/review-plan")
+    }
+
+    private static func addOption(_ key: String, _ value: String, to args: inout [String]) {
+        guard !ArgumentEditing.hasOption(key, in: args) else { return }
+        args += ["--\(key)", value]
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("review script not found: \(url.path)")
+        }
+        return url
+    }
 }
 
 enum ReviewAgentHelp {
@@ -2070,7 +2093,7 @@ enum CorpusCommands {
             try CorpusPrinter.printGates(outDir: outDir)
         case "order":
             if ArgumentEditing.hasHelpFlag(forwarded) {
-                printOrderHelp()
+                CorpusOrderHelp.print()
                 return
             }
             let repair = ArgumentEditing.takeFlag("repair", from: &forwarded)
@@ -2086,9 +2109,9 @@ enum CorpusCommands {
             let sessions = try takeOptionalSessions(from: &forwarded, sessionsRoot: sessionsRoot)
             if repair {
                 let repairSessions = sessions.isEmpty
-                    ? try corpusOrderRepairSessions(sessionQuality: sessionQualityURL, sessionsRoot: sessionsRoot)
+                    ? try CorpusOrderRepair.sessions(sessionQuality: sessionQualityURL, sessionsRoot: sessionsRoot)
                     : sessions
-                try repairTranscriptOrder(
+                try CorpusOrderRepair.run(
                     sessions: repairSessions,
                     inputProfile: repairInputProfile,
                     outputProfile: repairOutputProfile,
@@ -2150,52 +2173,6 @@ enum CorpusCommands {
         try Tooling.runPath(python, [
             try script("report-transcript-order-corpus.py").path,
         ] + sessions.map(\.path) + extraArgs)
-    }
-
-    private static func repairTranscriptOrder(sessions: [URL], inputProfile: String, outputProfile: String, synthesize: Bool) throws {
-        let python = try PythonRuntime.resolve()
-        for session in sessions {
-            let auditStatus = try Tooling.runPathAllowingExitCodes(python, [
-                try script("audit-transcript-order.py").path,
-                session.path,
-                "--profile", inputProfile,
-            ], allowedExitCodes: [0, 2])
-            guard auditStatus == 0 else {
-                continue
-            }
-            let repairStatus = try Tooling.runPathAllowingExitCodes(python, [
-                try script("apply-transcript-order-repair.py").path,
-                session.path,
-                "--input-profile", inputProfile,
-                "--output-profile", outputProfile,
-            ], allowedExitCodes: [0, 2])
-            if repairStatus == 0, synthesize {
-                _ = try Tooling.runPathAllowingExitCodes(python, [
-                    try script("synthesize-simple-extractive.py").path,
-                    session.path,
-                    "--transcript-profile", outputProfile,
-                ], allowedExitCodes: [0, 2])
-            }
-        }
-    }
-
-    private static func corpusOrderRepairSessions(sessionQuality: URL, sessionsRoot: URL) throws -> [URL] {
-        if FileManager.default.fileExists(atPath: sessionQuality.path),
-           let rows = try JSONFiles.object(sessionQuality)["sessions"] as? [Any] {
-            let sessions = rows.compactMap { row -> URL? in
-                guard let dict = row as? [String: Any],
-                      let session = dict["session"] as? String,
-                      !session.isEmpty
-                else {
-                    return nil
-                }
-                return try? SessionResolver.resolve(session, sessionsRoot: sessionsRoot)
-            }
-            if !sessions.isEmpty {
-                return sessions
-            }
-        }
-        return try SessionResolver.all(in: sessionsRoot)
     }
 
     private static func operationalReadiness() throws {
@@ -2272,8 +2249,68 @@ enum CorpusCommands {
         """)
     }
 
-    private static func printOrderHelp() {
-        print("""
+}
+
+enum CorpusOrderRepair {
+    static func run(sessions: [URL], inputProfile: String, outputProfile: String, synthesize: Bool) throws {
+        let python = try PythonRuntime.resolve()
+        for session in sessions {
+            let auditStatus = try Tooling.runPathAllowingExitCodes(python, [
+                try script("audit-transcript-order.py").path,
+                session.path,
+                "--profile", inputProfile,
+            ], allowedExitCodes: [0, 2])
+            guard auditStatus == 0 else {
+                continue
+            }
+
+            let repairStatus = try Tooling.runPathAllowingExitCodes(python, [
+                try script("apply-transcript-order-repair.py").path,
+                session.path,
+                "--input-profile", inputProfile,
+                "--output-profile", outputProfile,
+            ], allowedExitCodes: [0, 2])
+            if repairStatus == 0, synthesize {
+                _ = try Tooling.runPathAllowingExitCodes(python, [
+                    try script("synthesize-simple-extractive.py").path,
+                    session.path,
+                    "--transcript-profile", outputProfile,
+                ], allowedExitCodes: [0, 2])
+            }
+        }
+    }
+
+    static func sessions(sessionQuality: URL, sessionsRoot: URL) throws -> [URL] {
+        if FileManager.default.fileExists(atPath: sessionQuality.path),
+           let rows = try JSONFiles.object(sessionQuality)["sessions"] as? [Any] {
+            let sessions = rows.compactMap { row -> URL? in
+                guard let dict = row as? [String: Any],
+                      let session = dict["session"] as? String,
+                      !session.isEmpty
+                else {
+                    return nil
+                }
+                return try? SessionResolver.resolve(session, sessionsRoot: sessionsRoot)
+            }
+            if !sessions.isEmpty {
+                return sessions
+            }
+        }
+        return try SessionResolver.all(in: sessionsRoot)
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("corpus script not found: \(url.path)")
+        }
+        return url
+    }
+}
+
+enum CorpusOrderHelp {
+    static func print() {
+        Swift.print("""
         usage: murmurmark corpus order [all|latest|./session...] [--repair] [options]
 
         Aggregates transcript-order audits into a corpus report. With --repair, first refreshes
