@@ -2155,6 +2155,8 @@ PY
   echo "$explicit_progress_output" | grep -q '^review_progress:$'
   echo "$explicit_progress_output" | grep -q 'derived/readiness/review-plan/review_decisions_progress.md'
   echo "$explicit_progress_output" | grep -q '^  ready_for_apply: false'
+  echo "$explicit_progress_output" | grep -q '^  by_lane:$'
+  echo "$explicit_progress_output" | grep -q '^    check_local_recall: reviewed='
   echo "$explicit_progress_output" | grep -q '^  next: murmurmark review workspace --session '
   jq -s 'any(.[]; .source == "local_recall_repair" and .input_profile == "local_recall_repair_v1" and .status == "reviewed" and .decision == "needs_review")' \
     "$group_session/derived/readiness/review-plan/review_decisions.jsonl" >/dev/null

@@ -124,6 +124,7 @@ enum ReviewPrinter {
         if let decisions = summary["decisions"] as? [String: Any] {
             print("  decisions: \(compactJSON(decisions))")
         }
+        printProgressLanes(payload)
         let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
         if bool(summary["ready_for_batch_apply"]) == true {
             if let sessionID {
@@ -133,6 +134,22 @@ enum ReviewPrinter {
             }
         } else if let sessionID {
             print("  next: murmurmark review workspace --session \(sessionID)")
+        } else {
+            print("  next: murmurmark review workspace")
+        }
+    }
+
+    private static func printProgressLanes(_ payload: [String: Any]) {
+        let lanes = payload["by_lane"] as? [[String: Any]] ?? []
+        guard !lanes.isEmpty else { return }
+        print("  by_lane:")
+        for lane in lanes {
+            let name = string(lane["review_lane"]) ?? "unknown"
+            let total = int(lane["total"]) ?? 0
+            let reviewed = int(lane["reviewed"]) ?? 0
+            let remaining = int(lane["remaining"]) ?? 0
+            let minutes = (double(lane["remaining_seconds"]) ?? 0) / 60
+            print(String(format: "    %@: reviewed=%d/%d remaining=%d minutes=%.2f", name, reviewed, total, remaining, minutes))
         }
     }
 

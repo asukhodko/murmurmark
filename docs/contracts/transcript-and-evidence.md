@@ -1977,6 +1977,9 @@ seconds, grouped progress by `review_lane` and `session_id`, and validation erro
 }
 ```
 
+The Swift CLI prints the same lane breakdown as `by_lane`, with reviewed/total, remaining count and
+remaining minutes per lane, then prints the next safe command.
+
 After review, `apply-review-decisions.py` consumes the edited decision file and writes a separate
 `reviewed_v1` transcript profile:
 

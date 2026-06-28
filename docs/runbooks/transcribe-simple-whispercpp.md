@@ -846,7 +846,8 @@ lane-pack command prints the suggested compact answer line, `afplay`, `$EDITOR`,
 `review lane apply --dry-run` also prints the exact non-dry-run command. Applying the lane refreshes
 `review_decisions_progress.json` and prints the next safe command: continue with the review workspace
 while rows remain, or run `review progress --session "$SESSION"` before `review apply` once the
-checklist is complete.
+checklist is complete. `review progress` also prints `by_lane`, so the remaining review work is visible
+without opening the JSON report.
 
 The lower-level equivalent is still useful for debugging exact paths:
 
