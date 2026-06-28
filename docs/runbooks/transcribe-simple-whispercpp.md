@@ -864,6 +864,9 @@ If several lane answer sheets have been edited, apply the whole workspace instea
 .build/debug/murmurmark review workspace apply --session "$SESSION"
 ```
 
+The apply output includes `lane_progress`. If rows are still `todo`, it prints the lane answer sheet
+that still needs editing before `review apply` can safely run.
+
 To estimate what the generated suggestions would do without writing decisions:
 
 ```bash

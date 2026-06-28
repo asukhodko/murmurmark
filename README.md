@@ -682,7 +682,8 @@ silent replacement for listening when the meeting is medium-risk.
 When several lane answer sheets are edited, `murmurmark review workspace apply` applies
 the whole `review_workspace.json` in one validated pass and then refreshes review progress.
 Use `murmurmark review workspace apply --dry-run` to write only the validation report and print the
-same handoff without changing `review_decisions.jsonl`.
+same handoff without changing `review_decisions.jsonl`. The apply output also prints per-lane
+progress and the remaining answer sheets to edit.
 After `murmurmark review apply`, the CLI prints the next report command for the affected session or
 corpus. For a single session it also prints the refreshed readiness summary, including the next
 export or retention commands when the session is ready.

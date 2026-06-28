@@ -227,6 +227,7 @@ enum ReviewPrinter {
         print("  rejected: \(int(summary["rejected_count"]) ?? 0)")
         print("  dry_run: \(bool(payload["dry_run"]) ?? false)")
         print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
+        printWorkspaceApplyLanes(payload)
         let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
         if bool(summary["ready_for_batch_apply"]) == true {
             if let sessionID {
@@ -237,7 +238,26 @@ enum ReviewPrinter {
         } else if let sessionID {
             print("  next: edit remaining lane answer sheets, then `murmurmark review workspace apply --session \(sessionID)`")
         } else {
-            print("  next: murmurmark review progress")
+            print("  next: edit remaining lane answer sheets, then `murmurmark review workspace apply`")
+        }
+    }
+
+    private static func printWorkspaceApplyLanes(_ payload: [String: Any]) {
+        let lanes = payload["lanes"] as? [[String: Any]] ?? []
+        guard !lanes.isEmpty else { return }
+        print("  lane_progress:")
+        for lane in lanes {
+            let summary = lane["summary"] as? [String: Any] ?? [:]
+            let name = string(lane["lane"]) ?? "unknown"
+            let status = string(lane["status"]) ?? "unknown"
+            let reviewed = int(summary["reviewed_count"]) ?? 0
+            let todo = int(summary["todo_count"]) ?? 0
+            let rejected = int(summary["rejected_count"]) ?? 0
+            let answerSheet = string(lane["answer_sheet"])
+            print("    \(name): status=\(status) reviewed=\(reviewed) todo=\(todo) rejected=\(rejected)")
+            if todo > 0, let answerSheet {
+                print("      edit: $EDITOR \(shellQuote(answerSheet))")
+            }
         }
     }
 

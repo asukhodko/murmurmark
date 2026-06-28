@@ -1467,6 +1467,9 @@ EOF
   jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .dry_run == true and .summary.remaining_rows == 2' "$cli_review_workspace_dir/review_workspace_apply_dry_run_report.json" >/dev/null
   grep -q '^review_workspace_apply:$' "$cli_workspace_dry_run_stdout"
   grep -q '  dry_run: true' "$cli_workspace_dry_run_stdout"
+  grep -q '^  lane_progress:$' "$cli_workspace_dry_run_stdout"
+  grep -q '^    check_local_recall: status=ok reviewed=0 todo=1 rejected=0' "$cli_workspace_dry_run_stdout"
+  grep -q '^      edit: \$EDITOR ' "$cli_workspace_dry_run_stdout"
   grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_dry_run_stdout"
   sed 's/^answers=.*/answers=k/' "$cli_answer_sheet" >"$cli_answer_sheet.tmp"
   mv "$cli_answer_sheet.tmp" "$cli_answer_sheet"
@@ -1479,6 +1482,8 @@ EOF
     --report "$cli_review_workspace_dir/review_workspace_apply_report.json" >"$cli_workspace_apply_stdout"
   jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "workspace_answer_sheet"' "$cli_workspace_apply_out" >/dev/null
   jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .summary.reviewed_count == 1 and .summary.remaining_rows == 1' "$cli_review_workspace_dir/review_workspace_apply_report.json" >/dev/null
+  grep -q '^  lane_progress:$' "$cli_workspace_apply_stdout"
+  grep -q '^    check_local_recall: status=ok reviewed=1 todo=0 rejected=0' "$cli_workspace_apply_stdout"
   grep -q 'murmurmark review workspace apply --session review_workspace_cli_session' "$cli_workspace_apply_stdout"
   lane_pack_apply_out="$workdir/review_decisions_lane_pack_apply.jsonl"
   "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
