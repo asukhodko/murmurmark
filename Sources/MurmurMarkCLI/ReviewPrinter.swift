@@ -260,11 +260,12 @@ enum ReviewPrinter {
             print("  next_lane: \(nextLane)")
         }
         print("  next:")
-        print("    murmurmark review first-lane\(sessionArgument)")
-        print("    murmurmark review lane apply first\(sessionArgument)")
         if let nextLane {
             print("    murmurmark review lane \(nextLane)\(sessionArgument)")
             print("    murmurmark review lane apply \(nextLane)\(sessionArgument)")
+        } else {
+            print("    murmurmark review first-lane\(sessionArgument)")
+            print("    murmurmark review lane apply first\(sessionArgument)")
         }
         print("    murmurmark review workspace\(sessionArgument)")
         print("    murmurmark review workspace apply\(sessionArgument)")
