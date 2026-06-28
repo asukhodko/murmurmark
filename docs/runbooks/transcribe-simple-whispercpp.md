@@ -769,7 +769,8 @@ plan if needed, then prints the next review commands. `murmurmark review first-l
 "$SESSION"` now defaults to that session-local plan. The same is true for
 `murmurmark review workspace --session "$SESSION"`, `murmurmark review workspace apply --session
 "$SESSION"`, `murmurmark review progress --session "$SESSION"` and `murmurmark review apply --session
-"$SESSION"`. The workspace command prints every lane pack with suggested compact answers and the
+"$SESSION"`. When a plan exists, `review next` prints `quick_lane_flow` and `workspace_flow` with the
+build/listen and apply commands in order. The workspace command prints every lane pack with suggested compact answers and the
 `afplay`/`$EDITOR` commands to use next, so normal review does not require opening
 `review_workspace.json`. After a successful single-session apply, the CLI prints the refreshed readiness summary
 so the next export or retention command is visible immediately. Use `murmurmark review first-lane`

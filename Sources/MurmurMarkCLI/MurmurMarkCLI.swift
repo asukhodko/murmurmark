@@ -6741,6 +6741,7 @@ enum ReviewNextPrinter {
             Swift.print("  export_blockers: \(compactJSON(exportBlockers))")
         }
         printPlanHint(planOutDir: planOutDir)
+        printReviewFlowsIfPlanExists(sessionID: sessionID, planOutDir: planOutDir)
         Swift.print("  next:")
         for command in focusedNextCommands(
             nextCommands,
@@ -6751,6 +6752,19 @@ enum ReviewNextPrinter {
         ) {
             Swift.print("    \(command)")
         }
+    }
+
+    private static func printReviewFlowsIfPlanExists(sessionID: String, planOutDir: URL) {
+        guard FileManager.default.fileExists(atPath: planOutDir.appendingPathComponent("review_plan.json").path) else {
+            return
+        }
+        let firstLane = firstRecommendedLane(planOutDir: planOutDir) ?? "first"
+        Swift.print("  quick_lane_flow:")
+        Swift.print("    build_and_listen: murmurmark review first-lane --session \(sessionID)")
+        Swift.print("    apply_answers: murmurmark review lane apply \(firstLane) --session \(sessionID)")
+        Swift.print("  workspace_flow:")
+        Swift.print("    build_and_listen: murmurmark review workspace --session \(sessionID)")
+        Swift.print("    apply_answers: murmurmark review workspace apply --session \(sessionID)")
     }
 
     private static func printPlanHint(planOutDir: URL) {

@@ -276,7 +276,8 @@ synthesis review item summary, next CLI commands, and links to the transcript, n
 verdict and audio-review report.
 `murmurmark review next SESSION` is the short terminal handoff for that same information: it refreshes
 session readiness, builds a session-local review plan when review is needed, and prints the
-review-specific next commands.
+review-specific next commands. When a review plan exists, it also prints `quick_lane_flow` and
+`workspace_flow` so the normal order is visible without opening `review_plan.json`.
 For `review_first` sessions, those next commands point to `murmurmark review next ...`,
 `murmurmark review first-lane --session ...`, `murmurmark review workspace --session ...`,
 `murmurmark review lane apply ...`, `murmurmark review workspace apply`,
