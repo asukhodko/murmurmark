@@ -479,6 +479,9 @@ For short boundary islands, the repair also inspects raw micro-ASR rows. If Whis
 whose timestamp overlaps or nearly touches the island but whose midpoint is outside it, the row can
 be recovered through `boundary_overlap_fallback`; the attempt stays visible in
 `local_recall_repair_micro_runs.local_recall_repair_v1.jsonl`.
+Applied repair turns are included in the operational review queue as `local_recall_repair` items.
+They use `local_recall_repair_v1` as the review input profile and allow the normal transcript
+decisions: `keep_me`, `drop_me`, `needs_review` or `skip`.
 
 The transcript order audit reads `clean_dialogue` and `overlaps`, then writes
 `derived/audit/order/`. It highlights long `Me` turns that wrap a `Colleagues` turn and have a

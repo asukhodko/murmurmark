@@ -123,6 +123,8 @@ def review_action(label: str, verdict: str, item: dict[str, Any] | None = None) 
         return "check_lost_local_speech"
     if label == "local_recall_needs_review":
         return "check_local_recall_island"
+    if label == "local_recall_repair_inserted":
+        return "check_inserted_local_recall_repair"
     if label in {"probable_order_risk", "transcript_order_needs_review"}:
         return "check_transcript_order"
     if label in {"double_talk", "timing_overlap"}:
@@ -174,6 +176,12 @@ def suggested_decision(label: str, verdict: str, confidence: float, item: dict[s
             "suggested_decision_confidence": "low",
             "suggested_decision_reason": "unrecovered local-only island needs a quick local speech check",
         }
+    if label == "local_recall_repair_inserted":
+        return {
+            "suggested_decision": "needs_review",
+            "suggested_decision_confidence": "medium",
+            "suggested_decision_reason": "inserted local-recall repair must be confirmed; keep if it is real local speech, drop if it is a false insertion",
+        }
     if label in {"probable_order_risk", "transcript_order_needs_review"}:
         return {
             "suggested_decision": "needs_review",
@@ -194,7 +202,11 @@ def suggested_decision(label: str, verdict: str, confidence: float, item: dict[s
 
 
 def review_lane(source: str, label: str, action: str, suggestion: dict[str, Any]) -> str:
-    if source == "local_recall" or label in {"lost_me", "local_recall_needs_review"}:
+    if source in {"local_recall", "local_recall_repair"} or label in {
+        "lost_me",
+        "local_recall_needs_review",
+        "local_recall_repair_inserted",
+    }:
         return "check_local_recall"
     if source == "transcript_order" or action == "check_transcript_order":
         return "check_transcript_order"
@@ -257,6 +269,7 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
         "session": item.get("session"),
         "source": source,
         "source_audit_id": item.get("source_audit_id"),
+        "input_profile": item.get("input_profile"),
         "label": label,
         "verdict": verdict,
         "confidence": round(confidence, 6),
@@ -458,7 +471,7 @@ def decision_template_rows(plan: dict[str, Any]) -> list[dict[str, Any]]:
                     "allowed_decisions": allowed_decisions,
                     "session_id": session_id,
                     "session": cluster.get("session"),
-                    "input_profile": session_row.get("selected_profile"),
+                    "input_profile": item.get("input_profile") or session_row.get("selected_profile"),
                     "cluster_id": cluster.get("id"),
                     "source": item.get("source") or "audio_review",
                     "source_audit_id": item.get("source_audit_id"),

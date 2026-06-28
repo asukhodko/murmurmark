@@ -321,7 +321,11 @@ def review_lane(item: dict[str, Any]) -> str:
     source = str(item.get("source") or "")
     label = str(item.get("label") or "")
     verdict = str(item.get("verdict") or "")
-    if source == "local_recall" or label in {"lost_me", "local_recall_needs_review"}:
+    if source in {"local_recall", "local_recall_repair"} or label in {
+        "lost_me",
+        "local_recall_needs_review",
+        "local_recall_repair_inserted",
+    }:
         return "check_local_recall"
     if source == "transcript_order" or label in {"probable_order_risk"}:
         return "check_transcript_order"
@@ -541,6 +545,64 @@ def compact_local_recall_item(session: dict[str, Any], row: dict[str, Any]) -> d
     }
 
 
+def compact_local_recall_repair_patch(session: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any] | None:
+    utterance = patch.get("utterance") if isinstance(patch.get("utterance"), dict) else {}
+    if not utterance:
+        return None
+    start = safe_float(utterance.get("start"))
+    end = safe_float(utterance.get("end"))
+    if end < start:
+        end = start
+    duration = max(0.0, end - start)
+    session_path = str(session.get("session") or "")
+    listen_start = max(0.0, start - 1.0)
+    listen_duration = duration + 2.0
+    micro = patch.get("micro_asr") if isinstance(patch.get("micro_asr"), dict) else {}
+    confidence = safe_float(micro.get("score"))
+    return {
+        "session_id": session.get("session_id"),
+        "session": session.get("session"),
+        "source_audit_id": patch.get("source_item_id"),
+        "source": "local_recall_repair",
+        "label": "local_recall_repair_inserted",
+        "verdict": "needs_human_review",
+        "confidence": confidence,
+        "priority_score": round(duration + confidence * 10.0 + 150.0, 3),
+        "input_profile": "local_recall_repair_v1",
+        "allowed_decisions": ["drop_me", "keep_me", "needs_review", "skip"],
+        "interval": {
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "duration_sec": round(duration, 3),
+            "start_time": format_time(start),
+            "end_time": format_time(end),
+        },
+        "utterance_ids": [utterance.get("id")] if utterance.get("id") else [],
+        "text": [
+            {
+                "id": utterance.get("id"),
+                "role": "Me",
+                "source_track": "mic",
+                "text": utterance.get("text"),
+            }
+        ],
+        "review_features": {
+            "micro_asr_source_label": micro.get("source_label"),
+            "micro_asr_window_label": micro.get("window_label"),
+            "micro_asr_score": micro.get("score"),
+            "selection_policy": micro.get("selection_policy"),
+            "raw_transcription_text": micro.get("raw_transcription_text"),
+        },
+        "commands": {
+            "mic_raw": (
+                f"ffplay -hide_banner -loglevel error -ss {listen_start:.3f} "
+                f"-t {listen_duration:.3f} \"{session_path}/audio/mic/000001.caf\""
+            )
+        },
+        "reason": "inserted local-recall repair requires explicit review",
+    }
+
+
 def compact_transcript_order_item(session: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
     utterances = row.get("utterances") if isinstance(row.get("utterances"), dict) else {}
@@ -664,10 +726,26 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
                 continue
             session_id = str(row.get("session_id") or session.get("session_id"))
             rows.append(compact_review_item(by_session.get(session_id, session), row))
+        repair_patches_path = (
+            session_path
+            / "derived/transcript-simple/whisper-cpp/local-recall-repair/local_recall_repair_patches.local_recall_repair_v1.jsonl"
+        )
+        repaired_local_recall_ids: set[str] = set()
+        for patch in read_jsonl(repair_patches_path):
+            if str(patch.get("status") or "") != "applied":
+                continue
+            source_item_id = str(patch.get("source_item_id") or "")
+            if source_item_id:
+                repaired_local_recall_ids.add(source_item_id)
+            compacted = compact_local_recall_repair_patch(session, patch)
+            if compacted:
+                rows.append(compacted)
         local_recall_path = session_path / "derived/audit/local-recall/local_recall_items.jsonl"
         for row in read_jsonl(local_recall_path):
             label = str(row.get("label") or "")
             if label not in {"possible_lost_me", "needs_review"}:
+                continue
+            if str(row.get("item_id") or "") in repaired_local_recall_ids:
                 continue
             rows.append(compact_local_recall_item(session, row))
         order_path = session_path / "derived/audit/order/transcript_order_items.jsonl"

@@ -687,6 +687,10 @@ For short islands near a parent boundary, `local_recall_repair_v1` also records 
 and may use `boundary_overlap_fallback` when Whisper recognized text but the row midpoint landed
 just outside the selected local island. This is still conservative: the recovered turn is inserted
 only into the explicit repair profile and remains `needs_review`.
+After operational readiness is rebuilt, inserted repair turns appear in the `check_local_recall`
+review lane as `local_recall_repair` rows. Unlike raw audit-only local-recall rows, these rows point
+to actual `Me` utterance IDs in `local_recall_repair_v1`, so review can keep or drop the inserted
+turn explicitly.
 For a corpus-level view of these candidate repairs:
 
 ```bash

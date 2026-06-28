@@ -466,6 +466,20 @@ turns exist. Auto-promotion is intentionally left out until corpus evidence prov
 turns reduce lost local speech without increasing remote leak.
 `local_recall_repair_micro_runs.local_recall_repair_v1.jsonl` keeps per-source/per-window evidence:
 raw transcription text, selected rows, score, source label, window label and fallback metadata.
+Operational readiness exposes applied repair turns as review queue rows with:
+
+```json
+{
+  "source": "local_recall_repair",
+  "label": "local_recall_repair_inserted",
+  "input_profile": "local_recall_repair_v1",
+  "allowed_decisions": ["drop_me", "keep_me", "needs_review", "skip"],
+  "utterance_ids": ["local_recall_repair_v1_local_recall_0005"]
+}
+```
+
+Unlike raw `source: "local_recall"` rows, these rows target real inserted `Me` utterances, so
+`drop_me` is valid and removes the repair turn from the reviewed output profile.
 
 The transcript order audit explains remaining chronology risk from long `Me` utterances crossing
 remote turns. It is audit-only and writes under:

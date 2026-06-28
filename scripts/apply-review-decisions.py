@@ -236,6 +236,8 @@ def normalize_decision(row: dict[str, Any]) -> dict[str, Any]:
 
 def is_local_recall_decision(row: dict[str, Any]) -> bool:
     source = str(row.get("source") or "").strip()
+    if source == "local_recall_repair":
+        return False
     label = str(row.get("label") or "").strip()
     source_id = str(row.get("source_audit_id") or "").strip()
     return source == "local_recall" or source_id.startswith("local_recall_") or label in {"lost_me", "local_recall_needs_review"}

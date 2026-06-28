@@ -44,8 +44,8 @@ UI App не является обязательной частью roadmap. Он
 - `quality-hardening` — ближайший этап: улучшение качества transcript без смены топологии; первый
   явный `order_repair_v1` уже чинит только те order-risk регионы, которые безопасно режутся по
   сохранённым source ASR segments. `local_recall_repair_v1` уже восстанавливает короткие
-  boundary-сдвинутые `Me`-фразы через micro-ASR и оставляет их `needs_review`; следующий короткий
-  шаг — review этих вставок и расширение boundary repair только по доказанным случаям.
+  boundary-сдвинутые `Me`-фразы через micro-ASR, а вставки проходят через обычный review loop;
+  следующий короткий шаг — расширение boundary repair только по доказанным случаям.
 - `evidence-notes` и `export-workflows` — пользовательские артефакты; базовый export готов, дальше нужны vault/docs/Jira proposals.
 - `retention-policy` и `packaging` — приватность, хранение raw audio, release layout, provider payload manifest и readiness gate; перед публикацией нужен публичный security contact.
 - `future-heavy-local`, `future-llm-synthesis`, `future-ui-app` — дальние ветки.
