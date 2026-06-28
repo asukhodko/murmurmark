@@ -627,10 +627,14 @@ enum ReviewCommands {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-review-decisions-progress.py").path] + forwarded)
                 return
             }
-            if let session = ReviewSessionLocalPlan.takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot) {
+            let session = ReviewSessionLocalPlan.takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot)
+            if let session {
                 ReviewSessionLocalPlan.addProgressDefaults(for: session, to: &forwarded)
             }
             try ReviewProgressRunner.run(args: forwarded)
+            if let session {
+                print("SESSION=\"\(PathDisplay.display(session))\"")
+            }
             try ReviewPrinter.printProgress(report: ReviewPaths.progressReport(from: forwarded))
         case "next":
             if ArgumentEditing.hasHelpFlag(forwarded) {
@@ -644,7 +648,11 @@ enum ReviewCommands {
                 return
             }
             try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
+            let session = ReviewSessionLocalPlan.sessionOption(from: forwarded, sessionsRoot: sessionsRoot)
             let report = try apply(forwarded, sessionsRoot: sessionsRoot)
+            if let session {
+                print("SESSION=\"\(PathDisplay.display(session))\"")
+            }
             try ReviewPrinter.printApply(report: report)
         case "first-lane":
             if ArgumentEditing.hasHelpFlag(forwarded) {
@@ -713,7 +721,8 @@ enum ReviewCommands {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("build-review-workspace.py").path] + forwarded)
                 return
             }
-            if let session = ReviewSessionLocalPlan.sessionOption(from: forwarded, sessionsRoot: sessionsRoot) {
+            let session = ReviewSessionLocalPlan.sessionOption(from: forwarded, sessionsRoot: sessionsRoot)
+            if let session {
                 try ReviewSessionLocalPlan.prepareIfNeeded(session: session)
                 ReviewSessionLocalPlan.addBuildDefaults(for: session, to: &forwarded)
                 ReviewSessionLocalPlan.replaceSessionFilter(in: &forwarded, with: session.lastPathComponent)
@@ -724,19 +733,26 @@ enum ReviewCommands {
                 try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
             }
             try Tooling.runPathQuiet(try PythonRuntime.resolve(), [try script("build-review-workspace.py").path] + forwarded)
+            if let session {
+                print("SESSION=\"\(PathDisplay.display(session))\"")
+            }
             try ReviewPrinter.printWorkspace(outDir: ReviewPaths.workspaceOutDir(from: forwarded))
         case "apply":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-workspace-decisions.py").path] + forwarded)
                 return
             }
-            if let session = ReviewSessionLocalPlan.takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot) {
+            let session = ReviewSessionLocalPlan.takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot)
+            if let session {
                 ReviewSessionLocalPlan.addWorkspaceApplyDefaults(for: session, to: &forwarded)
             }
             if !ArgumentEditing.hasOption("quiet", in: forwarded) {
                 forwarded.append("--quiet")
             }
             try Tooling.runPathQuiet(try PythonRuntime.resolve(), [try script("apply-review-workspace-decisions.py").path] + forwarded)
+            if let session {
+                print("SESSION=\"\(PathDisplay.display(session))\"")
+            }
             try ReviewPrinter.printWorkspaceApply(report: ReviewPaths.workspaceApplyReport(from: forwarded))
             if !ArgumentEditing.hasOption("dry-run", in: forwarded) {
                 let defaultDecisions = PathURLs.fileURL("sessions/_reports/review-plan/review_decisions.jsonl")
@@ -932,18 +948,18 @@ enum ReviewSessionLocalPlan {
         let sessionQualityOut = readinessRoot.appendingPathComponent("session-quality")
         let operationalOut = readinessRoot.appendingPathComponent("operational-readiness")
         let planOut = readinessRoot.appendingPathComponent("review-plan")
-        try Tooling.runPath(try PythonRuntime.resolve(), [
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
             try script("report-session-quality.py").path,
             session.path,
             "--out-dir", sessionQualityOut.path,
             "--write-session-readiness",
         ])
-        try Tooling.runPath(try PythonRuntime.resolve(), [
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
             try script("report-operational-readiness.py").path,
             "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
             "--out-dir", operationalOut.path,
         ])
-        try Tooling.runPath(try PythonRuntime.resolve(), [
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
             try script("build-review-plan.py").path,
             "--operational-readiness", operationalOut.appendingPathComponent("operational_readiness_report.json").path,
             "--out-dir", planOut.path,
@@ -1209,6 +1225,9 @@ enum ReviewLaneCommand {
             laneArgs += ["--session", session.lastPathComponent]
         }
         try Tooling.runPathQuiet(try PythonRuntime.resolve(), laneArgs + forwarded)
+        if let session {
+            print("SESSION=\"\(PathDisplay.display(session))\"")
+        }
         try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutURL, session: session, planOutDir: planURL)
     }
 
@@ -1353,6 +1372,9 @@ enum ReviewLaneApplyCommand {
             dryRun: dryRun
         ))
         let progress = dryRun ? nil : try runProgress(template: template, decisions: decisions, planURL: planURL)
+        if let session {
+            print("SESSION=\"\(PathDisplay.display(session))\"")
+        }
         printLaneApply(ReviewLaneApplyPrintContext(
             lane: lane,
             session: session,
@@ -1644,6 +1666,9 @@ enum ReviewFirstLaneCommand {
             "--lane", lane,
             "--out-dir", lanePackOutURL.path,
         ] + forwarded)
+        if let session {
+            print("SESSION=\"\(PathDisplay.display(session))\"")
+        }
         try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutURL, session: session, planOutDir: planURL)
     }
 

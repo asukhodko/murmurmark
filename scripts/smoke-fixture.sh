@@ -2146,6 +2146,7 @@ PY
   explicit_local_recall_lane_output="$("$bin" review lane check_local_recall \
     --session "$group_session" \
     --out-dir "$explicit_local_recall_lane_dir")"
+  echo "$explicit_local_recall_lane_output" | grep -q '^SESSION="'
   echo "$explicit_local_recall_lane_output" | grep -q '^review_lane_pack:$'
   ! echo "$explicit_local_recall_lane_output" | grep -Eq '^(review_plan|clusters|estimated_listen_minutes|audio|manifest|answers|suggested_answers|items|skipped):'
   echo "$explicit_local_recall_lane_output" | grep -q '^  suggested_answers: answers='
@@ -2172,6 +2173,7 @@ PY
     --session "$group_session" \
     --out-dir "$explicit_local_recall_lane_dir" \
     --reviewer smoke)"
+  echo "$explicit_local_recall_apply_output" | grep -q '^SESSION="'
   echo "$explicit_local_recall_apply_output" | grep -q '^review_lane_apply:$'
   ! echo "$explicit_local_recall_apply_output" | grep -Eq '^(\{"manifest_items"|progress:|markdown:)'
   echo "$explicit_local_recall_apply_output" | grep -q '^  progress: '
@@ -2182,6 +2184,7 @@ PY
     --out-dir "$explicit_local_recall_lane_dir" \
     --reviewer smoke \
     --dry-run)"
+  echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^SESSION="'
   ! echo "$explicit_local_recall_apply_dry_run_output" | grep -Eq '^(\{"manifest_items"|Dry run:)'
   echo "$explicit_local_recall_apply_dry_run_output" | grep -q '^  next: murmurmark review lane apply check_local_recall --session '
   echo "$explicit_local_recall_apply_dry_run_output" | grep -Eq -- "--out-dir .*explicit-local-recall-lane-pack"
@@ -2190,6 +2193,7 @@ PY
   [[ -s "$group_session/derived/readiness/review-plan/review_decisions_progress.json" ]]
   explicit_progress_output="$("$bin" review progress --session "$group_session")"
   assert_no_helper_prefix "$explicit_progress_output"
+  echo "$explicit_progress_output" | grep -q '^SESSION="'
   echo "$explicit_progress_output" | grep -q '^review_progress:$'
   echo "$explicit_progress_output" | grep -q 'derived/readiness/review-plan/review_decisions_progress.md'
   echo "$explicit_progress_output" | grep -q '^  ready_for_apply: false'
@@ -2198,6 +2202,14 @@ PY
   echo "$explicit_progress_output" | grep -q '^  next: murmurmark review workspace --session '
   jq -s 'any(.[]; .source == "local_recall_repair" and .input_profile == "local_recall_repair_v1" and .status == "reviewed" and .decision == "needs_review")' \
     "$group_session/derived/readiness/review-plan/review_decisions.jsonl" >/dev/null
+  session_workspace_output="$("$bin" review workspace --session "$group_session")"
+  assert_no_helper_prefix "$session_workspace_output"
+  echo "$session_workspace_output" | grep -q '^SESSION="'
+  echo "$session_workspace_output" | grep -q '^review_workspace:$'
+  session_workspace_apply_dry_run_output="$("$bin" review workspace apply --session "$group_session" --dry-run)"
+  assert_no_helper_prefix "$session_workspace_apply_dry_run_output"
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^SESSION="'
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^review_workspace_apply:$'
   jq -s 'all(.[]; (.primary_command | type) == "string")' "$review_plan_dir/review_plan_clusters.jsonl" >/dev/null
   jq -s 'all(.[]; .schema == "murmurmark.review_decision/v1" and .decision == "todo" and (.me_utterance_ids | type) == "array" and (.suggested_decision | IN("drop_me", "keep_me", "needs_review")))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .suggested_decision == "drop_me" and .decision == "todo")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
@@ -2249,6 +2261,7 @@ PY
     --audio-judge "$judge_dir/audio_judge_v0_report.json" \
     --audio-judge-queue "$judge_dir/audio_judge_v0_queue_predictions.jsonl")"
   assert_no_helper_prefix "$latest_apply_output"
+  echo "$latest_apply_output" | grep -q '^SESSION="'
   echo "$latest_apply_output" | grep -q '^  report: .*review_decisions_apply.latest.json'
   echo "$latest_apply_output" | grep -q '^  next: murmurmark report '
   echo "$latest_apply_output" | grep -q '^readiness:$'
