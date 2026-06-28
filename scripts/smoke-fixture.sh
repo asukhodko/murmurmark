@@ -708,6 +708,7 @@ if "$bin" export "$session" --out-dir "$cli_export_block_dir" >"$cli_export_bloc
 fi
 grep -q '^export_blocked:$' "$cli_export_block_stdout"
 grep -q '^  blockers: .*pipeline_incomplete' "$cli_export_block_stdout"
+grep -q '^  recommended_next: murmurmark process ' "$cli_export_block_stdout"
 grep -q '^  next:$' "$cli_export_block_stdout"
 grep -q '^    commands:$' "$cli_export_block_stdout"
 grep -q '^      murmurmark process' "$cli_export_block_stdout"

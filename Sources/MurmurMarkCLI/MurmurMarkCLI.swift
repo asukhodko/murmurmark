@@ -7181,6 +7181,8 @@ enum ExportPrinter {
         if !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
+        let recommendedNext = nextCommands.compactMap { string($0["command"]) }.first ?? next
+        print("  recommended_next: \(recommendedNext)")
         print("  next:")
         if nextCommands.isEmpty {
             print("    \(next)")
