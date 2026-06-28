@@ -1417,7 +1417,9 @@ SESSION/derived/retention/retention_plan.json
 The plan uses `murmurmark.retention_plan/v1`. See
 [retention-policy.md](retention-policy.md) for policy, plan and audit-event schemas.
 The CLI prints a compact handoff summary after writing the plan, but the JSON file remains the
-source of truth.
+source of truth. When the session readiness gate is not exportable and no successful export manifest
+exists yet, the summary's `recommended_next` follows readiness back to `murmurmark process` or
+`murmurmark review next` rather than pointing at a blocked export.
 
 `murmurmark retention payload SESSION` writes
 `SESSION/derived/retention/provider_payload_manifest.json` using

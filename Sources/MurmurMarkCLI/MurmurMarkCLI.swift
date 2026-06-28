@@ -3808,12 +3808,40 @@ enum RetentionPrinter {
         let recommendedNext: String
         if let exportManifest, exportManifestReady {
             recommendedNext = "murmurmark retention payload \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(exportManifest))"
+        } else if let readinessNext = readinessNextCommand(session: session) {
+            recommendedNext = readinessNext
         } else {
             recommendedNext = "murmurmark export \(PathDisplay.display(session)) --format markdown --include-json"
         }
         print("  recommended_next: \(recommendedNext)")
         print("  next:")
         print("    \(recommendedNext)")
+    }
+
+    private static func readinessNextCommand(session: URL) -> String? {
+        let readinessURL = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        guard FileManager.default.fileExists(atPath: readinessURL.path),
+              let payload = try? JSONFiles.object(readinessURL)
+        else {
+            return nil
+        }
+        let gate = string(payload["use_gate"]) ?? ""
+        let exportBlockers = strings(payload["export_blockers"])
+        let reviewBlockers = strings(payload["review_blockers"])
+        let needsEarlierStep = gate != "ready_for_notes" || !exportBlockers.isEmpty || !reviewBlockers.isEmpty
+        guard needsEarlierStep else { return nil }
+        if let nextCommands = payload["next_commands"] as? [[String: Any]],
+           let command = ReadinessPrinter.preferredNextCommand(nextCommands) {
+            return command
+        }
+        let sessionPath = PathDisplay.display(session)
+        if gate.hasPrefix("pipeline_incomplete") || exportBlockers.contains("pipeline_incomplete") {
+            return "murmurmark process \(sessionPath)"
+        }
+        if gate == "review_first" || !reviewBlockers.isEmpty || !exportBlockers.isEmpty {
+            return "murmurmark review next \(sessionPath)"
+        }
+        return nil
     }
 
     private static func printPayload(session: URL, args: [String]) throws {
@@ -3878,6 +3906,10 @@ enum RetentionPrinter {
 
     private static func string(_ value: Any?) -> String? {
         value as? String
+    }
+
+    private static func strings(_ value: Any?) -> [String] {
+        (value as? [Any] ?? []).map { String(describing: $0) }
     }
 
     private static func bool(_ value: Any?) -> Bool {

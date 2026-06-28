@@ -484,6 +484,10 @@ assert_no_helper_prefix "$status_output"
 echo "$status_output" | grep -q '^readiness:$'
 echo "$status_output" | grep -q '^  status: incomplete$'
 echo "$status_output" | grep -q '^  recommended_next: murmurmark process '
+retention_readiness_output="$("$bin" retention plan "$session")"
+assert_no_helper_prefix "$retention_readiness_output"
+echo "$retention_readiness_output" | grep -q '^retention:$'
+echo "$retention_readiness_output" | grep -q '^  recommended_next: murmurmark process '
 status_latest_output="$("$bin" status --sessions-root "$workdir")"
 echo "$status_latest_output" | grep -q '^SESSION="'
 echo "$status_latest_output" | grep -q '^readiness:$'
