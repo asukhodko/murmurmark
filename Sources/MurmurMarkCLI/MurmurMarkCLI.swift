@@ -2422,6 +2422,7 @@ enum NotesCommands {
             ReviewSummaryPrinter.printReviewSummary(verdictPayload["review_summary"], indent: "  ")
         }
         print("  selected: \(kind)")
+        print("  recommended_next: less \(PathDisplay.display(url))")
         print("  next: less \(PathDisplay.display(url))")
     }
 
@@ -2587,6 +2588,7 @@ enum TranscriptCommands {
         print("transcript:")
         print("  profile: \(profile)")
         print("  path: \(PathDisplay.display(url))")
+        print("  recommended_next: less \(PathDisplay.display(url))")
         print("  next: less \(PathDisplay.display(url))")
     }
 
@@ -2658,6 +2660,7 @@ enum CleanupPrinter {
         if let warnings = gates["warnings"] as? [Any], !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
+        print("  recommended_next: murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
         print("  next:")
         print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
         print("    murmurmark report \(PathDisplay.display(session))")
@@ -2750,6 +2753,7 @@ enum RepairPrinter {
         if let warnings = gates["warnings"] as? [Any], !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
+        print("  recommended_next: murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
         print("  next:")
         print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
         print("    murmurmark transcript \(PathDisplay.display(session)) --profile \(profile)")
@@ -2786,6 +2790,7 @@ enum RepairPrinter {
         if let warnings = gates["warnings"] as? [Any], !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
+        print("  recommended_next: murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
         print("  next:")
         print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
         print("    murmurmark transcript \(PathDisplay.display(session)) --profile \(profile)")
@@ -2820,6 +2825,7 @@ enum RepairPrinter {
         if let firstAction = actionPlan.first {
             print("  next_work: \(string(firstAction["next_work"]) ?? "none")")
         }
+        print("  recommended_next: less \(PathDisplay.display(reportURL))")
         print("  next:")
         print("    less \(PathDisplay.display(reportURL))")
     }
@@ -2897,6 +2903,7 @@ enum SynthesisPrinter {
         if let overlapSeconds = doubleOptional(metrics["cross_role_overlap_gt2_seconds"]) {
             print(String(format: "  cross_role_overlap_gt2_seconds: %.2f", overlapSeconds))
         }
+        print("  recommended_next: murmurmark notes \(PathDisplay.display(session))")
         print("  next:")
         print("    murmurmark notes \(PathDisplay.display(session))")
         print("    murmurmark transcript \(PathDisplay.display(session))")

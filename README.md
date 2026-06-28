@@ -44,8 +44,8 @@ murmurmark export latest --format markdown --include-json
 murmurmark retention plan latest
 ```
 
-`report`, `review progress`, `export` and retention commands all print the next safe command
-for the current session state, so the terminal output is the main handoff. `report` starts with a
+`report`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
+all print the next safe command for the current session state, so the terminal output is the main handoff. `report` starts with a
 short status such as `exportable`, `review_required`, `incomplete` or `blocked`, plus
 `recommended_next` and `handoff` commands for opening the selected notes, transcript and verdict.
 
