@@ -522,8 +522,9 @@ echo "$review_next_output" | grep -q 'selected_profile: order_repair_v1'
 echo "$review_next_output" | grep -q 'plan: .*derived/readiness/review-plan/review_plan.json'
 echo "$review_next_output" | grep -q 'first_lane: check_transcript_order'
 echo "$review_next_output" | grep -q 'murmurmark review first-lane --session .*review-next-session'
-echo "$review_next_output" | grep -q 'murmurmark review workspace --session .*review-next-session --template .*derived/readiness/review-plan/review_decisions.template.jsonl --decisions .*derived/readiness/review-plan/review_decisions.jsonl --out-dir .*derived/readiness/review-plan'
-echo "$review_next_output" | grep -q 'murmurmark review apply --decisions .*derived/readiness/review-plan/review_decisions.jsonl .*--session-quality-out-dir .*derived/readiness/session-quality --operational-readiness-out-dir .*derived/readiness/operational-readiness --review-plan-out-dir .*derived/readiness/review-plan'
+echo "$review_next_output" | grep -q 'murmurmark review workspace --session .*review-next-session'
+echo "$review_next_output" | grep -q 'murmurmark review workspace apply --session .*review-next-session'
+echo "$review_next_output" | grep -q 'murmurmark review apply --session .*review-next-session'
 export_block_dir="$workdir/export-blocked"
 if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >/dev/null 2>&1; then
   echo "expected export to block incomplete session" >&2

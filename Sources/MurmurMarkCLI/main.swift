@@ -557,8 +557,8 @@ enum ReviewCommands {
                 return
             }
             try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
-            try apply(forwarded)
-            try ReviewPrinter.printApply(report: applyReport(from: forwarded))
+            let report = try apply(forwarded, sessionsRoot: sessionsRoot)
+            try ReviewPrinter.printApply(report: report)
         case "first-lane":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 ReviewFirstLaneCommand.printHelp()
@@ -620,16 +620,31 @@ enum ReviewCommands {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("build-review-workspace.py").path] + forwarded)
                 return
             }
-            if !ArgumentEditing.hasOption("template", in: forwarded) {
+            if let session = sessionOption(from: forwarded, sessionsRoot: sessionsRoot) {
+                try prepareSessionLocalReviewPlanIfNeeded(session: session)
+                addOption("template", sessionLocalReviewPlan(session).appendingPathComponent("review_decisions.template.jsonl").path, to: &forwarded)
+                addOption("decisions", sessionLocalReviewPlan(session).appendingPathComponent("review_decisions.jsonl").path, to: &forwarded)
+                addOption("out-dir", sessionLocalReviewPlan(session).path, to: &forwarded)
+                replaceSessionFilter(in: &forwarded, with: session.lastPathComponent)
+            } else if !ArgumentEditing.hasOption("template", in: forwarded) {
                 try ensurePlanExists()
+                try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
+            } else {
+                try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
             }
-            try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
             try Tooling.runPath(try PythonRuntime.resolve(), [try script("build-review-workspace.py").path] + forwarded)
             try ReviewPrinter.printWorkspace(outDir: workspaceOutDir(from: forwarded))
         case "apply":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-workspace-decisions.py").path] + forwarded)
                 return
+            }
+            if let session = takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot) {
+                let plan = sessionLocalReviewPlan(session)
+                addOption("workspace", plan.appendingPathComponent("review_workspace.json").path, to: &forwarded)
+                addOption("template", plan.appendingPathComponent("review_decisions.template.jsonl").path, to: &forwarded)
+                addOption("out", plan.appendingPathComponent("review_decisions.jsonl").path, to: &forwarded)
+                addOption("report", plan.appendingPathComponent("review_workspace_apply_report.json").path, to: &forwarded)
             }
             try Tooling.runPath(try PythonRuntime.resolve(), [try script("apply-review-workspace-decisions.py").path] + forwarded)
             if !ArgumentEditing.hasOption("dry-run", in: forwarded) {
@@ -655,6 +670,65 @@ enum ReviewCommands {
                 index += 1
             }
         }
+    }
+
+    private static func sessionOption(from args: [String], sessionsRoot: URL) -> URL? {
+        guard let value = ArgumentEditing.peekOption("session", in: args) else { return nil }
+        return try? SessionResolver.resolve(value, sessionsRoot: sessionsRoot)
+    }
+
+    private static func takeSessionOption(from args: inout [String], sessionsRoot: URL) -> URL? {
+        guard let value = ArgumentEditing.peekOption("session", in: args),
+              let session = try? SessionResolver.resolve(value, sessionsRoot: sessionsRoot)
+        else {
+            return nil
+        }
+        _ = ArgumentEditing.takeOption("session", from: &args)
+        return session
+    }
+
+    private static func replaceSessionFilter(in args: inout [String], with value: String) {
+        var index = 0
+        while index < args.count {
+            if args[index] == "--session", index + 1 < args.count {
+                args[index + 1] = value
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+    }
+
+    private static func addOption(_ key: String, _ value: String, to args: inout [String]) {
+        guard !ArgumentEditing.hasOption(key, in: args) else { return }
+        args += ["--\(key)", value]
+    }
+
+    private static func sessionLocalReviewPlan(_ session: URL) -> URL {
+        session.appendingPathComponent("derived/readiness/review-plan")
+    }
+
+    private static func prepareSessionLocalReviewPlanIfNeeded(session: URL) throws {
+        let readinessRoot = session.appendingPathComponent("derived/readiness")
+        let sessionQualityOut = readinessRoot.appendingPathComponent("session-quality")
+        let operationalOut = readinessRoot.appendingPathComponent("operational-readiness")
+        let planOut = readinessRoot.appendingPathComponent("review-plan")
+        try Tooling.runPath(try PythonRuntime.resolve(), [
+            try script("report-session-quality.py").path,
+            session.path,
+            "--out-dir", sessionQualityOut.path,
+            "--write-session-readiness",
+        ])
+        try Tooling.runPath(try PythonRuntime.resolve(), [
+            try script("report-operational-readiness.py").path,
+            "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
+            "--out-dir", operationalOut.path,
+        ])
+        try Tooling.runPath(try PythonRuntime.resolve(), [
+            try script("build-review-plan.py").path,
+            "--operational-readiness", operationalOut.appendingPathComponent("operational_readiness_report.json").path,
+            "--out-dir", planOut.path,
+        ])
     }
 
     private static func workspaceOutDir(from args: [String]) -> URL {
@@ -755,7 +829,18 @@ enum ReviewCommands {
         }
     }
 
-    private static func apply(_ args: [String]) throws {
+    private static func apply(_ args: [String], sessionsRoot: URL) throws -> URL {
+        var forwarded = args
+        if let session = takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot) {
+            let plan = sessionLocalReviewPlan(session)
+            addOption("decisions", plan.appendingPathComponent("review_decisions.jsonl").path, to: &forwarded)
+            addOption("review-template", plan.appendingPathComponent("review_decisions.template.jsonl").path, to: &forwarded)
+            addOption("out", plan.appendingPathComponent("review_decisions_apply_report.json").path, to: &forwarded)
+            addOption("session-quality-out-dir", session.appendingPathComponent("derived/readiness/session-quality").path, to: &forwarded)
+            addOption("operational-readiness-out-dir", session.appendingPathComponent("derived/readiness/operational-readiness").path, to: &forwarded)
+            addOption("review-plan-out-dir", plan.path, to: &forwarded)
+            forwarded += ["--session", session.lastPathComponent]
+        }
         let python = try PythonRuntime.resolve()
         try Tooling.runPath(python, [
             try script("apply-review-decisions-batch.py").path,
@@ -763,7 +848,8 @@ enum ReviewCommands {
             "--review-template", "sessions/_reports/review-plan/review_decisions.template.jsonl",
             "--synthesize",
             "--refresh-reports",
-        ] + args)
+        ] + forwarded)
+        return applyReport(from: forwarded)
     }
 
     private static func script(_ name: String) throws -> URL {
@@ -5154,11 +5240,18 @@ enum SessionResolver {
         if value == "latest" {
             return try latest(in: sessionsRoot)
         }
-        let session = PathURLs.fileURL(value)
-        guard FileManager.default.fileExists(atPath: session.appendingPathComponent("session.json").path) else {
-            throw CLIError("session.json not found under \(session.path)")
+        let fileManager = FileManager.default
+        let direct = PathURLs.fileURL(value)
+        if fileManager.fileExists(atPath: direct.appendingPathComponent("session.json").path) {
+            return direct
         }
-        return session
+        if !value.hasPrefix("/") {
+            let rooted = sessionsRoot.appendingPathComponent(value)
+            if fileManager.fileExists(atPath: rooted.appendingPathComponent("session.json").path) {
+                return rooted
+            }
+        }
+        throw CLIError("session.json not found for \(value) under \(direct.path) or \(sessionsRoot.path)")
     }
 
     static func latest(in root: URL) throws -> URL {
@@ -5453,22 +5546,11 @@ enum ReviewNextPrinter {
     }
 
     private static func sessionLocalReviewCommands(sessionID: String, planOutDir: URL) -> [String] {
-        let readinessRoot = planOutDir.deletingLastPathComponent()
-        let plan = PathDisplay.display(planOutDir)
-        let template = PathDisplay.display(planOutDir.appendingPathComponent("review_decisions.template.jsonl"))
-        let decisions = PathDisplay.display(planOutDir.appendingPathComponent("review_decisions.jsonl"))
-        let workspace = PathDisplay.display(planOutDir.appendingPathComponent("review_workspace.json"))
-        let workspaceApply = PathDisplay.display(planOutDir.appendingPathComponent("review_workspace_apply_report.json"))
-        let applyReport = PathDisplay.display(planOutDir.appendingPathComponent("review_decisions_apply_report.json"))
-        let sessionQualityOut = PathDisplay.display(readinessRoot.appendingPathComponent("session-quality"))
-        let operationalOut = PathDisplay.display(readinessRoot.appendingPathComponent("operational-readiness"))
         return [
             "murmurmark review first-lane --session \(sessionID)",
-            "murmurmark review workspace --session \(sessionID) --template \(template) --decisions \(decisions) --out-dir \(plan)",
-            "murmurmark review workspace apply --workspace \(workspace) --template \(template) --out \(decisions) --report \(workspaceApply)",
-            "murmurmark review apply --decisions \(decisions) --review-template \(template) --out \(applyReport) "
-                + "--session-quality-out-dir \(sessionQualityOut) --operational-readiness-out-dir \(operationalOut) "
-                + "--review-plan-out-dir \(plan)",
+            "murmurmark review workspace --session \(sessionID)",
+            "murmurmark review workspace apply --session \(sessionID)",
+            "murmurmark review apply --session \(sessionID)",
         ]
     }
 

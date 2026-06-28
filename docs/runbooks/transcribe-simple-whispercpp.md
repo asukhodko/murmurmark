@@ -635,9 +635,10 @@ is clear.
 `murmurmark review next "$SESSION"` is the quickest entry point for one session: it refreshes
 `session_readiness.json`, shows gate/profile/verdict/review burden, builds a session-local review
 plan if needed, then prints the next review commands. `murmurmark review first-lane --session
-"$SESSION"` now defaults to that session-local plan; workspace/apply commands print explicit local
-`--template`, `--out` and refresh output paths. Use `murmurmark review plan` for the global corpus
-queue.
+"$SESSION"` now defaults to that session-local plan. The same is true for
+`murmurmark review workspace --session "$SESSION"`, `murmurmark review workspace apply --session
+"$SESSION"` and `murmurmark review apply --session "$SESSION"`. Use `murmurmark review plan` for the
+global corpus queue.
 `murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended lane.
 With `--session`, its default paths are under `SESSION/derived/readiness/`; without `--session`, it
 uses the global corpus queue under `sessions/_reports/`.
