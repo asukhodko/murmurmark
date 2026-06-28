@@ -969,6 +969,20 @@ echo "$default_exported_next" | grep -q '^murmurmark retention plan '
 default_sessions_json="$(cd "$workdir" && "$bin" sessions --sessions-root "$workdir" --status exported --json --limit 1)"
 printf '%s\n' "$default_sessions_json" | jq -e '.items[0].status == "exported" and (.items[0].next | startswith("murmurmark retention plan ")) and (.items[0].export_manifest | endswith("exports/private/export-ready-session/export_manifest.json"))' >/dev/null
 [[ -z "$(cd "$workdir" && "$bin" sessions --sessions-root "$workdir" --status exportable --next-only --limit 1)" ]]
+jq -n --arg session "$ready_export_session" '{
+  schema: "murmurmark.operational_readiness_report/v1",
+  operational_verdict: "ready",
+  summary: {session_count: 1, excluded_diagnostic_session_count: 0, total_review_burden_sec: 0, review_action_count: 0},
+  next_commands: [
+    {id: "export_session", command: ("murmurmark export " + $session + " --format markdown --include-json")},
+    {id: "retention_plan", command: ("murmurmark retention plan " + $session)}
+  ]
+}' >"$workdir/_reports/operational-readiness/operational_readiness_report.json"
+corpus_exported_next_output="$(cd "$workdir" && "$bin" next corpus --sessions-root "$workdir")"
+assert_no_helper_prefix "$corpus_exported_next_output"
+echo "$corpus_exported_next_output" | grep -q '^  command: murmurmark retention plan '
+echo "$corpus_exported_next_output" | grep -q '^  source: export_manifest$'
+echo "$corpus_exported_next_output" | grep -q '^  export_manifest: .*exports/private/export-ready-session/export_manifest.json$'
 
 audit_python=""
 if [[ -x "$repo_root/.venv/bin/python" ]] && "$repo_root/.venv/bin/python" - <<'PY' >/dev/null 2>&1

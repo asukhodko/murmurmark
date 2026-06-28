@@ -1635,7 +1635,9 @@ has `review_lane_pack.<lane>.json`, the compact handoff may use that pack as sou
 `review_lane_pack` and promote the prepared `afplay`/`less`/answer-sheet flow over rebuilding the
 same lane pack. It also prints `answer_sheet_status`; once the answer sheet contains reviewed
 answers, `command` switches to lane apply `--dry-run` and the non-dry-run apply command remains
-visible as the follow-up.
+visible as the follow-up. If the first corpus command is export and the default successful
+`exports/private/<session>/export_manifest.json` already exists, `next corpus` uses source
+`export_manifest` and points to retention instead of repeating export.
 The same terminal summary prints `handoff` commands for opening selected notes, transcript and
 quality verdict. When the derived status is `exportable`, it also prints export and retention
 commands. This is CLI presentation only; `outputs`, `next_commands`, gates and blockers remain the

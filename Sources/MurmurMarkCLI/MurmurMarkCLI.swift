@@ -8605,12 +8605,25 @@ enum CorpusPrinter {
         let reviewSeconds = double(summary["total_review_burden_sec"]) ?? 0
         let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
         let lanePack = preparedLanePackHandoff(payload: payload, sessionsRoot: sessionsRoot)
-        let command = lanePack?.command ?? nextCommands.compactMap { string($0["command"]) }.first ?? reportCommand
+        let readinessCommand = nextCommands.compactMap { string($0["command"]) }.first
+        let exportHandoff = lanePack == nil ? successfulExportHandoff(fromNextCommand: readinessCommand) : nil
+        let command = lanePack?.command ?? exportHandoff?.command ?? readinessCommand ?? reportCommand
+        let source: String
+        if lanePack != nil {
+            source = "review_lane_pack"
+        } else if exportHandoff != nil {
+            source = "export_manifest"
+        } else {
+            source = "operational_readiness"
+        }
         print("")
         print("corpus_next:")
         print("  status: \(string(payload["operational_verdict"]) ?? "unknown")")
         print("  command: \(command)")
-        print("  source: \(lanePack == nil ? "operational_readiness" : "review_lane_pack")")
+        print("  source: \(source)")
+        if let exportHandoff {
+            print("  export_manifest: \(PathDisplay.display(exportHandoff.manifest))")
+        }
         print("  report: \(PathDisplay.display(outDir.appendingPathComponent("operational_readiness_report.md")))")
         print("  sessions_in_scope: \(int(summary["session_count"]) ?? 0)")
         print("  sessions_excluded: \(int(summary["excluded_diagnostic_session_count"]) ?? 0)")
@@ -8652,6 +8665,55 @@ enum CorpusPrinter {
         let answerSheetStatus: String?
         let dryRunCommand: String?
         let applyCommand: String?
+    }
+
+    private struct ExportHandoff {
+        let command: String
+        let manifest: URL
+    }
+
+    private static func successfulExportHandoff(fromNextCommand command: String?) -> ExportHandoff? {
+        guard let session = exportSession(from: command) else { return nil }
+        let manifestURL = PathURLs.fileURL("exports/private")
+            .appendingPathComponent(session.lastPathComponent)
+            .appendingPathComponent("export_manifest.json")
+        guard FileManager.default.fileExists(atPath: manifestURL.path),
+              let payload = try? JSONFiles.object(manifestURL)
+        else {
+            return nil
+        }
+        guard string(payload["schema"]) == "murmurmark.export_manifest/v1" else { return nil }
+        let status = string(payload["status"]) ?? ""
+        guard status == "exported" || status == "exported_with_warnings" else { return nil }
+        let blockers = payload["blockers"] as? [Any] ?? []
+        guard blockers.isEmpty else { return nil }
+        if let nextCommands = payload["next_commands"] as? [[String: Any]],
+           let command = ReadinessPrinter.preferredNextCommand(nextCommands) {
+            return ExportHandoff(command: command, manifest: manifestURL)
+        }
+        if let next = string(payload["next"]), !next.isEmpty {
+            return ExportHandoff(command: next, manifest: manifestURL)
+        }
+        return nil
+    }
+
+    private static func exportSession(from command: String?) -> URL? {
+        guard let command, command.hasPrefix("murmurmark export ") else { return nil }
+        let rest = command.dropFirst("murmurmark export ".count)
+        guard let rawToken = rest.split(whereSeparator: \.isWhitespace).first else { return nil }
+        let token = unquoteShellToken(String(rawToken))
+        guard token != "latest", !token.hasPrefix("--") else { return nil }
+        return PathURLs.fileURL(token)
+    }
+
+    private static func unquoteShellToken(_ token: String) -> String {
+        if token.count >= 2,
+           let first = token.first,
+           let last = token.last,
+           first == "'" && last == "'" || first == "\"" && last == "\"" {
+            return String(token.dropFirst().dropLast())
+        }
+        return token
     }
 
     private static func preparedLanePackHandoff(payload: [String: Any], sessionsRoot: URL) -> PreparedLanePackHandoff? {
