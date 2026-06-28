@@ -634,12 +634,13 @@ the review queue changes. Keep the other lanes conservative unless the audio or 
 is clear.
 `murmurmark review next "$SESSION"` is the quickest entry point for one session: it refreshes
 `session_readiness.json`, shows gate/profile/verdict/review burden, builds a session-local review
-plan if needed, then prints the next review commands with explicit local `--plan-out-dir`,
+plan if needed, then prints the next review commands. `murmurmark review first-lane --session
+"$SESSION"` now defaults to that session-local plan; workspace/apply commands print explicit local
 `--template`, `--out` and refresh output paths. Use `murmurmark review plan` for the global corpus
 queue.
-`murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended
-lane. Use it when you want the next concrete review artifact without manually copying commands from
-`review_plan.md`.
+`murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended lane.
+With `--session`, its default paths are under `SESSION/derived/readiness/`; without `--session`, it
+uses the global corpus queue under `sessions/_reports/`.
 `review-decisions-cli.py` is the normal way to fill the checklist: it plays each preferred clip,
 shows the transcript rows, respects each row's `allowed_decisions`, and writes
 `review_decisions.jsonl` after every answer. It also prints nearby turns from the reviewed transcript

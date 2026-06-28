@@ -841,8 +841,7 @@ enum ReviewNextCommand {
         }
         try ReviewNextPrinter.print(
             session: session,
-            planOutDir: reviewPlanOut,
-            operationalReadiness: operationalOut.appendingPathComponent("operational_readiness_report.json")
+            planOutDir: reviewPlanOut
         )
     }
 
@@ -882,23 +881,60 @@ enum ReviewFirstLaneCommand {
         guard !ArgumentEditing.hasOption("lane", in: forwarded) else {
             throw CLIError("review first-lane chooses --lane from review_plan.json; pass --session/--out-dir only")
         }
-        let operationalReadiness = ArgumentEditing.takeOption("operational-readiness", from: &forwarded)
-        let planOutDir = ArgumentEditing.takeOption("plan-out-dir", from: &forwarded) ?? "sessions/_reports/review-plan"
-        let planURL = PathURLs.fileURL(planOutDir)
-        var planArgs = ["--out-dir", planOutDir]
+        let explicitOperationalReadiness = ArgumentEditing.takeOption("operational-readiness", from: &forwarded)
+        let explicitPlanOutDir = ArgumentEditing.takeOption("plan-out-dir", from: &forwarded)
+        let explicitOutDir = ArgumentEditing.takeOption("out-dir", from: &forwarded)
+        let sessionFilter = ArgumentEditing.peekOption("session", in: forwarded)
+        let session = try sessionFilter.map { try SessionResolver.resolve($0, sessionsRoot: sessionsRoot) }
+
+        var operationalReadiness = explicitOperationalReadiness.map(PathURLs.fileURL)
+        let planURL: URL
+        let lanePackOutURL: URL
+
+        if let session {
+            let readinessRoot = session.appendingPathComponent("derived/readiness")
+            let sessionQualityOut = readinessRoot.appendingPathComponent("session-quality")
+            let operationalOut = readinessRoot.appendingPathComponent("operational-readiness")
+            planURL = explicitPlanOutDir.map(PathURLs.fileURL) ?? readinessRoot.appendingPathComponent("review-plan")
+            lanePackOutURL = explicitOutDir.map(PathURLs.fileURL) ?? planURL.appendingPathComponent("lane-packs")
+            if operationalReadiness == nil {
+                try Tooling.runPath(try PythonRuntime.resolve(), [
+                    try script("report-session-quality.py").path,
+                    session.path,
+                    "--out-dir", sessionQualityOut.path,
+                    "--write-session-readiness",
+                ])
+                try Tooling.runPath(try PythonRuntime.resolve(), [
+                    try script("report-operational-readiness.py").path,
+                    "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
+                    "--out-dir", operationalOut.path,
+                ])
+                operationalReadiness = operationalOut.appendingPathComponent("operational_readiness_report.json")
+            }
+        } else {
+            planURL = explicitPlanOutDir.map(PathURLs.fileURL) ?? PathURLs.fileURL("sessions/_reports/review-plan")
+            lanePackOutURL = explicitOutDir.map(PathURLs.fileURL) ?? PathURLs.fileURL("sessions/_reports/review-plan/lane-packs")
+        }
+
+        var planArgs = ["--out-dir", planURL.path]
         if let operationalReadiness {
-            planArgs += ["--operational-readiness", operationalReadiness]
+            planArgs += ["--operational-readiness", operationalReadiness.path]
         }
         try buildPlan(extraArgs: planArgs, refreshOperational: operationalReadiness == nil)
         let lane = try firstRecommendedLane(planOutDir: planURL)
-        try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
+        if let session {
+            replaceSessionFilter(in: &forwarded, with: session.lastPathComponent)
+        } else {
+            try rewriteLatestSessionFilters(in: &forwarded, sessionsRoot: sessionsRoot)
+        }
         try Tooling.runPath(try PythonRuntime.resolve(), [
             try script("build-review-lane-pack.py").path,
             "--template", planURL.appendingPathComponent("review_decisions.template.jsonl").path,
             "--decisions", planURL.appendingPathComponent("review_decisions.jsonl").path,
             "--lane", lane,
+            "--out-dir", lanePackOutURL.path,
         ] + forwarded)
-        try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutDir(from: forwarded))
+        try ReviewPrinter.printLanePack(lane: lane, outDir: lanePackOutURL)
     }
 
     static func printHelp() {
@@ -907,6 +943,9 @@ enum ReviewFirstLaneCommand {
 
         Refreshes the review plan, reads review_queue_strategy.first_recommended_lane,
         then builds one review lane pack for that lane.
+
+        With --session, defaults are session-local under SESSION/derived/readiness/.
+        Without --session, defaults are the global corpus review plan under sessions/_reports/.
 
         Options:
           --operational-readiness PATH  Default: sessions/_reports/operational-readiness/operational_readiness_report.json
@@ -939,6 +978,18 @@ enum ReviewFirstLaneCommand {
         }
     }
 
+    private static func replaceSessionFilter(in args: inout [String], with value: String) {
+        var index = 0
+        while index < args.count {
+            if args[index] == "--session", index + 1 < args.count {
+                args[index + 1] = value
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+    }
+
     private static func firstRecommendedLane(planOutDir: URL) throws -> String {
         let plan = try JSONFiles.object(planOutDir.appendingPathComponent("review_plan.json"))
         let strategy = plan["review_queue_strategy"] as? [String: Any] ?? [:]
@@ -961,10 +1012,6 @@ enum ReviewFirstLaneCommand {
             }
         }
         return "fast_confirm_drop"
-    }
-
-    private static func lanePackOutDir(from args: [String]) -> URL {
-        PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: args) ?? "sessions/_reports/review-plan/lane-packs")
     }
 
     private static func script(_ name: String) throws -> URL {
@@ -5304,7 +5351,7 @@ enum ReadinessPrinter {
 }
 
 enum ReviewNextPrinter {
-    static func print(session: URL, planOutDir: URL, operationalReadiness: URL) throws {
+    static func print(session: URL, planOutDir: URL) throws {
         let readinessURL = session.appendingPathComponent("derived/readiness/session_readiness.json")
         guard FileManager.default.fileExists(atPath: readinessURL.path) else {
             Swift.print("")
@@ -5328,6 +5375,7 @@ enum ReviewNextPrinter {
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0.0) * 100.0
         let synthesisReviewCount = int(metrics["synthesis_review_item_count"]) ?? 0
         let sessionPath = PathDisplay.display(session)
+        let sessionID = session.lastPathComponent
 
         Swift.print("")
         Swift.print("review_next:")
@@ -5352,8 +5400,8 @@ enum ReviewNextPrinter {
             nextCommands,
             gate: gate,
             sessionPath: sessionPath,
-            planOutDir: planOutDir,
-            operationalReadiness: operationalReadiness
+            sessionID: sessionID,
+            planOutDir: planOutDir
         ) {
             Swift.print("    \(command)")
         }
@@ -5381,15 +5429,11 @@ enum ReviewNextPrinter {
         _ rows: [[String: Any]],
         gate: String,
         sessionPath: String,
-        planOutDir: URL,
-        operationalReadiness: URL
+        sessionID: String,
+        planOutDir: URL
     ) -> [String] {
         if FileManager.default.fileExists(atPath: planOutDir.appendingPathComponent("review_plan.json").path) {
-            return sessionLocalReviewCommands(
-                sessionPath: sessionPath,
-                planOutDir: planOutDir,
-                operationalReadiness: operationalReadiness
-            )
+            return sessionLocalReviewCommands(sessionID: sessionID, planOutDir: planOutDir)
         }
         let commands = rows.compactMap { string($0["command"]) }.filter { !$0.isEmpty }
         let reviewCommands = commands.filter { $0.contains("murmurmark review") }
@@ -5408,22 +5452,19 @@ enum ReviewNextPrinter {
         return commands.isEmpty ? ["less \(sessionPath)/derived/readiness/session_readiness.md"] : commands
     }
 
-    private static func sessionLocalReviewCommands(sessionPath: String, planOutDir: URL, operationalReadiness: URL) -> [String] {
+    private static func sessionLocalReviewCommands(sessionID: String, planOutDir: URL) -> [String] {
         let readinessRoot = planOutDir.deletingLastPathComponent()
         let plan = PathDisplay.display(planOutDir)
-        let lanePacks = PathDisplay.display(planOutDir.appendingPathComponent("lane-packs"))
         let template = PathDisplay.display(planOutDir.appendingPathComponent("review_decisions.template.jsonl"))
         let decisions = PathDisplay.display(planOutDir.appendingPathComponent("review_decisions.jsonl"))
         let workspace = PathDisplay.display(planOutDir.appendingPathComponent("review_workspace.json"))
         let workspaceApply = PathDisplay.display(planOutDir.appendingPathComponent("review_workspace_apply_report.json"))
         let applyReport = PathDisplay.display(planOutDir.appendingPathComponent("review_decisions_apply_report.json"))
-        let operational = PathDisplay.display(operationalReadiness)
         let sessionQualityOut = PathDisplay.display(readinessRoot.appendingPathComponent("session-quality"))
-        let operationalOut = PathDisplay.display(operationalReadiness.deletingLastPathComponent())
+        let operationalOut = PathDisplay.display(readinessRoot.appendingPathComponent("operational-readiness"))
         return [
-            "murmurmark review first-lane --session \(sessionPath) "
-                + "--operational-readiness \(operational) --plan-out-dir \(plan) --out-dir \(lanePacks)",
-            "murmurmark review workspace --session \(sessionPath) --template \(template) --decisions \(decisions) --out-dir \(plan)",
+            "murmurmark review first-lane --session \(sessionID)",
+            "murmurmark review workspace --session \(sessionID) --template \(template) --decisions \(decisions) --out-dir \(plan)",
             "murmurmark review workspace apply --workspace \(workspace) --template \(template) --out \(decisions) --report \(workspaceApply)",
             "murmurmark review apply --decisions \(decisions) --review-template \(template) --out \(applyReport) "
                 + "--session-quality-out-dir \(sessionQualityOut) --operational-readiness-out-dir \(operationalOut) "
