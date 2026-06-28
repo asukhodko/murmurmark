@@ -529,7 +529,8 @@ enum PipelineCommands {
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
         try Tooling.runPath(python, command)
-        try ReadinessPrinter.printSession(session)
+        let planOnly = ArgumentEditing.hasOption("plan-only", in: forwarded)
+        try ReadinessPrinter.printSession(session, label: planOnly ? "existing_readiness" : "readiness")
     }
 
     static func report(_ args: [String]) throws {
@@ -6716,10 +6717,10 @@ enum SessionResolver {
 }
 
 enum ReadinessPrinter {
-    static func printSession(_ session: URL) throws {
+    static func printSession(_ session: URL, label: String = "readiness") throws {
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
         guard FileManager.default.fileExists(atPath: url.path) else {
-            print("readiness: missing")
+            print("\(label): missing")
             print("hint: run `murmurmark report \(PathDisplay.display(session))`")
             return
         }
@@ -6738,7 +6739,7 @@ enum ReadinessPrinter {
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0) * 100
 
         print("")
-        print("readiness:")
+        print("\(label):")
         print("  session: \(PathDisplay.display(session))")
         print("  status: \(status)")
         if let recommendedNext {

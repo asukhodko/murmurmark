@@ -1928,6 +1928,15 @@ EOF
   jq -e 'all(.steps[]; (.started_at | type) == "string" and (.duration_sec | type) == "number")' "$pipeline_plan" >/dev/null
   jq -e 'any(.steps[]; .name == "plan_remote_leak_segment_repair")' "$pipeline_plan" >/dev/null
   jq -e 'any(.steps[]; .name == "session_readiness")' "$pipeline_plan" >/dev/null
+  cli_pipeline_plan_out="$workdir/cli-pipeline-plan.out"
+  "$bin" process "$group_session" \
+    --plan-only \
+    --skip-build \
+    --reuse-asr-cache >"$cli_pipeline_plan_out"
+  grep -q '^pipeline_plan:$' "$cli_pipeline_plan_out"
+  grep -q '^pipeline_run:$' "$cli_pipeline_plan_out"
+  grep -q '^existing_readiness:$' "$cli_pipeline_plan_out"
+  ! grep -q '^readiness:$' "$cli_pipeline_plan_out"
   corpus_process_help="$("$bin" corpus process --help)"
   echo "$corpus_process_help" | grep -q 'plan-remote-leak-segment-repair.py'
   main_help="$("$bin" --help)"

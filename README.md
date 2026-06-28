@@ -295,7 +295,8 @@ and extractive synthesis, then writes
 While it runs, it prints each stage as `[run]`, `[passed]`, `[failed]` or `[skip]` with duration.
 Long stages also emit a heartbeat such as `[run] transcribe_current still running (120.4s)`.
 Use `--progress-interval-sec 0` to disable these heartbeat lines. `--plan-only` prints a compact
-`pipeline_plan` block with enabled/skipped steps and `recommended_next` instead of the live stage log.
+`pipeline_plan` block with enabled/skipped steps and `recommended_next` instead of the live stage log;
+the following readiness block is labelled `existing_readiness` because no new processing was run.
 Read `session_readiness.md` first, or run `murmurmark report SESSION` for the terminal version. The
 CLI prints a short status, `recommended_next`, the session use gate, selected profile, review burden,
 synthesis review item summary, next CLI commands, `handoff` open/export commands, and links to the

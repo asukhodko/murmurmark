@@ -58,7 +58,8 @@ to rebuild repair, cleanup, synthesis and reports from cached ASR JSON. The runn
 with `[run]`, `[passed]`, `[failed]` or `[skip]`, prints heartbeat lines for long-running stages, and
 stores the same stage list in `derived/pipeline-run/pipeline_run_report.json`. Use
 `--progress-interval-sec 0` if you need a quieter run. Use `--plan-only` to print a compact
-`pipeline_plan` with enabled/skipped stages and the next command without executing the pipeline.
+`pipeline_plan` with enabled/skipped stages and the next command without executing the pipeline;
+the CLI labels the following readiness summary as `existing_readiness`.
 
 For the usual record-then-process flow:
 
