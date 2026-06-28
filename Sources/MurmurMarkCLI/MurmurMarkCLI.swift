@@ -8546,17 +8546,30 @@ enum CorpusPrinter {
         let summary = payload["summary"] as? [String: Any] ?? [:]
         let reviewSeconds = double(summary["total_review_burden_sec"]) ?? 0
         let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
-        let command = nextCommands.compactMap { string($0["command"]) }.first ?? reportCommand
+        let lanePack = preparedLanePackHandoff(payload: payload, sessionsRoot: sessionsRoot)
+        let command = lanePack?.command ?? nextCommands.compactMap { string($0["command"]) }.first ?? reportCommand
         print("")
         print("corpus_next:")
         print("  status: \(string(payload["operational_verdict"]) ?? "unknown")")
         print("  command: \(command)")
-        print("  source: operational_readiness")
+        print("  source: \(lanePack == nil ? "operational_readiness" : "review_lane_pack")")
         print("  report: \(PathDisplay.display(outDir.appendingPathComponent("operational_readiness_report.md")))")
         print("  sessions_in_scope: \(int(summary["session_count"]) ?? 0)")
         print("  sessions_excluded: \(int(summary["excluded_diagnostic_session_count"]) ?? 0)")
         print(String(format: "  review_minutes: %.2f", reviewSeconds / 60))
         print("  review_actions: \(int(summary["review_action_count"]) ?? int(summary["review_queue_items"]) ?? 0)")
+        if let lanePack {
+            print("  lane_pack: \(PathDisplay.display(lanePack.manifest))")
+            if let markdown = lanePack.markdown {
+                print("  read: less \(shellQuote(PathDisplay.display(markdown)))")
+            }
+            if let answerSheet = lanePack.answerSheet {
+                print("  edit: $EDITOR \(shellQuote(PathDisplay.display(answerSheet)))")
+            }
+            if let apply = lanePack.applyCommand {
+                print("  apply: \(apply)")
+            }
+        }
         if nextCommands.count > 1 {
             print("  alternatives:")
             for item in nextCommands.dropFirst().prefix(4) {
@@ -8565,6 +8578,68 @@ enum CorpusPrinter {
             }
         }
         printOperationalFocus(payload)
+    }
+
+    private struct PreparedLanePackHandoff {
+        let command: String
+        let manifest: URL
+        let markdown: URL?
+        let answerSheet: URL?
+        let applyCommand: String?
+    }
+
+    private static func preparedLanePackHandoff(payload: [String: Any], sessionsRoot: URL) -> PreparedLanePackHandoff? {
+        guard let focus = firstReviewFocus(payload) else { return nil }
+        let sessionID = string(focus["session_id"])
+            ?? string(focus["session"]).map { URL(fileURLWithPath: $0).lastPathComponent }
+            ?? ""
+        guard !sessionID.isEmpty,
+              let lane = focusLane(payload, focus: focus, sessionID: sessionID)
+        else {
+            return nil
+        }
+
+        let session = focusSessionURL(focus: focus, sessionID: sessionID, sessionsRoot: sessionsRoot)
+        let lanePackDir = session.appendingPathComponent("derived/readiness/review-plan/lane-packs")
+        let manifest = lanePackDir.appendingPathComponent("review_lane_pack.\(lane).json")
+        guard FileManager.default.fileExists(atPath: manifest.path),
+              let payload = try? JSONFiles.object(manifest)
+        else {
+            return nil
+        }
+
+        let outputs = payload["outputs"] as? [String: Any] ?? [:]
+        let audio = urlFromOutput(outputs["audio"])
+        let markdown = urlFromOutput(outputs["markdown"])
+        let answerSheet = urlFromOutput(outputs["answer_sheet"])
+        let primary = audio.map { "afplay \(shellQuote(PathDisplay.display($0)))" }
+            ?? markdown.map { "less \(shellQuote(PathDisplay.display($0)))" }
+            ?? answerSheet.map { "$EDITOR \(shellQuote(PathDisplay.display($0)))" }
+        guard let command = primary else { return nil }
+
+        return PreparedLanePackHandoff(
+            command: command,
+            manifest: manifest,
+            markdown: markdown,
+            answerSheet: answerSheet,
+            applyCommand: "murmurmark review lane apply \(lane) --session \(PathDisplay.display(session))"
+        )
+    }
+
+    private static func focusSessionURL(focus: [String: Any], sessionID: String, sessionsRoot: URL) -> URL {
+        if let sessionPath = string(focus["session"]), !sessionPath.isEmpty {
+            return PathURLs.fileURL(sessionPath)
+        }
+        if sessionID.contains("/") {
+            return PathURLs.fileURL(sessionID)
+        }
+        return sessionsRoot.appendingPathComponent(sessionID)
+    }
+
+    private static func urlFromOutput(_ value: Any?) -> URL? {
+        guard let path = string(value), !path.isEmpty else { return nil }
+        let url = PathURLs.fileURL(path)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
     private static func corpusReportCommand(sessionsRoot: URL) -> String {
@@ -8647,6 +8722,13 @@ enum CorpusPrinter {
         }
         let rows = payload["session_review_burden"] as? [[String: Any]] ?? []
         return rows.first { string($0["use_gate"]) == "review_first" }
+    }
+
+    private static func shellQuote(_ value: String) -> String {
+        if value.range(of: #"^[A-Za-z0-9_./:@%+=,-]+$"#, options: .regularExpression) != nil {
+            return value
+        }
+        return "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     private static func string(_ value: Any?) -> String? {

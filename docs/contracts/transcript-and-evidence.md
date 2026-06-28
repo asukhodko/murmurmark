@@ -1622,7 +1622,10 @@ export bundle.
 prints `corpus_next.command`, operational verdict, review burden, focus metadata and alternatives
 from `operational_readiness_report.json`. With `--refresh`, it first regenerates session-quality and
 operational-readiness reports; without `--refresh`, it only reads the existing report and points to
-`murmurmark report corpus` when the report is missing.
+`murmurmark report corpus` when the report is missing. If the report's focus session/lane already
+has `review_lane_pack.<lane>.json`, the compact handoff may use that pack as source
+`review_lane_pack` and promote the prepared `afplay`/`less`/answer-sheet flow over rebuilding the
+same lane pack.
 The same terminal summary prints `handoff` commands for opening selected notes, transcript and
 quality verdict. When the derived status is `exportable`, it also prints export and retention
 commands. This is CLI presentation only; `outputs`, `next_commands`, gates and blockers remain the

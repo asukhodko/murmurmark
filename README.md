@@ -66,7 +66,8 @@ a machine-readable queue snapshot.
 If readiness is not present yet, `status` and `next` point to `murmurmark process SESSION`.
 Use `murmurmark next corpus` after corpus reports exist when you need one concrete next command
 across the whole working-meeting corpus; add `--refresh` to rebuild session-quality and
-operational-readiness reports first.
+operational-readiness reports first. If the recommended review lane pack is already built, it points
+to the prepared audio/Markdown/answer-sheet handoff instead of rebuilding the same pack.
 After a successful export, `next` follows the export manifest and points to retention planning; pass
 `--export-manifest` when the bundle was written outside the default `exports/private/` directory.
 `status` and `report` start with a short status such as `exportable`, `review_required`, `incomplete` or `blocked`, plus

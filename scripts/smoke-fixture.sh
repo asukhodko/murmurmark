@@ -551,6 +551,45 @@ assert_no_helper_prefix "$corpus_next_output"
 echo "$corpus_next_output" | grep -q '^corpus_next:$'
 echo "$corpus_next_output" | grep -q '^  command: '
 echo "$corpus_next_output" | grep -q '^  sessions_in_scope: '
+corpus_next_root="$workdir/corpus-next-root"
+corpus_next_session="$corpus_next_root/session-a"
+corpus_next_lane_dir="$corpus_next_session/derived/readiness/review-plan/lane-packs"
+mkdir -p "$corpus_next_lane_dir" "$corpus_next_root/_reports/operational-readiness"
+echo '{}' >"$corpus_next_session/session.json"
+touch "$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.wav"
+echo '# Review lane' >"$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.md"
+echo 'answers=' >"$corpus_next_lane_dir/review_lane_answers.check_unique_me_content.txt"
+jq -n --arg audio "$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.wav" \
+  --arg markdown "$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.md" \
+  --arg answer "$corpus_next_lane_dir/review_lane_answers.check_unique_me_content.txt" '{
+    schema: "murmurmark.review_lane_pack/v1",
+    outputs: {audio: $audio, markdown: $markdown, answer_sheet: $answer},
+    summary: {selected_rows: 1, item_count: 1}
+  }' >"$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.json"
+jq -n --arg session "$corpus_next_session" '{
+  schema: "murmurmark.operational_readiness_report/v1",
+  operational_verdict: "not_ready",
+  summary: {session_count: 1, excluded_diagnostic_session_count: 0, total_review_burden_sec: 9, review_action_count: 1},
+  next_commands: [
+    {id: "review_first_lane", command: ("murmurmark review first-lane --session " + $session)},
+    {id: "review_workspace", command: ("murmurmark review workspace --session " + $session)}
+  ],
+  review_queue: [
+    {
+      session_id: "session-a",
+      session: $session,
+      label: "remote_duplicate",
+      review_lane: "check_unique_me_content",
+      review_action: "check_unique_me_content"
+    }
+  ]
+}' >"$corpus_next_root/_reports/operational-readiness/operational_readiness_report.json"
+corpus_lane_next_output="$("$bin" next corpus --sessions-root "$corpus_next_root")"
+assert_no_helper_prefix "$corpus_lane_next_output"
+echo "$corpus_lane_next_output" | grep -q '^  source: review_lane_pack$'
+echo "$corpus_lane_next_output" | grep -q '^  command: afplay .*review_lane_pack.check_unique_me_content.wav'
+echo "$corpus_lane_next_output" | grep -q '^  read: less .*review_lane_pack.check_unique_me_content.md'
+echo "$corpus_lane_next_output" | grep -q '^  edit: \$EDITOR .*review_lane_answers.check_unique_me_content.txt'
 [[ -s "$workdir/_reports/session-quality/session_quality_report.json" ]]
 [[ -s "$workdir/_reports/operational-readiness/operational_readiness_report.json" ]]
 jq -e '(.export_blockers | index("pipeline_incomplete")) and (.review_blockers | index("pipeline_incomplete"))' "$session/derived/readiness/session_readiness.json" >/dev/null

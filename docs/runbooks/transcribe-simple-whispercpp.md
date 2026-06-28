@@ -116,6 +116,8 @@ used a non-default output directory, pass `--export-manifest ./path/to/export_ma
 Use `murmurmark next corpus` when operational-readiness reports already exist and you need the one
 next command across the whole working-meeting corpus. Add `--refresh` when session-quality and
 operational-readiness should be regenerated first, but heavier corpus diagnostics should stay as-is.
+If the focus session's recommended lane pack already exists, `next corpus` switches from “build the
+lane pack” to the prepared review handoff: `afplay`, `less`, `$EDITOR`, then lane apply.
 Use `murmurmark open SESSION` when you need the selected local artifact rather than the next action.
 It resolves paths from `session_readiness.json` and prints `less ...` commands for notes,
 transcript, verdict, readiness and audit reports; `--cat` streams one artifact to stdout.
@@ -738,7 +740,10 @@ decisions rather than only the noisier raw row count.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
 `--refresh` it first rebuilds session-quality and operational-readiness reports, then prints
-`corpus_next.command`, focus metadata and alternatives.
+`corpus_next.command`, focus metadata and alternatives. When the focus lane pack already exists under
+`SESSION/derived/readiness/review-plan/lane-packs/`, `corpus_next.source` becomes
+`review_lane_pack` and the command becomes the actual next review action, usually `afplay` for the
+assembled lane audio.
 Stale audio-judge queue rows are also ignored when the current audio-review audit has reclassified
 the source item as reliable.
 `murmurmark corpus order` writes a separate chronology-risk corpus report under
