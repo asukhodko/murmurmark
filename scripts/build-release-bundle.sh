@@ -48,7 +48,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-version="$(awk -F'"' '/let murmurmarkVersion/ {print $2; exit}' "$repo_root/Sources/MurmurMarkCLI/main.swift")"
+version="$(awk -F'"' '/static let version/ {print $2; exit}' "$repo_root/Sources/MurmurMarkCLI/MurmurMarkCLI.swift")"
 git_commit="$(git -C "$repo_root" rev-parse --short HEAD)"
 dirty="false"
 if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=normal)" ]]; then
