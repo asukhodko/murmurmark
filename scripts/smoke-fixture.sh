@@ -1535,6 +1535,8 @@ EOF
   jq -e 'any(.steps[]; .name == "session_readiness")' "$pipeline_plan" >/dev/null
   corpus_process_help="$("$bin" corpus process --help)"
   echo "$corpus_process_help" | grep -q 'plan-remote-leak-segment-repair.py'
+  review_help="$("$bin" review --help)"
+  echo "$review_help" | grep -q 'murmurmark review lane apply LANE'
 
   corpus_dir="$workdir/regression-corpus"
   "$repo_root/scripts/build-regression-corpus.py" "$group_session" \

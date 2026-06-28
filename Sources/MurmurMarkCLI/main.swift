@@ -93,6 +93,7 @@ struct MurmurMark {
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
           murmurmark review plan|progress|apply|first-lane|lane|next
+          murmurmark review lane apply LANE [--session latest|SESSION]
           murmurmark review agent [--session-quality sessions/_reports/session-quality/session_quality_report.json]
           murmurmark review workspace [build|apply] [--session latest|./session]
           murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
@@ -532,7 +533,14 @@ enum PipelineCommands {
 
 enum ReviewCommands {
     static func review(_ args: [String]) throws {
-        guard let target = args.first else { throw CLIError("review requires plan, progress, apply, a session path, or latest") }
+        guard let target = args.first else {
+            ReviewHelp.print()
+            return
+        }
+        if ArgumentEditing.hasHelpFlag([target]) {
+            ReviewHelp.print()
+            return
+        }
         var forwarded = Array(args.dropFirst())
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &forwarded) ?? "sessions")
 
@@ -550,7 +558,7 @@ enum ReviewCommands {
                 return
             }
             guard forwarded.isEmpty else { throw CLIError("review progress only accepts --help") }
-            try runProgress()
+            try ReviewProgressRunner.run()
             try ReviewPrinter.printProgress()
         case "next":
             if ArgumentEditing.hasHelpFlag(forwarded) {
@@ -604,7 +612,7 @@ enum ReviewCommands {
             print("SESSION=\"\(PathDisplay.display(session))\"")
             fflush(stdout)
             try Tooling.runPath(python, command)
-            try runProgress()
+            try ReviewProgressRunner.run()
             try ReviewPrinter.printProgress()
         }
     }
@@ -661,7 +669,7 @@ enum ReviewCommands {
             if !ArgumentEditing.hasOption("dry-run", in: forwarded) {
                 let defaultDecisions = PathURLs.fileURL("sessions/_reports/review-plan/review_decisions.jsonl")
                 if ReviewPaths.workspaceDecisionsOut(from: forwarded).standardizedFileURL.path == defaultDecisions.standardizedFileURL.path {
-                    try runProgress()
+                    try ReviewProgressRunner.run()
                     try ReviewPrinter.printProgress()
                 }
             }
@@ -687,11 +695,6 @@ enum ReviewCommands {
         if !FileManager.default.fileExists(atPath: template.path) {
             try buildPlan(extraArgs: [])
         }
-    }
-
-    private static func runProgress() throws {
-        let command = [try script("report-review-decisions-progress.py").path, "--decisions", "sessions/_reports/review-plan/review_decisions.jsonl"]
-        try Tooling.runPath(try PythonRuntime.resolve(), command)
     }
 
     private static func agent(_ args: [String]) throws {
@@ -991,6 +994,50 @@ enum ReviewNextCommand {
         let reviewBlockers = readiness["review_blockers"] as? [Any] ?? []
         let exportBlockers = readiness["export_blockers"] as? [Any] ?? []
         return gate == "review_first" || !reviewBlockers.isEmpty || !exportBlockers.isEmpty
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("review script not found: \(url.path)")
+        }
+        return url
+    }
+}
+
+enum ReviewHelp {
+    static func print() {
+        Swift.print("""
+        usage: murmurmark review plan
+               murmurmark review next [SESSION|latest]
+               murmurmark review first-lane [--session latest|SESSION]
+               murmurmark review lane LANE [--session latest|SESSION]
+               murmurmark review lane apply LANE [--session latest|SESSION] [--answers-file PATH|--answers TEXT]
+               murmurmark review workspace [build|apply] [--session latest|SESSION]
+               murmurmark review SESSION|latest [--lane LANE] [--no-play]
+               murmurmark review progress
+               murmurmark review apply [--session latest|SESSION]
+               murmurmark review agent
+
+        Review turns audit evidence into explicit decisions, applies those decisions into a
+        separate reviewed transcript profile, and refreshes readiness reports.
+
+        Common flow:
+          murmurmark review next latest
+          murmurmark review first-lane --session latest
+          # listen/edit the generated answer sheet
+          murmurmark review lane apply LANE --session latest
+          murmurmark review apply --session latest
+        """)
+    }
+}
+
+enum ReviewProgressRunner {
+    static func run() throws {
+        try Tooling.runPath(try PythonRuntime.resolve(), [
+            try script("report-review-decisions-progress.py").path,
+            "--decisions", "sessions/_reports/review-plan/review_decisions.jsonl",
+        ])
     }
 
     private static func script(_ name: String) throws -> URL {
