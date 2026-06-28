@@ -182,8 +182,9 @@ enum ReviewPrinter {
             print("  decisions: \(compactJSON(decisions))")
         }
         printProgressLanes(payload)
-        let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
-        printProgressNext(summary: summary, nextLane: firstRemainingLane(payload), sessionID: sessionID)
+        let planOutDir = report.deletingLastPathComponent()
+        let sessionID = sessionIDForSessionLocalPlan(planOutDir)
+        printProgressNext(summary: summary, nextLane: firstRemainingLane(payload), sessionID: sessionID, planOutDir: planOutDir)
     }
 
     private static func printProgressLanes(_ payload: [String: Any]) {
@@ -220,7 +221,7 @@ enum ReviewPrinter {
         return lanes.first { (int($0["remaining"]) ?? 0) > 0 }.flatMap { string($0["review_lane"]) }
     }
 
-    private static func printProgressNext(summary: [String: Any], nextLane: String?, sessionID: String?) {
+    private static func printProgressNext(summary: [String: Any], nextLane: String?, sessionID: String?, planOutDir: URL) {
         let sessionArgument = sessionID.map { " --session \($0)" } ?? ""
         if let nextLane {
             print("  next_lane: \(nextLane)")
@@ -230,6 +231,18 @@ enum ReviewPrinter {
         if bool(summary["ready_for_batch_apply"]) == true {
             commands = ["murmurmark review apply\(sessionArgument)"]
             afterReady = []
+        } else if let nextLane,
+                  let handoff = preparedLanePackHandoff(lane: nextLane, planOutDir: planOutDir, sessionArgument: sessionArgument) {
+            print("  prepared_lane_pack: \(PathDisplay.display(handoff.manifest))")
+            if let read = handoff.readCommand {
+                print("  read: \(read)")
+            }
+            if let edit = handoff.editCommand {
+                print("  edit: \(edit)")
+            }
+            print("  apply: \(handoff.applyCommand)")
+            commands = handoff.commands
+            afterReady = ["murmurmark review apply\(sessionArgument)"]
         } else {
             var nextCommands: [String] = []
             if let nextLane {
@@ -255,6 +268,61 @@ enum ReviewPrinter {
                 print("    \(command)")
             }
         }
+    }
+
+    private struct PreparedLanePackHandoff {
+        let manifest: URL
+        let commands: [String]
+        let readCommand: String?
+        let editCommand: String?
+        let applyCommand: String
+    }
+
+    private static func preparedLanePackHandoff(
+        lane: String,
+        planOutDir: URL,
+        sessionArgument: String
+    ) -> PreparedLanePackHandoff? {
+        let outDir = planOutDir.appendingPathComponent("lane-packs")
+        let manifest = outDir.appendingPathComponent("review_lane_pack.\(lane).json")
+        guard FileManager.default.fileExists(atPath: manifest.path),
+              let payload = try? JSONFiles.object(manifest)
+        else {
+            return nil
+        }
+        let outputs = payload["outputs"] as? [String: Any] ?? [:]
+        let audioCommand = existingOutputCommand(outputs["audio"], prefix: "afplay")
+        let readCommand = existingOutputCommand(outputs["markdown"], prefix: "less")
+        let editCommand = existingOutputCommand(outputs["answer_sheet"], prefix: "$EDITOR")
+        let applyCommand = "murmurmark review lane apply \(lane)\(sessionArgument)"
+        var commands: [String] = []
+        if let audioCommand {
+            commands.append(audioCommand)
+        }
+        if let readCommand {
+            commands.append(readCommand)
+        }
+        if let editCommand {
+            commands.append(editCommand)
+        }
+        commands.append("\(applyCommand) --dry-run")
+        commands.append(applyCommand)
+        commands.append("murmurmark review progress\(sessionArgument)")
+        guard !commands.isEmpty else { return nil }
+        return PreparedLanePackHandoff(
+            manifest: manifest,
+            commands: commands,
+            readCommand: readCommand,
+            editCommand: editCommand,
+            applyCommand: applyCommand
+        )
+    }
+
+    private static func existingOutputCommand(_ value: Any?, prefix: String) -> String? {
+        guard let path = string(value), !path.isEmpty else { return nil }
+        let url = PathURLs.fileURL(path)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return "\(prefix) \(shellQuote(displayPath(path)))"
     }
 
     static func printApply(report: URL) throws {

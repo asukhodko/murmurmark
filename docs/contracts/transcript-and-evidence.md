@@ -2066,7 +2066,9 @@ session-local or corpus-local paths, and prints the next review command.
 `murmurmark review lane apply first` resolves `first` through
 `review_queue_strategy.first_recommended_lane` in the active `review_plan.json`. After a non-dry run,
 the command also writes `review_decisions_progress.json` and only recommends `review apply` when
-`ready_for_batch_apply` is true.
+`ready_for_batch_apply` is true. If `murmurmark review progress` finds an existing lane pack for the
+first remaining lane, it may expose `prepared_lane_pack`, `afplay`, `less`, `$EDITOR`, dry-run and
+apply commands as the next handoff instead of recommending another lane-pack build.
 `murmurmark review lane apply <lane> --answers-source suggested` reads
 `review_lane_answers.<lane>.suggested.txt` instead of the manual sheet. This mode is explicit,
 prints `answers_source: suggested`, and is mutually exclusive with `--answers` and `--answers-file`;

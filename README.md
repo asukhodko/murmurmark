@@ -821,7 +821,9 @@ visible without reading the runbook.
 either points back to the answer sheet when rows are still `todo`, or prints the exact non-dry-run
 command when the dry run would close rows. After applying the lane, the CLI refreshes
 `review_decisions_progress.json`: if more rows remain it points back to
-the next remaining lane and the workspace flow. If progress does not exist yet, it falls back to
+the next remaining lane and the workspace flow. If that lane pack is already built, `review progress`
+points to the prepared `afplay`, `less`, `$EDITOR`, dry-run and apply commands instead of asking to
+build the same lane again. If progress does not exist yet, it falls back to
 `murmurmark review first-lane` and `review lane apply first`. It prints
 `murmurmark review apply` as the final batch step only when
 `murmurmark review progress --session SESSION` says the review file is ready. `review progress`

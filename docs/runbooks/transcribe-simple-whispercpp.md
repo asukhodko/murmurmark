@@ -858,8 +858,11 @@ order. It also prints why the first lane was chosen, which lane is the fastest q
 estimated queue after closing the first lane. When the local plan carries packed-action metrics,
 `review next` prints `review_actions`, `grouped_review_rows` and `remaining_actions`, so this view
 matches `murmurmark report corpus` instead of falling back to raw row counts only. `review first-lane`,
-`review lane apply`, `review workspace`, `review progress` and workspace apply also print a headline `recommended_next`,
-so every review screen has one copyable next command. The workspace command prints every lane pack with suggested compact answers and the
+`review lane apply`, `review workspace`, `review progress` and workspace apply also print a headline
+`recommended_next`, so every review screen has one copyable next command. If `review progress` sees
+that the current `next_lane` already has a lane pack, it recommends the prepared
+`afplay`/`less`/`$EDITOR` handoff and lane apply commands instead of rebuilding that pack. The
+workspace command prints every lane pack with suggested compact answers and the
 `afplay`/`$EDITOR` commands to use next, so normal review does not require opening
 `review_workspace.json`. After a successful single-session apply, the CLI prints the refreshed readiness summary
 so the next export or retention command is visible immediately. Use `murmurmark review first-lane`

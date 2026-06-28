@@ -803,6 +803,26 @@ echo "$review_apply_not_ready_output" | grep -q '^    murmurmark review progress
 echo "$review_apply_not_ready_output" | grep -q '^    check_local_recall: reviewed=0/1 remaining=1'
 echo "$review_apply_not_ready_output" | grep -q '^    murmurmark review workspace --session .*review-next-session'
 echo "$review_apply_not_ready_output" | grep -q '^    murmurmark review progress --session .*review-next-session'
+review_next_lane_pack_dir="$review_next_plan_dir/lane-packs"
+mkdir -p "$review_next_lane_pack_dir"
+touch "$review_next_lane_pack_dir/review_lane_pack.check_local_recall.wav"
+echo '# Local recall lane' >"$review_next_lane_pack_dir/review_lane_pack.check_local_recall.md"
+echo 'answers=.' >"$review_next_lane_pack_dir/review_lane_answers.check_local_recall.txt"
+jq -n --arg audio "$review_next_lane_pack_dir/review_lane_pack.check_local_recall.wav" \
+  --arg markdown "$review_next_lane_pack_dir/review_lane_pack.check_local_recall.md" \
+  --arg answer "$review_next_lane_pack_dir/review_lane_answers.check_local_recall.txt" '{
+    schema: "murmurmark.review_lane_pack/v1",
+    outputs: {audio: $audio, markdown: $markdown, answer_sheet: $answer},
+    summary: {selected_rows: 1, item_count: 1}
+  }' >"$review_next_lane_pack_dir/review_lane_pack.check_local_recall.json"
+review_progress_prepared_output="$("$bin" review progress --session "$review_next_session")"
+assert_no_helper_prefix "$review_progress_prepared_output"
+echo "$review_progress_prepared_output" | grep -q '^  next_lane: check_local_recall'
+echo "$review_progress_prepared_output" | grep -q '^  prepared_lane_pack: .*review_lane_pack.check_local_recall.json'
+echo "$review_progress_prepared_output" | grep -q '^  recommended_next: afplay .*review_lane_pack.check_local_recall.wav'
+echo "$review_progress_prepared_output" | grep -q '^    less .*review_lane_pack.check_local_recall.md'
+echo "$review_progress_prepared_output" | grep -q '^    \$EDITOR .*review_lane_answers.check_local_recall.txt'
+echo "$review_progress_prepared_output" | grep -q '^    murmurmark review lane apply check_local_recall --session .*review-next-session --dry-run'
 export_block_dir="$workdir/export-blocked"
 export_block_stdout="$workdir/export_blocked_stdout.txt"
 if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >"$export_block_stdout" 2>&1; then
