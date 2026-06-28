@@ -561,8 +561,11 @@ hard quality failures and unfinished review do not silently become finished arti
 export prints `recommended_next`, structured next commands and writes `*.export_blocked.json`; `--force` keeps the
 blockers in `export_manifest.json` and is meant for debugging. After a successful export, the CLI
 prints `recommended_next`, the manifest path, key output files and the matching retention commands.
+The successful `export_manifest.json` also stores structured `next_commands`, `open_commands` and
+`export_commands`, so an agent can continue with retention or open the exported files without parsing
+terminal output.
 Forced exports with blockers point back to `process` or `review next` first and list retention only
-under `debug_retention`.
+under `debug_retention`; the manifest mirrors that split with `debug_retention_commands`.
 
 `murmurmark audit` wraps the local audit scripts through the project Python runtime. `murmurmark audit
 local-recall`, `murmurmark audit order`, `murmurmark audit group-overlaps` and `murmurmark audit audio-review` are the normal

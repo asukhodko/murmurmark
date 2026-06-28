@@ -7432,6 +7432,9 @@ enum ExportPrinter {
         let useGate = string(payload["use_gate"]) ?? "unknown"
         let blockers = payload["blockers"] as? [Any] ?? []
         let warnings = payload["warnings"] as? [Any] ?? []
+        let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+        let openCommands = payload["open_commands"] as? [[String: Any]] ?? []
+        let debugRetentionCommands = payload["debug_retention_commands"] as? [[String: Any]] ?? []
 
         print("")
         print("export:")
@@ -7452,21 +7455,45 @@ enum ExportPrinter {
         let retentionPayload = "murmurmark retention payload \(PathDisplay.display(session)) --export-manifest \(PathDisplay.display(manifestURL))"
         let isReadyExport = blockers.isEmpty && useGate == "ready_for_notes" && !status.contains("forced")
         let reviewNext = readinessNextCommand(session: session) ?? "murmurmark review next \(PathDisplay.display(session))"
-        let recommendedNext = isReadyExport ? retentionPlan : reviewNext
+        let manifestNext = string(payload["next"])
+        let recommendedNext = manifestNext ?? nextCommands.compactMap { string($0["command"]) }.first ?? (isReadyExport ? retentionPlan : reviewNext)
         print("  recommended_next: \(recommendedNext)")
         print("  open:")
-        for key in ["index", "obsidian_note", "quality_verdict_md", "notes_md", "transcript_md"] {
-            if let path = exportedPath(key, files: files) {
-                print("    \(key): \(PathDisplay.display(path))")
+        if openCommands.isEmpty {
+            for key in ["index", "obsidian_note", "quality_verdict_md", "notes_md", "transcript_md"] {
+                if let path = exportedPath(key, files: files) {
+                    print("    \(key): \(PathDisplay.display(path))")
+                }
+            }
+        } else {
+            for item in openCommands {
+                if let command = string(item["command"]) {
+                    print("    \(command)")
+                }
             }
         }
         print("  next:")
-        if isReadyExport {
+        if !nextCommands.isEmpty {
+            for item in nextCommands {
+                if let command = string(item["command"]) {
+                    print("    \(command)")
+                }
+            }
+        } else if isReadyExport {
             print("    \(retentionPlan)")
             print("    \(retentionPayload)")
         } else {
             print("    \(reviewNext)")
             print("    murmurmark report \(PathDisplay.display(session))")
+        }
+        if !debugRetentionCommands.isEmpty {
+            print("  debug_retention:")
+            for item in debugRetentionCommands {
+                if let command = string(item["command"]) {
+                    print("    \(command)")
+                }
+            }
+        } else if !isReadyExport {
             print("  debug_retention:")
             print("    \(retentionPlan)")
             print("    \(retentionPayload)")

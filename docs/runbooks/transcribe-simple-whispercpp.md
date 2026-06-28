@@ -674,7 +674,10 @@ blocked export prints structured next commands from readiness plus rerun/debug e
 Forced exports with blockers keep retention commands under `debug_retention` and keep the primary
 handoff on the unfinished `process` or `review` work.
 After a successful export, the CLI prints the manifest path, key output files and the retention
-commands that should use the same manifest.
+commands that should use the same manifest. The manifest itself is also a continuation artifact:
+`next_commands` stores retention commands, `open_commands` stores read-only inspection commands, and
+`export_commands` stores the safe rerun/debug-force commands. Forced exports keep readiness repair
+or review in `next_commands` and put retention under `debug_retention_commands`.
 
 The script reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, balances examples by
 label, and copies existing review clips under `sessions/_reports/regression-corpus/clips/`. It is

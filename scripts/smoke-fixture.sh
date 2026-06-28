@@ -764,6 +764,66 @@ grep -q '^  recommended_next: murmurmark process ' "$export_stdout"
 grep -q '^  debug_retention:$' "$export_stdout"
 jq -e '.schema == "murmurmark.export_manifest/v1" and (.status | startswith("exported")) and (.files.transcript_md.path | type == "string")' \
   "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
+jq -e '(.next | startswith("murmurmark process ")) and (.next_commands | map(.command | startswith("murmurmark process ")) | any) and (.open_commands | map(.command | startswith("less ")) | any) and (.debug_retention_commands | map(.command | contains("murmurmark retention plan ")) | any) and (.export_commands.rerun | startswith("murmurmark export "))' \
+  "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
+
+ready_export_session="$workdir/export-ready-session"
+mkdir -p \
+  "$ready_export_session/derived/transcript-simple/whisper-cpp/resolved" \
+  "$ready_export_session/derived/synthesis-simple/extractive" \
+  "$ready_export_session/derived/readiness/session-quality"
+cp "$session/session.json" "$ready_export_session/session.json"
+cat >"$ready_export_session/derived/transcript-simple/whisper-cpp/resolved/transcript.md" <<'EOF'
+# Simple Transcript
+
+## 00:00 Me
+
+Готово.
+EOF
+cat >"$ready_export_session/derived/synthesis-simple/extractive/notes.md" <<'EOF'
+# Extractive Notes
+
+- [utt_ready_001] Готово.
+EOF
+cat >"$ready_export_session/derived/synthesis-simple/extractive/quality_verdict.md" <<'EOF'
+# Quality Verdict
+
+Verdict: good.
+EOF
+jq -n '{schema: "murmurmark.quality_verdict/v1", verdict: "good", selected_transcript_profile: "current"}' \
+  >"$ready_export_session/derived/synthesis-simple/extractive/quality_verdict.json"
+cat >"$ready_export_session/derived/readiness/session_readiness.md" <<'EOF'
+# Session Readiness
+
+ready_for_notes
+EOF
+jq -n '{
+  schema: "murmurmark.session_readiness/v1",
+  use_gate: "ready_for_notes",
+  export_blockers: [],
+  review_blockers: [],
+  warnings: [],
+  next_commands: [
+    {id: "export", label: "Export reviewed result.", command: "murmurmark export SESSION --format markdown --include-json"}
+  ]
+}' >"$ready_export_session/derived/readiness/session_readiness.json"
+jq -n '{
+  schema: "murmurmark.session_quality_report/v1",
+  sessions: [
+    {
+      pipeline_status: "complete",
+      use_gate: "ready_for_notes",
+      risk_flags: [],
+      selected_profile: "current"
+    }
+  ]
+}' >"$ready_export_session/derived/readiness/session-quality/session_quality_report.json"
+ready_export_dir="$workdir/export-ready"
+"$repo_root/scripts/export-session-bundle.py" "$ready_export_session" --out-dir "$ready_export_dir" >"$workdir/export_ready_stdout.txt"
+[[ -s "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json" ]]
+grep -q '^recommended_next: murmurmark retention plan ' "$workdir/export_ready_stdout.txt"
+jq -e '.status == "exported" and (.blockers | length == 0) and (.next | startswith("murmurmark retention plan ")) and (.next_commands | map(.id) == ["retention_plan", "retention_payload"]) and (.open_commands | map(.id) | index("open_manifest")) and (.debug_retention_commands | length == 0)' \
+  "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json" >/dev/null
 
 audit_python=""
 if [[ -x "$repo_root/.venv/bin/python" ]] && "$repo_root/.venv/bin/python" - <<'PY' >/dev/null 2>&1

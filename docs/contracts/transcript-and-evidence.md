@@ -1371,6 +1371,30 @@ Obsidian format writes one frontmatter Markdown note plus `export_manifest.json`
   },
   "files": {
     "transcript_md": {"path": "exports/private/.../transcript.md", "bytes": 12345}
+  },
+  "next": "murmurmark retention plan sessions/... --export-manifest exports/private/.../export_manifest.json",
+  "next_commands": [
+    {
+      "id": "retention_plan",
+      "label": "Plan local retention actions after this export.",
+      "command": "murmurmark retention plan sessions/... --export-manifest exports/private/.../export_manifest.json"
+    },
+    {
+      "id": "retention_payload",
+      "label": "Inventory any external-provider payload before handoff.",
+      "command": "murmurmark retention payload sessions/... --export-manifest exports/private/.../export_manifest.json"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_notes_md",
+      "label": "Read exported notes.",
+      "command": "less exports/private/.../notes.md"
+    }
+  ],
+  "export_commands": {
+    "rerun": "murmurmark export sessions/... --format markdown --profile auto --out-dir exports/private",
+    "debug_force": "murmurmark export sessions/... --format markdown --profile auto --out-dir exports/private --force"
   }
 }
 ```
@@ -1409,6 +1433,11 @@ files, then prints a short handoff summary with output files, retention commands
 commands. When an export was forced while blockers remain, `recommended_next` follows readiness back
 to `murmurmark process` or `murmurmark review next`; retention commands are printed only under
 `debug_retention`.
+
+Successful manifests are self-contained handoff artifacts. `next_commands` is the executable
+post-export chain, usually retention planning and provider-payload inventory. `open_commands` is the
+read-only bundle inspection chain. Forced exports with blockers keep the retention commands under
+`debug_retention_commands` and keep readiness repair/review commands in `next_commands`.
 
 ## Retention Plan
 

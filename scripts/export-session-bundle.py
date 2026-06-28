@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.2.1"
 SCHEMA_MANIFEST = "murmurmark.export_manifest/v1"
 
 
@@ -247,11 +247,58 @@ def export_commands(args: argparse.Namespace, session: Path) -> dict[str, str]:
     }
 
 
+def command_item(id_: str, label: str, command: str) -> dict[str, str]:
+    return {"id": id_, "label": label, "command": command}
+
+
+def ready_export_next_commands(session: Path, manifest_path: Path) -> list[dict[str, str]]:
+    session_arg = command_path(session)
+    manifest_arg = command_path(manifest_path)
+    return [
+        command_item(
+            "retention_plan",
+            "Plan local retention actions after this export.",
+            f"murmurmark retention plan {session_arg} --export-manifest {manifest_arg}",
+        ),
+        command_item(
+            "retention_payload",
+            "Inventory any external-provider payload before handoff.",
+            f"murmurmark retention payload {session_arg} --export-manifest {manifest_arg}",
+        ),
+    ]
+
+
+def open_commands(files: dict[str, Any], manifest_path: Path) -> list[dict[str, str]]:
+    labels = {
+        "index": "Open exported bundle index.",
+        "obsidian_note": "Open exported Obsidian note.",
+        "quality_verdict_md": "Read exported quality verdict.",
+        "notes_md": "Read exported notes.",
+        "transcript_md": "Read exported transcript.",
+    }
+    commands: list[dict[str, str]] = []
+    for key in ("index", "obsidian_note", "quality_verdict_md", "notes_md", "transcript_md"):
+        item = files.get(key)
+        if not isinstance(item, dict) or not item.get("path"):
+            continue
+        commands.append(command_item(f"open_{key}", labels[key], f"less {command_path(Path(str(item['path'])))}"))
+    commands.append(command_item("open_manifest", "Inspect export manifest.", f"less {command_path(manifest_path)}"))
+    return commands
+
+
 def blocked_export_next(next_commands: list[dict[str, str]]) -> str:
     rendered = "; ".join(f"`{item['command']}`" for item in next_commands if item.get("command"))
     if not rendered:
         return "rerun export after blockers are closed, or use --force only for debugging"
     return f"{rendered}; rerun export after blockers are closed, or use --force only for debugging"
+
+
+def first_next(next_commands: list[dict[str, str]], fallback: str) -> str:
+    for item in next_commands:
+        command = item.get("command")
+        if command:
+            return command
+    return fallback
 
 
 def print_blocked_export_handoff(manifest: dict[str, Any], blocked_path: Path) -> None:
@@ -267,6 +314,26 @@ def print_blocked_export_handoff(manifest: dict[str, Any], blocked_path: Path) -
         print(f"  rerun_export: {export['rerun']}")
     if export.get("debug_force"):
         print(f"  debug_force: {export['debug_force']}")
+
+
+def print_success_export_handoff(manifest: dict[str, Any], manifest_path: Path) -> None:
+    print(f"exported: {manifest_path.parent}")
+    print(f"status: {manifest['status']}")
+    print(f"profile: {manifest['selected_profile']}")
+    print(f"manifest: {manifest_path}")
+    print(f"recommended_next: {manifest.get('next', '')}")
+    open_items = manifest.get("open_commands") if isinstance(manifest.get("open_commands"), list) else []
+    if open_items:
+        print("open:")
+        for item in open_items:
+            if isinstance(item, dict) and item.get("command"):
+                print(f"  {item['command']}")
+    next_items = manifest.get("next_commands") if isinstance(manifest.get("next_commands"), list) else []
+    if next_items:
+        print("next:")
+        for item in next_items:
+            if isinstance(item, dict) and item.get("command"):
+                print(f"  {item['command']}")
 
 
 def copy_file(src: Path, dst: Path) -> dict[str, Any]:
@@ -424,6 +491,16 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
             if paths[key].exists():
                 files[key] = copy_file(paths[key], out_dir / paths[key].name)
 
+    manifest_path = out_dir / "export_manifest.json"
+    if blockers:
+        next_commands = blocked_export_next_commands(session, readiness, blockers)
+        debug_retention_commands = ready_export_next_commands(session, manifest_path)
+        next_text = first_next(next_commands, blocked_export_next(next_commands))
+    else:
+        next_commands = ready_export_next_commands(session, manifest_path)
+        debug_retention_commands = []
+        next_text = first_next(next_commands, "inspect exported files")
+    export_command_map = export_commands(args, session)
     manifest = {
         "schema": SCHEMA_MANIFEST,
         "generator": {"name": "export-session-bundle", "version": SCRIPT_VERSION},
@@ -439,12 +516,15 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
         "warnings": warnings,
         "readiness": readiness,
         "files": files,
+        "next": next_text,
+        "next_commands": next_commands,
+        "open_commands": open_commands(files, manifest_path),
+        "export_commands": export_command_map,
+        "debug_retention_commands": debug_retention_commands,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    write_json(out_dir / "export_manifest.json", manifest)
-    print(f"exported: {out_dir}")
-    print(f"status: {manifest['status']}")
-    print(f"profile: {profile}")
+    write_json(manifest_path, manifest)
+    print_success_export_handoff(manifest, manifest_path)
     return manifest
 
 
