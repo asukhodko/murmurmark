@@ -266,8 +266,9 @@ group-overlap audit, audio-review audit,
 `audit_cleanup_v1/v2`, optionally `audit_cleanup_v3/v4` when the local audio-judge queue exists,
 and extractive synthesis, then writes
 `derived/pipeline-run/pipeline_run_report.json` and `derived/readiness/session_readiness.md`.
-While it runs, it prints each stage as `[run]`, `[passed]`, `[failed]` or `[skip]` with duration, so
-long ASR work is visible instead of looking stuck.
+While it runs, it prints each stage as `[run]`, `[passed]`, `[failed]` or `[skip]` with duration.
+Long stages also emit a heartbeat such as `[run] transcribe_current still running (120.4s)`.
+Use `--progress-interval-sec 0` to disable these heartbeat lines.
 Read `session_readiness.md` first: it gives the session use gate, selected profile, review burden,
 synthesis review item summary, next CLI commands, and links to the transcript, notes, quality
 verdict and audio-review report.

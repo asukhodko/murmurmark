@@ -89,7 +89,8 @@ struct MurmurMark {
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
           murmurmark latest [--sessions-root ./sessions]
           murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--force-asr]
-                                [--reuse-asr-cache] [--plan-only] [--sessions-root ./sessions]
+                                [--reuse-asr-cache] [--plan-only] [--progress-interval-sec 60]
+                                [--sessions-root ./sessions]
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
           murmurmark review plan|progress|apply|first-lane|lane|next
@@ -564,7 +565,8 @@ enum PipelineHelp {
     static func printProcess() {
         Swift.print("""
         usage: murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--force-asr]
-                                [--reuse-asr-cache] [--plan-only] [--sessions-root ./sessions]
+                                [--reuse-asr-cache] [--plan-only] [--progress-interval-sec 60]
+                                [--sessions-root ./sessions]
 
         Runs scripts/run-session-pipeline.py for one recorded session, then prints readiness.
         Defaults come from murmurmark.config.json when present; explicit CLI flags win.
@@ -572,6 +574,7 @@ enum PipelineHelp {
         Common:
           murmurmark process latest
           murmurmark process ./sessions/<id> --plan-only
+          murmurmark process ./sessions/<id> --progress-interval-sec 30
         """)
     }
 

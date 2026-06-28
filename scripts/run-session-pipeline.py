@@ -5,6 +5,7 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -44,6 +45,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-audits", action="store_true")
     parser.add_argument("--skip-cleanup", action="store_true")
     parser.add_argument("--plan-only", action="store_true", help="Write the planned steps without executing them.")
+    parser.add_argument(
+        "--progress-interval-sec",
+        type=int,
+        default=60,
+        help="Print a heartbeat for long-running steps. Use 0 to disable.",
+    )
     parser.add_argument("--max-clips", type=int, default=80)
     parser.add_argument("--max-audio-review-items", type=int, default=160)
     parser.add_argument(
@@ -255,7 +262,21 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
     ]
 
 
-def run_step(item: dict[str, Any], repo_root: Path, plan_only: bool) -> dict[str, Any]:
+def read_tail(path: Path, limit: int = 4000) -> str:
+    try:
+        data = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return data[-limit:]
+
+
+def run_step(
+    item: dict[str, Any],
+    repo_root: Path,
+    plan_only: bool,
+    *,
+    progress_interval_sec: int,
+) -> dict[str, Any]:
     started_at = datetime.now(timezone.utc).isoformat()
     started = time.monotonic()
     result = {**item, "status": "planned" if plan_only else "pending", "started_at": started_at}
@@ -268,15 +289,39 @@ def run_step(item: dict[str, Any], repo_root: Path, plan_only: bool) -> dict[str
         result["finished_at"] = datetime.now(timezone.utc).isoformat()
         result["duration_sec"] = 0.0
         return result
-    completed = subprocess.run(item["command"], cwd=repo_root, text=True, capture_output=True, check=False)
+    with tempfile.TemporaryDirectory(prefix="murmurmark-pipeline-") as temp_dir:
+        stdout_path = Path(temp_dir) / "stdout.log"
+        stderr_path = Path(temp_dir) / "stderr.log"
+        with stdout_path.open("w", encoding="utf-8") as stdout_file, stderr_path.open("w", encoding="utf-8") as stderr_file:
+            process = subprocess.Popen(
+                item["command"],
+                cwd=repo_root,
+                text=True,
+                stdout=stdout_file,
+                stderr=stderr_file,
+            )
+            next_progress_at = time.monotonic() + max(1, progress_interval_sec)
+            while True:
+                returncode = process.poll()
+                if returncode is not None:
+                    break
+                now = time.monotonic()
+                if progress_interval_sec > 0 and now >= next_progress_at:
+                    elapsed = now - started
+                    print(f"[run] {item['name']} still running ({elapsed:.1f}s)", flush=True)
+                    next_progress_at = now + progress_interval_sec
+                time.sleep(0.5)
+        returncode = process.returncode
+        stdout_tail = read_tail(stdout_path)
+        stderr_tail = read_tail(stderr_path)
     result.update(
         {
-            "status": "passed" if completed.returncode == 0 else "failed",
-            "returncode": completed.returncode,
+            "status": "passed" if returncode == 0 else "failed",
+            "returncode": returncode,
             "finished_at": datetime.now(timezone.utc).isoformat(),
             "duration_sec": round(time.monotonic() - started, 3),
-            "stdout_tail": completed.stdout[-4000:],
-            "stderr_tail": completed.stderr[-4000:],
+            "stdout_tail": stdout_tail,
+            "stderr_tail": stderr_tail,
         }
     )
     return result
@@ -318,7 +363,12 @@ def main() -> int:
 
     for item in steps:
         print_step_start(item, args.plan_only)
-        result = run_step(item, repo_root, args.plan_only)
+        result = run_step(
+            item,
+            repo_root,
+            args.plan_only,
+            progress_interval_sec=args.progress_interval_sec,
+        )
         results.append(result)
         print_step_result(result)
         if result["status"] == "failed":
@@ -348,6 +398,7 @@ def main() -> int:
             "language": args.language,
             "prompt_file": str(args.prompt_file) if args.prompt_file and args.prompt_file.exists() else None,
             "audio_judge_queue": str(args.audio_judge_queue) if args.audio_judge_queue.exists() else None,
+            "progress_interval_sec": args.progress_interval_sec,
         },
         "outputs": {
             "quality_verdict": rel(quality_path, session) if quality_path.exists() else None,

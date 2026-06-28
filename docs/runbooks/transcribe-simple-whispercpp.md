@@ -55,8 +55,9 @@ local-recall audit, transcript-order audit, group-overlap audit, audio-review au
 `audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. `audit_cleanup_v5` is a separate batch step after the suggested-review shadow report. Use
 `--force-asr` when you need to regenerate Whisper output, and `--reuse-asr-cache` when you only want
 to rebuild repair, cleanup, synthesis and reports from cached ASR JSON. The runner prints each stage
-with `[run]`, `[passed]`, `[failed]` or `[skip]` and duration, and stores the same stage list in
-`derived/pipeline-run/pipeline_run_report.json`.
+with `[run]`, `[passed]`, `[failed]` or `[skip]`, prints heartbeat lines for long-running stages, and
+stores the same stage list in `derived/pipeline-run/pipeline_run_report.json`. Use
+`--progress-interval-sec 0` if you need a quieter run.
 
 For the usual record-then-process flow:
 
