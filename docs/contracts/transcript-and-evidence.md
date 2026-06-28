@@ -1618,6 +1618,11 @@ command. If the session is exportable and a successful `export_manifest.json` ex
 the manifest's post-export `next_commands` instead, usually retention planning. Forced exports or
 manifests with blockers do not override readiness. `--export-manifest` points `next` at a non-default
 export bundle.
+`murmurmark next corpus` is the compact operational-readiness view for the whole sessions root. It
+prints `corpus_next.command`, operational verdict, review burden, focus metadata and alternatives
+from `operational_readiness_report.json`. With `--refresh`, it first regenerates session-quality and
+operational-readiness reports; without `--refresh`, it only reads the existing report and points to
+`murmurmark report corpus` when the report is missing.
 The same terminal summary prints `handoff` commands for opening selected notes, transcript and
 quality verdict. When the derived status is `exportable`, it also prints export and retention
 commands. This is CLI presentation only; `outputs`, `next_commands`, gates and blockers remain the

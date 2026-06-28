@@ -113,6 +113,9 @@ Use `murmurmark next SESSION` when you only need the single command to run now; 
 derived artifacts changed and readiness should be regenerated first. After a successful export,
 `next` follows the successful `export_manifest.json` and points to retention planning. If the export
 used a non-default output directory, pass `--export-manifest ./path/to/export_manifest.json`.
+Use `murmurmark next corpus` when operational-readiness reports already exist and you need the one
+next command across the whole working-meeting corpus. Add `--refresh` when session-quality and
+operational-readiness should be regenerated first, but heavier corpus diagnostics should stay as-is.
 Use `murmurmark open SESSION` when you need the selected local artifact rather than the next action.
 It resolves paths from `session_readiness.json` and prints `less ...` commands for notes,
 transcript, verdict, readiness and audit reports; `--cat` streams one artifact to stdout.
@@ -732,6 +735,10 @@ review target exists. It also prints `sessions_in_scope` and `sessions_excluded`
 working-meeting scope visible next to the full corpus count. The same block prints
 `review_actions` and `grouped_review_rows`, so the handoff shows the number of actual answer-sheet
 decisions rather than only the noisier raw row count.
+`murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
+only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
+`--refresh` it first rebuilds session-quality and operational-readiness reports, then prints
+`corpus_next.command`, focus metadata and alternatives.
 Stale audio-judge queue rows are also ignored when the current audio-review audit has reclassified
 the source item as reliable.
 `murmurmark corpus order` writes a separate chronology-risk corpus report under

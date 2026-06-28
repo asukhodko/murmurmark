@@ -546,6 +546,11 @@ echo "$corpus_report_output" | grep -q '^operational_readiness:$'
 echo "$corpus_report_output" | grep -q '^  sessions_in_scope: '
 echo "$corpus_report_output" | grep -q '^  sessions_excluded: '
 echo "$corpus_report_output" | grep -q '  next_command: '
+corpus_next_output="$("$bin" next corpus --sessions-root "$workdir")"
+assert_no_helper_prefix "$corpus_next_output"
+echo "$corpus_next_output" | grep -q '^corpus_next:$'
+echo "$corpus_next_output" | grep -q '^  command: '
+echo "$corpus_next_output" | grep -q '^  sessions_in_scope: '
 [[ -s "$workdir/_reports/session-quality/session_quality_report.json" ]]
 [[ -s "$workdir/_reports/operational-readiness/operational_readiness_report.json" ]]
 jq -e '(.export_blockers | index("pipeline_incomplete")) and (.review_blockers | index("pipeline_incomplete"))' "$session/derived/readiness/session_readiness.json" >/dev/null
@@ -2104,6 +2109,7 @@ EOF
   echo "$main_help" | grep -q '^  murmurmark record --target-bundle system$'
   echo "$main_help" | grep -q '^  murmurmark process latest$'
   echo "$main_help" | grep -q '^  murmurmark next latest$'
+  echo "$main_help" | grep -q '^  murmurmark next corpus$'
   echo "$main_help" | grep -q '^  murmurmark status latest$'
   echo "$main_help" | grep -q '^  murmurmark export latest --format markdown --include-json$'
   review_help="$("$bin" review --help)"

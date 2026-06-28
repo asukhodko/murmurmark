@@ -45,6 +45,7 @@ murmurmark record --target-bundle system
 murmurmark sessions
 murmurmark process latest
 murmurmark next latest
+murmurmark next corpus
 murmurmark open latest --kind notes
 murmurmark status latest
 # Follow printed review commands when the gate is review_first.
@@ -63,6 +64,9 @@ duration, readiness status, review burden and the next safe command. Use `--stat
 a machine-readable queue snapshot.
 `status` is the quickest dashboard for already-generated readiness; `report` refreshes readiness first.
 If readiness is not present yet, `status` and `next` point to `murmurmark process SESSION`.
+Use `murmurmark next corpus` after corpus reports exist when you need one concrete next command
+across the whole working-meeting corpus; add `--refresh` to rebuild session-quality and
+operational-readiness reports first.
 After a successful export, `next` follows the export manifest and points to retention planning; pass
 `--export-manifest` when the bundle was written outside the default `exports/private/` directory.
 `status` and `report` start with a short status such as `exportable`, `review_required`, `incomplete` or `blocked`, plus
@@ -411,6 +415,8 @@ murmurmark process ./sessions/<session> --force-asr
 murmurmark process ./sessions/<session> --plan-only --skip-build
 murmurmark next ./sessions/<session>
 murmurmark next latest --refresh
+murmurmark next corpus
+murmurmark next corpus --refresh
 murmurmark open ./sessions/<session> --kind all
 murmurmark status ./sessions/<session>
 murmurmark status latest

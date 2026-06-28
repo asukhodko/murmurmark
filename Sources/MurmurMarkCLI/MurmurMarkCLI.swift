@@ -93,6 +93,7 @@ struct MurmurMark {
           murmurmark record --target-bundle system
           murmurmark process latest
           murmurmark next latest
+          murmurmark next corpus
           murmurmark status latest
           # follow printed review commands when the gate is review_first
           murmurmark export latest --format markdown --include-json
@@ -113,7 +114,7 @@ struct MurmurMark {
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
                                 [--progress-interval-sec 60] [--config murmurmark.config.json] [--sessions-root ./sessions]
           murmurmark status [./session|latest] [--sessions-root ./sessions]
-          murmurmark next [./session|latest] [--refresh] [--export-manifest ./export_manifest.json] [--sessions-root ./sessions]
+          murmurmark next [./session|latest|corpus] [--refresh] [--export-manifest ./export_manifest.json] [--sessions-root ./sessions]
           murmurmark open [./session|latest] [--kind notes|transcript|verdict|readiness|audio-review] [--path-only|--command-only|--cat]
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
@@ -505,6 +506,11 @@ enum DoctorChecks {
 }
 
 enum PipelineCommands {
+    private struct CorpusReadinessOutputs {
+        let sessionQualityOut: URL
+        let operationalReadinessOut: URL
+    }
+
     static func sessions(_ args: [String]) throws {
         if ArgumentEditing.hasHelpFlag(args) {
             PipelineHelp.printSessions()
@@ -629,6 +635,22 @@ enum PipelineCommands {
         guard remaining.isEmpty else {
             throw CLIError("unexpected next arguments: \(remaining.joined(separator: " "))")
         }
+        if target == "corpus" {
+            guard exportManifest == nil else {
+                throw CLIError("next corpus does not accept --export-manifest")
+            }
+            let outDir: URL
+            if refresh {
+                outDir = try refreshCorpusReadiness(sessionsRoot: sessionsRoot).operationalReadinessOut
+            } else {
+                outDir = sessionsRoot
+                    .appendingPathComponent("_reports")
+                    .appendingPathComponent("operational-readiness")
+            }
+            print("CORPUS=\"\(PathDisplay.display(sessionsRoot))\"")
+            try CorpusPrinter.printOperationalNext(outDir: outDir)
+            return
+        }
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         if refresh {
             try refreshReadiness(session)
@@ -648,38 +670,21 @@ enum PipelineCommands {
         }
         var remaining = Array(args.dropFirst())
         let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+
+        if target == "corpus" {
+            guard remaining.isEmpty else { throw CLIError("report corpus only supports --sessions-root") }
+            let outputs = try refreshCorpusReadiness(sessionsRoot: sessionsRoot)
+            try ReadinessPrinter.printCorpus(report: outputs.sessionQualityOut.appendingPathComponent("session_quality_report.json"))
+            try CorpusPrinter.printOperationalReadiness(outDir: outputs.operationalReadinessOut)
+            return
+        }
+
+        guard remaining.isEmpty else { throw CLIError("unexpected report arguments: \(remaining.joined(separator: " "))") }
         let python = try PythonRuntime.resolve()
         let script = PathURLs.fileURL("scripts/report-session-quality.py")
         guard FileManager.default.fileExists(atPath: script.path) else {
             throw CLIError("session quality reporter not found: \(script.path)")
         }
-
-        if target == "corpus" {
-            guard remaining.isEmpty else { throw CLIError("report corpus only supports --sessions-root") }
-            let sessions = try SessionResolver.all(in: sessionsRoot)
-            guard !sessions.isEmpty else { throw CLIError("no sessions with session.json found under \(sessionsRoot.path)") }
-            let reportsRoot = sessionsRoot.appendingPathComponent("_reports")
-            let sessionQualityOut = reportsRoot.appendingPathComponent("session-quality")
-            let operationalReadinessOut = reportsRoot.appendingPathComponent("operational-readiness")
-            let command = [script.path] + sessions.map(\.path) + [
-                "--out-dir", sessionQualityOut.path,
-                "--write-session-readiness",
-            ]
-            try Tooling.runPathQuiet(python, command)
-            try Tooling.runPathQuiet(python, [
-                PathURLs.fileURL("scripts/report-operational-readiness.py").path,
-                "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
-                "--corpus-evaluation", reportsRoot.appendingPathComponent("regression-corpus/regression_corpus_evaluation.json").path,
-                "--audio-judge", reportsRoot.appendingPathComponent("audio-judge-v0/audio_judge_v0_report.json").path,
-                "--audio-judge-queue", reportsRoot.appendingPathComponent("audio-judge-v0/audio_judge_v0_queue_predictions.jsonl").path,
-                "--out-dir", operationalReadinessOut.path,
-            ])
-            try ReadinessPrinter.printCorpus(report: sessionQualityOut.appendingPathComponent("session_quality_report.json"))
-            try CorpusPrinter.printOperationalReadiness(outDir: operationalReadinessOut)
-            return
-        }
-
-        guard remaining.isEmpty else { throw CLIError("unexpected report arguments: \(remaining.joined(separator: " "))") }
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         print("SESSION=\"\(PathDisplay.display(session))\"")
         try Tooling.runPathQuiet(python, [
@@ -703,6 +708,43 @@ enum PipelineCommands {
             "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
             "--write-session-readiness",
         ])
+    }
+
+    private static func refreshCorpusReadiness(sessionsRoot: URL) throws -> CorpusReadinessOutputs {
+        let python = try PythonRuntime.resolve()
+        let sessionQualityScript = PathURLs.fileURL("scripts/report-session-quality.py")
+        let operationalReadinessScript = PathURLs.fileURL("scripts/report-operational-readiness.py")
+        guard FileManager.default.fileExists(atPath: sessionQualityScript.path) else {
+            throw CLIError("session quality reporter not found: \(sessionQualityScript.path)")
+        }
+        guard FileManager.default.fileExists(atPath: operationalReadinessScript.path) else {
+            throw CLIError("operational readiness reporter not found: \(operationalReadinessScript.path)")
+        }
+
+        let sessions = try SessionResolver.all(in: sessionsRoot)
+        guard !sessions.isEmpty else {
+            throw CLIError("no sessions with session.json found under \(sessionsRoot.path)")
+        }
+        let reportsRoot = sessionsRoot.appendingPathComponent("_reports")
+        let sessionQualityOut = reportsRoot.appendingPathComponent("session-quality")
+        let operationalReadinessOut = reportsRoot.appendingPathComponent("operational-readiness")
+        let sessionQualityCommand = [sessionQualityScript.path] + sessions.map(\.path) + [
+            "--out-dir", sessionQualityOut.path,
+            "--write-session-readiness",
+        ]
+        try Tooling.runPathQuiet(python, sessionQualityCommand)
+        try Tooling.runPathQuiet(python, [
+            operationalReadinessScript.path,
+            "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
+            "--corpus-evaluation", reportsRoot.appendingPathComponent("regression-corpus/regression_corpus_evaluation.json").path,
+            "--audio-judge", reportsRoot.appendingPathComponent("audio-judge-v0/audio_judge_v0_report.json").path,
+            "--audio-judge-queue", reportsRoot.appendingPathComponent("audio-judge-v0/audio_judge_v0_queue_predictions.jsonl").path,
+            "--out-dir", operationalReadinessOut.path,
+        ])
+        return CorpusReadinessOutputs(
+            sessionQualityOut: sessionQualityOut,
+            operationalReadinessOut: operationalReadinessOut
+        )
     }
 
     private static func parsePositiveLimit(_ value: String?, defaultValue: Int) throws -> Int {
@@ -780,16 +822,21 @@ enum PipelineHelp {
 
     static func printNext() {
         Swift.print("""
-        usage: murmurmark next [./session|latest] [--refresh] [--export-manifest ./export_manifest.json] [--sessions-root ./sessions]
+        usage: murmurmark next [./session|latest|corpus] [--refresh] [--export-manifest ./export_manifest.json] [--sessions-root ./sessions]
 
         Prints the single recommended next command from session_readiness.json.
-        Defaults to latest when no session is provided. Use --refresh to update readiness first
-        without rerunning ASR, Echo Guard or audits. If a successful export manifest exists, the
-        command follows its post-export handoff, usually retention planning.
+        Defaults to latest when no session is provided. Pass corpus to print the current
+        operational-readiness handoff for all sessions under --sessions-root.
+        Use --refresh to update readiness first without rerunning ASR, Echo Guard or audits.
+        For corpus, --refresh updates session-quality and operational-readiness reports.
+        If a successful export manifest exists for a session, the command follows its post-export
+        handoff, usually retention planning.
 
         Common:
           murmurmark next
           murmurmark next latest
+          murmurmark next corpus
+          murmurmark next corpus --refresh
           murmurmark next ./sessions/<id> --export-manifest ./exports/private/<id>/export_manifest.json
           murmurmark next ./sessions/<id> --refresh
         """)
@@ -8477,6 +8524,55 @@ enum CorpusPrinter {
         print("  grouped_review_rows: \(int(summary["grouped_review_row_count"]) ?? 0)")
         printFirstNextCommand(payload)
         printOperationalFocus(payload)
+    }
+
+    static func printOperationalNext(
+        outDir: URL = PathURLs.fileURL("sessions/_reports/operational-readiness")
+    ) throws {
+        let url = outDir.appendingPathComponent("operational_readiness_report.json")
+        let sessionsRoot = outDir.deletingLastPathComponent().deletingLastPathComponent()
+        let reportCommand = corpusReportCommand(sessionsRoot: sessionsRoot)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            print("")
+            print("corpus_next:")
+            print("  status: missing_operational_readiness")
+            print("  command: \(reportCommand)")
+            print("  reason: operational_readiness_report.json is missing")
+            print("  read: \(reportCommand)")
+            return
+        }
+
+        let payload = try JSONFiles.object(url)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        let reviewSeconds = double(summary["total_review_burden_sec"]) ?? 0
+        let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+        let command = nextCommands.compactMap { string($0["command"]) }.first ?? reportCommand
+        print("")
+        print("corpus_next:")
+        print("  status: \(string(payload["operational_verdict"]) ?? "unknown")")
+        print("  command: \(command)")
+        print("  source: operational_readiness")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("operational_readiness_report.md")))")
+        print("  sessions_in_scope: \(int(summary["session_count"]) ?? 0)")
+        print("  sessions_excluded: \(int(summary["excluded_diagnostic_session_count"]) ?? 0)")
+        print(String(format: "  review_minutes: %.2f", reviewSeconds / 60))
+        print("  review_actions: \(int(summary["review_action_count"]) ?? int(summary["review_queue_items"]) ?? 0)")
+        if nextCommands.count > 1 {
+            print("  alternatives:")
+            for item in nextCommands.dropFirst().prefix(4) {
+                guard let alternative = string(item["command"]), !alternative.isEmpty else { continue }
+                print("    \(alternative)")
+            }
+        }
+        printOperationalFocus(payload)
+    }
+
+    private static func corpusReportCommand(sessionsRoot: URL) -> String {
+        let root = PathDisplay.display(sessionsRoot)
+        if root == "sessions" || root == "./sessions" {
+            return "murmurmark report corpus"
+        }
+        return "murmurmark report corpus --sessions-root \(root)"
     }
 
     private static func printOperationalFocus(_ payload: [String: Any]) {
