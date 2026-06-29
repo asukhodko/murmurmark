@@ -956,7 +956,7 @@ def audio_review_row_low_materiality(row: dict[str, Any]) -> bool:
     classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
     label = str(classification.get("label") or "")
     verdict = str(classification.get("verdict") or "")
-    if label not in {"remote_leak", "uncertain"}:
+    if label not in {"remote_duplicate", "remote_leak", "uncertain"}:
         return False
     if verdict not in {"probable_transcript_error", "needs_stronger_audio_judge"}:
         return False
@@ -975,18 +975,26 @@ def audio_review_row_low_materiality(row: dict[str, Any]) -> bool:
 
     compacted = compact_review_item({}, row)
     features = compacted.get("review_features") if isinstance(compacted.get("review_features"), dict) else {}
+    confidence = safe_float(compacted.get("confidence"))
     text_similarity = safe_float(features.get("text_similarity"))
     containment = safe_float(features.get("token_containment"))
     me_coverage = safe_float(features.get("me_overlap_coverage"))
     content_tokens = low_materiality_content_tokens(me_text)
     fuzzy_duplicate = fuzzy_content_covered_by_remote(me_text, audio_review_remote_text(row))
+    high_confidence_duplicate = (
+        label == "remote_duplicate"
+        and confidence >= 0.95
+        and me_coverage >= 0.80
+        and (text_similarity >= 0.92 or containment >= 0.75 or fuzzy_duplicate)
+    )
 
     return (
-        len(content_tokens) <= 1
+        (label != "remote_duplicate" and len(content_tokens) <= 1)
         or me_coverage <= 0.40
         or (backchannel and duration <= 3.0)
-        or fuzzy_duplicate
-        or (len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
+        or (label != "remote_duplicate" and fuzzy_duplicate)
+        or high_confidence_duplicate
+        or (label != "remote_duplicate" and len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
     )
 
 
@@ -1096,7 +1104,7 @@ def review_item_low_materiality(item: dict[str, Any]) -> bool:
             and not bool(features.get("remote_inside_me"))
             and not bool(features.get("me_wraps_remote"))
         )
-    if label not in {"remote_leak", "uncertain"}:
+    if label not in {"remote_duplicate", "remote_leak", "uncertain"}:
         return False
     if verdict not in {"probable_transcript_error", "needs_stronger_audio_judge"}:
         return False
@@ -1111,17 +1119,25 @@ def review_item_low_materiality(item: dict[str, Any]) -> bool:
     if duration > (3.0 if backchannel else 1.25):
         return False
     features = item.get("review_features") if isinstance(item.get("review_features"), dict) else {}
+    confidence = safe_float(item.get("confidence"))
     text_similarity = safe_float(features.get("text_similarity"))
     containment = safe_float(features.get("token_containment"))
     me_coverage = safe_float(features.get("me_overlap_coverage"))
     content_tokens = low_materiality_content_tokens(me_text)
     fuzzy_duplicate = fuzzy_content_covered_by_remote(me_text, review_item_remote_text(item))
+    high_confidence_duplicate = (
+        label == "remote_duplicate"
+        and confidence >= 0.95
+        and me_coverage >= 0.80
+        and (text_similarity >= 0.92 or containment >= 0.75 or fuzzy_duplicate)
+    )
     return (
-        len(content_tokens) <= 1
+        (label != "remote_duplicate" and len(content_tokens) <= 1)
         or me_coverage <= 0.40
         or (backchannel and duration <= 3.0)
-        or fuzzy_duplicate
-        or (len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
+        or (label != "remote_duplicate" and fuzzy_duplicate)
+        or high_confidence_duplicate
+        or (label != "remote_duplicate" and len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
     )
 
 

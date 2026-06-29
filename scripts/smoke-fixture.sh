@@ -3788,6 +3788,25 @@ fuzzy_remote_leak = {
     },
 }
 assert module.review_item_low_materiality(fuzzy_remote_leak), fuzzy_remote_leak
+short_remote_duplicate = {
+    "source": "audio_review",
+    "label": "remote_duplicate",
+    "verdict": "probable_transcript_error",
+    "confidence": 0.96,
+    "interval": {"duration_sec": 1.0},
+    "text": [
+        {"role": "remote", "source_track": "remote", "text": "мы можем попробовать сделать обоснованно"},
+        {"role": "me", "source_track": "mic", "text": "Обоснованно."},
+    ],
+    "review_features": {
+        "me_overlap_coverage": 1.0,
+        "text_similarity": 1.0,
+        "token_containment": 1.0,
+    },
+}
+assert module.review_item_low_materiality(short_remote_duplicate), short_remote_duplicate
+short_remote_duplicate["confidence"] = 0.80
+assert not module.review_item_low_materiality(short_remote_duplicate), short_remote_duplicate
 grouped_a = item("audio_review", "remote_leak", "needs_stronger_audio_judge", 180, 1)
 grouped_b = item("audio_review", "remote_leak", "needs_stronger_audio_judge", 170, 2)
 for grouped in (grouped_a, grouped_b):
