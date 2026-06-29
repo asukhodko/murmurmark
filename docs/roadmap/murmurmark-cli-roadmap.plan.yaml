@@ -47,7 +47,9 @@ nodes:
       проверки, а отдельная поверхность transcript/export review остаётся около `2.81 min`.
       Оставшийся export-review теперь представлен как исполнимая очередь из `40` raw rows /
       `32` packed actions уже после `agent_reviewed_v1` + `audit_cleanup_v7`, доступная через `murmurmark review next` /
-      `murmurmark review workspace`. Следующая цель — снизить transcript/export surface с
+      `murmurmark review workspace`; активная очередь охватывает `6` сессий, а local-recall хвост
+      сокращён до одной короткой строки за счёт наследования уже применённых repair decisions.
+      Следующая цель — снизить transcript/export surface с
       `2.81 min` до `<= 1.5 min` и очередь с `32` до `<= 15` действий без смены топологии
       capture/Echo Guard/ASR, не ломая готовность evidence-backed notes и не скрывая спорные места
       от export gate.
@@ -388,7 +390,7 @@ nodes:
       Ближайшая выбранная цель после CLI MVP: сократить оставшуюся export-review очередь
       уже после agent-reviewed слоя. Текущая точка 2026-06-29: 13/13 `ready_for_notes`,
       `0.02 min` notes review, `2.81 min` transcript/export review и `40` raw rows /
-      `32` packed actions.
+      `32` packed actions; `check_local_recall` уже почти закрыт и оставляет одну короткую строку.
       Acceptance: сохранить 13/13 `ready_for_notes`, снизить transcript/export review до
       `<= 1.5 min` и очередь до `<= 15` actions, не меняя capture, Echo Guard и основной ASR.
       Основной материал: `check_unique_me_content` / `remote_leak`; possible lost `Me` и спорное
@@ -928,7 +930,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 уже довели корпус до medium_risk_ready; 13/13 рабочих сессий готовы для notes."
-          next_sync_goal: "Сократить export-review очередь ниже 40 actions: сначала через быстрые lanes, затем через следующий узкий доказуемый класс remote_leak или long-uncertain."
+          next_sync_goal: "Сократить export-review очередь ниже 32 actions: сначала через быстрые lanes, затем через следующий узкий доказуемый класс remote_leak или long-uncertain."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

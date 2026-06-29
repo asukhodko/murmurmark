@@ -2613,6 +2613,9 @@ rows are the remaining transcript/export surface, not a sign that the automatic 
 As of the 2026-06-29 corpus baseline, this queue is tracked separately from notes readiness:
 `13/13` working sessions are `ready_for_notes`, selected notes review is about `0.02 min`, and
 remaining transcript/export review is about `2.81 min` / `40` raw rows / `32` packed actions.
+Readiness inherits applied `local_recall` and `local_recall_repair` review decisions as well as
+audio-review decisions. Closed local-recall rows with `keep_me`, `drop_me` or `skip` do not re-enter
+`murmurmark next corpus`; unresolved possible lost speech remains visible in `check_local_recall`.
 Future cleanup or repair layers may reduce that queue only through explicit audit evidence and must
 keep possible lost `Me` speech or semantic uncertainty visible to export gates.
 

@@ -821,6 +821,9 @@ The same snapshot exposes the remaining export work as a normal review queue: `4
 through `murmurmark review next SESSION`, `murmurmark review first-lane --session SESSION` and
 `murmurmark review workspace --session SESSION`. This is intentionally separate from notes
 readiness: selected notes can be used, while full transcript/export waits for the review loop.
+The active queue currently spans `6` sessions; already-reviewed `local_recall` and
+`local_recall_repair` decisions are inherited by readiness, so only one short unresolved local-recall
+row remains in `check_local_recall`.
 The next engineering target is to shrink that queue to `<= 15` packed actions and
 transcript/export review to `<= 1.5 min` by closing or explaining narrow
 `check_unique_me_content` / `remote_leak` classes, not by weakening gates.
@@ -872,7 +875,9 @@ review lane as `local_recall_repair` rows. Unlike raw audit-only local-recall ro
 to actual `Me` utterance IDs in `local_recall_repair_v1`, so review can keep or drop the inserted
 turn explicitly. `murmurmark review agent` can also close the narrow high-confidence case without
 listening: the repair must be local-only by speaker-state, have successful micro-ASR, and pass the
-agent confidence thresholds. Lower-confidence insertions remain in `check_local_recall`.
+agent confidence thresholds. Applied `keep_me`, `drop_me` and `skip` decisions are treated as closed
+by operational readiness and do not reappear in `murmurmark next corpus`. Lower-confidence insertions
+remain in `check_local_recall`.
 For a corpus-level view of these candidate repairs:
 
 ```bash

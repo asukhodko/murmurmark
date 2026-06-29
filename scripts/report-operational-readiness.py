@@ -329,6 +329,32 @@ def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] |
     return resolved
 
 
+def review_resolved_local_recall_ids(session_path: Path, profile: str, seen: set[str] | None = None) -> set[str]:
+    seen = seen or set()
+    if profile in seen:
+        return set()
+    seen.add(profile)
+    inherited_profile = cleanup_input_profile(session_path, profile)
+    inherited = review_resolved_local_recall_ids(session_path, inherited_profile, seen) if inherited_profile else set()
+    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+        return inherited
+    path = (
+        session_path
+        / "derived/transcript-simple/whisper-cpp/review-decisions"
+        / f"review_decisions_applied{suffix(profile)}.jsonl"
+    )
+    resolved: set[str] = set(inherited)
+    for row in read_jsonl(path):
+        if str(row.get("source") or "") not in {"local_recall", "local_recall_repair"}:
+            continue
+        if str(row.get("decision") or "") not in {"drop_me", "keep_me", "skip"}:
+            continue
+        source_id = str(row.get("source_audit_id") or "")
+        if source_id:
+            resolved.add(source_id)
+    return resolved
+
+
 def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
     duration = safe_float(session.get("meeting_duration_sec"))
     probable_error = safe_float(session.get("audio_review_notes_probable_error_seconds"))
@@ -1102,6 +1128,7 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
     by_session = {str(session.get("session_id")): session for session in sessions}
     me_ids_cache: dict[tuple[str, str], set[str]] = {}
     review_resolved_cache: dict[tuple[str, str], set[str]] = {}
+    local_recall_resolved_cache: dict[tuple[str, str], set[str]] = {}
     for session in sessions:
         use_gate = str(session.get("use_gate") or "")
         export_blockers = session.get("export_blockers") if isinstance(session.get("export_blockers"), list) else []
@@ -1115,8 +1142,11 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
             me_ids_cache[cache_key] = selected_me_ids(session_path, profile)
         if cache_key not in review_resolved_cache:
             review_resolved_cache[cache_key] = review_resolved_audio_ids(session_path, profile)
+        if cache_key not in local_recall_resolved_cache:
+            local_recall_resolved_cache[cache_key] = review_resolved_local_recall_ids(session_path, profile)
         selected_ids = me_ids_cache[cache_key]
         review_resolved_ids = review_resolved_cache[cache_key]
+        local_recall_resolved_ids = local_recall_resolved_cache[cache_key]
         audit_path = session_path / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
         audit_rows = read_jsonl(audit_path)
         reliable_by_me_id = reliable_audio_review_rows_by_me_id(audit_rows, selected_ids)
@@ -1145,6 +1175,8 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
             if str(patch.get("status") or "") != "applied":
                 continue
             source_item_id = str(patch.get("source_item_id") or "")
+            if source_item_id in local_recall_resolved_ids:
+                continue
             if source_item_id:
                 repaired_local_recall_ids.add(source_item_id)
             compacted = compact_local_recall_repair_patch(session, patch)
@@ -1155,7 +1187,8 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
             label = str(row.get("label") or "")
             if label not in {"possible_lost_me", "needs_review"}:
                 continue
-            if str(row.get("item_id") or "") in repaired_local_recall_ids:
+            item_id = str(row.get("item_id") or "")
+            if item_id in repaired_local_recall_ids or item_id in local_recall_resolved_ids:
                 continue
             rows.append(compact_local_recall_item(session, row))
         order_path = session_path / "derived/audit/order/transcript_order_items.jsonl"

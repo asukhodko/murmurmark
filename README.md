@@ -39,7 +39,8 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - remaining full transcript/export review surface: `2.81 min`;
 - export-review queue: `40` raw rows / `32` packed actions after the current automatic
   `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `8` grouped rows reachable through `murmurmark review next` /
-  `murmurmark review workspace`; the active plan currently spans `7` sessions;
+  `murmurmark review workspace`; the active plan currently spans `6` sessions, with local-recall
+  review down to one short row after reviewed repair decisions are inherited by readiness;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
   `check_unique_me_content` and `remote_leak`, without changing capture, Echo Guard or the main ASR
   path, and without hiding unresolved risk from export gates.
@@ -966,6 +967,11 @@ ASR noise, `keep_me` for strong local-support cases that no longer need human re
 high-confidence local-recall repair insertions with local-only speaker-state evidence. It writes
 `agent_reviewed_v1`, which is eligible for `--transcript-profile auto` after gates pass. It never
 changes raw CAF files, Echo Guard outputs, ASR output or existing cleanup profiles.
+
+Operational readiness inherits applied review decisions for both audio-review rows and
+local-recall/local-recall-repair rows. A reviewed `keep_me`, `drop_me` or `skip` decision for an
+inserted local-recall repair no longer reappears in `murmurmark next corpus`; only unresolved repair
+or possible-lost-local rows stay in `check_local_recall`.
 
 ```bash
 murmurmark review agent
