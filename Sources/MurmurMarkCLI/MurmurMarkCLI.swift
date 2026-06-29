@@ -487,8 +487,10 @@ struct DoctorReport {
         print("  murmurmark config init")
         print("  murmurmark acceptance --skip-release")
         print("  murmurmark record --target-bundle system")
+        print("  murmurmark inspect latest")
         print("  murmurmark process latest")
         print("  murmurmark status latest")
+        print("  murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json")
     }
 }
 

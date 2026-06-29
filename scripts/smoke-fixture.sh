@@ -31,7 +31,10 @@ echo "$doctor_output" | grep -q '^next:$'
 echo "$doctor_output" | grep -q '^  murmurmark config init$'
 echo "$doctor_output" | grep -q '^  murmurmark acceptance --skip-release$'
 echo "$doctor_output" | grep -q '^  murmurmark record --target-bundle system$'
+echo "$doctor_output" | grep -q '^  murmurmark inspect latest$'
+echo "$doctor_output" | grep -q '^  murmurmark process latest$'
 echo "$doctor_output" | grep -q '^  murmurmark status latest$'
+echo "$doctor_output" | grep -q '^  murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json$'
 echo "$doctor_output" | grep -q '^status: doctor completed$'
 
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-smoke.XXXXXX")"

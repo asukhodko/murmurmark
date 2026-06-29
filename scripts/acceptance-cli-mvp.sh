@@ -295,6 +295,7 @@ echo "acceptance_cli_mvp:"
 install_output="$("$repo_root/scripts/install-local.sh" --prefix "$prefix")"
 echo "$install_output" | grep -q '^  murmurmark acceptance --skip-release$'
 echo "$install_output" | grep -q '^  murmurmark acceptance --live-checklist$'
+echo "$install_output" | grep -q '^  murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json$'
 echo "  install_wrapper: ok"
 checks+=("install_wrapper:passed")
 
