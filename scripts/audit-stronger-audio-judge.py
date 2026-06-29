@@ -673,6 +673,22 @@ def best_score(metrics: dict[str, Any], sources: tuple[str, ...], target: str) -
     return best
 
 
+def short_me_tokens_contained(
+    transcripts: dict[str, dict[str, Any]],
+    sources: tuple[str, ...],
+    me_tokens: list[str],
+) -> tuple[bool, str]:
+    meaningful = [token for token in me_tokens if len(token) >= 5]
+    if not meaningful or len(meaningful) > 2:
+        return False, ""
+    target = set(meaningful)
+    for source in sources:
+        source_tokens = set(content_tokens(str(transcripts.get(source, {}).get("text") or "")))
+        if target and target <= source_tokens:
+            return True, source
+    return False, ""
+
+
 def classify_item(
     item: dict[str, Any],
     audit_row: dict[str, Any] | None,
@@ -712,6 +728,7 @@ def classify_item(
     remote_confirmed = remote_source_to_remote >= 0.46 or (remote_source_tokens >= 2 and remote_text)
     remote_duplicate = best_remote_in_mic >= 0.70 and best_me_any < 0.42 and remote_similarity >= 35
     very_short_me = len(me_tokens) <= 3 and len(normalize_text(me_text).split()) <= 4
+    short_me_contained, short_me_source = short_me_tokens_contained(transcripts, clean_sources or mic_sources, me_tokens)
     noise_fragment_me = looks_like_noise_fragment(me_text)
     no_mic_me = best_me_any < 0.24 and mic_content_tokens <= 2
     mic_rejects_noise_fragment = (
@@ -744,6 +761,11 @@ def classify_item(
         suggested = "keep_me"
         confidence = min(0.90, max(0.75, best_me_any + 0.20))
         reasons.append(f"mic confirms Me via {best_me_any_source or best_me_source}")
+    elif short_me_contained and local_support >= 50 and best_remote_in_mic < 0.68:
+        label = "confirm_me"
+        suggested = "keep_me"
+        confidence = 0.78
+        reasons.append(f"short Me phrase is contained in mic decode via {short_me_source}")
     elif remote_duplicate:
         label = "confirm_remote_duplicate"
         suggested = "drop_me"

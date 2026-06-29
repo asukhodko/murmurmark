@@ -502,8 +502,12 @@ def stronger_matches_for_row(row: dict[str, Any], by_session: dict[str, list[dic
             continue
         me_match = bool(me_ids and me_ids <= candidate_ids)
         exactish = bool(row_ids and (row_ids <= candidate_ids or candidate_ids <= row_ids))
-        remote_match = not remote_ids or bool(remote_ids & candidate_ids)
         time_match = interval_overlap_seconds(row, candidate) > 0.05
+        candidate_label = str((candidate.get("classification") or {}).get("label") or "")
+        if me_match and time_match and candidate_label in {"confirm_me"}:
+            matches.append(candidate)
+            continue
+        remote_match = not remote_ids or bool(remote_ids & candidate_ids)
         if (exactish or me_match) and remote_match and time_match:
             matches.append(candidate)
     return matches

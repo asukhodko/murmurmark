@@ -1356,6 +1356,28 @@ protected_classification = module.classify_item(
     protected_metrics,
 )
 assert protected_classification["label"] == "uncertain", protected_classification
+contained_short_item = dict(item)
+contained_short_item["utterances"] = [
+    {"id": "utt_contained", "role": "Me", "source_track": "mic", "start": 1.0, "end": 3.0, "text": "Я составлю"}
+]
+contained_short_audit = {
+    "classification": {"label": "likely_reliable", "verdict": "likely_reliable"},
+    "scores": {"local_support": 65, "remote_similarity": 0},
+}
+contained_short_transcripts = {
+    "mic_role_masked": {"text": "штуки это все еще подготовка а само действие еще нужно как сам составлю"},
+    "mic_clean": {"text": "штуки это все еще подготовка а само действие еще нужно как сам составлю"},
+    "mic_raw": {"text": "штуки это все еще подготовка а само действие еще нужно как сам составлю"},
+    "remote": {"text": "продолжение следует"},
+}
+contained_short_metrics = module.source_metrics(contained_short_transcripts, "Я составлю", "Да. Да. Да.")
+contained_short_classification = module.classify_item(
+    contained_short_item,
+    contained_short_audit,
+    contained_short_transcripts,
+    contained_short_metrics,
+)
+assert contained_short_classification["label"] == "confirm_me", contained_short_classification
 parsed = module.parse_ffplay_slice(
     'ffplay -hide_banner -loglevel error -ss 12.500 -t 4.250 "/tmp/murmurmark mic.wav"'
 )
@@ -1407,6 +1429,55 @@ with tempfile.TemporaryDirectory() as tmp:
     assert ids == ["arp_current"], ids
     assert missing_files == []
     assert selector_keys == ["utt_target,utt_remote"]
+PY
+
+  "$audit_python" - "$repo_root/scripts/build-review-lane-pack.py" <<'PY'
+import importlib.util
+import sys
+
+path = sys.argv[1]
+spec = importlib.util.spec_from_file_location("build_review_lane_pack", path)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+row = {
+    "session_id": "fixture",
+    "source": "audio_review",
+    "source_audit_id": "arp_overlap",
+    "review_lane": "classify_audio",
+    "allowed_decisions": ["drop_me", "keep_me", "needs_review", "skip"],
+    "utterance_ids": ["utt_me", "utt_remote"],
+    "me_utterance_ids": ["utt_me"],
+    "remote_utterance_ids": ["utt_remote"],
+    "interval": {"start": 10.0, "end": 12.0},
+}
+candidate = {
+    "id": "fwj_me_only",
+    "source_pack_item_id": "arp_local_context",
+    "session_id": "fixture",
+    "utterance_ids": ["utt_me"],
+    "interval": {"start": 9.0, "end": 13.0},
+    "classification": {
+        "label": "confirm_me",
+        "suggested_decision": "keep_me",
+        "confidence": 0.78,
+    },
+}
+decision, confidence, reason, summary = module.stronger_suggested_decision([row], {"fixture": [candidate]})
+assert decision == "keep_me", (decision, confidence, reason, summary)
+assert confidence == 0.78, (decision, confidence, reason, summary)
+
+drop_candidate = dict(
+    candidate,
+    id="fwj_drop_me_only",
+    classification={
+        "label": "confirm_remote_duplicate",
+        "suggested_decision": "drop_me",
+        "confidence": 0.95,
+    },
+)
+decision, confidence, reason, summary = module.stronger_suggested_decision([row], {"fixture": [drop_candidate]})
+assert decision is None, (decision, confidence, reason, summary)
 PY
 
   group_session="$workdir/group-session"
