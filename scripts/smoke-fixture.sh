@@ -1459,6 +1459,30 @@ remote_contains_short_me_classification = module.classify_item(
     remote_contains_short_me_metrics,
 )
 assert remote_contains_short_me_classification["label"] == "confirm_remote_duplicate", remote_contains_short_me_classification
+remote_leak_duplicate_item = dict(item)
+remote_leak_duplicate_item["utterances"] = [
+    {"id": "utt_remote_leak", "role": "Me", "source_track": "mic", "start": 1.0, "end": 5.0, "text": "Хорошо. Так, что, стокшайлинг"}
+]
+remote_leak_duplicate_audit = {
+    "classification": {"label": "remote_leak", "verdict": "probable_transcript_error"},
+    "scores": {"local_support": 40, "remote_similarity": 70},
+}
+remote_leak_duplicate_transcripts = {
+    "mic_clean": {"text": "хорошо ну все типа"},
+    "remote": {"text": "Хорошо. Так, что, стокшеринг. Ну все, типа."},
+}
+remote_leak_duplicate_metrics = module.source_metrics(
+    remote_leak_duplicate_transcripts,
+    "Хорошо. Так, что, стокшайлинг",
+    "Хорошо. Так, что, стокшеринг. Ну все, типа.",
+)
+remote_leak_duplicate_classification = module.classify_item(
+    remote_leak_duplicate_item,
+    remote_leak_duplicate_audit,
+    remote_leak_duplicate_transcripts,
+    remote_leak_duplicate_metrics,
+)
+assert remote_leak_duplicate_classification["label"] == "confirm_remote_duplicate", remote_leak_duplicate_classification
 unconfirmed_short_leak_item = dict(item)
 unconfirmed_short_leak_item["utterances"] = [
     {"id": "utt_unconfirmed", "role": "Me", "source_track": "mic", "start": 1.0, "end": 2.0, "text": "Яренькая фандома была"}

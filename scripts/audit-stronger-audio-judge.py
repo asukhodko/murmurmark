@@ -956,6 +956,20 @@ def classify_item(
         and remote_source_to_me >= 0.80
         and remote_source_to_me_containment >= 0.90
     )
+    remote_leak_behaves_like_duplicate = (
+        short_content_me
+        and len(me_tokens) >= 2
+        and best_me_any < 0.45
+        and audit_verdict == "probable_transcript_error"
+        and audit_label == "remote_leak"
+        and local_support <= 45
+        and remote_similarity >= 65
+        and best_remote_in_mic >= 0.58
+        and remote_source_to_remote >= 0.80
+        and remote_source_to_me >= 0.68
+        and remote_source_to_me_containment >= 0.60
+        and mic_content_tokens >= 2
+    )
     short_remote_leak_unconfirmed = (
         short_content_me
         and len(me_tokens) >= 2
@@ -989,6 +1003,11 @@ def classify_item(
         suggested = "drop_me"
         confidence = 0.90
         reasons.append("remote track contains the short Me text while mic decodes do not confirm it")
+    elif remote_leak_behaves_like_duplicate:
+        label = "confirm_remote_duplicate"
+        suggested = "drop_me"
+        confidence = 0.88
+        reasons.append("remote-leak evidence behaves like a duplicate: mic decode is closer to remote than Me")
     elif remote_duplicate:
         label = "confirm_remote_duplicate"
         suggested = "drop_me"
