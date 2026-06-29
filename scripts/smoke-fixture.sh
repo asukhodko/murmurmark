@@ -1429,6 +1429,11 @@ with tempfile.TemporaryDirectory() as tmp:
     assert ids == ["arp_current"], ids
     assert missing_files == []
     assert selector_keys == ["utt_target,utt_remote"]
+    args = type("Args", (), {"pack_item_id": ["arp_explicit"], "review_lane_pack": [lane_pack]})()
+    current_items.append({"id": "arp_explicit", "utterance_ids": ["utt_explicit"], "utterances": []})
+    ids, missing_files, selector_keys = module.target_item_ids(args, current_items)
+    assert ids[:2] == ["arp_explicit", "arp_current"], ids
+assert module.item_utterance_ids({"utterance_ids": ["utt_top"], "utterances": []}) == ["utt_top"]
 PY
 
   "$audit_python" - "$repo_root/scripts/build-review-lane-pack.py" <<'PY'
@@ -1478,6 +1483,20 @@ drop_candidate = dict(
 )
 decision, confidence, reason, summary = module.stronger_suggested_decision([row], {"fixture": [drop_candidate]})
 assert decision is None, (decision, confidence, reason, summary)
+
+source_match_candidate = dict(
+    candidate,
+    id="fwj_source_match",
+    source_pack_item_id="arp_overlap",
+    interval={"start": 0.0, "end": 1.0},
+    classification={
+        "label": "confirm_me",
+        "suggested_decision": "keep_me",
+        "confidence": 0.9,
+    },
+)
+decision, confidence, reason, summary = module.stronger_suggested_decision([row], {"fixture": [source_match_candidate]})
+assert decision == "keep_me" and confidence == 0.9, (decision, confidence, reason, summary)
 PY
 
   group_session="$workdir/group-session"

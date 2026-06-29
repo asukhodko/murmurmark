@@ -527,7 +527,8 @@ def item_matches_lane_selector(item: dict[str, Any], selector: dict[str, Any]) -
 
 
 def target_item_ids(args: argparse.Namespace, items: list[dict[str, Any]]) -> tuple[list[str], list[str], list[str]]:
-    ids = [str(value).strip() for value in args.pack_item_id if str(value).strip()]
+    explicit_ids = [str(value).strip() for value in args.pack_item_id if str(value).strip()]
+    ids: list[str] = []
     selectors, missing_pack_files = lane_pack_selectors(args)
     matched_selector_ids: list[str] = []
     for selector in selectors:
@@ -547,7 +548,7 @@ def target_item_ids(args: argparse.Namespace, items: list[dict[str, Any]]) -> tu
             matched_selector_ids.extend(matched)
         else:
             ids.extend(str(value) for value in selector.get("source_ids") or [] if value)
-    ids = list(matched_selector_ids) + ids
+    ids = explicit_ids + matched_selector_ids + ids
     return list(dict.fromkeys(ids)), missing_pack_files, [",".join(selector.get("utterance_ids") or []) for selector in selectors]
 
 
@@ -686,6 +687,10 @@ def utterance_ids(item: dict[str, Any]) -> list[str]:
         if isinstance(row, dict) and row.get("id"):
             ids.append(str(row["id"]))
     return list(dict.fromkeys(ids))
+
+
+def item_utterance_ids(item: dict[str, Any]) -> list[str]:
+    return utterance_ids(item) or list_strings(item.get("utterance_ids"))
 
 
 def item_fingerprint_payload(item: dict[str, Any]) -> dict[str, Any]:
@@ -1035,7 +1040,7 @@ def audit_item(model: Any, item: dict[str, Any], audit_row: dict[str, Any] | Non
         "profile": item.get("profile") or args.profile,
         "interval": item.get("interval"),
         "source_reasons": item.get("source_reasons") or [],
-        "utterance_ids": utterance_ids(item),
+        "utterance_ids": item_utterance_ids(item),
         "utterances": item.get("utterances") or [],
         "audio_review_classification": (audit_row or {}).get("classification"),
         "audio_review_scores": (audit_row or {}).get("scores"),

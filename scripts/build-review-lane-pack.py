@@ -501,10 +501,18 @@ def stronger_matches_for_row(row: dict[str, Any], by_session: dict[str, list[dic
         candidate_ids = {str(value) for value in candidate.get("utterance_ids") or [] if value}
         if not candidate_ids:
             continue
+        source_match = (
+            row.get("source_audit_id")
+            and str(row.get("source_audit_id")) == str(candidate.get("source_pack_item_id") or "")
+            and bool(row_ids & candidate_ids)
+        )
         me_match = bool(me_ids and me_ids <= candidate_ids)
         exactish = bool(row_ids and (row_ids <= candidate_ids or candidate_ids <= row_ids))
         time_match = interval_overlap_seconds(row, candidate) > 0.05
         candidate_label = str((candidate.get("classification") or {}).get("label") or "")
+        if source_match:
+            matches.append(candidate)
+            continue
         if me_match and time_match and candidate_label in {"confirm_me"}:
             matches.append(candidate)
             continue
