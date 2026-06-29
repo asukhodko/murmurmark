@@ -53,6 +53,7 @@ murmurmark next latest
 murmurmark next corpus
 murmurmark open latest --kind notes
 murmurmark status latest
+murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json
 # Follow printed review commands when the gate is review_first.
 murmurmark export latest --format markdown --include-json
 murmurmark retention plan latest

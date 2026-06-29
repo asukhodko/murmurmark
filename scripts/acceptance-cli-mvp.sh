@@ -6,10 +6,16 @@ release_verify=1
 verify_python="${MURMURMARK_PYTHON:-}"
 live_checklist=0
 report_path=""
+live_session=""
+sessions_root="sessions"
+manual_gate_status="manual"
+manual_gate_command="murmurmark acceptance --live-checklist"
+report_session=""
+report_readiness_status=""
 
 usage() {
   cat <<'EOF'
-usage: scripts/acceptance-cli-mvp.sh [--skip-release] [--python PATH] [--live-checklist] [--report PATH]
+usage: scripts/acceptance-cli-mvp.sh [--skip-release] [--python PATH] [--live-checklist] [--live-session SESSION|latest] [--sessions-root DIR] [--report PATH]
 
 Checks the current CLI MVP acceptance gate without touching real sessions or
 raw recordings. The automated gate covers install, doctor, self-test, local
@@ -22,6 +28,10 @@ Options:
   --skip-release  Skip release bundle verification.
   --python PATH   Use PATH as MURMURMARK_PYTHON for release verification.
   --live-checklist Print the manual live recording gate and exit.
+  --live-session SESSION|latest
+                 Verify the manual live gate for an already recorded and processed session.
+  --sessions-root DIR
+                 Sessions directory for resolving latest. Default: sessions.
   --report PATH   Write a machine-readable acceptance report.
 EOF
 }
@@ -50,6 +60,10 @@ write_report() {
   STARTED_AT="$started_at" \
   COMPLETED_AT="$completed_at" \
   RELEASE_VERIFY="$release_verify" \
+  MANUAL_GATE_STATUS="$manual_gate_status" \
+  MANUAL_GATE_COMMAND="$manual_gate_command" \
+  REPORT_SESSION="$report_session" \
+  REPORT_READINESS_STATUS="$report_readiness_status" \
   "$report_python" - <<'PY'
 import json
 import os
@@ -73,12 +87,17 @@ payload = {
     "manual_gates": [
         {
             "name": "live_recording",
-            "status": "manual",
-            "command": "murmurmark acceptance --live-checklist",
+            "status": os.environ["MANUAL_GATE_STATUS"],
+            "command": os.environ["MANUAL_GATE_COMMAND"],
         }
     ],
     "next": os.environ["NEXT_COMMAND"],
 }
+
+if os.environ.get("REPORT_SESSION"):
+    payload["session"] = os.environ["REPORT_SESSION"]
+if os.environ.get("REPORT_READINESS_STATUS"):
+    payload["readiness_status"] = os.environ["REPORT_READINESS_STATUS"]
 
 path = Path(os.environ["REPORT_PATH"])
 path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -101,6 +120,16 @@ while [[ $# -gt 0 ]]; do
       live_checklist=1
       shift
       ;;
+    --live-session)
+      [[ $# -ge 2 ]] || { echo "error: --live-session requires a session path or latest" >&2; exit 2; }
+      live_session="$2"
+      shift 2
+      ;;
+    --sessions-root)
+      [[ $# -ge 2 ]] || { echo "error: --sessions-root requires a path" >&2; exit 2; }
+      sessions_root="$2"
+      shift 2
+      ;;
     --report)
       [[ $# -ge 2 ]] || { echo "error: --report requires a path" >&2; exit 2; }
       report_path="$2"
@@ -118,6 +147,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$live_checklist" == "1" && -n "$live_session" ]]; then
+  echo "error: --live-checklist and --live-session cannot be combined" >&2
+  exit 2
+fi
+
 if [[ "$live_checklist" == "1" ]]; then
   cat <<'EOF'
 live_recording_gate:
@@ -130,6 +164,7 @@ live_recording_gate:
     - murmurmark process latest
     - murmurmark status latest
     - murmurmark next latest
+    - murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json
     - follow printed review command when readiness says review_first
     - murmurmark export latest --format markdown --include-json
     - murmurmark retention plan latest
@@ -137,6 +172,7 @@ live_recording_gate:
     - recording creates separate non-empty mic and remote tracks
     - process latest completes or prints a concrete next command
     - status latest reports a clear readiness state
+    - acceptance --live-session reports status ok
     - risky transcript regions remain explicit review items
     - export is blocked while required review/export blockers exist
     - successful export writes an export manifest
@@ -145,6 +181,74 @@ EOF
   write_report "live_checklist" "manual" "murmurmark doctor"
   echo "status: manual"
   echo "next: murmurmark doctor"
+  exit 0
+fi
+
+if [[ -n "$live_session" ]]; then
+  murmurmark_bin="${MURMURMARK_BIN:-murmurmark}"
+  inspect_output="$("$murmurmark_bin" inspect "$live_session" --sessions-root "$sessions_root")"
+  status_output="$("$murmurmark_bin" status "$live_session" --sessions-root "$sessions_root")"
+
+  extract_field() {
+    local line="$1"
+    local field="$2"
+    sed -n "s/.*$field=\\([0-9.]*\\).*/\\1/p" <<<"$line"
+  }
+
+  validate_track() {
+    local source="$1"
+    local line
+    line="$(printf '%s\n' "$inspect_output" | grep "^$source:" || true)"
+    [[ -n "$line" ]] || { echo "error: inspect did not report $source track" >&2; exit 1; }
+    local files bytes frames duration
+    files="$(extract_field "$line" "files")"
+    bytes="$(extract_field "$line" "bytes")"
+    frames="$(extract_field "$line" "frames")"
+    duration="$(extract_field "$line" "duration")"
+    [[ "${files:-0}" -ge 1 ]] || { echo "error: $source track has no files" >&2; exit 1; }
+    [[ "${bytes:-0}" -gt 0 ]] || { echo "error: $source track is empty" >&2; exit 1; }
+    [[ "${frames:-0}" -gt 0 ]] || { echo "error: $source track has no frames" >&2; exit 1; }
+    awk -v d="${duration:-0}" 'BEGIN { exit !(d > 0) }' || {
+      echo "error: $source track duration is not positive" >&2
+      exit 1
+    }
+  }
+
+  validate_track "mic"
+  validate_track "remote"
+  checks+=("mic_track:passed")
+  checks+=("remote_track:passed")
+
+  readiness_status="$(printf '%s\n' "$status_output" | sed -n 's/^  status: //p' | head -1)"
+  next_command="$(printf '%s\n' "$status_output" | sed -n 's/^next: //p' | tail -1)"
+  [[ -n "$readiness_status" ]] || { echo "error: status did not report readiness status" >&2; exit 1; }
+  [[ -n "$next_command" ]] || { echo "error: status did not report final next command" >&2; exit 1; }
+  case "$readiness_status" in
+    review_required|exportable|exported)
+      ;;
+    *)
+      echo "error: live session is not ready enough for acceptance: $readiness_status" >&2
+      echo "hint: $next_command" >&2
+      exit 1
+      ;;
+  esac
+
+  checks+=("readiness:passed")
+  checks+=("live_recording:passed")
+  manual_gate_status="passed"
+  manual_gate_command="murmurmark acceptance --live-session $live_session"
+  report_session="$(printf '%s\n' "$status_output" | sed -n 's/^SESSION="\(.*\)"$/\1/p' | head -1)"
+  report_readiness_status="$readiness_status"
+
+  echo "acceptance_live_session:"
+  echo "  session: ${report_session:-$live_session}"
+  echo "  mic_track: ok"
+  echo "  remote_track: ok"
+  echo "  readiness_status: $readiness_status"
+  echo "  live_recording: ok"
+  write_report "live_session" "ok" "$next_command"
+  echo "status: ok"
+  echo "next: $next_command"
   exit 0
 fi
 

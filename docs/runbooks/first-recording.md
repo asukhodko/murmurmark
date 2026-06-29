@@ -109,6 +109,7 @@ safe when the newest session is the one you just recorded.
 murmurmark process latest
 murmurmark status latest
 murmurmark next latest
+murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json
 
 # If readiness says review_first, follow the printed review command first.
 murmurmark notes latest --kind verdict

@@ -113,6 +113,7 @@ struct MurmurMark {
           murmurmark doctor [--strict]
           murmurmark self-test
           murmurmark acceptance [--skip-release] [--python PATH] [--live-checklist] [--report PATH]
+                              [--live-session SESSION|latest] [--sessions-root ./sessions]
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
@@ -335,7 +336,9 @@ enum Commands {
 
     static func printAcceptanceHelp() {
         print("""
-        usage: murmurmark acceptance [--skip-release] [--python PATH] [--live-checklist] [--report PATH]
+        usage: murmurmark acceptance [--skip-release] [--python PATH] [--live-checklist]
+                                     [--live-session SESSION|latest] [--sessions-root ./sessions]
+                                     [--report PATH]
 
         Runs the CLI MVP acceptance gate.
 
@@ -346,6 +349,9 @@ enum Commands {
 
         Use --live-checklist to print the manual live recording gate without
         recording audio.
+
+        Use --live-session SESSION|latest after recording and processing a real
+        session to verify the manual live gate from session artifacts.
 
         Use --report PATH to write a machine-readable acceptance report.
         """)

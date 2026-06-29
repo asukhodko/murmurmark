@@ -531,6 +531,51 @@ echo "$status_output" | grep -q '^  use:$'
 echo "$status_output" | grep -q '^    summary: pipeline incomplete; process before use$'
 echo "$status_output" | grep -q '^    can_export: false$'
 tail -1 <<<"$status_output" | grep -q '^next: murmurmark process '
+live_acceptance_session="$workdir/_live-acceptance-session"
+mkdir -p "$live_acceptance_session/derived/readiness"
+cp "$session/session.json" "$live_acceptance_session/session.json"
+cp -R "$session/audio" "$live_acceptance_session/audio"
+jq -n --arg session_path "$live_acceptance_session" '{
+  schema: "murmurmark.session_readiness/v1",
+  use_gate: "ready_for_notes",
+  recommendation: "use_notes_with_normal_caution",
+  selected_profile: "fixture",
+  verdict: "usable_with_review",
+  export_blockers: [],
+  review_blockers: [],
+  recommended_next: "murmurmark export \($session_path) --format markdown --include-json",
+  metrics: {
+    review_burden_sec: 0,
+    review_burden_ratio: 0,
+    synthesis_review_item_count: 0,
+    synthesis_review_item_seconds: 0,
+    synthesis_review_top_types: []
+  },
+  next_commands: [
+    {
+      id: "export_markdown",
+      label: "Export a local Markdown handoff bundle.",
+      command: "murmurmark export \($session_path) --format markdown --include-json"
+    }
+  ]
+}' >"$live_acceptance_session/derived/readiness/session_readiness.json"
+echo '# Live Acceptance Fixture Readiness' >"$live_acceptance_session/derived/readiness/session_readiness.md"
+live_acceptance_report="$workdir/live-acceptance-report.json"
+live_acceptance_output="$("$bin" acceptance --live-session "$live_acceptance_session" --report "$live_acceptance_report")"
+echo "$live_acceptance_output" | grep -q '^acceptance_live_session:$'
+echo "$live_acceptance_output" | grep -q '^  mic_track: ok$'
+echo "$live_acceptance_output" | grep -q '^  remote_track: ok$'
+echo "$live_acceptance_output" | grep -q '^  readiness_status: exportable$'
+echo "$live_acceptance_output" | grep -q '^  live_recording: ok$'
+tail -1 <<<"$live_acceptance_output" | grep -q '^next: murmurmark export '
+jq -e '
+  .schema == "murmurmark.cli_mvp_acceptance_report/v1"
+  and .mode == "live_session"
+  and .status == "ok"
+  and .readiness_status == "exportable"
+  and any(.checks[]; .name == "live_recording" and .status == "passed")
+  and any(.manual_gates[]; .name == "live_recording" and .status == "passed")
+' "$live_acceptance_report" >/dev/null
 next_output="$("$bin" next "$session")"
 assert_no_helper_prefix "$next_output"
 echo "$next_output" | grep -q '^next:$'
@@ -2415,16 +2460,19 @@ EOF
   echo "$main_help" | grep -q '^  murmurmark status latest$'
   echo "$main_help" | grep -q '^  murmurmark export latest --format markdown --include-json$'
   echo "$main_help" | grep -q '^  murmurmark acceptance \[--skip-release\] \[--python PATH\] \[--live-checklist\] \[--report PATH\]$'
+  echo "$main_help" | grep -q '\[--live-session SESSION|latest\] \[--sessions-root ./sessions\]'
   echo "$main_help" | grep -q '^  murmurmark inspect ./session|latest \[--echo\] \[--sessions-root ./sessions\]$'
   echo "$main_help" | grep -q '^  murmurmark review --help$'
   inspect_help="$("$bin" inspect --help)"
   echo "$inspect_help" | grep -q 'usage: murmurmark inspect ./session|latest'
   acceptance_help="$("$bin" acceptance --help)"
   echo "$acceptance_help" | grep -q 'usage: murmurmark acceptance'
+  echo "$acceptance_help" | grep -q -- '--live-session SESSION|latest'
   echo "$acceptance_help" | grep -q -- '--report PATH'
   acceptance_live="$("$bin" acceptance --live-checklist)"
   echo "$acceptance_live" | grep -q '^live_recording_gate:$'
   echo "$acceptance_live" | grep -q '^    - murmurmark inspect latest$'
+  echo "$acceptance_live" | grep -q '^    - murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json$'
   echo "$acceptance_live" | grep -q '^status: manual$'
   tail -1 <<<"$acceptance_live" | grep -q '^next: murmurmark doctor$'
   review_help="$("$bin" review --help)"

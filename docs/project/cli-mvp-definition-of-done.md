@@ -70,6 +70,7 @@ murmurmark inspect latest
 murmurmark process latest
 murmurmark status latest
 murmurmark next latest
+murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json
 ```
 
 Then follow the printed review command when readiness says `review_first`.
@@ -85,6 +86,8 @@ The manual gate passes when:
 - the recording creates separate non-empty mic and remote tracks;
 - `process latest` completes or prints a concrete next command;
 - `status latest` reports a clear readiness state;
+- `acceptance --live-session latest` reports `status: ok` and writes a report with
+  `manual_gates.live_recording.status = passed`;
 - risky transcript regions remain explicit review items;
 - export is blocked while required review/export blockers exist;
 - a successful export writes a manifest;
