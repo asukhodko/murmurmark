@@ -9,11 +9,12 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.1"
+SCRIPT_VERSION = "0.3.2"
 SCHEMA = "murmurmark.agent_review_decisions/v1"
 OUTPUT_PROFILE = "agent_reviewed_v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 LOCAL_RECALL_REPAIR_PROFILE = "local_recall_repair_v1"
+SPEAKER_STATE_CACHE: dict[Path, list[dict[str, Any]]] = {}
 
 STOP_WORDS = {
     "а",
@@ -265,6 +266,13 @@ def audio_review_remote_text(row: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def audio_review_remote_ids(row: dict[str, Any]) -> set[str]:
+    rows = row.get("utterances")
+    if not isinstance(rows, list):
+        return set()
+    return {str(item.get("id")) for item in rows if isinstance(item, dict) and role_name(item) == "remote" and item.get("id")}
+
+
 def audio_review_me_text(row: dict[str, Any]) -> str:
     parts: list[str] = []
     for item in row.get("utterances") or []:
@@ -310,6 +318,50 @@ def unique_me_content_tokens(row: dict[str, Any]) -> set[str]:
     return me - remote
 
 
+def speaker_state_rows(session: Path) -> list[dict[str, Any]]:
+    path = session / "derived/preprocess/echo/speaker_state.jsonl"
+    if path not in SPEAKER_STATE_CACHE:
+        SPEAKER_STATE_CACHE[path] = read_jsonl(path)
+    return SPEAKER_STATE_CACHE[path]
+
+
+def speaker_state_ratios(session: Path, start: float, end: float) -> dict[str, float]:
+    duration = max(0.0, end - start)
+    if duration <= 0.0:
+        return {
+            "covered_ratio": 0.0,
+            "local_only_ratio": 0.0,
+            "remote_only_ratio": 0.0,
+            "double_talk_ratio": 0.0,
+            "remote_active_ratio": 0.0,
+        }
+    covered = 0.0
+    local_only = 0.0
+    remote_only = 0.0
+    double_talk = 0.0
+    for row in speaker_state_rows(session):
+        row_start = safe_float(row.get("start"))
+        row_end = safe_float(row.get("end"))
+        overlap = max(0.0, min(end, row_end) - max(start, row_start))
+        if overlap <= 0.0:
+            continue
+        covered += overlap
+        state = str(row.get("state") or "")
+        if state == "local_only":
+            local_only += overlap
+        elif state.startswith("remote_only"):
+            remote_only += overlap
+        elif state.startswith("double_talk"):
+            double_talk += overlap
+    return {
+        "covered_ratio": round(min(1.0, covered / duration), 6),
+        "local_only_ratio": round(local_only / duration, 6),
+        "remote_only_ratio": round(remote_only / duration, 6),
+        "double_talk_ratio": round(double_talk / duration, 6),
+        "remote_active_ratio": round((remote_only + double_talk) / duration, 6),
+    }
+
+
 def queue_index(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
     return {
         (str(row.get("session_id") or ""), str(row.get("source_audit_id") or "")): row
@@ -317,7 +369,7 @@ def queue_index(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
     }
 
 
-def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None) -> tuple[str | None, str, dict[str, Any]]:
+def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, session: Path) -> tuple[str | None, str, dict[str, Any]]:
     classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
     features = row.get("features") if isinstance(row.get("features"), dict) else {}
     text_features = features.get("text") if isinstance(features.get("text"), dict) else {}
@@ -337,11 +389,14 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None) -> tu
     similarity = safe_float(text_features.get("similarity"))
     containment = safe_float(text_features.get("containment"))
     me_text = audio_review_me_text(row)
+    remote_text = audio_review_remote_text(row)
+    remote_ids = sorted(audio_review_remote_ids(row))
     unique_tokens = sorted(unique_me_content_tokens(row))
     protected = has_protected_marker(me_text)
     me_coverage = interval_coverage(row, "me")
     judge_label = str((queue_row or {}).get("judge_label") or "")
     judge_confidence = safe_float((queue_row or {}).get("judge_confidence"))
+    state = speaker_state_ratios(session, safe_float(interval.get("start")), safe_float(interval.get("end")))
 
     evidence = {
         "label": label,
@@ -359,6 +414,8 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None) -> tu
         "me_overlap_coverage": round(me_coverage, 6),
         "unique_me_content_tokens": unique_tokens,
         "protected_marker": protected,
+        "remote_utterance_ids": remote_ids,
+        "speaker_state": state,
         "audio_judge_label": judge_label or None,
         "audio_judge_confidence": judge_confidence if judge_label else None,
     }
@@ -451,6 +508,25 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None) -> tu
         and not protected
     ):
         return "keep_me", "bounded_remote_leak_with_local_content", evidence
+
+    if (
+        label == "remote_leak"
+        and verdict == "probable_transcript_error"
+        and confidence >= 0.78
+        and local_support >= 40
+        and remote_duplicate <= 0
+        and asr_noise <= 0
+        and duration <= 5.0
+        and me_coverage >= 0.75
+        and not remote_ids
+        and not remote_text.strip()
+        and len(unique_tokens) >= 2
+        and state["covered_ratio"] >= 0.80
+        and state["local_only_ratio"] >= 0.85
+        and state["remote_active_ratio"] <= 0.15
+        and (not protected or state["local_only_ratio"] >= 0.95)
+    ):
+        return "keep_me", "speaker_state_local_only_remote_leak_keep", evidence
 
     if (
         judge_label == "mark_only_error"
@@ -686,7 +762,7 @@ def session_rows(session: Path, profile: str, queue: dict[tuple[str, str], dict[
         if not is_active_audio_review_row(row, selected_ids):
             continue
         queue_row = queue.get((session.name, str(row.get("id") or "")))
-        decision, reason, evidence = decision_reason(row, queue_row)
+        decision, reason, evidence = decision_reason(row, queue_row, session)
         if decision is None:
             rejected.append(
                 {

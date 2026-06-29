@@ -36,7 +36,7 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - operational verdict: `medium_risk_ready`;
 - working sessions: `13/13 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.02 min`;
-- remaining full transcript/export review surface: `2.81 min`;
+- remaining full transcript/export review surface: `2.71 min`;
 - export-review queue: `40` raw rows / `32` packed actions after the current automatic
   `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `8` grouped rows reachable through `murmurmark review next` /
   `murmurmark review workspace`; the active plan currently spans `6` sessions, with local-recall
@@ -964,7 +964,9 @@ agent review scope under `sessions/_reports/review-plan/`. The scope contains on
 rules can close without listening: whole-utterance `drop_me` for very clear remote duplicates or
 ASR noise, `keep_me` for strong local-support cases that no longer need human review, and
 `keep_me` for bounded short `remote_leak` rows with unique local text and low remote similarity, plus
-high-confidence local-recall repair insertions with local-only speaker-state evidence. It writes
+`keep_me` for short `remote_leak` rows with no remote utterance and near-pure `local_only`
+speaker-state evidence, plus high-confidence local-recall repair insertions with local-only
+speaker-state evidence. It writes
 `agent_reviewed_v1`, which is eligible for `--transcript-profile auto` after gates pass. It never
 changes raw CAF files, Echo Guard outputs, ASR output or existing cleanup profiles.
 
