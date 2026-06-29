@@ -118,7 +118,7 @@ scripts/smoke-cli-handoff.sh
 ```
 
 It builds a tiny processed fixture and then uses only `murmurmark ...` commands for
-`status -> report -> next/open -> export -> retention`.
+`process --plan-only -> review workspace/lane apply -> status -> report -> next/open -> export -> retention`.
 
 ### End-to-End From an Existing Recording
 

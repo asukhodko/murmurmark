@@ -73,8 +73,8 @@ The usual summary commands (`status`, `report`, `open`, `audit`, `cleanup`, `rep
 `notes`, `transcript`, `review`, `export`, `retention`) use the same convention. Pure output modes
 such as `--path-only`, `--command-only` and `--cat` do not append a handoff line.
 `scripts/smoke-cli-handoff.sh` is the fast regression for this user-facing contract: it creates a
-tiny processed fixture and then walks `status -> report -> next/open -> export -> retention` through
-CLI commands only.
+tiny processed fixture and then walks `process --plan-only`, review workspace/lane apply, `status`,
+`report`, `next`/`open`, `export` and `retention` through CLI commands only.
 
 For the usual record-then-process flow:
 
