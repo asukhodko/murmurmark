@@ -34,6 +34,10 @@ The automated gate must pass these checks:
 5. `scripts/check-open-source-readiness.sh` succeeds.
 6. `scripts/build-release-bundle.sh --verify` succeeds unless the gate is intentionally run with `--skip-release`.
 
+When `murmurmark acceptance` runs from a release bundle instead of a developer checkout, it verifies
+the bundle with `doctor --strict`, `self-test` and local config initialization. Open-source readiness
+and release-bundle construction stay developer-checkout checks.
+
 The direct `scripts/acceptance-cli-mvp.sh` entry point remains available when debugging the gate
 implementation.
 

@@ -182,7 +182,7 @@ struct MurmurMark {
         Notes:
           record defaults to ScreenCaptureKit for separate mic and remote tracks.
           self-test runs the quick local CLI smoke fixture through this command surface.
-          acceptance runs the developer-checkout CLI MVP gate.
+          acceptance runs the CLI MVP gate for this checkout or release bundle.
           audio-input remote capture and voice-processing mic capture are experimental comparison modes.
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C or SIGTERM and finalizes the session.
@@ -337,10 +337,12 @@ enum Commands {
         print("""
         usage: murmurmark acceptance [--skip-release] [--python PATH] [--live-checklist] [--report PATH]
 
-        Runs the CLI MVP acceptance gate for a developer checkout.
+        Runs the CLI MVP acceptance gate.
 
-        The gate verifies local install, doctor, self-test, config init,
-        open-source readiness and release bundle verification.
+        In a developer checkout, the gate verifies local install, doctor,
+        self-test, config init, open-source readiness and release bundle
+        verification. In a release bundle, it verifies the bundle with
+        doctor --strict, self-test and config init.
 
         Use --live-checklist to print the manual live recording gate without
         recording audio.

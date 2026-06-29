@@ -652,7 +652,7 @@ nodes:
     parent: packaging
     status: done
     effort: 3
-    notes: "murmurmark acceptance проверяет install wrapper, doctor, self-test, config init, open-source readiness и release bundle verify; scripts/acceptance-cli-mvp.sh остаётся внутренней реализацией; live recording остаётся отдельным ручным gate в Definition of Done."
+    notes: "murmurmark acceptance проверяет install wrapper, doctor, self-test, config init, open-source readiness и release bundle verify в developer checkout; в release bundle проверяет doctor --strict, self-test и config init; --report пишет машинно-читаемый evidence-файл; live recording остаётся отдельным ручным gate в Definition of Done."
 
   packaging-open-source-readiness:
     title: "Open-source readiness"

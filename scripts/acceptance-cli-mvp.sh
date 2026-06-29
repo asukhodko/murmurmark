@@ -7,12 +7,6 @@ verify_python="${MURMURMARK_PYTHON:-}"
 live_checklist=0
 report_path=""
 
-if [[ ! -f "$repo_root/Sources/MurmurMarkCLI/MurmurMarkCLI.swift" ]]; then
-  echo "error: CLI MVP acceptance requires a full developer checkout with Sources/." >&2
-  echo "hint: release bundles should be verified with: murmurmark doctor --strict && murmurmark self-test" >&2
-  exit 1
-fi
-
 usage() {
   cat <<'EOF'
 usage: scripts/acceptance-cli-mvp.sh [--skip-release] [--python PATH] [--live-checklist] [--report PATH]
@@ -20,6 +14,9 @@ usage: scripts/acceptance-cli-mvp.sh [--skip-release] [--python PATH] [--live-ch
 Checks the current CLI MVP acceptance gate without touching real sessions or
 raw recordings. The automated gate covers install, doctor, self-test, local
 config, open-source readiness and release bundle verification.
+
+When running from a release bundle without Sources/, it verifies the bundle
+with doctor --strict, self-test and local config initialization.
 
 Options:
   --skip-release  Skip release bundle verification.
@@ -148,6 +145,38 @@ EOF
   write_report "live_checklist" "manual" "murmurmark doctor"
   echo "status: manual"
   echo "next: murmurmark doctor"
+  exit 0
+fi
+
+if [[ ! -f "$repo_root/Sources/MurmurMarkCLI/MurmurMarkCLI.swift" ]]; then
+  workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-cli-release.XXXXXX")"
+  trap 'rm -rf "$workdir"' EXIT
+  config_path="$workdir/murmurmark.config.json"
+  murmurmark_bin="${MURMURMARK_BIN:-murmurmark}"
+
+  echo "acceptance_cli_mvp:"
+  "$murmurmark_bin" doctor --strict >/dev/null
+  echo "  doctor: ok"
+  checks+=("doctor:passed")
+
+  "$murmurmark_bin" self-test >/dev/null
+  echo "  self_test: ok"
+  checks+=("self_test:passed")
+
+  "$murmurmark_bin" config init --config "$config_path" >/dev/null
+  "$murmurmark_bin" config print --config "$config_path" >/dev/null
+  echo "  local_config: ok"
+  checks+=("local_config:passed")
+
+  echo "  open_source_readiness: not_applicable"
+  checks+=("open_source_readiness:not_applicable")
+  echo "  release_bundle: current"
+  checks+=("release_bundle:current")
+  echo "  live_recording: manual"
+  checks+=("live_recording:manual")
+  write_report "release" "ok" "murmurmark acceptance --live-checklist"
+  echo "status: ok"
+  echo "next: murmurmark acceptance --live-checklist"
   exit 0
 fi
 

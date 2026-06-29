@@ -100,9 +100,14 @@ Verify:
 BUNDLE="$(find dist/release-bundles -maxdepth 1 -type d -name 'murmurmark-*' | sort | tail -1)"
 MURMURMARK_PYTHON="$PWD/.venv/bin/python" "$BUNDLE/bin/murmurmark" doctor --strict
 MURMURMARK_PYTHON="$PWD/.venv/bin/python" "$BUNDLE/bin/murmurmark" self-test
+MURMURMARK_PYTHON="$PWD/.venv/bin/python" "$BUNDLE/bin/murmurmark" acceptance --skip-release --report /tmp/murmurmark-release-acceptance.json
 ```
 
 If the host Python does not contain MurmurMark's audio dependencies, set
 `MURMURMARK_PYTHON` to a prepared environment before running the bundle.
 `scripts/build-release-bundle.sh --verify --python PATH` runs both checks immediately after creating
 the bundle.
+
+In a bundle, `acceptance` does not require `Sources/`: it verifies the runnable bundle with
+`doctor --strict`, `self-test` and local config initialization, then keeps the live recording gate as
+manual in the optional report.
