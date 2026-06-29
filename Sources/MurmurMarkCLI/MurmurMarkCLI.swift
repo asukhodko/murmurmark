@@ -9976,6 +9976,12 @@ enum CorpusPrinter {
         let durationSec: Double?
     }
 
+    private struct ReviewLaneTarget {
+        let sessionID: String
+        let session: URL
+        let lane: String
+    }
+
     private struct ExportHandoff {
         let command: String
         let manifest: URL
@@ -10030,6 +10036,16 @@ enum CorpusPrinter {
         sessionsRoot: URL,
         freshnessReference: URL
     ) -> PreparedLanePackHandoff? {
+        let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+        if let command = nextCommands.compactMap({ string($0["command"]) }).first,
+           let target = reviewLaneTarget(fromNextCommand: command, sessionsRoot: sessionsRoot) {
+            return preparedLanePackHandoff(
+                session: target.session,
+                lane: target.lane,
+                freshnessReference: freshnessReference
+            )
+        }
+
         guard let focus = firstReviewFocus(payload) else { return nil }
         let sessionID = string(focus["session_id"])
             ?? string(focus["session"]).map { URL(fileURLWithPath: $0).lastPathComponent }
@@ -10041,6 +10057,18 @@ enum CorpusPrinter {
         }
 
         let session = focusSessionURL(focus: focus, sessionID: sessionID, sessionsRoot: sessionsRoot)
+        return preparedLanePackHandoff(
+            session: session,
+            lane: lane,
+            freshnessReference: freshnessReference
+        )
+    }
+
+    private static func preparedLanePackHandoff(
+        session: URL,
+        lane: String,
+        freshnessReference: URL
+    ) -> PreparedLanePackHandoff? {
         let lanePackDir = session.appendingPathComponent("derived/readiness/review-plan/lane-packs")
         let manifest = lanePackDir.appendingPathComponent("review_lane_pack.\(lane).json")
         guard FileManager.default.fileExists(atPath: manifest.path),
@@ -10077,6 +10105,36 @@ enum CorpusPrinter {
             selectedRows: int(summary["selected_rows"]),
             durationSec: double(summary["duration_sec"])
         )
+    }
+
+    private static func reviewLaneTarget(fromNextCommand command: String, sessionsRoot: URL) -> ReviewLaneTarget? {
+        let tokens = command
+            .split(whereSeparator: \.isWhitespace)
+            .map { unquoteShellToken(String($0)) }
+        guard tokens.count >= 4,
+              tokens[0] == "murmurmark",
+              tokens[1] == "review",
+              tokens[2] == "lane"
+        else {
+            return nil
+        }
+        let lane = tokens[3]
+        guard !lane.hasPrefix("--"), lane != "apply" else {
+            return nil
+        }
+        guard let sessionIndex = tokens.firstIndex(of: "--session"),
+              sessionIndex + 1 < tokens.count
+        else {
+            return nil
+        }
+        let sessionArg = tokens[sessionIndex + 1]
+        guard !sessionArg.isEmpty else {
+            return nil
+        }
+        let session = sessionArg.contains("/")
+            ? PathURLs.fileURL(sessionArg)
+            : sessionsRoot.appendingPathComponent(sessionArg)
+        return ReviewLaneTarget(sessionID: session.lastPathComponent, session: session, lane: lane)
     }
 
     private static func isStale(path: URL, comparedTo reference: URL) -> Bool {
@@ -10252,7 +10310,11 @@ enum CorpusPrinter {
             : "sessions/\(sessionID)"
         print("  focus_next:")
         print("    murmurmark review next \(sessionArg)")
-        print("    murmurmark review first-lane --session \(sessionArg)")
+        if let lane = focusLane(payload, focus: first, sessionID: sessionID) {
+            print("    murmurmark review lane \(lane) --session \(sessionArg)")
+        } else {
+            print("    murmurmark review first-lane --session \(sessionArg)")
+        }
     }
 
     private static func focusLane(_ payload: [String: Any], focus: [String: Any], sessionID: String) -> String? {

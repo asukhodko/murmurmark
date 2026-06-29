@@ -3451,7 +3451,7 @@ review_next = module.build_next_commands(
     [],
     {"review_queue_strategy": {"first_recommended_lane": "fast_confirm_drop"}},
 )
-assert review_next[0]["command"] == "murmurmark review first-lane", review_next
+assert review_next[0]["command"] == "murmurmark review lane fast_confirm_drop", review_next
 focused_review_next = module.build_next_commands(
     [],
     {
@@ -3462,9 +3462,33 @@ focused_review_next = module.build_next_commands(
         ],
     },
 )
-assert focused_review_next[0]["command"] == "murmurmark review first-lane --session sessions/focus-session", focused_review_next
-assert "(check_unique_me_content)" in focused_review_next[0]["label"], focused_review_next
+assert focused_review_next[0]["command"] == "murmurmark review lane check_transcript_order --session sessions/focus-session", focused_review_next
+assert "(check_transcript_order)" in focused_review_next[0]["label"], focused_review_next
 assert focused_review_next[1]["command"] == "murmurmark review workspace --session sessions/focus-session", focused_review_next
+strategic_lane_next = module.build_next_commands(
+    [],
+    {
+        "review_queue_strategy": {"first_recommended_lane": "check_unique_me_content"},
+        "review_focus": {"session_id": "focus-session", "review_lane": "check_transcript_order"},
+        "review_queue_by_session": [
+            {
+                "session_id": "focus-session",
+                "first_review_lane": "check_transcript_order",
+                "by_review_lane": [
+                    {"lane": "check_transcript_order", "actions": 4, "seconds": 24.0}
+                ],
+            },
+            {
+                "session_id": "unique-session",
+                "first_review_lane": "check_unique_me_content",
+                "by_review_lane": [
+                    {"lane": "check_unique_me_content", "actions": 5, "seconds": 10.0}
+                ],
+            },
+        ],
+    },
+)
+assert strategic_lane_next[0]["command"] == "murmurmark review lane check_unique_me_content --session sessions/unique-session", strategic_lane_next
 PY
   gates_dir="$workdir/corpus-gates"
   gate_args=(

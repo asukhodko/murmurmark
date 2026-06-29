@@ -1809,6 +1809,44 @@ def first_review_target(promotion: dict[str, Any]) -> str | None:
     return None
 
 
+def first_review_target_for_lane(promotion: dict[str, Any], lane: str | None) -> str | None:
+    if not lane:
+        return first_review_target(promotion)
+
+    queue_by_session = promotion.get("review_queue_by_session")
+    candidates: list[tuple[int, float, str]] = []
+    if isinstance(queue_by_session, list):
+        for row in queue_by_session:
+            if not isinstance(row, dict):
+                continue
+            target = session_cli_arg(row.get("session_id") or row.get("session"))
+            if not target:
+                continue
+            by_lane = row.get("by_review_lane")
+            if not isinstance(by_lane, list):
+                continue
+            for lane_row in by_lane:
+                if not isinstance(lane_row, dict) or str(lane_row.get("lane") or "") != lane:
+                    continue
+                actions = int(safe_float(lane_row.get("actions")))
+                items = int(safe_float(lane_row.get("items")))
+                seconds = safe_float(lane_row.get("seconds"))
+                if actions > 0 or items > 0:
+                    candidates.append((actions or items, seconds, target))
+
+    if candidates:
+        candidates.sort(key=lambda item: (-item[0], -item[1], item[2]))
+        return candidates[0][2]
+
+    focus = promotion.get("review_focus") if isinstance(promotion.get("review_focus"), dict) else {}
+    if str(focus.get("review_lane") or "") == lane:
+        target = session_cli_arg(focus.get("session_arg") or focus.get("session_id"))
+        if target:
+            return target
+
+    return first_review_target(promotion)
+
+
 def same_session_target(left: Any, right: Any) -> bool:
     left_arg = session_cli_arg(left)
     right_arg = session_cli_arg(right)
@@ -2108,15 +2146,17 @@ def build_next_commands(blockers: list[str], promotion: dict[str, Any]) -> list[
                     "command": "murmurmark corpus process all",
                 }
             )
-    review_target = first_review_target(promotion)
-    first_lane = first_review_lane_for_target(promotion, review_target)
+    strategy = promotion.get("review_queue_strategy") if isinstance(promotion.get("review_queue_strategy"), dict) else {}
+    strategic_lane = str(strategy.get("first_recommended_lane") or "") or None
+    review_target = first_review_target_for_lane(promotion, strategic_lane)
+    first_lane = strategic_lane or first_review_lane_for_target(promotion, review_target)
     if first_lane:
         session_option = f" --session {review_target}" if review_target else ""
         commands.append(
             {
                 "id": "review_first_lane",
                 "label": f"Build the first review lane pack ({first_lane}).",
-                "command": f"murmurmark review first-lane{session_option}",
+                "command": f"murmurmark review lane {first_lane}{session_option}",
             }
         )
         commands.append(
