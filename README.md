@@ -42,16 +42,17 @@ separate transcript/export blockers. Full transcript/export review stays separat
 `export_blockers`, so a session can be safe enough for evidence-backed notes while still blocking an
 unreviewed transcript bundle. UI work remains optional and out of the main path.
 
-Current corpus snapshot, refreshed on 2026-06-29:
+Current corpus snapshot, refreshed on 2026-06-30:
 
-- operational verdict: `medium_risk_ready`;
-- working sessions: `14/15 ready_for_notes`;
-- required review for selected evidence-backed notes: `0.11 min`;
-- remaining full transcript/export review surface: `2.47 min`;
-- mandatory export-review queue: `29` raw rows / `26` packed actions after the current automatic
-  `agent_reviewed_v1` + `audit_cleanup_v7` layers; `11` short low-materiality rows (`0.52 min`) are
+- operational verdict: `not_ready`;
+- working sessions: `13/15 ready_for_notes`, `1/15 review_first`, `1/15 do_not_use_without_manual_review`;
+- required review for selected evidence-backed notes: `0.10 min`;
+- remaining full transcript/export review surface: `2.28 min`;
+- mandatory export-review queue: `13` raw rows / `12` packed actions after the current automatic
+  `agent_reviewed_v1` + `audit_cleanup_v7` layers; `20` short low-materiality rows (`0.62 min`) are
   kept in the report but outside the mandatory review queue; the active plan currently focuses on
-  transcript-order checks, with local-recall review reduced to one short unresolved row;
+  `check_unique_me_content`, `fast_confirm_drop` and `classify_audio`; local-recall repair rows can now
+  be lifted into `agent_reviewed_v1` when micro-ASR and speaker-state evidence are strong enough;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
   `check_transcript_order`, `check_unique_me_content` and `remote_leak`, without changing capture,
   Echo Guard or the main ASR path, and without hiding unresolved risk from export gates.
@@ -770,9 +771,10 @@ When a complete session still has blocking local-recall evidence, the report inc
 left, it points to `murmurmark process ...` for the first one.
 
 `murmurmark repair local-recall` wraps `scripts/apply-local-recall-repair.py`. It reads
-`local_recall_items.jsonl`, runs micro-ASR on strong `possible_lost_me` local islands and writes a
-separate `local_recall_repair_v1` profile over the best current safe profile. Inserted `Me` turns are
-marked `needs_review`; baseline, cleanup and order profiles are not modified. Use this profile
+`local_recall_items.jsonl`, runs micro-ASR on strong `possible_lost_me` local islands and on narrow
+`needs_review` islands that are almost pure `local_only`, then writes a separate
+`local_recall_repair_v1` profile over the best current safe profile. Inserted `Me` turns are marked
+`needs_review`; baseline, cleanup and order profiles are not modified. Use this profile
 explicitly when checking whether a missed short local phrase was recovered:
 `murmurmark synthesize SESSION --transcript-profile local_recall_repair_v1`.
 Its report carries `recommended_next`, `next_commands` and `open_commands`, and the CLI prints those
@@ -783,7 +785,9 @@ be recovered through `boundary_overlap_fallback`; the attempt stays visible in
 `local_recall_repair_micro_runs.local_recall_repair_v1.jsonl`.
 Applied repair turns are included in the operational review queue as `local_recall_repair` items.
 They use `local_recall_repair_v1` as the review input profile and allow the normal transcript
-decisions: `keep_me`, `drop_me`, `needs_review` or `skip`. Corpus repair reports include
+decisions: `keep_me`, `drop_me`, `needs_review` or `skip`. `murmurmark review agent` can consume this
+repair profile and write a confirmed `agent_reviewed_v1`; readiness selects that confirmed profile
+instead of auto-promoting the raw repair profile. Corpus repair reports include
 `next_commands` so inserted rows from complete sessions can be reviewed through
 `murmurmark review lane check_local_recall --session ...` without opening the Markdown report first.
 If a session with inserted rows is still incomplete, the report points to `murmurmark process ...`

@@ -23,11 +23,13 @@ Working now:
 
 Current operating point:
 
-- the working corpus is `13/13 ready_for_notes`;
-- selected evidence-backed notes require about `0.01 min` of review;
-- full transcript/export still has about `1.73 min` of explicit blockers;
-- the remaining export-review queue is `33` raw rows / `26` packed actions after `agent_reviewed_v1` + `audit_cleanup_v7`;
-- the next target is to reduce that queue without changing capture, Echo Guard or the main ASR path.
+- the current working corpus has `13/15 ready_for_notes`, one `review_first` session and one session
+  that should not be used without manual review;
+- selected evidence-backed notes require about `0.10 min` of review;
+- full transcript/export still has about `2.28 min` of explicit blockers;
+- the remaining export-review queue is `13` raw rows / `12` packed actions after `agent_reviewed_v1` + `audit_cleanup_v7`;
+- the next target is to return the corpus to `medium_risk_ready` and reduce that queue without changing
+  capture, Echo Guard or the main ASR path.
 
 Still future:
 

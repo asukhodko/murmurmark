@@ -480,9 +480,26 @@ def review_input_profile(session_path: Path, profile: str) -> str | None:
     return str(value) if value and str(value) != profile else None
 
 
+def local_recall_repair_input_profile(session_path: Path, profile: str) -> str | None:
+    if profile != "local_recall_repair_v1":
+        return None
+    report = read_json(
+        session_path
+        / "derived/transcript-simple/whisper-cpp/local-recall-repair/local_recall_repair_report.local_recall_repair_v1.json"
+    )
+    if not isinstance(report, dict):
+        return None
+    value = report.get("input_profile")
+    return str(value) if value and str(value) != profile else None
+
+
 def inherited_profiles_for_review(session_path: Path, profile: str) -> list[str]:
     profiles: list[str] = []
-    for candidate in (cleanup_input_profile(session_path, profile), review_input_profile(session_path, profile)):
+    for candidate in (
+        cleanup_input_profile(session_path, profile),
+        review_input_profile(session_path, profile),
+        local_recall_repair_input_profile(session_path, profile),
+    ):
         if candidate and candidate != profile and candidate not in profiles:
             profiles.append(candidate)
     return profiles
@@ -557,7 +574,7 @@ def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] |
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
             resolved.add(source_id)
-    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+    if profile not in {"reviewed_v1", "agent_reviewed_v1", "local_recall_repair_v1"}:
         return resolved
     path = (
         session_path
@@ -593,7 +610,7 @@ def review_resolved_audio_keys(session_path: Path, profile: str, seen: set[str] 
         key = review_decision_identity_key(row)
         if key:
             resolved.add(key)
-    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+    if profile not in {"reviewed_v1", "agent_reviewed_v1", "local_recall_repair_v1"}:
         return resolved
     path = (
         session_path
@@ -630,7 +647,7 @@ def review_resolved_local_recall_ids(session_path: Path, profile: str, seen: set
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
             resolved.add(source_id)
-    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+    if profile not in {"reviewed_v1", "agent_reviewed_v1", "local_recall_repair_v1"}:
         return resolved
     path = (
         session_path
@@ -667,7 +684,7 @@ def review_resolved_transcript_order_ids(session_path: Path, profile: str, seen:
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
             resolved.add(source_id)
-    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+    if profile not in {"reviewed_v1", "agent_reviewed_v1", "local_recall_repair_v1"}:
         return resolved
     path = (
         session_path
@@ -752,7 +769,18 @@ def session_use_gate(row: dict[str, Any]) -> str:
     verdict = str(row.get("verdict") or "")
     if verdict in {"failed", "risky"}:
         return "do_not_use_without_manual_review"
-    if profile not in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6", "reviewed_v1", "agent_reviewed_v1"}:
+    if profile not in {
+        "audit_cleanup_v1",
+        "audit_cleanup_v2",
+        "audit_cleanup_v3",
+        "audit_cleanup_v4",
+        "audit_cleanup_v5",
+        "audit_cleanup_v6",
+        "audit_cleanup_v7",
+        "reviewed_v1",
+        "agent_reviewed_v1",
+        "local_recall_repair_v1",
+    }:
         return "pipeline_incomplete_review_first"
     if ratio <= 0.025 and not flags:
         return "ready_for_notes"
@@ -2173,6 +2201,7 @@ def operational_verdict(
         + safe_int(selected_profiles.get("audit_cleanup_v7"))
         + safe_int(selected_profiles.get("reviewed_v1"))
         + safe_int(selected_profiles.get("agent_reviewed_v1"))
+        + safe_int(selected_profiles.get("local_recall_repair_v1"))
     )
     cleanup_ratio = cleanup_profiles / session_count if session_count > 0 else 0.0
 

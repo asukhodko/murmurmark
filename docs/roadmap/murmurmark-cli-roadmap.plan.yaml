@@ -41,16 +41,16 @@ nodes:
       export bundle и retention plan уже доказали, что pipeline можно использовать как
       локальный инструмент, а не как набор лабораторных скриптов.
 
-      Текущий корпус уже дошёл до `medium_risk_ready`: risky/failed сессии убраны из
-      выбранного профиля, а 13 из 13 рабочих сессий находятся в `ready_for_notes`.
-      Снимок на 2026-06-29: selected evidence-backed notes требуют около `0.01 min`
-      проверки, а отдельная поверхность transcript/export review остаётся около `1.73 min`.
-      Оставшийся export-review теперь представлен как исполнимая очередь из `33` raw rows /
-      `26` packed actions уже после `agent_reviewed_v1` + `audit_cleanup_v7`, доступная через `murmurmark review next` /
-      `murmurmark review workspace`; активная очередь охватывает `6` сессий, а local-recall хвост
-      полностью объяснён harmless short/boundary/remote-covered островами.
-      Следующая цель — снизить transcript/export surface с
-      `1.73 min` до `<= 1.5 min` и очередь с `26` до `<= 20` действий без смены топологии
+      Текущий корпус снова стал честным `not_ready`: в рабочем наборе 15 сессий, из них 13
+      `ready_for_notes`, одна `review_first` и одна требует ручной проверки перед использованием.
+      Снимок на 2026-06-30: selected evidence-backed notes требуют около `0.10 min`
+      проверки, а отдельная поверхность transcript/export review остаётся около `2.28 min`.
+      Оставшийся export-review представлен как исполнимая очередь из `13` raw rows /
+      `12` packed actions уже после `agent_reviewed_v1` + `audit_cleanup_v7`, доступная через `murmurmark review next` /
+      `murmurmark review workspace`; local-recall repair теперь может поднять сильный local-only
+      `needs_review` остров и передать его в `agent_reviewed_v1`.
+      Следующая цель — вернуть корпус к `medium_risk_ready` и снизить transcript/export surface до
+      `<= 1.5 min` без смены топологии
       capture/Echo Guard/ASR, не ломая готовность evidence-backed notes и не скрывая спорные места
       от export gate.
 

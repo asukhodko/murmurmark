@@ -521,10 +521,12 @@ derived/transcript-simple/whisper-cpp/local-recall-repair/
 ```
 
 Applied patches use `murmurmark.local_recall_repair_patch/v1`; rejected items use
-`murmurmark.local_recall_repair_rejection/v1` with a machine-readable reason. Synthesis accepts
-`--transcript-profile local_recall_repair_v1` explicitly and adds a review risk when inserted local
-turns exist. Auto-promotion is intentionally left out until corpus evidence proves that the inserted
-turns reduce lost local speech without increasing remote leak.
+`murmurmark.local_recall_repair_rejection/v1` with a machine-readable reason. Eligible inputs include
+strong `possible_lost_me` rows and narrow `needs_review` rows with strong `local_only` speaker-state
+evidence. Synthesis accepts `--transcript-profile local_recall_repair_v1` explicitly and adds a review
+risk when inserted local turns exist. Auto-promotion of the raw repair profile is intentionally left
+out. The normal promotion path is `local_recall_repair_v1` as an input to `murmurmark review agent`,
+which may keep high-confidence repair insertions inside the confirmed `agent_reviewed_v1` profile.
 The report also carries `recommended_next`, `next_commands` and `open_commands`; the Swift CLI prints
 these fields after `murmurmark repair local-recall` so terminal output and JSON handoff stay identical.
 `local_recall_repair_micro_runs.local_recall_repair_v1.jsonl` keeps per-source/per-window evidence:

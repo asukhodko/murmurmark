@@ -1990,7 +1990,7 @@ PY
   while IFS= read -r json_next_command; do
     printf '%s\n' "$local_recall_repair_output" | grep -Fx "    $json_next_command" >/dev/null
   done < <(jq -r '.next_commands[].command' "$local_recall_repair_report")
-  jq -e 'any(.utterances[]; .id == "local_recall_repair_v1_local_recall_0003" and .speaker_label == "Me" and .text == "Я возьму логи.")' "$local_recall_repair_dialogue" >/dev/null
+  jq -e 'any(.utterances[]; (.id | startswith("local_recall_repair_v1_local_recall_")) and .speaker_label == "Me" and .text == "Я возьму логи")' "$local_recall_repair_dialogue" >/dev/null
   "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" \
     --transcript-profile local_recall_repair_v1 >/dev/null
   [[ -s "$group_session/derived/synthesis-simple/extractive/quality_verdict.local_recall_repair_v1.json" ]]
@@ -3481,7 +3481,7 @@ EOF
   [[ -s "$local_recall_repair_corpus_dir/local_recall_repair_corpus_report.md" ]]
   jq -e '.schema == "murmurmark.local_recall_repair_corpus_report/v1" and .summary.repaired_session_count == 1 and .summary.applied_repairs == 1 and .summary.reviewable_applied_repairs == 0 and .summary.incomplete_applied_repairs == 1 and .policy.auto_promotion == false and (.next_commands | length) == 1 and (.next_commands[0].command | startswith("murmurmark process "))' \
     "$local_recall_repair_corpus_dir/local_recall_repair_corpus_report.json" >/dev/null
-  jq -s 'any(.[]; .schema == "murmurmark.local_recall_repair_corpus_item/v1" and .kind == "patch" and .utterance_id == "local_recall_repair_v1_local_recall_0003" and .ready_for_review == false)' \
+  jq -s 'any(.[]; .schema == "murmurmark.local_recall_repair_corpus_item/v1" and .kind == "patch" and (.utterance_id | startswith("local_recall_repair_v1_local_recall_")) and .ready_for_review == false)' \
     "$local_recall_repair_corpus_dir/local_recall_repair_corpus_items.jsonl" >/dev/null
 
   remote_leak_corpus_dir="$workdir/remote-leak-segment-corpus"

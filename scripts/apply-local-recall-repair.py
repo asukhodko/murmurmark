@@ -210,6 +210,13 @@ def is_ack(text: Any) -> bool:
     return len(value_tokens) <= 3 and all(token in ACK_WORDS for token in value_tokens)
 
 
+def clean_repair_text(text: Any) -> str:
+    value = " ".join(str(text or "").split())
+    value = re.sub(r"^[\\s.。…,:;!?-]+", "", value)
+    value = re.sub(r"[\\s.。…,:;!?-]+$", "", value)
+    return " ".join(value.split())
+
+
 def role_name(row: dict[str, Any]) -> str:
     source = str(row.get("source_track") or "").lower()
     role = str(row.get("role") or row.get("speaker_label") or "").lower()
@@ -324,23 +331,35 @@ def existing_overlap(utterances: list[dict[str, Any]], item: dict[str, Any], tex
 
 
 def candidate_allowed(item: dict[str, Any], args: argparse.Namespace) -> tuple[bool, str]:
-    if item.get("label") != "possible_lost_me":
-        return False, "label_not_possible_lost_me"
-    if safe_float(item.get("confidence")) < args.min_confidence:
-        return False, "confidence_below_threshold"
+    label = str(item.get("label") or "")
+    state = item.get("state") if isinstance(item.get("state"), dict) else {}
+    confidence = safe_float(item.get("confidence"))
     duration = safe_float(item.get("duration_sec"))
+    local_only_ratio = safe_float(state.get("local_only_ratio"))
+    remote_active_ratio = safe_float(state.get("remote_active_ratio"))
+    strong_review_local_only = (
+        label == "needs_review"
+        and confidence >= 0.65
+        and local_only_ratio >= 0.90
+        and remote_active_ratio <= 0.05
+    )
+    if label != "possible_lost_me" and not strong_review_local_only:
+        return False, "label_not_possible_lost_me"
+    if label == "possible_lost_me" and confidence < args.min_confidence:
+        return False, "confidence_below_threshold"
     if duration < args.min_duration_sec:
         return False, "duration_below_threshold"
     if duration > args.max_duration_sec:
         return False, "duration_above_threshold"
-    state = item.get("state") if isinstance(item.get("state"), dict) else {}
-    if safe_float(state.get("local_only_ratio")) < args.min_local_ratio:
+    min_local_ratio = 0.90 if strong_review_local_only else args.min_local_ratio
+    max_remote_ratio = 0.05 if strong_review_local_only else args.max_remote_ratio
+    if local_only_ratio < min_local_ratio:
         return False, "local_ratio_below_threshold"
-    if safe_float(state.get("remote_active_ratio")) > args.max_remote_ratio:
+    if remote_active_ratio > max_remote_ratio:
         return False, "remote_ratio_above_threshold"
     if safe_float(item.get("remote_overlap_text_containment")) >= 0.55:
         return False, "parent_text_mostly_covered_by_remote"
-    return True, "candidate_allowed"
+    return True, "strong_needs_review_local_only_allowed" if strong_review_local_only else "candidate_allowed"
 
 
 def read_stub_repair_text(item: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -556,7 +575,9 @@ def run_micro_asr(
 
 
 def micro_text_allowed(text: str, meta: dict[str, Any], item: dict[str, Any], args: argparse.Namespace, bridge: Any) -> tuple[bool, str]:
-    clean = " ".join(text.split())
+    clean = clean_repair_text(text)
+    if clean != text:
+        meta["normalized_text"] = clean
     if not clean:
         return False, "empty_micro_text"
     if bridge.KNOWN_HALLUCINATION_RE.search(clean):
@@ -576,6 +597,7 @@ def micro_text_allowed(text: str, meta: dict[str, Any], item: dict[str, Any], ar
 
 def make_repair_row(item: dict[str, Any], text: str, args: argparse.Namespace) -> dict[str, Any]:
     item_id = str(item.get("item_id") or "local_recall")
+    clean_text = clean_repair_text(text)
     row = {
         "id": f"{args.output_profile}_{item_id}",
         "source_track": "mic",
@@ -583,7 +605,7 @@ def make_repair_row(item: dict[str, Any], text: str, args: argparse.Namespace) -
         "speaker_label": "Me",
         "start": round(safe_float(item.get("start_sec")), 3),
         "end": round(safe_float(item.get("end_sec")), 3),
-        "text": " ".join(text.split()),
+        "text": clean_text,
         "quality": {
             "needs_review": True,
             "local_recall_repair": {

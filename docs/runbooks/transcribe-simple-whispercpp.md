@@ -941,7 +941,9 @@ possible lost `Me`, local-recall review and harmless missing-island explanations
 Use it when local speech recall is the concern. The report writes `next_commands`: complete sessions
 go to `murmurmark review lane check_local_recall --session ...`; incomplete sessions go back through
 `murmurmark process ...`. The CLI uses the same read/recommended/final-`next` handoff as the order
-corpus report. For a strong missed local island, use the candidate repair profile explicitly:
+corpus report. For a strong missed local island, use the candidate repair profile explicitly. The
+repair script covers `possible_lost_me` rows and the narrow `needs_review` rows where speaker-state
+says the island is almost pure `local_only` with no meaningful remote activity:
 
 ```bash
 murmurmark repair local-recall "$SESSION" \
@@ -1308,8 +1310,10 @@ automatic cleanup profiles when its gates pass.
 It also clears the narrowest `uncertain` cases as `keep_me` when the row has no remote/error signal,
 no remote utterance, near-full `Me` coverage and `speaker_state` says the interval is mostly
 `local_only`. It also clears short local-only `asr_noise` labels as `keep_me`, adjacent `Me`
-continuations, and sibling rows for the same exact `Me` utterance after another row has already
-confirmed that utterance as local speech.
+continuations, high-confidence local-recall repair insertions, and sibling rows for the same exact
+`Me` utterance after another row has already confirmed that utterance as local speech. The raw
+`local_recall_repair_v1` profile remains an intermediate artifact; after agent review, readiness
+selects the confirmed `agent_reviewed_v1` profile.
 It can also clear the narrow transcript-order audit case where a short remote backchannel such as
 `Спасибо` is fully inside a long confirmed `Me` utterance, has no text overlap with it, and only
 needs `keep_me` marking rather than text or timestamp repair.

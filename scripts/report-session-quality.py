@@ -26,6 +26,7 @@ CLEANUP_PROFILES = {
     "order_repair_v1",
     "reviewed_v1",
     "agent_reviewed_v1",
+    "local_recall_repair_v1",
 }
 
 
@@ -180,6 +181,7 @@ def selected_profile(session: Path) -> str:
     cleanup = session / "derived/transcript-simple/whisper-cpp/audit-cleanup"
     review_decisions = session / "derived/transcript-simple/whisper-cpp/review-decisions"
     order_repair = session / "derived/transcript-simple/whisper-cpp/order-repair"
+    local_recall_repair = session / "derived/transcript-simple/whisper-cpp/local-recall-repair"
     order_repair_v1 = read_json(order_repair / "transcript_order_repair_report.order_repair_v1.json")
     order_repair_summary = order_repair_v1.get("summary") if isinstance(order_repair_v1, dict) else {}
     order_repair_gates = order_repair_v1.get("gates") if isinstance(order_repair_v1, dict) else {}
@@ -194,6 +196,24 @@ def selected_profile(session: Path) -> str:
             and order_repair_applied > 0
             and isinstance(order_repair_v1, dict)
             and order_repair_v1.get("input_profile") == profile
+        )
+
+    local_recall_repair_v1 = read_json(local_recall_repair / "local_recall_repair_report.local_recall_repair_v1.json")
+    local_recall_summary = local_recall_repair_v1.get("summary") if isinstance(local_recall_repair_v1, dict) else {}
+    local_recall_gates = local_recall_repair_v1.get("gates") if isinstance(local_recall_repair_v1, dict) else {}
+    local_recall_applied = safe_int(
+        local_recall_summary.get("applied_repairs") if isinstance(local_recall_summary, dict) else None
+    ) or 0
+
+    def local_recall_repair_usable_for(profile: str) -> bool:
+        return (
+            (resolved / "quality_report.local_recall_repair_v1.json").exists()
+            and (resolved / "clean_dialogue.local_recall_repair_v1.json").exists()
+            and isinstance(local_recall_gates, dict)
+            and local_recall_gates.get("passed") is True
+            and local_recall_applied > 0
+            and isinstance(local_recall_repair_v1, dict)
+            and local_recall_repair_v1.get("input_profile") == profile
         )
 
     reviewed = read_json(review_decisions / "review_decisions_report.reviewed_v1.json")
@@ -307,6 +327,16 @@ def selected_profile(session: Path) -> str:
     return "missing"
 
 
+def local_recall_repair_input_profile(session: Path) -> str | None:
+    report = read_json(
+        session / "derived/transcript-simple/whisper-cpp/local-recall-repair/local_recall_repair_report.local_recall_repair_v1.json"
+    )
+    if not isinstance(report, dict):
+        return None
+    value = report.get("input_profile")
+    return str(value) if value and str(value) != "local_recall_repair_v1" else None
+
+
 def stage_status(session: Path) -> dict[str, bool]:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     synthesis = session / "derived/synthesis-simple/extractive"
@@ -315,6 +345,7 @@ def stage_status(session: Path) -> dict[str, bool]:
     audio_review = session / "derived/audit/audio-review-pack"
     order_audit = session / "derived/audit/order"
     order_repair = session / "derived/transcript-simple/whisper-cpp/order-repair"
+    local_recall_repair = session / "derived/transcript-simple/whisper-cpp/local-recall-repair"
     remote_leak_repair = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair"
     return {
         "capture": (session / "session.json").exists()
@@ -363,6 +394,9 @@ def stage_status(session: Path) -> dict[str, bool]:
         "order_repair_v1": (resolved / "quality_report.order_repair_v1.json").exists()
         and (resolved / "clean_dialogue.order_repair_v1.json").exists()
         and (order_repair / "transcript_order_repair_report.order_repair_v1.json").exists(),
+        "local_recall_repair_v1": (resolved / "quality_report.local_recall_repair_v1.json").exists()
+        and (resolved / "clean_dialogue.local_recall_repair_v1.json").exists()
+        and (local_recall_repair / "local_recall_repair_report.local_recall_repair_v1.json").exists(),
         "synthesis": (synthesis / "quality_verdict.json").exists() and (synthesis / "evidence_notes.json").exists(),
         "synthesis_audit_cleanup_v1": (synthesis / "quality_verdict.audit_cleanup_v1.json").exists()
         and (synthesis / "evidence_notes.audit_cleanup_v1.json").exists(),
@@ -386,6 +420,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (synthesis / "evidence_notes.suggested_review_v1.json").exists(),
         "synthesis_order_repair_v1": (synthesis / "quality_verdict.order_repair_v1.json").exists()
         and (synthesis / "evidence_notes.order_repair_v1.json").exists(),
+        "synthesis_local_recall_repair_v1": (synthesis / "quality_verdict.local_recall_repair_v1.json").exists()
+        and (synthesis / "evidence_notes.local_recall_repair_v1.json").exists(),
         "audio_review_pack": (audio_review / "review_pack_summary.json").exists()
         and (audio_review / "review_pack_items.jsonl").exists(),
         "audio_review_audit": (audio_review / "audio_review_summary.json").exists()
@@ -1413,6 +1449,9 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     suggested_report = read_json(
         session / "derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.suggested_review_v1.json"
     )
+    local_recall_repair_report = read_json(
+        session / "derived/transcript-simple/whisper-cpp/local-recall-repair/local_recall_repair_report.local_recall_repair_v1.json"
+    )
     cleanup_report = (
         read_json(session / "derived/transcript-simple/whisper-cpp/audit-cleanup" / f"audit_cleanup_report{suffix(profile)}.json")
         if profile
@@ -1427,9 +1466,15 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
         }
         else None
     )
+    inherited_review_profile = local_recall_repair_input_profile(session) if profile == "local_recall_repair_v1" else None
+    review_profile = inherited_review_profile if inherited_review_profile in {"reviewed_v1", "agent_reviewed_v1"} else profile
     review_report = (
         read_json(session / "derived/transcript-simple/whisper-cpp/review-decisions" / f"review_decisions_report{suffix(profile)}.json")
-        if profile in {"reviewed_v1", "agent_reviewed_v1"}
+        if review_profile == profile and profile in {"reviewed_v1", "agent_reviewed_v1"}
+        else read_json(
+            session / "derived/transcript-simple/whisper-cpp/review-decisions" / f"review_decisions_report{suffix(review_profile)}.json"
+        )
+        if review_profile in {"reviewed_v1", "agent_reviewed_v1"}
         else None
     )
     order_repair_report = (
@@ -1518,6 +1563,14 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(group_metrics(group_summary))
     row.update(cleanup_metrics(quality, cleanup_report))
     row.update(review_decision_metrics(review_report))
+    if profile == "local_recall_repair_v1" and isinstance(local_recall_repair_report, dict):
+        summary = local_recall_repair_report.get("summary")
+        row["local_recall_repair_applied_repairs"] = safe_int(
+            summary.get("applied_repairs") if isinstance(summary, dict) else None
+        )
+        row["local_recall_repair_inserted_me_seconds"] = round_or_none(
+            summary.get("inserted_me_seconds") if isinstance(summary, dict) else None
+        )
     row.update(synthesis_review_metrics(verdict))
     row.update(notes_needs_review_metrics(session, profile, evidence))
     row.update(audio_review_metrics(audio_summary, session, profile, evidence))
