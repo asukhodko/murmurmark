@@ -150,8 +150,9 @@ less "$SESSION/derived/retention/provider_payload_manifest.json"
 ```
 
 The CLI prints a compact summary after each retention command, including action counts,
-blockers/warnings and the next safe command. If readiness is not exportable yet, retention points
-back to `murmurmark process` or `murmurmark review next` instead of suggesting a blocked export.
+blockers/warnings and the next safe command as a final copyable `next: ...` line. If readiness is
+not exportable yet, retention points back to `murmurmark process` or `murmurmark review next`
+instead of suggesting a blocked export.
 The JSON artifacts store the same handoff: `retention_plan.json` and
 `provider_payload_manifest.json` include `recommended_next`, `next_commands` and `open_commands`.
 The JSON files remain the source of truth.
@@ -706,7 +707,8 @@ blocked export prints structured next commands from readiness plus rerun/debug e
 Forced exports with blockers keep retention commands under `debug_retention` and keep the primary
 handoff on the unfinished `process` or `review` work.
 After a successful export, the CLI prints the manifest path, key output files and the retention
-commands that should use the same manifest. The manifest itself is also a continuation artifact:
+commands that should use the same manifest, then repeats the primary handoff as a final copyable
+`next: ...` line. The manifest itself is also a continuation artifact:
 `next_commands` stores retention commands, `open_commands` stores read-only inspection commands, and
 `export_commands` stores the safe rerun/debug-force commands. Forced exports keep readiness repair
 or review in `next_commands` and put retention under `debug_retention_commands`.

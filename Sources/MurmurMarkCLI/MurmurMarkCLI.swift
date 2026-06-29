@@ -4625,6 +4625,8 @@ enum RetentionPrinter {
                 }
             }
         }
+        print("")
+        print("next: \(recommendedNext)")
     }
 
     private static func retentionStatus(
@@ -4730,6 +4732,8 @@ enum RetentionPrinter {
                 }
             }
         }
+        print("")
+        print("next: \(recommendedNext)")
     }
 
     private static func outputURL(option: String, in args: [String], defaultURL: URL) -> URL {
@@ -8333,6 +8337,8 @@ enum ExportPrinter {
             print("    debug_force:")
             print("      \(debugForce)")
         }
+        print("")
+        print("next: \(recommendedNext)")
     }
 
     static func printManifest(session: URL, outDir: URL) throws {
@@ -8420,6 +8426,8 @@ enum ExportPrinter {
             print("    \(retentionPlan)")
             print("    \(retentionPayload)")
         }
+        print("")
+        print("next: \(recommendedNext)")
     }
 
     private static func readinessNextCommand(session: URL) -> String? {

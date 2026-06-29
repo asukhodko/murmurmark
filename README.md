@@ -176,7 +176,8 @@ less "$SESSION/derived/retention/provider_payload_manifest.json"
 
 Both commands print a short handoff summary: selected plan or payload manifest, retention status,
 raw-audio action counts, blockers/warnings, export-manifest state when present, and the next safe
-command. If readiness is not exportable yet, or if only a forced export with blockers exists,
+command as a final copyable `next: ...` line. If readiness is not exportable yet, or if only a
+forced export with blockers exists,
 retention points back to the current `process`, `review` or successful `export` step instead of
 suggesting a blocked privacy action.
 `retention_plan.json` and `provider_payload_manifest.json` also store `recommended_next`,
@@ -538,7 +539,8 @@ frontmatter Markdown note plus the same manifest. Export blocks sessions whose
 hard quality failures and unfinished review do not silently become finished artifacts. A blocked
 export prints `recommended_next`, structured next commands and writes `*.export_blocked.json`; `--force` keeps the
 blockers in `export_manifest.json` and is meant for debugging. After a successful export, the CLI
-prints `recommended_next`, the manifest path, key output files and the matching retention commands.
+prints `recommended_next`, the manifest path, key output files, the matching retention commands and
+a final copyable `next: ...` line.
 The successful `export_manifest.json` also stores structured `next_commands`, `open_commands` and
 `export_commands`, so an agent can continue with retention or open the exported files without parsing
 terminal output.

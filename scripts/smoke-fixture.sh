@@ -233,6 +233,7 @@ echo "$retention_plan_output" | grep -q '^  status: waiting_for_export$'
 echo "$retention_plan_output" | grep -q '  raw_audio_files: 2'
 echo "$retention_plan_output" | grep -q '^  recommended_next: murmurmark export '
 echo "$retention_plan_output" | grep -q '  next:'
+tail -1 <<<"$retention_plan_output" | grep -q '^next: murmurmark export '
 [[ -s "$session/derived/retention/retention_plan.json" ]]
 jq -e '.schema == "murmurmark.retention_plan/v1"' "$session/derived/retention/retention_plan.json" >/dev/null
 jq -e '.policy.external_providers.allow == false' "$session/derived/retention/retention_plan.json" >/dev/null
@@ -245,6 +246,7 @@ echo "$retention_payload_output" | grep -q '^retention_payload:$'
 echo "$retention_payload_output" | grep -q '  sends_data: false'
 echo "$retention_payload_output" | grep -q '  raw_audio_included: false'
 echo "$retention_payload_output" | grep -q '^  recommended_next: less '
+tail -1 <<<"$retention_payload_output" | grep -q '^next: less '
 [[ -s "$session/derived/retention/provider_payload_manifest.json" ]]
 jq -e '.schema == "murmurmark.provider_payload_manifest/v1"' "$session/derived/retention/provider_payload_manifest.json" >/dev/null
 jq -e '.status == "blocked" and .sends_data == false and .raw_audio_included == false' "$session/derived/retention/provider_payload_manifest.json" >/dev/null
@@ -883,6 +885,7 @@ export_stdout="$workdir/export_forced_stdout.txt"
 rg -n '^export:|manifest:|debug_retention:|retention plan|retention payload' "$export_stdout" >/dev/null
 grep -q '^  recommended_next: murmurmark process ' "$export_stdout"
 grep -q '^  debug_retention:$' "$export_stdout"
+tail -1 "$export_stdout" | grep -q '^next: murmurmark process '
 jq -e '.schema == "murmurmark.export_manifest/v1" and (.status | startswith("exported")) and (.files.transcript_md.path | type == "string")' \
   "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
 jq -e '(.next | startswith("murmurmark process ")) and (.next_commands | map(.command | startswith("murmurmark process ")) | any) and (.open_commands | map(.command | startswith("less ")) | any) and (.debug_retention_commands | map(.command | contains("murmurmark retention plan ")) | any) and (.export_commands.rerun | startswith("murmurmark export "))' \
@@ -894,6 +897,7 @@ echo "$retention_forced_output" | grep -q '^  export_successful: false$'
 echo "$retention_forced_output" | grep -q '^  export_status: exported_forced'
 echo "$retention_forced_output" | grep -q '^  export_reason: export_not_successful$'
 echo "$retention_forced_output" | grep -q '^  recommended_next: murmurmark process '
+tail -1 <<<"$retention_forced_output" | grep -q '^next: murmurmark process '
 
 ready_export_session="$workdir/export-ready-session"
 mkdir -p \
