@@ -3,6 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
+invocation_dir="$PWD"
 out_dir="$repo_root/dist/release-bundles"
 build=1
 verify=0
@@ -26,7 +27,7 @@ The bundle contains tracked project files only. It does not copy sessions,
 exports, raw audio, models, .venv or murmurmark.config.json.
 
 Options:
-  --verify      Run the bundled wrapper with `doctor --strict` after building.
+  --verify      Run the bundled wrapper with `doctor --strict` and `self-test` after building.
   --python PATH Use PATH as MURMURMARK_PYTHON for --verify.
 EOF
 }
@@ -155,6 +156,7 @@ Verify the bundle:
 
 ```bash
 MURMURMARK_PYTHON=/path/to/python bin/murmurmark doctor --strict
+MURMURMARK_PYTHON=/path/to/python bin/murmurmark self-test
 ```
 
 If the host Python does not have MurmurMark's audio dependencies, set:
@@ -218,17 +220,24 @@ echo "manifest: $bundle_root/release-manifest.json"
 if [[ -z "$verify_python" && -x "$repo_root/.venv/bin/python" ]]; then
   verify_python="$repo_root/.venv/bin/python"
 fi
+if [[ -n "$verify_python" && "$verify_python" != /* ]]; then
+  verify_python="$invocation_dir/$verify_python"
+fi
 if [[ -n "$verify_python" ]]; then
   printf -v quoted_verify_python '%q' "$verify_python"
   echo "verify: MURMURMARK_PYTHON=$quoted_verify_python $bundle_root/bin/murmurmark doctor --strict"
+  echo "verify: MURMURMARK_PYTHON=$quoted_verify_python $bundle_root/bin/murmurmark self-test"
 else
   echo "verify: $bundle_root/bin/murmurmark doctor --strict"
+  echo "verify: $bundle_root/bin/murmurmark self-test"
 fi
 
 if [[ "$verify" == "1" ]]; then
   if [[ -n "$verify_python" ]]; then
     MURMURMARK_PYTHON="$verify_python" "$bundle_root/bin/murmurmark" doctor --strict
+    MURMURMARK_PYTHON="$verify_python" "$bundle_root/bin/murmurmark" self-test
   else
     "$bundle_root/bin/murmurmark" doctor --strict
+    "$bundle_root/bin/murmurmark" self-test
   fi
 fi

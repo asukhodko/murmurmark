@@ -475,7 +475,7 @@ enum DoctorChecks {
                     .warn,
                     "config",
                     "murmurmark.config.json not found",
-                    hint: "copy murmurmark.config.example.json when you want local defaults"
+                    hint: "run murmurmark config init when you want local defaults"
                 )
             }
         } catch {

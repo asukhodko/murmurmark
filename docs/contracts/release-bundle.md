@@ -99,9 +99,10 @@ Verify:
 ```bash
 BUNDLE="$(find dist/release-bundles -maxdepth 1 -type d -name 'murmurmark-*' | sort | tail -1)"
 MURMURMARK_PYTHON="$PWD/.venv/bin/python" "$BUNDLE/bin/murmurmark" doctor --strict
+MURMURMARK_PYTHON="$PWD/.venv/bin/python" "$BUNDLE/bin/murmurmark" self-test
 ```
 
 If the host Python does not contain MurmurMark's audio dependencies, set
 `MURMURMARK_PYTHON` to a prepared environment before running the bundle.
-`scripts/build-release-bundle.sh --verify --python PATH` runs this verification immediately after
-creating the bundle.
+`scripts/build-release-bundle.sh --verify --python PATH` runs both checks immediately after creating
+the bundle.

@@ -91,14 +91,15 @@ scripts/build-release-bundle.sh --verify
 
 BUNDLE="$(find dist/release-bundles -maxdepth 1 -type d -name 'murmurmark-*' | sort | tail -1)"
 MURMURMARK_PYTHON="$PWD/.venv/bin/python" "$BUNDLE/bin/murmurmark" doctor --strict
+MURMURMARK_PYTHON="$PWD/.venv/bin/python" "$BUNDLE/bin/murmurmark" self-test
 cat "$BUNDLE/release-manifest.json"
 ```
 
 The bundle contains the release binary, wrapper, scripts, docs, examples, helper sources,
 `murmurmark.config.example.json` and a manifest. It intentionally excludes `sessions/`,
 `exports/private/`, raw audio, `.venv`, models, weights and `murmurmark.config.json`.
-`--verify` runs the bundled wrapper through `doctor --strict`; use `--python PATH` to point at a
-prepared Python environment when `.venv` is not present.
+`--verify` runs the bundled wrapper through `doctor --strict` and `self-test`; use `--python PATH` to
+point at a prepared Python environment when `.venv` is not present.
 See [docs/contracts/release-bundle.md](docs/contracts/release-bundle.md).
 
 ### Public Repository Readiness
