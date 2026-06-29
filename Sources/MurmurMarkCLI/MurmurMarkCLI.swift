@@ -1146,6 +1146,10 @@ enum OpenCommands {
             for target in targets {
                 print("    \(target.command) — \(target.label)")
             }
+            if let first = targets.first {
+                print("  recommended_next: \(first.command)")
+                FinalNextPrinter.print(first.command)
+            }
             return
         }
         let selectedTarget = targets[0]
@@ -1155,6 +1159,7 @@ enum OpenCommands {
         print("  recommended_next: \(selectedTarget.command)")
         print("  next:")
         print("    \(selectedTarget.command)")
+        FinalNextPrinter.print(selectedTarget.command)
     }
 
     private struct OpenTarget {

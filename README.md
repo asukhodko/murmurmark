@@ -53,11 +53,11 @@ murmurmark export latest --format markdown --include-json
 murmurmark retention plan latest
 ```
 
-`status`, `report`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
+`status`, `report`, `open`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
 all print the next safe command for the current session state, so the terminal output is the main handoff.
 For normal summary output, use the final `next: ...` line as the primary command to run next.
-Machine-readable modes such as `--path-only` and streamed content modes such as `--cat` keep their
-single-purpose output clean.
+Machine-readable modes such as `--path-only`/`--command-only` and streamed content modes such as
+`--cat` keep their single-purpose output clean.
 `next` is the shortest answer when you only need the one command to run now.
 `open` is the shortest answer when you need to inspect the selected local output: notes, transcript,
 quality verdict, readiness or audit reports.
