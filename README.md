@@ -56,9 +56,9 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - next product target: close or safely explain the remaining transcript/export blockers, especially
   `check_unique_me_content` and `remote_leak`, without changing capture, Echo Guard or the main ASR
   path, and without hiding unresolved risk from export gates.
-- selected next step: follow `murmurmark next corpus --refresh`, close the first
-  `check_unique_me_content` lane that it prints, apply those decisions, refresh corpus readiness,
-  then automate only repeated safe patterns that are confirmed by those answers.
+- selected next step: run the optional stronger local audio judge on fresh review packs, use only
+  high-confidence suggested answers through dry-run/apply, refresh corpus readiness, then automate
+  only repeated safe patterns that are confirmed by those answers.
 
 The operational corpus excludes smoke/diagnostic recordings and interrupted partial captures. Those
 sessions remain visible in the full session-quality report, but they do not dilute the working-meeting
@@ -87,6 +87,20 @@ The wrapper points `MURMURMARK_HOME` at this checkout, so `murmurmark process`,
 `murmurmark report`, `murmurmark audit`, `murmurmark review`, `murmurmark corpus` and `murmurmark export`
 can be run from any directory. During development, `.build/debug/murmurmark` and
 `swift run murmurmark ...` still work.
+
+Optional stronger audio judge uses a local CTranslate2 `faster-whisper` model only for short review
+clips. It is not the main ASR and `murmurmark process` skips it with a warning when the module or
+model is absent:
+
+```bash
+source .venv/bin/activate
+.venv/bin/pip install faster-whisper ctranslate2
+
+mkdir -p "$HOME/.local/share/murmurmark/models/faster-whisper/large-v3"
+# Put the local Systran/faster-whisper-large-v3 CTranslate2 files here, including model.bin.
+
+murmurmark doctor
+```
 
 `murmurmark doctor` checks the current CLI home, config, core scripts, `ffmpeg`/`ffprobe`,
 `whisper-cli`, Python runtime and modules, the configured whisper.cpp model, and macOS recording
@@ -481,7 +495,7 @@ less "$(murmurmark transcript latest --path-only)"
 `murmurmark process` is the normal post-recording command; internally it calls
 `scripts/run-session-pipeline.py`. The runner calls Echo Guard,
 whisper.cpp transcription, shadow timeline repair, local-recall audit, transcript-order audit,
-group-overlap audit, audio-review audit,
+group-overlap audit, audio-review audit, optional stronger local audio judge,
 `audit_cleanup_v1/v2`, optionally `audit_cleanup_v3/v4` when the local audio-judge queue exists,
 and extractive synthesis, then writes
 `derived/pipeline-run/pipeline_run_report.json` and `derived/readiness/session_readiness.md`.
@@ -818,6 +832,21 @@ Session readiness also de-duplicates transcript-only stronger-judge rows when th
 utterance interval is already covered by high-confidence `likely_reliable` audio-review evidence.
 That only reduces review burden; it does not edit transcript text and never suppresses probable
 transcript errors or possible lost `Me` speech.
+
+`murmurmark audit stronger-audio-judge` is the optional second-pass local judge over the same pack. It
+uses `faster-whisper large-v3` on the already cut `mic_raw`, `mic_clean`, `mic_role_masked` and
+`remote` clips, writes `faster_whisper_judge.*` artifacts under
+`derived/audit/audio-review-pack/`, and can improve suggested answers in review lane packs. It still
+does not edit transcripts by itself:
+
+```bash
+murmurmark audit stronger-audio-judge "$SESSION" \
+  --profile audit_cleanup_v2 \
+  --max-items 80
+
+murmurmark review first-lane --session "$SESSION"
+murmurmark review lane apply first --session "$SESSION" --answers-source suggested --dry-run
+```
 
 `audit_cleanup_v2` is the conservative cleanup profile that consumes the audio review audit. It reads
 `audit_cleanup_v1` plus `derived/audit/audio-review-pack/audio_review_audit.jsonl`, then writes a

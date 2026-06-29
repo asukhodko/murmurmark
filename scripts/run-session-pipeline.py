@@ -48,6 +48,10 @@ STEP_COST_HINTS: dict[str, dict[str, str]] = {
         "cost": "medium",
         "reason": "classifies the generated audio review pack",
     },
+    "audit_stronger_audio_judge": {
+        "cost": "heavy",
+        "reason": "runs local faster-whisper on selected short review clips when the model is available",
+    },
     "plan_remote_leak_segment_repair": {
         "cost": "medium",
         "reason": "plans segment-level remote leak repair candidates",
@@ -87,6 +91,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-preprocess", action="store_true")
     parser.add_argument("--skip-transcription", action="store_true")
     parser.add_argument("--skip-audits", action="store_true")
+    parser.add_argument("--skip-stronger-audio-judge", action="store_true")
     parser.add_argument("--skip-cleanup", action="store_true")
     parser.add_argument(
         "--allow-partial",
@@ -102,6 +107,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-clips", type=int, default=80)
     parser.add_argument("--max-audio-review-items", type=int, default=160)
+    parser.add_argument("--max-stronger-audio-judge-items", type=int, default=80)
     parser.add_argument(
         "--report",
         type=Path,
@@ -398,6 +404,20 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             reason="--skip-audits",
         ),
         step("audit_audio_review_pack", [py, str(repo_root / "scripts/audit-audio-review-pack.py"), str(session)], enabled=not args.skip_audits, reason="--skip-audits"),
+        step(
+            "audit_stronger_audio_judge",
+            [
+                py,
+                str(repo_root / "scripts/audit-stronger-audio-judge.py"),
+                str(session),
+                "--profile",
+                "audit_cleanup_v1",
+                "--max-items",
+                str(args.max_stronger_audio_judge_items),
+            ],
+            enabled=not args.skip_audits and not args.skip_stronger_audio_judge,
+            reason="--skip-audits/--skip-stronger-audio-judge",
+        ),
         step(
             "plan_remote_leak_segment_repair",
             [py, str(repo_root / "scripts/plan-remote-leak-segment-repair.py"), str(session)],

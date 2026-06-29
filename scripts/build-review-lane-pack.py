@@ -64,6 +64,14 @@ def parse_args() -> argparse.Namespace:
             "answer sheets."
         ),
     )
+    parser.add_argument(
+        "--stronger-audio-judge",
+        default="auto",
+        help=(
+            "Path to faster_whisper_judge.jsonl, auto for per-session default, or off. "
+            "When available, high-confidence local audio evidence can improve suggested answers."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -414,6 +422,136 @@ def group_suggested_reason(rows: list[dict[str, Any]]) -> str:
     if len(rows) <= 1:
         return str(rows[0].get("suggested_decision_reason") or "")
     return f"grouped_{len(rows)}_review_rows_for_same_me_utterance"
+
+
+def interval_overlap_seconds(left: dict[str, Any], right: dict[str, Any]) -> float:
+    def bounds(value: dict[str, Any]) -> tuple[float, float]:
+        interval = value.get("interval") if isinstance(value.get("interval"), dict) else value
+        try:
+            start = float(interval.get("start", 0.0) or 0.0)
+            end = float(interval.get("end", start) or start)
+        except (AttributeError, TypeError, ValueError):
+            return 0.0, 0.0
+        return start, end
+
+    left_start, left_end = bounds(left)
+    right_start, right_end = bounds(right)
+    return max(0.0, min(left_end, right_end) - max(left_start, right_start))
+
+
+def session_path_from_row(row: dict[str, Any]) -> Path | None:
+    session_value = str(row.get("session") or "").strip()
+    if session_value:
+        return Path(session_value).expanduser()
+    session_id = str(row.get("session_id") or "").strip()
+    if session_id:
+        return Path("sessions") / session_id
+    return None
+
+
+def stronger_judge_path_for_session(session_path: Path) -> Path:
+    return session_path / "derived/audit/audio-review-pack/faster_whisper_judge.jsonl"
+
+
+def stronger_judge_rows_by_session(rows: list[dict[str, Any]], source: str) -> dict[str, list[dict[str, Any]]]:
+    if source == "off":
+        return {}
+    paths: dict[str, Path] = {}
+    if source != "auto":
+        explicit = Path(source).expanduser()
+        for row in rows:
+            session_id = str(row.get("session_id") or "")
+            if session_id:
+                paths[session_id] = explicit
+    else:
+        for row in rows:
+            session_id = str(row.get("session_id") or "")
+            session_path = session_path_from_row(row)
+            if session_id and session_path is not None:
+                paths.setdefault(session_id, stronger_judge_path_for_session(session_path))
+    loaded: dict[str, list[dict[str, Any]]] = {}
+    for session_id, path in paths.items():
+        loaded[session_id] = read_jsonl(path)
+    return loaded
+
+
+def stronger_matches_for_row(row: dict[str, Any], by_session: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    session_id = str(row.get("session_id") or "")
+    candidates = by_session.get(session_id) or []
+    if not candidates:
+        return []
+    row_ids = set(list_values(row, "utterance_ids"))
+    me_ids = set(list_values(row, "me_utterance_ids"))
+    remote_ids = set(list_values(row, "remote_utterance_ids"))
+    matches: list[dict[str, Any]] = []
+    for candidate in candidates:
+        candidate_ids = {str(value) for value in candidate.get("utterance_ids") or [] if value}
+        if not candidate_ids:
+            continue
+        me_match = bool(me_ids and me_ids <= candidate_ids)
+        exactish = bool(row_ids and (row_ids <= candidate_ids or candidate_ids <= row_ids))
+        remote_match = not remote_ids or bool(remote_ids & candidate_ids)
+        time_match = interval_overlap_seconds(row, candidate) > 0.05
+        if (exactish or me_match) and remote_match and time_match:
+            matches.append(candidate)
+    return matches
+
+
+def stronger_summary_for_group(rows: list[dict[str, Any]], by_session: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    matches: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        for match in stronger_matches_for_row(row, by_session):
+            key = str(match.get("id") or match.get("source_pack_item_id") or len(seen))
+            if key in seen:
+                continue
+            seen.add(key)
+            matches.append(match)
+    labels = [str((match.get("classification") or {}).get("label") or "") for match in matches]
+    confidences = [float((match.get("classification") or {}).get("confidence") or 0.0) for match in matches]
+    return {
+        "matches": matches,
+        "labels": labels,
+        "max_confidence": round(max(confidences), 3) if confidences else None,
+        "count": len(matches),
+    }
+
+
+def stronger_suggested_decision(
+    rows: list[dict[str, Any]],
+    by_session: dict[str, list[dict[str, Any]]],
+) -> tuple[str | None, Any, str | None, dict[str, Any] | None]:
+    summary = stronger_summary_for_group(rows, by_session)
+    matches = summary["matches"]
+    if not matches:
+        return None, None, None, None
+    allowed = set(common_allowed_decisions(rows))
+    high = [match for match in matches if float((match.get("classification") or {}).get("confidence") or 0.0) >= 0.74]
+    if not high:
+        return None, None, None, summary
+    labels = {str((match.get("classification") or {}).get("label") or "") for match in high}
+    keep_labels = {"confirm_me", "confirm_timing_or_doubletalk"}
+    drop_labels = {"confirm_remote_duplicate", "confirm_asr_noise"}
+    if labels and labels <= keep_labels and "keep_me" in allowed:
+        confidence = max(float((match.get("classification") or {}).get("confidence") or 0.0) for match in high)
+        reason = "stronger_audio_judge: " + ", ".join(sorted(labels))
+        return "keep_me", round(confidence, 3), reason, summary
+    if labels and labels <= drop_labels and "drop_me" in allowed:
+        confidence = max(float((match.get("classification") or {}).get("confidence") or 0.0) for match in high)
+        if confidence >= 0.86:
+            reason = "stronger_audio_judge: " + ", ".join(sorted(labels))
+            return "drop_me", round(confidence, 3), reason, summary
+    return None, None, None, summary
+
+
+def suggested_decision_for_group(
+    rows: list[dict[str, Any]],
+    stronger_by_session: dict[str, list[dict[str, Any]]],
+) -> tuple[str, Any, str, dict[str, Any] | None]:
+    stronger_decision, confidence, reason, summary = stronger_suggested_decision(rows, stronger_by_session)
+    if stronger_decision:
+        return stronger_decision, confidence, reason or "", summary
+    return group_suggested_decision(rows), common_value(rows, "suggested_decision_confidence", "mixed"), group_suggested_reason(rows), summary
 
 
 def group_clip_text(rows: list[dict[str, Any]]) -> str:
@@ -869,6 +1007,13 @@ def write_item_details(lines: list[str], item: dict[str, Any]) -> None:
                 f"{item.get('decision')}: {item.get('when')}" for item in decision_guide if isinstance(item, dict)
             )
             lines.append(f"- Decision guide: {truncate_text(guide_text, 700)}")
+    stronger = item.get("stronger_audio_judge") if isinstance(item.get("stronger_audio_judge"), dict) else {}
+    if stronger and stronger.get("count"):
+        labels = ", ".join(str(value) for value in stronger.get("labels") or [])
+        lines.append(
+            f"- Stronger audio judge: `{stronger.get('count')}` match(es), labels `{truncate_text(labels, 240)}`, "
+            f"max confidence `{stronger.get('max_confidence')}`"
+        )
     if command:
         lines.extend(["", "```bash", command, "```"])
     evidence = item.get("evidence_text") if isinstance(item.get("evidence_text"), list) else []
@@ -983,6 +1128,7 @@ def main() -> int:
     rows = merge_existing(template_rows, existing_rows)
     session_filters = {item.strip() for item in args.session if item.strip()}
     selected = select_lane_rows(rows, args, session_filters)
+    stronger_by_session = stronger_judge_rows_by_session(selected, str(args.stronger_audio_judge or "auto"))
 
     out_dir = args.out_dir.expanduser()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1024,6 +1170,10 @@ def main() -> int:
             ]
             if len(group_commands) > 1:
                 command_key = f"grouped:{command_key}"
+            suggested_decision, suggested_confidence, suggested_reason, stronger_summary = suggested_decision_for_group(
+                group_rows,
+                stronger_by_session,
+            )
             tmp_wav = tmp_dir / f"clip_{index:04d}.wav"
             rendered, render_error = render_group_clip(command_entries, tmp_dir, index, tmp_wav)
             if not rendered:
@@ -1072,9 +1222,10 @@ def main() -> int:
                     "utterance_ids": unique_from_rows(group_rows, "utterance_ids"),
                     "me_utterance_ids": unique_from_rows(group_rows, "me_utterance_ids"),
                     "remote_utterance_ids": unique_from_rows(group_rows, "remote_utterance_ids"),
-                    "suggested_decision": group_suggested_decision(group_rows),
-                    "suggested_decision_confidence": common_value(group_rows, "suggested_decision_confidence", "mixed"),
-                    "suggested_decision_reason": group_suggested_reason(group_rows),
+                    "suggested_decision": suggested_decision,
+                    "suggested_decision_confidence": suggested_confidence,
+                    "suggested_decision_reason": suggested_reason,
+                    "stronger_audio_judge": stronger_summary,
                     "allowed_decisions": common_allowed_decisions(group_rows),
                     "command_key": command_key,
                     "command": command,
@@ -1115,6 +1266,7 @@ def main() -> int:
             "include_reviewed": args.include_reviewed,
             "group_related": args.group_related,
             "include_related_lanes": args.include_related_lanes,
+            "stronger_audio_judge": args.stronger_audio_judge,
         },
         "outputs": {
             "audio": str(audio_path),

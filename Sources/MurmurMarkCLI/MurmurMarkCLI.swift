@@ -124,7 +124,7 @@ struct MurmurMark {
           murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
-                                [--progress-interval-sec 60] [--allow-partial]
+                                [--skip-stronger-audio-judge] [--progress-interval-sec 60] [--allow-partial]
                                 [--config murmurmark.config.json] [--sessions-root ./sessions]
           murmurmark status [./session|latest] [--sessions-root ./sessions]
           murmurmark next [./session|latest|corpus] [--refresh] [--export-manifest ./export_manifest.json] [--sessions-root ./sessions]
@@ -151,6 +151,7 @@ struct MurmurMark {
           murmurmark audit order ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit group-overlaps ./session|latest [--profile shadow_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
+          murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80] [--sessions-root ./sessions]
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
                              [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
@@ -199,7 +200,7 @@ struct MurmurMark {
           open prints or streams the selected local output artifact from readiness.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review next prints the next review command; review --help shows lane/workspace/apply commands.
-          audit wraps the transcript order, local recall, group overlap and audio-review audit scripts through the project Python runtime.
+          audit wraps order, local recall, group overlap, audio-review and stronger-audio-judge scripts through the project Python runtime.
           cleanup wraps conservative audit cleanup profiles.
           repair wraps explicit structural transcript repairs into separate profiles.
           synthesize refreshes deterministic extractive notes and quality verdict.
@@ -244,6 +245,7 @@ enum Commands {
         DoctorChecks.checkScripts(&report)
         DoctorChecks.checkPython(&report)
         DoctorChecks.checkWhisperModel(&report)
+        DoctorChecks.checkStrongerAudioJudge(&report)
 
         do {
             let content = try await SCShareableContent.current
@@ -560,6 +562,7 @@ enum DoctorChecks {
             "scripts/audit-group-overlaps.py",
             "scripts/build-audio-review-pack.py",
             "scripts/audit-audio-review-pack.py",
+            "scripts/audit-stronger-audio-judge.py",
             "scripts/probe-review-lane-pack-audio.py",
             "scripts/report-session-quality.py",
             "scripts/apply-retention-policy.py",
@@ -609,6 +612,46 @@ enum DoctorChecks {
                 "whisper model",
                 "not found: \(url.path)",
                 hint: "download a multilingual whisper.cpp model or set transcription.model in murmurmark.config.json"
+            )
+        }
+    }
+
+    static func checkStrongerAudioJudge(_ report: inout DoctorReport) {
+        do {
+            let python = try PythonRuntime.resolve()
+            let moduleCode = """
+            import importlib.util
+            print("ok" if importlib.util.find_spec("faster_whisper") else "missing")
+            """
+            let moduleStatus = (try Tooling.runPathCapturing(python, ["-c", moduleCode])).trimmedSingleLine()
+            if moduleStatus == "ok" {
+                report.check(.passed, "faster-whisper", "python module found")
+            } else {
+                report.check(
+                    .warn,
+                    "faster-whisper",
+                    "python module not found",
+                    hint: "install optional stronger audio judge dependencies: .venv/bin/pip install faster-whisper ctranslate2"
+                )
+            }
+        } catch {
+            report.check(.warn, "faster-whisper", "not checked: \(error.localizedDescription)")
+        }
+
+        let model = ProcessInfo.processInfo.environment["MURMURMARK_FASTER_WHISPER_MODEL"]
+            ?? "~/.local/share/murmurmark/models/faster-whisper/large-v3"
+        let url = PathURLs.fileURL(model)
+        let modelBin = url.appendingPathComponent("model.bin")
+        let exists = FileManager.default.fileExists(atPath: modelBin.path)
+            || (url.lastPathComponent == "model.bin" && FileManager.default.fileExists(atPath: url.path))
+        if exists {
+            report.check(.passed, "faster-whisper model", PathDisplay.display(url))
+        } else {
+            report.check(
+                .warn,
+                "faster-whisper model",
+                "not found: \(url.path)",
+                hint: "download Systran/faster-whisper-large-v3 into ~/.local/share/murmurmark/models/faster-whisper/large-v3"
             )
         }
     }
@@ -1049,7 +1092,7 @@ enum PipelineHelp {
         usage: murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
-                                [--progress-interval-sec 60] [--allow-partial]
+                                [--skip-stronger-audio-judge] [--progress-interval-sec 60] [--allow-partial]
                                 [--config murmurmark.config.json] [--sessions-root ./sessions]
 
         Runs scripts/run-session-pipeline.py for one recorded session, then prints readiness.
@@ -3004,6 +3047,16 @@ enum AuditCommands {
             }
             try Tooling.runPathQuiet(python, auditArgs)
             try AuditPrinter.printAudioReview(session: session, args: packArgs)
+        case "stronger-audio-judge", "stronger_audio_judge":
+            let packArgs = defaulted(packBuilderArgs(from: remaining), option: "profile", value: "audit_cleanup_v2")
+            let packDir = ArgumentEditing.peekOption("out-dir", in: packArgs)
+            try Tooling.runPathQuiet(python, [try script("build-audio-review-pack.py").path, session.path] + packArgs)
+            var auditArgs = [try script("audit-stronger-audio-judge.py").path, session.path] + remaining
+            if let packDir, !ArgumentEditing.hasOption("pack-dir", in: auditArgs) {
+                auditArgs += ["--pack-dir", packDir]
+            }
+            try Tooling.runPathQuiet(python, auditArgs)
+            try AuditPrinter.printStrongerAudioJudge(session: session, args: auditArgs)
         default:
             throw CLIError("unknown audit command: \(subcommand)")
         }
@@ -3014,6 +3067,45 @@ enum AuditCommands {
             return args
         }
         return ["--\(option)", value] + args
+    }
+
+    private static func packBuilderArgs(from args: [String]) -> [String] {
+        let valueOptions: Set<String> = ["profile", "out-dir", "min-overlap-sec", "padding-sec", "max-items"]
+        let flags: Set<String> = ["write-clips", "no-write-clips"]
+        let skipValueOptions: Set<String> = ["model", "device", "compute-type", "language", "beam-size", "pack-dir", "source"]
+        let skipFlags: Set<String> = ["allow-download"]
+        var filtered: [String] = []
+        var index = 0
+        while index < args.count {
+            let arg = args[index]
+            guard arg.hasPrefix("--") else {
+                index += 1
+                continue
+            }
+            let name = String(arg.dropFirst(2))
+            if valueOptions.contains(name) {
+                filtered.append(arg)
+                if index + 1 < args.count, !args[index + 1].hasPrefix("--") {
+                    filtered.append(args[index + 1])
+                    index += 2
+                } else {
+                    index += 1
+                }
+            } else if flags.contains(name) {
+                filtered.append(arg)
+                index += 1
+            } else if skipValueOptions.contains(name) {
+                index += 1
+                if index < args.count, !args[index].hasPrefix("--") {
+                    index += 1
+                }
+            } else if skipFlags.contains(name) {
+                index += 1
+            } else {
+                index += 1
+            }
+        }
+        return filtered
     }
 
     private static func script(_ name: String) throws -> URL {
@@ -3031,16 +3123,21 @@ enum AuditCommands {
           murmurmark audit order ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit group-overlaps ./session|latest [--profile shadow_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
+          murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80] [--sessions-root ./sessions]
 
         Audit commands are local-only wrappers over existing Python scripts:
           local-recall    runs audit-local-recall.py
           order           runs audit-transcript-order.py
           group-overlaps  runs audit-group-overlaps.py
           audio-review    runs build-audio-review-pack.py, then audit-audio-review-pack.py
+          stronger-audio-judge
+                          runs build-audio-review-pack.py, then audit-stronger-audio-judge.py
 
         Use --sessions-root when resolving latest from a non-default sessions directory.
         Extra options are forwarded to the underlying audit script; for audio-review they are
         forwarded to the pack builder, then the pack audit runs over the resulting directory.
+        stronger-audio-judge forwards pack-compatible options to the pack builder and faster-whisper
+        options to the stronger judge.
         """)
     }
 }
@@ -3198,6 +3295,41 @@ enum AuditPrinter {
         printAuditHandoff(
             session: session,
             report: outDir.appendingPathComponent("audio_review_report.md"),
+            needsReview: needsReview
+        )
+    }
+
+    static func printStrongerAudioJudge(session: URL, args: [String]) throws {
+        let defaultURL = session.appendingPathComponent("derived/audit/audio-review-pack")
+        let outDir = PathURLs.fileURL(
+            ArgumentEditing.peekOption("out-dir", in: args)
+                ?? ArgumentEditing.peekOption("pack-dir", in: args)
+                ?? defaultURL.path
+        )
+        let summaryURL = outDir.appendingPathComponent("faster_whisper_judge_summary.json")
+        guard FileManager.default.fileExists(atPath: summaryURL.path) else {
+            printMissing(kind: "stronger_audio_judge", expected: summaryURL)
+            return
+        }
+        let payload = try JSONFiles.object(summaryURL)
+        let keepSeconds = double(payload["suggested_keep_me_seconds"])
+        let dropSeconds = double(payload["suggested_drop_me_seconds"])
+
+        print("")
+        print("audit:")
+        print("  kind: stronger_audio_judge")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("faster_whisper_judge_report.md")))")
+        print("  items: \(int(payload["items"]))")
+        print(String(format: "  suggested_keep_me: %.2fs", keepSeconds))
+        print(String(format: "  suggested_drop_me: %.2fs", dropSeconds))
+        if let skipped = string(payload["skipped_reason"]), !skipped.isEmpty {
+            print("  skipped: \(skipped)")
+        }
+        print("  recommendation: \(string(payload["recommended_next_step"]) ?? "unknown")")
+        let needsReview = int(payload["items"]) > 0
+        printAuditHandoff(
+            session: session,
+            report: outDir.appendingPathComponent("faster_whisper_judge_report.md"),
             needsReview: needsReview
         )
     }
@@ -8456,6 +8588,7 @@ enum ReadinessPrinter {
             print(String(format: "  transcript_review_burden: %.2f min / %.2f%%", transcriptReviewSeconds / 60, transcriptReviewRatio))
         }
         ReviewSummaryPrinter.printSynthesisReviewMetrics(metrics, indent: "  ")
+        printStrongerAudioJudgeSummary(session)
         print("  open:")
         if openCommands.isEmpty {
             for key in ["transcript", "notes", "quality_verdict", "audio_review_report", "local_recall_review", "transcript_order_review"] {
@@ -8480,6 +8613,25 @@ enum ReadinessPrinter {
                 let label = string(item["label"]) ?? string(item["id"]) ?? "next"
                 print("    \(command) — \(label)")
             }
+        }
+    }
+
+    private static func printStrongerAudioJudgeSummary(_ session: URL) {
+        let summaryURL = session.appendingPathComponent("derived/audit/audio-review-pack/faster_whisper_judge_summary.json")
+        guard FileManager.default.fileExists(atPath: summaryURL.path),
+              let payload = try? JSONFiles.object(summaryURL)
+        else {
+            return
+        }
+        let items = int(payload["items"]) ?? 0
+        let keepSeconds = double(payload["suggested_keep_me_seconds"]) ?? 0.0
+        let dropSeconds = double(payload["suggested_drop_me_seconds"]) ?? 0.0
+        print("  stronger_audio_judge:")
+        print("    items: \(items)")
+        print(String(format: "    suggested_keep_me: %.2f min", keepSeconds / 60.0))
+        print(String(format: "    suggested_drop_me: %.2f min", dropSeconds / 60.0))
+        if let skipped = string(payload["skipped_reason"]), !skipped.isEmpty {
+            print("    skipped: \(skipped)")
         }
     }
 

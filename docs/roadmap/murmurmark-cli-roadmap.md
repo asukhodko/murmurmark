@@ -21,7 +21,7 @@ export bundle и retention plan. То, что раньше было лабора
 3. `murmurmark sessions` — готов короткий список последних записей с временем, длительностью, review burden, readiness-статусом, фильтром, JSON-выводом и next-командой.
 4. `murmurmark status SESSION`, `murmurmark report SESSION`, `murmurmark report corpus` и `murmurmark next corpus` — готово.
 5. `murmurmark open SESSION` — готов короткий CLI-вход к выбранным notes/transcript/verdict/readiness/audit артефактам.
-6. `murmurmark audit local-recall|group-overlaps|audio-review` — готов CLI-вход к audit-слоям со сводкой.
+6. `murmurmark audit local-recall|group-overlaps|audio-review|stronger-audio-judge` — готов CLI-вход к audit-слоям со сводкой; stronger-audio-judge работает только как optional локальный второй слух по коротким клипам.
 7. `murmurmark cleanup` и `murmurmark synthesize` — готовы CLI-входы к cleanup-профилям и extractive notes.
 8. `murmurmark review SESSION` — готов базовый CLI-контур.
 9. `murmurmark corpus process all` — готов базовый контур качества по корпусу.
@@ -120,11 +120,10 @@ flowchart LR
 - считать успехом не идеальный transcript, а готовые evidence-backed notes при явно сохранённых
   transcript/export blockers.
 
-Выбранный ближайший шаг: идти через актуальный `murmurmark next corpus`, закрыть первую
-`check_unique_me_content` lane, применить решения и заново построить readiness. Если до ручного
-разбора появляется ещё одно автоматическое правило, оно должно быть таким же узким, как текущая
-propagation-логика: распространять уже подтверждённый `keep_me` только на sibling `remote_leak`
-для той же `Me`-реплики и не трогать `remote_duplicate`.
+Выбранный ближайший шаг: проверить `murmurmark audit stronger-audio-judge` на свежей проблемной
+сессии, затем использовать только безопасные suggested answers через `review lane apply --dry-run`.
+Если после этого появляется новое автоматическое правило, оно должно опираться на уже подтверждённые
+ответы и не трогать спорные `remote_duplicate`/`lost_me` случаи без явных safety gates.
 
 Первый блок уже применён: transcript-only `uncertain` rows снимаются из burden только когда тот же
 selected `Me` interval покрыт high-confidence `likely_reliable` audio-review evidence. Второй блок

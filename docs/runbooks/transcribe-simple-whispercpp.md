@@ -56,7 +56,7 @@ Explicit command-line flags override config values.
 defaults.
 
 `murmurmark process` calls the current runner: Echo Guard, export/transcription, shadow timeline repair,
-local-recall audit, transcript-order audit, group-overlap audit, audio-review audit,
+local-recall audit, transcript-order audit, group-overlap audit, audio-review audit, optional stronger local audio judge,
 `audit_cleanup_v1..v4`, extractive synthesis and per-session readiness. `audit_cleanup_v5` is a separate batch step after the suggested-review shadow report. Use
 `--force-asr` when you need to regenerate Whisper output, and `--reuse-asr-cache` when you only want
 to rebuild repair, cleanup, synthesis and reports from cached ASR JSON. The runner prints each stage
@@ -560,6 +560,27 @@ less "$SESSION/derived/audit/audio-review-pack/audio_review_report.md"
 The CLI summary shows item counts, likely reliable seconds, probable transcript errors, stronger
 audio-judge demand, `read: less ...` for the Markdown report and `recommended_next`. Probable or
 uncertain transcript errors point back into `murmurmark review next SESSION`.
+
+If the local `faster-whisper` judge is installed, run it over the same pack before building review
+lane packs:
+
+```bash
+murmurmark audit stronger-audio-judge "$SESSION" \
+  --profile audit_cleanup_v2 \
+  --max-items 80
+
+jq '{items, suggested_keep_me_seconds, suggested_drop_me_seconds, skipped_reason}' \
+  "$SESSION/derived/audit/audio-review-pack/faster_whisper_judge_summary.json"
+
+less "$SESSION/derived/audit/audio-review-pack/faster_whisper_judge_report.md"
+```
+
+The stronger judge is local and optional. It decodes only short review clips, writes
+`faster_whisper_judge.jsonl`, `faster_whisper_judge_summary.json` and
+`faster_whisper_judge_report.md`, and never changes transcript profiles by itself. Review lane packs
+use those rows only for safer suggested answers: `confirm_me` and `confirm_timing_or_doubletalk`
+suggest `keep_me` when allowed; `confirm_remote_duplicate` and `confirm_asr_noise` suggest `drop_me`
+only when the lane and safety gates allow that decision.
 
 The pack is written under `derived/audit/audio-review-pack/`. It includes short `mic_raw`,
 `remote`, `mic_clean`, `mic_role_masked` and stereo comparison clips for suspicious transcript

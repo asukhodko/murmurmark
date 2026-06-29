@@ -1108,6 +1108,47 @@ same `review_pack_items.jsonl` and write their own verdicts instead of re-cuttin
 `likely_reliable` can be emitted with lower confidence when the best local metric class is already
 `likely_reliable`, the score is at least `65`, and the nearest competing error class is at least
 `10` points lower. This only lowers review priority; it is not an automatic transcript edit.
+
+`murmurmark.faster_whisper_judge/v1` is the optional stronger local judge over the same review pack.
+It uses a local CTranslate2 `faster-whisper` model on the existing clips and writes:
+
+```text
+derived/audit/audio-review-pack/
+  faster_whisper_judge.jsonl
+  faster_whisper_judge_summary.json
+  faster_whisper_judge_report.md
+```
+
+Each JSONL row keeps the source pack item, copied utterance evidence, per-source transcripts and a
+single classification:
+
+```json
+{
+  "schema": "murmurmark.faster_whisper_judge/v1",
+  "id": "fwj_000042",
+  "source_pack_item_id": "arp_000042",
+  "profile": "audit_cleanup_v2",
+  "utterance_ids": ["utt_0123", "utt_0124"],
+  "transcripts": {
+    "mic_clean": {"text": "Да, я проверю логи.", "avg_logprob": -0.19},
+    "remote": {"text": "Давайте посмотрим deploy.", "avg_logprob": -0.22}
+  },
+  "classification": {
+    "label": "confirm_timing_or_doubletalk",
+    "suggested_decision": "keep_me",
+    "confidence": 0.84,
+    "reason": "mic confirms Me; remote track confirms Colleagues"
+  }
+}
+```
+
+Valid labels are `confirm_me`, `confirm_remote_duplicate`, `confirm_asr_noise`,
+`confirm_timing_or_doubletalk` and `uncertain`. The summary schema
+`murmurmark.faster_whisper_judge_summary/v1` reports item counts, label buckets,
+`suggested_keep_me_seconds`, `suggested_drop_me_seconds`, `skipped_reason` when the optional model is
+missing, and `recommended_next_step`. These outputs are audit evidence only. They may improve
+`review_lane_answers.<lane>.suggested.txt`, but they do not edit transcript profiles, Echo Guard
+outputs or raw capture.
 `likely_reliable` can also be emitted for benign ties when `double_talk`, `timing_overlap` and/or
 local reliability are the strongest classes and all error classes stay below `60`. This avoids
 escalating expected group-call timing overlap to a stronger judge.

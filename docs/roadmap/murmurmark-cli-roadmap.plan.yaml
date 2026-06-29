@@ -197,7 +197,7 @@ nodes:
     parent: cli-orchestration
     status: done
     effort: 3
-    notes: "Обёртка над order, local-recall, group-overlaps и audio-review audit scripts через проектный Python runtime; после запуска печатает короткую handoff-сводку."
+    notes: "Обёртка над order, local-recall, group-overlaps, audio-review и optional stronger-audio-judge scripts через проектный Python runtime; после запуска печатает короткую handoff-сводку."
 
   cli-cleanup-synthesis-command:
     title: "murmurmark cleanup и synthesize"
@@ -930,8 +930,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 уже довели корпус до medium_risk_ready; 13/13 рабочих сессий готовы для notes, а agent_reviewed_v1 закрыл pure-local remote-context, partial-duplicate и short-duplicate keep-классы."
-          next_sync_goal: "Закрыть первую check_unique_me_content lane из актуального `murmurmark next corpus` через review first-lane/apply, затем автоматизировать только подтверждённые повторяющиеся ответы."
+          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 уже довели корпус до medium_risk_ready; 13/13 рабочих сессий готовы для notes, а agent_reviewed_v1 закрыл pure-local remote-context, partial-duplicate и short-duplicate keep-классы. Новый optional faster-whisper judge добавляет локальный второй слух для коротких спорных клипов."
+          next_sync_goal: "Проверить stronger-audio-judge на свежей сессии, применить только безопасные suggested answers через dry-run/apply, затем автоматизировать лишь подтверждённые повторяющиеся ответы."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]
