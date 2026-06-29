@@ -3840,7 +3840,7 @@ enum CorpusCommands {
             try CorpusLocalRecallCommands.report(sessions: [], extraArgs: [])
             try CorpusLocalRecallRepairCommands.report(sessions: [], extraArgs: [])
             try CorpusRemoteLeakCommands.report(sessions: [], extraArgs: [])
-            try gates(extraArgs: [], allowedExitCodes: [0, 1])
+            _ = try gates(extraArgs: [], allowedExitCodes: [0, 1])
             try CorpusPrinter.printSessionQuality()
             try CorpusPrinter.printBuild()
             try CorpusPrinter.printEvaluation()
@@ -3895,8 +3895,11 @@ enum CorpusCommands {
                 return
             }
             let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/corpus-gates")
-            try gates(extraArgs: forwarded)
+            let status = try gates(extraArgs: forwarded, allowedExitCodes: [0, 1])
             try CorpusPrinter.printGates(outDir: outDir)
+            if status != 0 {
+                throw CLIError("corpus gate failed; see \(PathDisplay.display(outDir.appendingPathComponent("corpus_gates_report.md")))")
+            }
         case "order":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 CorpusOrderHelp.print()
@@ -3981,12 +3984,13 @@ enum CorpusCommands {
     }
 
     private static func gates(extraArgs: [String]) throws {
-        try gates(extraArgs: extraArgs, allowedExitCodes: [0])
+        _ = try gates(extraArgs: extraArgs, allowedExitCodes: [0])
     }
 
-    private static func gates(extraArgs: [String], allowedExitCodes: Set<Int32>) throws {
+    @discardableResult
+    private static func gates(extraArgs: [String], allowedExitCodes: Set<Int32>) throws -> Int32 {
         let python = try PythonRuntime.resolve()
-        _ = try Tooling.runPathQuietAllowingExitCodes(python, [
+        return try Tooling.runPathQuietAllowingExitCodes(python, [
             try script("check-corpus-gates.py").path,
         ] + extraArgs, allowedExitCodes: allowedExitCodes)
     }
@@ -8758,9 +8762,14 @@ enum CorpusPrinter {
         let url = outDir.appendingPathComponent("corpus_gates_report.json")
         let payload = try JSONFiles.object(url)
         let summary = payload["summary"] as? [String: Any] ?? [:]
+        let report = outDir.appendingPathComponent("corpus_gates_report.md")
+        let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+        let readCommand = string(payload["recommended_next"])
+            ?? nextCommands.compactMap { string($0["command"]) }.first
+            ?? "less \(PathDisplay.display(report))"
         print("")
         print("corpus_gates:")
-        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("corpus_gates_report.md")))")
+        print("  report: \(PathDisplay.display(report))")
         print("  status: \(string(payload["status"]) ?? "unknown")")
         print("  failed_gates: \(int(payload["failed_gate_count"]) ?? 0)")
         print("  warnings: \(int(payload["warning_count"]) ?? 0)")
@@ -8779,6 +8788,11 @@ enum CorpusPrinter {
         if let protectedItems = int(summary["remote_leak_segment_protect_local_content_items"]) {
             print("  remote_leak_protect_local_content_items: \(protectedItems)")
         }
+        print("  read: \(readCommand)")
+        print("  recommended_next: \(readCommand)")
+        print("  next:")
+        print("    \(readCommand)")
+        FinalNextPrinter.print(readCommand)
     }
 
     static func printTranscriptOrder(outDir: URL = PathURLs.fileURL("sessions/_reports/transcript-order")) throws {

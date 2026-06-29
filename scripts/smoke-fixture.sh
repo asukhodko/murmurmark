@@ -2794,6 +2794,8 @@ PY
   [[ -s "$gates_dir/corpus_gates_report.json" ]]
   [[ -s "$gates_dir/baseline.json" ]]
   jq -e '.schema == "murmurmark.corpus_gates_baseline/v1"' "$gates_dir/baseline.json" >/dev/null
+  jq -e '(.recommended_next | startswith("less ")) and .next_commands[0].command == .recommended_next and (.open_commands[0].id == "open_corpus_gates_report")' \
+    "$gates_dir/corpus_gates_report.json" >/dev/null
   jq -e 'any(.checks[]; .id == "transcript_order.no_complete_blocking_sessions" and .status == "pass")' \
     "$gates_dir/corpus_gates_report.json" >/dev/null
   jq -e '.summary.transcript_order_complete_blocking_sessions == 0 and .summary.transcript_order_missing_audits == 0' \
@@ -2806,6 +2808,14 @@ PY
     "$gates_dir/corpus_gates_report.json" >/dev/null
   jq -e 'any(.checks[]; .id == "remote_leak_segment.no_protected_local_content" and .status == "warn" and .observed.items >= 1)' \
     "$gates_dir/corpus_gates_report.json" >/dev/null
+  gates_cli_output="$("$bin" corpus gate "${gate_args[@]}" --out-dir "$gates_dir/cli" --no-fail)"
+  assert_no_helper_prefix "$gates_cli_output"
+  echo "$gates_cli_output" | grep -q '^corpus_gates:$'
+  echo "$gates_cli_output" | grep -q '^  read: less '
+  echo "$gates_cli_output" | grep -q '^  recommended_next: less '
+  echo "$gates_cli_output" | grep -q '^  next:$'
+  tail -1 <<<"$gates_cli_output" | grep -q '^next: less .*corpus_gates_report.md$'
+  jq -e '.recommended_next | startswith("less ")' "$gates_dir/cli/corpus_gates_report.json" >/dev/null
   "$repo_root/scripts/check-corpus-gates.py" \
     "${gate_args[@]}" \
     --out-dir "$gates_dir/with-baseline" \

@@ -1027,6 +1027,22 @@ def main() -> int:
     out_dir: Path = args.out_dir
     json_path = out_dir / "corpus_gates_report.json"
     markdown_path = out_dir / "corpus_gates_report.md"
+    read_command = f"less {markdown_path}"
+    report["recommended_next"] = read_command
+    report["next_commands"] = [
+        {
+            "id": "open_corpus_gates_report",
+            "command": read_command,
+            "reason": "inspect corpus gate failures and warnings",
+        }
+    ]
+    report["open_commands"] = [
+        {
+            "id": "open_corpus_gates_report",
+            "command": read_command,
+            "path": str(markdown_path),
+        }
+    ]
     write_json(json_path, report)
     write_markdown(markdown_path, report)
     if args.write_baseline:
@@ -1035,6 +1051,7 @@ def main() -> int:
     print(f"failed_gates: {report['failed_gate_count']}")
     print(f"warnings: {report['warning_count']}")
     print(f"written: {json_path}")
+    print(f"recommended_next: {read_command}")
     if args.write_baseline:
         print(f"baseline: {args.write_baseline}")
     if report["status"] == "failed" and not args.no_fail:

@@ -251,6 +251,9 @@ for manual debugging.
 `corpus gate` writes `sessions/_reports/corpus-gates/corpus_gates_report.*`. It also reads the
 local-recall and remote-leak corpus reports when they exist. Complete sessions with blocking
 local-recall risk fail the gate; pending remote-leak segment queues are warnings, not hard failures.
+The JSON stores `recommended_next`, `next_commands` and `open_commands`, and the CLI prints
+`read: less ...` plus a final `next: less ...` line before returning a non-zero status for a failed
+strict gate.
 `corpus taxonomy` writes `sessions/_reports/audio-error-taxonomy/audio_error_taxonomy_report.*`.
 Use it after `corpus train-audio-judge` to see which error classes are already safe cleanup
 candidates, which are mark-only, which need better labels, and which sessions/examples should drive

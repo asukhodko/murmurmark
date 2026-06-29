@@ -1206,6 +1206,21 @@ sessions/_reports/corpus-gates/
   "status": "passed_with_warnings",
   "failed_gate_count": 0,
   "warning_count": 3,
+  "recommended_next": "less sessions/_reports/corpus-gates/corpus_gates_report.md",
+  "next_commands": [
+    {
+      "id": "open_corpus_gates_report",
+      "command": "less sessions/_reports/corpus-gates/corpus_gates_report.md",
+      "reason": "inspect corpus gate failures and warnings"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_corpus_gates_report",
+      "command": "less sessions/_reports/corpus-gates/corpus_gates_report.md",
+      "path": "sessions/_reports/corpus-gates/corpus_gates_report.md"
+    }
+  ],
   "thresholds": {
     "min_complete_sessions": 3,
     "max_total_review_burden_ratio": 0.03,

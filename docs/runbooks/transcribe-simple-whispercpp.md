@@ -687,7 +687,9 @@ local-recall, remote-leak segment corpus and operational readiness JSON reports,
 `sessions/_reports/corpus-gates/corpus_gates_report.json` and `.md`. Complete sessions with blocking
 local-recall risk fail the gate. Remote-leak segment queues are reported as warnings: they are
 review/repair backlog, not hard no-regression failures. `passed` or `passed_with_warnings` exits
-successfully. `failed` exits non-zero unless `--no-fail` is used.
+successfully. `failed` exits non-zero unless `--no-fail` is used, but the CLI still prints
+`read: less ...` and a final copyable `next: less ...` line first. The JSON stores the same handoff
+in `recommended_next`, `next_commands` and `open_commands`.
 
 For risky algorithm changes, first save a private local baseline:
 
