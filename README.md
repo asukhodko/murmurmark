@@ -24,6 +24,7 @@ scripts/install-local.sh
 export PATH="$HOME/.local/bin:$PATH"
 
 murmurmark doctor
+murmurmark self-test
 murmurmark config print
 ```
 
@@ -41,6 +42,7 @@ Normal CLI loop:
 
 ```bash
 murmurmark doctor
+murmurmark self-test
 murmurmark record --target-bundle system
 murmurmark sessions
 murmurmark process latest
@@ -114,11 +116,13 @@ See [docs/project/open-source-readiness.md](docs/project/open-source-readiness.m
 For the shortest local CLI handoff regression, run:
 
 ```bash
-scripts/smoke-cli-handoff.sh
+murmurmark self-test
 ```
 
 It builds a tiny processed fixture and then uses only `murmurmark ...` commands for
 `process --plan-only -> review workspace/lane apply -> status -> report -> next/open -> export -> retention`.
+The direct `scripts/smoke-cli-handoff.sh` entry point remains available when debugging the fixture
+itself.
 
 ### End-to-End From an Existing Recording
 
@@ -452,6 +456,7 @@ Everyday CLI commands:
 
 ```bash
 murmurmark doctor
+murmurmark self-test
 murmurmark record --target-bundle system
 murmurmark process latest
 murmurmark next latest
@@ -502,6 +507,7 @@ Development and release checks:
 
 ```bash
 swift build
+.build/debug/murmurmark self-test
 swift run murmurmark doctor
 swift run murmurmark doctor --strict
 swift run murmurmark list-apps

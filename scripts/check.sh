@@ -11,5 +11,5 @@ scripts/check-open-source-readiness.sh
 if command -v cargo >/dev/null 2>&1; then
   cargo fmt --manifest-path tools/murmurmark-aec-webrtc/Cargo.toml --check
 fi
-scripts/smoke-cli-handoff.sh
+.build/debug/murmurmark self-test
 scripts/smoke-fixture.sh

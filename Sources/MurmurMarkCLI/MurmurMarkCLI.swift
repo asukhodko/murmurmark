@@ -21,6 +21,8 @@ struct MurmurMark {
             switch command {
             case "doctor":
                 try await Commands.doctor(args)
+            case "self-test":
+                try Commands.selfTest(args)
             case "list-apps":
                 Commands.listApps()
             case "list-audio-devices":
@@ -90,6 +92,7 @@ struct MurmurMark {
 
         Normal flow:
           murmurmark doctor
+          murmurmark self-test
           murmurmark record --target-bundle system
           murmurmark process latest
           murmurmark next latest
@@ -104,6 +107,7 @@ struct MurmurMark {
 
         Everyday usage:
           murmurmark doctor [--strict]
+          murmurmark self-test
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
@@ -158,6 +162,7 @@ struct MurmurMark {
           murmurmark corpus report
 
         Setup and diagnostics:
+          murmurmark self-test
           murmurmark list-apps
           murmurmark list-audio-devices
           murmurmark inspect ./session
@@ -170,6 +175,7 @@ struct MurmurMark {
 
         Notes:
           record defaults to ScreenCaptureKit for separate mic and remote tracks.
+          self-test runs the quick local CLI smoke fixture through this command surface.
           audio-input remote capture and voice-processing mic capture are experimental comparison modes.
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C or SIGTERM and finalizes the session.
@@ -266,6 +272,40 @@ enum Commands {
         if strict && report.failures > 0 {
             throw CLIError("doctor strict failed: \(report.failures) required checks failed")
         }
+    }
+
+    static func selfTest(_ args: [String]) throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            printSelfTestHelp()
+            return
+        }
+        guard args.isEmpty else {
+            throw CLIError("self-test does not accept arguments")
+        }
+
+        let script = PathURLs.fileURL("scripts/smoke-cli-handoff.sh")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("self-test script not found: \(PathDisplay.display(script))")
+        }
+
+        print("self_test:")
+        print("  mode: quick")
+        print("  command: \(PathDisplay.display(script))")
+        fflush(stdout)
+        try Tooling.runPath(URL(fileURLWithPath: "/bin/bash"), [script.path])
+        print("status: self-test completed")
+    }
+
+    static func printSelfTestHelp() {
+        print("""
+        usage: murmurmark self-test
+
+        Runs the quick local CLI handoff smoke fixture through the current CLI.
+
+        The check builds a tiny processed fixture and exercises the user-facing
+        command chain: process --plan-only, review handoffs, status, report,
+        next/open, export and retention.
+        """)
     }
 
     static func listApps() {
