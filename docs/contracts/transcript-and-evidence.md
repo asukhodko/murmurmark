@@ -1788,6 +1788,10 @@ planning aid for reaching `medium_risk_ready`.
 When the review plan carries packed-action metrics, it also prints `review_actions`,
 `grouped_review_rows` and `remaining_actions` in `after_first_lane`. These fields explain the review
 order; transcript changes still require explicit review answers.
+If the refreshed session gate no longer requires review, `review next` ignores any stale
+`SESSION/derived/readiness/review-plan/review_plan.json` and prints `reason: no_review_required`
+with `recommended_next: murmurmark next SESSION`. The regular `next` command remains the source of
+truth for exportable, exported, blocked and incomplete sessions.
 Top-level `next_commands` is the executable handoff: structural blockers such as too few complete
 pipelines point to the first concrete `murmurmark process sessions/<id>` target only when that target
 is still pipeline-incomplete, and fall back to `murmurmark corpus process all` when no incomplete

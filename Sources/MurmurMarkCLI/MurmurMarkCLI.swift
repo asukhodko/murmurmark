@@ -1899,8 +1899,13 @@ enum ReviewNextCommand {
         let readiness = try JSONFiles.object(session.appendingPathComponent("derived/readiness/session_readiness.json"))
         let gate = readiness["use_gate"] as? String ?? ""
         let reviewBlockers = readiness["review_blockers"] as? [Any] ?? []
-        let exportBlockers = readiness["export_blockers"] as? [Any] ?? []
-        return gate == "review_first" || !reviewBlockers.isEmpty || !exportBlockers.isEmpty
+        return gateRequiresReview(gate) || !reviewBlockers.isEmpty
+    }
+
+    private static func gateRequiresReview(_ gate: String) -> Bool {
+        gate == "review_first"
+            || gate == "do_not_use_without_manual_review"
+            || gate.hasSuffix("_review_first")
     }
 
     private static func script(_ name: String) throws -> URL {
@@ -7951,6 +7956,22 @@ enum ReviewNextPrinter {
         let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0.0
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0.0) * 100.0
         let synthesisReviewCount = int(metrics["synthesis_review_item_count"]) ?? 0
+        if !requiresReview(gate: gate, reviewBlockers: reviewBlockers) {
+            printNoReviewHandoff(
+                NoReviewHandoff(
+                    sessionPath: sessionPath,
+                    gate: gate,
+                    recommendation: recommendation,
+                    profile: profile,
+                    verdict: verdict,
+                    reviewSeconds: reviewSeconds,
+                    reviewRatio: reviewRatio,
+                    synthesisReviewCount: synthesisReviewCount,
+                    exportBlockers: exportBlockers
+                )
+            )
+            return
+        }
         let focusedCommands = focusedNextCommands(
             nextCommands,
             gate: gate,
@@ -7985,6 +8006,64 @@ enum ReviewNextPrinter {
         for command in focusedCommands {
             Swift.print("    \(command)")
         }
+    }
+
+    private struct NoReviewHandoff {
+        let sessionPath: String
+        let gate: String
+        let recommendation: String
+        let profile: String
+        let verdict: String
+        let reviewSeconds: Double
+        let reviewRatio: Double
+        let synthesisReviewCount: Int
+        let exportBlockers: [Any]
+    }
+
+    private static func printNoReviewHandoff(_ handoff: NoReviewHandoff) {
+        let sessionPath = handoff.sessionPath
+        Swift.print("SESSION=\"\(sessionPath)\"")
+        Swift.print("")
+        Swift.print("review_next:")
+        Swift.print("  session: \(sessionPath)")
+        Swift.print("  status: \(statusWithoutReview(gate: handoff.gate, exportBlockers: handoff.exportBlockers))")
+        Swift.print("  gate: \(handoff.gate)")
+        Swift.print("  reason: no_review_required")
+        Swift.print("  recommendation: \(handoff.recommendation)")
+        Swift.print("  selected_profile: \(handoff.profile)")
+        Swift.print("  verdict: \(handoff.verdict)")
+        Swift.print(String(format: "  review_burden: %.2f min / %.2f%%", handoff.reviewSeconds / 60.0, handoff.reviewRatio))
+        if handoff.synthesisReviewCount > 0 {
+            Swift.print("  synthesis_review_items: \(handoff.synthesisReviewCount)")
+        }
+        if !handoff.exportBlockers.isEmpty {
+            Swift.print("  export_blockers: \(compactJSON(handoff.exportBlockers))")
+        }
+        Swift.print("  recommended_next: murmurmark next \(sessionPath)")
+        Swift.print("  next:")
+        Swift.print("    murmurmark next \(sessionPath)")
+        Swift.print("    murmurmark status \(sessionPath)")
+    }
+
+    private static func statusWithoutReview(gate: String, exportBlockers: [Any]) -> String {
+        let blockers = exportBlockers.map { String(describing: $0) }
+        if gate.hasPrefix("pipeline_incomplete") || blockers.contains("pipeline_incomplete") {
+            return "incomplete"
+        }
+        if gate == "ready_for_notes" && blockers.isEmpty {
+            return "exportable"
+        }
+        if gate == "do_not_use_without_manual_review" || !blockers.isEmpty {
+            return "blocked"
+        }
+        return "check_required"
+    }
+
+    private static func requiresReview(gate: String, reviewBlockers: [Any]) -> Bool {
+        gate == "review_first"
+            || gate == "do_not_use_without_manual_review"
+            || gate.hasSuffix("_review_first")
+            || !reviewBlockers.isEmpty
     }
 
     private static func printReviewFlowsIfPlanExists(sessionArg: String, planOutDir: URL) {

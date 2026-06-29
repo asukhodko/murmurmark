@@ -851,12 +851,15 @@ to pick the easiest audio. Keep the other lanes conservative unless the audio or
 is clear.
 `murmurmark review next "$SESSION"` is the quickest entry point for one session: it refreshes
 `session_readiness.json`, shows gate/profile/verdict/review burden, builds a session-local review
-plan if needed, then prints the next review commands. `murmurmark review first-lane --session
+plan if needed, then prints the next review commands. If the refreshed gate does not require review,
+`review next` ignores any old session-local plan and points to `murmurmark next "$SESSION"` plus
+`murmurmark status "$SESSION"` instead. `murmurmark review first-lane --session
 "$SESSION"` now defaults to that session-local plan. The same is true for
 `murmurmark review workspace --session "$SESSION"`, `murmurmark review workspace apply --session
 "$SESSION"`, `murmurmark review progress --session "$SESSION"` and `murmurmark review apply --session
 "$SESSION"`. Existing non-empty session-local plans are preserved, so a prepared explicit lane pack
-is not overwritten by an empty refresh. When a plan exists, `review next` prints `first_lane_flow` for the current blocker,
+is not overwritten by an empty refresh. When a plan exists for a review-required session, `review next`
+prints `first_lane_flow` for the current blocker,
 `quick_lane_flow` for the fastest confirm/drop pass when that is a different lane, and
 `workspace_flow` for reviewing all lanes. Each flow includes the build/listen and apply commands in
 order. It also prints why the first lane was chosen, which lane is the fastest quick pass, and the

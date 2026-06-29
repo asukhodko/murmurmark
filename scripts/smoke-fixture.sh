@@ -951,6 +951,25 @@ echo "$ready_next_output" | grep -q '^  status: exportable$'
 echo "$ready_next_output" | grep -q '^  command: murmurmark retention plan '
 echo "$ready_next_output" | grep -q '^  source: export_manifest$'
 echo "$ready_next_output" | grep -q '^  export_manifest: '
+mkdir -p "$ready_export_session/derived/readiness/review-plan"
+jq -n '{
+  schema: "murmurmark.review_plan/v1",
+  summary: {review_action_count: 1, grouped_review_row_count: 1},
+  review_queue_strategy: {
+    first_recommended_lane: "stale_lane",
+    quick_recommended_lane: "stale_lane",
+    first_recommended_reason: "stale_plan"
+  }
+}' >"$ready_export_session/derived/readiness/review-plan/review_plan.json"
+ready_review_next_output="$("$bin" review next "$ready_export_session" --no-refresh)"
+assert_no_helper_prefix "$ready_review_next_output"
+echo "$ready_review_next_output" | grep -q '^review_next:$'
+echo "$ready_review_next_output" | grep -q '^  status: exportable$'
+echo "$ready_review_next_output" | grep -q '^  reason: no_review_required$'
+echo "$ready_review_next_output" | grep -q '^  recommended_next: murmurmark next '
+! echo "$ready_review_next_output" | grep -q '^  plan: '
+! echo "$ready_review_next_output" | grep -q '^  first_lane_flow:'
+! echo "$ready_review_next_output" | grep -q 'murmurmark review first-lane'
 default_export_dir="$workdir/exports/private"
 "$repo_root/scripts/export-session-bundle.py" "$ready_export_session" --out-dir "$default_export_dir" >/dev/null
 default_status_output="$(cd "$workdir" && "$bin" status "$ready_export_session")"

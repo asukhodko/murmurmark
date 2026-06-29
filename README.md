@@ -342,8 +342,11 @@ commands such as `less ...` remain visible under `next` and `open`. The underlyi
 so agents can continue without parsing terminal output.
 `murmurmark review next SESSION` is the short terminal handoff for that same information: it refreshes
 session readiness, builds a session-local review plan when review is needed, and prints the
-review-specific next commands. When a review plan exists, it also prints `first_lane_flow` for the
-current blocker, `quick_lane_flow` for the fastest confirm/drop pass when that is a different lane,
+review-specific next commands. If the current readiness gate does not require review, it ignores any
+stale session-local review plan and points back to `murmurmark next SESSION` / `murmurmark status
+SESSION` instead. When a review plan exists for a review-required session, it also prints
+`first_lane_flow` for the current blocker, `quick_lane_flow` for the fastest confirm/drop pass when
+that is a different lane,
 and `workspace_flow` for reviewing all lanes. It also prints the recommended first lane reason, the
 fastest quick lane and the estimated remaining queue after the first lane, so the normal order is
 visible without opening `review_plan.json`.
@@ -828,8 +831,9 @@ murmurmark review apply --session latest
 session-local paths. Existing non-empty session-local plans are preserved by workspace/progress
 commands, so an explicit lane pack is not replaced by an empty refresh. Use `review first-lane`,
 `review workspace` or bare `review progress` when you want the global corpus queue.
-When a session-local plan exists, `review next` also shows packed `review_actions`, saved grouped
-rows and the remaining action count after the first lane, matching the units from
+When a session-local plan exists and the session still requires review, `review next` also shows
+packed `review_actions`, saved grouped rows and the remaining action count after the first lane,
+matching the units from
 `murmurmark report corpus`. The review build/apply/progress commands print a headline `recommended_next`, so
 each screen has one copyable next command before the detailed listen/read/edit/apply flow.
 
