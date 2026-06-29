@@ -8668,9 +8668,11 @@ enum CorpusPrinter {
     static func printBuild(outDir: URL = PathURLs.fileURL("sessions/_reports/regression-corpus")) throws {
         let url = outDir.appendingPathComponent("regression_corpus_summary.json")
         let payload = try JSONFiles.object(url)
+        let report = outDir.appendingPathComponent("regression_corpus.md")
+        let nextCommand = "murmurmark corpus evaluate --corpus-dir \(PathDisplay.display(outDir))"
         print("")
         print("regression_corpus:")
-        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("regression_corpus.md")))")
+        print("  report: \(PathDisplay.display(report))")
         print("  sessions: \(int(payload["session_count"]) ?? 0)")
         print("  items: \(int(payload["item_count"]) ?? 0)")
         if let labels = payload["by_label"] as? [String: Any] {
@@ -8679,20 +8681,24 @@ enum CorpusPrinter {
         if let skipped = payload["skipped_sessions"] as? [[String: Any]], !skipped.isEmpty {
             print("  skipped_sessions: \(skipped.count)")
         }
+        printCorpusStageHandoff(report: report, nextCommand: nextCommand)
     }
 
     static func printEvaluation(outDir: URL = PathURLs.fileURL("sessions/_reports/regression-corpus")) throws {
         let url = outDir.appendingPathComponent("regression_corpus_evaluation.json")
         let payload = try JSONFiles.object(url)
+        let report = outDir.appendingPathComponent("regression_corpus_evaluation.md")
+        let nextCommand = "murmurmark corpus train-audio-judge --corpus-dir \(PathDisplay.display(outDir))"
         print("")
         print("regression_evaluation:")
-        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("regression_corpus_evaluation.md")))")
+        print("  report: \(PathDisplay.display(report))")
         print("  readiness: \(string(payload["readiness"]) ?? "unknown")")
         print("  sessions: \(int(payload["session_count"]) ?? 0)")
         print("  items: \(int(payload["item_count"]) ?? 0)")
         if let missing = payload["missing_labels"] as? [Any], !missing.isEmpty {
             print("  missing_labels: \(corpusPrinterCompactJSON(missing))")
         }
+        printCorpusStageHandoff(report: report, nextCommand: nextCommand)
     }
 
     static func printAudioJudge(outDir: URL = PathURLs.fileURL("sessions/_reports/audio-judge-v0")) throws {
@@ -8701,9 +8707,13 @@ enum CorpusPrinter {
         let training = payload["training"] as? [String: Any] ?? [:]
         let evaluation = payload["evaluation"] as? [String: Any] ?? [:]
         let queue = payload["review_queue"] as? [String: Any] ?? [:]
+        let report = outDir.appendingPathComponent("audio_judge_v0_report.md")
+        let inputs = payload["inputs"] as? [String: Any] ?? [:]
+        let corpusDir = string(inputs["corpus_dir"]) ?? "sessions/_reports/regression-corpus"
+        let nextCommand = "murmurmark corpus taxonomy --corpus-dir \(corpusDir) --audio-judge-dir \(PathDisplay.display(outDir))"
         print("")
         print("audio_judge:")
-        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("audio_judge_v0_report.md")))")
+        print("  report: \(PathDisplay.display(report))")
         print("  cv_predictions: \(PathDisplay.display(outDir.appendingPathComponent("audio_judge_v0_cv_predictions.jsonl")))")
         print("  rows: \(int(training["rows"]) ?? 0)")
         print("  sessions: \(int(training["sessions"]) ?? 0)")
@@ -8718,6 +8728,16 @@ enum CorpusPrinter {
         if let labels = queue["by_judge_label"] as? [String: Any] {
             print("  by_judge_label: \(corpusPrinterCompactJSON(labels))")
         }
+        printCorpusStageHandoff(report: report, nextCommand: nextCommand)
+    }
+
+    private static func printCorpusStageHandoff(report: URL, nextCommand: String) {
+        let readCommand = "less \(PathDisplay.display(report))"
+        print("  read: \(readCommand)")
+        print("  recommended_next: \(nextCommand)")
+        print("  next:")
+        print("    \(nextCommand)")
+        FinalNextPrinter.print(nextCommand)
     }
 
     static func printTaxonomy(outDir: URL = PathURLs.fileURL("sessions/_reports/audio-error-taxonomy")) throws {

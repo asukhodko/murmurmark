@@ -676,6 +676,13 @@ less sessions/_reports/operational-readiness/operational_readiness_report.md
 less sessions/_reports/review-plan/review_plan.md
 ```
 
+The first three corpus commands form a CLI ladder: `corpus build` prints
+`recommended_next: murmurmark corpus evaluate --corpus-dir ...`, `corpus evaluate` prints
+`recommended_next: murmurmark corpus train-audio-judge --corpus-dir ...`, and
+`corpus train-audio-judge` prints `recommended_next: murmurmark corpus taxonomy ...`. Each stage
+also prints `read: less ...` for its local report and repeats the primary action as the final
+copyable `next: ...` line.
+
 For a full refresh with all sessions under `./sessions`, use:
 
 ```bash

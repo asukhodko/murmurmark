@@ -2356,10 +2356,15 @@ EOF
   echo "$release_help" | grep -q -- '--python PATH'
 
   corpus_dir="$workdir/regression-corpus"
-  "$repo_root/scripts/build-regression-corpus.py" "$group_session" \
+  corpus_build_output="$("$bin" corpus build "$group_session" \
     --out-dir "$corpus_dir" \
     --per-label 4 \
-    --max-items 12 >/dev/null
+    --max-items 12)"
+  assert_no_helper_prefix "$corpus_build_output"
+  echo "$corpus_build_output" | grep -q '^regression_corpus:$'
+  echo "$corpus_build_output" | grep -q '^  read: less '
+  echo "$corpus_build_output" | grep -q '^  recommended_next: murmurmark corpus evaluate --corpus-dir '
+  tail -1 <<<"$corpus_build_output" | grep -q '^next: murmurmark corpus evaluate --corpus-dir '
   [[ -s "$corpus_dir/regression_corpus_manifest.json" ]]
   [[ -s "$corpus_dir/regression_corpus_summary.json" ]]
   [[ -s "$corpus_dir/regression_corpus_items.jsonl" ]]
@@ -2367,7 +2372,12 @@ EOF
   jq -e '.schema == "murmurmark.regression_corpus_summary/v1"' "$corpus_dir/regression_corpus_summary.json" >/dev/null
   jq -e '.item_count >= 2 and .skipped_sessions == []' "$corpus_dir/regression_corpus_summary.json" >/dev/null
   jq -s 'any(.[]; .label == "remote_duplicate") and any(.[]; .label == "uncertain")' "$corpus_dir/regression_corpus_items.jsonl" >/dev/null
-  "$repo_root/scripts/evaluate-regression-corpus.py" --corpus-dir "$corpus_dir" >/dev/null
+  corpus_evaluate_output="$("$bin" corpus evaluate --corpus-dir "$corpus_dir")"
+  assert_no_helper_prefix "$corpus_evaluate_output"
+  echo "$corpus_evaluate_output" | grep -q '^regression_evaluation:$'
+  echo "$corpus_evaluate_output" | grep -q '^  read: less '
+  echo "$corpus_evaluate_output" | grep -q '^  recommended_next: murmurmark corpus train-audio-judge --corpus-dir '
+  tail -1 <<<"$corpus_evaluate_output" | grep -q '^next: murmurmark corpus train-audio-judge --corpus-dir '
   [[ -s "$corpus_dir/regression_corpus_evaluation.json" ]]
   [[ -s "$corpus_dir/regression_corpus_evaluation_items.jsonl" ]]
   [[ -s "$corpus_dir/regression_corpus_evaluation.md" ]]
@@ -2375,9 +2385,14 @@ EOF
   jq -e '.by_readiness_bucket.silver_cleanup_positive.count >= 1 and .by_readiness_bucket.needs_audio_judge.count >= 1' "$corpus_dir/regression_corpus_evaluation.json" >/dev/null
 
   judge_dir="$workdir/audio-judge-v0"
-  "$audit_python" "$repo_root/scripts/train-audio-judge-v0.py" \
+  audio_judge_output="$("$bin" corpus train-audio-judge \
     --corpus-dir "$corpus_dir" \
-    --out-dir "$judge_dir" >/dev/null
+    --out-dir "$judge_dir")"
+  assert_no_helper_prefix "$audio_judge_output"
+  echo "$audio_judge_output" | grep -q '^audio_judge:$'
+  echo "$audio_judge_output" | grep -q '^  read: less '
+  echo "$audio_judge_output" | grep -q '^  recommended_next: murmurmark corpus taxonomy --corpus-dir '
+  tail -1 <<<"$audio_judge_output" | grep -q '^next: murmurmark corpus taxonomy --corpus-dir '
   [[ -s "$judge_dir/audio_judge_v0_report.json" ]]
   [[ -s "$judge_dir/audio_judge_v0_predictions.jsonl" ]]
   [[ -s "$judge_dir/audio_judge_v0_cv_predictions.jsonl" ]]

@@ -233,6 +233,10 @@ murmurmark review workspace
 murmurmark review agent
 ```
 
+The step-by-step corpus commands are also self-guiding: `corpus build` points to `corpus evaluate`,
+`corpus evaluate` points to `corpus train-audio-judge`, and `corpus train-audio-judge` points to
+`corpus taxonomy`, while each step prints the local report to read.
+
 For the normal full refresh, use one command:
 
 ```bash
