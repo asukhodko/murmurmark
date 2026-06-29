@@ -512,6 +512,17 @@ def cleanup_input_profile(session: Path, profile: str) -> str | None:
     return str(value) if value else None
 
 
+def pending_review_decision_rows(session: Path, profile: str) -> list[dict[str, Any]]:
+    path = session / "derived/readiness/review-plan/review_decisions.jsonl"
+    rows: list[dict[str, Any]] = []
+    for row in read_jsonl(path):
+        input_profile = str(row.get("input_profile") or "")
+        if input_profile and input_profile != profile:
+            continue
+        rows.append(row)
+    return rows
+
+
 def review_resolved_audio_ids(session: Path, profile: str, seen: set[str] | None = None) -> set[str]:
     seen = seen or set()
     if profile in seen:
@@ -519,14 +530,24 @@ def review_resolved_audio_ids(session: Path, profile: str, seen: set[str] | None
     seen.add(profile)
     inherited_profile = cleanup_input_profile(session, profile)
     inherited = review_resolved_audio_ids(session, inherited_profile, seen) if inherited_profile else set()
+    resolved: set[str] = set(inherited)
+    for row in pending_review_decision_rows(session, profile):
+        if str(row.get("status") or "") != "reviewed":
+            continue
+        if str(row.get("source") or "") != "audio_review":
+            continue
+        if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
+            continue
+        source_id = str(row.get("source_audit_id") or "")
+        if source_id:
+            resolved.add(source_id)
     if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
-        return inherited
+        return resolved
     path = (
         session
         / "derived/transcript-simple/whisper-cpp/review-decisions"
         / f"review_decisions_applied{suffix(profile)}.jsonl"
     )
-    resolved: set[str] = set(inherited)
     for row in read_jsonl(path):
         if str(row.get("source") or "") != "audio_review":
             continue

@@ -823,6 +823,64 @@ with tempfile.TemporaryDirectory() as tmp:
     assert metrics["audio_review_explained_by_reliable_seconds"] == 3.6, metrics
     assert metrics["audio_review_stronger_judge_count"] == 1, metrics
     assert metrics["audio_review_stronger_judge_seconds"] == 2.0, metrics
+with tempfile.TemporaryDirectory() as tmp:
+    session = Path(tmp) / "session"
+    decisions_dir = session / "derived/readiness/review-plan"
+    decisions_dir.mkdir(parents=True)
+    (decisions_dir / "review_decisions.jsonl").write_text(
+        "\n".join(
+            json.dumps(row, ensure_ascii=False)
+            for row in [
+                {
+                    "status": "reviewed",
+                    "decision": "drop_me",
+                    "input_profile": "audit_cleanup_v7",
+                    "source": "audio_review",
+                    "source_audit_id": "arp_cleanup_profile_drop",
+                },
+                {
+                    "status": "todo",
+                    "decision": "todo",
+                    "input_profile": "audit_cleanup_v7",
+                    "source": "audio_review",
+                    "source_audit_id": "arp_cleanup_profile_todo",
+                },
+                {
+                    "status": "reviewed",
+                    "decision": "drop_me",
+                    "input_profile": "other_profile",
+                    "source": "audio_review",
+                    "source_audit_id": "arp_other_profile_drop",
+                },
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    resolved = module.review_resolved_audio_ids(session, "audit_cleanup_v7")
+    assert resolved == {"arp_cleanup_profile_drop"}, resolved
+PY
+python3 - "$repo_root" <<'PY'
+import importlib.util
+from pathlib import Path
+import tempfile
+import sys
+
+repo_root = Path(sys.argv[1])
+module_path = repo_root / "scripts/build-audio-review-pack.py"
+spec = importlib.util.spec_from_file_location("build_audio_review_pack", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+spec.loader.exec_module(module)
+with tempfile.TemporaryDirectory() as tmp:
+    session = Path(tmp) / "session"
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    resolved.mkdir(parents=True)
+    (resolved / "clean_dialogue.audit_cleanup_v6.json").write_text("{}", encoding="utf-8")
+    (resolved / "clean_dialogue.audit_cleanup_v7.json").write_text("{}", encoding="utf-8")
+    assert module.resolve_profile(session, "auto") == "audit_cleanup_v7"
+    (resolved / "clean_dialogue.reviewed_v1.json").write_text("{}", encoding="utf-8")
+    assert module.resolve_profile(session, "auto") == "reviewed_v1"
 PY
 python3 - "$repo_root" <<'PY'
 import importlib.util
