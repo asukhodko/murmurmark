@@ -2411,6 +2411,10 @@ EOF
     --out-dir "$local_recall_corpus_dir")"
   echo "$local_recall_corpus_output" | grep -q '^local_recall_corpus:'
   echo "$local_recall_corpus_output" | grep -q '  possible_lost_me_seconds: '
+  echo "$local_recall_corpus_output" | grep -q '^  recommendation: '
+  echo "$local_recall_corpus_output" | grep -q '^  read: less '
+  echo "$local_recall_corpus_output" | grep -q '^  recommended_next: less '
+  tail -1 <<<"$local_recall_corpus_output" | grep -q '^next: less .*local_recall_corpus_report.md$'
   [[ -s "$local_recall_corpus_dir/local_recall_corpus_report.json" ]]
   [[ -s "$local_recall_corpus_dir/local_recall_corpus_items.jsonl" ]]
   [[ -s "$local_recall_corpus_dir/local_recall_corpus_report.md" ]]
@@ -2435,7 +2439,11 @@ EOF
   echo "$local_recall_repair_corpus_output" | grep -q '  applied_repairs: 1'
   echo "$local_recall_repair_corpus_output" | grep -q 'reviewable_applied_repairs: 0'
   echo "$local_recall_repair_corpus_output" | grep -q 'incomplete_applied_repairs: 1'
+  echo "$local_recall_repair_corpus_output" | grep -q '^  recommendation: '
+  echo "$local_recall_repair_corpus_output" | grep -q '^  read: less '
   echo "$local_recall_repair_corpus_output" | grep -q '  next_command: murmurmark process '
+  echo "$local_recall_repair_corpus_output" | grep -q '^  recommended_next: murmurmark process '
+  tail -1 <<<"$local_recall_repair_corpus_output" | grep -q '^next: murmurmark process '
   [[ -s "$local_recall_repair_corpus_dir/local_recall_repair_corpus_report.json" ]]
   [[ -s "$local_recall_repair_corpus_dir/local_recall_repair_corpus_items.jsonl" ]]
   [[ -s "$local_recall_repair_corpus_dir/local_recall_repair_corpus_report.md" ]]
@@ -2451,7 +2459,11 @@ EOF
   echo "$remote_leak_corpus_output" | grep -q '^remote_leak_segment_corpus:'
   echo "$remote_leak_corpus_output" | grep -q 'reviewable_protect_local_content_items: '
   echo "$remote_leak_corpus_output" | grep -Eq 'incomplete_protect_local_content_items: [1-9]'
+  echo "$remote_leak_corpus_output" | grep -q '^  recommendation: '
+  echo "$remote_leak_corpus_output" | grep -q '^  read: less '
   echo "$remote_leak_corpus_output" | grep -q '  next_command: murmurmark process '
+  echo "$remote_leak_corpus_output" | grep -q '^  recommended_next: murmurmark process '
+  tail -1 <<<"$remote_leak_corpus_output" | grep -q '^next: murmurmark process '
   [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.json" ]]
   [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_items.jsonl" ]]
   [[ -s "$remote_leak_corpus_dir/remote_leak_segment_corpus_report.md" ]]
@@ -2525,9 +2537,14 @@ PY
   jq -s 'all(.[]; .schema == "murmurmark.audio_error_taxonomy_item/v1" and (.recommended_action | type) == "string" and (.diagnostic.label | type) == "string")' "$taxonomy_dir/audio_error_taxonomy_items.jsonl" >/dev/null
 
   order_corpus_dir="$workdir/transcript-order-corpus"
-  "$bin" corpus order "$group_session" \
+  order_corpus_output="$("$bin" corpus order "$group_session" \
     --session-quality "$quality_dir/session_quality_report.json" \
-    --out-dir "$order_corpus_dir" >/dev/null
+    --out-dir "$order_corpus_dir")"
+  echo "$order_corpus_output" | grep -q '^transcript_order_corpus:'
+  echo "$order_corpus_output" | grep -q '^  recommendation: '
+  echo "$order_corpus_output" | grep -q '^  read: less '
+  echo "$order_corpus_output" | grep -q '^  recommended_next: less '
+  tail -1 <<<"$order_corpus_output" | grep -q '^next: less .*transcript_order_corpus_report.md$'
   [[ -s "$order_corpus_dir/transcript_order_corpus_report.json" ]]
   [[ -s "$order_corpus_dir/transcript_order_corpus_items.jsonl" ]]
   [[ -s "$order_corpus_dir/transcript_order_corpus_report.md" ]]

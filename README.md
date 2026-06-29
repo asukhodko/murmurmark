@@ -265,17 +265,21 @@ safe first action is to inspect the action map before changing cleanup or repair
 When plans are missing, the report points to `murmurmark corpus remote-leak --plan`; when protected
 local-content intervals exist in complete sessions, it points to
 `murmurmark review lane check_unique_me_content --session ...`; incomplete sessions are sent back
-through `murmurmark process ...` first.
+through `murmurmark process ...` first. The CLI mirrors that decision as `recommended_next` and
+the final `next: ...`; when there is no executable queue item, it points to opening the Markdown
+report.
 `corpus local-recall` writes `sessions/_reports/local-recall/local_recall_corpus_report.*`.
 It aggregates possible lost-`Me` and local-recall review items across the corpus; `--audit` refreshes
-per-session local-recall audits first.
+per-session local-recall audits first. Its CLI output uses the same `recommendation`, `read`,
+`recommended_next` and final `next: ...` handoff as other corpus diagnostics.
 `corpus local-recall-repair` writes
 `sessions/_reports/local-recall-repair/local_recall_repair_corpus_report.*`. It summarizes
 `local_recall_repair_v1` reports across sessions; `--repair` refreshes the candidate repair profile
 first. Inserted `Me` turns remain explicit `needs_review`, and the report does not promote the
 profile into `auto`. When inserted repairs exist in complete sessions, the corpus report includes
 the first `murmurmark review lane check_local_recall --session ...` command for review; incomplete
-sessions are sent back through `murmurmark process ...` first. The repair layer keeps micro-ASR
+sessions are sent back through `murmurmark process ...` first. The CLI prints that command as the
+primary next action and keeps the Markdown report as the read target. The repair layer keeps micro-ASR
 diagnostics and can recover short boundary-shifted rows when Whisper recognized text but the row
 midpoint landed just outside the local island.
 `murmurmark corpus process all` rebuilds per-session remote-leak plans before session-quality and
@@ -418,7 +422,9 @@ where `Me` still contains unique local content and whole-utterance deletion is u
 chronology regression candidates under `sessions/_reports/transcript-order/`; corpus gates read this
 report and fail if a complete session still has blocking chronology risk. The report points complete
 blocking sessions to `murmurmark review lane check_transcript_order --session ...`; incomplete
-blocking sessions go back through `murmurmark process ...`. Use
+blocking sessions go back through `murmurmark process ...`. The CLI prints the symbolic
+`recommendation`, the report-opening command, executable `recommended_next` and a final copyable
+`next: ...` line. Use
 `murmurmark corpus order --repair` when you want to refresh order audits for the sessions in the
 current session-quality report, try conservative
 `order_repair_v1` for each session, refresh session-quality, and then rebuild the corpus order

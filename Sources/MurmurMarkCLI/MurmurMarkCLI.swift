@@ -8799,9 +8799,10 @@ enum CorpusPrinter {
         let url = outDir.appendingPathComponent("transcript_order_corpus_report.json")
         let payload = try JSONFiles.object(url)
         let summary = payload["summary"] as? [String: Any] ?? [:]
+        let report = outDir.appendingPathComponent("transcript_order_corpus_report.md")
         print("")
         print("transcript_order_corpus:")
-        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("transcript_order_corpus_report.md")))")
+        print("  report: \(PathDisplay.display(report))")
         print("  audited_sessions: \(int(summary["audited_session_count"]) ?? 0) / \(int(summary["session_count"]) ?? 0)")
         print("  blocking_sessions: \(int(summary["blocking_session_count"]) ?? 0)")
         print("  complete_blocking_sessions: \(int(summary["complete_blocking_session_count"]) ?? 0)")
@@ -8816,17 +8817,18 @@ enum CorpusPrinter {
             print("  order_repair_cleared_sessions: \(int(repair["cleared_session_count"]) ?? 0)")
             print("  order_repair_unrepaired_order_risks: \(int(repair["unrepaired_order_risks"]) ?? 0)")
         }
-        print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
-        printFirstNextCommand(payload)
+        print("  recommendation: \(string(summary["recommended_next_step"]) ?? "unknown")")
+        printCorpusDiagnosticHandoff(payload: payload, report: report)
     }
 
     static func printLocalRecallCorpus(outDir: URL = PathURLs.fileURL("sessions/_reports/local-recall")) throws {
         let url = outDir.appendingPathComponent("local_recall_corpus_report.json")
         let payload = try JSONFiles.object(url)
         let summary = payload["summary"] as? [String: Any] ?? [:]
+        let report = outDir.appendingPathComponent("local_recall_corpus_report.md")
         print("")
         print("local_recall_corpus:")
-        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("local_recall_corpus_report.md")))")
+        print("  report: \(PathDisplay.display(report))")
         print("  audited_sessions: \(int(summary["audited_session_count"]) ?? 0) / \(int(summary["session_count"]) ?? 0)")
         print("  blocking_sessions: \(int(summary["blocking_session_count"]) ?? 0)")
         print("  complete_blocking_sessions: \(int(summary["complete_blocking_session_count"]) ?? 0)")
@@ -8839,17 +8841,18 @@ enum CorpusPrinter {
         if let seconds = double(summary["likely_harmless_seconds"]) {
             print(String(format: "  likely_harmless_seconds: %.2f", seconds))
         }
-        print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
-        printFirstNextCommand(payload)
+        print("  recommendation: \(string(summary["recommended_next_step"]) ?? "unknown")")
+        printCorpusDiagnosticHandoff(payload: payload, report: report)
     }
 
     static func printLocalRecallRepairCorpus(outDir: URL = PathURLs.fileURL("sessions/_reports/local-recall-repair")) throws {
         let url = outDir.appendingPathComponent("local_recall_repair_corpus_report.json")
         let payload = try JSONFiles.object(url)
         let summary = payload["summary"] as? [String: Any] ?? [:]
+        let report = outDir.appendingPathComponent("local_recall_repair_corpus_report.md")
         print("")
         print("local_recall_repair_corpus:")
-        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("local_recall_repair_corpus_report.md")))")
+        print("  report: \(PathDisplay.display(report))")
         print("  repaired_sessions: \(int(summary["repaired_session_count"]) ?? 0) / \(int(summary["session_count"]) ?? 0)")
         print("  sessions_with_repairs: \(int(summary["sessions_with_repairs"]) ?? 0)")
         print("  applied_repairs: \(int(summary["applied_repairs"]) ?? 0)")
@@ -8859,17 +8862,18 @@ enum CorpusPrinter {
             print(String(format: "  inserted_me_seconds: %.2f", seconds))
         }
         print("  rejected_items: \(int(summary["rejected_items"]) ?? 0)")
-        print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
-        printFirstNextCommand(payload)
+        print("  recommendation: \(string(summary["recommended_next_step"]) ?? "unknown")")
+        printCorpusDiagnosticHandoff(payload: payload, report: report)
     }
 
     static func printRemoteLeakSegment(outDir: URL = PathURLs.fileURL("sessions/_reports/remote-leak-segment")) throws {
         let url = outDir.appendingPathComponent("remote_leak_segment_corpus_report.json")
         let payload = try JSONFiles.object(url)
         let summary = payload["summary"] as? [String: Any] ?? [:]
+        let report = outDir.appendingPathComponent("remote_leak_segment_corpus_report.md")
         print("")
         print("remote_leak_segment_corpus:")
-        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("remote_leak_segment_corpus_report.md")))")
+        print("  report: \(PathDisplay.display(report))")
         print("  planned_sessions: \(int(summary["planned_session_count"]) ?? 0) / \(int(summary["session_count"]) ?? 0)")
         print("  missing_plans: \(int(summary["missing_plan_count"]) ?? 0)")
         print("  items: \(int(summary["item_count"]) ?? 0)")
@@ -8879,8 +8883,21 @@ enum CorpusPrinter {
         if let seconds = double(summary["protect_local_content_seconds"]) {
             print(String(format: "  protect_local_content_seconds: %.2f", seconds))
         }
-        print("  next: \(string(summary["recommended_next_step"]) ?? "unknown")")
-        printFirstNextCommand(payload)
+        print("  recommendation: \(string(summary["recommended_next_step"]) ?? "unknown")")
+        printCorpusDiagnosticHandoff(payload: payload, report: report)
+    }
+
+    private static func printCorpusDiagnosticHandoff(payload: [String: Any], report: URL) {
+        let readCommand = "less \(PathDisplay.display(report))"
+        let command = firstNextCommand(payload) ?? readCommand
+        print("  read: \(readCommand)")
+        if let nextCommand = firstNextCommand(payload) {
+            print("  next_command: \(nextCommand)")
+        }
+        print("  recommended_next: \(command)")
+        print("  next:")
+        print("    \(command)")
+        FinalNextPrinter.print(command)
     }
 
     static func printOperationalReadiness(

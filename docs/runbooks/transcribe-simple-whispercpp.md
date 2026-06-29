@@ -778,12 +778,15 @@ the source item as reliable.
 `sessions/_reports/transcript-order/`; read it when wrong reply order is the concern rather than
 audio leakage. The report writes `next_commands`: complete blocking sessions go to
 `murmurmark review lane check_transcript_order --session ...`, and incomplete sessions go back
-through `murmurmark process ...`.
+through `murmurmark process ...`. The CLI keeps the symbolic `recommended_next_step` as
+`recommendation`, then prints `read: less ...`, executable `recommended_next` and the final
+copyable `next: ...` line.
 `murmurmark corpus local-recall` writes `sessions/_reports/local-recall/`. It aggregates
 possible lost `Me`, local-recall review and harmless missing-island explanations across the corpus.
 Use it when local speech recall is the concern. The report writes `next_commands`: complete sessions
 go to `murmurmark review lane check_local_recall --session ...`; incomplete sessions go back through
-`murmurmark process ...`. For a strong missed local island, use the candidate repair profile explicitly:
+`murmurmark process ...`. The CLI uses the same read/recommended/final-`next` handoff as the order
+corpus report. For a strong missed local island, use the candidate repair profile explicitly:
 
 ```bash
 murmurmark repair local-recall "$SESSION" \
@@ -815,8 +818,9 @@ murmurmark corpus local-recall-repair all --repair --no-synthesize
 less sessions/_reports/local-recall-repair/local_recall_repair_corpus_report.md
 ```
 
-When inserted repairs exist, the corpus report writes `next_commands` and the CLI prints the first
-safe command. Complete sessions go straight to review, for example:
+When inserted repairs exist, the corpus report writes `next_commands`; the CLI prints the report path,
+the first safe command as `recommended_next`, and repeats it as the final `next`. Complete sessions
+go straight to review, for example:
 
 ```bash
 murmurmark review lane check_local_recall --session ./sessions/<session>
@@ -833,7 +837,9 @@ plans before session-quality and corpus aggregation. Use `corpus remote-leak --p
 want to refresh the remote-leak queue. The report writes `next_commands`: missing plans point to
 `murmurmark corpus remote-leak --plan`, complete sessions with protected-local-content intervals
 point to `murmurmark review lane check_unique_me_content --session ...`, and incomplete sessions
-go back through `murmurmark process ...` first. `corpus gate` reads this aggregate report and warns
+go back through `murmurmark process ...` first. The CLI prints `recommendation`, `read`,
+`recommended_next` and final `next` so the queue is directly actionable from terminal output.
+`corpus gate` reads this aggregate report and warns
 when plans are missing or when protected-local-content leak intervals remain in the queue.
 Corpus CLI commands keep per-session helper output quiet and show one aggregate handoff summary.
 `murmurmark corpus report` prints the existing session-quality summary and, when the files already
