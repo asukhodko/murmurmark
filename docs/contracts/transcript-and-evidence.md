@@ -2788,10 +2788,11 @@ local content. Protected markers require the strongest local-only evidence becau
 keeps local speech rather than deleting it. Short `remote_duplicate` rows may also be cleared as
 `keep_me` when the overlapping slice is locally confirmed, remote overlap coverage is tiny and the
 `Me` text has a unique local token or continuation. The agent may also propagate `keep_me` to
-additional `remote_leak` rows for the same exact `Me` utterance when another row has already
-confirmed that utterance as local speech and the propagated row has no duplicate/noise signal. This
-propagation is intentionally not used for `remote_duplicate`, because duplicate remote text may still
-need a human `drop_remote` decision. Rows not present in the agent
+additional `remote_leak` or `remote_duplicate` rows for the same exact `Me` utterance when another
+row has already confirmed that utterance as local speech and the propagated row has no ASR-noise
+signal. The agent can also keep short local-only rows labelled `asr_noise` when `speaker_state`
+contradicts that label, and short adjacent `Me` continuations when the current utterance starts
+immediately after another `Me` turn. Rows not present in the agent
 template remain unresolved and continue to contribute to review burden. `agent_reviewed_v1` is
 eligible for `auto` only when its own coverage gates pass; it ranks below `reviewed_v1` and above
 automatic cleanup profiles.
@@ -2803,7 +2804,7 @@ Operational readiness may still expose review rows after `agent_reviewed_v1` is 
 rows are the remaining transcript/export surface, not a sign that the automatic layer was skipped.
 As of the 2026-06-29 corpus baseline, this queue is tracked separately from notes readiness:
 `13/13` working sessions are `ready_for_notes`, selected notes review is about `0.01 min`, and
-remaining transcript/export review is about `1.91 min` / `40` raw rows / `29` packed actions.
+remaining transcript/export review is about `1.73 min` / `33` raw rows / `26` packed actions.
 Readiness inherits applied `local_recall` and `local_recall_repair` review decisions as well as
 audio-review decisions. Closed local-recall rows with `keep_me`, `drop_me` or `skip` do not re-enter
 `murmurmark next corpus`; unresolved possible lost speech remains visible in `check_local_recall`.

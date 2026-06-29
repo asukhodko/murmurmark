@@ -140,8 +140,9 @@ retention planning. `next corpus` follows the same default manifest when its fir
 would otherwise repeat export for an already-exported session. If the export used a non-default
 output directory, pass `--export-manifest ./path/to/export_manifest.json` to `next`.
 Use `murmurmark next corpus` when operational-readiness reports already exist and you need the one
-next command across the whole working-meeting corpus. Add `--refresh` when session-quality and
-operational-readiness should be regenerated first, but heavier corpus diagnostics should stay as-is.
+next command across the whole working-meeting corpus. Add `--refresh` when session-quality,
+operational-readiness and the first recommended lane pack should be regenerated first, but heavier
+corpus diagnostics should stay as-is.
 If the focus session's recommended lane pack already exists, `next corpus` switches from “build the
 lane pack” to the prepared review handoff: `afplay`, `less`, `$EDITOR`, then lane apply. If the
 answer sheet already contains reviewed answers, the handoff promotes lane apply `--dry-run` ahead of
@@ -814,7 +815,9 @@ target from the queue.
 `murmurmark report corpus` prints the same operational handoff in compact form: the first
 `next_command`, plus `focus_session`, `focus_label`, `focus_reason` and `focus_next` when a concrete
 review target exists. It also prints `sessions_in_scope` and `sessions_excluded` to make the
-working-meeting scope visible next to the full corpus count. The same block prints
+working-meeting scope visible next to the full corpus count. Smoke/diagnostic recordings and
+interrupted partial captures are excluded from this operational scope but remain visible in the full
+session-quality report. The same block prints
 `review_actions` and `grouped_review_rows`, so the handoff shows the number of actual answer-sheet
 decisions rather than only the noisier raw row count. It also prints `low_materiality_review_rows`
 when very short low-content `remote_leak` / `uncertain` tails were kept in the report but excluded
@@ -834,7 +837,7 @@ default export remains blocked until transcript-only review is closed or `--forc
 deliberately.
 The 2026-06-29 corpus snapshot is the current convergence baseline: 13/13 working sessions are
 `ready_for_notes`, selected notes require about `0.01 min` of review, and the remaining full
-transcript/export surface is about `1.91 min`. Session-quality reports de-duplicate transcript-only
+transcript/export surface is about `1.73 min`. Session-quality reports de-duplicate transcript-only
 `uncertain` rows when the same selected `Me` interval is already covered by high-confidence
 `likely_reliable` audio-review evidence, and can explain a narrow strong-local `remote_leak` row
 without editing transcript text. The agent-review layer can also close bounded short `remote_leak`
@@ -847,22 +850,24 @@ local `Me` content. Protected markers are allowed only for the strongest local-o
 decision keeps local speech rather than deleting it. The same speaker-state evidence can clear a
 short `remote_duplicate` as `keep_me` when remote overlap coverage is tiny and the `Me` text has a
 unique local token or continuation. Very short local backchannels can also be kept when
-speaker-state evidence is mostly local and remote overlap is tiny.
+speaker-state evidence is mostly local and remote overlap is tiny. The same agent can now keep short
+local-only rows labelled `asr_noise`, and short adjacent `Me` continuations when the current
+utterance starts immediately after another `Me` turn.
 `uncertain` rows with no remote/error signal can also be cleared as `keep_me` when the row has no
 remote utterance, near-full `Me` coverage and a mostly local-only `speaker_state` interval.
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
-The same snapshot exposes the remaining export work as a normal review queue: `40` raw rows /
-`29` packed actions after the current `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `11` grouped rows reachable
+The same snapshot exposes the remaining export work as a normal review queue: `33` raw rows /
+`26` packed actions after the current `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `7` grouped rows reachable
 through `murmurmark review next SESSION`, `murmurmark review first-lane --session SESSION` and
 `murmurmark review workspace --session SESSION`. This is intentionally separate from notes
 readiness: selected notes can be used, while full transcript/export waits for the review loop.
-The active queue currently spans `6` sessions; already-reviewed `local_recall` and
+The active queue currently spans the current operational corpus; already-reviewed `local_recall` and
 `local_recall_repair` decisions are inherited by readiness, and the remaining raw local-recall
 islands are explained as harmless short/boundary/remote-covered cases, so no active
 `check_local_recall` lane remains.
 The next engineering target is to shrink that queue to `<= 15` packed actions and
-transcript/export review from `1.91 min` to `<= 1.5 min` by closing or explaining narrow
+transcript/export review from `1.73 min` to `<= 1.5 min` by closing or explaining narrow
 `check_unique_me_content` / `remote_leak` classes, not by weakening gates.
 The chosen next step is review-first: run the command from `murmurmark next corpus`, close the
 prepared `check_unique_me_content` lane, apply the answers, refresh corpus readiness, and only then
@@ -1130,7 +1135,9 @@ JSON stores the same handoff as `recommended_next`, `next_commands`, `open_comma
 `suggested_flow` and `after_apply`, so agents can continue from the manifest.
 The JSON also stores SHA-256 fingerprints for the review template and existing decisions file. Corpus
 handoff uses those fingerprints rather than report timestamps, so a harmless `murmurmark report
-corpus` refresh does not hide an already prepared lane pack.
+corpus` refresh does not hide an already prepared lane pack. `murmurmark next corpus --refresh`
+rebuilds the first recommended lane pack after refreshing readiness, so the printed pack size does
+not lag behind newly applied agent decisions.
 It also prints `suggested_dry_run` and `suggested_apply`; these call
 `review lane apply ... --answers-source suggested`, read
 `review_lane_answers.<lane>.suggested.txt`, and are meant for explicit reviewer-approved use after a
@@ -1264,7 +1271,9 @@ writes `agent_reviewed_v1`; this profile is selected by `auto` after `reviewed_v
 automatic cleanup profiles when its gates pass.
 It also clears the narrowest `uncertain` cases as `keep_me` when the row has no remote/error signal,
 no remote utterance, near-full `Me` coverage and `speaker_state` says the interval is mostly
-`local_only`.
+`local_only`. It also clears short local-only `asr_noise` labels as `keep_me`, adjacent `Me`
+continuations, and sibling rows for the same exact `Me` utterance after another row has already
+confirmed that utterance as local speech.
 Its report also explains the remaining queue with rejected-candidate aggregates:
 `rejected_by_reason`, `rejected_by_label`, `rejected_by_verdict`, `rejected_by_reason_and_label` and
 `top_rejected_reasons`. Use those fields to decide the next narrow automation rule. If a lane is still

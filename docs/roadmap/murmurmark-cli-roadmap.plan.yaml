@@ -44,13 +44,13 @@ nodes:
       Текущий корпус уже дошёл до `medium_risk_ready`: risky/failed сессии убраны из
       выбранного профиля, а 13 из 13 рабочих сессий находятся в `ready_for_notes`.
       Снимок на 2026-06-29: selected evidence-backed notes требуют около `0.01 min`
-      проверки, а отдельная поверхность transcript/export review остаётся около `1.91 min`.
-      Оставшийся export-review теперь представлен как исполнимая очередь из `40` raw rows /
-      `29` packed actions уже после `agent_reviewed_v1` + `audit_cleanup_v7`, доступная через `murmurmark review next` /
+      проверки, а отдельная поверхность transcript/export review остаётся около `1.73 min`.
+      Оставшийся export-review теперь представлен как исполнимая очередь из `33` raw rows /
+      `26` packed actions уже после `agent_reviewed_v1` + `audit_cleanup_v7`, доступная через `murmurmark review next` /
       `murmurmark review workspace`; активная очередь охватывает `6` сессий, а local-recall хвост
       полностью объяснён harmless short/boundary/remote-covered островами.
       Следующая цель — снизить transcript/export surface с
-      `1.91 min` до `<= 1.5 min` и очередь с `29` до `<= 15` действий без смены топологии
+      `1.73 min` до `<= 1.5 min` и очередь с `26` до `<= 20` действий без смены топологии
       capture/Echo Guard/ASR, не ломая готовность evidence-backed notes и не скрывая спорные места
       от export gate.
 
@@ -389,8 +389,8 @@ nodes:
     notes: |
       Ближайшая выбранная цель после CLI MVP: сократить оставшуюся export-review очередь
       уже после agent-reviewed слоя. Текущая точка 2026-06-29: 13/13 `ready_for_notes`,
-      `0.01 min` notes review, `1.91 min` transcript/export review и `40` raw rows /
-      `29` packed actions; `check_local_recall` не содержит активных строк после объяснения
+      `0.01 min` notes review, `1.73 min` transcript/export review и `33` raw rows /
+      `26` packed actions; `check_local_recall` не содержит активных строк после объяснения
       коротких harmless short/boundary/remote-covered островов.
       Acceptance: сохранить 13/13 `ready_for_notes`, снизить transcript/export review до
       `<= 1.5 min` и очередь до `<= 15` actions, не меняя capture, Echo Guard и основной ASR.
@@ -896,7 +896,7 @@ x:
   exec:
     program:
       nearest_goal: "Снизить transcript/export blockers, которые уже объяснены надёжными audio-review evidence, при сохранении 13/13 ready_for_notes и отдельного export gate."
-      success_by_next_sync: "Corpus остаётся medium_risk_ready или лучше, 13/13 рабочих сессий готовы для notes, notes review burden остаётся около 0.01 min или ниже, первая check_unique_me_content lane закрыта через review/apply, transcript/export review burden падает ниже 1.91 min, а export-review очередь становится не больше 25 actions без скрытия possible lost Me и спорного содержания."
+      success_by_next_sync: "Corpus остаётся medium_risk_ready или лучше, 13/13 рабочих сессий готовы для notes, notes review burden остаётся около 0.01 min или ниже, первая check_unique_me_content lane закрыта через review/apply, transcript/export review burden падает ниже 1.73 min, а export-review очередь становится не больше 20 actions без скрытия possible lost Me и спорного содержания."
     defaults:
       status_progress:
         done: 1.0

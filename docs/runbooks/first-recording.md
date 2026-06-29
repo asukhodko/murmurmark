@@ -95,7 +95,8 @@ This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separ
 
 Without `--duration`, recording continues until `Ctrl-C`. MurmurMark catches the stop signal, stops capture, closes audio files and writes `session.json`.
 If ScreenCaptureKit stops or stops producing audio before `Ctrl-C`, MurmurMark finalizes the partial
-session, writes `session.json`, and records a warning instead of leaving a half-written directory.
+session, writes `session.json`, records a warning and exits with an error. Do not process that
+partial session as a complete meeting; inspect it or start a new recording.
 
 Without `--out`, MurmurMark creates a fresh directory under `./sessions`, for example:
 

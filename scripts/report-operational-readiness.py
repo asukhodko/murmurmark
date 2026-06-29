@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.4"
+SCRIPT_VERSION = "0.3.5"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
@@ -33,6 +33,10 @@ DIAGNOSTIC_SESSION_MARKERS = (
     "audio-input",
     "talk-audio-input",
     "talk-routed",
+)
+INTERRUPTED_CAPTURE_WARNING_MARKERS = (
+    "stream stopped with error",
+    "capture produced no audio samples",
 )
 LOW_MATERIALITY_STOP_WORDS = {
     "а",
@@ -193,6 +197,31 @@ def has_protected_review_marker(text: Any) -> bool:
     return any(marker in lowered for marker in PROTECTED_REVIEW_MARKERS)
 
 
+def has_interrupted_capture_warning(row: dict[str, Any]) -> bool:
+    if row.get("pipeline_status") not in {"partial", "incomplete"}:
+        return False
+    session_path = row.get("session")
+    if not session_path:
+        return False
+    session_json = Path(str(session_path)).expanduser() / "session.json"
+    if not session_json.exists():
+        return False
+    try:
+        session = read_json(session_json)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return False
+    if session.get("status") != "completed_with_warnings":
+        return False
+    health = session.get("health")
+    if not isinstance(health, dict):
+        return False
+    warnings = health.get("warnings")
+    if not isinstance(warnings, list):
+        return False
+    warning_text = "\n".join(str(warning).lower() for warning in warnings)
+    return any(marker in warning_text for marker in INTERRUPTED_CAPTURE_WARNING_MARKERS)
+
+
 def is_diagnostic_session(row: dict[str, Any]) -> bool:
     session_id = str(row.get("session_id") or row.get("label") or "").lower()
     label = str(row.get("label") or "").lower()
@@ -200,6 +229,8 @@ def is_diagnostic_session(row: dict[str, Any]) -> bool:
     if any(candidate in DIAGNOSTIC_SESSION_EXACT_IDS for candidate in candidates):
         return True
     if any(marker in session_id or marker in label for marker in DIAGNOSTIC_SESSION_MARKERS):
+        return True
+    if has_interrupted_capture_warning(row):
         return True
     if "meeting_duration_sec" in row:
         duration = safe_float(row.get("meeting_duration_sec"))

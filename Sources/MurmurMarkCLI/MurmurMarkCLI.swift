@@ -188,6 +188,7 @@ struct MurmurMark {
           audio-input remote capture and voice-processing mic capture are experimental comparison modes.
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C or SIGTERM and finalizes the session.
+          Unexpected ScreenCaptureKit stops finalize a partial session and exit with an error.
           Without --out, recording creates a unique directory under ./sessions.
           sessions lists recent session packages and their readiness state.
           process runs the current post-recording pipeline and prints the readiness summary.
@@ -423,7 +424,14 @@ enum Commands {
             sampleRate: sampleRate,
             channelCount: channelCount
         )
-        try await recorder.run()
+        let stopReason = try await recorder.run()
+        if stopReason.isUnexpectedCaptureStop {
+            let session = PathDisplay.display(out)
+            throw CLIError(
+                "recording interrupted before requested end; partial session saved: \(session). " +
+                    "Inspect it with `murmurmark inspect \(session)`, then re-record if this was a live meeting."
+            )
+        }
     }
 }
 
@@ -784,7 +792,12 @@ enum PipelineCommands {
             }
             let outDir: URL
             if refresh {
-                outDir = try refreshCorpusReadiness(sessionsRoot: sessionsRoot).operationalReadinessOut
+                let outputs = try refreshCorpusReadiness(sessionsRoot: sessionsRoot)
+                outDir = outputs.operationalReadinessOut
+                try refreshCorpusFirstLanePack(
+                    operationalReadiness: outputs.operationalReadinessOut.appendingPathComponent("operational_readiness_report.json"),
+                    sessionsRoot: sessionsRoot
+                )
             } else {
                 outDir = sessionsRoot
                     .appendingPathComponent("_reports")
@@ -902,6 +915,92 @@ enum PipelineCommands {
         )
     }
 
+    private static func refreshCorpusFirstLanePack(operationalReadiness: URL, sessionsRoot: URL) throws {
+        guard FileManager.default.fileExists(atPath: operationalReadiness.path),
+              let payload = try? JSONFiles.object(operationalReadiness),
+              let focus = corpusReviewFocus(payload)
+        else {
+            return
+        }
+        let rawSessionID = (focus["session_id"] as? String)
+            ?? (focus["session_arg"] as? String)
+            ?? (focus["session"] as? String)
+            ?? ""
+        guard !rawSessionID.isEmpty else { return }
+        let lane = (focus["review_lane"] as? String)
+            ?? (((payload["promotion_plan"] as? [String: Any])?["review_focus"] as? [String: Any])?["review_lane"] as? String)
+            ?? "fast_confirm_drop"
+        let session = corpusFocusSessionURL(rawSessionID, sessionsRoot: sessionsRoot)
+        guard FileManager.default.fileExists(atPath: session.appendingPathComponent("session.json").path) else {
+            return
+        }
+
+        let python = try PythonRuntime.resolve()
+        let sessionQualityScript = try requiredScript("report-session-quality.py")
+        let operationalReadinessScript = try requiredScript("report-operational-readiness.py")
+        let reviewPlanScript = try requiredScript("build-review-plan.py")
+        let lanePackScript = try requiredScript("build-review-lane-pack.py")
+        let readinessRoot = session.appendingPathComponent("derived/readiness")
+        let sessionQualityOut = readinessRoot.appendingPathComponent("session-quality")
+        let operationalOut = readinessRoot.appendingPathComponent("operational-readiness")
+        let planOut = readinessRoot.appendingPathComponent("review-plan")
+        let lanePackOut = planOut.appendingPathComponent("lane-packs")
+
+        try Tooling.runPathQuiet(python, [
+            sessionQualityScript.path,
+            session.path,
+            "--out-dir", sessionQualityOut.path,
+            "--write-session-readiness",
+        ])
+        try Tooling.runPathQuiet(python, [
+            operationalReadinessScript.path,
+            "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
+            "--out-dir", operationalOut.path,
+        ])
+        try Tooling.runPathQuiet(python, [
+            reviewPlanScript.path,
+            "--operational-readiness", operationalOut.appendingPathComponent("operational_readiness_report.json").path,
+            "--out-dir", planOut.path,
+        ])
+        try Tooling.runPathQuiet(python, [
+            lanePackScript.path,
+            "--template", planOut.appendingPathComponent("review_decisions.template.jsonl").path,
+            "--decisions", planOut.appendingPathComponent("review_decisions.jsonl").path,
+            "--lane", lane,
+            "--out-dir", lanePackOut.path,
+            "--include-related-lanes",
+            "--session", session.lastPathComponent,
+        ])
+    }
+
+    private static func corpusReviewFocus(_ payload: [String: Any]) -> [String: Any]? {
+        let plan = payload["promotion_plan"] as? [String: Any] ?? [:]
+        if let focus = plan["review_focus"] as? [String: Any],
+           focus["session_id"] is String || focus["session_arg"] is String {
+            return focus
+        }
+        if let queue = payload["review_queue"] as? [[String: Any]], let first = queue.first {
+            return first
+        }
+        return nil
+    }
+
+    private static func corpusFocusSessionURL(_ rawSessionID: String, sessionsRoot: URL) -> URL {
+        let url = PathURLs.fileURL(rawSessionID)
+        if rawSessionID.contains("/") || rawSessionID.hasPrefix(".") || rawSessionID.hasPrefix("/") {
+            return url
+        }
+        return sessionsRoot.appendingPathComponent(rawSessionID)
+    }
+
+    private static func requiredScript(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("script not found: \(url.path)")
+        }
+        return url
+    }
+
     private static func parsePositiveLimit(_ value: String?, defaultValue: Int) throws -> Int {
         guard let value else { return defaultValue }
         guard let parsed = Int(value), parsed > 0 else {
@@ -984,7 +1083,8 @@ enum PipelineHelp {
         Defaults to latest when no session is provided. Pass corpus to print the current
         operational-readiness handoff for all sessions under --sessions-root.
         Use --refresh to update readiness first without rerunning ASR, Echo Guard or audits.
-        For corpus, --refresh updates session-quality and operational-readiness reports.
+        For corpus, --refresh updates session-quality, operational-readiness and the first
+        recommended review lane pack.
         If a successful export manifest exists for a session, the command follows its post-export
         handoff, usually retention planning.
 
@@ -5581,7 +5681,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         self.channelCount = channelCount
     }
 
-    func run() async throws {
+    func run() async throws -> StopReason {
         try prepareDirectories()
         let eventLog = try EventLog(url: outputDirectory.appendingPathComponent("events.jsonl"))
         events = eventLog
@@ -5701,8 +5801,14 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             stopDate = Date()
             try eventLog.write(type: "capture.stopped", fields: ["reason": stopReason.rawValue])
             try finish()
-            print("done")
-            printHandoff()
+            if stopReason.isUnexpectedCaptureStop {
+                print("partial session finalized")
+                printInterruptedHandoff()
+            } else {
+                print("done")
+                printHandoff()
+            }
+            return stopReason
         } catch {
             try? remoteInputCapture?.stop()
             try? voiceProcessingMic?.stop()
@@ -5956,6 +6062,16 @@ extension SessionRecorder {
         print("recommended_next: murmurmark process \(session)")
         print("next:")
         print("  murmurmark process \(session)")
+    }
+
+    private func printInterruptedHandoff() {
+        let session = PathDisplay.display(outputDirectory)
+        print("SESSION=\"\(session)\"")
+        print("recording_status: interrupted")
+        print("warning: capture stopped before Ctrl-C or requested duration; treat this as a partial recording")
+        print("recommended_next: murmurmark inspect \(session)")
+        print("next:")
+        print("  murmurmark inspect \(session)")
     }
 }
 
@@ -10027,6 +10143,10 @@ enum StopReason: String {
 
     var isSignal: Bool {
         self == .interrupt || self == .terminated
+    }
+
+    var isUnexpectedCaptureStop: Bool {
+        self == .streamStopped || self == .captureStalled
     }
 }
 

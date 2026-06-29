@@ -9,15 +9,18 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.5.0"
 SCHEMA = "murmurmark.agent_review_decisions/v1"
 OUTPUT_PROFILE = "agent_reviewed_v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 LOCAL_RECALL_REPAIR_PROFILE = "local_recall_repair_v1"
 SPEAKER_STATE_CACHE: dict[Path, list[dict[str, Any]]] = {}
+DIALOGUE_CACHE: dict[tuple[Path, str], list[dict[str, Any]]] = {}
 KEEP_PROPAGATION_REASONS = {
+    "adjacent_me_continuation_keep",
     "bounded_remote_leak_with_local_content",
     "likely_reliable_with_local_support",
+    "speaker_state_local_only_asr_noise_keep",
     "speaker_state_local_short_backchannel_keep",
     "speaker_state_local_only_remote_leak_keep",
     "speaker_state_mostly_local_short_remote_leak_keep",
@@ -197,13 +200,62 @@ def role_name(row: dict[str, Any]) -> str:
 
 
 def selected_me_ids(session: Path, profile: str) -> set[str]:
+    rows = clean_dialogue_rows(session, profile)
+    return {str(row.get("id")) for row in rows if isinstance(row, dict) and role_name(row) == "me" and row.get("id")}
+
+
+def clean_dialogue_rows(session: Path, profile: str) -> list[dict[str, Any]]:
+    key = (session, profile)
+    if key in DIALOGUE_CACHE:
+        return DIALOGUE_CACHE[key]
     path = session / "derived/transcript-simple/whisper-cpp/resolved" / f"clean_dialogue{suffix(profile)}.json"
     if not path.exists():
-        return set()
+        DIALOGUE_CACHE[key] = []
+        return []
     rows = read_json(path).get("utterances")
-    if not isinstance(rows, list):
-        return set()
-    return {str(row.get("id")) for row in rows if isinstance(row, dict) and role_name(row) == "me" and row.get("id")}
+    DIALOGUE_CACHE[key] = rows if isinstance(rows, list) else []
+    return DIALOGUE_CACHE[key]
+
+
+def adjacent_me_context(session: Path, profile: str, me_ids: set[str]) -> dict[str, Any] | None:
+    if not me_ids:
+        return None
+    rows = clean_dialogue_rows(session, profile)
+    by_id = {str(row.get("id")): index for index, row in enumerate(rows) if isinstance(row, dict) and row.get("id")}
+    contexts: list[dict[str, Any]] = []
+    for me_id in sorted(me_ids):
+        index = by_id.get(str(me_id))
+        if index is None:
+            continue
+        current = rows[index]
+        prev = rows[index - 1] if index > 0 and isinstance(rows[index - 1], dict) else None
+        nxt = rows[index + 1] if index + 1 < len(rows) and isinstance(rows[index + 1], dict) else None
+        prev_gap = None
+        next_gap = None
+        if prev:
+            prev_gap = round(safe_float(current.get("start")) - safe_float(prev.get("end")), 6)
+        if nxt:
+            next_gap = round(safe_float(nxt.get("start")) - safe_float(current.get("end")), 6)
+        contexts.append(
+            {
+                "utterance_id": me_id,
+                "start": safe_float(current.get("start")),
+                "end": safe_float(current.get("end")),
+                "duration_sec": round(max(0.0, safe_float(current.get("end")) - safe_float(current.get("start"))), 6),
+                "text": current.get("text"),
+                "prev_id": prev.get("id") if prev else None,
+                "prev_role": role_name(prev) if prev else None,
+                "prev_gap_sec": prev_gap,
+                "prev_text": prev.get("text") if prev else None,
+                "next_id": nxt.get("id") if nxt else None,
+                "next_role": role_name(nxt) if nxt else None,
+                "next_gap_sec": next_gap,
+                "next_text": nxt.get("text") if nxt else None,
+            }
+        )
+    if not contexts:
+        return None
+    return min(contexts, key=lambda item: (safe_float(item.get("start")), str(item.get("utterance_id") or "")))
 
 
 def local_recall_repair_report(session: Path) -> dict[str, Any] | None:
@@ -453,7 +505,12 @@ def rejection_reason(evidence: dict[str, Any]) -> str:
     return "not_safe_for_agent_resolution"
 
 
-def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, session: Path) -> tuple[str | None, str, dict[str, Any]]:
+def decision_reason(
+    row: dict[str, Any],
+    queue_row: dict[str, Any] | None,
+    session: Path,
+    profile: str | None = None,
+) -> tuple[str | None, str, dict[str, Any]]:
     classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
     features = row.get("features") if isinstance(row.get("features"), dict) else {}
     text_features = features.get("text") if isinstance(features.get("text"), dict) else {}
@@ -482,6 +539,7 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, sessi
     judge_label = str((queue_row or {}).get("judge_label") or "")
     judge_confidence = safe_float((queue_row or {}).get("judge_confidence"))
     state = speaker_state_ratios(session, safe_float(interval.get("start")), safe_float(interval.get("end")))
+    adjacent_context = adjacent_me_context(session, profile, audio_review_me_ids(row)) if profile else None
 
     evidence = {
         "label": label,
@@ -502,6 +560,7 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, sessi
         "protected_marker": protected,
         "remote_utterance_ids": remote_ids,
         "speaker_state": state,
+        "adjacent_me_context": adjacent_context,
         "audio_judge_label": judge_label or None,
         "audio_judge_confidence": judge_confidence if judge_label else None,
     }
@@ -563,6 +622,20 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, sessi
         return "drop_me", "safe_remote_active_short_asr_noise", evidence
 
     if (
+        label == "asr_noise"
+        and verdict == "probable_transcript_error"
+        and confidence >= 0.78
+        and local_support >= 40
+        and 1.0 <= duration <= 2.5
+        and len(unique_tokens) >= 1
+        and state["covered_ratio"] >= 0.90
+        and state["local_only_ratio"] >= 0.95
+        and state["remote_active_ratio"] <= 0.05
+        and not protected
+    ):
+        return "keep_me", "speaker_state_local_only_asr_noise_keep", evidence
+
+    if (
         label == "remote_duplicate"
         and verdict == "probable_transcript_error"
         and confidence >= 0.82
@@ -615,6 +688,25 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, sessi
         and not protected
     ):
         return "drop_me", "audio_judge_high_confidence_drop", evidence
+
+    if (
+        label in {"remote_duplicate", "remote_leak"}
+        and verdict == "probable_transcript_error"
+        and confidence >= 0.78
+        and local_support >= 25
+        and asr_noise <= 0
+        and duration >= 1.50
+        and duration <= 4.05
+        and me_coverage >= 0.25
+        and remote_coverage <= 0.60
+        and len(unique_tokens) >= 1
+        and not protected
+        and isinstance(adjacent_context, dict)
+        and adjacent_context.get("prev_role") == "me"
+        and -0.05 <= safe_float(adjacent_context.get("prev_gap_sec")) <= 0.20
+        and safe_float(adjacent_context.get("duration_sec")) <= 4.05
+    ):
+        return "keep_me", "adjacent_me_continuation_keep", evidence
 
     if (
         label == "uncertain"
@@ -771,9 +863,12 @@ def keep_propagation_reason(
 ) -> tuple[str | None, dict[str, Any]]:
     if not keep_rows:
         return None, evidence
-    if evidence.get("label") != "remote_leak" or evidence.get("verdict") != "probable_transcript_error":
+    label = str(evidence.get("label") or "")
+    if label not in {"remote_duplicate", "remote_leak"} or evidence.get("verdict") != "probable_transcript_error":
         return None, evidence
-    if safe_float(evidence.get("remote_duplicate")) > 0 or safe_float(evidence.get("asr_noise")) > 0:
+    if safe_float(evidence.get("asr_noise")) > 0:
+        return None, evidence
+    if label == "remote_leak" and safe_float(evidence.get("remote_duplicate")) > 0:
         return None, evidence
     if safe_float(evidence.get("local_support")) < 25:
         return None, evidence
@@ -1028,7 +1123,7 @@ def session_rows(session: Path, profile: str, queue: dict[tuple[str, str], dict[
         if not is_active_audio_review_row(row, selected_ids):
             continue
         queue_row = queue.get((session.name, str(row.get("id") or "")))
-        decision, reason, evidence = decision_reason(row, queue_row, session)
+        decision, reason, evidence = decision_reason(row, queue_row, session, profile)
         if decision is None:
             rejected_candidates.append((row, reason, evidence))
             continue

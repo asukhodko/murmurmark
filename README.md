@@ -47,18 +47,22 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - operational verdict: `medium_risk_ready`;
 - working sessions: `13/13 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.01 min`;
-- remaining full transcript/export review surface: `1.91 min`;
+- remaining full transcript/export review surface: `1.73 min`;
 - mandatory export-review queue: `33` raw rows / `26` packed actions after the current automatic
   `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `7` grouped rows reachable through `murmurmark review next` /
   `murmurmark review workspace`; `7` short low-materiality rows (`0.10 min`) are kept in the report
-  but outside the mandatory review queue; the active plan currently spans `6` sessions, with local-recall
+  but outside the mandatory review queue; the active plan currently spans `5` sessions, with local-recall
   review fully explained by harmless short/boundary/remote-covered islands;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
   `check_unique_me_content` and `remote_leak`, without changing capture, Echo Guard or the main ASR
   path, and without hiding unresolved risk from export gates.
-- selected next step: follow `murmurmark next corpus`, close the first
+- selected next step: follow `murmurmark next corpus --refresh`, close the first
   `check_unique_me_content` lane that it prints, apply those decisions, refresh corpus readiness,
   then automate only repeated safe patterns that are confirmed by those answers.
+
+The operational corpus excludes smoke/diagnostic recordings and interrupted partial captures. Those
+sessions remain visible in the full session-quality report, but they do not dilute the working-meeting
+readiness metrics.
 
 ## Current CLI
 
@@ -99,7 +103,7 @@ murmurmark inspect latest
 murmurmark sessions
 murmurmark process latest
 murmurmark next latest
-murmurmark next corpus
+murmurmark next corpus --refresh
 murmurmark review agent
 murmurmark open latest --kind notes
 murmurmark status latest
@@ -149,10 +153,11 @@ steps. Use `--json` when an agent needs a machine-readable queue snapshot.
 If readiness is not present yet, `status` and `next` point to `murmurmark process SESSION`.
 Use `murmurmark next corpus` after corpus reports exist when you need one concrete next command
 across the whole working-meeting corpus; add `--refresh` to rebuild session-quality and
-operational-readiness reports first. If the recommended review lane pack is already built, it points
-to the prepared audio/Markdown/answer-sheet handoff instead of rebuilding the same pack, but only
-when that pack is at least as fresh as the current operational-readiness report. Stale lane packs
-are ignored and `next corpus` points back to `murmurmark review first-lane --session ...`.
+operational-readiness reports and refresh the first recommended lane pack. If the recommended
+review lane pack is already built, it points to the prepared audio/Markdown/answer-sheet handoff
+instead of rebuilding the same pack, but only when that pack is at least as fresh as the current
+operational-readiness report. Stale lane packs are ignored and `next corpus` points back to
+`murmurmark review first-lane --session ...`.
 After a successful default export, `status`, `sessions` and `next` follow the export manifest and
 point to retention planning; `next corpus` does the same when the corpus report's first export
 command targets an already-exported session. Pass `--export-manifest` to `next` when the bundle was
@@ -430,11 +435,13 @@ less sessions/_reports/review-plan/review_plan.md
 ### End-to-End From a New Recording
 
 This is the current practical path from a new local recording to the best available transcript candidate.
-The `record` command keeps running until `Ctrl-C`; the following commands continue after the recording stops.
+Run `record` as its own live command. It keeps running until `Ctrl-C`; run processing only after
+the recording finishes normally.
 After a successful recording, the CLI prints `SESSION="..."`, `recommended_next` and the exact
 `murmurmark process ...` command for that session.
 If ScreenCaptureKit stops or stops producing audio before `Ctrl-C`, `record` finalizes the partial
-session, writes `session.json`, and records a warning instead of leaving a half-written directory.
+session, writes `session.json`, records a warning, and exits with an error. Inspect or re-record that
+partial session instead of treating it as a complete meeting.
 
 ```bash
 cd murmurmark
@@ -449,7 +456,11 @@ murmurmark config init
 murmurmark config print
 
 murmurmark record --target-bundle system
+```
 
+If the previous command ended normally after `Ctrl-C`, continue:
+
+```bash
 murmurmark process latest
 
 murmurmark status latest
@@ -896,7 +907,8 @@ what still blocks `medium_risk_ready`: unresolved warnings, sessions not ready f
 remaining notes review minutes. The queue is filtered through the selected transcript profile, so
 already-dropped `Me` utterances do not stay in the operational review list. It also ignores stale
 audio-judge queue rows when the current audio-review audit has since reclassified that item as
-reliable.
+reliable. It also excludes smoke/diagnostic/interrupted partial captures from the operational
+working-meeting scope.
 The report also includes `Review Queue Strategy`: lane counts, the first lane to close, and the
 reason it was chosen. `quick_recommended_lane` still points to the fastest confirm/drop pass when it
 exists, while `first_recommended_lane` targets the largest blocking lane. The report also shows the
@@ -1051,9 +1063,11 @@ a unique local token or continuation. Short local backchannels can be kept when 
 shows mostly local speech and the remote overlap is tiny, even if the text itself has little unique
 content. `uncertain` rows with no remote/error signal can also be kept when `speaker_state`
 independently shows a mostly local-only interval. It can propagate
-`keep_me` to sibling `remote_leak` rows for the same exact `Me` utterance after another row has
-already confirmed that utterance as local speech; this propagation does not apply to
-`remote_duplicate`. The agent also
+`keep_me` to sibling `remote_leak` or `remote_duplicate` rows for the same exact `Me` utterance
+after another row has already confirmed that utterance as local speech. It can also keep short
+local-only `asr_noise` rows when speaker-state evidence contradicts the noise label, and short
+adjacent `Me` continuations when the current utterance starts immediately after another `Me` turn.
+The agent also
 keeps high-confidence local-recall repair insertions with local-only speaker-state evidence. It writes
 `agent_reviewed_v1`, which is eligible for `--transcript-profile auto` after gates pass. It never
 changes raw CAF files, Echo Guard outputs, ASR output or existing cleanup profiles.
