@@ -2128,6 +2128,10 @@ EOF
   grep -q '^answers=\.$' "$lane_pack_dir/review_lane_answers.check_local_recall.txt"
   grep -q '^answers=r$' "$lane_pack_dir/review_lane_answers.check_local_recall.suggested.txt"
   grep -q -- '--answers-file' "$lane_pack_dir/review_lane_pack.check_local_recall.md"
+  grep -q 'Review focus:' "$lane_pack_dir/review_lane_pack.check_local_recall.md"
+  grep -q 'focus=possible missing Me phrase' "$lane_pack_dir/review_lane_answers.check_local_recall.txt"
+  jq -e '.items[0].review_hint.short_focus == "possible missing Me phrase" and (.items[0].review_hint.decision_guide | length) >= 2' \
+    "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   review_workspace_dir="$workdir/review_workspace"
   "$repo_root/scripts/build-review-workspace.py" \
     --template "$review_template" \
@@ -2379,7 +2383,21 @@ EOF
     and .items[0].group_size == 2
     and (.items[0].review_row_keys | length == 2)
     and (.items[0].source_audit_ids == ["unique_group_001", "unique_group_002"])
+    and .items[0].review_hint.short_focus == "unique Me content outside remote overlap"
+    and (.items[0].review_hint.risk_factors | length) >= 1
   ' "$unique_group_lane_dir/review_lane_pack.check_unique_me_content.json" >/dev/null
+  grep -q 'Review focus: Check whether the Me utterance contains unique local speech' \
+    "$unique_group_lane_dir/review_lane_pack.check_unique_me_content.md"
+  grep -q 'focus=unique Me content outside remote overlap' \
+    "$unique_group_lane_dir/review_lane_answers.check_unique_me_content.txt"
+  unique_group_filter_lane_dir="$workdir/review_lane_pack_unique_group_filter"
+  "$repo_root/scripts/build-review-lane-pack.py" \
+    --template "$unique_group_template" \
+    --lane check_unique_me_content \
+    --session sessions/group-session \
+    --out-dir "$unique_group_filter_lane_dir" >/dev/null
+  jq -e '.summary.selected_rows == 2 and .summary.item_count == 1' \
+    "$unique_group_filter_lane_dir/review_lane_pack.check_unique_me_content.json" >/dev/null
   "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
     "$unique_group_lane_dir/review_lane_pack.check_unique_me_content.json" \
     --template "$unique_group_template" \

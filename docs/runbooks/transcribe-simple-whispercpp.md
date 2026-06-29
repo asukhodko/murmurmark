@@ -1040,8 +1040,11 @@ $EDITOR "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_answers.f
 ```
 
 The lane Markdown is a review artifact, not just an index. For each item it lists the allowed
-decisions, suggested reason, utterance ids, selected audio command and transcript evidence. This is
-usually enough to review a lane from the Markdown and answer sheet without opening the JSON manifest.
+decisions, suggested reason, utterance ids, selected audio command, transcript evidence and a
+`Review focus` hint. The hint names the exact question to answer, such as "does `Me` contain unique
+local speech outside the remote overlap?", and keeps unsafe lanes from looking like automatic
+confirm/drop work. This is usually enough to review a lane from the Markdown and answer sheet without
+opening the JSON manifest.
 
 To prepare all remaining lanes at once:
 
@@ -1081,6 +1084,8 @@ character per pack item, but a grouped item can apply that answer to several und
 the Markdown shows the grouped row count and source audit ids. For mixed rows, the pack exposes only
 the shared safe decision set, so a grouped item does not offer `drop_remote` unless every underlying
 row allows it.
+The generated answer sheet repeats the short focus as `focus=...` on every item comment, so a review
+pass can stay inside the answer file after the first listen.
 The CLI output prints both source `rows` and packed `items`, plus `grouped_rows_saved` when grouping
 was applied.
 It also prints `manual_flow`, optional `suggested_flow`, and `after_apply`, so a reviewer can follow

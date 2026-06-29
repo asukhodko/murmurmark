@@ -2243,7 +2243,26 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
       "evidence_text": [
         {"role": "me", "text": "..."},
         {"role": "remote", "text": "..."}
-      ]
+      ],
+      "review_hint": {
+        "focus": "Check whether the Me utterance contains unique local speech outside the remote overlap.",
+        "short_focus": "unique Me content outside remote overlap",
+        "why_review_required": "Dropping the whole Me utterance may remove real local speech.",
+        "risk_factors": [
+          "remote_duplicate evidence may cover only part of Me",
+          "partial Me overlap; a whole-utterance drop is risky"
+        ],
+        "decision_guide": [
+          {"decision": "keep_me", "when": "Me contains real local speech or a unique continuation."},
+          {"decision": "drop_me", "when": "Me is only remote duplicate/noise and has no unique local content."},
+          {"decision": "needs_review", "when": "Double-talk, garbled ASR or partial overlap makes the content ambiguous."}
+        ],
+        "evidence_features": {
+          "labels": ["remote_duplicate"],
+          "mean_me_overlap_coverage": 0.33,
+          "mean_text_similarity": 1.0
+        }
+      }
     }
   ]
 }
@@ -2271,8 +2290,9 @@ scraping terminal text.
 
 The Markdown index is intentionally self-contained for human review. It starts with the compact
 shortcut protocol, then lists each item with allowed decisions, suggested decision reason, utterance
-ids, selected audio command and role-separated evidence text. Tooling should still read the JSON
-manifest; the Markdown is the reviewer-facing view.
+ids, selected audio command, role-separated evidence text and `Review focus` / decision-guide hints.
+The answer sheet repeats the short hint as `focus=...` in each item comment. Tooling should still
+read the JSON manifest; the Markdown and answer sheet are the reviewer-facing views.
 
 Lane packs are listening aids only. The generated answer sheet starts with `answers=...`, where `.`
 means `todo`; it is not applied until `murmurmark review lane apply <lane>` or the lower-level

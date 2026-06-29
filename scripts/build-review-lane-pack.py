@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.6.0"
+SCRIPT_VERSION = "0.7.0"
 SCHEMA = "murmurmark.review_lane_pack/v1"
 KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -188,12 +188,30 @@ def undecided(row: dict[str, Any]) -> bool:
     return str(row.get("decision") or "todo") in {"", "todo"}
 
 
+def session_aliases(*values: Any) -> set[str]:
+    aliases: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text:
+            continue
+        aliases.add(text)
+        if text.startswith("./"):
+            aliases.add(text[2:])
+        path = Path(text)
+        name = path.name
+        if name:
+            aliases.add(name)
+            aliases.add(f"sessions/{name}")
+            aliases.add(f"./sessions/{name}")
+    return aliases
+
+
 def session_matches(row: dict[str, Any], filters: set[str]) -> bool:
     if not filters:
         return True
-    session = str(row.get("session") or "")
-    session_id = str(row.get("session_id") or "")
-    return bool({session, session_id, f"./{session}"} & filters)
+    row_aliases = session_aliases(row.get("session"), row.get("session_id"))
+    filter_aliases = set().union(*(session_aliases(item) for item in filters))
+    return bool(row_aliases & filter_aliases)
 
 
 def command_for_row(row: dict[str, Any], preferred_key: str) -> tuple[str, str] | None:
@@ -332,6 +350,141 @@ def group_evidence_text(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
             if text:
                 pieces.append({"role": f"{index}:{source_id}:{role}", "text": text})
     return pieces
+
+
+def feature_number(row: dict[str, Any], key: str) -> float | None:
+    features = row.get("review_features") if isinstance(row.get("review_features"), dict) else {}
+    value = features.get(key)
+    if isinstance(value, bool):
+        return 1.0 if value else 0.0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def feature_bool(row: dict[str, Any], key: str) -> bool:
+    features = row.get("review_features") if isinstance(row.get("review_features"), dict) else {}
+    return bool(features.get(key))
+
+
+def average_feature(rows: list[dict[str, Any]], key: str) -> float | None:
+    values = [value for row in rows if (value := feature_number(row, key)) is not None]
+    if not values:
+        return None
+    return round(sum(values) / len(values), 6)
+
+
+def row_feature_snapshot(row: dict[str, Any]) -> dict[str, Any]:
+    features = row.get("review_features") if isinstance(row.get("review_features"), dict) else {}
+    interesting = (
+        "me_overlap_coverage",
+        "remote_overlap_coverage",
+        "me_utterance_duration_sec",
+        "remote_utterance_duration_sec",
+        "text_similarity",
+        "token_containment",
+        "sequence_ratio",
+        "likely_partial_me_utterance",
+    )
+    return {key: features[key] for key in interesting if key in features}
+
+
+def review_hint_for_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    lane = str(common_value(rows, "review_lane", rows[0].get("review_lane") if rows else "") or "")
+    labels = sorted({str(row.get("label") or "") for row in rows if row.get("label")})
+    allowed = set(common_allowed_decisions(rows))
+    grouped = len(rows) > 1
+
+    focus = "Listen to the clip and choose only one of the allowed decisions."
+    short_focus = "listen and choose allowed decision"
+    why_review_required = "The current evidence is not strong enough for an automatic transcript edit."
+    risk_factors: list[str] = []
+    guide: list[dict[str, str]] = []
+
+    if lane == "check_unique_me_content":
+        focus = "Check whether the Me utterance contains unique local speech outside the remote overlap."
+        short_focus = "unique Me content outside remote overlap"
+        why_review_required = (
+            "Dropping the whole Me utterance may remove real local speech; keep the risk explicit unless "
+            "the clip proves it is only remote duplicate/noise."
+        )
+        guide = [
+            {"decision": "keep_me", "when": "Me contains real local speech or a unique continuation."},
+            {"decision": "drop_me", "when": "Me is only remote duplicate/noise and has no unique local content."},
+            {"decision": "drop_remote", "when": "Allowed, and the remote utterance is the duplicate of local Me speech."},
+            {"decision": "needs_review", "when": "Double-talk, garbled ASR or partial overlap makes the content ambiguous."},
+        ]
+        if "remote_duplicate" in labels:
+            risk_factors.append("remote_duplicate evidence may cover only part of Me")
+        if "remote_leak" in labels:
+            risk_factors.append("remote_leak can still contain valid local speech")
+    elif lane == "check_transcript_order":
+        focus = "Verify chronology: whether Me and Colleagues are ordered correctly around the overlap."
+        short_focus = "chronology around overlap"
+        guide = [
+            {"decision": "keep_me", "when": "The order risk is acceptable for this transcript."},
+            {"decision": "needs_review", "when": "The utterance order could change meaning."},
+            {"decision": "skip", "when": "Leave this row unresolved for a later pass."},
+        ]
+    elif lane == "check_local_recall":
+        focus = "Check whether the candidate recovered a real missing Me phrase."
+        short_focus = "possible missing Me phrase"
+        guide = [
+            {"decision": "keep_me", "when": "The inserted Me phrase is audible and belongs in the transcript."},
+            {"decision": "drop_me", "when": "The phrase is not local speech or is ASR noise."},
+            {"decision": "needs_review", "when": "The phrase is real but the wording/timing is uncertain."},
+        ]
+    elif lane == "fast_confirm_drop":
+        focus = "Confirm that the suggested drop is a whole-utterance duplicate or ASR noise."
+        short_focus = "confirm safe drop"
+        guide = [
+            {"decision": "drop_me", "when": "The whole Me utterance is duplicate/noise."},
+            {"decision": "keep_me", "when": "Any local content is present."},
+            {"decision": "needs_review", "when": "The evidence is not obvious."},
+        ]
+    elif lane == "classify_audio":
+        focus = "Classify the audio evidence without editing transcript content."
+        short_focus = "classify audio evidence"
+        guide = [
+            {"decision": "keep_me", "when": "The local speech is valid."},
+            {"decision": "drop_me", "when": "The item is clearly duplicate/noise."},
+            {"decision": "needs_review", "when": "The audio class is uncertain."},
+        ]
+
+    if grouped:
+        risk_factors.append(f"grouped {len(rows)} review rows behind one answer")
+    if any(feature_bool(row, "likely_partial_me_utterance") for row in rows):
+        risk_factors.append("partial Me overlap; a whole-utterance drop is risky")
+    mean_me_coverage = average_feature(rows, "me_overlap_coverage")
+    if mean_me_coverage is not None and mean_me_coverage < 0.8 and "drop_me" in allowed:
+        risk_factors.append(f"mean Me overlap coverage is {mean_me_coverage:.2f}")
+    if "drop_remote" in allowed:
+        risk_factors.append("drop_remote is available only when remote duplicates local Me speech")
+    if not risk_factors:
+        risk_factors.append("no automatic high-confidence edit available")
+
+    return {
+        "focus": focus,
+        "short_focus": short_focus,
+        "why_review_required": why_review_required,
+        "risk_factors": risk_factors,
+        "decision_guide": [item for item in guide if item["decision"] in allowed],
+        "evidence_features": {
+            "labels": labels,
+            "mean_me_overlap_coverage": mean_me_coverage,
+            "mean_remote_overlap_coverage": average_feature(rows, "remote_overlap_coverage"),
+            "mean_text_similarity": average_feature(rows, "text_similarity"),
+            "mean_token_containment": average_feature(rows, "token_containment"),
+            "rows": [
+                {
+                    "source_audit_id": row.get("source_audit_id"),
+                    "review_features": row_feature_snapshot(row),
+                }
+                for row in rows
+            ],
+        },
+    }
 
 
 def parse_play_command(command: str) -> dict[str, str] | None:
@@ -595,6 +748,9 @@ def write_item_details(lines: list[str], item: dict[str, Any]) -> None:
     reason = truncate_text(item.get("suggested_decision_reason") or "-", 520)
     command = str(item.get("command") or "").strip()
     group_text = f"- Grouped rows: `{item.get('group_size')}`" if item.get("grouped") else "- Grouped rows: `1`"
+    hint = item.get("review_hint") if isinstance(item.get("review_hint"), dict) else {}
+    risk_factors = hint.get("risk_factors") if isinstance(hint.get("risk_factors"), list) else []
+    decision_guide = hint.get("decision_guide") if isinstance(hint.get("decision_guide"), list) else []
     lines.extend(
         [
             "",
@@ -613,6 +769,16 @@ def write_item_details(lines: list[str], item: dict[str, Any]) -> None:
             f"- Command: {markdown_inline(item.get('command_key'))}",
         ]
     )
+    if hint:
+        lines.append(f"- Review focus: {truncate_text(hint.get('focus'), 420)}")
+        lines.append(f"- Why review is required: {truncate_text(hint.get('why_review_required'), 420)}")
+        if risk_factors:
+            lines.append(f"- Risk factors: {truncate_text('; '.join(str(value) for value in risk_factors), 520)}")
+        if decision_guide:
+            guide_text = "; ".join(
+                f"{item.get('decision')}: {item.get('when')}" for item in decision_guide if isinstance(item, dict)
+            )
+            lines.append(f"- Decision guide: {truncate_text(guide_text, 700)}")
     if command:
         lines.extend(["", "```bash", command, "```"])
     evidence = item.get("evidence_text") if isinstance(item.get("evidence_text"), list) else []
@@ -708,10 +874,12 @@ def write_answer_sheet(path: Path, manifest: dict[str, Any], *, suggested: bool 
         text = " ".join(str(item.get("text") or "").split())
         allowed = ",".join(sorted(allowed_decisions_for_item(item)))
         group_size = item.get("group_size") or 1
+        hint = item.get("review_hint") if isinstance(item.get("review_hint"), dict) else {}
+        focus = truncate_text(hint.get("short_focus") or hint.get("focus") or "", 96)
         lines.append(
             f"# {item.get('index')}: {item.get('pack_start_time')}-{item.get('pack_end_time')} "
             f"{item.get('source_audit_id')} suggested={item.get('suggested_decision')} "
-            f"allowed={allowed} rows={group_size} {text}"
+            f"allowed={allowed} rows={group_size} focus={focus} {text}"
         )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -800,6 +968,7 @@ def main() -> int:
                 concat_parts.append(silence_wav)
             review_row_keys = [review_row_key(item) for item in group_rows]
             source_audit_ids = [str(item.get("source_audit_id") or "") for item in group_rows if item.get("source_audit_id")]
+            review_hint = review_hint_for_rows(group_rows)
             manifest_items.append(
                 {
                     "index": len(manifest_items) + 1,
@@ -831,6 +1000,7 @@ def main() -> int:
                     "pack_end_time": format_time(end),
                     "text": group_clip_text(group_rows),
                     "evidence_text": group_evidence_text(group_rows),
+                    "review_hint": review_hint,
                 }
             )
             cursor = end + args.silence_sec
