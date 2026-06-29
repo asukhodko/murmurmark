@@ -2220,6 +2220,7 @@ EOF
   echo "$main_help" | grep -q '^  murmurmark next corpus$'
   echo "$main_help" | grep -q '^  murmurmark status latest$'
   echo "$main_help" | grep -q '^  murmurmark export latest --format markdown --include-json$'
+  echo "$main_help" | grep -q '^  murmurmark review --help$'
   review_help="$("$bin" review --help)"
   echo "$review_help" | grep -q 'murmurmark review lane apply LANE|first'
   echo "$review_help" | grep -q 'murmurmark review progress \[--session latest|SESSION\]'

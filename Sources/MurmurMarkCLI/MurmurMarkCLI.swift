@@ -116,11 +116,8 @@ struct MurmurMark {
           murmurmark open [./session|latest] [--kind notes|transcript|verdict|readiness|audio-review] [--path-only|--command-only|--cat]
           murmurmark report ./session|latest [--sessions-root ./sessions]
           murmurmark report corpus [--sessions-root ./sessions]
-          murmurmark review plan|progress|apply|first-lane|lane|next
-          murmurmark review lane apply LANE|first [--session latest|SESSION] [--answers-source manual|suggested]
-          murmurmark review agent [--session-quality sessions/_reports/session-quality/session_quality_report.json]
-          murmurmark review workspace [build|apply] [--session latest|./session]
-          murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
+          murmurmark review next [SESSION|latest]
+          murmurmark review --help
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
           murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
           murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
@@ -180,7 +177,7 @@ struct MurmurMark {
           next prints the single recommended next command from readiness.
           open prints or streams the selected local output artifact from readiness.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
-          review wraps the current review-plan, agent-review, review CLI, progress and apply scripts.
+          review next prints the next review command; review --help shows lane/workspace/apply commands.
           audit wraps the transcript order, local recall, group overlap and audio-review audit scripts through the project Python runtime.
           cleanup wraps conservative audit cleanup profiles.
           repair wraps explicit structural transcript repairs into separate profiles.

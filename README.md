@@ -414,7 +414,8 @@ murmurmark retention plan latest
 ```
 
 The top-level `murmurmark --help` uses the same split: everyday usage first, quality/corpus
-maintenance separately, then setup and debugging commands.
+maintenance separately, then setup and debugging commands. The top-level help intentionally keeps
+review short; use `murmurmark review --help` when you need lane/workspace/apply details.
 
 Operational queues and quality maintenance:
 
