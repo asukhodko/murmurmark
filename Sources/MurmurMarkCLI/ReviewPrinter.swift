@@ -677,7 +677,7 @@ enum ReviewPrinter {
             return
         }
         if let reason = string(row["reason"]), !reason.isEmpty {
-            print("    \(command) — \(reason)")
+            print("    \(command) - \(reason)")
         } else {
             print("    \(command)")
         }
