@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -135,6 +136,115 @@ def rel(path: Path, base: Path) -> str:
         return str(path.relative_to(base))
     except ValueError:
         return str(path)
+
+
+def shell_path(path: Path, base: Path) -> str:
+    return shlex.quote(rel(path, base))
+
+
+def first_next_command(readiness: dict[str, Any] | None) -> str | None:
+    if not isinstance(readiness, dict):
+        return None
+    recommended = readiness.get("recommended_next")
+    if isinstance(recommended, str) and recommended.strip():
+        return recommended.strip()
+    commands = readiness.get("next_commands")
+    if isinstance(commands, list):
+        for item in commands:
+            if isinstance(item, dict):
+                command = item.get("command")
+                if isinstance(command, str) and command.strip():
+                    return command.strip()
+    return None
+
+
+def pipeline_handoff(
+    *,
+    status: str,
+    session: Path,
+    report_path: Path,
+    repo_root: Path,
+    readiness: dict[str, Any] | None,
+) -> dict[str, Any]:
+    session_arg = shell_path(session, repo_root)
+    report_arg = shell_path(report_path, repo_root)
+    readiness_md = session / "derived/readiness/session_readiness.md"
+    quality_md = session / "derived/synthesis-simple/extractive/quality_verdict.md"
+
+    open_commands = [
+        {
+            "id": "open_pipeline_run_report",
+            "command": f"less {report_arg}",
+            "path": rel(report_path, repo_root),
+        }
+    ]
+    if readiness_md.exists():
+        open_commands.append(
+            {
+                "id": "open_readiness",
+                "command": f"less {shell_path(readiness_md, repo_root)}",
+                "path": rel(readiness_md, repo_root),
+            }
+        )
+    if quality_md.exists():
+        open_commands.append(
+            {
+                "id": "open_quality_verdict",
+                "command": f"less {shell_path(quality_md, repo_root)}",
+                "path": rel(quality_md, repo_root),
+            }
+        )
+
+    if status == "planned":
+        next_commands = [
+            {
+                "id": "run_process",
+                "command": f"murmurmark process {session_arg}",
+                "reason": "execute the planned post-recording pipeline",
+            },
+            {
+                "id": "current_next",
+                "command": f"murmurmark next {session_arg}",
+                "reason": "inspect the current readiness state before running the plan",
+            },
+        ]
+    elif status == "passed":
+        readiness_next = first_next_command(readiness)
+        next_commands = []
+        if readiness_next:
+            next_commands.append(
+                {
+                    "id": "readiness_next",
+                    "command": readiness_next,
+                    "reason": "continue from the refreshed session readiness state",
+                }
+            )
+        next_commands.append(
+            {
+                "id": "refresh_report",
+                "command": f"murmurmark report {session_arg}",
+                "reason": "refresh and inspect the post-process readiness summary",
+            }
+        )
+    else:
+        next_commands = [
+            {
+                "id": "open_pipeline_run_report",
+                "command": f"less {report_arg}",
+                "reason": "inspect the failed pipeline step and command tails",
+            },
+            {
+                "id": "rerun_process",
+                "command": f"murmurmark process {session_arg}",
+                "reason": "rerun the post-recording pipeline after fixing the failure",
+            },
+        ]
+
+    return {
+        "recommended_next": next_commands[0]["command"],
+        "next_commands": next_commands,
+        "open_commands": open_commands,
+    }
 
 
 def add_prompt(command: list[str], prompt_file: Path | None) -> list[str]:
@@ -613,13 +723,21 @@ def main() -> int:
     readiness_verdict = readiness.get("verdict") if isinstance(readiness, dict) else None
     selected_profile = readiness_profile or synthesis_profile
     selected_verdict = readiness_verdict or synthesis_verdict
+    status = "planned" if args.plan_only else final_status
+    handoff = pipeline_handoff(
+        status=status,
+        session=session,
+        report_path=report_path,
+        repo_root=repo_root,
+        readiness=readiness,
+    )
     report = {
         "schema": SCHEMA,
         "generator": {"name": "run-session-pipeline", "version": SCRIPT_VERSION},
         "started_at": started_at,
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "session": str(session),
-        "status": "planned" if args.plan_only else final_status,
+        "status": status,
         "inputs": {
             "model": str(args.model),
             "language": args.language,
@@ -639,6 +757,9 @@ def main() -> int:
             "readiness_verdict": readiness_verdict,
             "use_gate": readiness.get("use_gate") if isinstance(readiness, dict) else None,
         },
+        "recommended_next": handoff["recommended_next"],
+        "next_commands": handoff["next_commands"],
+        "open_commands": handoff["open_commands"],
         "plan": plan_metadata,
         "steps": results,
     }

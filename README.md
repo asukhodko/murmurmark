@@ -365,9 +365,9 @@ Use `--progress-interval-sec 0` to disable these heartbeat lines. `--plan-only` 
 `run_command` for executing that plan and `current_next` for the current session state instead of
 the live stage log; the following readiness block is labelled `existing_readiness` because no new
 processing was run. The same plan metadata is written to
-`derived/pipeline-run/pipeline_run_report.json`, so agents can inspect it without parsing terminal
-text. After every `process` run, the final line is a single copyable `next: ...` command derived
-from the refreshed readiness.
+`derived/pipeline-run/pipeline_run_report.json`, along with `recommended_next`, `next_commands` and
+`open_commands`, so agents can inspect it without parsing terminal text. After every `process` run,
+the final line is a single copyable `next: ...` command derived from the refreshed readiness.
 Read `session_readiness.md` first, or run `murmurmark status SESSION` for the terminal version.
 Use `murmurmark report SESSION` when readiness should be refreshed. The CLI prints a short status,
 `recommended_next`, a `use` block with read/export booleans, blocker and minimum step, the session

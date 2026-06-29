@@ -65,8 +65,9 @@ stores the same stage list in `derived/pipeline-run/pipeline_run_report.json`. U
 `pipeline_plan` with enabled/skipped stages, heavier stages, expected output files, `run_command`
 for executing that plan and `current_next` for the current session state without executing the
 pipeline; the CLI labels the following readiness summary as `existing_readiness`. The JSON report
-also stores this plan metadata under `plan`. After `process` finishes, the last line is a single
-copyable `next: ...` command from the current readiness state.
+also stores this plan metadata under `plan`, plus top-level `recommended_next`, `next_commands` and
+`open_commands` for agent handoff. After `process` finishes, the last line is a single copyable
+`next: ...` command from the current readiness state.
 The usual summary commands (`status`, `report`, `open`, `audit`, `cleanup`, `repair`, `synthesize`,
 `notes`, `transcript`, `review`, `export`, `retention`) use the same convention. Pure output modes
 such as `--path-only`, `--command-only` and `--cat` do not append a handoff line.

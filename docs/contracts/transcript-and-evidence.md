@@ -1360,6 +1360,26 @@ derived/readiness/
     "readiness_verdict": "usable_with_review",
     "use_gate": "review_first"
   },
+  "recommended_next": "murmurmark review next sessions/2026-06-26_15-32-02",
+  "next_commands": [
+    {
+      "id": "readiness_next",
+      "command": "murmurmark review next sessions/2026-06-26_15-32-02",
+      "reason": "continue from the refreshed session readiness state"
+    },
+    {
+      "id": "refresh_report",
+      "command": "murmurmark report sessions/2026-06-26_15-32-02",
+      "reason": "refresh and inspect the post-process readiness summary"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_pipeline_run_report",
+      "command": "less sessions/2026-06-26_15-32-02/derived/pipeline-run/pipeline_run_report.json",
+      "path": "sessions/2026-06-26_15-32-02/derived/pipeline-run/pipeline_run_report.json"
+    }
+  ],
   "steps": [
     {
       "name": "transcribe_current",
@@ -1374,7 +1394,11 @@ derived/readiness/
 ```
 
 The report is a reproducibility/audit artifact. It does not replace the per-stage reports; it only
-records which existing stage commands were run and what final synthesis profile was selected.
+records which existing stage commands were run and what final synthesis profile was selected. It is
+also a machine-readable handoff. For `status: "planned"`, `recommended_next` is the matching
+`murmurmark process SESSION` command and `next_commands` also includes `murmurmark next SESSION` for
+inspecting current readiness. For a failed run, `recommended_next` opens the pipeline report so the
+failing step and command tails are visible before rerunning.
 The runner also prints the same stage names to stdout as live progress lines (`[run]`, `[passed]`,
 `[failed]`, `[skip]`). Long-running stages emit heartbeat lines at the configured interval, for
 example `[run] transcribe_current still running (120.4s)`, so a normal `murmurmark process` run does
