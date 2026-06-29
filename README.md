@@ -565,9 +565,11 @@ shows only selected top items, and keeps every hidden weak/process/facilitation 
 `evidence_notes.json`. The `murmurmark synthesize`, `murmurmark notes` and
 `murmurmark transcript` CLI handoffs also print the remaining `review_items` count and the main
 review item types from `quality_verdict.json`; when review work remains, their primary next command
-points to `murmurmark review next`. `quality_verdict.json` and `synthesis_manifest.json` store the
-same `recommended_next`, `next_commands` and `open_commands`, so agents can continue the pipeline
-without scraping terminal output.
+points to `murmurmark review next`. `notes` and `transcript` read the action handoff from the same
+`quality_verdict.json` and append the local `less ...` command for the selected file.
+`quality_verdict.json` and `synthesis_manifest.json` store the same `recommended_next`,
+`next_commands` and `open_commands`, so agents can continue the pipeline without scraping terminal
+output.
 
 `murmurmark export` creates a local user-facing bundle under ignored `exports/private/` by default.
 Markdown export writes `index.md`, `quality_verdict.md`, `notes.md`, `transcript.md` and

@@ -3202,16 +3202,15 @@ enum NotesCommands {
         if let verdictPayload {
             ReviewSummaryPrinter.printReviewSummary(verdictPayload["review_summary"], indent: "  ")
         }
-        let reviewNext = shouldReview(verdictPayload) ? "murmurmark review next \(PathDisplay.display(session))" : nil
         let openCommand = "less \(PathDisplay.display(url))"
+        let handoff = SynthesisArtifactHandoff.build(payload: verdictPayload, openCommand: openCommand)
         print("  selected: \(kind)")
-        print("  recommended_next: \(reviewNext ?? openCommand)")
+        print("  recommended_next: \(handoff.recommendedNext)")
         print("  next:")
-        if let reviewNext {
-            print("    \(reviewNext)")
+        for command in handoff.nextCommands {
+            print("    \(command)")
         }
-        print("    \(openCommand)")
-        FinalNextPrinter.print(reviewNext ?? openCommand)
+        FinalNextPrinter.print(handoff.recommendedNext)
     }
 
     private static func selectedProfile(_ requested: String, session: URL) throws -> String {
@@ -3243,15 +3242,6 @@ enum NotesCommands {
         let outDir = session.appendingPathComponent("derived/synthesis-simple/extractive")
         let suffix = profile == "current" ? "" : ".\(profile)"
         return outDir.appendingPathComponent("quality_verdict\(suffix).json")
-    }
-
-    private static func shouldReview(_ verdictPayload: [String: Any]?) -> Bool {
-        guard let verdictPayload else { return false }
-        let reviewSummary = verdictPayload["review_summary"] as? [String: Any] ?? [:]
-        let reviewCount = int(reviewSummary["review_item_count"]) ?? 0
-        let riskItems = verdictPayload["risk_items"] as? [Any] ?? []
-        let verdict = verdictPayload["verdict"] as? String ?? ""
-        return reviewCount > 0 || !riskItems.isEmpty || verdict == "usable_with_review"
     }
 
     private static func int(_ value: Any?) -> Int? {
@@ -3353,6 +3343,57 @@ enum ReviewSummaryPrinter {
     }
 }
 
+struct SynthesisArtifactHandoff {
+    let recommendedNext: String
+    let nextCommands: [String]
+
+    static func build(payload: [String: Any]?, openCommand: String) -> SynthesisArtifactHandoff {
+        let jsonRecommended = string(payload?["recommended_next"])
+        let jsonCommands = commandList(payload?["next_commands"])
+        let shouldPreferJSONAction = jsonRecommended?.hasPrefix("murmurmark review ") == true
+        let recommended = shouldPreferJSONAction ? (jsonRecommended ?? openCommand) : openCommand
+
+        var commands: [String] = []
+        commands.append(recommended)
+        if shouldPreferJSONAction {
+            commands.append(contentsOf: jsonCommands)
+            commands.append(openCommand)
+        } else {
+            commands.append(openCommand)
+            commands.append(contentsOf: jsonCommands)
+        }
+        return SynthesisArtifactHandoff(recommendedNext: recommended, nextCommands: dedupe(commands))
+    }
+
+    private static func commandList(_ value: Any?) -> [String] {
+        guard let rows = value as? [[String: Any]] else { return [] }
+        return rows.compactMap { row in
+            guard let command = row["command"] as? String else { return nil }
+            let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+    }
+
+    private static func dedupe(_ commands: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for command in commands {
+            let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, seen.insert(trimmed).inserted else {
+                continue
+            }
+            result.append(trimmed)
+        }
+        return result
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        guard let value = value as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
 enum TranscriptCommands {
     static func transcript(_ args: [String]) throws {
         if args.isEmpty || ArgumentEditing.hasHelpFlag(args) {
@@ -3396,15 +3437,14 @@ enum TranscriptCommands {
         if let verdictPayload {
             ReviewSummaryPrinter.printReviewSummary(verdictPayload["review_summary"], indent: "  ")
         }
-        let reviewNext = shouldReview(verdictPayload) ? "murmurmark review next \(PathDisplay.display(session))" : nil
         let openCommand = "less \(PathDisplay.display(url))"
-        print("  recommended_next: \(reviewNext ?? openCommand)")
+        let handoff = SynthesisArtifactHandoff.build(payload: verdictPayload, openCommand: openCommand)
+        print("  recommended_next: \(handoff.recommendedNext)")
         print("  next:")
-        if let reviewNext {
-            print("    \(reviewNext)")
+        for command in handoff.nextCommands {
+            print("    \(command)")
         }
-        print("    \(openCommand)")
-        FinalNextPrinter.print(reviewNext ?? openCommand)
+        FinalNextPrinter.print(handoff.recommendedNext)
     }
 
     private static func selectedProfile(_ requested: String, session: URL) throws -> String {
@@ -3437,15 +3477,6 @@ enum TranscriptCommands {
         let outDir = session.appendingPathComponent("derived/synthesis-simple/extractive")
         let suffix = profile == "current" ? "" : ".\(profile)"
         return outDir.appendingPathComponent("quality_verdict\(suffix).json")
-    }
-
-    private static func shouldReview(_ verdictPayload: [String: Any]?) -> Bool {
-        guard let verdictPayload else { return false }
-        let reviewSummary = verdictPayload["review_summary"] as? [String: Any] ?? [:]
-        let reviewCount = int(reviewSummary["review_item_count"]) ?? 0
-        let riskItems = verdictPayload["risk_items"] as? [Any] ?? []
-        let verdict = verdictPayload["verdict"] as? String ?? ""
-        return reviewCount > 0 || !riskItems.isEmpty || verdict == "usable_with_review"
     }
 
     private static func int(_ value: Any?) -> Int? {

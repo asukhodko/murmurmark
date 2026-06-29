@@ -406,6 +406,11 @@ echo "$notes_output" | grep -q '^  recommended_next: murmurmark review next '
 echo "$notes_output" | grep -q '^    murmurmark review next '
 echo "$notes_output" | grep -q '^    less '
 tail -1 <<<"$notes_output" | grep -q '^next: murmurmark review next '
+json_notes_next="$(jq -r '.recommended_next' "$session/derived/synthesis-simple/extractive/quality_verdict.json")"
+printf '%s\n' "$notes_output" | grep -Fx "  recommended_next: $json_notes_next" >/dev/null
+while IFS= read -r json_next_command; do
+  printf '%s\n' "$notes_output" | grep -Fx "    $json_next_command" >/dev/null
+done < <(jq -r '.next_commands[].command' "$session/derived/synthesis-simple/extractive/quality_verdict.json")
 notes_path_only="$("$bin" notes "$session" --path-only)"
 [[ "$notes_path_only" == */derived/synthesis-simple/extractive/notes.md ]]
 "$bin" notes "$session" --cat | grep -q '# Extractive Notes'
@@ -418,6 +423,11 @@ echo "$transcript_output" | grep -q '^  recommended_next: murmurmark review next
 echo "$transcript_output" | grep -q '^    murmurmark review next '
 echo "$transcript_output" | grep -q '^    less '
 tail -1 <<<"$transcript_output" | grep -q '^next: murmurmark review next '
+json_transcript_next="$(jq -r '.recommended_next' "$session/derived/synthesis-simple/extractive/quality_verdict.json")"
+printf '%s\n' "$transcript_output" | grep -Fx "  recommended_next: $json_transcript_next" >/dev/null
+while IFS= read -r json_next_command; do
+  printf '%s\n' "$transcript_output" | grep -Fx "    $json_next_command" >/dev/null
+done < <(jq -r '.next_commands[].command' "$session/derived/synthesis-simple/extractive/quality_verdict.json")
 transcript_path_only="$("$bin" transcript "$session" --path-only)"
 [[ "$transcript_path_only" == */derived/transcript-simple/whisper-cpp/resolved/transcript.md ]]
 "$bin" transcript latest --sessions-root "$workdir" --path-only | grep -q '/derived/transcript-simple/whisper-cpp/resolved/transcript.md$'
