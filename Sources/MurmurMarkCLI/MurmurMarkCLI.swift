@@ -293,7 +293,7 @@ enum Commands {
         print("  mode: quick")
         print("  command: \(PathDisplay.display(script))")
         fflush(stdout)
-        try Tooling.runPath(URL(fileURLWithPath: "/bin/bash"), [script.path])
+        try runSelfTestScript(script)
         print("status: self-test completed")
     }
 
@@ -307,6 +307,25 @@ enum Commands {
         command chain: process --plan-only, review handoffs, status, report,
         next/open, export and retention.
         """)
+    }
+
+    private static func runSelfTestScript(_ script: URL) throws {
+        let bash = URL(fileURLWithPath: "/bin/bash")
+        guard FileManager.default.isExecutableFile(atPath: bash.path) else {
+            throw CLIError("executable not found: \(bash.path)")
+        }
+
+        let process = Process()
+        process.executableURL = bash
+        process.arguments = [script.path]
+        var environment = ProcessInfo.processInfo.environment
+        environment["MURMURMARK_BIN"] = ExecutablePath.current()
+        process.environment = environment
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw CLIError("self-test exited with \(process.terminationStatus)")
+        }
     }
 
     static func listApps() {

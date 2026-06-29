@@ -68,4 +68,8 @@ if [[ ":$PATH:" != *":$bin_dir:"* ]]; then
   echo "path hint: add this to your shell profile:"
   echo "  export PATH=\"$bin_dir:\$PATH\""
 fi
-echo "try: murmurmark doctor"
+echo "next:"
+echo "  murmurmark doctor"
+echo "  murmurmark self-test"
+echo "  murmurmark config init"
+echo "  murmurmark record --target-bundle system"
