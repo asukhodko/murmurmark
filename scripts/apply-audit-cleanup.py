@@ -179,6 +179,17 @@ def read_json(path: Path) -> dict[str, Any]:
     return data
 
 
+def read_transcribe_report(resolved: Path, preferred: Path) -> dict[str, Any]:
+    for path in (
+        preferred,
+        resolved / "transcribe_simple_report.shadow_v2.json",
+        resolved / "transcribe_simple_report.json",
+    ):
+        if path.exists():
+            return read_json(path)
+    return {}
+
+
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     with path.open("r", encoding="utf-8") as file:
@@ -1677,7 +1688,7 @@ def main() -> int:
         "session": dialogue.get("session", session.name),
         "utterances": output_utterances,
     }
-    transcript_report = read_json(paths["report"]) if paths["report"].exists() else {}
+    transcript_report = read_transcribe_report(resolved, paths["report"])
     simple_payload = {
         "schema": "murmurmark.transcript_simple/v1",
         "session": dialogue.get("session", session.name),
