@@ -207,6 +207,9 @@ cd murmurmark
 SESSION=./sessions/<session>
 
 git pull
+scripts/install-local.sh
+export PATH="$HOME/.local/bin:$PATH"
+
 murmurmark process "$SESSION" --force-asr
 
 murmurmark status "$SESSION"
@@ -222,6 +225,9 @@ less "$(murmurmark transcript "$SESSION" --path-only)"
 Use `--force-asr` when you want a cold rerun from the raw `CAF` tracks. Omit it for the normal
 incremental path, where cached raw ASR JSON is reused when its model, language, prompt and windowing
 metadata still match.
+
+Run `scripts/install-local.sh` after `git pull` when following README commands. It rebuilds the CLI
+and refreshes the local `murmurmark` wrapper so the command uses the current checkout.
 
 Local defaults come from `murmurmark.config.json` when it exists:
 
