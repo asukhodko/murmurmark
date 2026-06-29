@@ -813,7 +813,7 @@ default export remains blocked until transcript-only review is closed or `--forc
 deliberately.
 The 2026-06-29 corpus snapshot is the current convergence baseline: 13/13 working sessions are
 `ready_for_notes`, selected notes require about `0.02 min` of review, and the remaining full
-transcript/export surface is about `2.68 min`. Session-quality reports de-duplicate transcript-only
+transcript/export surface is about `2.66 min`. Session-quality reports de-duplicate transcript-only
 `uncertain` rows when the same selected `Me` interval is already covered by high-confidence
 `likely_reliable` audio-review evidence, and can explain a narrow strong-local `remote_leak` row
 without editing transcript text. The agent-review layer can also close bounded short `remote_leak`
@@ -823,7 +823,9 @@ Guard `speaker_state.jsonl` independently covers the interval as near-pure `loca
 row has only a tiny remote utterance overlap. No-remote rows remain the simplest case; remote-context
 rows additionally require weak duplicate/noise signals, tiny remote overlap coverage and unique
 local `Me` content. Protected markers are allowed only for the strongest local-only case because the
-decision keeps local speech rather than deleting it.
+decision keeps local speech rather than deleting it. The same speaker-state evidence can clear a
+short partial `remote_duplicate` as `keep_me` when the duplicate slice covers only part of the `Me`
+utterance and the remaining `Me` text has a unique continuation.
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
 The same snapshot exposes the remaining export work as a normal review queue: `40` raw rows /
@@ -835,7 +837,7 @@ The active queue currently spans `6` sessions; already-reviewed `local_recall` a
 `local_recall_repair` decisions are inherited by readiness, so only one short unresolved local-recall
 row remains in `check_local_recall`.
 The next engineering target is to shrink that queue to `<= 15` packed actions and
-transcript/export review from `2.68 min` to `<= 1.5 min` by closing or explaining narrow
+transcript/export review from `2.66 min` to `<= 1.5 min` by closing or explaining narrow
 `check_unique_me_content` / `remote_leak` classes, not by weakening gates.
 The chosen next step is review-first: run the command from `murmurmark next corpus`, close the
 prepared `check_unique_me_content` lane, apply the answers, refresh corpus readiness, and only then
@@ -1224,8 +1226,9 @@ murmurmark review agent
 Use it as a medium-risk automation layer, not as proof that every remaining questionable phrase is
 correct. `drop_me` is limited to clear whole-utterance duplicates/noise. `keep_me` closes review
 burden for strong local-support rows, including narrow `remote_leak` cases where independent
-speaker-state evidence says the overlap is actually local speech. Unresolved rows remain in
-`review_first` sessions.
+speaker-state evidence says the overlap is actually local speech, and short partial duplicates where
+that same evidence supports keeping the full `Me` utterance. Unresolved rows remain in `review_first`
+sessions.
 
 Answer shortcuts are `d=drop_me`, `c=drop_remote`, `k=keep_me`, `r` or `?=needs_review`, `s=skip`, and `.` or `n=todo`.
 Before applying decisions to transcripts, check progress and validation:

@@ -106,13 +106,13 @@ flowchart LR
 
 - удержать corpus verdict на уровне `medium_risk_ready` или выше;
 - удержать рабочий корпус на 13/13 `ready_for_notes`;
-- опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `2.68 min`
+- опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `2.66 min`
   отдельной transcript/export проверки на 13 рабочих сессиях;
 - держать export-review очередь явной и исполнимой: сейчас это `40` raw rows / `31` packed actions
   уже после `agent_reviewed_v1` + `audit_cleanup_v7`, через `murmurmark review next` / `review workspace`;
 - учитывать применённые repair decisions в readiness: local-recall очередь уже сокращена до одной
   короткой unresolved строки, остальные high-confidence repair insertions закрыты как reviewed;
-- снизить `transcript_review_burden` с `2.68 min` до `<= 1.5 min` и очередь с `31` до `<= 15`
+- снизить `transcript_review_burden` с `2.66 min` до `<= 1.5 min` и очередь с `31` до `<= 15`
   packed actions, не смешивая это с готовностью notes;
 - расширять repair/cleanup только через corpus gates и audio-review evidence;
 - держать raw capture, Echo Guard и основной ASR неизменными без отдельного решения;
@@ -135,7 +135,10 @@ short `remote_leak` без remote-utterance закрывается как `keep_
 `speaker_state` независимо показывает почти чистый `local_only`. Шестой маленький блок: короткий
 `remote_leak` с крошечным remote-контекстом тоже закрывается как `keep_me`, если `speaker_state`
 показывает чистый `local_only`, overlap с remote-репликой мал, а в `Me` есть уникальный локальный
-текст. Следующий исполнительный блок — закрыть первую `check_unique_me_content` lane через
+текст. Седьмой маленький блок: short partial `remote_duplicate` закрывается как `keep_me`, когда
+дубликат покрывает только часть `Me`, `speaker_state` показывает чистый `local_only`, а оставшаяся
+часть `Me` содержит уникальное продолжение. Следующий исполнительный блок — закрыть первую
+`check_unique_me_content` lane (`13` rows / `11` review items) через
 `murmurmark review first-lane --session sessions/2026-06-26_11-15-50`, применить ответы и только
 после этого переносить подтверждённые повторяющиеся случаи в automation. `check_local_recall`
 сейчас содержит только одну короткую unresolved строку и не должен становиться основным фокусом.

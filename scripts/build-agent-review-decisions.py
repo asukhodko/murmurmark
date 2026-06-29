@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.3"
+SCRIPT_VERSION = "0.3.4"
 SCHEMA = "murmurmark.agent_review_decisions/v1"
 OUTPUT_PROFILE = "agent_reviewed_v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -460,6 +460,27 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, sessi
         and not protected
     ):
         return "drop_me", "safe_exact_remote_duplicate_full_coverage", evidence
+
+    if (
+        label == "remote_duplicate"
+        and verdict == "probable_transcript_error"
+        and confidence >= 0.82
+        and local_support >= 25
+        and remote_duplicate >= 80
+        and remote_leak <= 0
+        and asr_noise <= 0
+        and duration <= 1.20
+        and 0.25 <= me_coverage <= 0.70
+        and remote_coverage <= 0.08
+        and len(unique_tokens) >= 1
+        and not protected
+        and similarity >= 0.70
+        and containment >= 0.70
+        and state["covered_ratio"] >= 0.90
+        and state["local_only_ratio"] >= 0.95
+        and state["remote_active_ratio"] <= 0.05
+    ):
+        return "keep_me", "speaker_state_pure_local_partial_duplicate_keep", evidence
 
     if (
         judge_label == "drop_error"
