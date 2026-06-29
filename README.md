@@ -111,6 +111,15 @@ personal paths and workspace-specific domain packs. The repository uses the MIT 
 security contact before a public release.
 See [docs/project/open-source-readiness.md](docs/project/open-source-readiness.md).
 
+For the shortest local CLI handoff regression, run:
+
+```bash
+scripts/smoke-cli-handoff.sh
+```
+
+It builds a tiny processed fixture and then uses only `murmurmark ...` commands for
+`status -> report -> next/open -> export -> retention`.
+
 ### End-to-End From an Existing Recording
 
 Use this when the session directory already exists and raw recording is complete.
