@@ -354,10 +354,11 @@ processing was run. The same plan metadata is written to
 text. After every `process` run, the final line is a single copyable `next: ...` command derived
 from the refreshed readiness.
 Read `session_readiness.md` first, or run `murmurmark status SESSION` for the terminal version.
-Use `murmurmark report SESSION` when readiness should be refreshed. The CLI prints a short status, `recommended_next`, the session use gate, selected profile, review burden,
-synthesis review item summary, next CLI commands, `handoff` open/export commands, and links to the
-transcript, notes, quality verdict and audio-review report, then ends with the final copyable
-`next: ...` command.
+Use `murmurmark report SESSION` when readiness should be refreshed. The CLI prints a short status,
+`recommended_next`, a `use` block with read/export booleans, blocker and minimum step, the session
+use gate, selected profile, review burden, synthesis review item summary, next CLI commands,
+`handoff` open/export commands, and links to the transcript, notes, quality verdict and audio-review
+report, then ends with the final copyable `next: ...` command.
 `recommended_next` prefers executable `murmurmark ...` actions from `next_commands`; read-only
 commands such as `less ...` remain visible under `next` and `open`. The underlying
 `session_readiness.json` stores the same `recommended_next`, `next_commands` and `open_commands`,

@@ -7782,6 +7782,8 @@ enum ReadinessPrinter {
         let nextCommands = payload["next_commands"] as? [[String: Any]]
             ?? fallbackNextCommands(gate: gate, session: session, payload: payload)
         let openCommands = payload["open_commands"] as? [[String: Any]] ?? []
+        let exportBlockers = strings(payload["export_blockers"])
+        let reviewBlockers = strings(payload["review_blockers"])
         let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil)
         let status = exportHandoff == nil ? readinessStatus(gate: gate, payload: payload) : "exported"
         let recommendedNext = exportHandoff?.command ?? string(payload["recommended_next"]) ?? preferredNextCommand(nextCommands)
@@ -7799,6 +7801,15 @@ enum ReadinessPrinter {
             print("  recommended_next: \(recommendedNext)")
         }
         printHandoff(status: status, session: session, outputs: outputs, exportHandoff: exportHandoff)
+        printUseSummary(UseSummary(
+            status: status,
+            gate: gate,
+            outputs: outputs,
+            exportBlockers: exportBlockers,
+            reviewBlockers: reviewBlockers,
+            reviewSeconds: reviewSeconds,
+            recommendedNext: recommendedNext
+        ))
         print("  gate: \(gate)")
         print("  recommendation: \(recommendation)")
         print("  selected_profile: \(profile)")
@@ -7830,6 +7841,67 @@ enum ReadinessPrinter {
                 print("    \(command) — \(label)")
             }
         }
+    }
+
+    private struct UseSummary {
+        let status: String
+        let gate: String
+        let outputs: [String: Any]
+        let exportBlockers: [String]
+        let reviewBlockers: [String]
+        let reviewSeconds: Double
+        let recommendedNext: String?
+    }
+
+    private static func printUseSummary(_ summaryInput: UseSummary) {
+        let canRead = outputPath("notes", outputs: summaryInput.outputs) != nil && outputPath("quality_verdict", outputs: summaryInput.outputs) != nil
+        let canExport = summaryInput.status == "exportable"
+        let summary: String
+        switch summaryInput.status {
+        case "exported":
+            summary = "exported; plan retention/privacy next"
+        case "exportable":
+            summary = "ready to read and export"
+        case "review_required":
+            summary = "read with review; close review before export"
+        case "incomplete":
+            summary = "pipeline incomplete; process before use"
+        case "blocked":
+            summary = "blocked; inspect review/export blockers"
+        default:
+            summary = "check readiness before use"
+        }
+        let blocker = firstBlocker(
+            gate: summaryInput.gate,
+            exportBlockers: summaryInput.exportBlockers,
+            reviewBlockers: summaryInput.reviewBlockers
+        )
+        print("  use:")
+        print("    summary: \(summary)")
+        print("    can_read_notes: \(canRead)")
+        print("    can_export: \(canExport)")
+        if summaryInput.reviewSeconds > 0 {
+            print(String(format: "    review_burden_min: %.2f", summaryInput.reviewSeconds / 60.0))
+        }
+        if let blocker {
+            print("    blocker: \(blocker)")
+        }
+        if let recommendedNext = summaryInput.recommendedNext, !recommendedNext.isEmpty {
+            print("    minimum_step: \(recommendedNext)")
+        }
+    }
+
+    private static func firstBlocker(gate: String, exportBlockers: [String], reviewBlockers: [String]) -> String? {
+        if gate.hasPrefix("pipeline_incomplete") {
+            return "pipeline_incomplete"
+        }
+        if let blocker = reviewBlockers.first {
+            return blocker
+        }
+        if let blocker = exportBlockers.first {
+            return blocker
+        }
+        return gate == "ready_for_notes" ? nil : gate
     }
 
     static func printCorpus(report: URL) throws {
@@ -8009,6 +8081,10 @@ enum ReadinessPrinter {
 
     private static func string(_ value: Any?) -> String? {
         value as? String
+    }
+
+    private static func strings(_ value: Any?) -> [String] {
+        (value as? [Any] ?? []).map { String(describing: $0) }
     }
 
     private static func double(_ value: Any?) -> Double? {

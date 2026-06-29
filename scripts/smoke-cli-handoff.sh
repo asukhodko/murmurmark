@@ -286,11 +286,19 @@ jq -n '{
 status_output="$("$bin" status "$session")"
 echo "$status_output" | grep -q '^readiness:$'
 echo "$status_output" | grep -q '^  status: exportable$'
+echo "$status_output" | grep -q '^  use:$'
+echo "$status_output" | grep -q '^    summary: ready to read and export$'
+echo "$status_output" | grep -q '^    can_read_notes: true$'
+echo "$status_output" | grep -q '^    can_export: true$'
+echo "$status_output" | grep -q '^    minimum_step: murmurmark export '
 tail -1 <<<"$status_output" | grep -q '^next: murmurmark export '
 
 report_output="$("$bin" report "$session")"
 echo "$report_output" | grep -q '^readiness:$'
 echo "$report_output" | grep -q '^  status: exportable$'
+echo "$report_output" | grep -q '^  use:$'
+echo "$report_output" | grep -q '^    summary: ready to read and export$'
+echo "$report_output" | grep -q '^    can_export: true$'
 tail -1 <<<"$report_output" | grep -q '^next: murmurmark export '
 
 next_output="$("$bin" next "$session")"

@@ -493,6 +493,12 @@ assert_no_helper_prefix "$report_output"
 echo "$report_output" | grep -q '^readiness:$'
 echo "$report_output" | grep -q '^  status: incomplete$'
 echo "$report_output" | grep -q '^  recommended_next: murmurmark process '
+echo "$report_output" | grep -q '^  use:$'
+echo "$report_output" | grep -q '^    summary: pipeline incomplete; process before use$'
+echo "$report_output" | grep -q '^    can_read_notes: true$'
+echo "$report_output" | grep -q '^    can_export: false$'
+echo "$report_output" | grep -q '^    blocker: pipeline_incomplete$'
+echo "$report_output" | grep -q '^    minimum_step: murmurmark process '
 echo "$report_output" | grep -q '^  handoff:$'
 echo "$report_output" | grep -q '^    open_notes: less '
 echo "$report_output" | grep -q '^    open_transcript: less '
@@ -505,6 +511,9 @@ assert_no_helper_prefix "$status_output"
 echo "$status_output" | grep -q '^readiness:$'
 echo "$status_output" | grep -q '^  status: incomplete$'
 echo "$status_output" | grep -q '^  recommended_next: murmurmark process '
+echo "$status_output" | grep -q '^  use:$'
+echo "$status_output" | grep -q '^    summary: pipeline incomplete; process before use$'
+echo "$status_output" | grep -q '^    can_export: false$'
 tail -1 <<<"$status_output" | grep -q '^next: murmurmark process '
 next_output="$("$bin" next "$session")"
 assert_no_helper_prefix "$next_output"

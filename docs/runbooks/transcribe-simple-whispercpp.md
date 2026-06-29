@@ -109,11 +109,12 @@ decision file is ready. The JSON also includes `recommended_next`, which is the 
 action-oriented command for agents, and `open_commands`, which are read-only `less ...` commands for
 the selected verdict, notes, transcript and audit reports.
 
-`murmurmark status SESSION` prints a short status, `recommended_next`, handoff commands for opening
-the selected notes/transcript/verdict, the selected profile, verdict, review burden and synthesis
-review item summary without recomputing reports. Use `murmurmark report SESSION` when readiness
-should be refreshed first. Both commands end with the final copyable `next: ...` command. If
-readiness is missing, `status` points to `murmurmark process SESSION`.
+`murmurmark status SESSION` prints a short status, `recommended_next`, a `use` block with read/export
+booleans, blocker and minimum step, handoff commands for opening the selected notes/transcript/verdict,
+the selected profile, verdict, review burden and synthesis review item summary without recomputing
+reports. Use `murmurmark report SESSION` when readiness should be refreshed first. Both commands end
+with the final copyable `next: ...` command. If readiness is missing, `status` points to
+`murmurmark process SESSION`.
 Use `murmurmark sessions` to list recent session packages with their current readiness state and
 next safe command before choosing a target. The list includes label, creation time, duration and
 review burden when readiness has those metrics. Use `murmurmark sessions --status review_required
