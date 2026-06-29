@@ -896,7 +896,7 @@ jq -n '{
   review_queue_strategy: {
     first_recommended_lane: "check_transcript_order",
     quick_recommended_lane: "fast_confirm_drop",
-    first_recommended_reason: "close_blocking_review_lane",
+    first_recommended_reason: "reduce_largest_blocking_review_lane",
     after_first_lane_estimate: {remaining_items: 3, remaining_actions: 2, remaining_minutes: 1.25}
   }
 }' >"$review_next_plan_dir/review_plan.json"
@@ -911,7 +911,7 @@ echo "$review_next_output" | grep -q 'review_actions: 1'
 echo "$review_next_output" | grep -q 'grouped_review_rows: 1'
 echo "$review_next_output" | grep -q 'first_lane: check_transcript_order'
 echo "$review_next_output" | grep -q 'quick_lane: fast_confirm_drop'
-echo "$review_next_output" | grep -q 'first_lane_reason: close_blocking_review_lane'
+echo "$review_next_output" | grep -q 'first_lane_reason: reduce_largest_blocking_review_lane'
 echo "$review_next_output" | grep -q 'after_first_lane: remaining_items=3 remaining_actions=2 remaining_minutes=1.25'
 echo "$review_next_output" | grep -q '^  open:$'
 echo "$review_next_output" | grep -q '^    less .*session_readiness.md$'
@@ -2950,7 +2950,7 @@ strategy = module.review_queue_lane_summary(
 )
 assert strategy["first_recommended_lane"] == "check_local_recall", strategy
 assert strategy["quick_recommended_lane"] == "fast_confirm_drop", strategy
-assert strategy["first_recommended_reason"] == "close_blocking_review_lane", strategy
+assert strategy["first_recommended_reason"] == "reduce_largest_blocking_review_lane", strategy
 assert "review_lane_pack.check_local_recall.json" in strategy["commands"]["review_first_lane"], strategy
 grouped_a = item("audio_review", "remote_leak", "needs_stronger_audio_judge", 180, 1)
 grouped_b = item("audio_review", "remote_leak", "needs_stronger_audio_judge", 170, 2)
@@ -3167,7 +3167,7 @@ PY
   jq -e '(.review_queue_strategy.first_recommended_reason | type) == "string"' "$review_plan_dir/review_plan.json" >/dev/null
   grep -q 'Recommended First Lane' "$review_plan_dir/review_plan.md"
   grep -q 'Reason: `' "$review_plan_dir/review_plan.md"
-  grep -q 'current blocker' "$review_plan_dir/review_plan.md"
+  grep -q 'largest blocking lane' "$review_plan_dir/review_plan.md"
   python3 - "$repo_root" <<'PY'
 import importlib.util
 from pathlib import Path

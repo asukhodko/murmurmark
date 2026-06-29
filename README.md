@@ -451,8 +451,8 @@ session readiness, builds a session-local review plan when review is needed, and
 review-specific next commands. If the current readiness gate does not require review, it ignores any
 stale session-local review plan and points back to `murmurmark next SESSION` / `murmurmark status
 SESSION` instead. When a review plan exists for a review-required session, it also prints
-`first_lane_flow` for the current blocker, `quick_lane_flow` for the fastest confirm/drop pass when
-that is a different lane,
+`first_lane_flow` for the largest blocking lane, `quick_lane_flow` for the fastest confirm/drop pass
+when that is a different lane,
 and `workspace_flow` for reviewing all lanes. It also prints the recommended first lane reason, the
 fastest quick lane and the estimated remaining queue after the first lane, so the normal order is
 visible without opening `review_plan.json`. When local Markdown reports already exist, `review next`
@@ -852,7 +852,7 @@ audio-judge queue rows when the current audio-review audit has since reclassifie
 reliable.
 The report also includes `Review Queue Strategy`: lane counts, the first lane to close, and the
 reason it was chosen. `quick_recommended_lane` still points to the fastest confirm/drop pass when it
-exists, while `first_recommended_lane` targets the current blocker. The report also shows the
+exists, while `first_recommended_lane` targets the largest blocking lane. The report also shows the
 estimated queue remaining after that first lane. It reports both raw queue rows and packed review
 actions, so the remaining work reflects grouped rows that can be answered once per `Me` utterance.
 When a concrete review target is known, top-level `next_commands` and `murmurmark report corpus`
@@ -863,6 +863,11 @@ without opening the JSON report.
 from the same readiness JSON: corpus-level usability summary, `can_use_any_notes`,
 `can_use_medium_risk`, ready/review/incomplete session counts, notes review burden and the minimum
 next command.
+`murmurmark report corpus` refreshes the global `sessions/_reports/review-plan/` from the same
+operational-readiness JSON, so the corpus summary, review plan and `next corpus` handoff stay in
+the same state. The first recommended lane is the largest blocking review lane by packed actions;
+small local-recall tails stay visible, but they do not steal focus from the main transcript/export
+burden.
 The generated review plan keeps both `raw_item_count` and `review_action_count`: raw items are source
 risks, while actions are answer-sheet decisions after safe grouping by `Me` utterance.
 `grouped_review_row_count` is the saved manual-action estimate.

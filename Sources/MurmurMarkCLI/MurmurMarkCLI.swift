@@ -635,6 +635,7 @@ enum PipelineCommands {
     private struct CorpusReadinessOutputs {
         let sessionQualityOut: URL
         let operationalReadinessOut: URL
+        let reviewPlanOut: URL
     }
 
     static func sessions(_ args: [String]) throws {
@@ -854,11 +855,15 @@ enum PipelineCommands {
         let python = try PythonRuntime.resolve()
         let sessionQualityScript = PathURLs.fileURL("scripts/report-session-quality.py")
         let operationalReadinessScript = PathURLs.fileURL("scripts/report-operational-readiness.py")
+        let reviewPlanScript = PathURLs.fileURL("scripts/build-review-plan.py")
         guard FileManager.default.fileExists(atPath: sessionQualityScript.path) else {
             throw CLIError("session quality reporter not found: \(sessionQualityScript.path)")
         }
         guard FileManager.default.fileExists(atPath: operationalReadinessScript.path) else {
             throw CLIError("operational readiness reporter not found: \(operationalReadinessScript.path)")
+        }
+        guard FileManager.default.fileExists(atPath: reviewPlanScript.path) else {
+            throw CLIError("review plan builder not found: \(reviewPlanScript.path)")
         }
 
         let sessions = try SessionResolver.all(in: sessionsRoot)
@@ -868,6 +873,7 @@ enum PipelineCommands {
         let reportsRoot = sessionsRoot.appendingPathComponent("_reports")
         let sessionQualityOut = reportsRoot.appendingPathComponent("session-quality")
         let operationalReadinessOut = reportsRoot.appendingPathComponent("operational-readiness")
+        let reviewPlanOut = reportsRoot.appendingPathComponent("review-plan")
         let sessionQualityCommand = [sessionQualityScript.path] + sessions.map(\.path) + [
             "--out-dir", sessionQualityOut.path,
             "--write-session-readiness",
@@ -881,9 +887,15 @@ enum PipelineCommands {
             "--audio-judge-queue", reportsRoot.appendingPathComponent("audio-judge-v0/audio_judge_v0_queue_predictions.jsonl").path,
             "--out-dir", operationalReadinessOut.path,
         ])
+        try Tooling.runPathQuiet(python, [
+            reviewPlanScript.path,
+            "--operational-readiness", operationalReadinessOut.appendingPathComponent("operational_readiness_report.json").path,
+            "--out-dir", reviewPlanOut.path,
+        ])
         return CorpusReadinessOutputs(
             sessionQualityOut: sessionQualityOut,
-            operationalReadinessOut: operationalReadinessOut
+            operationalReadinessOut: operationalReadinessOut,
+            reviewPlanOut: reviewPlanOut
         )
     }
 

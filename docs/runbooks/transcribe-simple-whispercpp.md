@@ -799,6 +799,11 @@ review target exists. It also prints `sessions_in_scope` and `sessions_excluded`
 working-meeting scope visible next to the full corpus count. The same block prints
 `review_actions` and `grouped_review_rows`, so the handoff shows the number of actual answer-sheet
 decisions rather than only the noisier raw row count.
+The command also refreshes `sessions/_reports/review-plan/` from the just-written
+operational-readiness report. That keeps the global review plan, `review first-lane`, and
+`next corpus` aligned. The first lane is chosen by the largest blocking review lane in packed
+actions, not by a fixed severity order; short local-recall tails remain explicit but no longer hide
+the larger `check_unique_me_content` queue.
 It also prints a `use` block with the practical corpus verdict: whether any notes are already
 usable, whether the corpus is ready for medium-risk meetings, ready/review/incomplete session
 counts, notes review burden and the minimum next command. Full transcript/export risk is separate:
@@ -954,9 +959,9 @@ missing local speech, `check_transcript_order` for chronology-risk rows, `confir
 harmless overlap, and `classify_audio` for anything else.
 For `check_transcript_order`, lane packs render short mic/remote clips around the crossed `Me` and
 `Colleagues` utterances; the full `transcript_order_review.md` remains linked as text evidence.
-Close the plan's `first_recommended_lane` first; it is chosen to reduce the current blocker, not just
-to pick the easiest audio. Keep the other lanes conservative unless the audio or chronology evidence
-is clear.
+Close the plan's `first_recommended_lane` first; it is chosen to reduce the largest blocking lane,
+not just to pick the easiest audio. Keep the other lanes conservative unless the audio or chronology
+evidence is clear.
 `murmurmark review next "$SESSION"` is the quickest entry point for one session: it refreshes
 `session_readiness.json`, shows gate/profile/verdict/review burden, builds a session-local review
 plan if needed, then prints the next review commands. If the refreshed gate does not require review,
@@ -967,7 +972,7 @@ plan if needed, then prints the next review commands. If the refreshed gate does
 "$SESSION"`, `murmurmark review progress --session "$SESSION"` and `murmurmark review apply --session
 "$SESSION"`. Existing non-empty session-local plans are preserved, so a prepared explicit lane pack
 is not overwritten by an empty refresh. When a plan exists for a review-required session, `review next`
-prints `first_lane_flow` for the current blocker,
+prints `first_lane_flow` for the largest blocking lane,
 `quick_lane_flow` for the fastest confirm/drop pass when that is a different lane, and
 `workspace_flow` for reviewing all lanes. Each flow includes the build/listen and apply commands in
 order. It also prints why the first lane was chosen, which lane is the fastest quick pass, and the

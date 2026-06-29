@@ -658,7 +658,7 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
                 "",
                 "## Decision Lanes",
                 "",
-                "Use this section to close the queue safely: the recommended first lane targets the current blocker; quick confirm-drop candidates remain available as a separate lane.",
+                "Use this section to close the queue safely: the recommended first lane targets the largest blocking lane; quick confirm-drop candidates remain available as a separate lane.",
                 "",
                 "| Lane | Rows | Actions | Grouped | Raw sec | What to do |",
                 "|---|---:|---:|---:|---:|---|",

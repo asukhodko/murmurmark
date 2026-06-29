@@ -1922,7 +1922,7 @@ sessions/_reports/operational-readiness/
     "review_queue_strategy": {
       "first_recommended_lane": "check_local_recall",
       "quick_recommended_lane": "fast_confirm_drop",
-      "first_recommended_reason": "close_blocking_review_lane",
+      "first_recommended_reason": "reduce_largest_blocking_review_lane",
       "after_first_lane_estimate": {
         "remaining_items": 30,
         "remaining_actions": 25,
@@ -2052,7 +2052,7 @@ sessions/_reports/review-plan/
   "review_queue_strategy": {
     "first_recommended_lane": "check_transcript_order",
     "quick_recommended_lane": "fast_confirm_drop",
-    "first_recommended_reason": "close_blocking_review_lane",
+    "first_recommended_reason": "reduce_largest_blocking_review_lane",
     "after_first_lane_estimate": {
       "remaining_items": 38,
       "remaining_minutes": 1.93

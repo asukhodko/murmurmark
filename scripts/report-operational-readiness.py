@@ -757,8 +757,22 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
         safe_float((item.get("interval") if isinstance(item.get("interval"), dict) else {}).get("duration_sec"))
         for item in review_queue
     )
-    blocker_lane_order = ("check_transcript_order", "check_local_recall", "check_unique_me_content")
-    first_lane = next((lane for lane in blocker_lane_order if safe_int(rows.get(lane, {}).get("items"))), None)
+    blocker_lane_order = ("check_transcript_order", "check_unique_me_content", "check_local_recall")
+    blocker_candidates = [
+        lane
+        for lane in blocker_lane_order
+        if safe_int(rows.get(lane, {}).get("items"))
+    ]
+    lane_rank = {lane: index for index, lane in enumerate(blocker_lane_order)}
+    first_lane = max(
+        blocker_candidates,
+        key=lambda lane: (
+            safe_int(actions_by_lane.get(lane)) or safe_int(rows.get(lane, {}).get("items")),
+            safe_float(rows.get(lane, {}).get("seconds")),
+            -lane_rank.get(lane, 99),
+        ),
+        default=None,
+    )
     fast = rows.get("fast_confirm_drop") or {}
     fast_items = safe_int(fast.get("items"))
     quick_lane = "fast_confirm_drop" if fast_items else None
@@ -777,7 +791,7 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
         "first_recommended_lane": first_lane,
         "quick_recommended_lane": quick_lane,
         "first_recommended_reason": (
-            "close_blocking_review_lane"
+            "reduce_largest_blocking_review_lane"
             if first_lane and first_lane != quick_lane
             else ("close_fast_confirm_drop" if first_lane else None)
         ),
