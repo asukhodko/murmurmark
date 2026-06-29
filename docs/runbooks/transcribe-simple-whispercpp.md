@@ -105,6 +105,11 @@ Read `derived/readiness/session_readiness.md` before using a meeting result. It 
 - `do_not_use_without_manual_review`: the transcript is too risky for unattended use;
 - `pipeline_incomplete`: rerun the full pipeline before judging the session.
 
+`ready_for_notes` is intentionally narrower than `exportable`. The readiness metrics include
+`notes_review_burden_*` for selected evidence-backed notes and `transcript_review_burden_*` for the
+full transcript/export surface. If `export_blockers` is not empty, the notes may still be usable, but
+`murmurmark export` blocks the bundle by default.
+
 It also contains `Next Commands`: the shortest CLI path from the current state, such as rerunning
 `murmurmark process`, building the first recommended review lane, exporting Markdown, or planning
 retention. For `review_first`, the command chain runs `murmurmark review progress --session ...`
@@ -644,7 +649,8 @@ prints the same commands under `Next Commands`.
 Audio-review metrics in this report are profile-aware. The script reads the selected
 `clean_dialogue*.json` profile and excludes audio-review items whose `Me` utterance has already been
 removed by cleanup. The raw audio-review totals remain useful for debugging, but the operational
-review burden should follow the adjusted counters.
+review burden for `ready_for_notes` follows only selected evidence utterance IDs. Transcript/export
+review burden remains in `transcript_review_burden_*` and `export_blockers`.
 Adjusted audio-review seconds are union durations per verdict. This avoids double-counting multiple
 audit rows that point to the same suspicious utterance or overlapping interval.
 
@@ -794,7 +800,11 @@ working-meeting scope visible next to the full corpus count. The same block prin
 decisions rather than only the noisier raw row count.
 It also prints a `use` block with the practical corpus verdict: whether any notes are already
 usable, whether the corpus is ready for medium-risk meetings, ready/review/incomplete session
-counts, review burden and the minimum next command.
+counts, notes review burden and the minimum next command. Full transcript/export risk is separate:
+`session_readiness.json` may show `use_gate: ready_for_notes` and still keep `export_blockers` such
+as `full_transcript_review_required`. In that state notes can be used with normal caution, while a
+default export remains blocked until transcript-only review is closed or `--force` is used
+deliberately.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
 `--refresh` it first rebuilds session-quality and operational-readiness reports, then prints

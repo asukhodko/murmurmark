@@ -26,9 +26,11 @@ murmurmark export latest --format markdown --include-json
 murmurmark retention plan latest
 ```
 
-The next product goal is to reduce review burden while preserving the local-first topology:
-use the corpus gates, audio-review evidence and review loop to make more sessions confidently
-exportable with less manual checking. UI work remains optional and out of the main path.
+The next product goal is to reduce notes review burden while preserving the local-first topology:
+use corpus gates, audio-review evidence and the review loop to move more sessions into
+`ready_for_notes`. Full transcript/export review stays separate through `export_blockers`, so a
+session can be safe enough for evidence-backed notes while still blocking an unreviewed transcript
+bundle. UI work remains optional and out of the main path.
 
 ## Current CLI
 
@@ -330,8 +332,8 @@ aggregate report prints that command when plans are missing.
 review queues still need cleanup before the whole repository is operationally ready.
 The optional baseline is private generated state under ignored `sessions/_reports/`.
 Use it before risky cleanup or ASR changes to catch regressions against the current corpus:
-ready sessions, review burden, local-recall blockers/lost seconds and protected remote-leak queue
-growth.
+ready sessions, notes review burden, transcript/export review burden, local-recall blockers/lost
+seconds and protected remote-leak queue growth.
 
 The lower-level scripts remain available for debugging specific files:
 
@@ -804,11 +806,14 @@ alignment; it is a conservative text-level cleanup over already separated eviden
 shadow readiness into a practical verdict such as `pilot_ready_with_review` for medium-risk working
 meetings. It also assigns per-session use gates such as `ready_for_notes` and `review_first`, then
 writes a promotion plan and a short review queue with concrete `afplay` commands for audio checks
-and report links for transcript-order checks. The promotion plan explains what still blocks
-`medium_risk_ready`: unresolved warnings, sessions not ready for notes, and the remaining review
-minutes. The queue is filtered through the selected transcript profile, so already-dropped `Me`
-utterances do not stay in the operational review list. It also ignores stale audio-judge queue rows
-when the current audio-review audit has since reclassified that item as reliable.
+and report links for transcript-order checks. Operational `review_burden` is notes-scoped: it counts
+review regions that can affect selected evidence-backed notes. Full transcript/export risk is still
+tracked separately as `transcript_review_burden_*` and `export_blockers`. The promotion plan explains
+what still blocks `medium_risk_ready`: unresolved warnings, sessions not ready for notes, and the
+remaining notes review minutes. The queue is filtered through the selected transcript profile, so
+already-dropped `Me` utterances do not stay in the operational review list. It also ignores stale
+audio-judge queue rows when the current audio-review audit has since reclassified that item as
+reliable.
 The report also includes `Review Queue Strategy`: lane counts, the first lane to close, and the
 reason it was chosen. `quick_recommended_lane` still points to the fastest confirm/drop pass when it
 exists, while `first_recommended_lane` targets the current blocker. The report also shows the
@@ -820,8 +825,8 @@ surfaces the same target as `focus_session` and `focus_next`, so the next operat
 without opening the JSON report.
 `murmurmark report corpus` and `murmurmark next corpus` also print a compact `use` block derived
 from the same readiness JSON: corpus-level usability summary, `can_use_any_notes`,
-`can_use_medium_risk`, ready/review/incomplete session counts, review burden and the minimum next
-command.
+`can_use_medium_risk`, ready/review/incomplete session counts, notes review burden and the minimum
+next command.
 The generated review plan keeps both `raw_item_count` and `review_action_count`: raw items are source
 risks, while actions are answer-sheet decisions after safe grouping by `Me` utterance.
 `grouped_review_row_count` is the saved manual-action estimate.

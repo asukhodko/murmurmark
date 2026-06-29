@@ -1727,8 +1727,14 @@ Explicit command-line flags override config values.
   "metrics": {
     "review_burden_sec": 42.5,
     "review_burden_ratio": 0.031,
+    "notes_review_burden_sec": 42.5,
+    "notes_review_burden_ratio": 0.031,
+    "transcript_review_burden_sec": 74.2,
+    "transcript_review_burden_ratio": 0.054,
     "audio_review_probable_error_count": 2,
+    "audio_review_notes_probable_error_count": 1,
     "audio_review_stronger_judge_count": 6,
+    "audio_review_notes_stronger_judge_count": 2,
     "synthesis_review_item_count": 12,
     "synthesis_review_item_seconds": 74.2,
     "synthesis_review_top_types": [
@@ -1771,6 +1777,15 @@ single primary executable next step, using the same action-first preference as t
 `next_commands` is the full executable command chain for the current state. `open_commands` is the
 read-only inspection chain for selected notes, transcript, verdict and audit reports. Gates and
 blockers remain the source of truth.
+
+`review_burden_sec` and `review_burden_ratio` are the operational notes-review burden. They count
+only review regions that can affect selected evidence-backed notes, plus blocking local-recall and
+transcript-order risks. They are intentionally equal to `notes_review_burden_*` for compatibility
+with older reports. Full transcript/export risk is kept separately in
+`transcript_review_burden_sec`, `transcript_review_burden_ratio` and `export_blockers`. A session may
+therefore be `ready_for_notes` while still refusing default export with
+`full_transcript_review_required`.
+
 The Swift CLI additionally prints a derived terminal-only `status`:
 
 - `exported`: `ready_for_notes`, no export blockers and a successful default
@@ -1844,6 +1859,10 @@ sessions/_reports/operational-readiness/
       "pipeline_incomplete_review_first": 1
     },
     "total_review_burden_ratio": 0.029619,
+    "total_notes_review_burden_sec": 106.63,
+    "total_notes_review_burden_ratio": 0.029619,
+    "total_transcript_review_burden_sec": 144.09,
+    "total_transcript_review_burden_ratio": 0.040023,
     "corpus_readiness": "useful_for_audio_judge_v0",
     "audio_judge_readiness": "cleanup_shadow_candidate",
     "audio_judge_cv_accuracy": 0.901961,
@@ -1944,12 +1963,13 @@ sessions/_reports/operational-readiness/
 `excluded_diagnostic_sessions`. They remain valid debug sessions and are not deleted.
 
 The operational verdict is not a transcript correctness proof. It is a use-readiness summary for
-piloting MurmurMark on medium-risk meetings with explicit review burden, per-session use gates and a
-prioritised review queue.
+piloting MurmurMark on medium-risk meeting notes with explicit notes review burden, per-session use
+gates and a prioritised review queue. Transcript/export review is reported separately and can still
+block `murmurmark export` after notes are ready.
 
 `promotion_plan` is the bridge from current pilot status to the target state. It names remaining
-conditions, sessions that are not yet `ready_for_notes`, review minutes and the next actions needed
-to reduce uncertainty. It is report-only: it never edits transcripts or cleanup profiles.
+conditions, sessions that are not yet `ready_for_notes`, notes review minutes and the next actions
+needed to reduce uncertainty. It is report-only: it never edits transcripts or cleanup profiles.
 `review_queue_strategy` is also report-only. It groups the remaining review queue into workflow
 lanes, recommends the first lane to close, and estimates the remaining queue after that first lane is
 reviewed. It reports both raw `items` and packed `actions`; `grouped_rows` is the number of raw rows
@@ -2680,9 +2700,9 @@ Automatic cleanup profiles remain unchanged.
 
 Session quality and operational readiness are profile-aware. They compare audio-review items with
 the selected `clean_dialogue*.json` profile and treat items whose `Me` utterance was removed by
-cleanup as resolved. Raw audio-review summaries are still available inside each session for audit,
-but operational `review_burden` and review queues should reflect the remaining selected transcript,
-not the pre-cleanup audit file.
+cleanup as resolved. Raw audio-review summaries are still available inside each session for audit.
+Operational `review_burden` is notes-scoped and follows the selected evidence utterance IDs; full
+transcript/export risk remains visible through `transcript_review_burden_*` and `export_blockers`.
 
 They also consume `derived/audit/local-recall/local_recall_audit.json`. A raw
 `local_only_island_recall < 0.9` is blocking only when the audit is missing or reports possible lost

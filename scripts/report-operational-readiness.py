@@ -229,13 +229,17 @@ def review_resolved_audio_ids(session_path: Path, profile: str) -> set[str]:
 
 def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
     duration = safe_float(session.get("meeting_duration_sec"))
-    probable_error = safe_float(session.get("audio_review_probable_error_seconds"))
-    stronger_judge = safe_float(session.get("audio_review_stronger_judge_seconds"))
+    probable_error = safe_float(session.get("audio_review_notes_probable_error_seconds"))
+    stronger_judge = safe_float(session.get("audio_review_notes_stronger_judge_seconds"))
+    transcript_probable_error = safe_float(session.get("audio_review_probable_error_seconds"))
+    transcript_stronger_judge = safe_float(session.get("audio_review_stronger_judge_seconds"))
     local_recall = safe_float(session.get("local_recall_meaningful_review_seconds"))
     transcript_order = safe_float(session.get("transcript_order_review_seconds"))
     harmful = safe_float(session.get("audit_harmful_seconds_after"))
     burden = probable_error + stronger_judge + local_recall + transcript_order
+    transcript_burden = transcript_probable_error + transcript_stronger_judge + local_recall + transcript_order
     ratio = burden / duration if duration > 0 else 0.0
+    transcript_ratio = transcript_burden / duration if duration > 0 else 0.0
     row = {
         "session_id": session.get("session_id"),
         "label": session.get("label"),
@@ -245,8 +249,14 @@ def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
         "verdict": session.get("verdict"),
         "review_burden_sec": round(burden, 3),
         "review_burden_ratio": round(ratio, 6),
+        "notes_review_burden_sec": round(burden, 3),
+        "notes_review_burden_ratio": round(ratio, 6),
+        "transcript_review_burden_sec": round(transcript_burden, 3),
+        "transcript_review_burden_ratio": round(transcript_ratio, 6),
         "audio_review_probable_error_seconds": round(probable_error, 3),
         "audio_review_stronger_judge_seconds": round(stronger_judge, 3),
+        "transcript_audio_review_probable_error_seconds": round(transcript_probable_error, 3),
+        "transcript_audio_review_stronger_judge_seconds": round(transcript_stronger_judge, 3),
         "local_recall_meaningful_review_seconds": round(local_recall, 3),
         "local_recall_possible_lost_me_seconds": round(safe_float(session.get("local_recall_possible_lost_me_seconds")), 3),
         "local_recall_needs_review_seconds": round(safe_float(session.get("local_recall_needs_review_seconds")), 3),
@@ -1439,6 +1449,7 @@ def build_report(
     burdens = [session_review_burden(row) for row in sessions]
     total_duration = sum(item["duration_sec"] for item in burdens)
     total_burden = sum(item["review_burden_sec"] for item in burdens)
+    total_transcript_burden = sum(item["transcript_review_burden_sec"] for item in burdens)
     verdict, blockers, warnings = operational_verdict(session_quality, corpus, audio_judge)
     gates: dict[str, int] = {}
     for row in burdens:
@@ -1472,6 +1483,12 @@ def build_report(
             "total_duration_sec": round(total_duration, 3),
             "total_review_burden_sec": round(total_burden, 3),
             "total_review_burden_ratio": round(total_burden / total_duration, 6) if total_duration > 0 else 0.0,
+            "total_notes_review_burden_sec": round(total_burden, 3),
+            "total_notes_review_burden_ratio": round(total_burden / total_duration, 6) if total_duration > 0 else 0.0,
+            "total_transcript_review_burden_sec": round(total_transcript_burden, 3),
+            "total_transcript_review_burden_ratio": (
+                round(total_transcript_burden / total_duration, 6) if total_duration > 0 else 0.0
+            ),
             "use_gates": dict(sorted(gates.items())),
             "corpus_readiness": corpus.get("readiness") if isinstance(corpus, dict) else None,
             "corpus_item_count": safe_int(corpus.get("item_count")) if isinstance(corpus, dict) else 0,
@@ -1595,8 +1612,10 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Sessions: `{report['summary']['session_count']}`",
         f"- Excluded diagnostic sessions: `{report['summary'].get('excluded_diagnostic_session_count', 0)}` / `{report['summary'].get('all_session_count', report['summary']['session_count'])}` total",
         f"- Complete pipelines: `{report['summary']['complete_pipeline_count']}`",
-        f"- Total review burden: `{round(report['summary']['total_review_burden_sec'] / 60.0, 2)} min`",
-        f"- Review burden ratio: `{round(report['summary']['total_review_burden_ratio'] * 100.0, 2)}%`",
+        f"- Total notes review burden: `{round(report['summary']['total_review_burden_sec'] / 60.0, 2)} min`",
+        f"- Notes review burden ratio: `{round(report['summary']['total_review_burden_ratio'] * 100.0, 2)}%`",
+        f"- Total transcript/export review burden: `{round(safe_float(report['summary'].get('total_transcript_review_burden_sec')) / 60.0, 2)} min`",
+        f"- Transcript/export review burden ratio: `{round(safe_float(report['summary'].get('total_transcript_review_burden_ratio')) * 100.0, 2)}%`",
         f"- Review queue rows: `{report['summary'].get('review_queue_items')}`",
         f"- Packed review actions: `{report['summary'].get('review_action_count')}`",
         f"- Grouped review rows saved: `{report['summary'].get('grouped_review_row_count')}`",
@@ -1746,8 +1765,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines.extend(["", "### Next Actions", ""])
     lines.extend(f"- `{item}`" for item in plan.get("next_actions", []))
     lines.extend(["", "## Session Review Burden", ""])
-    lines.append("| Session | Gate | Profile | Verdict | Review min | Review % | Flags |")
-    lines.append("|---|---|---|---|---:|---:|---|")
+    lines.append("| Session | Gate | Profile | Verdict | Notes review min | Notes review % | Transcript/export review min | Flags |")
+    lines.append("|---|---|---|---|---:|---:|---:|---|")
     for row in sorted(report["session_review_burden"], key=lambda item: item["review_burden_ratio"], reverse=True):
         lines.append(
             "| "
@@ -1759,6 +1778,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                     str(row["verdict"]),
                     f"{row['review_burden_sec'] / 60.0:.2f}",
                     f"{row['review_burden_ratio'] * 100.0:.2f}",
+                    f"{safe_float(row.get('transcript_review_burden_sec')) / 60.0:.2f}",
                     ", ".join(row["risk_flags"]),
                 ]
             )

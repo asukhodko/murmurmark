@@ -1063,7 +1063,13 @@ enum SessionListPrinter {
         Swift.print("      verdict: \(string(item["verdict"]) ?? "unknown")")
         if let reviewSec = double(item["review_burden_sec"]) {
             let ratio = double(item["review_burden_ratio"]) ?? 0
-            Swift.print("      review_burden: \(formatMinutes(reviewSec)) / \(formatPercent(ratio))")
+            Swift.print("      notes_review_burden: \(formatMinutes(reviewSec)) / \(formatPercent(ratio))")
+        }
+        if let transcriptReviewSec = double(item["transcript_review_burden_sec"]),
+           let reviewSec = double(item["review_burden_sec"]),
+           abs(transcriptReviewSec - reviewSec) > 0.05 {
+            let ratio = double(item["transcript_review_burden_ratio"]) ?? 0
+            Swift.print("      transcript_review_burden: \(formatMinutes(transcriptReviewSec)) / \(formatPercent(ratio))")
         }
         if let exportManifest = string(item["export_manifest"]) {
             Swift.print("      export_manifest: \(exportManifest)")
@@ -1088,6 +1094,8 @@ enum SessionListPrinter {
             "duration_sec": double(metrics["meeting_duration_sec"]) as Any? ?? NSNull(),
             "review_burden_sec": double(metrics["review_burden_sec"]) as Any? ?? NSNull(),
             "review_burden_ratio": double(metrics["review_burden_ratio"]) as Any? ?? NSNull(),
+            "transcript_review_burden_sec": double(metrics["transcript_review_burden_sec"]) as Any? ?? NSNull(),
+            "transcript_review_burden_ratio": double(metrics["transcript_review_burden_ratio"]) as Any? ?? NSNull(),
             "readiness_exists": readiness != nil,
             "readiness_path": PathDisplay.display(readinessURL),
             "status": status(for: session, readiness: readiness),
@@ -8101,6 +8109,8 @@ enum ReadinessPrinter {
         let recommendedNext = exportHandoff?.command ?? string(payload["recommended_next"]) ?? preferredNextCommand(nextCommands)
         let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0) * 100
+        let transcriptReviewSeconds = double(metrics["transcript_review_burden_sec"]) ?? reviewSeconds
+        let transcriptReviewRatio = (double(metrics["transcript_review_burden_ratio"]) ?? (reviewRatio / 100.0)) * 100
 
         print("")
         print("\(label):")
@@ -8126,7 +8136,10 @@ enum ReadinessPrinter {
         print("  recommendation: \(recommendation)")
         print("  selected_profile: \(profile)")
         print("  verdict: \(verdict)")
-        print(String(format: "  review_burden: %.2f min / %.2f%%", reviewSeconds / 60, reviewRatio))
+        print(String(format: "  notes_review_burden: %.2f min / %.2f%%", reviewSeconds / 60, reviewRatio))
+        if abs(transcriptReviewSeconds - reviewSeconds) > 0.05 {
+            print(String(format: "  transcript_review_burden: %.2f min / %.2f%%", transcriptReviewSeconds / 60, transcriptReviewRatio))
+        }
         ReviewSummaryPrinter.printSynthesisReviewMetrics(metrics, indent: "  ")
         print("  open:")
         if openCommands.isEmpty {
@@ -8193,7 +8206,7 @@ enum ReadinessPrinter {
         print("    can_read_notes: \(canRead)")
         print("    can_export: \(canExport)")
         if summaryInput.reviewSeconds > 0 {
-            print(String(format: "    review_burden_min: %.2f", summaryInput.reviewSeconds / 60.0))
+            print(String(format: "    notes_review_burden_min: %.2f", summaryInput.reviewSeconds / 60.0))
         }
         if let blocker {
             print("    blocker: \(blocker)")
@@ -8450,6 +8463,8 @@ enum ReviewNextPrinter {
         let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
         let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0.0
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0.0) * 100.0
+        let transcriptReviewSeconds = double(metrics["transcript_review_burden_sec"]) ?? reviewSeconds
+        let transcriptReviewRatio = (double(metrics["transcript_review_burden_ratio"]) ?? (reviewRatio / 100.0)) * 100.0
         let synthesisReviewCount = int(metrics["synthesis_review_item_count"]) ?? 0
         if !requiresReview(gate: gate, reviewBlockers: reviewBlockers) {
             printNoReviewHandoff(
@@ -8461,6 +8476,8 @@ enum ReviewNextPrinter {
                     verdict: verdict,
                     reviewSeconds: reviewSeconds,
                     reviewRatio: reviewRatio,
+                    transcriptReviewSeconds: transcriptReviewSeconds,
+                    transcriptReviewRatio: transcriptReviewRatio,
                     synthesisReviewCount: synthesisReviewCount,
                     exportBlockers: exportBlockers
                 )
@@ -8482,7 +8499,10 @@ enum ReviewNextPrinter {
         Swift.print("  recommendation: \(recommendation)")
         Swift.print("  selected_profile: \(profile)")
         Swift.print("  verdict: \(verdict)")
-        Swift.print(String(format: "  review_burden: %.2f min / %.2f%%", reviewSeconds / 60.0, reviewRatio))
+        Swift.print(String(format: "  notes_review_burden: %.2f min / %.2f%%", reviewSeconds / 60.0, reviewRatio))
+        if abs(transcriptReviewSeconds - reviewSeconds) > 0.05 {
+            Swift.print(String(format: "  transcript_review_burden: %.2f min / %.2f%%", transcriptReviewSeconds / 60.0, transcriptReviewRatio))
+        }
         if synthesisReviewCount > 0 {
             Swift.print("  synthesis_review_items: \(synthesisReviewCount)")
         }
@@ -8516,6 +8536,8 @@ enum ReviewNextPrinter {
         let verdict: String
         let reviewSeconds: Double
         let reviewRatio: Double
+        let transcriptReviewSeconds: Double
+        let transcriptReviewRatio: Double
         let synthesisReviewCount: Int
         let exportBlockers: [Any]
     }
@@ -8532,7 +8554,16 @@ enum ReviewNextPrinter {
         Swift.print("  recommendation: \(handoff.recommendation)")
         Swift.print("  selected_profile: \(handoff.profile)")
         Swift.print("  verdict: \(handoff.verdict)")
-        Swift.print(String(format: "  review_burden: %.2f min / %.2f%%", handoff.reviewSeconds / 60.0, handoff.reviewRatio))
+        Swift.print(String(format: "  notes_review_burden: %.2f min / %.2f%%", handoff.reviewSeconds / 60.0, handoff.reviewRatio))
+        if abs(handoff.transcriptReviewSeconds - handoff.reviewSeconds) > 0.05 {
+            Swift.print(
+                String(
+                    format: "  transcript_review_burden: %.2f min / %.2f%%",
+                    handoff.transcriptReviewSeconds / 60.0,
+                    handoff.transcriptReviewRatio
+                )
+            )
+        }
         if handoff.synthesisReviewCount > 0 {
             Swift.print("  synthesis_review_items: \(handoff.synthesisReviewCount)")
         }
@@ -9236,6 +9267,7 @@ enum CorpusPrinter {
         let summary = payload["summary"] as? [String: Any] ?? [:]
         let useGates = summary["use_gates"] as? [String: Any] ?? [:]
         let reviewSeconds = double(summary["total_review_burden_sec"]) ?? 0
+        let transcriptReviewSeconds = double(summary["total_transcript_review_burden_sec"]) ?? reviewSeconds
         print("")
         print("operational_readiness:")
         print("  report: \(PathDisplay.display(outDir.appendingPathComponent("operational_readiness_report.md")))")
@@ -9244,7 +9276,10 @@ enum CorpusPrinter {
         print("  sessions_excluded: \(int(summary["excluded_diagnostic_session_count"]) ?? 0)")
         print("  sessions_ready_for_notes: \(int(useGates["ready_for_notes"]) ?? 0)")
         print("  sessions_review_first: \(int(useGates["review_first"]) ?? 0)")
-        print(String(format: "  review_minutes: %.2f", reviewSeconds / 60))
+        print(String(format: "  notes_review_minutes: %.2f", reviewSeconds / 60))
+        if abs(transcriptReviewSeconds - reviewSeconds) > 0.05 {
+            print(String(format: "  transcript_review_minutes: %.2f", transcriptReviewSeconds / 60))
+        }
         print("  review_actions: \(int(summary["review_action_count"]) ?? int(summary["review_queue_items"]) ?? 0)")
         print("  grouped_review_rows: \(int(summary["grouped_review_row_count"]) ?? 0)")
         printOperationalUse(payload)
@@ -9275,6 +9310,7 @@ enum CorpusPrinter {
         let payload = try JSONFiles.object(url)
         let summary = payload["summary"] as? [String: Any] ?? [:]
         let reviewSeconds = double(summary["total_review_burden_sec"]) ?? 0
+        let transcriptReviewSeconds = double(summary["total_transcript_review_burden_sec"]) ?? reviewSeconds
         let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
         let lanePack = preparedLanePackHandoff(payload: payload, sessionsRoot: sessionsRoot)
         let readinessCommand = nextCommands.compactMap { string($0["command"]) }.first
@@ -9299,7 +9335,10 @@ enum CorpusPrinter {
         print("  report: \(PathDisplay.display(outDir.appendingPathComponent("operational_readiness_report.md")))")
         print("  sessions_in_scope: \(int(summary["session_count"]) ?? 0)")
         print("  sessions_excluded: \(int(summary["excluded_diagnostic_session_count"]) ?? 0)")
-        print(String(format: "  review_minutes: %.2f", reviewSeconds / 60))
+        print(String(format: "  notes_review_minutes: %.2f", reviewSeconds / 60))
+        if abs(transcriptReviewSeconds - reviewSeconds) > 0.05 {
+            print(String(format: "  transcript_review_minutes: %.2f", transcriptReviewSeconds / 60))
+        }
         print("  review_actions: \(int(summary["review_action_count"]) ?? int(summary["review_queue_items"]) ?? 0)")
         printOperationalUse(payload)
         if let lanePack {
@@ -9368,7 +9407,7 @@ enum CorpusPrinter {
         print("    incomplete_sessions: \(incomplete)")
         print("    review_actions: \(reviewActions)")
         if reviewSeconds > 0 {
-            print(String(format: "    review_burden_min: %.2f", reviewSeconds / 60))
+            print(String(format: "    notes_review_burden_min: %.2f", reviewSeconds / 60))
         }
         if let blocker = blockers.first ?? warnings.first {
             print("    blocker: \(blocker)")

@@ -2572,9 +2572,18 @@ EOF
   jq -e '.sessions[0].audio_review_resolved_by_cleanup_count >= 1' "$quality_dir/session_quality_report.json" >/dev/null
   jq -e '.sessions[0].stages.transcript_order_audit == true and .sessions[0].transcript_order_probable_order_risk_count == 0' "$quality_dir/session_quality_report.json" >/dev/null
   jq -e '.sessions[0].stages.remote_leak_segment_plan == true and .sessions[0].remote_leak_segment_plan_protect_local_content_items >= 1' "$quality_dir/session_quality_report.json" >/dev/null
-  jq -e '(.sessions[0].risk_flags | index("remote_leak_segment_repair_candidates"))' "$quality_dir/session_quality_report.json" >/dev/null
+  jq -e '
+    .sessions[0].transcript_review_burden_sec >= .sessions[0].notes_review_burden_sec
+    and .sessions[0].audio_review_probable_error_seconds >= .sessions[0].audio_review_notes_probable_error_seconds
+    and ((.sessions[0].risk_flags | index("remote_leak_segment_repair_candidates")) == null)
+  ' "$quality_dir/session_quality_report.json" >/dev/null
   "$repo_root/scripts/report-session-quality.py" "$group_session" --out-dir "$workdir/group-readiness-quality" --write-session-readiness >/dev/null
-  jq -e '(.risk_flags | index("remote_leak_segment_repair_candidates")) and .metrics.remote_leak_segment_plan_protect_local_content_items >= 1 and .outputs.remote_leak_segment_report.exists == true' \
+  jq -e '
+    .metrics.remote_leak_segment_plan_protect_local_content_items >= 1
+    and .metrics.transcript_review_burden_sec >= .metrics.notes_review_burden_sec
+    and .outputs.remote_leak_segment_report.exists == true
+    and ((.risk_flags | index("remote_leak_segment_repair_candidates")) == null)
+  ' \
     "$group_session/derived/readiness/session_readiness.json" >/dev/null
   grep -q 'remote_leak_segment_report' "$group_session/derived/readiness/session_readiness.md"
 
@@ -2900,10 +2909,13 @@ burden = module.session_review_burden(
         "verdict": "usable_with_review",
         "use_gate": "review_first",
         "meeting_duration_sec": 100,
-        "review_burden_sec": 4,
+        "audio_review_probable_error_seconds": 20,
+        "audio_review_notes_probable_error_seconds": 4,
     }
 )
 assert burden["use_gate"] == "review_first", burden
+assert burden["review_burden_sec"] == 4, burden
+assert burden["transcript_review_burden_sec"] == 20, burden
 blocked_next = module.build_next_commands(
     ["not_enough_complete_pipelines"],
     {

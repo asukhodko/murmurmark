@@ -42,9 +42,10 @@ nodes:
       локальный инструмент, а не как набор лабораторных скриптов.
 
       Текущий корпус уже дошёл до `medium_risk_ready`: risky/failed сессии убраны из
-      выбранного профиля, а обязательная review-очередь стала короткой. Следующая цель —
-      переводить больше `review_first` сессий в `ready_for_notes` без смены топологии
-      capture/Echo Guard/ASR.
+      выбранного профиля, а обязательная notes-review очередь стала короткой. На текущем
+      срезе 12 из 13 рабочих сессий находятся в `ready_for_notes`; одна сессия остаётся
+      `review_first`. Следующая цель — закрыть эту последнюю notes-review очередь и затем
+      отдельно снижать transcript/export blockers без смены топологии capture/Echo Guard/ASR.
 
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
@@ -868,8 +869,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Перевести больше review_first сессий в ready_for_notes/exportable без смены capture/Echo Guard/ASR топологии."
-      success_by_next_sync: "Corpus остаётся medium_risk_ready или лучше, а следующий blocker указывает на конкретную короткую review/repair lane."
+      nearest_goal: "Перевести последнюю review_first сессию в ready_for_notes и сохранить отдельный export gate для полного transcript."
+      success_by_next_sync: "Corpus остаётся medium_risk_ready или лучше, 13/13 рабочих сессий готовы для notes, а transcript/export blockers остаются явно видимыми."
     defaults:
       status_progress:
         done: 1.0

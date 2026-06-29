@@ -542,6 +542,25 @@ def selected_counts(evidence: dict[str, Any] | None) -> dict[str, int]:
     }
 
 
+def selected_evidence_utterance_ids(evidence: dict[str, Any] | None) -> set[str]:
+    selected = evidence.get("selected") if isinstance(evidence, dict) else None
+    if not isinstance(selected, dict):
+        return set()
+    ids: set[str] = set()
+    for value in selected.values():
+        if not isinstance(value, list):
+            continue
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            for utterance_id in item.get("evidence_utterance_ids") or []:
+                ids.add(str(utterance_id))
+            for representative in item.get("representatives") or []:
+                if isinstance(representative, dict) and representative.get("utterance_id"):
+                    ids.add(str(representative["utterance_id"]))
+    return ids
+
+
 def hidden_facilitation_count(evidence: dict[str, Any] | None) -> int:
     candidates = evidence.get("candidates") if isinstance(evidence, dict) else None
     if not isinstance(candidates, list):
@@ -670,12 +689,13 @@ def review_decision_metrics(review_report: dict[str, Any] | None) -> dict[str, A
     }
 
 
-def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, profile: str) -> dict[str, Any]:
+def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, profile: str, evidence: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(audio_summary, dict):
         return {}
 
     audit_path = session / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
     selected_me_ids = dialogue_me_ids(session, profile)
+    selected_note_ids = selected_evidence_utterance_ids(evidence)
     review_resolved_ids = review_resolved_audio_ids(session, profile)
     audit_rows: list[dict[str, Any]] = []
     if audit_path.exists() and selected_me_ids:
@@ -694,6 +714,10 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
     if audit_rows:
         buckets = {
             "likely_reliable": {"count": 0, "intervals": []},
+            "probable_error": {"count": 0, "intervals": []},
+            "needs_stronger_audio_judge": {"count": 0, "intervals": []},
+        }
+        notes_buckets = {
             "probable_error": {"count": 0, "intervals": []},
             "needs_stronger_audio_judge": {"count": 0, "intervals": []},
         }
@@ -726,6 +750,8 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
             classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
             label = str(classification.get("label") or "")
             verdict = str(classification.get("verdict") or "")
+            me_ids = audio_review_me_ids(row)
+            affects_notes = label == "lost_me" or not me_ids or bool(me_ids & selected_note_ids)
             if verdict == "probable_transcript_error":
                 verdict = "probable_error"
                 if label == "remote_leak":
@@ -733,6 +759,9 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
             if verdict in buckets:
                 buckets[verdict]["count"] += 1
                 buckets[verdict]["intervals"].append((start, end))
+            if affects_notes and verdict in notes_buckets:
+                notes_buckets[verdict]["count"] += 1
+                notes_buckets[verdict]["intervals"].append((start, end))
 
         raw_error = audio_summary.get("probable_error") if isinstance(audio_summary.get("probable_error"), dict) else {}
         raw_stronger = (
@@ -749,6 +778,10 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
             "audio_review_probable_error_seconds": union_seconds(buckets["probable_error"]["intervals"]),
             "audio_review_stronger_judge_count": buckets["needs_stronger_audio_judge"]["count"],
             "audio_review_stronger_judge_seconds": union_seconds(buckets["needs_stronger_audio_judge"]["intervals"]),
+            "audio_review_notes_probable_error_count": notes_buckets["probable_error"]["count"],
+            "audio_review_notes_probable_error_seconds": union_seconds(notes_buckets["probable_error"]["intervals"]),
+            "audio_review_notes_stronger_judge_count": notes_buckets["needs_stronger_audio_judge"]["count"],
+            "audio_review_notes_stronger_judge_seconds": union_seconds(notes_buckets["needs_stronger_audio_judge"]["intervals"]),
             "audio_review_resolved_by_cleanup_count": resolved_count,
             "audio_review_resolved_by_cleanup_seconds": union_seconds(resolved_intervals),
             "audio_review_resolved_by_review_count": resolved_by_review_count,
@@ -779,6 +812,10 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
         "audio_review_probable_error_seconds": round_or_none(error.get("seconds")),
         "audio_review_stronger_judge_count": safe_int(stronger.get("count")),
         "audio_review_stronger_judge_seconds": round_or_none(stronger.get("seconds")),
+        "audio_review_notes_probable_error_count": safe_int(error.get("count")),
+        "audio_review_notes_probable_error_seconds": round_or_none(error.get("seconds")),
+        "audio_review_notes_stronger_judge_count": safe_int(stronger.get("count")),
+        "audio_review_notes_stronger_judge_seconds": round_or_none(stronger.get("seconds")),
         "audio_review_remote_leak_probable_error_count": safe_int(remote_leak.get("count")),
         "audio_review_remote_leak_probable_error_seconds": round_or_none(remote_leak.get("seconds")),
         "audio_review_recommended_next_step": audio_summary.get("recommended_next_step"),
@@ -1003,17 +1040,17 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
         flags.append("high_harmful_overlap_ratio")
     if duration > 0 and review is not None and review / duration > 0.12:
         flags.append("high_review_overlap_ratio")
-    audio_error_count = safe_int(row.get("audio_review_probable_error_count")) or 0
-    audio_error_seconds = safe_float(row.get("audio_review_probable_error_seconds")) or 0.0
+    audio_error_count = safe_int(row.get("audio_review_notes_probable_error_count")) or 0
+    audio_error_seconds = safe_float(row.get("audio_review_notes_probable_error_seconds")) or 0.0
     if audio_error_count >= 3 or audio_error_seconds >= 10.0:
-        flags.append("audio_review_probable_errors")
+        flags.append("notes_audio_review_probable_errors")
     remote_leak_protect = safe_int(row.get("remote_leak_segment_plan_protect_local_content_items")) or 0
-    if remote_leak_protect:
+    if remote_leak_protect and (audio_error_count > 0 or audio_error_seconds > 0.0):
         flags.append("remote_leak_segment_repair_candidates")
-    audio_judge_count = safe_int(row.get("audio_review_stronger_judge_count")) or 0
-    audio_judge_seconds = safe_float(row.get("audio_review_stronger_judge_seconds")) or 0.0
+    audio_judge_count = safe_int(row.get("audio_review_notes_stronger_judge_count")) or 0
+    audio_judge_seconds = safe_float(row.get("audio_review_notes_stronger_judge_seconds")) or 0.0
     if audio_judge_count >= 20 or audio_judge_seconds >= 60.0:
-        flags.append("needs_stronger_audio_judge")
+        flags.append("notes_need_stronger_audio_judge")
     return flags
 
 
@@ -1110,21 +1147,40 @@ def session_use_gate(row: dict[str, Any]) -> str:
 
 def add_use_gate(row: dict[str, Any]) -> None:
     duration = safe_float(row.get("meeting_duration_sec")) or 0.0
-    probable_error = safe_float(row.get("audio_review_probable_error_seconds")) or 0.0
-    stronger_judge = safe_float(row.get("audio_review_stronger_judge_seconds")) or 0.0
+    transcript_probable_error = safe_float(row.get("audio_review_probable_error_seconds")) or 0.0
+    transcript_stronger_judge = safe_float(row.get("audio_review_stronger_judge_seconds")) or 0.0
+    notes_probable_error = safe_float(row.get("audio_review_notes_probable_error_seconds"))
+    notes_stronger_judge = safe_float(row.get("audio_review_notes_stronger_judge_seconds"))
+    probable_error = notes_probable_error if notes_probable_error is not None else transcript_probable_error
+    stronger_judge = notes_stronger_judge if notes_stronger_judge is not None else transcript_stronger_judge
     local_recall_review = safe_float(row.get("local_recall_meaningful_review_seconds")) or 0.0
     transcript_order_review = safe_float(row.get("transcript_order_review_seconds")) or 0.0
-    burden = probable_error + stronger_judge + local_recall_review + transcript_order_review
-    row["review_burden_sec"] = round(burden, 3)
-    row["review_burden_ratio"] = round(burden / duration, 6) if duration > 0 else 0.0
+    notes_burden = probable_error + stronger_judge + local_recall_review + transcript_order_review
+    transcript_burden = transcript_probable_error + transcript_stronger_judge + local_recall_review + transcript_order_review
+    row["notes_review_burden_sec"] = round(notes_burden, 3)
+    row["notes_review_burden_ratio"] = round(notes_burden / duration, 6) if duration > 0 else 0.0
+    row["transcript_review_burden_sec"] = round(transcript_burden, 3)
+    row["transcript_review_burden_ratio"] = round(transcript_burden / duration, 6) if duration > 0 else 0.0
+    row["review_burden_sec"] = row["notes_review_burden_sec"]
+    row["review_burden_ratio"] = row["notes_review_burden_ratio"]
     row["use_gate"] = session_use_gate(row)
     reasons = use_gate_reasons(row)
+    transcript_only_reasons: list[dict[str, Any]] = []
+    if transcript_burden > notes_burden + 0.001:
+        transcript_only_reasons.append(
+            {
+                "id": "full_transcript_review_required",
+                "severity": "export",
+                "message": "Full transcript/export still has review-required regions that do not affect selected notes.",
+                "value": round(transcript_burden / duration, 6) if duration > 0 else 0.0,
+            }
+        )
+    reasons.extend(transcript_only_reasons)
     row["use_gate_reasons"] = reasons
     row["review_blockers"] = [reason["id"] for reason in reasons if reason.get("severity") in {"review", "block"}]
     row["export_blockers"] = (
-        []
-        if row["use_gate"] == "ready_for_notes"
-        else [reason["id"] for reason in reasons if reason.get("severity") in {"review", "block"}] or [row["use_gate"]]
+        [reason["id"] for reason in reasons if reason.get("severity") in {"review", "block", "export"}]
+        or ([] if row["use_gate"] == "ready_for_notes" else [row["use_gate"]])
     )
     row["readiness_warnings"] = [reason["id"] for reason in reasons if reason.get("severity") == "warning"]
 
@@ -1247,7 +1303,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(cleanup_metrics(quality, cleanup_report))
     row.update(review_decision_metrics(review_report))
     row.update(synthesis_review_metrics(verdict))
-    row.update(audio_review_metrics(audio_summary, session, profile))
+    row.update(audio_review_metrics(audio_summary, session, profile, evidence))
     row.update(remote_leak_segment_plan_metrics(remote_leak_plan))
     row.update(local_recall_metrics(local_recall, review_report))
     row.update(transcript_order_metrics(order_audit, review_report, order_repair_report))
@@ -1301,6 +1357,10 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "meeting_duration_sec",
         "review_burden_sec",
         "review_burden_ratio",
+        "notes_review_burden_sec",
+        "notes_review_burden_ratio",
+        "transcript_review_burden_sec",
+        "transcript_review_burden_ratio",
         "synthesis_review_item_count",
         "synthesis_review_item_seconds",
         "synthesis_review_top_types",
@@ -1344,7 +1404,13 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "hidden_meeting_facilitation_count",
         "audio_review_items",
         "audio_review_probable_error_count",
+        "audio_review_probable_error_seconds",
         "audio_review_stronger_judge_count",
+        "audio_review_stronger_judge_seconds",
+        "audio_review_notes_probable_error_count",
+        "audio_review_notes_probable_error_seconds",
+        "audio_review_notes_stronger_judge_count",
+        "audio_review_notes_stronger_judge_seconds",
         "audio_review_remote_leak_probable_error_count",
         "remote_leak_segment_plan_items",
         "remote_leak_segment_plan_protect_local_content_items",
@@ -1711,6 +1777,10 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "meeting_duration_sec": row.get("meeting_duration_sec"),
             "review_burden_sec": row.get("review_burden_sec"),
             "review_burden_ratio": row.get("review_burden_ratio"),
+            "notes_review_burden_sec": row.get("notes_review_burden_sec"),
+            "notes_review_burden_ratio": row.get("notes_review_burden_ratio"),
+            "transcript_review_burden_sec": row.get("transcript_review_burden_sec"),
+            "transcript_review_burden_ratio": row.get("transcript_review_burden_ratio"),
             "synthesis_review_item_count": row.get("synthesis_review_item_count"),
             "synthesis_review_item_seconds": row.get("synthesis_review_item_seconds"),
             "synthesis_review_top_types": row.get("synthesis_review_top_types"),
@@ -1718,6 +1788,10 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "audio_review_probable_error_seconds": row.get("audio_review_probable_error_seconds"),
             "audio_review_stronger_judge_count": row.get("audio_review_stronger_judge_count"),
             "audio_review_stronger_judge_seconds": row.get("audio_review_stronger_judge_seconds"),
+            "audio_review_notes_probable_error_count": row.get("audio_review_notes_probable_error_count"),
+            "audio_review_notes_probable_error_seconds": row.get("audio_review_notes_probable_error_seconds"),
+            "audio_review_notes_stronger_judge_count": row.get("audio_review_notes_stronger_judge_count"),
+            "audio_review_notes_stronger_judge_seconds": row.get("audio_review_notes_stronger_judge_seconds"),
             "audio_review_remote_leak_probable_error_count": row.get("audio_review_remote_leak_probable_error_count"),
             "audio_review_remote_leak_probable_error_seconds": row.get("audio_review_remote_leak_probable_error_seconds"),
             "remote_leak_segment_plan_items": row.get("remote_leak_segment_plan_items"),
@@ -1742,6 +1816,8 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
 
     review_min = (safe_float(row.get("review_burden_sec")) or 0.0) / 60.0
     review_pct = (safe_float(row.get("review_burden_ratio")) or 0.0) * 100.0
+    transcript_review_min = (safe_float(row.get("transcript_review_burden_sec")) or 0.0) / 60.0
+    transcript_review_pct = (safe_float(row.get("transcript_review_burden_ratio")) or 0.0) * 100.0
     lines = [
         "# MurmurMark Session Readiness",
         "",
@@ -1749,7 +1825,8 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         f"Recommendation: `{payload['recommendation']}`",
         f"Selected profile: `{profile}`",
         f"Verdict: `{row.get('verdict')}`",
-        f"Review burden: `{review_min:.2f} min` / `{review_pct:.2f}%`",
+        f"Notes review burden: `{review_min:.2f} min` / `{review_pct:.2f}%`",
+        f"Transcript/export review burden: `{transcript_review_min:.2f} min` / `{transcript_review_pct:.2f}%`",
         f"Recommended next: `{payload.get('recommended_next') or 'none'}`",
         "",
         "## Open First",
