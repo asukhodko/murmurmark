@@ -37,10 +37,11 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - working sessions: `13/13 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.02 min`;
 - remaining full transcript/export review surface: `3.63 min`;
-- export-review queue: `40` packed actions, reachable through `murmurmark review next` /
-  `murmurmark review workspace`;
-- next product target: shrink transcript/export blockers without changing capture, Echo Guard or
-  the main ASR path, and without hiding unresolved risk from export gates.
+- export-review queue: `40` packed actions after the current automatic `agent_reviewed_v1` layer,
+  reachable through `murmurmark review next` / `murmurmark review workspace`;
+- next product target: close or safely explain the remaining transcript/export blockers, especially
+  `check_unique_me_content` and `remote_leak`, without changing capture, Echo Guard or the main ASR
+  path, and without hiding unresolved risk from export gates.
 
 ## Current CLI
 
@@ -82,6 +83,7 @@ murmurmark sessions
 murmurmark process latest
 murmurmark next latest
 murmurmark next corpus
+murmurmark review agent
 murmurmark open latest --kind notes
 murmurmark status latest
 murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json
@@ -89,6 +91,10 @@ murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-sessio
 murmurmark export latest --format markdown --include-json
 murmurmark retention plan latest
 ```
+
+Run `murmurmark review agent` when corpus reports show a review queue and you have not already
+rebuilt `agent_reviewed_v1` after the latest pipeline changes. It only applies conservative
+machine decisions; any remaining queue is the real manual/export-review surface.
 
 `status`, `report`, `open`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
 all print the next safe command for the current session state, so the terminal output is the main handoff.

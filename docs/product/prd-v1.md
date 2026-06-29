@@ -19,7 +19,15 @@ Working now:
 - timeline repair for long mic segments that cross remote speech;
 - `shadow_v2` repair profile with no-regression gates, audit artifacts and start-of-call repair;
 - local extractive synthesis with quality verdicts, review items and evidence-backed notes;
-- Markdown transcript export and JSON/audit artifacts for review.
+- Markdown/Obsidian-style export bundles, JSON/audit artifacts for review, and raw retention plans.
+
+Current operating point:
+
+- the working corpus is `13/13 ready_for_notes`;
+- selected evidence-backed notes require about `0.02 min` of review;
+- full transcript/export still has about `3.63 min` of explicit blockers;
+- the remaining export-review queue is `40` packed actions after `agent_reviewed_v1`;
+- the next target is to reduce that queue without changing capture, Echo Guard or the main ASR path.
 
 Still future:
 
@@ -28,8 +36,7 @@ Still future:
 - heavy-local ASR stack with specialized models;
 - strict glossary/domain correction beyond the current whisper prompt;
 - polished generative notes, decisions and action extraction;
-- hardened raw retention/deletion policy;
-- Obsidian/docs/ticket export flows.
+- docs/ticket export proposals with human review.
 
 ## Scope
 

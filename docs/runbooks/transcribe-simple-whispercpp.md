@@ -814,9 +814,12 @@ transcript/export surface is about `3.63 min`. Session-quality reports de-duplic
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
 The same snapshot exposes the remaining export work as a normal review queue: `40` packed actions
-reachable through `murmurmark review next SESSION`, `murmurmark review first-lane --session SESSION`
-and `murmurmark review workspace --session SESSION`. This is intentionally separate from notes
-readiness: selected notes can be used, while full transcript/export waits for the review loop.
+after the current `agent_reviewed_v1` layer, reachable through `murmurmark review next SESSION`,
+`murmurmark review first-lane --session SESSION` and `murmurmark review workspace --session
+SESSION`. This is intentionally separate from notes readiness: selected notes can be used, while
+full transcript/export waits for the review loop. The next engineering target is to shrink that
+queue to `<= 15` packed actions and transcript/export review to `<= 1.5 min` by closing or
+explaining narrow `check_unique_me_content` / `remote_leak` classes, not by weakening gates.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
 `--refresh` it first rebuilds session-quality and operational-readiness reports, then prints

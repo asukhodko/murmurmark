@@ -2599,6 +2599,14 @@ rows. Rows not present in the agent template remain unresolved and continue to c
 burden. `agent_reviewed_v1` is eligible for `auto` only when its own coverage gates pass; it ranks
 below `reviewed_v1` and above automatic cleanup profiles.
 
+Operational readiness may still expose review rows after `agent_reviewed_v1` is selected. Those
+rows are the remaining transcript/export surface, not a sign that the automatic layer was skipped.
+As of the 2026-06-29 corpus baseline, this queue is tracked separately from notes readiness:
+`13/13` working sessions are `ready_for_notes`, selected notes review is about `0.02 min`, and
+remaining transcript/export review is about `3.63 min` / `40` packed actions. Future cleanup or
+repair layers may reduce that queue only through explicit audit evidence and must keep possible
+lost `Me` speech or semantic uncertainty visible to export gates.
+
 The same hint stream can be materialized for measurement as `suggested_review_v1`:
 
 ```text

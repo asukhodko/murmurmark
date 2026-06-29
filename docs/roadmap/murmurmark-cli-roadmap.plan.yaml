@@ -45,11 +45,12 @@ nodes:
       выбранного профиля, а 13 из 13 рабочих сессий находятся в `ready_for_notes`.
       Снимок на 2026-06-29: selected evidence-backed notes требуют около `0.02 min`
       проверки, а отдельная поверхность transcript/export review остаётся около `3.63 min`.
-      Оставшийся export-review теперь представлен как исполнимая очередь из `40` packed actions,
-      доступная через `murmurmark review next` / `murmurmark review workspace`.
-      Следующая цель — снижать transcript/export blockers без смены топологии
-      capture/Echo Guard/ASR, не ломая готовность evidence-backed notes и не скрывая
-      спорные места от export gate.
+      Оставшийся export-review теперь представлен как исполнимая очередь из `40` packed actions
+      уже после `agent_reviewed_v1`, доступная через `murmurmark review next` /
+      `murmurmark review workspace`. Следующая цель — снизить transcript/export surface с
+      `3.63 min` до `<= 1.5 min` и очередь с `40` до `<= 15` действий без смены топологии
+      capture/Echo Guard/ASR, не ломая готовность evidence-backed notes и не скрывая спорные места
+      от export gate.
 
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
@@ -332,7 +333,8 @@ nodes:
       Удобный review CLI для спорных мест. Базовые plan/progress/apply и интерактивный
       review SESSION/latest уже доступны. Workspace review и агентный review agent доступны
       через CLI, readiness и blocked export ведут к workspace next commands. Текущий слой —
-      сужение оставшейся `review_first` очереди и полировка reviewed export handoff.
+      сужение оставшейся export-review очереди после `agent_reviewed_v1` и полировка reviewed
+      export handoff.
 
   cli-review-command:
     title: "murmurmark review SESSION"
@@ -374,6 +376,22 @@ nodes:
     status: done
     effort: 2
     notes: "CLI-команда строит безопасные agent_reviewed_v1 decisions, применяет профиль, запускает synthesis и обновляет session-quality/readiness/review-plan отчёты."
+
+  review-export-closure-v1:
+    title: "Export-review closure v1"
+    kind: task
+    parent: review-loop
+    deps: [review-agent-command, review-burden-report, review-unresolved-explicit]
+    status: current
+    effort: 4
+    notes: |
+      Ближайшая выбранная цель после CLI MVP: сократить оставшуюся export-review очередь
+      уже после agent-reviewed слоя. Стартовая точка 2026-06-29: 13/13 `ready_for_notes`,
+      `0.02 min` notes review, `3.63 min` transcript/export review и `40` packed actions.
+      Acceptance: сохранить 13/13 `ready_for_notes`, снизить transcript/export review до
+      `<= 1.5 min` и очередь до `<= 15` actions, не меняя capture, Echo Guard и основной ASR.
+      Основной материал: `check_unique_me_content` / `remote_leak`; possible lost `Me` и спорное
+      содержание остаются в review/export gate.
 
   review-burden-report:
     title: "Review burden report"

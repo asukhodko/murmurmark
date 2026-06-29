@@ -50,7 +50,9 @@ UI App не является обязательной частью roadmap. Он
   out-of-fold оценка audio judge, local-recall blockers, remote-leak queue и явные notes/export
   blockers.
 - `review-loop` — текущий этап: удерживать 13/13 `ready_for_notes` и снижать отдельные
-  transcript/export blockers; ручный workspace review и агентный `review agent` уже есть.
+  transcript/export blockers; ручный workspace review и агентный `review agent` уже есть. Оставшаяся
+  очередь считается после `agent_reviewed_v1`, поэтому следующий шаг должен закрывать новые
+  доказуемые классы, а не повторно запускать уже применённый агентный слой.
 - `quality-hardening` — текущий этап: улучшение качества transcript без смены топологии; первый
   явный `order_repair_v1` уже чинит только те order-risk регионы, которые безопасно режутся по
   сохранённым source ASR segments. `local_recall_repair_v1` уже восстанавливает короткие
@@ -99,16 +101,17 @@ flowchart LR
 
 ## Следующая цель
 
-Сделать MurmurMark уверенно применимым для регулярных рабочих встреч с короткой обязательной
-проверкой:
+Сделать MurmurMark уверенно применимым для регулярных рабочих встреч и довести полный transcript/export
+до короткой, понятной проверки:
 
 - удержать corpus verdict на уровне `medium_risk_ready` или выше;
 - удержать рабочий корпус на 13/13 `ready_for_notes`;
 - опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `3.63 min`
   отдельной transcript/export проверки на 13 рабочих сессиях;
-- держать export-review очередь явной и исполнимой: сейчас это `40` packed actions через
-  `murmurmark review next` / `review workspace`;
-- снизить `transcript_review_burden` и `export_blockers`, не смешивая их с готовностью notes;
+- держать export-review очередь явной и исполнимой: сейчас это `40` packed actions уже после
+  `agent_reviewed_v1`, через `murmurmark review next` / `review workspace`;
+- снизить `transcript_review_burden` с `3.63 min` до `<= 1.5 min` и очередь с `40` до `<= 15`
+  packed actions, не смешивая это с готовностью notes;
 - расширять repair/cleanup только через corpus gates и audio-review evidence;
 - держать raw capture, Echo Guard и основной ASR неизменными без отдельного решения;
 - считать успехом не идеальный transcript, а готовые evidence-backed notes при явно сохранённых
@@ -116,7 +119,6 @@ flowchart LR
 
 Первый блок уже применён: transcript-only `uncertain` rows снимаются из burden только когда тот же
 selected `Me` interval покрыт high-confidence `likely_reliable` audio-review evidence. Следующий
-исполнительный блок — сокращать `40` export-review actions: сначала быстрые lanes
-`fast_confirm_drop` и `check_unique_me_content`, затем искать такие же узкие, доказуемые классы среди
-оставшихся `remote_leak` и long-uncertain rows. Всё, что похоже на possible lost `Me` или спорное
-содержание реплики, остаётся в review/export gate.
+исполнительный блок — `export-review-closure-v1`: разобрать оставшиеся `check_unique_me_content` /
+`remote_leak` элементы, найти узкий класс безопасного автоматического объяснения или segment-level
+repair, а всё похожее на possible lost `Me` или спорное содержание оставить в review/export gate.
