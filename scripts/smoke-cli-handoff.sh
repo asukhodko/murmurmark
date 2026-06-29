@@ -283,6 +283,73 @@ jq -n '{
   ]
 }' >"$session/derived/readiness/session-quality/session_quality_report.json"
 
+review_plan="$session/derived/readiness/review-plan"
+review_template="$review_plan/review_decisions.template.jsonl"
+review_decisions="$review_plan/review_decisions.jsonl"
+lane_dir="$review_plan/lane-packs"
+mkdir -p "$lane_dir"
+cat >"$review_template" <<EOF
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"cli-handoff","session":"$session","input_profile":"current","source":"fixture","source_audit_id":"cli_review_001","label":"lost_me","verdict":"needs_review","review_lane":"check_unique_me_content","review_action":"check_unique_me_content","suggested_decision":"keep_me","suggested_decision_confidence":"medium","suggested_decision_reason":"fixture review row","allowed_decisions":["keep_me","needs_review","skip"],"me_utterance_ids":["utt_cli_001"],"utterance_ids":["utt_cli_001"],"interval":{"start":0.0,"end":1.0,"duration_sec":1.0},"text":[{"id":"utt_cli_001","role":"Me","source_track":"mic","text":"Готово."}],"commands":{"mic_raw":"afplay -ss 0 -t 1 \"$session/audio/mic/000001.caf\""}}
+EOF
+
+"$repo_root/scripts/build-review-lane-pack.py" \
+  --template "$review_template" \
+  --decisions "$review_decisions" \
+  --lane check_unique_me_content \
+  --out-dir "$lane_dir" >/dev/null
+
+"$repo_root/scripts/build-review-workspace.py" \
+  --template "$review_template" \
+  --decisions "$review_decisions" \
+  --out-dir "$review_plan" >/dev/null
+
+lane_manifest="$lane_dir/review_lane_pack.check_unique_me_content.json"
+lane_answers="$lane_dir/review_lane_answers.check_unique_me_content.txt"
+
+workspace_apply_output="$("$bin" review workspace apply \
+  --workspace "$review_plan/review_workspace.json" \
+  --template "$review_template" \
+  --out "$review_decisions" \
+  --report "$review_plan/review_workspace_apply_report.json" \
+  --dry-run)"
+echo "$workspace_apply_output" | grep -q '^review_workspace_apply:$'
+echo "$workspace_apply_output" | grep -q '^  recommended_next: \$EDITOR '
+echo "$workspace_apply_output" | grep -q '^  open:$'
+tail -1 <<<"$workspace_apply_output" | grep -q '^next: \$EDITOR '
+
+lane_apply_todo_output="$("$bin" review lane apply check_unique_me_content \
+  --manifest "$lane_manifest" \
+  --template "$review_template" \
+  --plan-out-dir "$review_plan" \
+  --decisions-out "$review_decisions" \
+  --answers-file "$lane_answers" \
+  --dry-run)"
+echo "$lane_apply_todo_output" | grep -q '^review_lane_apply:$'
+echo "$lane_apply_todo_output" | grep -q '^  recommended_next: \$EDITOR '
+tail -1 <<<"$lane_apply_todo_output" | grep -q '^next: \$EDITOR '
+
+sed 's/^answers=.*/answers=k/' "$lane_answers" >"$lane_answers.tmp"
+mv "$lane_answers.tmp" "$lane_answers"
+
+lane_apply_ready_output="$("$bin" review lane apply check_unique_me_content \
+  --manifest "$lane_manifest" \
+  --template "$review_template" \
+  --plan-out-dir "$review_plan" \
+  --decisions-out "$review_decisions" \
+  --answers-file "$lane_answers" \
+  --dry-run)"
+echo "$lane_apply_ready_output" | grep -q '^  recommended_next: murmurmark review lane apply '
+tail -1 <<<"$lane_apply_ready_output" | grep -q '^next: murmurmark review lane apply '
+
+lane_apply_output="$("$bin" review lane apply check_unique_me_content \
+  --manifest "$lane_manifest" \
+  --template "$review_template" \
+  --plan-out-dir "$review_plan" \
+  --decisions-out "$review_decisions" \
+  --answers-file "$lane_answers")"
+echo "$lane_apply_output" | grep -q '^  progress: '
+tail -1 <<<"$lane_apply_output" | grep -q '^next: murmurmark review apply'
+
 status_output="$("$bin" status "$session")"
 echo "$status_output" | grep -q '^readiness:$'
 echo "$status_output" | grep -q '^  status: exportable$'
