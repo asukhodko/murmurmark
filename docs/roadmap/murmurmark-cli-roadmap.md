@@ -33,7 +33,7 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 19. `murmurmark retention payload SESSION` — готов provider payload manifest; default policy блокирует внешние payload’ы.
 20. `scripts/check-open-source-readiness.sh` — готов public-readiness gate; MIT LICENSE добавлена.
 21. `murmurmark self-test` — готов быстрый CLI smoke через сам инструмент.
-22. `scripts/acceptance-cli-mvp.sh` — готов единый автоматический gate для CLI MVP.
+22. `murmurmark acceptance` — готов единый автоматический gate для CLI MVP.
 
 UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
 

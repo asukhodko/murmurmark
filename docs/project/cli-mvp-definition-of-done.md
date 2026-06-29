@@ -10,13 +10,13 @@ exports reviewed artifacts and protects raw audio.
 Run:
 
 ```bash
-scripts/acceptance-cli-mvp.sh
+murmurmark acceptance
 ```
 
 For a faster local check without release bundle verification:
 
 ```bash
-scripts/acceptance-cli-mvp.sh --skip-release
+murmurmark acceptance --skip-release
 ```
 
 The automated gate must pass these checks:
@@ -27,6 +27,9 @@ The automated gate must pass these checks:
 4. `murmurmark config init --config <temp>` creates a local config without writing to the repository.
 5. `scripts/check-open-source-readiness.sh` succeeds.
 6. `scripts/build-release-bundle.sh --verify` succeeds unless the gate is intentionally run with `--skip-release`.
+
+The direct `scripts/acceptance-cli-mvp.sh` entry point remains available when debugging the gate
+implementation.
 
 The gate must finish with:
 

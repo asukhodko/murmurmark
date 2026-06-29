@@ -5,6 +5,12 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 release_verify=1
 verify_python="${MURMURMARK_PYTHON:-}"
 
+if [[ ! -f "$repo_root/Sources/MurmurMarkCLI/MurmurMarkCLI.swift" ]]; then
+  echo "error: CLI MVP acceptance requires a full developer checkout with Sources/." >&2
+  echo "hint: release bundles should be verified with: murmurmark doctor --strict && murmurmark self-test" >&2
+  exit 1
+fi
+
 usage() {
   cat <<'EOF'
 usage: scripts/acceptance-cli-mvp.sh [--skip-release] [--python PATH]

@@ -23,6 +23,8 @@ struct MurmurMark {
                 try await Commands.doctor(args)
             case "self-test":
                 try Commands.selfTest(args)
+            case "acceptance":
+                try Commands.acceptance(args)
             case "list-apps":
                 Commands.listApps()
             case "list-audio-devices":
@@ -164,6 +166,7 @@ struct MurmurMark {
 
         Setup and diagnostics:
           murmurmark self-test
+          murmurmark acceptance [--skip-release] [--python PATH]
           murmurmark list-apps
           murmurmark list-audio-devices
           murmurmark inspect ./session
@@ -177,6 +180,7 @@ struct MurmurMark {
         Notes:
           record defaults to ScreenCaptureKit for separate mic and remote tracks.
           self-test runs the quick local CLI smoke fixture through this command surface.
+          acceptance runs the developer-checkout CLI MVP gate.
           audio-input remote capture and voice-processing mic capture are experimental comparison modes.
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C or SIGTERM and finalizes the session.
@@ -309,7 +313,41 @@ enum Commands {
         """)
     }
 
+    static func acceptance(_ args: [String]) throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            printAcceptanceHelp()
+            return
+        }
+
+        let script = PathURLs.fileURL("scripts/acceptance-cli-mvp.sh")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("acceptance script not found: \(PathDisplay.display(script))")
+        }
+
+        print("acceptance:")
+        let suffix = args.isEmpty ? "" : " \(args.joined(separator: " "))"
+        print("  command: \(PathDisplay.display(script))\(suffix)")
+        fflush(stdout)
+        try runScript(script, arguments: args, failureName: "acceptance")
+    }
+
+    static func printAcceptanceHelp() {
+        print("""
+        usage: murmurmark acceptance [--skip-release] [--python PATH]
+
+        Runs the CLI MVP acceptance gate for a developer checkout.
+
+        The gate verifies local install, doctor, self-test, config init,
+        open-source readiness and release bundle verification. It does not
+        record live audio; the live recording gate remains manual.
+        """)
+    }
+
     private static func runSelfTestScript(_ script: URL) throws {
+        try runScript(script, arguments: [], failureName: "self-test")
+    }
+
+    private static func runScript(_ script: URL, arguments: [String], failureName: String) throws {
         let bash = URL(fileURLWithPath: "/bin/bash")
         guard FileManager.default.isExecutableFile(atPath: bash.path) else {
             throw CLIError("executable not found: \(bash.path)")
@@ -317,14 +355,14 @@ enum Commands {
 
         let process = Process()
         process.executableURL = bash
-        process.arguments = [script.path]
+        process.arguments = [script.path] + arguments
         var environment = ProcessInfo.processInfo.environment
         environment["MURMURMARK_BIN"] = ExecutablePath.current()
         process.environment = environment
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
-            throw CLIError("self-test exited with \(process.terminationStatus)")
+            throw CLIError("\(failureName) exited with \(process.terminationStatus)")
         }
     }
 
