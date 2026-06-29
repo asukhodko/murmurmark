@@ -3723,10 +3723,16 @@ enum RepairPrinter {
         if let firstAction = actionPlan.first {
             print("  next_work: \(string(firstAction["next_work"]) ?? "none")")
         }
-        print("  recommended_next: less \(PathDisplay.display(reportURL))")
+        let fallbackCommands = ["less \(PathDisplay.display(reportURL))"]
+        let displayedNextCommands = commandList(payload["next_commands"])
+        let nextCommands = displayedNextCommands.isEmpty ? fallbackCommands : displayedNextCommands
+        let recommendedNext = string(payload["recommended_next"]) ?? nextCommands[0]
+        print("  recommended_next: \(recommendedNext)")
         print("  next:")
-        print("    less \(PathDisplay.display(reportURL))")
-        FinalNextPrinter.print("less \(PathDisplay.display(reportURL))")
+        for command in nextCommands {
+            print("    \(command)")
+        }
+        FinalNextPrinter.print(recommendedNext)
     }
 
     private static func dict(_ value: Any?) -> [String: Any] {

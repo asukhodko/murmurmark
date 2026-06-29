@@ -899,7 +899,32 @@ derived/transcript-simple/whisper-cpp/remote-leak-repair/
     "may_modify_transcript": false,
     "may_modify_raw_audio": false,
     "whole_me_drop_allowed": false
-  }
+  },
+  "recommended_next": "less sessions/example/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md",
+  "next_commands": [
+    {
+      "id": "open_remote_leak_segment_report",
+      "command": "less sessions/example/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md",
+      "reason": "inspect the audit-only remote-leak segment plan"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_remote_leak_segment_report",
+      "command": "less sessions/example/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md",
+      "path": "sessions/example/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md"
+    },
+    {
+      "id": "open_remote_leak_segment_plan",
+      "command": "less sessions/example/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json",
+      "path": "sessions/example/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json"
+    },
+    {
+      "id": "open_remote_leak_segment_items",
+      "command": "less sessions/example/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_items.jsonl",
+      "path": "sessions/example/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_items.jsonl"
+    }
+  ]
 }
 ```
 
@@ -919,6 +944,9 @@ evidence and ready clip commands from the source audit. v1 has five diagnostics:
   prefix/suffix and remove only verified duplicate segments.
 - `remote_duplicate_whole_drop_candidate`: the duplicate likely belongs to the existing
   whole-utterance cleanup/review path, not the segment repair queue.
+
+The top-level `recommended_next`, `next_commands` and `open_commands` make the audit-only plan
+self-guiding. `murmurmark repair remote-leak` prints the same JSON commands after writing the plan.
 
 The planner never writes a transcript profile and never changes raw CAF files. Its job is to turn a
 wide `remote_leak`/partial-duplicate bucket into the next safe repair queue.

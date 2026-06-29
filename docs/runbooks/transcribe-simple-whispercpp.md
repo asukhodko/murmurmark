@@ -421,6 +421,8 @@ murmurmark repair remote-leak "$SESSION"
 less "$SESSION/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md"
 jq '.summary, .action_plan, .policy' \
   "$SESSION/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json"
+jq '{recommended_next, next_commands: [.next_commands[].id], open_commands: [.open_commands[].id]}' \
+  "$SESSION/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json"
 ```
 
 The planner reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, selects
@@ -428,7 +430,9 @@ The planner reads `derived/audit/audio-review-pack/audio_review_audit.jsonl`, se
 `remote_leak_segment_repair_*` artifacts. It does not edit transcript profiles, Echo Guard outputs,
 or raw CAF files. Items with unique local `Me` content are labelled
 `remote_leak_with_local_content_risk` or `remote_duplicate_with_local_content_risk`; those are future
-segment-level repair candidates, not whole-utterance drops. The full `murmurmark process` pipeline
+segment-level repair candidates, not whole-utterance drops. The plan stores the same
+`recommended_next`, `next_commands` and `open_commands` that `murmurmark repair remote-leak` prints
+after writing it. The full `murmurmark process` pipeline
 runs this planner automatically after audio-review; the manual command is useful when you have
 refreshed only the audio-review audit.
 

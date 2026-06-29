@@ -424,6 +424,8 @@ and writes a segment-level repair plan under
 `derived/transcript-simple/whisper-cpp/remote-leak-repair/`. It does not edit transcript profiles
 or raw audio. Its main purpose is to separate plain leak evidence from leak/duplicate intervals
 where `Me` still contains unique local content and whole-utterance deletion is unsafe.
+The plan JSON includes `recommended_next`, `next_commands` and `open_commands`; the CLI prints that
+same handoff after the command finishes.
 `murmurmark corpus order` aggregates those audits across the corpus and writes the current list of
 chronology regression candidates under `sessions/_reports/transcript-order/`; corpus gates read this
 report and fail if a complete session still has blocking chronology risk. The report points complete

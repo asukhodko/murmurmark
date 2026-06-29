@@ -1812,6 +1812,16 @@ EOF
   [[ -s "$remote_leak_items" ]]
   [[ -s "$remote_leak_report" ]]
   jq -e '.schema == "murmurmark.remote_leak_segment_repair_plan/v1" and .policy.may_modify_transcript == false and .policy.whole_me_drop_allowed == false and .summary.protect_local_content_items >= 1' "$remote_leak_plan" >/dev/null
+  jq -e '
+    (.recommended_next | startswith("less ")) and
+    (.next_commands[0].id == "open_remote_leak_segment_report") and
+    ([.open_commands[].id] | index("open_remote_leak_segment_plan"))
+  ' "$remote_leak_plan" >/dev/null
+  remote_leak_next="$(jq -r '.recommended_next' "$remote_leak_plan")"
+  printf '%s\n' "$remote_leak_output" | grep -Fx "  recommended_next: $remote_leak_next" >/dev/null
+  while IFS= read -r json_next_command; do
+    printf '%s\n' "$remote_leak_output" | grep -Fx "    $json_next_command" >/dev/null
+  done < <(jq -r '.next_commands[].command' "$remote_leak_plan")
   jq -s 'any(.[]; .diagnostic.label == "remote_leak_with_local_content_risk" and .proposal.whole_me_drop_allowed == false and (.evidence.text.content_tokens | index("gitlab")))' "$remote_leak_items" >/dev/null
 
   cleanup_v1_sha_before="$(shasum -a 256 "$cleanup_dialogue" | awk '{print $1}')"

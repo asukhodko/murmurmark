@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -126,6 +127,49 @@ def safe_int(value: Any) -> int:
 
 def suffix_path(session: Path, explicit: Path | None) -> Path:
     return explicit or session / "derived/transcript-simple/whisper-cpp/remote-leak-repair"
+
+
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return str(resolved.relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(resolved)
+
+
+def shell_path(path: Path) -> str:
+    return shlex.quote(display_path(path))
+
+
+def plan_handoff(plan_path: Path, items_path: Path, report_path: Path) -> dict[str, Any]:
+    report_command = f"less {shell_path(report_path)}"
+    return {
+        "recommended_next": report_command,
+        "next_commands": [
+            {
+                "id": "open_remote_leak_segment_report",
+                "command": report_command,
+                "reason": "inspect the audit-only remote-leak segment plan",
+            }
+        ],
+        "open_commands": [
+            {
+                "id": "open_remote_leak_segment_report",
+                "command": report_command,
+                "path": display_path(report_path),
+            },
+            {
+                "id": "open_remote_leak_segment_plan",
+                "command": f"less {shell_path(plan_path)}",
+                "path": display_path(plan_path),
+            },
+            {
+                "id": "open_remote_leak_segment_items",
+                "command": f"less {shell_path(items_path)}",
+                "path": display_path(items_path),
+            },
+        ],
+    }
 
 
 def format_time(seconds: float | int | None) -> str:
@@ -530,13 +574,17 @@ def main() -> int:
     ]
     plan = summarize(items, session, audit_path)
     out_dir.mkdir(parents=True, exist_ok=True)
-    write_json(out_dir / "remote_leak_segment_repair_plan.json", plan)
-    write_jsonl(out_dir / "remote_leak_segment_repair_items.jsonl", items)
-    write_markdown(out_dir / "remote_leak_segment_repair.md", plan, items)
+    plan_path = out_dir / "remote_leak_segment_repair_plan.json"
+    items_path = out_dir / "remote_leak_segment_repair_items.jsonl"
+    report_path = out_dir / "remote_leak_segment_repair.md"
+    plan.update(plan_handoff(plan_path, items_path, report_path))
+    write_json(plan_path, plan)
+    write_jsonl(items_path, items)
+    write_markdown(report_path, plan, items)
     print(f"items: {plan['summary']['items']}")
     print(f"protect_local_content_items: {plan['summary']['protect_local_content_items']}")
-    print(f"plan: {out_dir / 'remote_leak_segment_repair_plan.json'}")
-    print(f"report: {out_dir / 'remote_leak_segment_repair.md'}")
+    print(f"plan: {plan_path}")
+    print(f"report: {report_path}")
     return 0
 
 
