@@ -94,6 +94,8 @@ murmurmark inspect latest
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
 
 Without `--duration`, recording continues until `Ctrl-C`. MurmurMark catches the stop signal, stops capture, closes audio files and writes `session.json`.
+If ScreenCaptureKit stops or stops producing audio before `Ctrl-C`, MurmurMark finalizes the partial
+session, writes `session.json`, and records a warning instead of leaving a half-written directory.
 
 Without `--out`, MurmurMark creates a fresh directory under `./sessions`, for example:
 

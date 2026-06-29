@@ -411,6 +411,8 @@ This is the current practical path from a new local recording to the best availa
 The `record` command keeps running until `Ctrl-C`; the following commands continue after the recording stops.
 After a successful recording, the CLI prints `SESSION="..."`, `recommended_next` and the exact
 `murmurmark process ...` command for that session.
+If ScreenCaptureKit stops or stops producing audio before `Ctrl-C`, `record` finalizes the partial
+session, writes `session.json`, and records a warning instead of leaving a half-written directory.
 
 ```bash
 cd murmurmark
@@ -454,6 +456,8 @@ Use `--progress-interval-sec 0` to disable these heartbeat lines. `--plan-only` 
 the live stage log; the following readiness block is labelled `existing_readiness` because no new
 processing was run. The same plan metadata is written to
 `derived/pipeline-run/pipeline_run_report.json`, along with `recommended_next`, `next_commands` and
+the tail output of failed steps. Pipeline subprocesses run with stdin detached from the terminal, so
+tools such as `ffmpeg` and `whisper-cli` cannot stop the pipeline by reading terminal input.
 `open_commands`, so agents can inspect it without parsing terminal text. After every `process` run,
 the final line is a single copyable `next: ...` command derived from the refreshed readiness.
 Read `session_readiness.md` first, or run `murmurmark status SESSION` for the terminal version.

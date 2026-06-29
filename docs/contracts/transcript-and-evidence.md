@@ -1505,7 +1505,9 @@ failing step and command tails are visible before rerunning.
 The runner also prints the same stage names to stdout as live progress lines (`[run]`, `[passed]`,
 `[failed]`, `[skip]`). Long-running stages emit heartbeat lines at the configured interval, for
 example `[run] transcribe_current still running (120.4s)`, so a normal `murmurmark process` run does
-not look stuck while Whisper is still working.
+not look stuck while Whisper is still working. Stage subprocesses run with stdin detached from the
+terminal. This prevents `ffmpeg`, `whisper-cli` or nested scripts from being stopped by terminal
+job-control when they attempt to read from stdin.
 
 ## Export Bundle
 
