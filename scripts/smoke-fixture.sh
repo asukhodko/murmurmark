@@ -1497,6 +1497,43 @@ source_match_candidate = dict(
 )
 decision, confidence, reason, summary = module.stronger_suggested_decision([row], {"fixture": [source_match_candidate]})
 assert decision == "keep_me" and confidence == 0.9, (decision, confidence, reason, summary)
+
+text_guard_row = dict(
+    row,
+    review_lane="check_unique_me_content",
+    label="remote_duplicate",
+    verdict="probable_transcript_error",
+    review_features={"me_overlap_coverage": 0.55},
+    text=[
+        {"id": "utt_remote", "role": "remote", "source_track": "remote", "text": "Команда проверит деплой."},
+        {"id": "utt_me", "role": "me", "source_track": "mic", "text": "Команда проверит деплой, а я посмотрю алерты завтра."},
+    ],
+)
+decision, confidence, reason, summary = module.suggested_decision_for_group([text_guard_row], {"fixture": []})
+assert decision == "keep_me" and confidence == 0.74 and "text_guard_unique_me_content" in reason, (
+    decision,
+    confidence,
+    reason,
+    summary,
+)
+text_guard_duplicate = dict(
+    text_guard_row,
+    text=[
+        {"id": "utt_remote", "role": "remote", "source_track": "remote", "text": "Команда проверит деплой."},
+        {"id": "utt_me", "role": "me", "source_track": "mic", "text": "Команда проверит деплой."},
+    ],
+)
+decision, confidence, reason, summary = module.suggested_decision_for_group([text_guard_duplicate], {"fixture": []})
+assert decision != "keep_me", (decision, confidence, reason, summary)
+text_guard_action_tail = dict(
+    text_guard_row,
+    text=[
+        {"id": "utt_remote", "role": "remote", "source_track": "remote", "text": "Ответить на вопрос про ретро."},
+        {"id": "utt_me", "role": "me", "source_track": "mic", "text": "Ответить на вопрос про ретро проверю завтра."},
+    ],
+)
+decision, confidence, reason, summary = module.suggested_decision_for_group([text_guard_action_tail], {"fixture": []})
+assert decision == "keep_me" and "проверю" in reason, (decision, confidence, reason, summary)
 PY
 
   group_session="$workdir/group-session"
@@ -3945,12 +3982,11 @@ PY
     --dry-run)"
   echo "$first_lane_suggested_dry_run_output" | grep -q '^review_lane_apply:$'
   echo "$first_lane_suggested_dry_run_output" | grep -q '^  answers_source: suggested'
-  echo "$first_lane_suggested_dry_run_output" | grep -q '^  lane_result: reviewed=0 todo=1 rejected=0'
+  echo "$first_lane_suggested_dry_run_output" | grep -q '^  lane_result: reviewed=1 todo=0 rejected=0'
   echo "$first_lane_suggested_dry_run_output" | grep -q 'review_lane_answers\..*\.suggested\.txt'
   echo "$first_lane_suggested_dry_run_output" | grep -q '^  next:$'
-  echo "$first_lane_suggested_dry_run_output" | grep -q '^    \$EDITOR .*review_lane_answers\..*\.suggested\.txt'
   echo "$first_lane_suggested_dry_run_output" | grep -q '^    murmurmark review lane apply .* --answers-source suggested'
-  echo "$first_lane_suggested_dry_run_output" | grep -q '^next: \$EDITOR .*review_lane_answers\..*\.suggested\.txt'
+  echo "$first_lane_suggested_dry_run_output" | grep -q '^next: murmurmark review lane apply .* --answers-source suggested'
   ! echo "$first_lane_suggested_dry_run_output" | grep -Eq '^(\{"manifest_items"|Dry run:)'
   if "$bin" review lane apply first \
       --plan-out-dir "$first_lane_plan_dir" \

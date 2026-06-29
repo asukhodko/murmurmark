@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shlex
 import subprocess
 import tempfile
@@ -26,6 +27,58 @@ DECISION_SHORTCUTS = {
     "skip": "s",
     "todo": ".",
     "": ".",
+}
+TEXT_GUARD_STOP_WORDS = {
+    "а",
+    "и",
+    "но",
+    "ну",
+    "да",
+    "вот",
+    "это",
+    "как",
+    "то",
+    "же",
+    "там",
+    "тут",
+    "у",
+    "в",
+    "на",
+    "не",
+    "по",
+    "за",
+    "из",
+    "с",
+    "со",
+    "что",
+    "чтобы",
+    "мы",
+    "ты",
+    "он",
+    "она",
+    "они",
+    "оно",
+    "я",
+    "еще",
+    "уже",
+    "бы",
+    "ли",
+    "или",
+    "либо",
+    "если",
+    "только",
+    "просто",
+}
+TEXT_GUARD_STRONG_UNIQUE_KEEP_TOKENS = {
+    "возьму",
+    "добавлю",
+    "напишу",
+    "оставлю",
+    "отпишусь",
+    "посмотрю",
+    "построю",
+    "проверю",
+    "сделаю",
 }
 
 
@@ -222,6 +275,32 @@ def review_lane_handoff(
 
 def normalize_text(value: Any) -> str:
     return " ".join(str(value or "").lower().replace("ё", "е").split())
+
+
+def content_tokens(value: Any) -> list[str]:
+    text = re.sub(r"[^0-9a-zа-я_./+-]+", " ", str(value or "").lower().replace("ё", "е"))
+    return [
+        token
+        for token in text.split()
+        if len(token) > 2 and token not in TEXT_GUARD_STOP_WORDS
+    ]
+
+
+def row_role_text(row: dict[str, Any], role: str) -> str:
+    pieces: list[str] = []
+    role = role.lower()
+    for item in row.get("text") or []:
+        if not isinstance(item, dict):
+            continue
+        source_track = str(item.get("source_track") or "").lower()
+        row_role = str(item.get("role") or "").lower()
+        if role == "me":
+            matches = source_track == "mic" or row_role == "me"
+        else:
+            matches = source_track == "remote" or row_role in {"remote", "colleagues"}
+        if matches:
+            pieces.append(str(item.get("text") or ""))
+    return " ".join(pieces)
 
 
 def review_row_key(row: dict[str, Any]) -> str:
@@ -569,6 +648,52 @@ def stronger_suggested_decision(
     return None, None, None, summary
 
 
+def stronger_has_high_confidence_drop(summary: dict[str, Any] | None) -> bool:
+    if not summary:
+        return False
+    for match in summary.get("matches") or []:
+        classification = match.get("classification") if isinstance(match, dict) else {}
+        if not isinstance(classification, dict):
+            continue
+        label = str(classification.get("label") or "")
+        confidence = float(classification.get("confidence") or 0.0)
+        if label in {"confirm_remote_duplicate", "confirm_asr_noise"} and confidence >= 0.74:
+            return True
+    return False
+
+
+def text_guard_keep_decision(rows: list[dict[str, Any]], summary: dict[str, Any] | None) -> tuple[str | None, Any, str | None]:
+    if not rows or stronger_has_high_confidence_drop(summary):
+        return None, None, None
+    allowed = set(common_allowed_decisions(rows))
+    if "keep_me" not in allowed:
+        return None, None, None
+    if any(str(row.get("review_lane") or "") != "check_unique_me_content" for row in rows):
+        return None, None, None
+    if any(str(row.get("label") or "") != "remote_duplicate" for row in rows):
+        return None, None, None
+    if any(str(row.get("verdict") or "") != "probable_transcript_error" for row in rows):
+        return None, None, None
+    coverages = [feature_number(row, "me_overlap_coverage") for row in rows]
+    if not coverages or any(value is None or value >= 0.80 for value in coverages):
+        return None, None, None
+    me_text = " ".join(row_role_text(row, "me") for row in rows)
+    remote_text = " ".join(row_role_text(row, "remote") for row in rows)
+    me_tokens = content_tokens(me_text)
+    remote_tokens = set(content_tokens(remote_text))
+    unique_tokens = sorted({token for token in me_tokens if token not in remote_tokens})
+    strong_unique = sorted(set(unique_tokens) & TEXT_GUARD_STRONG_UNIQUE_KEEP_TOKENS)
+    if len(me_tokens) < 4 or (len(unique_tokens) < 3 and not (len(unique_tokens) >= 2 and strong_unique)):
+        return None, None, None
+    reason = (
+        "text_guard_unique_me_content: "
+        f"{len(unique_tokens)} unique Me content tokens; whole-Me drop is unsafe"
+    )
+    if strong_unique:
+        reason += f"; strong local marker: {', '.join(strong_unique)}"
+    return "keep_me", 0.74, reason
+
+
 def suggested_decision_for_group(
     rows: list[dict[str, Any]],
     stronger_by_session: dict[str, list[dict[str, Any]]],
@@ -576,6 +701,9 @@ def suggested_decision_for_group(
     stronger_decision, confidence, reason, summary = stronger_suggested_decision(rows, stronger_by_session)
     if stronger_decision:
         return stronger_decision, confidence, reason or "", summary
+    text_guard_decision, text_guard_confidence, text_guard_reason = text_guard_keep_decision(rows, summary)
+    if text_guard_decision:
+        return text_guard_decision, text_guard_confidence, text_guard_reason or "", summary
     return group_suggested_decision(rows), common_value(rows, "suggested_decision_confidence", "mixed"), group_suggested_reason(rows), summary
 
 
