@@ -48,9 +48,10 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - working sessions: `13/13 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.01 min`;
 - remaining full transcript/export review surface: `1.91 min`;
-- export-review queue: `40` raw rows / `29` packed actions after the current automatic
-  `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `11` grouped rows reachable through `murmurmark review next` /
-  `murmurmark review workspace`; the active plan currently spans `6` sessions, with local-recall
+- mandatory export-review queue: `33` raw rows / `26` packed actions after the current automatic
+  `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `7` grouped rows reachable through `murmurmark review next` /
+  `murmurmark review workspace`; `7` short low-materiality rows (`0.10 min`) are kept in the report
+  but outside the mandatory review queue; the active plan currently spans `6` sessions, with local-recall
   review fully explained by harmless short/boundary/remote-covered islands;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
   `check_unique_me_content` and `remote_leak`, without changing capture, Echo Guard or the main ASR
@@ -261,7 +262,10 @@ first `murmurmark review ...` commands for that session. Its readiness block als
 `sessions_in_scope` and `sessions_excluded`, so the corpus total can include old diagnostic captures
 without making them look like working meetings. It also prints `review_actions` and
 `grouped_review_rows`: the first is the number of answer-sheet decisions after safe grouping, the
-second is how many raw review rows were packed behind those decisions. Corpus readiness and
+second is how many raw review rows were packed behind those decisions. Very short low-content
+`remote_leak` / `uncertain` tails are counted as `low_materiality_review_rows`; they remain in the
+JSON summary, but they do not inflate the mandatory review queue or the next review pack.
+Corpus readiness and
 `next corpus` summaries also print a `use` block: whether any notes are already usable, whether the
 whole corpus is ready for medium-risk meetings, how many sessions still require review or processing,
 and the minimum next command. They also end with the final copyable `next: ...` command.
@@ -886,6 +890,10 @@ reason it was chosen. `quick_recommended_lane` still points to the fastest confi
 exists, while `first_recommended_lane` targets the largest blocking lane. The report also shows the
 estimated queue remaining after that first lane. It reports both raw queue rows and packed review
 actions, so the remaining work reflects grouped rows that can be answered once per `Me` utterance.
+Short low-materiality `remote_leak` / `uncertain` tails are listed in
+`review_queue_low_materiality_excluded` and printed as `low_materiality_review_rows`; they are not
+deleted, marked resolved or hidden from the full transcript metrics. This only keeps the immediate
+mandatory queue focused on content-bearing review work.
 When a concrete review target is known, top-level `next_commands` and `murmurmark report corpus`
 include `--session sessions/<id>` rather than a generic corpus-wide review command. The report also
 surfaces the same target as `focus_session` and `focus_next`, so the next operator action is visible

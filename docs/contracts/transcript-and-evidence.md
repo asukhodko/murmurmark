@@ -1921,6 +1921,12 @@ sessions/_reports/operational-readiness/
       "remaining_human_review_items": 34
     },
     "review_queue_items": 40,
+    "review_queue_low_materiality_excluded": {
+      "items": 0,
+      "seconds": 0.0,
+      "minutes": 0.0,
+      "by_label": {}
+    },
     "review_action_count": 30,
     "grouped_review_row_count": 10,
     "by_review_action": {
@@ -2025,6 +2031,11 @@ block `murmurmark export` after notes are ready.
 `promotion_plan` is the bridge from current pilot status to the target state. It names remaining
 conditions, sessions that are not yet `ready_for_notes`, notes review minutes and the next actions
 needed to reduce uncertainty. It is report-only: it never edits transcripts or cleanup profiles.
+`summary.review_queue_low_materiality_excluded` is also report-only. It counts short low-content
+`remote_leak` / `uncertain` review rows that were part of the selected top queue but were kept
+outside the mandatory operator queue. These rows are not deleted, marked resolved or removed from
+the underlying session-quality metrics; they only keep `review_queue`, `review_action_count`,
+`murmurmark report corpus` and `murmurmark next corpus` focused on content-bearing review work.
 `review_queue_strategy` is also report-only. It groups the remaining review queue into workflow
 lanes, recommends the first lane to close, and estimates the remaining queue after that first lane is
 reviewed. It reports both raw `items` and packed `actions`; `grouped_rows` is the number of raw rows

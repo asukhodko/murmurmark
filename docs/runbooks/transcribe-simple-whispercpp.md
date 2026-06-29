@@ -804,7 +804,10 @@ target from the queue.
 review target exists. It also prints `sessions_in_scope` and `sessions_excluded` to make the
 working-meeting scope visible next to the full corpus count. The same block prints
 `review_actions` and `grouped_review_rows`, so the handoff shows the number of actual answer-sheet
-decisions rather than only the noisier raw row count.
+decisions rather than only the noisier raw row count. It also prints `low_materiality_review_rows`
+when very short low-content `remote_leak` / `uncertain` tails were kept in the report but excluded
+from the mandatory review queue. Those rows are not treated as resolved; the field only prevents
+tiny non-material tails from taking the next review slot.
 The command also refreshes `sessions/_reports/review-plan/` from the just-written
 operational-readiness report. That keeps the global review plan, `review first-lane`, and
 `next corpus` aligned. The first lane is chosen by the largest blocking review lane in packed

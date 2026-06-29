@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 
 SCRIPT_VERSION = "0.3.4"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
+TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 CROSS_LANE_RELATED_LANES = {"check_unique_me_content", "classify_audio"}
 REVIEW_LANE_ORDER = [
@@ -31,6 +33,68 @@ DIAGNOSTIC_SESSION_MARKERS = (
     "audio-input",
     "talk-audio-input",
     "talk-routed",
+)
+LOW_MATERIALITY_STOP_WORDS = {
+    "а",
+    "в",
+    "во",
+    "вот",
+    "да",
+    "для",
+    "же",
+    "и",
+    "или",
+    "как",
+    "когда",
+    "между",
+    "мне",
+    "меня",
+    "мы",
+    "на",
+    "нас",
+    "не",
+    "но",
+    "ну",
+    "он",
+    "она",
+    "они",
+    "оно",
+    "по",
+    "при",
+    "с",
+    "со",
+    "там",
+    "тем",
+    "то",
+    "тогда",
+    "тоже",
+    "тут",
+    "ты",
+    "у",
+    "уже",
+    "что",
+    "это",
+    "этого",
+    "этой",
+    "этот",
+    "я",
+}
+PROTECTED_REVIEW_MARKERS = (
+    "надо",
+    "нужно",
+    "сделаю",
+    "сделаем",
+    "давай",
+    "давайте",
+    "решили",
+    "договорились",
+    "согласовали",
+    "риск",
+    "проблем",
+    "вопрос",
+    "блокер",
+    "проверь",
+    "посмотрю",
 )
 
 
@@ -110,6 +174,23 @@ def safe_int(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def normalized_tokens(text: Any) -> list[str]:
+    return [token.lower().replace("ё", "е") for token in TOKEN_RE.findall(str(text or ""))]
+
+
+def low_materiality_content_tokens(text: Any) -> list[str]:
+    return [
+        token
+        for token in normalized_tokens(text)
+        if len(token) > 2 and token not in LOW_MATERIALITY_STOP_WORDS
+    ]
+
+
+def has_protected_review_marker(text: Any) -> bool:
+    lowered = str(text or "").lower().replace("ё", "е")
+    return any(marker in lowered for marker in PROTECTED_REVIEW_MARKERS)
 
 
 def is_diagnostic_session(row: dict[str, Any]) -> bool:
@@ -523,6 +604,107 @@ def compact_review_item(session: dict[str, Any], row: dict[str, Any]) -> dict[st
             if commands.get(key)
         },
     }
+
+
+def audio_review_me_text(row: dict[str, Any]) -> str:
+    utterances = row.get("utterances") if isinstance(row.get("utterances"), list) else []
+    parts: list[str] = []
+    for item in utterances:
+        if not isinstance(item, dict):
+            continue
+        source = str(item.get("source_track") or "").lower()
+        role = str(item.get("role") or item.get("speaker_label") or "").lower()
+        if source == "mic" or role == "me":
+            parts.append(str(item.get("text") or ""))
+    return " ".join(parts)
+
+
+def audio_review_row_low_materiality(row: dict[str, Any]) -> bool:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    label = str(classification.get("label") or "")
+    verdict = str(classification.get("verdict") or "")
+    if label not in {"remote_leak", "uncertain"}:
+        return False
+    if verdict not in {"probable_transcript_error", "needs_stronger_audio_judge"}:
+        return False
+
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    duration = safe_float(interval.get("duration_sec"))
+    if duration <= 0.0 or duration > 1.25:
+        return False
+
+    me_text = audio_review_me_text(row)
+    if has_protected_review_marker(me_text):
+        return False
+
+    compacted = compact_review_item({}, row)
+    features = compacted.get("review_features") if isinstance(compacted.get("review_features"), dict) else {}
+    text_similarity = safe_float(features.get("text_similarity"))
+    containment = safe_float(features.get("token_containment"))
+    me_coverage = safe_float(features.get("me_overlap_coverage"))
+    content_tokens = low_materiality_content_tokens(me_text)
+
+    return (
+        len(content_tokens) <= 1
+        or me_coverage <= 0.40
+        or (len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
+    )
+
+
+def low_materiality_review_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    by_label: dict[str, int] = {}
+    seconds = 0.0
+    for row in rows:
+        classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+        label = str(row.get("label") or classification.get("label") or "unknown")
+        by_label[label] = by_label.get(label, 0) + 1
+        interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+        seconds += safe_float(interval.get("duration_sec"))
+    return {
+        "items": len(rows),
+        "seconds": round(seconds, 3),
+        "minutes": round(seconds / 60.0, 2),
+        "by_label": dict(sorted(by_label.items())),
+    }
+
+
+def review_item_me_text(item: dict[str, Any]) -> str:
+    rows = item.get("text") if isinstance(item.get("text"), list) else []
+    parts: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        source = str(row.get("source_track") or "").lower()
+        role = str(row.get("role") or row.get("speaker_label") or "").lower()
+        if source == "mic" or role == "me":
+            parts.append(str(row.get("text") or ""))
+    return " ".join(parts)
+
+
+def review_item_low_materiality(item: dict[str, Any]) -> bool:
+    label = str(item.get("label") or "")
+    verdict = str(item.get("verdict") or "")
+    if label not in {"remote_leak", "uncertain"}:
+        return False
+    if verdict not in {"probable_transcript_error", "needs_stronger_audio_judge"}:
+        return False
+    interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
+    duration = safe_float(interval.get("duration_sec"))
+    if duration <= 0.0 or duration > 1.25:
+        return False
+    me_text = review_item_me_text(item)
+    if has_protected_review_marker(me_text):
+        return False
+    features = item.get("review_features") if isinstance(item.get("review_features"), dict) else {}
+    text_similarity = safe_float(features.get("text_similarity"))
+    containment = safe_float(features.get("token_containment"))
+    me_coverage = safe_float(features.get("me_overlap_coverage"))
+    content_tokens = low_materiality_content_tokens(me_text)
+    return (
+        len(content_tokens) <= 1
+        or me_coverage <= 0.40
+        or (len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
+    )
 
 
 def duplicate_drop_hint_allowed(item: dict[str, Any]) -> bool:
@@ -1161,7 +1343,7 @@ def select_review_queue(rows: list[dict[str, Any]], max_items: int) -> list[dict
     return [enrich_review_item(item) for item in selected[:limit]]
 
 
-def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[dict[str, Any]]:
+def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     rows: list[dict[str, Any]] = []
     by_session = {str(session.get("session_id")): session for session in sessions}
     me_ids_cache: dict[tuple[str, str], set[str]] = {}
@@ -1236,7 +1418,15 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
                 continue
             rows.append(compact_transcript_order_item(session, row))
     rows.sort(key=review_queue_sort_key)
-    return select_review_queue(rows, max_items)
+    selected = select_review_queue(rows, max_items)
+    low_materiality_rows = [item for item in selected if review_item_low_materiality(item)]
+    mandatory = [item for item in selected if not review_item_low_materiality(item)]
+    return mandatory, low_materiality_rows
+
+
+def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[dict[str, Any]]:
+    rows, _ = build_review_queue_details(sessions, max_items)
+    return rows
 
 
 def review_queue_minutes(items: list[dict[str, Any]]) -> float:
@@ -1661,7 +1851,8 @@ def build_report(
     for row in burdens:
         gate = str(row.get("use_gate") or "unknown")
         gates[gate] = gates.get(gate, 0) + 1
-    review_queue = build_review_queue(burdens, max_review_items)
+    review_queue, low_materiality_rows = build_review_queue_details(burdens, max_review_items)
+    low_materiality_summary = low_materiality_review_summary(low_materiality_rows)
     review_actions = review_action_summary(review_queue)
     active_judge_queue = active_audio_judge_queue_summary(burdens, audio_judge_queue)
     audio_judge_review_queue = active_judge_queue or (audio_judge.get("review_queue") if isinstance(audio_judge, dict) else None)
@@ -1707,6 +1898,7 @@ def build_report(
             ),
             "audio_judge_review_queue": audio_judge_review_queue,
             "review_queue_items": len(review_queue),
+            "review_queue_low_materiality_excluded": low_materiality_summary,
             "review_action_count": review_actions["review_action_count"],
             "grouped_review_row_count": review_actions["grouped_review_row_count"],
             "by_review_action": review_actions["by_review_action"],
@@ -1807,6 +1999,11 @@ def recommendations(verdict: str, blockers: list[str], warnings: list[str]) -> l
 
 
 def write_markdown(path: Path, report: dict[str, Any]) -> None:
+    low_materiality = (
+        report["summary"].get("review_queue_low_materiality_excluded")
+        if isinstance(report["summary"].get("review_queue_low_materiality_excluded"), dict)
+        else {}
+    )
     lines = [
         "# MurmurMark Operational Readiness",
         "",
@@ -1825,6 +2022,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Review queue rows: `{report['summary'].get('review_queue_items')}`",
         f"- Packed review actions: `{report['summary'].get('review_action_count')}`",
         f"- Grouped review rows saved: `{report['summary'].get('grouped_review_row_count')}`",
+        f"- Low-materiality rows outside mandatory queue: `{low_materiality.get('items', 0)}` / `{low_materiality.get('seconds', 0.0)} sec`",
         f"- Corpus readiness: `{report['summary']['corpus_readiness']}`",
         f"- Suggested review shadow profiles: `{report['summary'].get('sessions_with_suggested_review_v1')}`",
         f"- Corpus items: `{report['summary']['corpus_item_count']}`",

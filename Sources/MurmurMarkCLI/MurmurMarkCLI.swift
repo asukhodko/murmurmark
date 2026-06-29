@@ -9423,6 +9423,7 @@ enum CorpusPrinter {
             print(String(format: "  transcript_review_minutes: %.2f", transcriptReviewSeconds / 60))
         }
         print("  review_actions: \(int(summary["review_action_count"]) ?? int(summary["review_queue_items"]) ?? 0)")
+        printLowMaterialityReviewRows(summary)
         print("  grouped_review_rows: \(int(summary["grouped_review_row_count"]) ?? 0)")
         printOperationalUse(payload)
         printFirstNextCommand(payload)
@@ -9482,6 +9483,7 @@ enum CorpusPrinter {
             print(String(format: "  transcript_review_minutes: %.2f", transcriptReviewSeconds / 60))
         }
         print("  review_actions: \(int(summary["review_action_count"]) ?? int(summary["review_queue_items"]) ?? 0)")
+        printLowMaterialityReviewRows(summary)
         printOperationalUse(payload)
         if let lanePack {
             print("  lane_pack: \(PathDisplay.display(lanePack.manifest))")
@@ -9574,6 +9576,17 @@ enum CorpusPrinter {
         if let command = firstNextCommand(payload) {
             print("    minimum_step: \(command)")
         }
+    }
+
+    private static func printLowMaterialityReviewRows(_ summary: [String: Any]) {
+        guard let lowMateriality = summary["review_queue_low_materiality_excluded"] as? [String: Any],
+              let items = int(lowMateriality["items"]),
+              items > 0
+        else {
+            return
+        }
+        let seconds = double(lowMateriality["seconds"]) ?? 0.0
+        print(String(format: "  low_materiality_review_rows: %d / %.2f sec", items, seconds))
     }
 
     private struct PreparedLanePackHandoff {

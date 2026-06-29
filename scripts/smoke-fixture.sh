@@ -2972,6 +2972,7 @@ PY
   jq -e '.summary.audio_judge_readiness | type == "string"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.summary.review_action_count | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.summary.grouped_review_row_count | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
+  jq -e '.summary.review_queue_low_materiality_excluded.items | type == "number"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e 'all(.session_review_burden[]; (.use_gate | type) == "string")' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.review_queue | type == "array"' "$readiness_dir/operational_readiness_report.json" >/dev/null
   jq -e '.next_commands | type == "array" and length >= 1 and (.[0].command | type) == "string"' "$readiness_dir/operational_readiness_report.json" >/dev/null
@@ -3102,6 +3103,42 @@ assert module.duplicate_drop_hint_allowed({
         "token_containment": 0.80,
     }
 })
+low_materiality_item = {
+    "label": "remote_leak",
+    "verdict": "needs_stronger_audio_judge",
+    "interval": {"duration_sec": 0.8},
+    "review_features": {
+        "me_overlap_coverage": 0.95,
+        "text_similarity": 0.0,
+        "token_containment": 0.0,
+    },
+    "text": [{"role": "Me", "source_track": "mic", "text": "ических"}],
+}
+assert module.review_item_low_materiality(low_materiality_item), low_materiality_item
+technical_item = {
+    "label": "remote_leak",
+    "verdict": "needs_stronger_audio_judge",
+    "interval": {"duration_sec": 0.9},
+    "review_features": {
+        "me_overlap_coverage": 0.95,
+        "text_similarity": 0.5,
+        "token_containment": 0.5,
+    },
+    "text": [{"role": "Me", "source_track": "mic", "text": "Тут технический анализ."}],
+}
+assert not module.review_item_low_materiality(technical_item), technical_item
+protected_item = {
+    "label": "uncertain",
+    "verdict": "needs_stronger_audio_judge",
+    "interval": {"duration_sec": 0.9},
+    "review_features": {
+        "me_overlap_coverage": 0.2,
+        "text_similarity": 0.0,
+        "token_containment": 0.0,
+    },
+    "text": [{"role": "Me", "source_track": "mic", "text": "надо проверить"}],
+}
+assert not module.review_item_low_materiality(protected_item), protected_item
 burden = module.session_review_burden(
     {
         "session_id": "order-repair-session",
