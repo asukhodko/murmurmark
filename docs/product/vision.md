@@ -2,6 +2,19 @@
 
 MurmurMark turns sensitive meetings into local, reviewable work artifacts without relying on the meeting platform's cloud recording.
 
+## Mission
+
+MurmurMark exists to turn important work calls into local, reviewable and useful artifacts:
+transcript, notes, decisions, actions and risks. It should preserve privacy, source evidence and
+user control instead of asking the user to trust a cloud recorder, a meeting bot or unsupported
+generated summaries.
+
+Short version:
+
+```text
+Local-first meeting memory for sensitive work.
+```
+
 The product is for situations where a user needs memory and follow-up from a call, but cannot safely create a shared cloud recording: 1 on 1 meetings, retrospectives, incident reviews, architecture reviews, planning sessions, and internal discussions with sensitive context.
 
 ## Product Promise
@@ -55,4 +68,3 @@ Long description:
 ```text
 MurmurMark records your microphone and the selected meeting application's audio into separate local tracks, builds a speaker-aware transcript, and turns it into evidence-backed meeting notes under an explicit privacy and retention policy.
 ```
-

@@ -2,6 +2,17 @@
 
 MurmurMark is a local-first macOS meeting capture and notes pipeline.
 
+## Mission
+
+MurmurMark turns important work calls into local, reviewable work artifacts: transcript, notes,
+decisions, actions and risks, while keeping privacy, source evidence and user control intact.
+
+Short version:
+
+```text
+Local-first meeting memory for sensitive work.
+```
+
 It records the user's microphone and the selected meeting application's audio into separate local tracks, without virtual audio devices, without changing the meeting app's audio routing, and without uploading raw audio by default. The recording package is then processed into a speaker-aware transcript, evidence-backed meeting notes, and documentation updates under an explicit privacy policy.
 
 The repository now contains a Swift CLI that wraps the local recording and processing pipeline end to
@@ -399,6 +410,9 @@ After a successful recording, the CLI prints `SESSION="..."`, `recommended_next`
 cd murmurmark
 
 git pull
+scripts/install-local.sh
+export PATH="$HOME/.local/bin:$PATH"
+
 murmurmark doctor
 murmurmark self-test
 murmurmark config init

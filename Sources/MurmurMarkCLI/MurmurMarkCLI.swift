@@ -5526,7 +5526,7 @@ enum RemoteCaptureBackend: String {
     }
 }
 
-final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
+final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
     let outputDirectory: URL
     let targetBundleID: String?
     let microphoneID: String
@@ -5551,6 +5551,9 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private var targetPIDStrategy = "screen_capture_filter"
     private var startDate = Date()
     private var stopDate: Date?
+    private var stoppingRequested = false
+    private var streamStoppedUnexpectedly = false
+    private var lastSampleDate: Date?
 
     init(
         outputDirectory: URL,
@@ -5682,13 +5685,15 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             } else {
                 print("recording until Ctrl-C -> \(outputDirectory.path)")
             }
-            let stopReason = try await RecordingStopper.wait(duration: duration)
+            let stopReason = try await waitForRecordingStop()
             if stopReason.isSignal {
                 print("\nstopping...")
+            } else if stopReason == .streamStopped || stopReason == .captureStalled {
+                print("\ncapture stopped before requested end; finalizing partial session...")
             }
-            try await stream?.stopCapture()
-            try remoteInputCapture?.stop()
-            try voiceProcessingMic?.stop()
+            await stopScreenCaptureStream()
+            stopRemoteInputCapture()
+            stopVoiceProcessingMic()
             stopDate = Date()
             try eventLog.write(type: "capture.stopped", fields: ["reason": stopReason.rawValue])
             try finish()
@@ -5708,6 +5713,9 @@ extension SessionRecorder {
     func stream(_: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard CMSampleBufferDataIsReady(sampleBuffer), CMSampleBufferGetNumSamples(sampleBuffer) > 0 else {
             return
+        }
+        stateQueue.sync {
+            lastSampleDate = Date()
         }
 
         do {
@@ -5734,7 +5742,100 @@ extension SessionRecorder {
 
     func stream(_: SCStream, didStopWithError error: Error) {
         stateQueue.sync {
-            warnings.append("stream stopped with error: \(error.localizedDescription)")
+            if !stoppingRequested {
+                streamStoppedUnexpectedly = true
+                warnings.append("stream stopped with error: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func waitForRecordingStop() async throws -> StopReason {
+        try await withThrowingTaskGroup(of: StopReason.self) { group in
+            group.addTask { [duration] in
+                try await RecordingStopper.wait(duration: duration)
+            }
+            if needsScreenCaptureKit {
+                group.addTask { [weak self] in
+                    await self?.waitForUnexpectedStreamStop() ?? .streamStopped
+                }
+                group.addTask { [weak self] in
+                    await self?.waitForCaptureStall() ?? .captureStalled
+                }
+            }
+
+            guard let reason = try await group.next() else {
+                return .durationElapsed
+            }
+            group.cancelAll()
+            return reason
+        }
+    }
+
+    private func waitForUnexpectedStreamStop() async -> StopReason {
+        while !Task.isCancelled {
+            if stateQueue.sync(execute: { streamStoppedUnexpectedly }) {
+                return .streamStopped
+            }
+            do {
+                try await Task.sleep(nanoseconds: 250_000_000)
+            } catch {
+                break
+            }
+        }
+        return .terminated
+    }
+
+    private func waitForCaptureStall() async -> StopReason {
+        let stallThreshold: TimeInterval = 10
+        while !Task.isCancelled {
+            let stalled = stateQueue.sync {
+                let reference = lastSampleDate ?? startDate
+                return Date().timeIntervalSince(reference) > stallThreshold
+            }
+            if stalled {
+                appendWarning("capture produced no audio samples for \(Int(stallThreshold))s")
+                return .captureStalled
+            }
+            do {
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+            } catch {
+                break
+            }
+        }
+        return .terminated
+    }
+
+    private func stopScreenCaptureStream() async {
+        guard let stream else { return }
+        stateQueue.sync {
+            stoppingRequested = true
+        }
+        do {
+            try await stream.stopCapture()
+        } catch {
+            appendWarning("stopCapture failed during finalization: \(error.localizedDescription)")
+        }
+    }
+
+    private func stopRemoteInputCapture() {
+        do {
+            try remoteInputCapture?.stop()
+        } catch {
+            appendWarning("remote input stop failed during finalization: \(error.localizedDescription)")
+        }
+    }
+
+    private func stopVoiceProcessingMic() {
+        do {
+            try voiceProcessingMic?.stop()
+        } catch {
+            appendWarning("voice-processing mic stop failed during finalization: \(error.localizedDescription)")
+        }
+    }
+
+    private func appendWarning(_ warning: String) {
+        stateQueue.sync {
+            warnings.append(warning)
         }
     }
 
@@ -9880,6 +9981,8 @@ enum StopReason: String {
     case durationElapsed = "duration_elapsed"
     case interrupt = "sigint"
     case terminated = "sigterm"
+    case streamStopped = "stream_stopped"
+    case captureStalled = "capture_stalled"
 
     var isSignal: Bool {
         self == .interrupt || self == .terminated
@@ -9893,10 +9996,35 @@ enum RecordingStopper {
             return .durationElapsed
         }
 
-        return await withCheckedContinuation { continuation in
-            let bridge = SignalBridge(continuation: continuation)
-            bridge.start()
+        let bridgeBox = SignalBridgeBox()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                let bridge = SignalBridge(continuation: continuation)
+                bridgeBox.set(bridge)
+                bridge.start()
+            }
+        } onCancel: {
+            bridgeBox.cancel()
         }
+    }
+}
+
+final class SignalBridgeBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var bridge: SignalBridge?
+
+    func set(_ bridge: SignalBridge) {
+        lock.lock()
+        self.bridge = bridge
+        lock.unlock()
+    }
+
+    func cancel() {
+        lock.lock()
+        let active = bridge
+        bridge = nil
+        lock.unlock()
+        active?.cancel()
     }
 }
 
@@ -9925,6 +10053,10 @@ final class SignalBridge: @unchecked Sendable {
         }
         sources.append(source)
         source.resume()
+    }
+
+    func cancel() {
+        resume(.terminated)
     }
 
     private func resume(_ reason: StopReason) {
