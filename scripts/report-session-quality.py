@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.4.1"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -469,6 +469,17 @@ def audio_review_me_ids(row: dict[str, Any]) -> set[str]:
     return ids
 
 
+def audio_review_interval(row: dict[str, Any]) -> tuple[float, float]:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    start = safe_float(interval.get("start"))
+    end = safe_float(interval.get("end"))
+    seconds = safe_float(interval.get("duration_sec")) or 0.0
+    if start is None or end is None or end <= start:
+        start = 0.0
+        end = max(0.0, seconds)
+    return start, end
+
+
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     if not path.exists():
@@ -532,6 +543,52 @@ def active_audio_review_row(row: dict[str, Any], selected_me_ids: set[str]) -> b
     if not me_ids:
         return True
     return bool(me_ids & selected_me_ids)
+
+
+def reliable_audio_review_rows_by_me_id(rows: list[dict[str, Any]], selected_me_ids: set[str]) -> dict[str, list[dict[str, Any]]]:
+    reliable: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        if not active_audio_review_row(row, selected_me_ids):
+            continue
+        classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+        if str(classification.get("verdict") or "") != "likely_reliable":
+            continue
+        confidence = safe_float(classification.get("confidence")) or 0.0
+        scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
+        likely_score = safe_float(scores.get("likely_reliable")) or 0.0
+        if confidence < 0.70 or likely_score < 70.0:
+            continue
+        for me_id in audio_review_me_ids(row) & selected_me_ids:
+            reliable.setdefault(me_id, []).append(row)
+    return reliable
+
+
+def audio_review_row_explained_by_reliable(
+    row: dict[str, Any], selected_me_ids: set[str], reliable_by_me_id: dict[str, list[dict[str, Any]]]
+) -> bool:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    if str(classification.get("label") or "") != "uncertain":
+        return False
+    if str(classification.get("verdict") or "") != "needs_stronger_audio_judge":
+        return False
+    me_ids = audio_review_me_ids(row) & selected_me_ids
+    if not me_ids:
+        return False
+    start, end = audio_review_interval(row)
+    duration = end - start
+    if duration <= 0:
+        return False
+    for me_id in me_ids:
+        covered = False
+        for reliable_row in reliable_by_me_id.get(me_id, []):
+            reliable_start, reliable_end = audio_review_interval(reliable_row)
+            overlap = max(0.0, min(end, reliable_end) - max(start, reliable_start))
+            if overlap / duration >= 0.80:
+                covered = True
+                break
+        if not covered:
+            return False
+    return True
 
 
 def selected_counts(evidence: dict[str, Any] | None) -> dict[str, int]:
@@ -741,6 +798,7 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
                     audit_rows.append(value)
 
     if audit_rows:
+        reliable_by_me_id = reliable_audio_review_rows_by_me_id(audit_rows, selected_me_ids)
         buckets = {
             "likely_reliable": {"count": 0, "intervals": []},
             "probable_error": {"count": 0, "intervals": []},
@@ -755,17 +813,15 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
         resolved_intervals: list[tuple[float, float]] = []
         resolved_by_review_intervals: list[tuple[float, float]] = []
         remote_leak_intervals: list[tuple[float, float]] = []
+        explained_by_reliable_count = 0
+        explained_by_reliable_intervals: list[tuple[float, float]] = []
+        notes_explained_by_reliable_count = 0
+        notes_explained_by_reliable_intervals: list[tuple[float, float]] = []
         active_count = 0
         active_intervals: list[tuple[float, float]] = []
         for row in audit_rows:
             source_id = str(row.get("id") or "")
-            interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
-            start = safe_float(interval.get("start"))
-            end = safe_float(interval.get("end"))
-            seconds = safe_float(interval.get("duration_sec")) or 0.0
-            if start is None or end is None or end <= start:
-                start = 0.0
-                end = max(0.0, seconds)
+            start, end = audio_review_interval(row)
             if not active_audio_review_row(row, selected_me_ids):
                 resolved_count += 1
                 resolved_intervals.append((start, end))
@@ -781,6 +837,13 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
             verdict = str(classification.get("verdict") or "")
             me_ids = audio_review_me_ids(row)
             affects_notes = label == "lost_me" or not me_ids or bool(me_ids & selected_note_ids)
+            if audio_review_row_explained_by_reliable(row, selected_me_ids, reliable_by_me_id):
+                explained_by_reliable_count += 1
+                explained_by_reliable_intervals.append((start, end))
+                if affects_notes:
+                    notes_explained_by_reliable_count += 1
+                    notes_explained_by_reliable_intervals.append((start, end))
+                continue
             if verdict == "probable_transcript_error":
                 verdict = "probable_error"
                 if label == "remote_leak":
@@ -811,6 +874,10 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
             "audio_review_notes_probable_error_seconds": union_seconds(notes_buckets["probable_error"]["intervals"]),
             "audio_review_notes_stronger_judge_count": notes_buckets["needs_stronger_audio_judge"]["count"],
             "audio_review_notes_stronger_judge_seconds": union_seconds(notes_buckets["needs_stronger_audio_judge"]["intervals"]),
+            "audio_review_explained_by_reliable_count": explained_by_reliable_count,
+            "audio_review_explained_by_reliable_seconds": union_seconds(explained_by_reliable_intervals),
+            "audio_review_notes_explained_by_reliable_count": notes_explained_by_reliable_count,
+            "audio_review_notes_explained_by_reliable_seconds": union_seconds(notes_explained_by_reliable_intervals),
             "audio_review_resolved_by_cleanup_count": resolved_count,
             "audio_review_resolved_by_cleanup_seconds": union_seconds(resolved_intervals),
             "audio_review_resolved_by_review_count": resolved_by_review_count,
@@ -845,6 +912,10 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
         "audio_review_notes_probable_error_seconds": round_or_none(error.get("seconds")),
         "audio_review_notes_stronger_judge_count": safe_int(stronger.get("count")),
         "audio_review_notes_stronger_judge_seconds": round_or_none(stronger.get("seconds")),
+        "audio_review_explained_by_reliable_count": 0,
+        "audio_review_explained_by_reliable_seconds": 0.0,
+        "audio_review_notes_explained_by_reliable_count": 0,
+        "audio_review_notes_explained_by_reliable_seconds": 0.0,
         "audio_review_remote_leak_probable_error_count": safe_int(remote_leak.get("count")),
         "audio_review_remote_leak_probable_error_seconds": round_or_none(remote_leak.get("seconds")),
         "audio_review_recommended_next_step": audio_summary.get("recommended_next_step"),

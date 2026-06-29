@@ -1028,6 +1028,12 @@ derived/audit/audio-review-pack/
 item count, likely reliable seconds, probable transcript error seconds, stronger-audio-judge demand
 and report path.
 
+Session-quality reports may count an `uncertain / needs_stronger_audio_judge` row as
+`audio_review_explained_by_reliable_*` instead of review burden when all selected `Me` utterances in
+that row are covered by high-confidence `likely_reliable` audio-review intervals. This is a reporting
+deduplication only: it does not change transcript profiles, does not delete utterances, and does not
+apply to probable transcript errors or possible lost `Me` speech.
+
 An empty `review_pack_items.jsonl` is valid. In that case `audio_review_audit.jsonl` is empty,
 `audio_review_summary.json.items` is `0`, `recommended_next_step` is
 `no_extra_audio_judge_needed_for_current_pack`, and the pipeline should continue.

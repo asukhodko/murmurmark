@@ -257,6 +257,12 @@ def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
         "audio_review_stronger_judge_seconds": round(stronger_judge, 3),
         "transcript_audio_review_probable_error_seconds": round(transcript_probable_error, 3),
         "transcript_audio_review_stronger_judge_seconds": round(transcript_stronger_judge, 3),
+        "transcript_audio_review_explained_by_reliable_seconds": round(
+            safe_float(session.get("audio_review_explained_by_reliable_seconds")) or 0.0, 3
+        ),
+        "notes_audio_review_explained_by_reliable_seconds": round(
+            safe_float(session.get("audio_review_notes_explained_by_reliable_seconds")) or 0.0, 3
+        ),
         "local_recall_meaningful_review_seconds": round(local_recall, 3),
         "local_recall_possible_lost_me_seconds": round(safe_float(session.get("local_recall_possible_lost_me_seconds")), 3),
         "local_recall_needs_review_seconds": round(safe_float(session.get("local_recall_needs_review_seconds")), 3),

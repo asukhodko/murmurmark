@@ -35,8 +35,8 @@ Current corpus snapshot, refreshed on 2026-06-29:
 
 - operational verdict: `medium_risk_ready`;
 - working sessions: `13/13 ready_for_notes`;
-- required review for selected evidence-backed notes: `0.17 min`;
-- remaining full transcript/export review surface: `4.34 min`;
+- required review for selected evidence-backed notes: `0.02 min`;
+- remaining full transcript/export review surface: `3.63 min`;
 - next product target: shrink transcript/export blockers without changing capture, Echo Guard or
   the main ASR path, and without hiding unresolved risk from export gates.
 
@@ -731,6 +731,10 @@ profiles or raw capture. When local metrics disagree only between benign explana
 double-talk, timing overlap and reliable local speech, the audit treats the item as likely reliable
 instead of sending it to the stronger-judge queue. An empty review pack is a valid no-op: the audit
 still writes empty `audio_review_*` outputs and lets the session pipeline continue.
+Session readiness also de-duplicates transcript-only stronger-judge rows when the same selected `Me`
+utterance interval is already covered by high-confidence `likely_reliable` audio-review evidence.
+That only reduces review burden; it does not edit transcript text and never suppresses probable
+transcript errors or possible lost `Me` speech.
 
 `audit_cleanup_v2` is the conservative cleanup profile that consumes the audio review audit. It reads
 `audit_cleanup_v1` plus `derived/audit/audio-review-pack/audio_review_audit.jsonl`, then writes a

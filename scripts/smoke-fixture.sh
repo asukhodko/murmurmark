@@ -711,6 +711,8 @@ rg -n 'murmurmark process' "$session/derived/readiness/session_readiness.md" >/d
 rg -n 'Synthesis Review|utterance_transcript_order_review' "$session/derived/session-quality/session_quality_report.md" >/dev/null
 python3 - "$repo_root" <<'PY'
 import importlib.util
+import json
+import tempfile
 from pathlib import Path
 import sys
 
@@ -751,6 +753,56 @@ remote_leak_commands = module.readiness_next_commands(
 remote_leak_ids = [item["id"] for item in remote_leak_commands]
 assert remote_leak_ids[0] == "inspect_remote_leak_segment_plan", remote_leak_ids
 assert "remote_leak_segment_repair.md" in remote_leak_commands[0]["command"], remote_leak_commands[0]
+
+with tempfile.TemporaryDirectory() as tmp:
+    session = Path(tmp) / "session"
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    audit = session / "derived/audit/audio-review-pack"
+    resolved.mkdir(parents=True)
+    audit.mkdir(parents=True)
+    (resolved / "clean_dialogue.agent_reviewed_v1.json").write_text(
+        json.dumps(
+            {
+                "utterances": [
+                    {"id": "utt_me_safe", "role": "Me", "source_track": "mic", "start": 10.0, "end": 14.0},
+                    {"id": "utt_me_review", "role": "Me", "source_track": "mic", "start": 20.0, "end": 22.0},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    rows = [
+        {
+            "id": "arp_likely_safe",
+            "interval": {"start": 10.0, "end": 14.0, "duration_sec": 4.0},
+            "utterances": [{"id": "utt_me_safe", "role": "Me", "source_track": "mic"}],
+            "scores": {"likely_reliable": 75},
+            "classification": {"label": "timing_overlap", "verdict": "likely_reliable", "confidence": 0.74},
+        },
+        {
+            "id": "arp_uncertain_explained",
+            "interval": {"start": 10.2, "end": 13.8, "duration_sec": 3.6},
+            "utterances": [{"id": "utt_me_safe", "role": "Me", "source_track": "mic"}],
+            "scores": {"likely_reliable": 0},
+            "classification": {"label": "uncertain", "verdict": "needs_stronger_audio_judge", "confidence": 0.0},
+        },
+        {
+            "id": "arp_uncertain_kept",
+            "interval": {"start": 20.0, "end": 22.0, "duration_sec": 2.0},
+            "utterances": [{"id": "utt_me_review", "role": "Me", "source_track": "mic"}],
+            "scores": {"likely_reliable": 0},
+            "classification": {"label": "uncertain", "verdict": "needs_stronger_audio_judge", "confidence": 0.0},
+        },
+    ]
+    (audit / "audio_review_audit.jsonl").write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+    metrics = module.audio_review_metrics({"items": 3}, session, "agent_reviewed_v1", None)
+    assert metrics["audio_review_explained_by_reliable_count"] == 1, metrics
+    assert metrics["audio_review_explained_by_reliable_seconds"] == 3.6, metrics
+    assert metrics["audio_review_stronger_judge_count"] == 1, metrics
+    assert metrics["audio_review_stronger_judge_seconds"] == 2.0, metrics
 PY
 python3 - "$repo_root" <<'PY'
 import importlib.util

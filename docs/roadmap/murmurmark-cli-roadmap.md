@@ -104,7 +104,7 @@ flowchart LR
 
 - удержать corpus verdict на уровне `medium_risk_ready` или выше;
 - удержать рабочий корпус на 13/13 `ready_for_notes`;
-- опираться на текущую точку 2026-06-29: `0.17 min` проверки для selected notes и `4.34 min`
+- опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `3.63 min`
   отдельной transcript/export проверки на 13 рабочих сессиях;
 - снизить `transcript_review_burden` и `export_blockers`, не смешивая их с готовностью notes;
 - расширять repair/cleanup только через corpus gates и audio-review evidence;
@@ -112,6 +112,8 @@ flowchart LR
 - считать успехом не идеальный transcript, а готовые evidence-backed notes при явно сохранённых
   transcript/export blockers.
 
-Ближайший исполнимый блок: найти повторяемые transcript-only blockers, которые уже объяснены
-надёжными audio-review evidence, и снимать только такие блокеры из review burden. Всё, что похоже на
-possible lost `Me` или спорное содержание реплики, остаётся в review/export gate.
+Первый блок уже применён: transcript-only `uncertain` rows снимаются из burden только когда тот же
+selected `Me` interval покрыт high-confidence `likely_reliable` audio-review evidence. Следующий
+исполнительный блок — искать такие же узкие, доказуемые классы среди оставшихся `remote_leak` и
+long-uncertain rows. Всё, что похоже на possible lost `Me` или спорное содержание реплики, остаётся
+в review/export gate.
