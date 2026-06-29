@@ -62,10 +62,11 @@ to rebuild repair, cleanup, synthesis and reports from cached ASR JSON. The runn
 with `[run]`, `[passed]`, `[failed]` or `[skip]`, prints heartbeat lines for long-running stages, and
 stores the same stage list in `derived/pipeline-run/pipeline_run_report.json`. Use
 `--progress-interval-sec 0` if you need a quieter run. Use `--plan-only` to print a compact
-`pipeline_plan` with enabled/skipped stages, `run_command` for executing that plan and
-`current_next` for the current session state without executing the pipeline; the CLI labels the
-following readiness summary as `existing_readiness`. After `process` finishes, the last line is a
-single copyable `next: ...` command from the current readiness state.
+`pipeline_plan` with enabled/skipped stages, heavier stages, expected output files, `run_command`
+for executing that plan and `current_next` for the current session state without executing the
+pipeline; the CLI labels the following readiness summary as `existing_readiness`. The JSON report
+also stores this plan metadata under `plan`. After `process` finishes, the last line is a single
+copyable `next: ...` command from the current readiness state.
 The usual summary commands (`status`, `report`, `open`, `audit`, `cleanup`, `repair`, `synthesize`,
 `notes`, `transcript`, `review`, `export`, `retention`) use the same convention. Pure output modes
 such as `--path-only`, `--command-only` and `--cat` do not append a handoff line.

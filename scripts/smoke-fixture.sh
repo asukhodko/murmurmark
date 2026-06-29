@@ -2242,6 +2242,12 @@ EOF
   grep -q '^    skip: swift_build (--skip-build)$' "$workdir/pipeline-plan.out"
   grep -q '^    run: inspect$' "$workdir/pipeline-plan.out"
   grep -q '^    run: session_readiness$' "$workdir/pipeline-plan.out"
+  grep -q '^  heavy_steps:$' "$workdir/pipeline-plan.out"
+  grep -q '^    echo_preprocess: medium - runs Echo Guard and writes ASR-ready mic audio$' "$workdir/pipeline-plan.out"
+  grep -q '^    audit_group_overlaps: medium - reads audio and creates overlap audit features/clips$' "$workdir/pipeline-plan.out"
+  grep -q '^  expected_outputs:$' "$workdir/pipeline-plan.out"
+  grep -q '^    transcript: derived/transcript-simple/whisper-cpp/resolved/transcript.md (transcribe_current)$' "$workdir/pipeline-plan.out"
+  grep -q '^    readiness: derived/readiness/session_readiness.md (session_readiness)$' "$workdir/pipeline-plan.out"
   grep -q '^  run_command: murmurmark process ' "$workdir/pipeline-plan.out"
   grep -q '^  current_next: murmurmark next ' "$workdir/pipeline-plan.out"
   grep -q '^pipeline_run:$' "$workdir/pipeline-plan.out"
@@ -2254,6 +2260,9 @@ EOF
   ! grep -q '^\[planned\]' "$workdir/pipeline-plan.out"
   [[ -s "$pipeline_plan" ]]
   jq -e '.schema == "murmurmark.session_pipeline_run/v1" and .status == "planned" and (.steps | length) >= 10' "$pipeline_plan" >/dev/null
+  jq -e '.plan.mode == "plan_only" and (.plan.heavy_steps | length) >= 3 and (.plan.expected_outputs | length) >= 5' "$pipeline_plan" >/dev/null
+  jq -e 'any(.plan.heavy_steps[]; .name == "echo_preprocess" and .cost == "medium")' "$pipeline_plan" >/dev/null
+  jq -e 'any(.plan.expected_outputs[]; .id == "transcript" and .path == "derived/transcript-simple/whisper-cpp/resolved/transcript.md")' "$pipeline_plan" >/dev/null
   jq -e '.outputs.readiness_selected_profile == .outputs.selected_transcript_profile' "$pipeline_plan" >/dev/null
   jq -e '.outputs.synthesis_selected_transcript_profile == "reviewed_v1"' "$pipeline_plan" >/dev/null
   jq -e 'all(.steps[]; (.started_at | type) == "string" and (.duration_sec | type) == "number")' "$pipeline_plan" >/dev/null

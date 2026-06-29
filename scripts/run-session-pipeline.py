@@ -18,6 +18,38 @@ SCRIPT_VERSION = "0.1.0"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 
 
+STEP_COST_HINTS: dict[str, dict[str, str]] = {
+    "swift_build": {
+        "cost": "medium",
+        "reason": "builds the Swift CLI when --skip-build is not used",
+    },
+    "echo_preprocess": {
+        "cost": "medium",
+        "reason": "runs Echo Guard and writes ASR-ready mic audio",
+    },
+    "transcribe_current": {
+        "cost": "heavy",
+        "reason": "runs whisper.cpp ASR unless cached raw ASR is reused",
+    },
+    "audit_group_overlaps": {
+        "cost": "medium",
+        "reason": "reads audio and creates overlap audit features/clips",
+    },
+    "build_audio_review_pack": {
+        "cost": "medium",
+        "reason": "cuts review clips for risky audio/transcript regions",
+    },
+    "audit_audio_review_pack": {
+        "cost": "medium",
+        "reason": "classifies the generated audio review pack",
+    },
+    "plan_remote_leak_segment_repair": {
+        "cost": "medium",
+        "reason": "plans segment-level remote leak repair candidates",
+    },
+}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the current MurmurMark post-recording pipeline for one session.")
     parser.add_argument("session", type=Path)
@@ -284,6 +316,106 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
     ]
 
 
+def step_cost_hint(item: dict[str, Any]) -> dict[str, str] | None:
+    hint = STEP_COST_HINTS.get(str(item.get("name") or ""))
+    if not hint:
+        return None
+    cost = hint["cost"]
+    reason = hint["reason"]
+    command = item.get("command") if isinstance(item.get("command"), list) else []
+    if item.get("name") == "transcribe_current" and "--skip-transcribe" in command:
+        cost = "light"
+        reason = "reuses cached raw ASR JSON because --reuse-asr-cache was requested"
+    return {"cost": cost, "reason": reason}
+
+
+def expected_output_specs(session: Path, report_path: Path) -> list[dict[str, str]]:
+    return [
+        {
+            "id": "mic_for_asr",
+            "path": rel(session / "derived/preprocess/audio/mic_for_asr.wav", session),
+            "produced_by": "echo_preprocess",
+            "purpose": "ASR-ready local speaker audio",
+        },
+        {
+            "id": "transcript",
+            "path": rel(session / "derived/transcript-simple/whisper-cpp/resolved/transcript.md", session),
+            "produced_by": "transcribe_current",
+            "purpose": "baseline readable transcript",
+        },
+        {
+            "id": "best_notes",
+            "path": rel(session / "derived/synthesis-simple/extractive/notes.md", session),
+            "produced_by": "synthesize_auto",
+            "purpose": "extractive notes from the selected safe profile",
+        },
+        {
+            "id": "quality_verdict",
+            "path": rel(session / "derived/synthesis-simple/extractive/quality_verdict.md", session),
+            "produced_by": "synthesize_auto",
+            "purpose": "human-readable quality verdict",
+        },
+        {
+            "id": "readiness",
+            "path": rel(session / "derived/readiness/session_readiness.md", session),
+            "produced_by": "session_readiness",
+            "purpose": "final readiness gate and next commands",
+        },
+        {
+            "id": "pipeline_report",
+            "path": rel(report_path, session),
+            "produced_by": "run-session-pipeline",
+            "purpose": "machine-readable run/plan report",
+        },
+    ]
+
+
+def build_plan_metadata(
+    steps: list[dict[str, Any]],
+    session: Path,
+    report_path: Path,
+    repo_root: Path,
+    *,
+    plan_only: bool,
+) -> dict[str, Any]:
+    enabled_names = {str(item.get("name") or "") for item in steps if item.get("enabled")}
+    session_arg = rel(session, repo_root)
+    heavy_steps: list[dict[str, str]] = []
+    for item in steps:
+        if not item.get("enabled"):
+            continue
+        hint = step_cost_hint(item)
+        if not hint or hint["cost"] == "light":
+            continue
+        heavy_steps.append(
+            {
+                "name": str(item.get("name") or ""),
+                "cost": hint["cost"],
+                "reason": hint["reason"],
+            }
+        )
+
+    expected_outputs = []
+    for output in expected_output_specs(session, report_path):
+        produced_by = output["produced_by"]
+        if produced_by != "run-session-pipeline" and produced_by not in enabled_names:
+            continue
+        expected_outputs.append(output)
+
+    enabled = [item for item in steps if item["enabled"]]
+    skipped = [item for item in steps if not item["enabled"]]
+    return {
+        "mode": "plan_only" if plan_only else "run",
+        "session": session_arg,
+        "enabled_steps": len(enabled),
+        "skipped_steps": len(skipped),
+        "heavy_steps": heavy_steps,
+        "expected_outputs": expected_outputs,
+        "run_command": f"murmurmark process {session_arg}",
+        "current_next": f"murmurmark next {session_arg}",
+    }
+
+
 def read_tail(path: Path, limit: int = 4000) -> str:
     try:
         data = path.read_text(encoding="utf-8", errors="replace")
@@ -373,7 +505,7 @@ def print_step_result(result: dict[str, Any]) -> None:
                 print(f"{key}:\n{tail}", flush=True)
 
 
-def print_pipeline_plan(steps: list[dict[str, Any]], session: Path, report_path: Path, repo_root: Path) -> None:
+def print_pipeline_plan(steps: list[dict[str, Any]], session: Path, report_path: Path, repo_root: Path, plan: dict[str, Any]) -> None:
     enabled = [item for item in steps if item["enabled"]]
     skipped = [item for item in steps if not item["enabled"]]
     session_arg = rel(session, repo_root)
@@ -389,6 +521,22 @@ def print_pipeline_plan(steps: list[dict[str, Any]], session: Path, report_path:
         else:
             reason = item.get("skip_reason") or "disabled"
             print(f"    skip: {item['name']} ({reason})", flush=True)
+    heavy_steps = plan.get("heavy_steps") if isinstance(plan.get("heavy_steps"), list) else []
+    if heavy_steps:
+        print("  heavy_steps:", flush=True)
+        for item in heavy_steps:
+            name = item.get("name")
+            cost = item.get("cost")
+            reason = item.get("reason")
+            print(f"    {name}: {cost} - {reason}", flush=True)
+    expected_outputs = plan.get("expected_outputs") if isinstance(plan.get("expected_outputs"), list) else []
+    if expected_outputs:
+        print("  expected_outputs:", flush=True)
+        for item in expected_outputs:
+            output_id = item.get("id")
+            output_path = item.get("path")
+            produced_by = item.get("produced_by")
+            print(f"    {output_id}: {output_path} ({produced_by})", flush=True)
     print(f"  report: {rel(report_path, repo_root)}", flush=True)
     print(f"  run_command: murmurmark process {session_arg}", flush=True)
     print(f"  current_next: murmurmark next {session_arg}", flush=True)
@@ -430,12 +578,13 @@ def main() -> int:
     session = args.session.expanduser()
     report_path = args.report.expanduser() if args.report else session / "derived/pipeline-run/pipeline_run_report.json"
     steps = build_steps(args, repo_root, session)
+    plan_metadata = build_plan_metadata(steps, session, report_path, repo_root, plan_only=args.plan_only)
     results: list[dict[str, Any]] = []
     started_at = datetime.now(timezone.utc).isoformat()
     final_status = "passed"
 
     if args.plan_only:
-        print_pipeline_plan(steps, session, report_path, repo_root)
+        print_pipeline_plan(steps, session, report_path, repo_root, plan_metadata)
 
     for item in steps:
         if not args.plan_only:
@@ -490,6 +639,7 @@ def main() -> int:
             "readiness_verdict": readiness_verdict,
             "use_gate": readiness.get("use_gate") if isinstance(readiness, dict) else None,
         },
+        "plan": plan_metadata,
         "steps": results,
     }
     write_json(report_path, report)
