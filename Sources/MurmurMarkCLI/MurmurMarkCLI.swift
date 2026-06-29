@@ -612,7 +612,18 @@ enum PipelineCommands {
         try Tooling.runPath(python, command)
         let planOnly = ArgumentEditing.hasOption("plan-only", in: forwarded)
         try ReadinessPrinter.printSession(session, label: planOnly ? "existing_readiness" : "readiness")
-        try ReadinessPrinter.printFinalNext(session)
+        if planOnly {
+            let report = PathURLs.fileURL(
+                ArgumentEditing.peekOption("report", in: forwarded)
+                    ?? session.appendingPathComponent("derived/pipeline-run/pipeline_run_report.json").path
+            )
+            let payload = try? JSONFiles.object(report)
+            let next = payload?["recommended_next"] as? String ?? "murmurmark process \(PathDisplay.display(session))"
+            print("")
+            print("next: \(next)")
+        } else {
+            try ReadinessPrinter.printFinalNext(session)
+        }
     }
 
     static func status(_ args: [String]) throws {

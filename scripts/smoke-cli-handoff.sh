@@ -350,6 +350,24 @@ lane_apply_output="$("$bin" review lane apply check_unique_me_content \
 echo "$lane_apply_output" | grep -q '^  progress: '
 tail -1 <<<"$lane_apply_output" | grep -q '^next: murmurmark review apply'
 
+process_plan_output="$("$bin" process "$session" --plan-only --skip-build --skip-preprocess --skip-transcription --skip-audits --skip-cleanup)"
+echo "$process_plan_output" | grep -q '^SESSION="'
+echo "$process_plan_output" | grep -q '^pipeline_plan:$'
+echo "$process_plan_output" | grep -q '^  mode: plan_only$'
+echo "$process_plan_output" | grep -q '^  run_command: murmurmark process '
+echo "$process_plan_output" | grep -q '^pipeline_run:$'
+echo "$process_plan_output" | grep -q '^  status: planned$'
+echo "$process_plan_output" | grep -q '^  recommended_next: murmurmark process '
+tail -1 <<<"$process_plan_output" | grep -q '^next: murmurmark process '
+
+jq -e '
+  .schema == "murmurmark.session_pipeline_run/v1"
+  and .status == "planned"
+  and .plan.mode == "plan_only"
+  and ([.next_commands[].id] | index("run_process"))
+  and ([.open_commands[].id] | index("open_pipeline_run_report"))
+' "$session/derived/pipeline-run/pipeline_run_report.json" >/dev/null
+
 status_output="$("$bin" status "$session")"
 echo "$status_output" | grep -q '^readiness:$'
 echo "$status_output" | grep -q '^  status: exportable$'
