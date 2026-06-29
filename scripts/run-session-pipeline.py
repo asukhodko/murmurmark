@@ -561,6 +561,7 @@ def run_step(
                 item["command"],
                 cwd=repo_root,
                 text=True,
+                stdin=subprocess.DEVNULL,
                 stdout=stdout_file,
                 stderr=stderr_file,
             )

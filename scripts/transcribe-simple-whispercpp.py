@@ -196,7 +196,7 @@ def parse_args() -> argparse.Namespace:
 
 def run(command: list[str], cwd: Path | None = None) -> None:
     print("+ " + " ".join(command))
-    subprocess.run(command, cwd=cwd, check=True)
+    subprocess.run(command, cwd=cwd, stdin=subprocess.DEVNULL, check=True)
 
 
 def printable_command(command: list[str]) -> str:
@@ -214,11 +214,11 @@ def printable_command(command: list[str]) -> str:
 
 
 def capture(command: list[str]) -> str:
-    return subprocess.check_output(command, text=True).strip()
+    return subprocess.check_output(command, text=True, stdin=subprocess.DEVNULL).strip()
 
 
 def run_quiet(command: list[str]) -> None:
-    subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
 
 def suffixed_name(filename: str, artifact_suffix: str) -> str:
@@ -350,7 +350,7 @@ def run_whisper(
         command.extend(["--duration", str(duration_ms)])
     print("+ " + printable_command(command))
     with output_base.with_suffix(".run.log").open("w", encoding="utf-8") as log:
-        subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
+        subprocess.run(command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, check=True)
 
 
 def audio_duration_ms(input_wav: Path) -> int:
@@ -1614,7 +1614,7 @@ def materialize_micro_reasr(
         print("+ " + " ".join(command))
         with output_base.with_suffix(".run.log").open("w", encoding="utf-8") as log:
             try:
-                subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
+                subprocess.run(command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, check=True)
             except subprocess.CalledProcessError as error:
                 return "", {
                     "status": "failed",
@@ -1797,7 +1797,7 @@ def run_micro_reasr_current(
         print("+ " + " ".join(command))
         with output_base.with_suffix(".run.log").open("w", encoding="utf-8") as log:
             try:
-                subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
+                subprocess.run(command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, check=True)
             except subprocess.CalledProcessError as error:
                 return "", {
                     "status": "failed",

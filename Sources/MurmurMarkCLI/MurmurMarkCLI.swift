@@ -371,6 +371,7 @@ enum Commands {
         let process = Process()
         process.executableURL = bash
         process.arguments = [script.path] + arguments
+        process.standardInput = FileHandle.nullDevice
         var environment = ProcessInfo.processInfo.environment
         environment["MURMURMARK_BIN"] = ExecutablePath.current()
         process.environment = environment
@@ -10124,6 +10125,7 @@ enum Tooling {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
+        process.standardInput = FileHandle.nullDevice
         try process.run()
         process.waitUntilExit()
         guard allowedExitCodes.contains(process.terminationStatus) else {
@@ -10156,6 +10158,7 @@ enum Tooling {
         }
         process.executableURL = executable
         process.arguments = arguments
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = output
         process.standardError = error
         try process.run()
@@ -10178,6 +10181,7 @@ enum Tooling {
         let stderr = Pipe()
         process.executableURL = executable
         process.arguments = arguments
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = stdout
         process.standardError = stderr
         try process.run()
