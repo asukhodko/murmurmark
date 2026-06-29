@@ -193,6 +193,50 @@ def low_materiality_content_tokens(text: Any) -> list[str]:
     ]
 
 
+def edit_distance_at_most_one(left: str, right: str) -> bool:
+    if left == right:
+        return True
+    if abs(len(left) - len(right)) > 1:
+        return False
+    if len(left) > len(right):
+        left, right = right, left
+    i = 0
+    j = 0
+    edits = 0
+    while i < len(left) and j < len(right):
+        if left[i] == right[j]:
+            i += 1
+            j += 1
+            continue
+        edits += 1
+        if edits > 1:
+            return False
+        if len(left) == len(right):
+            i += 1
+        j += 1
+    if i < len(left) or j < len(right):
+        edits += 1
+    return edits <= 1
+
+
+def fuzzy_content_covered_by_remote(me_text: Any, remote_text: Any) -> bool:
+    me_tokens = low_materiality_content_tokens(me_text)
+    if not me_tokens or len(me_tokens) > 2:
+        return False
+    remote_tokens = low_materiality_content_tokens(remote_text)
+    if not remote_tokens:
+        return False
+    for token in me_tokens:
+        covered = False
+        for remote_token in remote_tokens:
+            if token == remote_token or (len(token) >= 4 and len(remote_token) >= 4 and edit_distance_at_most_one(token, remote_token)):
+                covered = True
+                break
+        if not covered:
+            return False
+    return True
+
+
 def has_protected_review_marker(text: Any) -> bool:
     lowered = str(text or "").lower().replace("ё", "е")
     return any(marker in lowered for marker in PROTECTED_REVIEW_MARKERS)
@@ -895,6 +939,19 @@ def audio_review_me_text(row: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def audio_review_remote_text(row: dict[str, Any]) -> str:
+    utterances = row.get("utterances") if isinstance(row.get("utterances"), list) else []
+    parts: list[str] = []
+    for item in utterances:
+        if not isinstance(item, dict):
+            continue
+        source = str(item.get("source_track") or "").lower()
+        role = str(item.get("role") or item.get("speaker_label") or "").lower()
+        if source == "remote" or role in {"remote", "colleagues"}:
+            parts.append(str(item.get("text") or ""))
+    return " ".join(parts)
+
+
 def audio_review_row_low_materiality(row: dict[str, Any]) -> bool:
     classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
     label = str(classification.get("label") or "")
@@ -922,11 +979,13 @@ def audio_review_row_low_materiality(row: dict[str, Any]) -> bool:
     containment = safe_float(features.get("token_containment"))
     me_coverage = safe_float(features.get("me_overlap_coverage"))
     content_tokens = low_materiality_content_tokens(me_text)
+    fuzzy_duplicate = fuzzy_content_covered_by_remote(me_text, audio_review_remote_text(row))
 
     return (
         len(content_tokens) <= 1
         or me_coverage <= 0.40
         or (backchannel and duration <= 3.0)
+        or fuzzy_duplicate
         or (len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
     )
 
@@ -1056,10 +1115,12 @@ def review_item_low_materiality(item: dict[str, Any]) -> bool:
     containment = safe_float(features.get("token_containment"))
     me_coverage = safe_float(features.get("me_overlap_coverage"))
     content_tokens = low_materiality_content_tokens(me_text)
+    fuzzy_duplicate = fuzzy_content_covered_by_remote(me_text, review_item_remote_text(item))
     return (
         len(content_tokens) <= 1
         or me_coverage <= 0.40
         or (backchannel and duration <= 3.0)
+        or fuzzy_duplicate
         or (len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
     )
 

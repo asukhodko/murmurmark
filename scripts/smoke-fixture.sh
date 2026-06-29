@@ -3771,6 +3771,23 @@ focus = module.review_queue_focus(
 )
 assert focus["session_id"] == "strategic-session", focus
 assert focus["review_lane"] == "check_local_recall", focus
+assert module.fuzzy_content_covered_by_remote("Нет, это вулд.", "нет какой-то внутренний волд токен")
+fuzzy_remote_leak = {
+    "source": "audio_review",
+    "label": "remote_leak",
+    "verdict": "probable_transcript_error",
+    "interval": {"duration_sec": 0.8},
+    "text": [
+        {"role": "remote", "source_track": "remote", "text": "нет какой-то внутренний волд токен"},
+        {"role": "me", "source_track": "mic", "text": "Нет, это вулд."},
+    ],
+    "review_features": {
+        "me_overlap_coverage": 1.0,
+        "text_similarity": 0.5,
+        "token_containment": 0.5,
+    },
+}
+assert module.review_item_low_materiality(fuzzy_remote_leak), fuzzy_remote_leak
 grouped_a = item("audio_review", "remote_leak", "needs_stronger_audio_judge", 180, 1)
 grouped_b = item("audio_review", "remote_leak", "needs_stronger_audio_judge", 170, 2)
 for grouped in (grouped_a, grouped_b):
