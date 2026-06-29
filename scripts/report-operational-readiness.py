@@ -465,6 +465,28 @@ def cleanup_input_profile(session_path: Path, profile: str) -> str | None:
     return str(value) if value else None
 
 
+def review_input_profile(session_path: Path, profile: str) -> str | None:
+    report = read_json(
+        session_path
+        / "derived/transcript-simple/whisper-cpp/review-decisions"
+        / f"review_decisions_report{suffix(profile)}.json"
+    )
+    if not isinstance(report, dict):
+        return None
+    summary = report.get("summary")
+    summary_input_profile = summary.get("input_profile") if isinstance(summary, dict) else None
+    value = report.get("input_profile") or summary_input_profile
+    return str(value) if value and str(value) != profile else None
+
+
+def inherited_profiles_for_review(session_path: Path, profile: str) -> list[str]:
+    profiles: list[str] = []
+    for candidate in (cleanup_input_profile(session_path, profile), review_input_profile(session_path, profile)):
+        if candidate and candidate != profile and candidate not in profiles:
+            profiles.append(candidate)
+    return profiles
+
+
 def pending_review_decision_rows(session_path: Path, profile: str) -> list[dict[str, Any]]:
     path = session_path / "derived/readiness/review-plan/review_decisions.jsonl"
     rows: list[dict[str, Any]] = []
@@ -481,8 +503,9 @@ def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] |
     if profile in seen:
         return set()
     seen.add(profile)
-    inherited_profile = cleanup_input_profile(session_path, profile)
-    inherited = review_resolved_audio_ids(session_path, inherited_profile, seen) if inherited_profile else set()
+    inherited: set[str] = set()
+    for inherited_profile in inherited_profiles_for_review(session_path, profile):
+        inherited.update(review_resolved_audio_ids(session_path, inherited_profile, seen))
     if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
         return inherited
     path = (
@@ -517,8 +540,9 @@ def review_resolved_local_recall_ids(session_path: Path, profile: str, seen: set
     if profile in seen:
         return set()
     seen.add(profile)
-    inherited_profile = cleanup_input_profile(session_path, profile)
-    inherited = review_resolved_local_recall_ids(session_path, inherited_profile, seen) if inherited_profile else set()
+    inherited: set[str] = set()
+    for inherited_profile in inherited_profiles_for_review(session_path, profile):
+        inherited.update(review_resolved_local_recall_ids(session_path, inherited_profile, seen))
     if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
         return inherited
     path = (
@@ -553,8 +577,9 @@ def review_resolved_transcript_order_ids(session_path: Path, profile: str, seen:
     if profile in seen:
         return set()
     seen.add(profile)
-    inherited_profile = cleanup_input_profile(session_path, profile)
-    inherited = review_resolved_transcript_order_ids(session_path, inherited_profile, seen) if inherited_profile else set()
+    inherited: set[str] = set()
+    for inherited_profile in inherited_profiles_for_review(session_path, profile):
+        inherited.update(review_resolved_transcript_order_ids(session_path, inherited_profile, seen))
     if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
         return inherited
     path = (

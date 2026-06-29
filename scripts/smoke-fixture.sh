@@ -2541,6 +2541,26 @@ EOF
   jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "lane_pack"' "$lane_pack_apply_out" >/dev/null
   jq -e '.schema == "murmurmark.review_lane_pack_apply_report/v1" and .summary.reviewed_count == 1 and .summary.rejected_count == 0' "$workdir/review_lane_pack_apply_report.json" >/dev/null
   jq -e '(.recommended_next | length > 0) and (.next_commands | length >= 1) and ([.open_commands[].id] | index("open_review_lane_apply_report"))' "$workdir/review_lane_pack_apply_report.json" >/dev/null
+  preserve_template="$workdir/review_decisions_preserve.template.jsonl"
+  preserve_out="$workdir/review_decisions_preserve.jsonl"
+  preserve_manifest="$workdir/review_lane_pack_preserve.json"
+  preserve_answers="$workdir/review_lane_answers_preserve.txt"
+  cat >"$preserve_template" <<EOF
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"reviewed_v1","source_audit_id":"preserve_current","label":"uncertain","verdict":"needs_stronger_audio_judge","review_lane":"classify_audio","review_action":"classify_audio","allowed_decisions":["keep_me","needs_review","skip"],"utterance_ids":["utt_preserve_current"],"interval":{"start":2.0,"end":3.0,"duration_sec":1.0},"text":[{"id":"utt_preserve_current","role":"me","source_track":"mic","text":"Current lane."}]}
+EOF
+  cat >"$preserve_out" <<EOF
+{"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","session_id":"group-session","session":"$group_session","input_profile":"reviewed_v1","source_audit_id":"preserve_existing","label":"uncertain","verdict":"needs_stronger_audio_judge","review_lane":"check_unique_me_content","review_action":"check_unique_me_content","utterance_ids":["utt_preserve_existing"],"interval":{"start":0.0,"end":1.0,"duration_sec":1.0},"text":[{"id":"utt_preserve_existing","role":"me","source_track":"mic","text":"Existing reviewed lane."}]}
+EOF
+  cat >"$preserve_manifest" <<EOF
+{"schema":"murmurmark.review_lane_pack/v1","lane":"classify_audio","items":[{"index":1,"source_audit_id":"preserve_current","source_audit_ids":["preserve_current"],"allowed_decisions":["keep_me","needs_review","skip"]}]}
+EOF
+  echo 'answers=k' >"$preserve_answers"
+  "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
+    "$preserve_manifest" \
+    --template "$preserve_template" \
+    --out "$preserve_out" \
+    --answers-file "$preserve_answers" >/dev/null
+  jq -s 'length == 2 and any(.[]; .source_audit_id == "preserve_existing" and .decision == "keep_me") and any(.[]; .source_audit_id == "preserve_current" and .decision == "keep_me")' "$preserve_out" >/dev/null
   duplicate_source_template="$workdir/review_decisions_duplicate_source.template.jsonl"
   duplicate_source_out="$workdir/review_decisions_duplicate_source.jsonl"
   duplicate_lane_dir="$workdir/review_lane_pack_duplicate_source"
@@ -4177,6 +4197,34 @@ assert [row["source_audit_id"] for row in queue + low_materiality] == ["arp_unre
 burden = module.session_review_burden({"session_id": "partial", "meeting_duration_sec": 100.0, "selected_profile": "reviewed_v1", "verdict": "usable_with_review", "review_scope_remaining_seconds": 7.5})
 assert burden["notes_review_burden_sec"] == 7.5
 assert burden["review_scope_remaining_seconds"] == 7.5
+
+inherited_session = workdir / "operational-reviewed-inherited-session"
+inherited_audit = inherited_session / "derived/audit/audio-review-pack"
+inherited_review = inherited_session / "derived/transcript-simple/whisper-cpp/review-decisions"
+inherited_audit.mkdir(parents=True, exist_ok=True)
+inherited_review.mkdir(parents=True, exist_ok=True)
+(inherited_review / "review_decisions_report.reviewed_v1.json").write_text(json.dumps({
+    "schema": "murmurmark.review_decisions_report/v1",
+    "input_profile": "agent_reviewed_v1",
+    "output_profile": "reviewed_v1",
+}, ensure_ascii=False), encoding="utf-8")
+(inherited_review / "review_decisions_applied.agent_reviewed_v1.jsonl").write_text(json.dumps({
+    "schema": "murmurmark.review_decision/v1",
+    "status": "reviewed",
+    "decision": "keep_me",
+    "source": "audio_review",
+    "source_audit_id": "arp_inherited_keep",
+}, ensure_ascii=False) + "\n", encoding="utf-8")
+assert module.review_resolved_audio_ids(inherited_session, "reviewed_v1") == {"arp_inherited_keep"}
+(inherited_audit / "audio_review_audit.jsonl").write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in [
+    {"schema": "murmurmark.audio_review_audit/v1", "id": "arp_inherited_keep", "session_id": inherited_session.name, "interval": {"start": 1.0, "end": 2.0, "duration_sec": 1.0}, "utterance_ids": ["utt_keep"], "utterances": [{"id": "utt_keep", "role": "Me", "source_track": "mic", "text": "Already reviewed."}], "classification": {"label": "remote_leak", "verdict": "probable_transcript_error", "confidence": 0.9}},
+    {"schema": "murmurmark.audio_review_audit/v1", "id": "arp_still_open", "session_id": inherited_session.name, "interval": {"start": 3.0, "end": 4.0, "duration_sec": 1.0}, "utterance_ids": ["utt_open"], "utterances": [{"id": "utt_open", "role": "Me", "source_track": "mic", "text": "Still open."}], "classification": {"label": "remote_leak", "verdict": "probable_transcript_error", "confidence": 0.9}},
+]) + "\n", encoding="utf-8")
+queue, low_materiality = module.build_review_queue_details(
+    [{"session_id": inherited_session.name, "session": str(inherited_session), "selected_profile": "reviewed_v1", "use_gate": "review_first", "transcript_review_burden_sec": 1.0}],
+    100,
+)
+assert [row["source_audit_id"] for row in queue + low_materiality] == ["arp_still_open"], (queue, low_materiality)
 PY
 
 python3 - "$repo_root" "$workdir" <<'PY'
