@@ -849,7 +849,9 @@ and `suggested_apply` for the generated `.suggested.txt` sheets; keep the same r
 and run the suggested path with `--dry-run` before writing decisions. The workspace JSON stores the
 same handoff as `recommended_next`, `next_commands`, `open_commands`, `manual_flow`,
 `suggested_flow` and `after_apply`; `review_workspace_apply_report.json` stores the post-apply
-handoff as `recommended_next`, `next_commands` and `open_commands`.
+handoff as `recommended_next`, `next_commands` and `open_commands`. The CLI prints that report
+handoff directly: if a lane answer sheet is incomplete, the primary next command is the concrete
+`$EDITOR ...` command, followed by `less ...` and the workspace dry run retry.
 After `murmurmark review apply`, the CLI uses the refreshed readiness report for the primary `next`
 command. For a single session it keeps `report_next: murmurmark report ...` as the explicit refresh
 command and then prints the readiness summary, including export or retention commands when the

@@ -2438,7 +2438,9 @@ The JSON uses `murmurmark.review_workspace_apply_report/v1`:
 Workspace apply reports use the same handoff fields as lane apply reports:
 `recommended_next`, `next_commands` and `open_commands`. Dry runs usually point to the first
 incomplete lane answer sheet and a retry command. Non-dry runs point to progress refresh or the final
-`murmurmark review apply` batch step when every selected row is reviewed.
+`murmurmark review apply` batch step when every selected row is reviewed. The Swift CLI prints these
+fields directly when they are present, so the JSON report is the authoritative handoff for
+workspace-apply output.
 
 The Swift CLI prints `lane_progress` from the `lanes` array. For each lane it shows status,
 reviewed/todo/rejected counts, then the remaining lane Markdown and answer sheet when

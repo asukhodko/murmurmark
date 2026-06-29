@@ -612,11 +612,16 @@ enum ReviewPrinter {
         print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
         printWorkspaceApplyLanes(payload)
         let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
+        if printWorkspaceApplyReportHandoff(payload, sessionID: sessionID) {
+            return
+        }
         let sessionArgument = sessionID.map { " --session \($0)" } ?? ""
         if bool(summary["ready_for_batch_apply"]) == true {
             print("  recommended_next: murmurmark review apply\(sessionArgument)")
             print("  next:")
             print("    murmurmark review apply\(sessionArgument)")
+            print("")
+            print("next: murmurmark review apply\(sessionArgument)")
         } else {
             if let nextLane = firstTodoWorkspaceLane(payload) {
                 print("  next_lane: \(nextLane)")
@@ -635,7 +640,76 @@ enum ReviewPrinter {
             print("    murmurmark review progress\(sessionArgument)")
             print("  after_ready:")
             print("    murmurmark review apply\(sessionArgument)")
+            print("")
+            print("next: \(recommended)")
         }
+    }
+
+    private static func printWorkspaceApplyReportHandoff(_ payload: [String: Any], sessionID: String?) -> Bool {
+        let nextRows = payload["next_commands"] as? [[String: Any]] ?? []
+        let openRows = payload["open_commands"] as? [[String: Any]] ?? []
+        let nextCommands = nextRows.compactMap { normalizedReviewCommand(string($0["command"]), sessionID: sessionID) }.filter { !$0.isEmpty }
+        let openCommands = openRows.compactMap { normalizedReviewCommand(string($0["command"]), sessionID: sessionID) }.filter { !$0.isEmpty }
+        let recommended = normalizedReviewCommand(string(payload["recommended_next"]), sessionID: sessionID)
+        guard let recommended = recommended ?? nextCommands.first else {
+            return false
+        }
+        print("  recommended_next: \(recommended)")
+        if !nextRows.isEmpty {
+            print("  next:")
+            for row in nextRows {
+                printCommandRow(row, sessionID: sessionID)
+            }
+        }
+        if !openCommands.isEmpty {
+            print("  open:")
+            for row in openRows {
+                printCommandRow(row, sessionID: sessionID)
+            }
+        }
+        print("")
+        print("next: \(recommended)")
+        return true
+    }
+
+    private static func printCommandRow(_ row: [String: Any], sessionID: String?) {
+        guard let command = normalizedReviewCommand(string(row["command"]), sessionID: sessionID), !command.isEmpty else {
+            return
+        }
+        if let reason = string(row["reason"]), !reason.isEmpty {
+            print("    \(command) — \(reason)")
+        } else {
+            print("    \(command)")
+        }
+    }
+
+    private static func normalizedReviewCommand(_ command: String?, sessionID: String?) -> String? {
+        guard let command, !command.isEmpty else {
+            return nil
+        }
+        guard let sessionID else {
+            return command
+        }
+        if command.hasPrefix("murmurmark review workspace apply ") {
+            var normalized = "murmurmark review workspace apply --session \(sessionID)"
+            if command.contains("--answers-source suggested") {
+                normalized += " --answers-source suggested"
+            }
+            if command.contains("--require-complete") {
+                normalized += " --require-complete"
+            }
+            if command.contains("--dry-run") {
+                normalized += " --dry-run"
+            }
+            return normalized
+        }
+        if command.hasPrefix("murmurmark review progress ") {
+            return "murmurmark review progress --session \(sessionID)"
+        }
+        if command.hasPrefix("murmurmark review apply ") {
+            return "murmurmark review apply --session \(sessionID)"
+        }
+        return command
     }
 
     private static func firstTodoWorkspaceLane(_ payload: [String: Any]) -> String? {

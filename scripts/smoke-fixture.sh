@@ -2062,10 +2062,10 @@ EOF
   grep -q '^    check_local_recall: status=ok reviewed=0 todo=1 rejected=0' "$cli_workspace_dry_run_stdout"
   grep -q '^      read: less ' "$cli_workspace_dry_run_stdout"
   grep -q '^      edit: \$EDITOR ' "$cli_workspace_dry_run_stdout"
-  grep -q '^  next_lane: check_local_recall' "$cli_workspace_dry_run_stdout"
-  grep -q '^    murmurmark review lane check_local_recall --session .*review_workspace_cli_session' "$cli_workspace_dry_run_stdout"
-  grep -q '^    murmurmark review lane apply check_local_recall --session .*review_workspace_cli_session' "$cli_workspace_dry_run_stdout"
-  grep -q 'murmurmark review workspace apply --session .*review_workspace_cli_session' "$cli_workspace_dry_run_stdout"
+  grep -q '^  recommended_next: \$EDITOR ' "$cli_workspace_dry_run_stdout"
+  grep -q '^    \$EDITOR ' "$cli_workspace_dry_run_stdout"
+  grep -q '^    less ' "$cli_workspace_dry_run_stdout"
+  grep -q '^    murmurmark review workspace apply ' "$cli_workspace_dry_run_stdout"
   cli_workspace_suggested_dry_run_out="$workdir/review_decisions_workspace_cli_suggested_dry_run.jsonl"
   cli_workspace_suggested_dry_run_stdout="$workdir/review_workspace_cli_suggested_dry_run_stdout.txt"
   "$repo_root/.build/debug/murmurmark" review workspace apply \
@@ -2098,7 +2098,8 @@ EOF
   grep -q '^  answers_source: review' "$cli_workspace_apply_stdout"
   grep -q '^  lane_progress:$' "$cli_workspace_apply_stdout"
   grep -q '^    check_local_recall: status=ok reviewed=1 todo=0 rejected=0' "$cli_workspace_apply_stdout"
-  grep -q 'murmurmark review workspace apply --session .*review_workspace_cli_session' "$cli_workspace_apply_stdout"
+  grep -q '^  recommended_next: murmurmark review progress ' "$cli_workspace_apply_stdout"
+  grep -q '^    murmurmark review progress ' "$cli_workspace_apply_stdout"
   lane_pack_apply_out="$workdir/review_decisions_lane_pack_apply.jsonl"
   "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
     "$review_workspace_dir/lane-packs/review_lane_pack.check_local_recall.json" \
@@ -3221,15 +3222,12 @@ PY
   assert_no_helper_prefix "$session_workspace_apply_dry_run_output"
   echo "$session_workspace_apply_dry_run_output" | grep -q '^SESSION="'
   echo "$session_workspace_apply_dry_run_output" | grep -q '^review_workspace_apply:$'
-  echo "$session_workspace_apply_dry_run_output" | grep -q '^  recommended_next: murmurmark review lane '
-  echo "$session_workspace_apply_dry_run_output" | grep -q '^  next_lane: '
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^  recommended_next: \$EDITOR '
   echo "$session_workspace_apply_dry_run_output" | grep -q '^  next:$'
-  echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review lane '
-  echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review lane apply '
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^    \$EDITOR '
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^    less '
   echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review workspace apply --session '
-  echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review progress --session '
-  echo "$session_workspace_apply_dry_run_output" | grep -q '^  after_ready:$'
-  echo "$session_workspace_apply_dry_run_output" | grep -q '^    murmurmark review apply --session '
+  echo "$session_workspace_apply_dry_run_output" | grep -q '^  open:$'
   jq -s 'all(.[]; (.primary_command | type) == "string")' "$review_plan_dir/review_plan_clusters.jsonl" >/dev/null
   jq -s 'all(.[]; .schema == "murmurmark.review_decision/v1" and .decision == "todo" and (.me_utterance_ids | type) == "array" and (.suggested_decision | IN("drop_me", "keep_me", "needs_review")))' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null
   jq -s 'any(.[]; .suggested_decision == "drop_me" and .decision == "todo")' "$review_plan_dir/review_decisions.template.jsonl" >/dev/null

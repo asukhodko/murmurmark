@@ -1087,7 +1087,9 @@ the same command as `suggested_dry_run` when suggested sheets are present. Dry-r
 `review_workspace_apply_report.json`, so the CLI can print the same summary, `next_lane`, and next
 commands without changing `review_decisions.jsonl`. The apply report also stores
 `recommended_next`, `next_commands` and `open_commands`, so automation can resume from the report
-after manual review.
+after manual review. `review workspace apply` prints those report commands directly; incomplete
+manual review now points to the concrete answer sheet edit command instead of asking you to rebuild
+the same lane pack.
 `review_workspace.json` stores the same handoff as `recommended_next`, `next_commands`,
 `open_commands`, `manual_flow`, `suggested_flow` and `after_apply`, so agents can continue from the
 workspace manifest.
