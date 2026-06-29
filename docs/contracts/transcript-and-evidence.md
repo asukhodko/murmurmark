@@ -2765,6 +2765,39 @@ whole `Me` utterances can be dropped, while `remote_leak`, `lost_me`, `uncertain
 timing overlap stay mark-only. v6 must not consume `suggested_review_v1` directly and must not use
 audio-judge queue predictions.
 
+`audit_cleanup_v7` has the same profile-shaped artifact set with the `audit_cleanup_v7` suffix. It is
+the first segment-level cleanup profile. It usually uses `agent_reviewed_v1` as input and consumes the
+current `audio_review_audit.jsonl`.
+
+v7 may edit only `Me` utterances where audio-review classifies a row as `remote_duplicate` with
+verdict `probable_transcript_error`, high remote similarity and low enough local support. Instead of
+dropping the whole utterance, it removes matched remote token spans from the `Me` text. The original
+mixed `Me` utterance id is removed from `clean_dialogue.audit_cleanup_v7.json`; kept local fragments
+are written as new `Me` utterances with ids like `<source_id>_seg01`. The patch JSONL uses action
+`segment_remove_remote_duplicate` or `drop_me_after_segment_remote_duplicate_repair` and records:
+
+```json
+{
+  "evidence": {
+    "source": "audio_review_segment",
+    "segment_repair": {
+      "removed_blocks": [],
+      "kept_segments": []
+    }
+  },
+  "safety_checks": {
+    "removed_token_count": 12,
+    "removed_token_ratio": 0.54,
+    "kept_segment_count": 1
+  }
+}
+```
+
+`quality_report.audit_cleanup_v7.json` includes
+`segment_repaired_remote_duplicate_seconds`. For v7, `audit_review_seconds` is recalculated from
+active audio-review rows after the replacement, so rows pointing only to removed source `Me` ids no
+longer inflate the verdict or review burden.
+
 Patch suggestions are dry-run only:
 
 ```json

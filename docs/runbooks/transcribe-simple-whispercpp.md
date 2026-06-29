@@ -1141,6 +1141,22 @@ murmurmark synthesize "$SESSION" --transcript-profile audit_cleanup_v6
 `audit_cleanup_v6` reuses the same audio-review gates as v2 over the v5 transcript. It is not a
 suggested-review profile and does not use audio-judge predictions.
 
+When audio-review finds partial `remote_duplicate` rows inside longer `Me` utterances, use the
+segment-level cleanup profile:
+
+```bash
+murmurmark cleanup "$SESSION" \
+  --input-profile agent_reviewed_v1 \
+  --output-profile audit_cleanup_v7
+
+murmurmark synthesize "$SESSION" --transcript-profile audit_cleanup_v7
+```
+
+`audit_cleanup_v7` removes only matched remote token spans from `Me`, writes replacement `Me`
+segments with new ids, and treats the original audio-review rows as resolved only when their original
+`Me` ids no longer exist in the selected profile. It does not modify raw capture, Echo Guard, ASR,
+`shadow_v2`, earlier cleanup profiles or reviewed profiles.
+
 The automatic agent-reviewed layer uses audio-review audit rows, the audio-judge queue and
 high-confidence local-recall repair rows to close only items that are safe without listening. It
 writes `agent_reviewed_v1`; this profile is selected by `auto` after `reviewed_v1` and before
@@ -1182,7 +1198,7 @@ not applied until the reviewer explicitly edits `decision`. For `remote_duplicat
 if the duplicate covers only part of a longer `Me` utterance, the plan uses
 `check_unique_me_content` and suggests `needs_review`, because `drop_me` would remove the whole
 utterance. In that lane, `drop_remote` is available when the reviewed remote utterance is the actual
-duplicate. It does not edit `audit_cleanup_v1/v2/v3/v4/v5/v6`.
+duplicate. It does not edit `audit_cleanup_v1/v2/v3/v4/v5/v6/v7`.
 
 After closing a review file, prefer:
 
@@ -1404,10 +1420,10 @@ does not call an LLM, and does not read raw audio.
 Profile selection:
 
 ```text
-auto      -> reviewed_v1 when review gates pass, then agent_reviewed_v1 when agent gates pass, then audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, but may select order_repair_v1 over any of those bases when order repair gates pass and at least one repair was applied; then shadow_v2 if repair_comparison.json passes, otherwise current
+auto      -> reviewed_v1 when review gates pass, then audit_cleanup_v7 when it passed and applied segment repair, then agent_reviewed_v1 when agent gates pass, then audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, but may select order_repair_v1 over any of those bases when order repair gates pass and at least one repair was applied; then shadow_v2 if repair_comparison.json passes, otherwise current
 current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
-audit_cleanup_v1..v6 -> audit-cleaned dialogue, marked risky if cleanup gates failed
+audit_cleanup_v1..v7 -> audit-cleaned dialogue, marked risky if cleanup gates failed
 reviewed_v1 -> human-reviewed dialogue, marked risky if review gates failed
 agent_reviewed_v1 -> agent-reviewed dialogue, marked risky if review gates failed
 suggested_review_v1 -> machine-suggested review candidate, explicit only, never selected by auto

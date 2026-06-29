@@ -190,6 +190,11 @@ def existing_profile(session: Path) -> str:
         and (resolved / "quality_report.reviewed_v1.json").exists()
     ):
         return "reviewed_v1"
+    v7 = cleanup / "audit_cleanup_report.audit_cleanup_v7.json"
+    if v7.exists():
+        data = read_json(v7)
+        if (data.get("gates") or {}).get("passed") is True and (data.get("summary") or {}).get("applied_patches", 0) > 0:
+            return "audit_cleanup_v7"
     agent_report = read_json(review_dir / "review_decisions_report.agent_reviewed_v1.json") if (review_dir / "review_decisions_report.agent_reviewed_v1.json").exists() else None
     if (
         agent_report
@@ -208,7 +213,7 @@ def existing_profile(session: Path) -> str:
         data = read_json(v3)
         if (data.get("gates") or {}).get("passed") is True and (data.get("summary") or {}).get("applied_patches", 0) > 0:
             return "audit_cleanup_v3"
-    for profile in ("audit_cleanup_v2", "audit_cleanup_v1", "shadow_v2", "current"):
+    for profile in ("audit_cleanup_v6", "audit_cleanup_v5", "audit_cleanup_v2", "audit_cleanup_v1", "shadow_v2", "current"):
         if (resolved / f"clean_dialogue{suffix(profile)}.json").exists() and (resolved / f"quality_report{suffix(profile)}.json").exists():
             return profile
     return "current"

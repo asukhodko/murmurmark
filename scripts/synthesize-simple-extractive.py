@@ -534,6 +534,7 @@ def parse_args() -> argparse.Namespace:
             "audit_cleanup_v4",
             "audit_cleanup_v5",
             "audit_cleanup_v6",
+            "audit_cleanup_v7",
             "reviewed_v1",
             "agent_reviewed_v1",
             "suggested_review_v1",
@@ -764,6 +765,22 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             if repaired:
                 return repaired[0], repaired[1], repair_comparison, risk_items
             return "reviewed_v1", reviewed_paths, repair_comparison, risk_items
+        cleanup_v7_paths = source_profile_paths(resolved_dir, "audit_cleanup_v7")
+        cleanup_v7_report, cleanup_v7_error = read_json(cleanup_v7_paths["audit_cleanup_report"])
+        cleanup_v7_summary = cleanup_v7_report.get("summary") if isinstance(cleanup_v7_report, dict) else {}
+        cleanup_v7_applied = int(cleanup_v7_summary.get("applied_patches", 0) or 0) if isinstance(cleanup_v7_summary, dict) else 0
+        if (
+            cleanup_v7_paths["clean_dialogue"].exists()
+            and cleanup_v7_error is None
+            and isinstance(cleanup_v7_report, dict)
+            and isinstance(cleanup_v7_report.get("gates"), dict)
+            and cleanup_v7_report["gates"].get("passed") is True
+            and cleanup_v7_applied > 0
+        ):
+            repaired = order_repair_for("audit_cleanup_v7")
+            if repaired:
+                return repaired[0], repaired[1], repair_comparison, risk_items
+            return "audit_cleanup_v7", cleanup_v7_paths, repair_comparison, risk_items
         agent_paths = source_profile_paths(resolved_dir, "agent_reviewed_v1")
         agent_report, agent_error = read_json(agent_paths["review_decisions_report"])
         if (
@@ -782,7 +799,7 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             cleanup_report, cleanup_error = read_json(cleanup_paths["audit_cleanup_report"])
             summary = cleanup_report.get("summary") if isinstance(cleanup_report, dict) else {}
             applied = int(summary.get("applied_patches", 0) or 0) if isinstance(summary, dict) else 0
-            if cleanup_profile in {"audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6"} and applied <= 0:
+            if cleanup_profile in {"audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6", "audit_cleanup_v7"} and applied <= 0:
                 continue
             if (
                 cleanup_paths["clean_dialogue"].exists()
@@ -806,7 +823,7 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
             return repaired[0], repaired[1], repair_comparison, risk_items
         return "current", source_profile_paths(resolved_dir, "current"), repair_comparison, risk_items
 
-    if requested_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6"}:
+    if requested_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6", "audit_cleanup_v7"}:
         paths = source_profile_paths(resolved_dir, requested_profile)
         comparison, error = read_json(paths["repair_comparison"])
         if error is None and isinstance(comparison, dict):
@@ -1063,7 +1080,7 @@ def verdict_from_metrics(
     if int(metrics["golden_phrase_fail_count"]) > 0:
         items.append({"type": "golden_phrase_failures", "severity": "high", "reason": "configured golden phrase checks failed"})
 
-    if selected_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6", "reviewed_v1", "agent_reviewed_v1"} and "audit_harmful_seconds_after" in metrics:
+    if selected_profile in {"audit_cleanup_v1", "audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v5", "audit_cleanup_v6", "audit_cleanup_v7", "reviewed_v1", "agent_reviewed_v1"} and "audit_harmful_seconds_after" in metrics:
         duration = max(1.0, float(metrics.get("meeting_duration_sec", 0.0) or 0.0))
         harmful = float(metrics.get("audit_harmful_seconds_after", 0.0) or 0.0)
         review = float(metrics.get("audit_review_seconds", 0.0) or 0.0)
@@ -2381,6 +2398,7 @@ def main() -> int:
         "audit_cleanup_v4",
         "audit_cleanup_v5",
         "audit_cleanup_v6",
+        "audit_cleanup_v7",
         "reviewed_v1",
         "agent_reviewed_v1",
         "suggested_review_v1",

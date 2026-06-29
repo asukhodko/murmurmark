@@ -79,7 +79,7 @@ flowchart LR
     foundation["foundation-done<br/>готовая основа"]
     cli["cli-orchestration<br/>process/report/review/export"]
     corpus["corpus-regression<br/>no-regression gates"]
-    review["review-loop<br/>человеческие и агентные решения"]
+    review["review-loop<br/>закрытие review_first"]
     quality["quality-hardening<br/>меньше дублей и пропусков"]
     notes["evidence-notes<br/>проверяемые итоги"]
     export["export-workflows<br/>Markdown/Obsidian/docs/Jira proposals"]
@@ -98,9 +98,11 @@ flowchart LR
 
 ## Следующая цель
 
-Сделать MurmurMark уверенно применимым для регулярных рабочих встреч с меньшей ручной проверкой:
+Сделать MurmurMark уверенно применимым для регулярных рабочих встреч с короткой обязательной
+проверкой:
 
-- уменьшить обязательный review burden на текущем корпусе;
+- удержать corpus verdict на уровне `medium_risk_ready` или выше;
+- перевести больше `review_first` сессий в `ready_for_notes`;
 - расширять repair/cleanup только через corpus gates и audio-review evidence;
 - держать raw capture, Echo Guard и основной ASR неизменными без отдельного решения;
 - считать успехом не идеальный transcript, а больше сессий в состоянии `exportable` с понятным

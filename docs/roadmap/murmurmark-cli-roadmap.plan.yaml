@@ -41,8 +41,10 @@ nodes:
       export bundle и retention plan уже доказали, что pipeline можно использовать как
       локальный инструмент, а не как набор лабораторных скриптов.
 
-      Следующая цель — снизить обязательный review burden на реальных встречах без
-      смены топологии capture/Echo Guard/ASR.
+      Текущий корпус уже дошёл до `medium_risk_ready`: risky/failed сессии убраны из
+      выбранного профиля, а обязательная review-очередь стала короткой. Следующая цель —
+      переводить больше `review_first` сессий в `ready_for_notes` без смены топологии
+      capture/Echo Guard/ASR.
 
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
@@ -254,8 +256,8 @@ nodes:
       corpus gate уже проверяет hard-инварианты и может сравнивать будущие прогоны
       с локальным baseline snapshot. Audio judge evaluation пишет out-of-fold audit;
       session readiness теперь явно разделяет review_blockers и export_blockers.
-      Следующий слой — audio-error taxonomy: сводка по классам ошибок, их цене,
-      покрытию, judge-ошибкам и рекомендуемому следующему ремонту.
+      Audio-error taxonomy уже показывает цену классов ошибок и следующий безопасный ремонт.
+      Следующий слой — использовать эту карту для точечного закрытия `review_first` сессий.
 
   corpus-add-command:
     title: "corpus add"
@@ -324,8 +326,8 @@ nodes:
     notes: |
       Удобный review CLI для спорных мест. Базовые plan/progress/apply и интерактивный
       review SESSION/latest уже доступны. Workspace review и агентный review agent доступны
-      через CLI, readiness и blocked export ведут к workspace next commands. Следующий слой — сужение
-      оставшейся review queue и полировка reviewed export handoff.
+      через CLI, readiness и blocked export ведут к workspace next commands. Текущий слой —
+      сужение оставшейся `review_first` очереди и полировка reviewed export handoff.
 
   cli-review-command:
     title: "murmurmark review SESSION"
@@ -393,8 +395,9 @@ nodes:
     effort: 27
     notes: |
       Улучшать качество без смены топологии: запись, Echo Guard и основной ASR
-      остаются прежними, меняются repair/cleanup/audit и проверочные контуры. Текущий фокус —
-      уменьшить обязательный review burden и увеличить долю exportable-сессий без скрытых рисков.
+      остаются прежними, меняются repair/cleanup/audit и проверочные контуры. `audit_cleanup_v7`
+      уже чинит частичные remote-дубли внутри длинных `Me` реплик без whole-utterance drop.
+      Текущий фокус — довести оставшиеся review-first сессии до ready/exportable без скрытых рисков.
 
   quality-local-recall-repair:
     title: "Better local recall repair"
@@ -425,9 +428,9 @@ nodes:
     title: "Safer remote duplicate handling"
     kind: task
     parent: quality-hardening
-    status: next
+    status: done
     effort: 5
-    notes: "Удалять дубли только при сильных доказательствах, защищать намеренные повторы и действия. Для remote_leak сначала нужен segment-level план, потому что внутри Me может оставаться уникальный локальный смысл."
+    notes: "Whole-utterance cleanup защищает намеренные повторы и действия; audit_cleanup_v7 добавляет segment-level удаление доказанных remote_duplicate spans внутри смешанных Me-реплик. Remote_leak без текстового дубля остаётся mark/review-only."
 
   quality-remote-leak-segment-plan:
     title: "Remote leak segment repair plan"
@@ -865,8 +868,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Снизить обязательный review burden на реальных встречах без смены capture/Echo Guard/ASR топологии."
-      success_by_next_sync: "Есть corpus-backed quality plan, который показывает, какие review blockers можно безопасно убрать следующими."
+      nearest_goal: "Перевести больше review_first сессий в ready_for_notes/exportable без смены capture/Echo Guard/ASR топологии."
+      success_by_next_sync: "Corpus остаётся medium_risk_ready или лучше, а следующий blocker указывает на конкретную короткую review/repair lane."
     defaults:
       status_progress:
         done: 1.0
@@ -900,8 +903,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "corpus CLI, review loop, audio judge и baseline thresholds уже защищают от части регрессий."
-          next_sync_goal: "Сократить review burden через corpus-backed local recall, order и remote-leak repair без скрытого удаления смысла."
+          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 уже довели корпус до medium_risk_ready."
+          next_sync_goal: "Сократить оставшиеся review_first lanes без скрытого удаления смысла."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

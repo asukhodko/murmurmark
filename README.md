@@ -437,9 +437,9 @@ than the automatically recommended first lane.
 `transcript.md` is the stable baseline output. Profile transcripts such as `transcript.shadow_v2.md`
 or `transcript.audit_cleanup_v2.md` are separate candidates; the selected profile is written to
 `quality_verdict.json`.
-`audit_cleanup_v5/v6` are not part of the normal single-session runner. They are corpus/review-plan
-steps for already audited sessions, usually run after the private regression and audio-judge reports
-exist under `sessions/_reports/`.
+`audit_cleanup_v5/v6/v7` are not part of the normal single-session runner. They are corpus/review-plan
+steps for already audited sessions, usually run after private regression, review-plan and audio-review
+reports exist under `sessions/_reports/`.
 The normal single-session runner also builds the audit-only remote-leak segment plan after
 audio-review. If a session has `remote_leak` errors or partial `remote_duplicate` rows where `Me`
 may still contain unique local content, readiness links to `remote_leak_segment_repair.md` before
@@ -739,8 +739,9 @@ The quality report helper is `scripts/report-session-quality.py`. It reads exist
 for one or more sessions and writes a private JSON/CSV/Markdown summary under
 `sessions/_reports/session-quality/` by default. It does not run ASR and does not modify session
 audio or transcript artifacts. Audio-review counters are computed against the selected transcript
-profile: if `audit_cleanup_v2` already removed a duplicate `Me` utterance, that audio-review item is
-counted as resolved by cleanup and no longer inflates the remaining review burden.
+profile: if a cleanup profile already removed or segment-repaired a duplicate `Me` utterance, that
+audio-review item is counted as resolved by cleanup and no longer inflates the remaining review
+burden.
 Review seconds are measured as a union of active intervals per verdict, so duplicate audit rows for
 the same utterance do not inflate the use gate.
 Low local recall is also profile-aware enough for use gates: if `audit-local-recall.py` explains the
@@ -782,6 +783,23 @@ Use it after `scripts/report-suggested-review-shadow.py`:
 `audit_cleanup_v6` is the next conservative pass after a fresh audio-review pack has been rebuilt
 for v5. It reuses the existing audio-review cleanup gates over `audit_cleanup_v5`; it does not use
 the suggested-review shadow directly and does not add new ASR or audio-judge rules.
+
+`audit_cleanup_v7` is a narrow segment-level repair profile for partial `remote_duplicate` rows. It
+usually reads `agent_reviewed_v1`, consumes the current `audio_review_audit.jsonl`, and edits only
+`Me` utterances where the audio review proves that a remote fragment was copied into a longer local
+turn. v7 removes the matching remote token span, writes replacement `Me` segments with new ids, and
+never changes raw CAF, Echo Guard output, ASR output or earlier profiles. It does not split by audio
+alignment; it is a conservative text-level cleanup over already separated evidence.
+
+```bash
+.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> \
+  --input-profile agent_reviewed_v1 \
+  --output-profile audit_cleanup_v7
+
+.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> \
+  --transcript-profile audit_cleanup_v7
+```
+
 `scripts/report-operational-readiness.py` combines session quality, corpus readiness and audio-judge
 shadow readiness into a practical verdict such as `pilot_ready_with_review` for medium-risk working
 meetings. It also assigns per-session use gates such as `ready_for_notes` and `review_first`, then
@@ -995,6 +1013,8 @@ murmurmark review workspace apply \
 .venv/bin/python scripts/apply-suggested-cleanup.py
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile audit_cleanup_v5 --output-profile audit_cleanup_v6
 .venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v6
+.venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> --input-profile agent_reviewed_v1 --output-profile audit_cleanup_v7
+.venv/bin/python scripts/synthesize-simple-extractive.py ./sessions/<session> --transcript-profile audit_cleanup_v7
 ```
 
 `suggested_review_v1` is generated from machine suggestions only. It is useful for measuring the

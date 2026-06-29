@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.agent_review_decisions/v1"
 OUTPUT_PROFILE = "agent_reviewed_v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -273,6 +273,26 @@ def audio_review_me_text(row: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def interval_coverage(row: dict[str, Any], role: str) -> float:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    start = safe_float(interval.get("start"))
+    end = safe_float(interval.get("end"))
+    if end <= start:
+        return 0.0
+    coverages: list[float] = []
+    for item in row.get("utterances") or []:
+        if not isinstance(item, dict) or role_name(item) != role:
+            continue
+        item_start = safe_float(item.get("start"))
+        item_end = safe_float(item.get("end"))
+        item_duration = item_end - item_start
+        if item_duration <= 0.0:
+            continue
+        overlap = max(0.0, min(end, item_end) - max(start, item_start))
+        coverages.append(overlap / item_duration)
+    return max(coverages, default=0.0)
+
+
 def is_active_audio_review_row(row: dict[str, Any], selected_ids: set[str]) -> bool:
     classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
     label = str(classification.get("label") or "")
@@ -318,6 +338,7 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None) -> tu
     me_text = audio_review_me_text(row)
     unique_tokens = sorted(unique_me_content_tokens(row))
     protected = has_protected_marker(me_text)
+    me_coverage = interval_coverage(row, "me")
     judge_label = str((queue_row or {}).get("judge_label") or "")
     judge_confidence = safe_float((queue_row or {}).get("judge_confidence"))
 
@@ -333,6 +354,7 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None) -> tu
         "likely_reliable": likely_reliable,
         "text_similarity": similarity,
         "token_containment": containment,
+        "me_overlap_coverage": round(me_coverage, 6),
         "unique_me_content_tokens": unique_tokens,
         "protected_marker": protected,
         "audio_judge_label": judge_label or None,
@@ -362,6 +384,21 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None) -> tu
         and not protected
     ):
         return "drop_me", "safe_remote_duplicate_or_asr_noise", evidence
+
+    if (
+        label == "remote_duplicate"
+        and verdict == "probable_transcript_error"
+        and confidence >= 0.96
+        and local_support <= 60
+        and remote_duplicate >= 95
+        and remote_leak <= 0
+        and similarity >= 0.95
+        and containment >= 0.95
+        and me_coverage >= 0.90
+        and not unique_tokens
+        and not protected
+    ):
+        return "drop_me", "safe_exact_remote_duplicate_full_coverage", evidence
 
     if (
         judge_label == "drop_error"

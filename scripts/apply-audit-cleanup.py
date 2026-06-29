@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 INPUT_PROFILE_DEFAULT = "shadow_v2"
 OUTPUT_PROFILE_DEFAULT = "audit_cleanup_v1"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
+SEGMENT_REPAIR_PROFILES = {"audit_cleanup_v7"}
 
 STOP_WORDS = {
     "а",
@@ -263,6 +264,24 @@ def content_tokens(text: Any) -> list[str]:
     return [token for token in tokens(text) if token not in STOP_WORDS and token not in FILLER_WORDS and len(token) > 2]
 
 
+def token_spans(text: Any) -> list[dict[str, Any]]:
+    value = str(text or "")
+    spans: list[dict[str, Any]] = []
+    for match in TOKEN_RE.finditer(value):
+        raw = match.group(0)
+        norm = raw.lower().replace("ё", "е")
+        spans.append(
+            {
+                "raw": raw,
+                "norm": norm,
+                "start": match.start(),
+                "end": match.end(),
+                "is_content": norm not in STOP_WORDS and norm not in FILLER_WORDS and len(norm) > 2,
+            }
+        )
+    return spans
+
+
 def domain_terms(text: Any) -> list[str]:
     return sorted({token for token in tokens(text) if token in DOMAIN_TERMS})
 
@@ -355,6 +374,22 @@ def build_overlaps(utterances: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 }
             )
     return overlaps
+
+
+def union_seconds(intervals: list[tuple[float, float]]) -> float:
+    normalized = sorted((start, end) for start, end in intervals if end > start)
+    if not normalized:
+        return 0.0
+    total = 0.0
+    current_start, current_end = normalized[0]
+    for start, end in normalized[1:]:
+        if start <= current_end:
+            current_end = max(current_end, end)
+            continue
+        total += current_end - current_start
+        current_start, current_end = start, end
+    total += current_end - current_start
+    return round(total, 3)
 
 
 def selected_note_ids(session: Path) -> set[str]:
@@ -497,6 +532,40 @@ def audio_review_by_me(records: list[dict[str, Any]], existing_ids: set[str]) ->
                 continue
             grouped.setdefault(utterance_id, []).append(normalize_audio_review_record(row, me, remote))
     return grouped
+
+
+def audio_review_record_me_ids(row: dict[str, Any]) -> set[str]:
+    summaries = row.get("utterances") if isinstance(row.get("utterances"), list) else []
+    ids: set[str] = set()
+    for item in summaries:
+        if not isinstance(item, dict):
+            continue
+        if audio_review_role(item) == "me" and item.get("id"):
+            ids.add(str(item.get("id")))
+    return ids
+
+
+def active_audio_review_seconds(records: list[dict[str, Any]], utterances: list[dict[str, Any]]) -> float:
+    selected_me_ids = {str(row.get("id")) for row in utterances if role_name(row) == "Me"}
+    intervals: list[tuple[float, float]] = []
+    for row in records:
+        classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+        label = str(classification.get("label") or "")
+        verdict = str(classification.get("verdict") or "")
+        if verdict not in {"probable_transcript_error", "needs_stronger_audio_judge"}:
+            continue
+        me_ids = audio_review_record_me_ids(row)
+        if label != "lost_me" and me_ids and not (me_ids & selected_me_ids):
+            continue
+        interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+        start = float(interval.get("start", 0.0) or 0.0)
+        end = float(interval.get("end", start) or start)
+        if end <= start:
+            duration_sec = float(interval.get("duration_sec", 0.0) or 0.0)
+            end = start + max(0.0, duration_sec)
+        if end > start:
+            intervals.append((start, end))
+    return union_seconds(intervals)
 
 
 def audio_judge_predictions_by_audit_id(predictions: list[dict[str, Any]], session_name: str) -> dict[str, dict[str, Any]]:
@@ -778,6 +847,262 @@ def audio_review_gate(record: dict[str, Any], notes_ids: set[str]) -> tuple[bool
     return duplicate_safe or noise_safe, checks, action
 
 
+def segment_remote_duplicate_gate(record: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
+    classification = record.get("classification") or {}
+    scores = record.get("scores") or {}
+    features = record.get("features") or {}
+    text_features = features.get("text") or {}
+    label = str(classification.get("label") or "")
+    verdict = str(classification.get("verdict") or "")
+    confidence = float(classification.get("confidence", 0.0) or 0.0)
+    local_support = float(scores.get("audio_review_local_support", scores.get("local_evidence", 0.0)) or 0.0)
+    duplicate_score = float(scores.get("audio_review_remote_duplicate", 0.0) or 0.0)
+    remote_similarity = float(scores.get("audio_review_remote_similarity", 0.0) or 0.0)
+    remote_leak = float(scores.get("audio_review_remote_leak", 0.0) or 0.0)
+    similarity = float(text_features.get("similarity_max", 0.0) or 0.0)
+    containment = float(text_features.get("token_containment", 0.0) or 0.0)
+    safe = (
+        record.get("source") == "audio_review"
+        and label == "remote_duplicate"
+        and verdict == "probable_transcript_error"
+        and confidence >= 0.82
+        and duplicate_score >= 82.0
+        and remote_similarity >= 90.0
+        and remote_leak <= 5.0
+        and local_support <= 60.0
+        and (similarity >= 0.75 or containment >= 0.60)
+    )
+    return safe, {
+        "source": record.get("source"),
+        "label": label,
+        "audio_review_verdict": verdict,
+        "classification_confidence": confidence,
+        "audio_review_duplicate_score": duplicate_score,
+        "audio_review_remote_similarity": remote_similarity,
+        "audio_review_remote_leak": remote_leak,
+        "audio_review_local_support": local_support,
+        "text_similarity_max": similarity,
+        "token_containment": containment,
+        "safe_for_segment_repair": safe,
+    }
+
+
+def remote_text_for_segment(record: dict[str, Any]) -> str:
+    text_features = ((record.get("features") or {}).get("text") or {})
+    value = str(text_features.get("remote_text") or "").strip()
+    if value:
+        return value
+    return str((((record.get("utterances") or {}).get("remote") or {}).get("text")) or "").strip()
+
+
+def matching_token_blocks(me_spans: list[dict[str, Any]], remote_text: str) -> tuple[set[int], list[dict[str, Any]]]:
+    remote_spans = token_spans(remote_text)
+    if not me_spans or not remote_spans:
+        return set(), []
+    matcher = SequenceMatcher(
+        None,
+        [row["norm"] for row in me_spans],
+        [row["norm"] for row in remote_spans],
+        autojunk=False,
+    )
+    remove_indexes: set[int] = set()
+    blocks: list[dict[str, Any]] = []
+    for match in matcher.get_matching_blocks():
+        if match.size <= 0:
+            continue
+        me_slice = me_spans[match.a : match.a + match.size]
+        remote_slice = remote_spans[match.b : match.b + match.size]
+        content_count = sum(1 for row in me_slice if row["is_content"])
+        remote_content_count = sum(1 for row in remote_slice if row["is_content"])
+        if match.size < 4 and content_count < 2:
+            continue
+        if remote_content_count < 2 and match.size < 5:
+            continue
+        indexes = list(range(match.a, match.a + match.size))
+        remove_indexes.update(indexes)
+        blocks.append(
+            {
+                "me_token_start": match.a,
+                "me_token_end_exclusive": match.a + match.size,
+                "remote_token_start": match.b,
+                "remote_token_end_exclusive": match.b + match.size,
+                "token_count": match.size,
+                "content_token_count": content_count,
+                "text": " ".join(row["raw"] for row in me_slice),
+            }
+        )
+    return remove_indexes, blocks
+
+
+def contiguous_ranges(indexes: list[int]) -> list[tuple[int, int]]:
+    if not indexes:
+        return []
+    ranges: list[tuple[int, int]] = []
+    start = indexes[0]
+    previous = indexes[0]
+    for index in indexes[1:]:
+        if index == previous + 1:
+            previous = index
+            continue
+        ranges.append((start, previous + 1))
+        start = previous = index
+    ranges.append((start, previous + 1))
+    return ranges
+
+
+def segment_patch_payload(
+    index: int,
+    *,
+    action: str,
+    input_profile: str,
+    output_profile: str,
+    target: dict[str, Any],
+    records: list[dict[str, Any]],
+    checks: dict[str, Any],
+    kept_segments: list[dict[str, Any]],
+    removed_blocks: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "schema": "murmurmark.audit_cleanup_patch/v1",
+        "patch_id": f"patch_{index:06d}",
+        "action": action,
+        "status": "applied",
+        "reason": "segment_remote_duplicate_gate_passed",
+        "input_profile": input_profile,
+        "output_profile": output_profile,
+        "target": {
+            "utterance_id": str(target.get("id")),
+            "role": "Me",
+            "start": target.get("start"),
+            "end": target.get("end"),
+            "text": target.get("text"),
+        },
+        "matched_remote": [
+            {
+                "utterance_id": str(((record.get("utterances") or {}).get("remote") or {}).get("id") or ""),
+                "start": ((record.get("utterances") or {}).get("remote") or {}).get("start"),
+                "end": ((record.get("utterances") or {}).get("remote") or {}).get("end"),
+                "text": remote_text_for_segment(record),
+            }
+            for record in records
+        ],
+        "audit_overlap_ids": [record.get("id") for record in records],
+        "evidence": {
+            "source": "audio_review_segment",
+            "label": "remote_duplicate",
+            "records": [
+                {
+                    "id": record.get("id"),
+                    "classification": record.get("classification"),
+                    "scores": record.get("scores"),
+                    "text": ((record.get("features") or {}).get("text") or {}),
+                    "interval": ((record.get("features") or {}).get("interval") or {}),
+                }
+                for record in records
+            ],
+            "segment_repair": {
+                "removed_blocks": removed_blocks,
+                "kept_segments": kept_segments,
+            },
+        },
+        "safety_checks": checks,
+    }
+
+
+def repaired_segment_rows(row: dict[str, Any], records: list[dict[str, Any]], output_profile: str) -> tuple[list[dict[str, Any]], dict[str, Any]] | None:
+    me_text = str(row.get("text") or "")
+    me_spans = token_spans(me_text)
+    if len(me_spans) < 4:
+        return None
+    safe_records: list[dict[str, Any]] = []
+    gate_checks: list[dict[str, Any]] = []
+    remove_indexes: set[int] = set()
+    removed_blocks: list[dict[str, Any]] = []
+    for record in records:
+        safe, checks = segment_remote_duplicate_gate(record)
+        gate_checks.append({"record_id": record.get("id"), **checks})
+        if not safe:
+            continue
+        indexes, blocks = matching_token_blocks(me_spans, remote_text_for_segment(record))
+        if not indexes:
+            gate_checks[-1]["matching_blocks_found"] = False
+            continue
+        gate_checks[-1]["matching_blocks_found"] = True
+        safe_records.append(record)
+        remove_indexes.update(indexes)
+        for block in blocks:
+            removed_blocks.append({"record_id": record.get("id"), **block})
+    if not safe_records or len(remove_indexes) < 3:
+        return None
+
+    keep_indexes = [index for index in range(len(me_spans)) if index not in remove_indexes]
+    keep_ranges = contiguous_ranges(keep_indexes)
+    start = float(row.get("start", 0.0) or 0.0)
+    end = float(row.get("end", start) or start)
+    total_duration = max(0.001, end - start)
+    kept_segments: list[dict[str, Any]] = []
+    output_rows: list[dict[str, Any]] = []
+    for segment_index, (left, right) in enumerate(keep_ranges, start=1):
+        segment_text = " ".join(me_text[me_spans[left]["start"] : me_spans[right - 1]["end"]].split()).strip(" ,.;:!?")
+        if not segment_text:
+            continue
+        segment_content_count = len(content_tokens(segment_text))
+        if segment_content_count < 2 and not has_marker(segment_text) and not domain_terms(segment_text):
+            continue
+        segment_start = start + total_duration * (left / max(1, len(me_spans)))
+        segment_end = start + total_duration * (right / max(1, len(me_spans)))
+        new_row = copy.deepcopy(row)
+        new_row["id"] = f"{row.get('id')}_seg{segment_index:02d}"
+        new_row["start"] = round(segment_start, 3)
+        new_row["end"] = round(max(segment_start + 0.2, segment_end), 3)
+        new_row["text"] = segment_text
+        quality = new_row.setdefault("quality", {})
+        if not isinstance(quality, dict):
+            quality = {}
+            new_row["quality"] = quality
+        quality["needs_review"] = False
+        quality.pop("overlap_type", None)
+        quality["audit_cleanup"] = {
+            "profile": output_profile,
+            "actions": ["segment_remove_remote_duplicate"],
+            "source_utterance_id": str(row.get("id")),
+            "overlap_ids": [str(record.get("id") or "") for record in safe_records],
+            "labels": ["remote_duplicate"],
+        }
+        output_rows.append(new_row)
+        kept_segments.append(
+            {
+                "id": new_row["id"],
+                "start": new_row["start"],
+                "end": new_row["end"],
+                "text": segment_text,
+                "content_token_count": segment_content_count,
+                "token_start": left,
+                "token_end_exclusive": right,
+            }
+        )
+
+    removed_token_count = len(remove_indexes)
+    removed_ratio = removed_token_count / max(1, len(me_spans))
+    if not output_rows and removed_ratio < 0.75:
+        return None
+    checks = {
+        "safe_for_segment_repair": True,
+        "gate_checks": gate_checks,
+        "source_token_count": len(me_spans),
+        "removed_token_count": removed_token_count,
+        "removed_token_ratio": round(removed_ratio, 6),
+        "kept_segment_count": len(output_rows),
+    }
+    return output_rows, {
+        "records": safe_records,
+        "checks": checks,
+        "kept_segments": kept_segments,
+        "removed_blocks": removed_blocks,
+        "action": "drop_me_after_segment_remote_duplicate_repair" if not output_rows else "segment_remove_remote_duplicate",
+    }
+
+
 def audio_judge_gate(record: dict[str, Any], notes_ids: set[str], output_profile: str) -> tuple[bool, dict[str, Any], str]:
     prediction = record.get("audio_judge_prediction") if isinstance(record.get("audio_judge_prediction"), dict) else {}
     review_safe, review_checks, review_action = audio_review_gate(record, notes_ids)
@@ -1040,18 +1365,31 @@ def quality_report(
     review = float(((summary.get("review") or {}).get("seconds", 0.0)) or 0.0)
     dropped_duplicate = sum(duration(patch["target"]) for patch in applied if patch["action"] == "drop_me_duplicate")
     dropped_noise = sum(duration(patch["target"]) for patch in applied if patch["action"] == "drop_me_noise")
+    segment_duplicate = 0.0
+    for patch in applied:
+        if patch.get("action") not in {"segment_remove_remote_duplicate", "drop_me_after_segment_remote_duplicate_repair"}:
+            continue
+        target_duration = duration(patch["target"])
+        removed_ratio = float((patch.get("safety_checks") or {}).get("removed_token_ratio", 0.0) or 0.0)
+        if patch.get("action") == "drop_me_after_segment_remote_duplicate_repair":
+            segment_duplicate += target_duration
+        else:
+            segment_duplicate += target_duration * removed_ratio
     report["audit_cleanup"] = {
         "profile": output_profile,
         "applied_patches": len(applied),
         "rejected_patches": len(rejected),
         "audio_review_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_review"),
         "audio_review_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_review"),
+        "segment_repair_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_review_segment"),
+        "segment_repair_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_review_segment"),
         "audio_judge_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_judge"),
         "audio_judge_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_judge"),
         "dropped_me_duplicate_seconds": round(dropped_duplicate, 3),
         "dropped_me_noise_seconds": round(dropped_noise, 3),
+        "segment_repaired_remote_duplicate_seconds": round(segment_duplicate, 3),
         "audit_harmful_seconds_before": round(harmful_before, 3),
-        "audit_harmful_seconds_after": round(max(0.0, harmful_before - dropped_duplicate - dropped_noise), 3),
+        "audit_harmful_seconds_after": round(max(0.0, harmful_before - dropped_duplicate - dropped_noise - segment_duplicate), 3),
         "audit_benign_seconds": round(benign, 3),
         "audit_review_seconds": round(review, 3),
         "protected_intentional_repeat_count": sum(1 for row in rejected if row.get("safety_checks", {}).get("intentional_repeat_candidate")),
@@ -1108,7 +1446,7 @@ def main() -> int:
             continue
         if not path.exists():
             raise FileNotFoundError(f"missing {label}: {path}")
-    use_audio_review = args.output_profile in {"audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v6"}
+    use_audio_review = args.output_profile in {"audit_cleanup_v2", "audit_cleanup_v3", "audit_cleanup_v4", "audit_cleanup_v6"} | SEGMENT_REPAIR_PROFILES
     use_audio_judge = args.output_profile in {"audit_cleanup_v3", "audit_cleanup_v4"}
     if use_audio_review:
         for label in ("audio_review_audit", "audio_review_summary"):
@@ -1138,6 +1476,7 @@ def main() -> int:
     rejected: list[dict[str, Any]] = []
     patch_index = 1
     dropped_ids: set[str] = set()
+    replacements: dict[str, list[dict[str, Any]]] = {}
 
     for utterance_id, records in grouped.items():
         patch, rejected_rows = best_patch_for_utterance(utterance_id, records, notes_ids, patch_index, args.output_profile)
@@ -1156,6 +1495,51 @@ def main() -> int:
             rejected.append(patch)
             patch_index += 1
 
+    if args.output_profile in SEGMENT_REPAIR_PROFILES:
+        for utterance_id, records in grouped.items():
+            if utterance_id in dropped_ids:
+                continue
+            source_row = by_id.get(utterance_id)
+            if not source_row or role_name(source_row) != "Me":
+                continue
+            repaired = repaired_segment_rows(source_row, records, args.output_profile)
+            if not repaired:
+                continue
+            new_rows, metadata = repaired
+            if args.mode != "conservative":
+                rejected.append(
+                    segment_patch_payload(
+                        patch_index,
+                        action=metadata["action"],
+                        input_profile=args.input_profile,
+                        output_profile=args.output_profile,
+                        target=source_row,
+                        records=metadata["records"],
+                        checks=metadata["checks"],
+                        kept_segments=metadata["kept_segments"],
+                        removed_blocks=metadata["removed_blocks"],
+                    )
+                )
+                rejected[-1]["status"] = "dry_run"
+                patch_index += 1
+                continue
+            applied.append(
+                segment_patch_payload(
+                    patch_index,
+                    action=metadata["action"],
+                    input_profile=args.input_profile,
+                    output_profile=args.output_profile,
+                    target=source_row,
+                    records=metadata["records"],
+                    checks=metadata["checks"],
+                    kept_segments=metadata["kept_segments"],
+                    removed_blocks=metadata["removed_blocks"],
+                )
+            )
+            patch_index += 1
+            dropped_ids.add(utterance_id)
+            replacements[utterance_id] = new_rows
+
     for patch in rejected:
         patch["input_profile"] = args.input_profile
         patch["output_profile"] = args.output_profile
@@ -1163,6 +1547,9 @@ def main() -> int:
     output_utterances: list[dict[str, Any]] = []
     for row in utterances:
         row_id = str(row.get("id"))
+        if row_id in replacements:
+            output_utterances.extend(copy.deepcopy(replacements[row_id]))
+            continue
         if row_id in dropped_ids:
             continue
         new_row = copy.deepcopy(row)
@@ -1195,6 +1582,10 @@ def main() -> int:
         rejected=rejected,
         output_profile=args.output_profile,
     )
+    if args.output_profile in SEGMENT_REPAIR_PROFILES and audio_review_records:
+        active_review_seconds = active_audio_review_seconds(audio_review_records, output_utterances)
+        output_quality["audit_cleanup"]["audit_review_seconds"] = active_review_seconds
+        output_quality["audit_review_seconds"] = active_review_seconds
     gates = {
         "passed": (
             int(output_quality.get("unrepaired_long_mic_crossings_count", 0) or 0) == 0
@@ -1251,7 +1642,17 @@ def main() -> int:
         "input_profile": args.input_profile,
         "output_profile": args.output_profile,
         "removed_utterance_ids": sorted(dropped_ids),
-        "inserted_utterances": [],
+        "inserted_utterances": [
+            {
+                "id": str(row.get("id")),
+                "source_utterance_id": str((row.get("quality") or {}).get("audit_cleanup", {}).get("source_utterance_id", "")),
+                "start": row.get("start"),
+                "end": row.get("end"),
+                "text": row.get("text"),
+            }
+            for rows in replacements.values()
+            for row in rows
+        ],
         "modified_utterances": [
             {
                 "id": str(row.get("id")),
@@ -1283,10 +1684,13 @@ def main() -> int:
             "audio_judge_predictions": len(audio_judge_predictions),
             "audio_review_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_review"),
             "audio_review_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_review"),
+            "segment_repair_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_review_segment"),
+            "segment_repair_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_review_segment"),
             "audio_judge_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_judge"),
             "audio_judge_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_judge"),
             "dropped_me_duplicate_seconds": output_quality["audit_cleanup"]["dropped_me_duplicate_seconds"],
             "dropped_me_noise_seconds": output_quality["audit_cleanup"]["dropped_me_noise_seconds"],
+            "segment_repaired_remote_duplicate_seconds": output_quality["audit_cleanup"]["segment_repaired_remote_duplicate_seconds"],
             "protected_intentional_repeat_count": output_quality["audit_cleanup"]["protected_intentional_repeat_count"],
             "needs_review_untouched_seconds": output_quality["audit_cleanup"]["audit_review_seconds"],
             "audit_harmful_seconds_before": output_quality["audit_cleanup"]["audit_harmful_seconds_before"],

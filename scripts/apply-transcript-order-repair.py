@@ -243,6 +243,7 @@ def resolve_profile(session: Path, requested: str) -> str:
         return requested
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     for profile in (
+        "audit_cleanup_v7",
         "agent_reviewed_v1",
         "reviewed_v1",
         "audit_cleanup_v6",
