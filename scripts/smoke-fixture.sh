@@ -3559,6 +3559,13 @@ PY
   [[ -s "$agent_review_dir/operational-readiness/operational_readiness_report.json" ]]
   [[ -s "$agent_review_dir/review-plan/review_plan.json" ]]
   jq -e '.schema == "murmurmark.agent_review_decisions/v1"' "$agent_review_dir/agent_review_report.agent_reviewed_v1.json" >/dev/null
+  jq -e '
+    (.summary.rejected_by_reason | type == "object") and
+    (.summary.rejected_by_label | type == "object") and
+    (.summary.rejected_by_verdict | type == "object") and
+    (.summary.rejected_by_reason_and_label | type == "object") and
+    (.summary.top_rejected_reasons | type == "array")
+  ' "$agent_review_dir/agent_review_report.agent_reviewed_v1.json" >/dev/null
   jq -s 'any(.[]; .source_audit_id == "arp_manual_bounded_remote_leak" and .decision == "keep_me" and .suggested_decision_reason == "bounded_remote_leak_with_local_content")' \
     "$agent_review_dir/review_decisions.agent_reviewed_v1.jsonl" >/dev/null
   jq -s 'any(.[]; .source_audit_id == "arp_manual_bounded_remote_leak_sibling" and .decision == "keep_me" and .suggested_decision_reason == "same_me_utterance_confirmed_local_keep" and .review_features.propagated_from[0].source_audit_id == "arp_manual_bounded_remote_leak")' \

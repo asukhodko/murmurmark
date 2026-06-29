@@ -111,6 +111,9 @@ murmurmark retention plan latest
 Run `murmurmark review agent` when corpus reports show a review queue and you have not already
 rebuilt `agent_reviewed_v1` after the latest pipeline changes. It only applies conservative
 machine decisions; any remaining queue is the real manual/export-review surface.
+The generated `agent_review_report.agent_reviewed_v1.json` also groups rejected candidates by
+reason and audio-review label, so the next automation rule can be based on the actual remaining
+shape instead of broad threshold changes.
 When `murmurmark next corpus` points to a prepared lane pack, prefer closing that pack before adding
 new automatic rules. The applied answers become better evidence than another broad retune: they show
 which `remote_leak` / `check_unique_me_content` cases are truly safe to keep, drop or leave for
@@ -1026,6 +1029,10 @@ already confirmed that utterance as local speech; this propagation does not appl
 keeps high-confidence local-recall repair insertions with local-only speaker-state evidence. It writes
 `agent_reviewed_v1`, which is eligible for `--transcript-profile auto` after gates pass. It never
 changes raw CAF files, Echo Guard outputs, ASR output or existing cleanup profiles.
+The report includes `rejected_by_reason`, `rejected_by_label`, `rejected_by_verdict`,
+`rejected_by_reason_and_label` and `top_rejected_reasons` for candidates that did not pass the safe
+automation rules. Treat those aggregates as the input for the next narrow rule; do not loosen
+cleanup thresholds just because a row remains in review.
 
 Operational readiness inherits applied review decisions for both audio-review rows and
 local-recall/local-recall-repair rows. A reviewed `keep_me`, `drop_me` or `skip` decision for an

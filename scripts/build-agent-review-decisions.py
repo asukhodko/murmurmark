@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.8"
+SCRIPT_VERSION = "0.3.9"
 SCHEMA = "murmurmark.agent_review_decisions/v1"
 OUTPUT_PROFILE = "agent_reviewed_v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -379,6 +379,80 @@ def queue_index(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
     }
 
 
+def rejection_reason(evidence: dict[str, Any]) -> str:
+    label = str(evidence.get("label") or "")
+    verdict = str(evidence.get("verdict") or "")
+    confidence = safe_float(evidence.get("confidence"))
+    duration = safe_float(evidence.get("duration_sec"))
+    local_support = safe_float(evidence.get("local_support"))
+    remote_duplicate = safe_float(evidence.get("remote_duplicate"))
+    remote_leak = safe_float(evidence.get("remote_leak"))
+    remote_similarity = safe_float(evidence.get("remote_similarity"))
+    asr_noise = safe_float(evidence.get("asr_noise"))
+    text_similarity = safe_float(evidence.get("text_similarity"))
+    token_containment = safe_float(evidence.get("token_containment"))
+    me_coverage = safe_float(evidence.get("me_overlap_coverage"))
+    remote_coverage = safe_float(evidence.get("remote_overlap_coverage"))
+    unique_tokens = evidence.get("unique_me_content_tokens") if isinstance(evidence.get("unique_me_content_tokens"), list) else []
+    state = evidence.get("speaker_state") if isinstance(evidence.get("speaker_state"), dict) else {}
+    local_only_ratio = safe_float(state.get("local_only_ratio"))
+    remote_active_ratio = safe_float(state.get("remote_active_ratio"))
+
+    if evidence.get("protected_marker"):
+        return "protected_action_decision_risk_marker"
+    if label == "likely_reliable" or verdict == "likely_reliable":
+        return "likely_reliable_not_error"
+    if label == "remote_duplicate":
+        if confidence < 0.82:
+            return "duplicate_confidence_too_low"
+        if me_coverage < 0.75:
+            return "partial_duplicate_overlap"
+        if local_support > 25 and local_only_ratio < 0.95:
+            return "local_support_conflicts_with_drop"
+        if unique_tokens:
+            return "unique_me_content_present"
+        if text_similarity < 0.75 or token_containment < 0.75:
+            return "duplicate_text_evidence_too_weak"
+        if remote_leak > 0:
+            return "duplicate_mixed_with_remote_leak_signal"
+        return "remote_duplicate_missing_safe_gate"
+    if label == "remote_leak":
+        if confidence < 0.78:
+            return "remote_leak_confidence_too_low"
+        if remote_duplicate > 0 or asr_noise > 0:
+            return "remote_leak_has_competing_error_signal"
+        if local_support < 15:
+            return "remote_leak_local_support_too_weak"
+        if duration > 5.0:
+            return "remote_leak_too_long_for_agent_keep"
+        if remote_coverage > 0.15:
+            return "remote_overlap_too_large"
+        if remote_similarity > 70:
+            return "remote_similarity_too_high"
+        if len(unique_tokens) < 2:
+            return "remote_leak_unique_local_text_too_weak"
+        if local_only_ratio < 0.85 or remote_active_ratio > 0.15:
+            return "speaker_state_not_local_only_enough"
+        return "remote_leak_missing_safe_keep_gate"
+    if label == "asr_noise":
+        if confidence < 0.78:
+            return "asr_noise_confidence_too_low"
+        if duration > 1.0:
+            return "asr_noise_too_long_for_agent_drop"
+        if local_support > 15:
+            return "asr_noise_has_local_support"
+        return "asr_noise_missing_safe_drop_gate"
+    if label == "uncertain":
+        if asr_noise > 0 and (duration > 2.2 or remote_active_ratio < 0.95):
+            return "uncertain_noise_state_or_duration_not_safe"
+        if local_support < 40:
+            return "uncertain_local_support_too_weak"
+        if remote_duplicate > 0 or remote_leak > 0 or asr_noise > 0:
+            return "uncertain_has_competing_error_signal"
+        return "uncertain_missing_safe_keep_gate"
+    return "not_safe_for_agent_resolution"
+
+
 def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, session: Path) -> tuple[str | None, str, dict[str, Any]]:
     classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
     features = row.get("features") if isinstance(row.get("features"), dict) else {}
@@ -669,7 +743,7 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, sessi
     ):
         return "keep_me", "audio_judge_mark_only_error_no_safe_drop", evidence
 
-    return None, "not_safe_for_agent_resolution", evidence
+    return None, rejection_reason(evidence), evidence
 
 
 def keep_propagation_reason(
@@ -1027,6 +1101,22 @@ def main() -> int:
     by_decision = Counter(str(row.get("decision")) for row in decisions)
     by_reason = Counter(str(row.get("suggested_decision_reason")) for row in decisions)
     by_session = Counter(str(row.get("session_id")) for row in decisions)
+    rejected_by_reason = Counter(str(row.get("reason") or "unknown") for row in rejected)
+    rejected_by_label = Counter(
+        str(((row.get("evidence") if isinstance(row.get("evidence"), dict) else {}) or {}).get("label") or "unknown")
+        for row in rejected
+    )
+    rejected_by_verdict = Counter(
+        str(((row.get("evidence") if isinstance(row.get("evidence"), dict) else {}) or {}).get("verdict") or "unknown")
+        for row in rejected
+    )
+    rejected_by_reason_and_label = Counter(
+        (
+            str(row.get("reason") or "unknown"),
+            str(((row.get("evidence") if isinstance(row.get("evidence"), dict) else {}) or {}).get("label") or "unknown"),
+        )
+        for row in rejected
+    )
     report = {
         "schema": SCHEMA,
         "generator": {"name": "build-agent-review-decisions", "version": SCRIPT_VERSION},
@@ -1046,6 +1136,17 @@ def main() -> int:
             "by_decision": dict(sorted(by_decision.items())),
             "by_reason": dict(sorted(by_reason.items())),
             "by_session": dict(sorted(by_session.items())),
+            "rejected_by_reason": dict(sorted(rejected_by_reason.items())),
+            "rejected_by_label": dict(sorted(rejected_by_label.items())),
+            "rejected_by_verdict": dict(sorted(rejected_by_verdict.items())),
+            "rejected_by_reason_and_label": {
+                f"{reason}|{label}": count
+                for (reason, label), count in sorted(rejected_by_reason_and_label.items())
+            },
+            "top_rejected_reasons": [
+                {"reason": reason, "count": count}
+                for reason, count in rejected_by_reason.most_common(10)
+            ],
         },
         "rejected_examples": rejected[:50],
     }

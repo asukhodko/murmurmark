@@ -1232,6 +1232,11 @@ The automatic agent-reviewed layer uses audio-review audit rows, the audio-judge
 high-confidence local-recall repair rows to close only items that are safe without listening. It
 writes `agent_reviewed_v1`; this profile is selected by `auto` after `reviewed_v1` and before
 automatic cleanup profiles when its gates pass.
+Its report also explains the remaining queue with rejected-candidate aggregates:
+`rejected_by_reason`, `rejected_by_label`, `rejected_by_verdict`, `rejected_by_reason_and_label` and
+`top_rejected_reasons`. Use those fields to decide the next narrow automation rule. If a lane is still
+listed by `murmurmark next corpus`, review that lane pack or add a rule only for the dominant rejected
+pattern; avoid broad threshold changes.
 
 ```bash
 murmurmark review agent

@@ -2669,6 +2669,26 @@ derived/transcript-simple/whisper-cpp/review-decisions/
   review_decisions_conflicts.agent_reviewed_v1.jsonl
 ```
 
+`agent_review_report.agent_reviewed_v1.json.summary` includes both applied-decision counters and
+rejected-candidate counters:
+
+```json
+{
+  "decision_rows": 172,
+  "rejected_candidate_rows": 1028,
+  "by_decision": {"drop_me": 3, "keep_me": 169},
+  "rejected_by_reason": {"remote_overlap_too_large": 45},
+  "rejected_by_label": {"remote_leak": 511},
+  "rejected_by_verdict": {"probable_transcript_error": 240},
+  "rejected_by_reason_and_label": {"remote_overlap_too_large|remote_leak": 45},
+  "top_rejected_reasons": [{"reason": "remote_overlap_too_large", "count": 45}]
+}
+```
+
+These rejected aggregates are diagnostic only. They do not apply decisions and do not reduce review
+coverage by themselves. Their purpose is to show which narrow evidence pattern is worth automating
+next without widening existing cleanup gates.
+
 The agent scope is deliberately smaller than the human review template. It may contain only rows that
 the rules can close without listening. `drop_me` is allowed only for clear whole-utterance remote
 duplicates or ASR noise with weak local support and no protected action/decision/risk markers.
