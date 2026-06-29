@@ -45,20 +45,21 @@ unreviewed transcript bundle. UI work remains optional and out of the main path.
 Current corpus snapshot, refreshed on 2026-06-29:
 
 - operational verdict: `medium_risk_ready`;
-- working sessions: `13/13 ready_for_notes`;
-- required review for selected evidence-backed notes: `0.01 min`;
-- remaining full transcript/export review surface: `1.73 min`;
-- mandatory export-review queue: `33` raw rows / `26` packed actions after the current automatic
-  `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `7` grouped rows reachable through `murmurmark review next` /
-  `murmurmark review workspace`; `7` short low-materiality rows (`0.10 min`) are kept in the report
-  but outside the mandatory review queue; the active plan currently spans `5` sessions, with local-recall
-  review fully explained by harmless short/boundary/remote-covered islands;
+- working sessions: `14/15 ready_for_notes`;
+- required review for selected evidence-backed notes: `0.11 min`;
+- remaining full transcript/export review surface: `2.90 min`;
+- mandatory export-review queue: `32` raw rows / `27` packed actions after the current automatic
+  `agent_reviewed_v1` + `audit_cleanup_v7` layers; `8` short low-materiality rows (`0.11 min`) are
+  kept in the report but outside the mandatory review queue; the active plan currently focuses on
+  transcript-order and unique-content checks, with local-recall review reduced to one short
+  unresolved row;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
-  `check_unique_me_content` and `remote_leak`, without changing capture, Echo Guard or the main ASR
-  path, and without hiding unresolved risk from export gates.
-- selected next step: run the optional stronger local audio judge on fresh review packs, use only
-  high-confidence suggested answers through dry-run/apply, refresh corpus readiness, then automate
-  only repeated safe patterns that are confirmed by those answers.
+  `check_transcript_order`, `check_unique_me_content` and `remote_leak`, without changing capture,
+  Echo Guard or the main ASR path, and without hiding unresolved risk from export gates.
+- selected next step: close the current `check_transcript_order` focus pack, refresh corpus
+  readiness, then automate only repeated safe patterns confirmed by review answers. The optional
+  stronger local audio judge remains available for small targeted packs, not as the default
+  interactive first move.
 
 The operational corpus excludes smoke/diagnostic recordings and interrupted partial captures. Those
 sessions remain visible in the full session-quality report, but they do not dilute the working-meeting
@@ -1107,9 +1108,11 @@ independently shows a mostly local-only interval. It can propagate
 after another row has already confirmed that utterance as local speech. It can also keep short
 local-only `asr_noise` rows when speaker-state evidence contradicts the noise label, and short
 adjacent `Me` continuations when the current utterance starts immediately after another `Me` turn.
-The agent also
-keeps high-confidence local-recall repair insertions with local-only speaker-state evidence. It writes
-`agent_reviewed_v1`, which is eligible for `--transcript-profile auto` after gates pass. It never
+The agent also keeps high-confidence local-recall repair insertions with local-only speaker-state
+evidence. It can close the narrow transcript-order case where a very short remote backchannel such as
+`Спасибо` sits inside a long confirmed `Me` turn, has no text overlap with it, and only needs
+`keep_me` audit marking rather than timestamp edits. It writes `agent_reviewed_v1`, which is
+eligible for `--transcript-profile auto` after gates pass. It never
 changes raw CAF files, Echo Guard outputs, ASR output or existing cleanup profiles.
 The report includes `rejected_by_reason`, `rejected_by_label`, `rejected_by_verdict`,
 `rejected_by_reason_and_label` and `top_rejected_reasons` for candidates that did not pass the safe

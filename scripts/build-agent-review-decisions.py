@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.0"
+SCRIPT_VERSION = "0.6.0"
 SCHEMA = "murmurmark.agent_review_decisions/v1"
 OUTPUT_PROFILE = "agent_reviewed_v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -1111,6 +1111,125 @@ def template_row(decision: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
+def normalized_words(text: Any) -> list[str]:
+    return [token.lower() for token in TOKEN_RE.findall(str(text or ""))]
+
+
+def is_short_remote_backchannel(text: Any) -> bool:
+    words = normalized_words(text)
+    return words in (["спасибо"], ["спасибо", "тебе"])
+
+
+def transcript_order_decision(
+    item: dict[str, Any],
+    session: Path,
+    input_profile: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    features = item.get("features") if isinstance(item.get("features"), dict) else {}
+    utterances = item.get("utterances") if isinstance(item.get("utterances"), dict) else {}
+    me = utterances.get("me") if isinstance(utterances.get("me"), dict) else {}
+    remote = utterances.get("remote") if isinstance(utterances.get("remote"), dict) else {}
+    interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
+    remote_text = str(remote.get("text") or "")
+    evidence = {
+        "item_id": item.get("item_id"),
+        "label": item.get("label"),
+        "confidence": safe_float(item.get("confidence")),
+        "reason": item.get("reason"),
+        "me_duration_sec": safe_float(features.get("me_duration_sec")),
+        "remote_duration_sec": safe_float(features.get("remote_duration_sec")),
+        "overlap_duration_sec": safe_float(features.get("overlap_duration_sec")),
+        "pre_remote_lead_sec": safe_float(features.get("pre_remote_lead_sec")),
+        "post_remote_tail_sec": safe_float(features.get("post_remote_tail_sec")),
+        "remote_inside_me": bool(features.get("remote_inside_me")),
+        "me_wraps_remote": bool(features.get("me_wraps_remote")),
+        "text_similarity": safe_float(features.get("text_similarity")),
+        "remote_text_contained_in_me": safe_float(features.get("remote_text_contained_in_me")),
+        "remote_text": remote_text,
+        "me_text": me.get("text"),
+    }
+    if item.get("label") != "probable_order_risk":
+        return None, {**evidence, "reason": "not_probable_order_risk"}
+    if not is_short_remote_backchannel(remote_text):
+        return None, {**evidence, "reason": "remote_not_supported_short_backchannel"}
+    if not (evidence["remote_inside_me"] and evidence["me_wraps_remote"]):
+        return None, {**evidence, "reason": "remote_not_wrapped_by_me"}
+    if evidence["me_duration_sec"] < 8.0 or evidence["remote_duration_sec"] > 1.8 or evidence["overlap_duration_sec"] > 1.8:
+        return None, {**evidence, "reason": "duration_outside_short_backchannel_bounds"}
+    if evidence["pre_remote_lead_sec"] < 1.0 or evidence["post_remote_tail_sec"] < 2.0:
+        return None, {**evidence, "reason": "not_enough_context_around_backchannel"}
+    if evidence["text_similarity"] > 0.15 or evidence["remote_text_contained_in_me"] > 0.0:
+        return None, {**evidence, "reason": "text_overlap_too_high_for_backchannel_clear"}
+    me_id = str(me.get("id") or "")
+    remote_id = str(remote.get("id") or "")
+    if not me_id or not remote_id:
+        return None, {**evidence, "reason": "missing_order_utterance_ids"}
+
+    decision = {
+        "schema": "murmurmark.review_decision/v1",
+        "status": "reviewed",
+        "decision": "keep_me",
+        "allowed_decisions": ["keep_me", "needs_review", "skip"],
+        "session_id": session.name,
+        "session": session.as_posix(),
+        "input_profile": input_profile,
+        "cluster_id": f"agent_{item.get('item_id')}",
+        "source": "transcript_order",
+        "source_audit_id": str(item.get("item_id") or ""),
+        "label": item.get("label"),
+        "verdict": "needs_transcript_order_review",
+        "confidence": evidence["confidence"],
+        "review_action": "agent_transcript_order_resolution",
+        "review_lane": "agent_transcript_order",
+        "suggested_decision": "keep_me",
+        "suggested_decision_confidence": "medium",
+        "suggested_decision_reason": "short_remote_backchannel_inside_long_me_keep",
+        "interval": interval,
+        "review_features": evidence,
+        "me_utterance_ids": [me_id],
+        "remote_utterance_ids": [remote_id],
+        "utterance_ids": [me_id, remote_id],
+        "text": [
+            {"id": me_id, "role": "Me", "source_track": "mic", "text": me.get("text")},
+            {"id": remote_id, "role": "Colleagues", "source_track": "remote", "text": remote.get("text")},
+        ],
+        "commands": item.get("commands") or {},
+        "reviewer": "agent:transcript_order_rules_v1",
+        "notes": "short_remote_backchannel_inside_long_me_keep",
+        "agent_review": {
+            "schema": SCHEMA,
+            "profile": OUTPUT_PROFILE,
+            "generator": "build-agent-review-decisions",
+            "version": SCRIPT_VERSION,
+            "reason": "short_remote_backchannel_inside_long_me_keep",
+            "evidence": evidence,
+        },
+    }
+    return decision, evidence
+
+
+def transcript_order_rows(session: Path, profile: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    path = session / "derived/audit/order/transcript_order_items.jsonl"
+    if not path.exists():
+        return [], []
+    decisions: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for item in read_jsonl(path):
+        decision, evidence = transcript_order_decision(item, session, profile)
+        if decision is None:
+            rejected.append(
+                {
+                    "session_id": session.name,
+                    "source_audit_id": item.get("item_id"),
+                    "reason": evidence.get("reason") or "not_safe_for_agent_transcript_order_resolution",
+                    "evidence": evidence,
+                }
+            )
+            continue
+        decisions.append(decision)
+    return decisions, rejected
+
+
 def session_rows(session: Path, profile: str, queue: dict[tuple[str, str], dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     audit_path = session / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
     if not audit_path.exists():
@@ -1182,6 +1301,9 @@ def session_rows(session: Path, profile: str, queue: dict[tuple[str, str], dict[
     local_recall_decisions, local_recall_rejected = local_recall_repair_rows(session, profile)
     decisions.extend(local_recall_decisions)
     rejected.extend(local_recall_rejected)
+    order_decisions, order_rejected = transcript_order_rows(session, profile)
+    decisions.extend(order_decisions)
+    rejected.extend(order_rejected)
     decisions.sort(key=lambda item: (str(item.get("session_id")), safe_float((item.get("interval") or {}).get("start")), str(item.get("source_audit_id"))))
     return decisions, rejected
 

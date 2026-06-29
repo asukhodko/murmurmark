@@ -3929,6 +3929,57 @@ assert burden["notes_review_burden_sec"] == 7.5
 assert burden["review_scope_remaining_seconds"] == 7.5
 PY
 
+python3 - "$repo_root" "$workdir" <<'PY'
+import importlib.util
+import pathlib
+import sys
+
+repo_root = pathlib.Path(sys.argv[1])
+workdir = pathlib.Path(sys.argv[2])
+module_path = repo_root / "scripts/build-agent-review-decisions.py"
+spec = importlib.util.spec_from_file_location("build_agent_review_decisions", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(module)
+
+session = workdir / "agent-order-backchannel-session"
+item = {
+    "item_id": "order_backchannel_fixture",
+    "label": "probable_order_risk",
+    "confidence": 0.86,
+    "reason": "long Me turn crosses a remote turn and continues after it",
+    "interval": {"start": 10.0, "end": 11.0, "duration_sec": 1.0},
+    "utterances": {
+        "me": {"id": "utt_me", "start": 8.0, "end": 20.0, "text": "Long local explanation with enough context before and after."},
+        "remote": {"id": "utt_remote", "start": 10.0, "end": 11.0, "text": "\u0421\u043f\u0430\u0441\u0438\u0431\u043e."},
+    },
+    "features": {
+        "me_duration_sec": 12.0,
+        "remote_duration_sec": 1.0,
+        "overlap_duration_sec": 1.0,
+        "pre_remote_lead_sec": 2.0,
+        "post_remote_tail_sec": 9.0,
+        "remote_inside_me": True,
+        "me_wraps_remote": True,
+        "text_similarity": 0.05,
+        "remote_text_contained_in_me": 0.0,
+    },
+}
+decision, evidence = module.transcript_order_decision(item, session, "agent_reviewed_v1")
+assert decision is not None, evidence
+assert decision["source"] == "transcript_order"
+assert decision["decision"] == "keep_me"
+assert decision["suggested_decision_reason"] == "short_remote_backchannel_inside_long_me_keep"
+
+unsafe = dict(item)
+unsafe["item_id"] = "order_long_remote_fixture"
+unsafe["utterances"] = dict(item["utterances"])
+unsafe["utterances"]["remote"] = {"id": "utt_remote2", "start": 10.0, "end": 18.0, "text": "Long conflicting remote content"}
+unsafe["features"] = dict(item["features"], remote_duration_sec=8.0, overlap_duration_sec=8.0, post_remote_tail_sec=2.0)
+decision, evidence = module.transcript_order_decision(unsafe, session, "agent_reviewed_v1")
+assert decision is None and evidence["reason"] in {"remote_not_supported_short_backchannel", "duration_outside_short_backchannel_bounds"}, evidence
+PY
+
 empty_session="$workdir/empty-session"
 empty_resolved="$empty_session/derived/transcript-simple/whisper-cpp/resolved"
 mkdir -p "$empty_resolved"

@@ -1304,6 +1304,9 @@ no remote utterance, near-full `Me` coverage and `speaker_state` says the interv
 `local_only`. It also clears short local-only `asr_noise` labels as `keep_me`, adjacent `Me`
 continuations, and sibling rows for the same exact `Me` utterance after another row has already
 confirmed that utterance as local speech.
+It can also clear the narrow transcript-order audit case where a short remote backchannel such as
+`Спасибо` is fully inside a long confirmed `Me` utterance, has no text overlap with it, and only
+needs `keep_me` marking rather than text or timestamp repair.
 Its report also explains the remaining queue with rejected-candidate aggregates:
 `rejected_by_reason`, `rejected_by_label`, `rejected_by_verdict`, `rejected_by_reason_and_label` and
 `top_rejected_reasons`. Use those fields to decide the next narrow automation rule. If a lane is still

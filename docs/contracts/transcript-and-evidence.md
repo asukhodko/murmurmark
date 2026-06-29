@@ -2840,8 +2840,11 @@ additional `remote_leak` or `remote_duplicate` rows for the same exact `Me` utte
 row has already confirmed that utterance as local speech and the propagated row has no ASR-noise
 signal. The agent can also keep short local-only rows labelled `asr_noise` when `speaker_state`
 contradicts that label, and short adjacent `Me` continuations when the current utterance starts
-immediately after another `Me` turn. Rows not present in the agent
-template remain unresolved and continue to contribute to review burden. `agent_reviewed_v1` is
+immediately after another `Me` turn. It can also close the narrow transcript-order audit case where
+a short remote backchannel such as `Спасибо` is fully inside a long confirmed `Me` turn, has no text
+overlap with it, and only needs `keep_me` marking rather than text or timestamp repair. Rows not
+present in the agent template remain unresolved and continue to contribute to review burden.
+`agent_reviewed_v1` is
 eligible for `auto` only when its own coverage gates pass; it ranks below `reviewed_v1` and above
 automatic cleanup profiles.
 `uncertain` rows may be cleared as `keep_me` only in the narrow no-error case: no remote duplicate,
@@ -2850,9 +2853,9 @@ mostly `local_only` `speaker_state` interval.
 
 Operational readiness may still expose review rows after `agent_reviewed_v1` is selected. Those
 rows are the remaining transcript/export surface, not a sign that the automatic layer was skipped.
-As of the 2026-06-29 corpus baseline, this queue is tracked separately from notes readiness:
-`13/13` working sessions are `ready_for_notes`, selected notes review is about `0.01 min`, and
-remaining transcript/export review is about `1.73 min` / `33` raw rows / `26` packed actions.
+As of the 2026-06-29 corpus baseline after short transcript-order backchannel review, this queue is
+tracked separately from notes readiness: `14/15` working sessions are `ready_for_notes`, selected
+notes review is about `0.11 min`, and remaining transcript/export review is about `2.90 min`.
 Readiness inherits applied `local_recall` and `local_recall_repair` review decisions as well as
 audio-review decisions. Closed local-recall rows with `keep_me`, `drop_me` or `skip` do not re-enter
 `murmurmark next corpus`; unresolved possible lost speech remains visible in `check_local_recall`.

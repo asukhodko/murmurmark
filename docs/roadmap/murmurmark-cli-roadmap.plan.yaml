@@ -377,7 +377,7 @@ nodes:
     deps: [review-apply-decisions, corpus-audio-judge-refresh]
     status: done
     effort: 2
-    notes: "CLI-команда строит безопасные agent_reviewed_v1 decisions, применяет профиль, запускает synthesis и обновляет session-quality/readiness/review-plan отчёты."
+    notes: "CLI-команда строит безопасные agent_reviewed_v1 decisions, применяет профиль, запускает synthesis и обновляет session-quality/readiness/review-plan отчёты. Агентный слой закрывает только узкие подтверждённые паттерны, включая short remote backchannel внутри длинной Me-реплики как transcript-order keep_me."
 
   review-export-closure-v1:
     title: "Export-review closure v1"
@@ -930,8 +930,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 уже довели корпус до medium_risk_ready; 13/13 рабочих сессий готовы для notes, а agent_reviewed_v1 закрыл pure-local remote-context, partial-duplicate и short-duplicate keep-классы. Новый optional faster-whisper judge добавляет локальный второй слух для коротких спорных клипов."
-          next_sync_goal: "Проверить stronger-audio-judge на свежей сессии, применить только безопасные suggested answers через dry-run/apply, затем автоматизировать лишь подтверждённые повторяющиеся ответы."
+          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 уже довели корпус до medium_risk_ready; 14/15 рабочих сессий готовы для notes, а agent_reviewed_v1 закрыл pure-local remote-context, partial-duplicate, short-duplicate keep-классы и узкий transcript-order backchannel case. Новый optional faster-whisper judge добавляет локальный второй слух для коротких спорных клипов."
+          next_sync_goal: "Сократить оставшуюся transcript/export review queue: проверять только повторяющиеся узкие lanes, применять безопасные agent/manual decisions, затем автоматизировать лишь подтверждённые паттерны."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

@@ -120,10 +120,10 @@ flowchart LR
 - считать успехом не идеальный transcript, а готовые evidence-backed notes при явно сохранённых
   transcript/export blockers.
 
-Выбранный ближайший шаг: проверить `murmurmark audit stronger-audio-judge` на свежей проблемной
-сессии, затем использовать только безопасные suggested answers через `review lane apply --dry-run`.
-Если после этого появляется новое автоматическое правило, оно должно опираться на уже подтверждённые
-ответы и не трогать спорные `remote_duplicate`/`lost_me` случаи без явных safety gates.
+Выбранный ближайший шаг: закрыть текущую `check_transcript_order` lane из `murmurmark next corpus`,
+обновить corpus readiness и переносить в automation только повторяющиеся ответы, подтверждённые
+review-артефактами. `murmurmark audit stronger-audio-judge` остаётся опцией для маленьких
+прицельных наборов, но не должен быть первым интерактивным шагом для всей очереди.
 
 Первый блок уже применён: transcript-only `uncertain` rows снимаются из burden только когда тот же
 selected `Me` interval покрыт high-confidence `likely_reliable` audio-review evidence. Второй блок
@@ -142,8 +142,10 @@ short `remote_leak` без remote-utterance закрывается как `keep_
 распространяется на sibling `remote_leak` для той же `Me`-реплики, если у sibling-строки нет
 duplicate/noise signal; на `remote_duplicate` это правило не распространяется. Девятый маленький
 блок: `uncertain` без remote/error-сигналов закрывается как `keep_me`, когда в строке нет remote
-utterance, покрытие `Me` почти полное, а `speaker_state` показывает mostly local-only. Следующий
-исполнительный блок — закрыть первую `check_unique_me_content` lane из актуального
-`murmurmark next corpus`, применить ответы и только после этого переносить подтверждённые
-повторяющиеся случаи в automation. `check_local_recall`
-сейчас содержит только одну короткую unresolved строку и не должен становиться основным фокусом.
+utterance, покрытие `Me` почти полное, а `speaker_state` показывает mostly local-only. Десятый
+маленький блок: короткий remote-backchannel внутри длинной локальной реплики закрывается как
+`keep_me` в transcript-order audit, если это только audit-риск порядка, а не потеря текста.
+Следующий исполнительный блок — дальше сокращать transcript/export review queue: сначала закрывать
+повторяющиеся узкие lanes вручную или агентным review, и только после подтверждения переносить
+точный паттерн в automation. `check_local_recall` содержит только одну короткую unresolved строку
+и не должен становиться основным фокусом.
