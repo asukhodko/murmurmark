@@ -1738,9 +1738,24 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
     if gate == "ready_for_notes" and export_blockers and not review_blockers:
         return [
             {
-                "id": "open_notes",
-                "label": "Read selected evidence-backed notes; full transcript export is still blocked.",
-                "command": f"murmurmark notes {session_arg}",
+                "id": "review_export_workspace",
+                "label": "Build the export-review workspace for transcript-only blockers.",
+                "command": f"murmurmark review workspace --session {session_arg}",
+            },
+            {
+                "id": "review_export_workspace_apply",
+                "label": "Apply filled export-review workspace answers.",
+                "command": f"murmurmark review workspace apply --session {session_arg}",
+            },
+            {
+                "id": "review_export_progress",
+                "label": "Check whether export-review decisions are complete.",
+                "command": f"murmurmark review progress --session {session_arg}",
+            },
+            {
+                "id": "review_export_apply",
+                "label": "Apply completed export-review decisions.",
+                "command": f"murmurmark review apply --session {session_arg}",
             },
             {
                 "id": "status_session",

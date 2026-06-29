@@ -8487,7 +8487,7 @@ enum ReviewNextPrinter {
         let transcriptReviewSeconds = double(metrics["transcript_review_burden_sec"]) ?? reviewSeconds
         let transcriptReviewRatio = (double(metrics["transcript_review_burden_ratio"]) ?? (reviewRatio / 100.0)) * 100.0
         let synthesisReviewCount = int(metrics["synthesis_review_item_count"]) ?? 0
-        if !requiresReview(gate: gate, reviewBlockers: reviewBlockers) {
+        if !requiresReview(gate: gate, reviewBlockers: reviewBlockers, exportBlockers: exportBlockers) {
             printNoReviewHandoff(
                 NoReviewHandoff(
                     sessionPath: sessionPath,
@@ -8634,11 +8634,12 @@ enum ReviewNextPrinter {
         return "check_required"
     }
 
-    private static func requiresReview(gate: String, reviewBlockers: [Any]) -> Bool {
+    private static func requiresReview(gate: String, reviewBlockers: [Any], exportBlockers: [Any]) -> Bool {
         gate == "review_first"
             || gate == "do_not_use_without_manual_review"
             || gate.hasSuffix("_review_first")
             || !reviewBlockers.isEmpty
+            || (gate == "ready_for_notes" && !exportBlockers.isEmpty)
     }
 
     private static func printReviewFlowsIfPlanExists(sessionArg: String, planOutDir: URL) {

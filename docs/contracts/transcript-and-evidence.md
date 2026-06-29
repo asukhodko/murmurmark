@@ -1804,8 +1804,9 @@ The Swift CLI additionally prints a derived terminal-only `status`:
 - `exported`: `ready_for_notes`, no export blockers and a successful default
   `exports/private/<session>/export_manifest.json`;
 - `exportable`: `ready_for_notes` and no export blockers;
-- `notes_ready_export_blocked`: `ready_for_notes`, no review blockers, but full transcript/export
-  blockers remain;
+- `notes_ready_export_blocked`: `ready_for_notes`, no notes review blockers, but full
+  transcript/export blockers remain; `next_commands` should point to export-review workspace or lane
+  commands rather than asking the user to reread notes;
 - `review_required`: review blockers or `review_first`;
 - `incomplete`: pipeline-incomplete gate or blocker;
 - `blocked`: hard no-use gate or export blockers not already classified as review/incomplete;

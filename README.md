@@ -37,6 +37,8 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - working sessions: `13/13 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.02 min`;
 - remaining full transcript/export review surface: `3.63 min`;
+- export-review queue: `40` packed actions, reachable through `murmurmark review next` /
+  `murmurmark review workspace`;
 - next product target: shrink transcript/export blockers without changing capture, Echo Guard or
   the main ASR path, and without hiding unresolved risk from export gates.
 
@@ -640,6 +642,9 @@ export prints `recommended_next`, structured next commands and writes `*.export_
 blockers in `export_manifest.json` and is meant for debugging. After a successful export, the CLI
 prints `recommended_next`, the manifest path, key output files, the matching retention commands and
 a final copyable `next: ...` line.
+`ready_for_notes` with remaining `export_blockers` is an explicit export-review state: notes remain
+usable, while `status`, `review next` and blocked export handoffs point to
+`murmurmark review workspace --session ...` or lane commands for full-transcript review.
 The successful `export_manifest.json` also stores structured `next_commands`, `open_commands` and
 `export_commands`, so an agent can continue with retention or open the exported files without parsing
 terminal output.

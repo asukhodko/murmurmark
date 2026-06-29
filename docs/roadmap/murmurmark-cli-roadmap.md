@@ -106,6 +106,8 @@ flowchart LR
 - удержать рабочий корпус на 13/13 `ready_for_notes`;
 - опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `3.63 min`
   отдельной transcript/export проверки на 13 рабочих сессиях;
+- держать export-review очередь явной и исполнимой: сейчас это `40` packed actions через
+  `murmurmark review next` / `review workspace`;
 - снизить `transcript_review_burden` и `export_blockers`, не смешивая их с готовностью notes;
 - расширять repair/cleanup только через corpus gates и audio-review evidence;
 - держать raw capture, Echo Guard и основной ASR неизменными без отдельного решения;
@@ -114,6 +116,7 @@ flowchart LR
 
 Первый блок уже применён: transcript-only `uncertain` rows снимаются из burden только когда тот же
 selected `Me` interval покрыт high-confidence `likely_reliable` audio-review evidence. Следующий
-исполнительный блок — искать такие же узкие, доказуемые классы среди оставшихся `remote_leak` и
-long-uncertain rows. Всё, что похоже на possible lost `Me` или спорное содержание реплики, остаётся
-в review/export gate.
+исполнительный блок — сокращать `40` export-review actions: сначала быстрые lanes
+`fast_confirm_drop` и `check_unique_me_content`, затем искать такие же узкие, доказуемые классы среди
+оставшихся `remote_leak` и long-uncertain rows. Всё, что похоже на possible lost `Me` или спорное
+содержание реплики, остаётся в review/export gate.

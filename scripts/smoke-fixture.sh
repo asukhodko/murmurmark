@@ -1157,7 +1157,7 @@ jq -n --arg session "$notes_ready_export_blocked_session" '{
   export_blockers: ["full_transcript_review_required"],
   review_blockers: [],
   warnings: [],
-  recommended_next: ("murmurmark notes " + $session),
+  recommended_next: ("murmurmark review workspace --session " + $session),
   metrics: {
     review_burden_sec: 0,
     review_burden_ratio: 0,
@@ -1169,7 +1169,8 @@ jq -n --arg session "$notes_ready_export_blocked_session" '{
     quality_verdict: {path: "derived/synthesis-simple/extractive/quality_verdict.md", exists: true}
   },
   next_commands: [
-    {id: "open_notes", label: "Read selected notes.", command: ("murmurmark notes " + $session)},
+    {id: "review_export_workspace", label: "Build export review workspace.", command: ("murmurmark review workspace --session " + $session)},
+    {id: "review_export_progress", label: "Check export review progress.", command: ("murmurmark review progress --session " + $session)},
     {id: "status_session", label: "Inspect blockers.", command: ("murmurmark status " + $session)}
   ]
 }' >"$notes_ready_export_blocked_session/derived/readiness/session_readiness.json"
@@ -1180,7 +1181,14 @@ echo "$notes_ready_blocked_status_output" | grep -q '^    summary: notes ready; 
 echo "$notes_ready_blocked_status_output" | grep -q '^    can_read_notes: true$'
 echo "$notes_ready_blocked_status_output" | grep -q '^    can_export: false$'
 echo "$notes_ready_blocked_status_output" | grep -q '^  transcript_review_burden: 0.33 min / 20.00%$'
-! echo "$notes_ready_blocked_status_output" | grep -q 'murmurmark review first-lane'
+echo "$notes_ready_blocked_status_output" | grep -q 'murmurmark review workspace --session '
+notes_ready_blocked_review_next="$("$bin" review next "$notes_ready_export_blocked_session" --no-refresh)"
+assert_no_helper_prefix "$notes_ready_blocked_review_next"
+echo "$notes_ready_blocked_review_next" | grep -q '^review_next:$'
+echo "$notes_ready_blocked_review_next" | grep -q '^  gate: ready_for_notes$'
+echo "$notes_ready_blocked_review_next" | grep -q '^  export_blockers: '
+echo "$notes_ready_blocked_review_next" | grep -q '^  recommended_next: murmurmark review workspace --session '
+tail -1 <<<"$notes_ready_blocked_review_next" | grep -q '^next: murmurmark review workspace --session '
 default_export_dir="$workdir/exports/private"
 "$repo_root/scripts/export-session-bundle.py" "$ready_export_session" --out-dir "$default_export_dir" >/dev/null
 default_status_output="$(cd "$workdir" && "$bin" status "$ready_export_session")"

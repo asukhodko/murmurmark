@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.2"
+SCRIPT_VERSION = "0.3.3"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 MIN_OPERATIONAL_SESSION_DURATION_SEC = 60.0
@@ -196,6 +196,17 @@ def audio_review_me_ids(row: dict[str, Any]) -> set[str]:
     return ids
 
 
+def audio_review_interval(row: dict[str, Any]) -> tuple[float, float]:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    start = safe_float(interval.get("start"))
+    end = safe_float(interval.get("end"))
+    seconds = safe_float(interval.get("duration_sec"))
+    if end <= start:
+        start = 0.0
+        end = max(0.0, seconds)
+    return start, end
+
+
 def active_audio_review_row(row: dict[str, Any], selected_ids: set[str]) -> bool:
     classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
     label = str(classification.get("label") or "")
@@ -205,6 +216,52 @@ def active_audio_review_row(row: dict[str, Any], selected_ids: set[str]) -> bool
     if not me_ids:
         return True
     return bool(me_ids & selected_ids)
+
+
+def reliable_audio_review_rows_by_me_id(rows: list[dict[str, Any]], selected_ids: set[str]) -> dict[str, list[dict[str, Any]]]:
+    reliable: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        if not active_audio_review_row(row, selected_ids):
+            continue
+        classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+        if str(classification.get("verdict") or "") != "likely_reliable":
+            continue
+        confidence = safe_float(classification.get("confidence"))
+        scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
+        likely_score = safe_float(scores.get("likely_reliable"))
+        if confidence < 0.70 or likely_score < 70.0:
+            continue
+        for me_id in audio_review_me_ids(row) & selected_ids:
+            reliable.setdefault(me_id, []).append(row)
+    return reliable
+
+
+def audio_review_row_explained_by_reliable(
+    row: dict[str, Any], selected_ids: set[str], reliable_by_me_id: dict[str, list[dict[str, Any]]]
+) -> bool:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    if str(classification.get("label") or "") != "uncertain":
+        return False
+    if str(classification.get("verdict") or "") != "needs_stronger_audio_judge":
+        return False
+    me_ids = audio_review_me_ids(row) & selected_ids
+    if not me_ids:
+        return False
+    start, end = audio_review_interval(row)
+    duration = end - start
+    if duration <= 0.0:
+        return False
+    for me_id in me_ids:
+        covered = False
+        for reliable_row in reliable_by_me_id.get(me_id, []):
+            reliable_start, reliable_end = audio_review_interval(reliable_row)
+            overlap = max(0.0, min(end, reliable_end) - max(start, reliable_start))
+            if overlap / duration >= 0.80:
+                covered = True
+                break
+        if not covered:
+            return False
+    return True
 
 
 def review_resolved_audio_ids(session_path: Path, profile: str) -> set[str]:
@@ -271,6 +328,8 @@ def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
         "transcript_order_needs_review_seconds": round(safe_float(session.get("transcript_order_needs_review_seconds")), 3),
         "audit_harmful_seconds_after": round(harmful, 3),
         "risk_flags": session.get("risk_flags") or [],
+        "review_blockers": session.get("review_blockers") or [],
+        "export_blockers": session.get("export_blockers") or [],
     }
     source_gate = session.get("use_gate")
     row["use_gate"] = source_gate if isinstance(source_gate, str) and source_gate else session_use_gate(row)
@@ -988,22 +1047,36 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
     rows: list[dict[str, Any]] = []
     by_session = {str(session.get("session_id")): session for session in sessions}
     me_ids_cache: dict[tuple[str, str], set[str]] = {}
+    review_resolved_cache: dict[tuple[str, str], set[str]] = {}
     for session in sessions:
-        if session.get("use_gate") == "ready_for_notes":
+        use_gate = str(session.get("use_gate") or "")
+        export_blockers = session.get("export_blockers") if isinstance(session.get("export_blockers"), list) else []
+        transcript_review_burden = safe_float(session.get("transcript_review_burden_sec"))
+        if use_gate == "ready_for_notes" and (not export_blockers or transcript_review_burden <= 0.0):
             continue
         session_path = Path(str(session.get("session") or ""))
         profile = str(session.get("selected_profile") or "")
         cache_key = (str(session_path), profile)
         if cache_key not in me_ids_cache:
             me_ids_cache[cache_key] = selected_me_ids(session_path, profile)
+        if cache_key not in review_resolved_cache:
+            review_resolved_cache[cache_key] = review_resolved_audio_ids(session_path, profile)
         selected_ids = me_ids_cache[cache_key]
+        review_resolved_ids = review_resolved_cache[cache_key]
         audit_path = session_path / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
-        for row in read_jsonl(audit_path):
+        audit_rows = read_jsonl(audit_path)
+        reliable_by_me_id = reliable_audio_review_rows_by_me_id(audit_rows, selected_ids)
+        for row in audit_rows:
             classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
             verdict = str(classification.get("verdict") or "")
             if verdict not in {"probable_transcript_error", "needs_stronger_audio_judge"}:
                 continue
+            source_id = str(row.get("id") or "")
+            if source_id in review_resolved_ids:
+                continue
             if selected_ids and not active_audio_review_row(row, selected_ids):
+                continue
+            if audio_review_row_explained_by_reliable(row, selected_ids, reliable_by_me_id):
                 continue
             session_id = str(row.get("session_id") or session.get("session_id"))
             rows.append(compact_review_item(by_session.get(session_id, session), row))

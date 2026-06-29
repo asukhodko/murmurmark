@@ -45,6 +45,8 @@ nodes:
       выбранного профиля, а 13 из 13 рабочих сессий находятся в `ready_for_notes`.
       Снимок на 2026-06-29: selected evidence-backed notes требуют около `0.02 min`
       проверки, а отдельная поверхность transcript/export review остаётся около `3.63 min`.
+      Оставшийся export-review теперь представлен как исполнимая очередь из `40` packed actions,
+      доступная через `murmurmark review next` / `murmurmark review workspace`.
       Следующая цель — снижать transcript/export blockers без смены топологии
       capture/Echo Guard/ASR, не ломая готовность evidence-backed notes и не скрывая
       спорные места от export gate.
@@ -872,7 +874,7 @@ x:
   exec:
     program:
       nearest_goal: "Снизить transcript/export blockers, которые уже объяснены надёжными audio-review evidence, при сохранении 13/13 ready_for_notes и отдельного export gate."
-      success_by_next_sync: "Corpus остаётся medium_risk_ready или лучше, 13/13 рабочих сессий готовы для notes, notes review burden остаётся около 0.02 min или ниже, а transcript/export review burden падает ниже 3.63 min без скрытия possible lost Me и спорного содержания."
+      success_by_next_sync: "Corpus остаётся medium_risk_ready или лучше, 13/13 рабочих сессий готовы для notes, notes review burden остаётся около 0.02 min или ниже, transcript/export review burden падает ниже 3.63 min, а export-review очередь становится короче 40 actions без скрытия possible lost Me и спорного содержания."
     defaults:
       status_progress:
         done: 1.0
@@ -907,7 +909,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 уже довели корпус до medium_risk_ready; 13/13 рабочих сессий готовы для notes."
-          next_sync_goal: "Найти следующий узкий класс transcript/export blockers после already-explained uncertain rows: вероятнее всего remote_leak или long-uncertain, но только с сильным доказательством."
+          next_sync_goal: "Сократить export-review очередь ниже 40 actions: сначала через быстрые lanes, затем через следующий узкий доказуемый класс remote_leak или long-uncertain."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]
