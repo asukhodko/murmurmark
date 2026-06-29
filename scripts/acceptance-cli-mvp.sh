@@ -89,7 +89,9 @@ config_path="$workdir/murmurmark.config.json"
 
 echo "acceptance_cli_mvp:"
 
-"$repo_root/scripts/install-local.sh" --prefix "$prefix" >/dev/null
+install_output="$("$repo_root/scripts/install-local.sh" --prefix "$prefix")"
+echo "$install_output" | grep -q '^  murmurmark acceptance --skip-release$'
+echo "$install_output" | grep -q '^  murmurmark acceptance --live-checklist$'
 echo "  install_wrapper: ok"
 
 export PATH="$prefix/bin:$PATH"

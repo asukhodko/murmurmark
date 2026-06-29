@@ -18,6 +18,7 @@ export PATH="$HOME/.local/bin:$PATH"
 murmurmark doctor
 murmurmark self-test
 murmurmark config init
+murmurmark acceptance --skip-release
 murmurmark config print
 ```
 
@@ -85,6 +86,7 @@ export PATH="$HOME/.local/bin:$PATH"
 murmurmark doctor
 murmurmark self-test
 murmurmark config init
+murmurmark acceptance --live-checklist
 murmurmark record --target-bundle system
 ```
 

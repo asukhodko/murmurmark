@@ -26,6 +26,7 @@ export PATH="$HOME/.local/bin:$PATH"
 murmurmark doctor
 murmurmark self-test
 murmurmark config init
+murmurmark acceptance --skip-release
 murmurmark config print
 ```
 
@@ -468,6 +469,7 @@ Everyday CLI commands:
 murmurmark doctor
 murmurmark self-test
 murmurmark config init
+murmurmark acceptance --live-checklist
 murmurmark record --target-bundle system
 murmurmark process latest
 murmurmark next latest
