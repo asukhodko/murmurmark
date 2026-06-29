@@ -2816,10 +2816,12 @@ the first segment-level cleanup profile. It usually uses `agent_reviewed_v1` as 
 current `audio_review_audit.jsonl`.
 
 v7 may edit only `Me` utterances where audio-review classifies a row as `remote_duplicate` with
-verdict `probable_transcript_error`, high remote similarity and low enough local support. Instead of
-dropping the whole utterance, it removes matched remote token spans from the `Me` text. The original
-mixed `Me` utterance id is removed from `clean_dialogue.audit_cleanup_v7.json`; kept local fragments
-are written as new `Me` utterances with ids like `<source_id>_seg01`. The patch JSONL uses action
+verdict `probable_transcript_error`, low enough local support and either high remote similarity or a
+text-proven duplicate match. Instead of dropping the whole utterance, it removes matched remote token
+spans from the `Me` text. If the duplicate starts at the beginning of `Me`, v7 may also remove a short
+ASR-glue tail before an obvious local continuation marker such as `Тогда`. The original mixed `Me`
+utterance id is removed from `clean_dialogue.audit_cleanup_v7.json`; kept local fragments are written
+as new `Me` utterances with ids like `<source_id>_seg01`. The patch JSONL uses action
 `segment_remove_remote_duplicate` or `drop_me_after_segment_remote_duplicate_repair` and records:
 
 ```json
@@ -2840,9 +2842,11 @@ are written as new `Me` utterances with ids like `<source_id>_seg01`. The patch 
 ```
 
 `quality_report.audit_cleanup_v7.json` includes
-`segment_repaired_remote_duplicate_seconds`. For v7, `audit_review_seconds` is recalculated from
-active audio-review rows after the replacement, so rows pointing only to removed source `Me` ids no
-longer inflate the verdict or review burden.
+`segment_repaired_remote_duplicate_seconds`. For v7, cumulative cleanup metrics start from the input
+profile's `audit_harmful_seconds_after`, and readiness reporting inherits review decisions from the
+input profile, usually `agent_reviewed_v1`. Active audio-review rows are then recalculated after the
+replacement, so rows pointing only to removed source `Me` ids no longer inflate the verdict or review
+burden.
 
 Patch suggestions are dry-run only:
 

@@ -11,11 +11,12 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.3.1"
 INPUT_PROFILE_DEFAULT = "shadow_v2"
 OUTPUT_PROFILE_DEFAULT = "audit_cleanup_v1"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
 SEGMENT_REPAIR_PROFILES = {"audit_cleanup_v7"}
+SEGMENT_LOCAL_CONTINUATION_MARKERS = {"тогда"}
 
 STOP_WORDS = {
     "а",
@@ -861,17 +862,28 @@ def segment_remote_duplicate_gate(record: dict[str, Any]) -> tuple[bool, dict[st
     remote_leak = float(scores.get("audio_review_remote_leak", 0.0) or 0.0)
     similarity = float(text_features.get("similarity_max", 0.0) or 0.0)
     containment = float(text_features.get("token_containment", 0.0) or 0.0)
-    safe = (
+    common = (
         record.get("source") == "audio_review"
         and label == "remote_duplicate"
         and verdict == "probable_transcript_error"
         and confidence >= 0.82
         and duplicate_score >= 82.0
-        and remote_similarity >= 90.0
         and remote_leak <= 5.0
         and local_support <= 60.0
-        and (similarity >= 0.75 or containment >= 0.60)
     )
+    strict_audio_similarity = remote_similarity >= 90.0 and (similarity >= 0.75 or containment >= 0.60)
+    text_proven_duplicate = remote_similarity >= 65.0 and (
+        (similarity >= 0.95 and containment >= 0.75)
+        or (similarity >= 0.75 and containment >= 0.75 and remote_similarity >= 70.0)
+        or (similarity >= 0.85 and containment >= 0.95)
+    )
+    safe = common and (strict_audio_similarity or text_proven_duplicate)
+    if common and strict_audio_similarity:
+        gate_policy = "strict_audio_similarity"
+    elif common and text_proven_duplicate:
+        gate_policy = "text_proven_duplicate"
+    else:
+        gate_policy = "none"
     return safe, {
         "source": record.get("source"),
         "label": label,
@@ -883,6 +895,10 @@ def segment_remote_duplicate_gate(record: dict[str, Any]) -> tuple[bool, dict[st
         "audio_review_local_support": local_support,
         "text_similarity_max": similarity,
         "token_containment": containment,
+        "common_gate_passed": common,
+        "strict_audio_similarity_gate_passed": strict_audio_similarity,
+        "text_proven_duplicate_gate_passed": text_proven_duplicate,
+        "segment_gate_policy": gate_policy,
         "safe_for_segment_repair": safe,
     }
 
@@ -948,6 +964,44 @@ def contiguous_ranges(indexes: list[int]) -> list[tuple[int, int]]:
         start = previous = index
     ranges.append((start, previous + 1))
     return ranges
+
+
+def extend_prefix_duplicate_tail(
+    me_spans: list[dict[str, Any]],
+    remove_indexes: set[int],
+    removed_blocks: list[dict[str, Any]],
+) -> None:
+    """Trim ASR-glue between a prefix duplicate and an obvious local continuation."""
+    if not remove_indexes or 0 not in remove_indexes:
+        return
+    ranges = contiguous_ranges(sorted(remove_indexes))
+    if not ranges or ranges[0][0] != 0:
+        return
+    duplicate_end = ranges[0][1]
+    lookahead_end = min(len(me_spans), duplicate_end + 5)
+    for marker_index in range(duplicate_end, lookahead_end):
+        if me_spans[marker_index]["norm"] not in SEGMENT_LOCAL_CONTINUATION_MARKERS:
+            continue
+        extra_indexes = list(range(duplicate_end, marker_index))
+        if not extra_indexes:
+            return
+        remove_indexes.update(extra_indexes)
+        extra_slice = me_spans[duplicate_end:marker_index]
+        removed_blocks.append(
+            {
+                "record_id": "prefix_duplicate_tail",
+                "me_token_start": duplicate_end,
+                "me_token_end_exclusive": marker_index,
+                "remote_token_start": None,
+                "remote_token_end_exclusive": None,
+                "token_count": len(extra_slice),
+                "content_token_count": sum(1 for row in extra_slice if row["is_content"]),
+                "text": " ".join(row["raw"] for row in extra_slice),
+                "reason": "prefix_duplicate_tail_before_local_marker",
+                "continuation_marker": me_spans[marker_index]["raw"],
+            }
+        )
+        return
 
 
 def segment_patch_payload(
@@ -1034,6 +1088,7 @@ def repaired_segment_rows(row: dict[str, Any], records: list[dict[str, Any]], ou
             removed_blocks.append({"record_id": record.get("id"), **block})
     if not safe_records or len(remove_indexes) < 3:
         return None
+    extend_prefix_duplicate_tail(me_spans, remove_indexes, removed_blocks)
 
     keep_indexes = [index for index in range(len(me_spans)) if index not in remove_indexes]
     keep_ranges = contiguous_ranges(keep_indexes)
@@ -1338,6 +1393,15 @@ def duration(row: dict[str, Any]) -> float:
     return max(0.0, float(row.get("end", 0.0) or 0.0) - float(row.get("start", 0.0) or 0.0))
 
 
+def optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def quality_report(
     *,
     input_quality: dict[str, Any],
@@ -1360,7 +1424,9 @@ def quality_report(
     report["remote_duplicate_in_me_count"] = len(duplicate_overlaps)
     report["remote_duplicate_in_me_seconds"] = round(sum(float(row.get("duration_sec", 0.0) or 0.0) for row in duplicate_overlaps), 3)
     report["meeting_duration_sec"] = round(max((float(row.get("end", 0.0) or 0.0) for row in utterances), default=0.0), 3)
-    harmful_before = float(((summary.get("harmful") or {}).get("seconds", 0.0)) or 0.0)
+    summary_harmful_before = float(((summary.get("harmful") or {}).get("seconds", 0.0)) or 0.0)
+    input_harmful_after = optional_float(input_quality.get("audit_harmful_seconds_after"))
+    harmful_before = min(summary_harmful_before, input_harmful_after) if input_harmful_after is not None else summary_harmful_before
     benign = float(((summary.get("benign_or_expected") or {}).get("seconds", 0.0)) or 0.0)
     review = float(((summary.get("review") or {}).get("seconds", 0.0)) or 0.0)
     dropped_duplicate = sum(duration(patch["target"]) for patch in applied if patch["action"] == "drop_me_duplicate")
@@ -1375,6 +1441,9 @@ def quality_report(
             segment_duplicate += target_duration
         else:
             segment_duplicate += target_duration * removed_ratio
+    previous_dropped_duplicate = optional_float(input_quality.get("dropped_me_duplicate_seconds")) or 0.0
+    previous_dropped_noise = optional_float(input_quality.get("dropped_me_noise_seconds")) or 0.0
+    previous_segment_duplicate = optional_float(input_quality.get("segment_repaired_remote_duplicate_seconds")) or 0.0
     report["audit_cleanup"] = {
         "profile": output_profile,
         "applied_patches": len(applied),
@@ -1385,9 +1454,9 @@ def quality_report(
         "segment_repair_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_review_segment"),
         "audio_judge_applied_patches": sum(1 for patch in applied if patch.get("evidence", {}).get("source") == "audio_judge"),
         "audio_judge_rejected_patches": sum(1 for patch in rejected if patch.get("evidence", {}).get("source") == "audio_judge"),
-        "dropped_me_duplicate_seconds": round(dropped_duplicate, 3),
-        "dropped_me_noise_seconds": round(dropped_noise, 3),
-        "segment_repaired_remote_duplicate_seconds": round(segment_duplicate, 3),
+        "dropped_me_duplicate_seconds": round(previous_dropped_duplicate + dropped_duplicate, 3),
+        "dropped_me_noise_seconds": round(previous_dropped_noise + dropped_noise, 3),
+        "segment_repaired_remote_duplicate_seconds": round(previous_segment_duplicate + segment_duplicate, 3),
         "audit_harmful_seconds_before": round(harmful_before, 3),
         "audit_harmful_seconds_after": round(max(0.0, harmful_before - dropped_duplicate - dropped_noise - segment_duplicate), 3),
         "audit_benign_seconds": round(benign, 3),
@@ -1553,6 +1622,9 @@ def main() -> int:
         if row_id in dropped_ids:
             continue
         new_row = copy.deepcopy(row)
+        if args.output_profile in SEGMENT_REPAIR_PROFILES:
+            output_utterances.append(new_row)
+            continue
         for record in grouped.get(row_id, []):
             label = str((record.get("classification") or {}).get("label") or "")
             action = {

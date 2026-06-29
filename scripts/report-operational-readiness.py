@@ -264,15 +264,35 @@ def audio_review_row_explained_by_reliable(
     return True
 
 
-def review_resolved_audio_ids(session_path: Path, profile: str) -> set[str]:
-    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+def cleanup_input_profile(session_path: Path, profile: str) -> str | None:
+    if not profile.startswith("audit_cleanup_"):
+        return None
+    report = read_json(
+        session_path
+        / "derived/transcript-simple/whisper-cpp/audit-cleanup"
+        / f"audit_cleanup_report{suffix(profile)}.json"
+    )
+    if not isinstance(report, dict):
+        return None
+    value = report.get("input_profile")
+    return str(value) if value else None
+
+
+def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] | None = None) -> set[str]:
+    seen = seen or set()
+    if profile in seen:
         return set()
+    seen.add(profile)
+    inherited_profile = cleanup_input_profile(session_path, profile)
+    inherited = review_resolved_audio_ids(session_path, inherited_profile, seen) if inherited_profile else set()
+    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+        return inherited
     path = (
         session_path
         / "derived/transcript-simple/whisper-cpp/review-decisions"
         / f"review_decisions_applied{suffix(profile)}.jsonl"
     )
-    resolved: set[str] = set()
+    resolved: set[str] = set(inherited)
     for row in read_jsonl(path):
         if str(row.get("source") or "") != "audio_review":
             continue

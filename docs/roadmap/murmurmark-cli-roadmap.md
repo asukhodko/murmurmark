@@ -106,11 +106,11 @@ flowchart LR
 
 - удержать corpus verdict на уровне `medium_risk_ready` или выше;
 - удержать рабочий корпус на 13/13 `ready_for_notes`;
-- опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `3.63 min`
+- опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `3.05 min`
   отдельной transcript/export проверки на 13 рабочих сессиях;
-- держать export-review очередь явной и исполнимой: сейчас это `40` raw rows / `33` packed actions
-  уже после `agent_reviewed_v1`, через `murmurmark review next` / `review workspace`;
-- снизить `transcript_review_burden` с `3.63 min` до `<= 1.5 min` и очередь с `33` до `<= 15`
+- держать export-review очередь явной и исполнимой: сейчас это `40` raw rows / `32` packed actions
+  уже после `agent_reviewed_v1` + `audit_cleanup_v7`, через `murmurmark review next` / `review workspace`;
+- снизить `transcript_review_burden` с `3.05 min` до `<= 1.5 min` и очередь с `32` до `<= 15`
   packed actions, не смешивая это с готовностью notes;
 - расширять repair/cleanup только через corpus gates и audio-review evidence;
 - держать raw capture, Echo Guard и основной ASR неизменными без отдельного решения;
@@ -118,7 +118,8 @@ flowchart LR
   transcript/export blockers.
 
 Первый блок уже применён: transcript-only `uncertain` rows снимаются из burden только когда тот же
-selected `Me` interval покрыт high-confidence `likely_reliable` audio-review evidence. Следующий
-исполнительный блок — `export-review-closure-v1`: разобрать оставшиеся `check_unique_me_content` /
-`remote_leak` элементы, найти узкий класс безопасного автоматического объяснения или segment-level
-repair, а всё похожее на possible lost `Me` или спорное содержание оставить в review/export gate.
+selected `Me` interval покрыт high-confidence `likely_reliable` audio-review evidence. Второй блок
+применён частично: `audit_cleanup_v7` режет доказанные partial `remote_duplicate` spans поверх
+`agent_reviewed_v1` и наследует уже закрытые audio-review decisions. Следующий исполнительный блок —
+разобрать оставшиеся `check_unique_me_content` / `remote_leak` элементы, не заходя в possible lost
+`Me` и спорное содержание.

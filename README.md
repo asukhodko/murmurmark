@@ -36,9 +36,9 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - operational verdict: `medium_risk_ready`;
 - working sessions: `13/13 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.02 min`;
-- remaining full transcript/export review surface: `3.63 min`;
-- export-review queue: `40` raw rows / `33` packed actions after the current automatic
-  `agent_reviewed_v1` layer, with `7` grouped rows reachable through `murmurmark review next` /
+- remaining full transcript/export review surface: `3.05 min`;
+- export-review queue: `40` raw rows / `32` packed actions after the current automatic
+  `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `8` grouped rows reachable through `murmurmark review next` /
   `murmurmark review workspace`;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
   `check_unique_me_content` and `remote_leak`, without changing capture, Echo Guard or the main ASR
@@ -815,7 +815,9 @@ usually reads `agent_reviewed_v1`, consumes the current `audio_review_audit.json
 `Me` utterances where the audio review proves that a remote fragment was copied into a longer local
 turn. v7 removes the matching remote token span, writes replacement `Me` segments with new ids, and
 never changes raw CAF, Echo Guard output, ASR output or earlier profiles. It does not split by audio
-alignment; it is a conservative text-level cleanup over already separated evidence.
+alignment; it is a conservative text-level cleanup over already separated evidence. When v7 is built
+on top of `agent_reviewed_v1`, readiness reports inherit the audio-review decisions already closed by
+the input profile and count only the remaining active review rows.
 
 ```bash
 .venv/bin/python scripts/apply-audit-cleanup.py ./sessions/<session> \

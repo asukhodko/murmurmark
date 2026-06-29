@@ -893,7 +893,7 @@ x:
   exec:
     program:
       nearest_goal: "Снизить transcript/export blockers, которые уже объяснены надёжными audio-review evidence, при сохранении 13/13 ready_for_notes и отдельного export gate."
-      success_by_next_sync: "Corpus остаётся medium_risk_ready или лучше, 13/13 рабочих сессий готовы для notes, notes review burden остаётся около 0.02 min или ниже, transcript/export review burden падает ниже 3.63 min, а export-review очередь становится короче 33 actions без скрытия possible lost Me и спорного содержания."
+      success_by_next_sync: "Corpus остаётся medium_risk_ready или лучше, 13/13 рабочих сессий готовы для notes, notes review burden остаётся около 0.02 min или ниже, transcript/export review burden падает ниже 3.05 min, а export-review очередь становится короче 32 actions без скрытия possible lost Me и спорного содержания."
     defaults:
       status_progress:
         done: 1.0

@@ -1182,7 +1182,9 @@ murmurmark synthesize "$SESSION" --transcript-profile audit_cleanup_v7
 
 `audit_cleanup_v7` removes only matched remote token spans from `Me`, writes replacement `Me`
 segments with new ids, and treats the original audio-review rows as resolved only when their original
-`Me` ids no longer exist in the selected profile. It does not modify raw capture, Echo Guard, ASR,
+`Me` ids no longer exist in the selected profile. When v7 is built from `agent_reviewed_v1`, the
+readiness reports also inherit the audio-review rows already closed by the input review profile; v7
+adds only the new segment-level repair evidence. It does not modify raw capture, Echo Guard, ASR,
 `shadow_v2`, earlier cleanup profiles or reviewed profiles.
 
 The automatic agent-reviewed layer uses audio-review audit rows, the audio-judge queue and
