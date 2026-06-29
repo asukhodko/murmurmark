@@ -31,6 +31,15 @@ separate transcript/export blockers. Full transcript/export review stays separat
 `export_blockers`, so a session can be safe enough for evidence-backed notes while still blocking an
 unreviewed transcript bundle. UI work remains optional and out of the main path.
 
+Current corpus snapshot, refreshed on 2026-06-29:
+
+- operational verdict: `medium_risk_ready`;
+- working sessions: `13/13 ready_for_notes`;
+- required review for selected evidence-backed notes: `0.17 min`;
+- remaining full transcript/export review surface: `4.34 min`;
+- next product target: shrink transcript/export blockers without changing capture, Echo Guard or
+  the main ASR path, and without hiding unresolved risk from export gates.
+
 ## Current CLI
 
 ### Local Install

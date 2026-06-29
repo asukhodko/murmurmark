@@ -806,6 +806,11 @@ counts, notes review burden and the minimum next command. Full transcript/export
 as `full_transcript_review_required`. In that state notes can be used with normal caution, while a
 default export remains blocked until transcript-only review is closed or `--force` is used
 deliberately.
+The 2026-06-29 corpus snapshot is the current convergence baseline: 13/13 working sessions are
+`ready_for_notes`, selected notes require about `0.17 min` of review, and the remaining full
+transcript/export surface is about `4.34 min`. The next quality iteration should reduce only those
+transcript/export blockers that are already explained by reliable audio-review evidence; possible
+lost `Me` speech and uncertain semantic content must stay visible to review/export gates.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
 `--refresh` it first rebuilds session-quality and operational-readiness reports, then prints
