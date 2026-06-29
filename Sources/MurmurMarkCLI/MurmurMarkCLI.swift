@@ -9617,6 +9617,11 @@ enum CorpusPrinter {
     }
 
     private static func firstReviewFocus(_ payload: [String: Any]) -> [String: Any]? {
+        let plan = payload["promotion_plan"] as? [String: Any] ?? [:]
+        if let focus = plan["review_focus"] as? [String: Any],
+           string(focus["session_id"]) != nil || string(focus["session_arg"]) != nil {
+            return focus
+        }
         if let queue = payload["review_queue"] as? [[String: Any]], let first = queue.first {
             return first
         }

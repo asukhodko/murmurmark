@@ -1077,7 +1077,7 @@ def promotion_plan(
         )
     queue_by_session.sort(key=lambda row: (-safe_float(row.get("seconds")), str(row.get("session_id"))))
     queue_strategy = review_queue_lane_summary(review_queue)
-    review_focus = review_queue_focus(review_queue)
+    review_focus = review_queue_focus(review_queue, queue_by_session)
     queue_actions = {
         "review_action_count": safe_int(queue_strategy.get("review_action_count")),
         "grouped_review_row_count": safe_int(queue_strategy.get("grouped_review_row_count")),
@@ -1155,9 +1155,37 @@ def session_cli_arg(value: Any) -> str | None:
     return f"sessions/{Path(text).name}"
 
 
-def review_queue_focus(review_queue: list[dict[str, Any]]) -> dict[str, Any] | None:
+def review_queue_focus(review_queue: list[dict[str, Any]], queue_by_session: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
     if not review_queue:
         return None
+    if queue_by_session:
+        target_row = queue_by_session[0]
+        target = session_cli_arg(target_row.get("session_id") or target_row.get("session"))
+        lane = str(target_row.get("first_review_lane") or "")
+        if target and lane:
+            lane_items = [
+                item
+                for item in review_queue
+                if same_session_target(item.get("session_id") or item.get("session"), target)
+                and str(item.get("review_lane") or review_lane(item) or "") == lane
+            ]
+            item = lane_items[0] if lane_items else {}
+            labels = target_row.get("labels") if isinstance(target_row.get("labels"), dict) else {}
+            lane_labels: dict[str, Any] = {}
+            for lane_row in target_row.get("by_review_lane") or []:
+                if isinstance(lane_row, dict) and lane_row.get("lane") == lane and isinstance(lane_row.get("labels"), dict):
+                    lane_labels = lane_row["labels"]
+                    break
+            return {
+                "session_id": Path(target).name,
+                "session_arg": target,
+                "source_audit_id": item.get("source_audit_id"),
+                "label": next(iter(lane_labels), next(iter(labels), None)),
+                "labels": lane_labels or labels,
+                "reason": item.get("reason"),
+                "review_lane": lane,
+                "review_action": item.get("review_action") or lane,
+            }
     item = review_queue[0]
     target = session_cli_arg(item.get("session_id") or item.get("session"))
     if not target:
