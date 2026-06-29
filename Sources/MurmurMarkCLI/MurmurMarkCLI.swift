@@ -171,7 +171,7 @@ struct MurmurMark {
           murmurmark self-test
           murmurmark list-apps
           murmurmark list-audio-devices
-          murmurmark inspect ./session
+          murmurmark inspect ./session|latest [--echo] [--sessions-root ./sessions]
 
         Advanced/debugging:
           murmurmark preprocess ./session [--echo diagnostic|clean] [--echo-engine linear_baseline|local_fir|speexdsp|webrtc-apm]
@@ -5280,9 +5280,24 @@ enum ConfigPrinter {
 
 extension Commands {
     static func inspect(_ args: [String]) throws {
-        guard let first = args.first(where: { !$0.hasPrefix("--") }) else { throw CLIError("inspect requires a session path") }
-        let showEcho = args.contains("--echo")
-        let session = PathURLs.fileURL(first)
+        if ArgumentEditing.hasHelpFlag(args) {
+            print("""
+            usage: murmurmark inspect ./session|latest [--echo] [--sessions-root ./sessions]
+
+            Prints raw session package health: manifest status, capture mode, mic and
+            remote file counts, bytes, frames and durations. Pass --echo to include
+            Echo Guard diagnostics when they exist.
+            """)
+            return
+        }
+
+        var remaining = args
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let showEcho = ArgumentEditing.takeFlag("echo", from: &remaining)
+        guard remaining.count == 1, let target = remaining.first else {
+            throw CLIError("usage: murmurmark inspect ./session|latest [--echo] [--sessions-root ./sessions]")
+        }
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         let data = try Data(contentsOf: session.appendingPathComponent("session.json"))
         let manifest = try JSONDecoder().decode(SessionManifest.self, from: data)
 

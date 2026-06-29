@@ -88,6 +88,7 @@ murmurmark self-test
 murmurmark config init
 murmurmark acceptance --live-checklist
 murmurmark record --target-bundle system
+murmurmark inspect latest
 ```
 
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.

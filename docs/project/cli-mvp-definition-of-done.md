@@ -52,6 +52,7 @@ murmurmark doctor
 murmurmark self-test
 murmurmark config init
 murmurmark record --target-bundle system
+murmurmark inspect latest
 murmurmark process latest
 murmurmark status latest
 murmurmark next latest

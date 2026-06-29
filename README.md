@@ -46,6 +46,7 @@ Normal CLI loop:
 murmurmark doctor
 murmurmark self-test
 murmurmark record --target-bundle system
+murmurmark inspect latest
 murmurmark sessions
 murmurmark process latest
 murmurmark next latest

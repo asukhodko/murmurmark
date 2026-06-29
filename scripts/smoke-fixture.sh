@@ -138,6 +138,10 @@ inspect_output="$("$bin" inspect "$session")"
 echo "$inspect_output" | grep -q 'session_id: fixture'
 echo "$inspect_output" | grep -q 'mic: files=1'
 echo "$inspect_output" | grep -q 'remote: files=1'
+inspect_latest_output="$("$bin" inspect latest --sessions-root "$workdir")"
+echo "$inspect_latest_output" | grep -q 'session_id: fixture'
+echo "$inspect_latest_output" | grep -q 'mic: files=1'
+echo "$inspect_latest_output" | grep -q 'remote: files=1'
 
 "$bin" export-audio "$session" >/dev/null
 
@@ -2411,11 +2415,15 @@ EOF
   echo "$main_help" | grep -q '^  murmurmark status latest$'
   echo "$main_help" | grep -q '^  murmurmark export latest --format markdown --include-json$'
   echo "$main_help" | grep -q '^  murmurmark acceptance \[--skip-release\] \[--python PATH\] \[--live-checklist\]$'
+  echo "$main_help" | grep -q '^  murmurmark inspect ./session|latest \[--echo\] \[--sessions-root ./sessions\]$'
   echo "$main_help" | grep -q '^  murmurmark review --help$'
+  inspect_help="$("$bin" inspect --help)"
+  echo "$inspect_help" | grep -q 'usage: murmurmark inspect ./session|latest'
   acceptance_help="$("$bin" acceptance --help)"
   echo "$acceptance_help" | grep -q 'usage: murmurmark acceptance'
   acceptance_live="$("$bin" acceptance --live-checklist)"
   echo "$acceptance_live" | grep -q '^live_recording_gate:$'
+  echo "$acceptance_live" | grep -q '^    - murmurmark inspect latest$'
   echo "$acceptance_live" | grep -q '^status: manual$'
   tail -1 <<<"$acceptance_live" | grep -q '^next: murmurmark doctor$'
   review_help="$("$bin" review --help)"
