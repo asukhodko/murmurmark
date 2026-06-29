@@ -36,17 +36,17 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - operational verdict: `medium_risk_ready`;
 - working sessions: `13/13 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.02 min`;
-- remaining full transcript/export review surface: `2.71 min`;
-- export-review queue: `40` raw rows / `32` packed actions after the current automatic
-  `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `8` grouped rows reachable through `murmurmark review next` /
+- remaining full transcript/export review surface: `2.68 min`;
+- export-review queue: `40` raw rows / `31` packed actions after the current automatic
+  `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `9` grouped rows reachable through `murmurmark review next` /
   `murmurmark review workspace`; the active plan currently spans `6` sessions, with local-recall
   review down to one short row after reviewed repair decisions are inherited by readiness;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
   `check_unique_me_content` and `remote_leak`, without changing capture, Echo Guard or the main ASR
   path, and without hiding unresolved risk from export gates.
-- selected next step: follow `murmurmark next corpus`, close the prepared
-  `check_unique_me_content` lane, apply those decisions, refresh corpus readiness, then extract only
-  repeated safe patterns into the next agent-reviewed rule.
+- selected next step: follow `murmurmark next corpus`, close the first
+  `check_unique_me_content` lane for `sessions/2026-06-26_11-15-50`, apply those decisions, refresh
+  corpus readiness, then automate only repeated safe patterns that are confirmed by those answers.
 
 ## Current CLI
 
@@ -978,9 +978,11 @@ agent review scope under `sessions/_reports/review-plan/`. The scope contains on
 rules can close without listening: whole-utterance `drop_me` for very clear remote duplicates or
 ASR noise, `keep_me` for strong local-support cases that no longer need human review, and
 `keep_me` for bounded short `remote_leak` rows with unique local text and low remote similarity, plus
-`keep_me` for short `remote_leak` rows with no remote utterance and near-pure `local_only`
-speaker-state evidence, plus high-confidence local-recall repair insertions with local-only
-speaker-state evidence. It writes
+`keep_me` for short `remote_leak` rows where Echo Guard independently shows near-pure `local_only`
+speaker-state evidence. The latter can include no remote utterance, or only a tiny remote utterance
+overlap, when duplicate/noise signals are absent and the `Me` text has unique local content. The
+agent also keeps high-confidence local-recall repair insertions with local-only speaker-state
+evidence. It writes
 `agent_reviewed_v1`, which is eligible for `--transcript-profile auto` after gates pass. It never
 changes raw CAF files, Echo Guard outputs, ASR output or existing cleanup profiles.
 

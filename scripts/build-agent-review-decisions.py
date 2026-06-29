@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.2"
+SCRIPT_VERSION = "0.3.3"
 SCHEMA = "murmurmark.agent_review_decisions/v1"
 OUTPUT_PROFILE = "agent_reviewed_v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -394,6 +394,7 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, sessi
     unique_tokens = sorted(unique_me_content_tokens(row))
     protected = has_protected_marker(me_text)
     me_coverage = interval_coverage(row, "me")
+    remote_coverage = interval_coverage(row, "remote")
     judge_label = str((queue_row or {}).get("judge_label") or "")
     judge_confidence = safe_float((queue_row or {}).get("judge_confidence"))
     state = speaker_state_ratios(session, safe_float(interval.get("start")), safe_float(interval.get("end")))
@@ -412,6 +413,7 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, sessi
         "text_similarity": similarity,
         "token_containment": containment,
         "me_overlap_coverage": round(me_coverage, 6),
+        "remote_overlap_coverage": round(remote_coverage, 6),
         "unique_me_content_tokens": unique_tokens,
         "protected_marker": protected,
         "remote_utterance_ids": remote_ids,
@@ -527,6 +529,26 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, sessi
         and (not protected or state["local_only_ratio"] >= 0.95)
     ):
         return "keep_me", "speaker_state_local_only_remote_leak_keep", evidence
+
+    if (
+        label == "remote_leak"
+        and verdict == "probable_transcript_error"
+        and confidence >= 0.78
+        and local_support >= 40
+        and remote_duplicate <= 0
+        and asr_noise <= 0
+        and duration <= 1.25
+        and me_coverage >= 0.75
+        and remote_coverage <= 0.15
+        and len(unique_tokens) >= 2
+        and state["covered_ratio"] >= 0.90
+        and state["local_only_ratio"] >= 0.95
+        and state["remote_active_ratio"] <= 0.05
+        and (not protected or state["local_only_ratio"] >= 0.98)
+        and similarity <= 0.55
+        and containment <= 0.55
+    ):
+        return "keep_me", "speaker_state_pure_local_remote_context_keep", evidence
 
     if (
         judge_label == "mark_only_error"
