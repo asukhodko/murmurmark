@@ -166,7 +166,7 @@ struct MurmurMark {
 
         Setup and diagnostics:
           murmurmark self-test
-          murmurmark acceptance [--skip-release] [--python PATH]
+          murmurmark acceptance [--skip-release] [--python PATH] [--live-checklist]
           murmurmark list-apps
           murmurmark list-audio-devices
           murmurmark inspect ./session
@@ -333,13 +333,15 @@ enum Commands {
 
     static func printAcceptanceHelp() {
         print("""
-        usage: murmurmark acceptance [--skip-release] [--python PATH]
+        usage: murmurmark acceptance [--skip-release] [--python PATH] [--live-checklist]
 
         Runs the CLI MVP acceptance gate for a developer checkout.
 
         The gate verifies local install, doctor, self-test, config init,
-        open-source readiness and release bundle verification. It does not
-        record live audio; the live recording gate remains manual.
+        open-source readiness and release bundle verification.
+
+        Use --live-checklist to print the manual live recording gate without
+        recording audio.
         """)
     }
 

@@ -2406,7 +2406,13 @@ EOF
   echo "$main_help" | grep -q '^  murmurmark next corpus$'
   echo "$main_help" | grep -q '^  murmurmark status latest$'
   echo "$main_help" | grep -q '^  murmurmark export latest --format markdown --include-json$'
+  echo "$main_help" | grep -q '^  murmurmark acceptance \[--skip-release\] \[--python PATH\] \[--live-checklist\]$'
   echo "$main_help" | grep -q '^  murmurmark review --help$'
+  acceptance_help="$("$bin" acceptance --help)"
+  echo "$acceptance_help" | grep -q 'usage: murmurmark acceptance'
+  acceptance_live="$("$bin" acceptance --live-checklist)"
+  echo "$acceptance_live" | grep -q '^live_recording_gate:$'
+  echo "$acceptance_live" | grep -q '^status: manual$'
   review_help="$("$bin" review --help)"
   echo "$review_help" | grep -q 'murmurmark review lane apply LANE|first'
   echo "$review_help" | grep -q 'murmurmark review progress \[--session latest|SESSION\]'

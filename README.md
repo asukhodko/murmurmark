@@ -119,6 +119,7 @@ See [docs/project/open-source-readiness.md](docs/project/open-source-readiness.m
 `murmurmark acceptance` is the current CLI MVP gate: it verifies local install, `doctor`,
 `self-test`, local config initialization, open-source readiness and release bundle verification. See
 [docs/project/cli-mvp-definition-of-done.md](docs/project/cli-mvp-definition-of-done.md).
+Use `murmurmark acceptance --live-checklist` for the manual recording part of the gate.
 
 For the shortest local CLI handoff regression, run:
 

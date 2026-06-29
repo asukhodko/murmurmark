@@ -39,6 +39,12 @@ status: ok
 
 ## Manual Live Recording Gate
 
+Print the checklist:
+
+```bash
+murmurmark acceptance --live-checklist
+```
+
 Run this on a machine with macOS recording permissions granted:
 
 ```bash

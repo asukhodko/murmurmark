@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 release_verify=1
 verify_python="${MURMURMARK_PYTHON:-}"
+live_checklist=0
 
 if [[ ! -f "$repo_root/Sources/MurmurMarkCLI/MurmurMarkCLI.swift" ]]; then
   echo "error: CLI MVP acceptance requires a full developer checkout with Sources/." >&2
@@ -13,7 +14,7 @@ fi
 
 usage() {
   cat <<'EOF'
-usage: scripts/acceptance-cli-mvp.sh [--skip-release] [--python PATH]
+usage: scripts/acceptance-cli-mvp.sh [--skip-release] [--python PATH] [--live-checklist]
 
 Checks the current CLI MVP acceptance gate without touching real sessions or
 raw recordings. The automated gate covers install, doctor, self-test, local
@@ -22,6 +23,7 @@ config, open-source readiness and release bundle verification.
 Options:
   --skip-release  Skip release bundle verification.
   --python PATH   Use PATH as MURMURMARK_PYTHON for release verification.
+  --live-checklist Print the manual live recording gate and exit.
 EOF
 }
 
@@ -36,6 +38,10 @@ while [[ $# -gt 0 ]]; do
       verify_python="$2"
       shift 2
       ;;
+    --live-checklist)
+      live_checklist=1
+      shift
+      ;;
     --help|-h)
       usage
       exit 0
@@ -47,6 +53,33 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$live_checklist" == "1" ]]; then
+  cat <<'EOF'
+live_recording_gate:
+  commands:
+    - murmurmark doctor
+    - murmurmark self-test
+    - murmurmark config init
+    - murmurmark record --target-bundle system
+    - murmurmark process latest
+    - murmurmark status latest
+    - murmurmark next latest
+    - follow printed review command when readiness says review_first
+    - murmurmark export latest --format markdown --include-json
+    - murmurmark retention plan latest
+  pass_when:
+    - recording creates separate non-empty mic and remote tracks
+    - process latest completes or prints a concrete next command
+    - status latest reports a clear readiness state
+    - risky transcript regions remain explicit review items
+    - export is blocked while required review/export blockers exist
+    - successful export writes an export manifest
+    - retention planning does not delete raw audio without apply plus confirmation
+status: manual
+EOF
+  exit 0
+fi
 
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-cli-mvp.XXXXXX")"
 trap 'rm -rf "$workdir"' EXIT
