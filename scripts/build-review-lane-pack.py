@@ -141,6 +141,7 @@ def review_lane_handoff(
     suggested_answer_sheet_path: Path,
     template_path: Path,
     decisions_path: Path,
+    session_arg: str = "",
 ) -> dict[str, Any]:
     lane_arg = shlex.quote(lane)
     manual_apply_base = (
@@ -191,6 +192,17 @@ def review_lane_handoff(
             "inspect generated suggested answers",
         ),
     ]
+    if session_arg:
+        targeted_stronger = command_item(
+            "run_targeted_stronger_audio_judge",
+            (
+                f"murmurmark audit stronger-audio-judge {shlex.quote(session_arg)} "
+                f"--review-lane-pack {shell_path(manifest_path)} --max-items 20"
+            ),
+            "run faster-whisper judge only for the current review lane items",
+        )
+        next_commands.insert(3, targeted_stronger)
+        open_commands.insert(4, targeted_stronger)
     return {
         "recommended_next": next_commands[0]["command"],
         "next_commands": next_commands,
@@ -1130,6 +1142,7 @@ def main() -> int:
     existing_rows = read_jsonl(args.decisions.expanduser())
     rows = merge_existing(template_rows, existing_rows)
     session_filters = {item.strip() for item in args.session if item.strip()}
+    session_arg = next(iter(session_filters)) if len(session_filters) == 1 else ""
     selected = select_lane_rows(rows, args, session_filters)
     stronger_by_session = stronger_judge_rows_by_session(selected, str(args.stronger_audio_judge or "auto"))
 
@@ -1300,6 +1313,7 @@ def main() -> int:
             suggested_answer_sheet_path=suggested_answer_sheet_path,
             template_path=template_path,
             decisions_path=decisions_path,
+            session_arg=session_arg,
         )
     )
     write_json(manifest_path, manifest)

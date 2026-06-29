@@ -151,7 +151,8 @@ struct MurmurMark {
           murmurmark audit order ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit group-overlaps ./session|latest [--profile shadow_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
-          murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80] [--sessions-root ./sessions]
+          murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80]
+                                                        [--review-lane-pack PATH] [--sessions-root ./sessions]
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
                              [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
@@ -3048,9 +3049,14 @@ enum AuditCommands {
             try Tooling.runPathQuiet(python, auditArgs)
             try AuditPrinter.printAudioReview(session: session, args: packArgs)
         case "stronger-audio-judge", "stronger_audio_judge":
+            let targetsExistingPack = ArgumentEditing.hasOption("pack-dir", in: remaining)
+                || ArgumentEditing.hasOption("review-lane-pack", in: remaining)
+                || ArgumentEditing.hasOption("pack-item-id", in: remaining)
             let packArgs = defaulted(packBuilderArgs(from: remaining), option: "profile", value: "audit_cleanup_v2")
             let packDir = ArgumentEditing.peekOption("out-dir", in: packArgs)
-            try Tooling.runPathQuiet(python, [try script("build-audio-review-pack.py").path, session.path] + packArgs)
+            if !targetsExistingPack {
+                try Tooling.runPathQuiet(python, [try script("build-audio-review-pack.py").path, session.path] + packArgs)
+            }
             var auditArgs = [try script("audit-stronger-audio-judge.py").path, session.path] + remaining
             if let packDir, !ArgumentEditing.hasOption("pack-dir", in: auditArgs) {
                 auditArgs += ["--pack-dir", packDir]
@@ -3072,7 +3078,17 @@ enum AuditCommands {
     private static func packBuilderArgs(from args: [String]) -> [String] {
         let valueOptions: Set<String> = ["profile", "out-dir", "min-overlap-sec", "padding-sec", "max-items"]
         let flags: Set<String> = ["write-clips", "no-write-clips"]
-        let skipValueOptions: Set<String> = ["model", "device", "compute-type", "language", "beam-size", "pack-dir", "source"]
+        let skipValueOptions: Set<String> = [
+            "model",
+            "device",
+            "compute-type",
+            "language",
+            "beam-size",
+            "pack-dir",
+            "source",
+            "pack-item-id",
+            "review-lane-pack",
+        ]
         let skipFlags: Set<String> = ["allow-download"]
         var filtered: [String] = []
         var index = 0
@@ -3132,6 +3148,7 @@ enum AuditCommands {
           audio-review    runs build-audio-review-pack.py, then audit-audio-review-pack.py
           stronger-audio-judge
                           runs build-audio-review-pack.py, then audit-stronger-audio-judge.py
+                          with --review-lane-pack or --pack-item-id, reuses the existing audio-review pack
 
         Use --sessions-root when resolving latest from a non-default sessions directory.
         Extra options are forwarded to the underlying audit script; for audio-review they are

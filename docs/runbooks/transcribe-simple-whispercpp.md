@@ -562,17 +562,24 @@ audio-judge demand, `read: less ...` for the Markdown report and `recommended_ne
 uncertain transcript errors point back into `murmurmark review next SESSION`.
 
 If the local `faster-whisper` judge is installed, run it over the same pack before building review
-lane packs:
+lane packs. For a concrete blocker, prefer the targeted lane-pack mode after `review first-lane`.
+It resolves current audio-review items by stable utterance ids instead of fragile `arp_*` numbers:
 
 ```bash
+murmurmark review first-lane --session "$SESSION"
+
+LANE=check_unique_me_content
 murmurmark audit stronger-audio-judge "$SESSION" \
-  --profile audit_cleanup_v2 \
-  --max-items 80
+  --review-lane-pack "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_pack.$LANE.json" \
+  --max-items 20
 
 jq '{items, suggested_keep_me_seconds, suggested_drop_me_seconds, skipped_reason}' \
   "$SESSION/derived/audit/audio-review-pack/faster_whisper_judge_summary.json"
 
 less "$SESSION/derived/audit/audio-review-pack/faster_whisper_judge_report.md"
+
+murmurmark review first-lane --session "$SESSION"
+murmurmark review lane apply "$LANE" --session "$SESSION" --answers-source suggested --dry-run
 ```
 
 The stronger judge is local and optional. It decodes only short review clips, writes

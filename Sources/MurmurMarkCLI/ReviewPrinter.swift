@@ -43,6 +43,9 @@ enum ReviewPrinter {
         let listenCommand = string(outputs["audio"]).map { "afplay \(shellQuote(displayPath($0)))" }
         let readCommand = string(outputs["markdown"]).map { "less \(shellQuote(displayPath($0)))" }
         let editCommand = string(outputs["answer_sheet"]).map { "$EDITOR \(shellQuote(displayPath($0)))" }
+        let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+        let targetedStrongerCommand = nextCommands.first { string($0["id"]) == "run_targeted_stronger_audio_judge" }
+            .flatMap { string($0["command"]) }
         let answerState = string(outputs["answer_sheet"]).flatMap { answerSheetState(url: PathURLs.fileURL($0)) }
         let manifestRecommendedNext = string(payload["recommended_next"])
         let recommendedNext = answerState?.hasReviewedAnswers == true
@@ -57,6 +60,9 @@ enum ReviewPrinter {
         }
         if let editCommand {
             print("  edit: \(editCommand)")
+        }
+        if let targetedStrongerCommand {
+            print("  targeted_stronger_audio_judge: \(targetedStrongerCommand)")
         }
         print("  dry_run: \(applyCommand) --dry-run")
         print("  apply: \(applyCommand)")

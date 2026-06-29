@@ -67,6 +67,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--beam-size", type=int, default=1)
     parser.add_argument("--allow-download", action="store_true", help="Allow Hugging Face network access.")
     parser.add_argument("--no-cache", action="store_true", help="Recompute selected clips even when cached judge rows exist.")
+    parser.add_argument(
+        "--pack-item-id",
+        action="append",
+        default=[],
+        help="Audit a specific audio-review pack item id, e.g. arp_000042. Can repeat.",
+    )
+    parser.add_argument(
+        "--review-lane-pack",
+        action="append",
+        type=Path,
+        default=[],
+        help="Read source_audit_id/source_audit_ids from a review lane pack and audit those pack items first.",
+    )
     parser.add_argument("--source", action="append", choices=DEFAULT_SOURCES, help="Clip source to decode. Can repeat.")
     parser.add_argument("--write-clips", action=argparse.BooleanOptionalAction, default=None, help=argparse.SUPPRESS)
     return parser.parse_args()
@@ -80,6 +93,84 @@ def read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def collect_source_audit_ids(value: Any) -> list[str]:
+    ids: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key == "source_audit_id" and child:
+                ids.append(str(child))
+            elif key == "source_audit_ids" and isinstance(child, list):
+                ids.extend(str(item) for item in child if item)
+            else:
+                ids.extend(collect_source_audit_ids(child))
+    elif isinstance(value, list):
+        for item in value:
+            ids.extend(collect_source_audit_ids(item))
+    return ids
+
+
+def list_strings(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if item is not None and str(item)]
+    return []
+
+
+def lane_pack_selectors(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[str]]:
+    selectors: list[dict[str, Any]] = []
+    missing_pack_files: list[str] = []
+    for path in args.review_lane_pack:
+        lane_pack = read_json(path.expanduser())
+        if lane_pack is None:
+            missing_pack_files.append(str(path))
+            continue
+        for item in lane_pack.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            selectors.append(
+                {
+                    "source_ids": collect_source_audit_ids(item),
+                    "utterance_ids": list_strings(item.get("utterance_ids")),
+                    "me_utterance_ids": list_strings(item.get("me_utterance_ids")),
+                    "remote_utterance_ids": list_strings(item.get("remote_utterance_ids")),
+                }
+            )
+    return selectors, missing_pack_files
+
+
+def item_id_set(item: dict[str, Any]) -> set[str]:
+    ids = set(str(value) for value in item.get("utterance_ids") or [] if value)
+    ids.update(utterance_ids(item))
+    return ids
+
+
+def item_matches_lane_selector(item: dict[str, Any], selector: dict[str, Any]) -> bool:
+    item_ids = item_id_set(item)
+    selector_ids = set(selector.get("utterance_ids") or [])
+    me_ids = set(selector.get("me_utterance_ids") or [])
+    remote_ids = set(selector.get("remote_utterance_ids") or [])
+    if item_ids and selector_ids and (item_ids <= selector_ids or selector_ids <= item_ids):
+        return True
+    if me_ids and item_ids & me_ids:
+        return True
+    if not me_ids and remote_ids and item_ids & remote_ids:
+        return True
+    return False
+
+
+def target_item_ids(args: argparse.Namespace, items: list[dict[str, Any]]) -> tuple[list[str], list[str], list[str]]:
+    ids = [str(value).strip() for value in args.pack_item_id if str(value).strip()]
+    selectors, missing_pack_files = lane_pack_selectors(args)
+    matched_selector_ids: list[str] = []
+    for selector in selectors:
+        matched = [str(item.get("id") or "") for item in items if item.get("id") and item_matches_lane_selector(item, selector)]
+        if matched:
+            matched_selector_ids.extend(matched)
+        else:
+            ids.extend(str(value) for value in selector.get("source_ids") or [] if value)
+    ids = list(matched_selector_ids) + ids
+    return list(dict.fromkeys(ids)), missing_pack_files, [",".join(selector.get("utterance_ids") or []) for selector in selectors]
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -281,7 +372,19 @@ def item_priority(item: dict[str, Any], audit_row: dict[str, Any] | None) -> tup
     return (9, -duration, str(item.get("id") or ""))
 
 
-def selected_items(items: list[dict[str, Any]], audit_rows: dict[str, dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+def selected_items(
+    items: list[dict[str, Any]],
+    audit_rows: dict[str, dict[str, Any]],
+    limit: int,
+    *,
+    target_ids: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    if target_ids:
+        by_id = {str(item.get("id") or ""): item for item in items}
+        targeted = [by_id[item_id] for item_id in target_ids if item_id in by_id]
+        if limit > 0:
+            return targeted[:limit]
+        return targeted
     ranked = sorted(items, key=lambda item: item_priority(item, audit_rows.get(str(item.get("id") or ""))))
     selected = [item for item in ranked if item_priority(item, audit_rows.get(str(item.get("id") or "")))[0] < 9]
     if not selected:
@@ -573,6 +676,17 @@ def cached_rows_for_items(
     return cached, missing, len(cached)
 
 
+def valid_existing_rows_by_pack_id(out_dir: Path, items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    by_item_id = {str(item.get("id") or ""): item for item in items if item.get("id")}
+    rows: dict[str, dict[str, Any]] = {}
+    for row in read_jsonl(out_dir / "faster_whisper_judge.jsonl"):
+        pack_id = str(row.get("source_pack_item_id") or "")
+        item = by_item_id.get(pack_id)
+        if item and cached_row_matches_item(row, item):
+            rows[pack_id] = row
+    return rows
+
+
 def write_report(path: Path, summary: dict[str, Any], rows: list[dict[str, Any]]) -> None:
     lines = [
         "# Faster Whisper Judge",
@@ -655,7 +769,9 @@ def main() -> int:
         for item in items
         if (row := audio_review_rows.get(str(item.get("id") or ""))) and audit_row_matches_item(row, item)
     }
-    selected = selected_items(items, matched_audio_review_rows, args.max_items)
+    requested_target_ids, missing_lane_pack_files, lane_pack_selector_keys = target_item_ids(args, items)
+    selected = selected_items(items, matched_audio_review_rows, args.max_items, target_ids=requested_target_ids)
+    missing_target_ids = [item_id for item_id in requested_target_ids if item_id not in {str(item.get("id") or "") for item in items}]
     cached_rows, missing_items, cached_count = cached_rows_for_items(out_dir, selected, disabled=args.no_cache)
     cached_by_pack_id = {str(row.get("source_pack_item_id") or ""): row for row in cached_rows}
     if missing_items:
@@ -666,19 +782,33 @@ def main() -> int:
         }
     else:
         new_by_pack_id = {}
-    rows = [
+    selected_rows = [
         new_by_pack_id.get(str(item.get("id") or "")) or cached_by_pack_id[str(item.get("id") or "")]
         for item in selected
     ]
+    merged_by_pack_id = valid_existing_rows_by_pack_id(out_dir, items)
+    for row in selected_rows:
+        if row.get("source_pack_item_id"):
+            merged_by_pack_id[str(row["source_pack_item_id"])] = row
+    rows = [merged_by_pack_id[str(item.get("id") or "")] for item in items if str(item.get("id") or "") in merged_by_pack_id]
     summary = summarize(rows, model_path=model_path, pack_summary=pack_summary)
     summary["cached_items"] = cached_count
     summary["computed_items"] = len(missing_items)
+    summary["selected_items"] = len(selected)
+    summary["target_item_ids"] = requested_target_ids
+    summary["missing_target_item_ids"] = missing_target_ids
+    summary["missing_review_lane_pack_files"] = missing_lane_pack_files
+    summary["review_lane_pack_selector_keys"] = lane_pack_selector_keys
     write_jsonl(out_dir / "faster_whisper_judge.jsonl", rows)
     write_json(out_dir / "faster_whisper_judge_summary.json", summary)
     write_report(out_dir / "faster_whisper_judge_report.md", summary, rows)
     print(f"items: {len(rows)}")
     print(f"cached_items: {cached_count}")
     print(f"computed_items: {len(missing_items)}")
+    if requested_target_ids:
+        print(f"target_items: {len(selected)}/{len(requested_target_ids)}")
+    if missing_target_ids:
+        print(f"missing_target_items: {', '.join(missing_target_ids)}")
     print(f"summary: {out_dir / 'faster_whisper_judge_summary.json'}")
     print(f"report: {out_dir / 'faster_whisper_judge_report.md'}")
     return 0

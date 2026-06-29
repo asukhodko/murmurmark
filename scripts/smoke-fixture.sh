@@ -1309,6 +1309,31 @@ with tempfile.TemporaryDirectory() as tmp:
     module.write_jsonl(path, [stale])
     cached, missing, count = module.cached_rows_for_items(Path(tmp), [item], disabled=False)
     assert cached == [] and missing == [item] and count == 0
+with tempfile.TemporaryDirectory() as tmp:
+    lane_pack = Path(tmp) / "lane.json"
+    module.write_json(
+        lane_pack,
+        {
+            "items": [
+                {
+                    "source_audit_id": "arp_stale",
+                    "source_audit_ids": ["arp_stale"],
+                    "utterance_ids": ["utt_target", "utt_remote"],
+                    "me_utterance_ids": ["utt_target"],
+                    "remote_utterance_ids": ["utt_remote"],
+                }
+            ]
+        },
+    )
+    args = type("Args", (), {"pack_item_id": [], "review_lane_pack": [lane_pack]})()
+    current_items = [
+        {"id": "arp_stale", "utterance_ids": ["utt_other"], "utterances": []},
+        {"id": "arp_current", "utterance_ids": ["utt_target"], "utterances": []},
+    ]
+    ids, missing_files, selector_keys = module.target_item_ids(args, current_items)
+    assert ids == ["arp_current"], ids
+    assert missing_files == []
+    assert selector_keys == ["utt_target,utt_remote"]
 PY
 
   group_session="$workdir/group-session"
