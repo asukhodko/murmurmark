@@ -390,7 +390,8 @@ def print_pipeline_plan(steps: list[dict[str, Any]], session: Path, report_path:
             reason = item.get("skip_reason") or "disabled"
             print(f"    skip: {item['name']} ({reason})", flush=True)
     print(f"  report: {rel(report_path, repo_root)}", flush=True)
-    print(f"  recommended_next: murmurmark process {session_arg}", flush=True)
+    print(f"  run_command: murmurmark process {session_arg}", flush=True)
+    print(f"  current_next: murmurmark next {session_arg}", flush=True)
 
 
 def print_pipeline_summary(report: dict[str, Any], report_path: Path, repo_root: Path) -> None:
@@ -401,7 +402,7 @@ def print_pipeline_summary(report: dict[str, Any], report_path: Path, repo_root:
     selected_profile = outputs.get("selected_transcript_profile")
     verdict = outputs.get("verdict")
     if status == "planned":
-        recommended_next = f"murmurmark process {session_arg}"
+        recommended_next = None
     elif status == "passed":
         recommended_next = f"murmurmark report {session_arg}"
     else:
@@ -415,7 +416,11 @@ def print_pipeline_summary(report: dict[str, Any], report_path: Path, repo_root:
         print(f"  selected_profile: {selected_profile}", flush=True)
     if verdict:
         print(f"  verdict: {verdict}", flush=True)
-    print(f"  recommended_next: {recommended_next}", flush=True)
+    if status == "planned":
+        print(f"  run_command: murmurmark process {session_arg}", flush=True)
+        print(f"  current_next: murmurmark next {session_arg}", flush=True)
+    else:
+        print(f"  recommended_next: {recommended_next}", flush=True)
 
 
 def main() -> int:
