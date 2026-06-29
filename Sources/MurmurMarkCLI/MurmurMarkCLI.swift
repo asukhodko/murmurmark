@@ -411,6 +411,7 @@ struct DoctorReport {
         if warnings > 0 {
             print("  optional: resolve warnings above")
         }
+        print("  murmurmark self-test")
         print("  murmurmark record --target-bundle system")
         print("  murmurmark process latest")
         print("  murmurmark status latest")
@@ -475,6 +476,7 @@ enum DoctorChecks {
             "scripts/report-session-quality.py",
             "scripts/apply-retention-policy.py",
             "scripts/build-provider-payload-manifest.py",
+            "scripts/smoke-cli-handoff.sh",
         ] {
             let url = PathURLs.fileURL(path)
             if FileManager.default.fileExists(atPath: url.path) {

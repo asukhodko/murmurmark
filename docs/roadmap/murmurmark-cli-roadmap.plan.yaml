@@ -611,8 +611,8 @@ nodes:
     effort: 18
     notes: |
       Установка, релизы, doctor, документация и готовность репозитория к открытой публикации.
-      Минимальный локальный install wrapper, расширенный doctor, локальный release bundle
-      и open-source readiness gate уже есть.
+      Минимальный локальный install wrapper, расширенный doctor, локальный self-test, локальный
+      release bundle и open-source readiness gate уже есть.
 
   packaging-install-update:
     title: "Install/update flow"
@@ -636,7 +636,15 @@ nodes:
     parent: packaging
     status: done
     effort: 4
-    notes: "doctor проверяет macOS permissions, ffmpeg/ffprobe, whisper-cli, модель, Python окружение, модули, config и core scripts; в конце печатает next commands для обычного запуска."
+    notes: "doctor проверяет macOS permissions, ffmpeg/ffprobe, whisper-cli, модель, Python окружение, модули, config и core scripts; в конце печатает self-test и next commands для обычного запуска."
+
+  packaging-self-test:
+    title: "CLI self-test"
+    kind: task
+    parent: packaging
+    status: done
+    effort: 2
+    notes: "murmurmark self-test запускает быстрый CLI handoff smoke через пользовательскую командную поверхность; scripts/check.sh проверяет этот путь вместо прямого вызова внутреннего smoke script."
 
   packaging-open-source-readiness:
     title: "Open-source readiness"
@@ -868,7 +876,7 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "process/latest/report/review/corpus/export/config, локальная установка и public-readiness gate уже работают."
+          sync_note: "process/latest/report/review/corpus/export/config, локальная установка, self-test и public-readiness gate уже работают."
           next_sync_goal: "Выбрать public security contact перед публикацией."
       quality-loop:
         title: "Контур качества"
