@@ -1622,6 +1622,64 @@ source_match_candidate = dict(
 decision, confidence, reason, summary = module.stronger_suggested_decision([row], {"fixture": [source_match_candidate]})
 assert decision == "keep_me" and confidence == 0.9, (decision, confidence, reason, summary)
 
+group_row_a = dict(
+    row,
+    review_lane="check_unique_me_content",
+    source_audit_id="arp_group_a",
+    utterance_ids=["utt_me_group", "utt_remote_a"],
+    me_utterance_ids=["utt_me_group"],
+    remote_utterance_ids=["utt_remote_a"],
+)
+group_row_b = dict(
+    row,
+    review_lane="check_unique_me_content",
+    source_audit_id="arp_group_b",
+    utterance_ids=["utt_me_group", "utt_remote_b"],
+    me_utterance_ids=["utt_me_group"],
+    remote_utterance_ids=["utt_remote_b"],
+)
+group_keep_candidate = dict(
+    candidate,
+    id="fwj_group_keep",
+    source_pack_item_id="arp_group_a",
+    utterance_ids=["utt_me_group", "utt_remote_a"],
+    classification={
+        "label": "confirm_me",
+        "suggested_decision": "keep_me",
+        "confidence": 0.9,
+    },
+)
+group_duplicate_candidate = dict(
+    candidate,
+    id="fwj_group_duplicate",
+    source_pack_item_id="arp_group_b",
+    utterance_ids=["utt_me_group", "utt_remote_b"],
+    classification={
+        "label": "confirm_remote_duplicate",
+        "suggested_decision": "drop_me",
+        "confidence": 0.95,
+    },
+)
+decision, confidence, reason, summary = module.stronger_suggested_decision(
+    [group_row_a, group_row_b],
+    {"fixture": [group_keep_candidate, group_duplicate_candidate]},
+)
+assert decision == "keep_me" and "grouped_same_me_keep" in reason, (decision, confidence, reason, summary)
+group_noise_candidate = dict(
+    group_duplicate_candidate,
+    id="fwj_group_noise",
+    classification={
+        "label": "confirm_asr_noise",
+        "suggested_decision": "drop_me",
+        "confidence": 0.95,
+    },
+)
+decision, confidence, reason, summary = module.stronger_suggested_decision(
+    [group_row_a, group_row_b],
+    {"fixture": [group_keep_candidate, group_noise_candidate]},
+)
+assert decision is None, (decision, confidence, reason, summary)
+
 text_guard_row = dict(
     row,
     review_lane="check_unique_me_content",

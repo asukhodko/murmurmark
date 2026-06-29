@@ -645,6 +645,32 @@ def stronger_suggested_decision(
         if confidence >= 0.86:
             reason = "stronger_audio_judge: " + ", ".join(sorted(labels))
             return "drop_me", round(confidence, 3), reason, summary
+    if (
+        len(rows) > 1
+        and "keep_me" in allowed
+        and any(str(row.get("review_lane") or "") == "check_unique_me_content" for row in rows)
+        and all(str(row.get("review_lane") or "") == "check_unique_me_content" for row in rows)
+        and len(unique_from_rows(rows, "me_utterance_ids")) == 1
+    ):
+        keep_high = [
+            match
+            for match in high
+            if str((match.get("classification") or {}).get("label") or "") in keep_labels
+            and float((match.get("classification") or {}).get("confidence") or 0.0) >= 0.86
+        ]
+        hard_drop_high = [
+            match
+            for match in high
+            if str((match.get("classification") or {}).get("label") or "") == "confirm_asr_noise"
+        ]
+        labels_allowed_for_keep = labels <= (keep_labels | {"confirm_remote_duplicate"})
+        if keep_high and not hard_drop_high and labels_allowed_for_keep:
+            confidence = max(float((match.get("classification") or {}).get("confidence") or 0.0) for match in keep_high)
+            reason = (
+                "stronger_audio_judge: grouped_same_me_keep; local Me is confirmed, "
+                "so whole-Me drop remains unsafe despite remote-duplicate subspans"
+            )
+            return "keep_me", round(confidence, 3), reason, summary
     return None, None, None, summary
 
 
