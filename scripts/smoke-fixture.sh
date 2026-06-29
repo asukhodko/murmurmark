@@ -2509,6 +2509,11 @@ PY
     --out-dir "$taxonomy_dir")"
   echo "$taxonomy_output" | grep -q '^audio_error_taxonomy:$'
   echo "$taxonomy_output" | grep -q '  first_action: '
+  echo "$taxonomy_output" | grep -q '^  read: less '
+  echo "$taxonomy_output" | grep -q '^  follow_up:$'
+  echo "$taxonomy_output" | grep -q '^  recommended_next: less '
+  echo "$taxonomy_output" | grep -q '^  next:$'
+  tail -1 <<<"$taxonomy_output" | grep -q '^next: less .*audio_error_taxonomy_report.md$'
   [[ -s "$taxonomy_dir/audio_error_taxonomy_report.json" ]]
   [[ -s "$taxonomy_dir/audio_error_taxonomy_items.jsonl" ]]
   [[ -s "$taxonomy_dir/audio_error_taxonomy_report.md" ]]

@@ -742,7 +742,9 @@ model/confidence gaps. It also writes diagnostic subtypes such as `uncertain_dup
 `remote_leak_with_local_content_risk` and `remote_duplicate_with_local_content_risk`; use those
 subtypes to choose the next narrow repair instead of retuning all audio-review labels at once. Its
 `action_plan` section is the shortest handoff for the next agent: it names the diagnostic subtype,
-the next work item and the expected deliverable.
+the next work item and the expected deliverable. The CLI output is read-first: it prints
+`read: less sessions/_reports/audio-error-taxonomy/audio_error_taxonomy_report.md`, follow-up
+commands and a final copyable `next: less ...` line.
 The operational readiness report answers whether the current pipeline is usable for medium-risk
 working meetings, how much manual review remains, which sessions are `ready_for_notes` versus
 `review_first`, and which audio-review clips should be checked first. Its review queue is also

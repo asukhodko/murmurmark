@@ -8720,9 +8720,11 @@ enum CorpusPrinter {
         let url = outDir.appendingPathComponent("audio_error_taxonomy_report.json")
         let payload = try JSONFiles.object(url)
         let summary = payload["summary"] as? [String: Any] ?? [:]
+        let report = outDir.appendingPathComponent("audio_error_taxonomy_report.md")
+        let readCommand = "less \(PathDisplay.display(report))"
         print("")
         print("audio_error_taxonomy:")
-        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("audio_error_taxonomy_report.md")))")
+        print("  report: \(PathDisplay.display(report))")
         print("  items: \(int(summary["items"]) ?? 0)")
         print("  sessions: \(int(summary["sessions"]) ?? 0)")
         if let seconds = double(summary["attention_seconds"]) {
@@ -8739,6 +8741,17 @@ enum CorpusPrinter {
             let diagnostic = string(first["diagnostic"]) ?? "unknown"
             print("  first_action: \(work) (\(diagnostic))")
         }
+        print("  read: \(readCommand)")
+        if let commands = payload["next_commands"] as? [String], !commands.isEmpty {
+            print("  follow_up:")
+            for command in commands.prefix(4) {
+                print("    \(command)")
+            }
+        }
+        print("  recommended_next: \(readCommand)")
+        print("  next:")
+        print("    \(readCommand)")
+        FinalNextPrinter.print(readCommand)
     }
 
     static func printGates(outDir: URL = PathURLs.fileURL("sessions/_reports/corpus-gates")) throws {

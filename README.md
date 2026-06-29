@@ -255,7 +255,9 @@ local-recall risk fail the gate; pending remote-leak segment queues are warnings
 Use it after `corpus train-audio-judge` to see which error classes are already safe cleanup
 candidates, which are mark-only, which need better labels, and which sessions/examples should drive
 the next quality iteration. The report also splits broad classes like `uncertain` into diagnostic
-subtypes and writes an `action_plan`, so the next repair can target one narrow failure mode.
+subtypes and writes an `action_plan`, so the next repair can target one narrow failure mode. The CLI
+prints `read: less ...`, possible follow-up commands and a final `next: less ...` line because the
+safe first action is to inspect the action map before changing cleanup or repair rules.
 `corpus remote-leak` writes `sessions/_reports/remote-leak-segment/remote_leak_segment_corpus_report.*`.
 When plans are missing, the report points to `murmurmark corpus remote-leak --plan`; when protected
 local-content intervals exist in complete sessions, it points to
