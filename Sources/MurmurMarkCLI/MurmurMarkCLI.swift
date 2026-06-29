@@ -124,7 +124,8 @@ struct MurmurMark {
           murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
-                                [--progress-interval-sec 60] [--config murmurmark.config.json] [--sessions-root ./sessions]
+                                [--progress-interval-sec 60] [--allow-partial]
+                                [--config murmurmark.config.json] [--sessions-root ./sessions]
           murmurmark status [./session|latest] [--sessions-root ./sessions]
           murmurmark next [./session|latest|corpus] [--refresh] [--export-manifest ./export_manifest.json] [--sessions-root ./sessions]
           murmurmark open [./session|latest] [--kind notes|transcript|verdict|readiness|audio-review] [--path-only|--command-only|--cat]
@@ -1048,11 +1049,13 @@ enum PipelineHelp {
         usage: murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
-                                [--progress-interval-sec 60] [--config murmurmark.config.json] [--sessions-root ./sessions]
+                                [--progress-interval-sec 60] [--allow-partial]
+                                [--config murmurmark.config.json] [--sessions-root ./sessions]
 
         Runs scripts/run-session-pipeline.py for one recorded session, then prints readiness.
         Defaults come from murmurmark.config.json when present; explicit CLI flags win.
         The --skip-* flags are for debugging or refreshing only selected derived layers.
+        Interrupted partial captures are blocked by default; use --allow-partial only for debugging.
 
         Common:
           murmurmark process latest

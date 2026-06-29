@@ -15,8 +15,12 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.1.1"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
+INTERRUPTED_CAPTURE_WARNING_MARKERS = (
+    "stream stopped with error",
+    "capture produced no audio samples",
+)
 
 
 STEP_COST_HINTS: dict[str, dict[str, str]] = {
@@ -84,6 +88,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-transcription", action="store_true")
     parser.add_argument("--skip-audits", action="store_true")
     parser.add_argument("--skip-cleanup", action="store_true")
+    parser.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help="Debug only: process a session whose capture was interrupted before Ctrl-C or requested duration.",
+    )
     parser.add_argument("--plan-only", action="store_true", help="Write the planned steps without executing them.")
     parser.add_argument(
         "--progress-interval-sec",
@@ -114,6 +123,27 @@ def read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def interrupted_capture_warnings(session: Path) -> list[str]:
+    session_json = read_json(session / "session.json")
+    if not isinstance(session_json, dict):
+        return []
+    if session_json.get("status") != "completed_with_warnings":
+        return []
+    health = session_json.get("health")
+    if not isinstance(health, dict):
+        return []
+    warnings = health.get("warnings")
+    if not isinstance(warnings, list):
+        return []
+    matched: list[str] = []
+    for warning in warnings:
+        text = str(warning)
+        lowered = text.lower()
+        if any(marker in lowered for marker in INTERRUPTED_CAPTURE_WARNING_MARKERS):
+            matched.append(text)
+    return matched
 
 
 def resolve_murmurmark_bin(explicit: Path | None, repo_root: Path) -> str:
@@ -696,6 +726,82 @@ def command_list(value: Any) -> list[str]:
     return commands
 
 
+def write_interrupted_capture_report(
+    *,
+    args: argparse.Namespace,
+    session: Path,
+    report_path: Path,
+    repo_root: Path,
+    plan_metadata: dict[str, Any],
+    warnings: list[str],
+    started_at: str,
+) -> dict[str, Any]:
+    session_arg = shell_path(session, repo_root)
+    report_arg = shell_path(report_path, repo_root)
+    next_commands = [
+        {
+            "id": "inspect_partial_session",
+            "command": f"murmurmark inspect {session_arg}",
+            "reason": "inspect the partial recording and capture warning",
+        },
+        {
+            "id": "record_again",
+            "command": "murmurmark record --target-bundle system",
+            "reason": "start a fresh recording for a live meeting",
+        },
+        {
+            "id": "debug_process_partial",
+            "command": f"murmurmark process {session_arg} --allow-partial",
+            "reason": "debug only: force processing of the partial recording",
+        },
+    ]
+    report = {
+        "schema": SCHEMA,
+        "generator": {"name": "run-session-pipeline", "version": SCRIPT_VERSION},
+        "started_at": started_at,
+        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "session": str(session),
+        "status": "blocked",
+        "blocker": "interrupted_capture",
+        "inputs": {
+            "model": str(args.model),
+            "language": args.language,
+            "prompt_file": str(args.prompt_file) if args.prompt_file and args.prompt_file.exists() else None,
+            "audio_judge_queue": str(args.audio_judge_queue) if args.audio_judge_queue.exists() else None,
+            "progress_interval_sec": args.progress_interval_sec,
+            "allow_partial": args.allow_partial,
+        },
+        "outputs": {
+            "quality_verdict": None,
+            "session_readiness": rel(session / "derived/readiness/session_readiness.json", session)
+            if (session / "derived/readiness/session_readiness.json").exists()
+            else None,
+            "remote_leak_segment_repair_plan": None,
+            "selected_transcript_profile": None,
+            "synthesis_selected_transcript_profile": None,
+            "readiness_selected_profile": None,
+            "verdict": None,
+            "synthesis_verdict": None,
+            "readiness_verdict": None,
+            "use_gate": "pipeline_incomplete",
+        },
+        "warnings": warnings,
+        "recommended_next": next_commands[0]["command"],
+        "next_commands": next_commands,
+        "open_commands": [
+            {
+                "id": "open_pipeline_run_report",
+                "command": f"less {report_arg}",
+                "path": rel(report_path, repo_root),
+            }
+        ],
+        "plan": plan_metadata,
+        "steps": [],
+    }
+    write_json(report_path, report)
+    return report
+
+
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parents[1]
@@ -707,6 +813,22 @@ def main() -> int:
     results: list[dict[str, Any]] = []
     started_at = datetime.now(timezone.utc).isoformat()
     final_status = "passed"
+    interrupted_warnings = interrupted_capture_warnings(session)
+    if interrupted_warnings and not args.allow_partial and not args.plan_only:
+        report = write_interrupted_capture_report(
+            args=args,
+            session=session,
+            report_path=report_path,
+            repo_root=repo_root,
+            plan_metadata=plan_metadata,
+            warnings=interrupted_warnings,
+            started_at=started_at,
+        )
+        print_pipeline_summary(report, report_path, repo_root)
+        print("  blocker: interrupted_capture", flush=True)
+        print("  warning: capture stopped before Ctrl-C or requested duration", flush=True)
+        print("  hint: inspect the partial session or re-record; use --allow-partial only for debugging", flush=True)
+        return 2
 
     if args.plan_only:
         print_pipeline_plan(steps, session, report_path, repo_root, plan_metadata)

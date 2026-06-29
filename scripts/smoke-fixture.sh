@@ -2650,6 +2650,31 @@ EOF
   jq -e 'all(.steps[]; (.started_at | type) == "string" and (.duration_sec | type) == "number")' "$pipeline_plan" >/dev/null
   jq -e 'any(.steps[]; .name == "plan_remote_leak_segment_repair")' "$pipeline_plan" >/dev/null
   jq -e 'any(.steps[]; .name == "session_readiness")' "$pipeline_plan" >/dev/null
+  interrupted_session="$workdir/interrupted-session"
+  mkdir -p "$interrupted_session"
+  jq -n '{
+    schema: "murmurmark.session/v1",
+    session_id: "interrupted-fixture",
+    created_at: "2026-06-29T12:00:00.000Z",
+    ended_at: "2026-06-29T12:10:00.000Z",
+    status: "completed_with_warnings",
+    health: {
+      summary: "warning",
+      warnings: ["stream stopped with error: interrupted app connection"]
+    }
+  }' >"$interrupted_session/session.json"
+  interrupted_report="$workdir/interrupted-pipeline-run.json"
+  if "$repo_root/scripts/run-session-pipeline.py" "$interrupted_session" \
+    --skip-build \
+    --report "$interrupted_report" >"$workdir/interrupted-pipeline.out" 2>&1; then
+    echo "expected interrupted capture pipeline to be blocked" >&2
+    exit 1
+  fi
+  grep -q '^  status: blocked$' "$workdir/interrupted-pipeline.out"
+  grep -q '^  blocker: interrupted_capture$' "$workdir/interrupted-pipeline.out"
+  grep -q '^  hint: inspect the partial session or re-record; use --allow-partial only for debugging$' "$workdir/interrupted-pipeline.out"
+  jq -e '.schema == "murmurmark.session_pipeline_run/v1" and .status == "blocked" and .blocker == "interrupted_capture" and (.steps | length) == 0' "$interrupted_report" >/dev/null
+  jq -e '.next_commands[0].id == "inspect_partial_session" and (.next_commands[2].command | contains("--allow-partial"))' "$interrupted_report" >/dev/null
   cli_pipeline_plan_out="$workdir/cli-pipeline-plan.out"
   "$bin" process "$group_session" \
     --plan-only \
