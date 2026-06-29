@@ -277,6 +277,9 @@ murmurmark synthesize "$SESSION" --transcript-profile auto
 jq '{verdict, selected_transcript_profile, risk_items: (.risk_items | length)}' \
   "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json"
 
+jq '{recommended_next, next_commands: [.next_commands[].id], open_commands: [.open_commands[].id]}' \
+  "$SESSION/derived/synthesis-simple/extractive/quality_verdict.json"
+
 murmurmark notes "$SESSION" --kind verdict
 murmurmark notes "$SESSION"
 murmurmark notes "$SESSION" --path-only
@@ -285,6 +288,10 @@ murmurmark open "$SESSION" --kind notes
 murmurmark open "$SESSION" --kind transcript --command-only
 less "$(murmurmark transcript "$SESSION" --path-only)"
 ```
+
+`quality_verdict.json` and `synthesis_manifest.json` both include `recommended_next`,
+`next_commands` and `open_commands`. Use those fields for automation; the terminal output is only the
+human-readable view of the same handoff.
 
 ## Local Recall Audit
 

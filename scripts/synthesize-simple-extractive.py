@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -550,6 +551,95 @@ def rel(path: Path, base: Path) -> str:
         return str(path.relative_to(base))
     except ValueError:
         return str(path)
+
+
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return str(resolved.relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(resolved)
+
+
+def shell_path(path: Path) -> str:
+    return shlex.quote(display_path(path))
+
+
+def safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def synthesis_handoff(session: Path, out_dir: Path, verdict_payload: dict[str, Any]) -> dict[str, Any]:
+    session_arg = shell_path(session)
+    verdict = str(verdict_payload.get("verdict") or "")
+    review_summary = verdict_payload.get("review_summary") if isinstance(verdict_payload.get("review_summary"), dict) else {}
+    review_item_count = safe_int(review_summary.get("review_item_count") if review_summary else 0)
+    risk_items = verdict_payload.get("risk_items") if isinstance(verdict_payload.get("risk_items"), list) else []
+    needs_review = review_item_count > 0 or bool(risk_items) or verdict == "usable_with_review"
+    can_export = verdict == "good" and not needs_review
+
+    next_commands: list[dict[str, str]] = []
+    if needs_review:
+        next_commands.append(
+            {
+                "id": "review_next",
+                "command": f"murmurmark review next {session_arg}",
+                "reason": "review required before export or high-confidence use",
+            }
+        )
+    next_commands.extend(
+        [
+            {
+                "id": "open_notes_summary",
+                "command": f"murmurmark notes {session_arg}",
+                "reason": "read the selected extractive notes",
+            },
+            {
+                "id": "open_transcript_summary",
+                "command": f"murmurmark transcript {session_arg}",
+                "reason": "inspect the selected transcript profile",
+            },
+            {
+                "id": "refresh_session_report",
+                "command": f"murmurmark report {session_arg}",
+                "reason": "refresh readiness after synthesis or review changes",
+            },
+        ]
+    )
+    if can_export:
+        next_commands.append(
+            {
+                "id": "export_markdown_bundle",
+                "command": f"murmurmark export {session_arg} --format markdown --include-json",
+                "reason": "export a reviewed good-quality local bundle",
+            }
+        )
+
+    open_commands = [
+        {
+            "id": "open_quality_verdict",
+            "command": f"less {shell_path(out_dir / 'quality_verdict.md')}",
+            "path": display_path(out_dir / "quality_verdict.md"),
+        },
+        {
+            "id": "open_notes",
+            "command": f"less {shell_path(out_dir / 'notes.md')}",
+            "path": display_path(out_dir / "notes.md"),
+        },
+        {
+            "id": "open_review_items",
+            "command": f"less {shell_path(out_dir / 'review_items.jsonl')}",
+            "path": display_path(out_dir / "review_items.jsonl"),
+        },
+    ]
+    return {
+        "recommended_next": next_commands[0]["command"],
+        "next_commands": next_commands,
+        "open_commands": open_commands,
+    }
 
 
 def read_json(path: Path) -> tuple[Any | None, str | None]:
@@ -2187,6 +2277,8 @@ def write_failed_outputs(out_dir: Path, session: Path, requested_profile: str, r
         "review_summary": review_summary,
         "risk_items": risk_items,
     }
+    handoff = synthesis_handoff(session, out_dir, payload)
+    payload.update(handoff)
     write_json(out_dir / "quality_verdict.json", payload)
     write_quality_markdown(out_dir / "quality_verdict.md", payload)
     write_json(out_dir / "evidence_notes.json", evidence)
@@ -2201,6 +2293,9 @@ def write_failed_outputs(out_dir: Path, session: Path, requested_profile: str, r
             "mode": "extractive",
             "generator": {"name": "synthesize-simple-extractive", "version": GENERATOR_VERSION, "config": "default_v3"},
             "rules": DEFAULT_RULES,
+            "recommended_next": handoff["recommended_next"],
+            "next_commands": handoff["next_commands"],
+            "open_commands": handoff["open_commands"],
             "outputs": {
                 "quality_verdict": "quality_verdict.json",
                 "quality_verdict_markdown": "quality_verdict.md",
@@ -2262,6 +2357,8 @@ def main() -> int:
     review_items = build_review_items(utterances, overlap_rows, risk_items)
     review_summary = review_items_summary(review_items)
     verdict_payload["review_summary"] = review_summary
+    handoff = synthesis_handoff(session, out_dir, verdict_payload)
+    verdict_payload.update(handoff)
     evidence = build_evidence_notes(
         session=session,
         selected_profile=selected_profile,
@@ -2315,6 +2412,9 @@ def main() -> int:
             "requested_transcript_profile": args.transcript_profile,
             "inputs": inputs,
             "rules": DEFAULT_RULES,
+            "recommended_next": handoff["recommended_next"],
+            "next_commands": handoff["next_commands"],
+            "open_commands": handoff["open_commands"],
             "outputs": {
                 "quality_verdict": "quality_verdict.json",
                 "quality_verdict_markdown": "quality_verdict.md",

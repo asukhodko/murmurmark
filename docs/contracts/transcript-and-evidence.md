@@ -98,9 +98,34 @@ derived/synthesis-simple/extractive/
       "severity": "medium",
       "reason": "some transcript regions need review"
     }
+  ],
+  "recommended_next": "murmurmark review next sessions/2026-06-26_15-32-02",
+  "next_commands": [
+    {
+      "id": "review_next",
+      "command": "murmurmark review next sessions/2026-06-26_15-32-02",
+      "reason": "review required before export or high-confidence use"
+    },
+    {
+      "id": "open_notes_summary",
+      "command": "murmurmark notes sessions/2026-06-26_15-32-02",
+      "reason": "read the selected extractive notes"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_quality_verdict",
+      "command": "less sessions/2026-06-26_15-32-02/derived/synthesis-simple/extractive/quality_verdict.md",
+      "path": "sessions/2026-06-26_15-32-02/derived/synthesis-simple/extractive/quality_verdict.md"
+    }
   ]
 }
 ```
+
+`recommended_next`, `next_commands` and `open_commands` are also copied to
+`synthesis_manifest.json`. This makes synthesis a machine-readable handoff: CLI wrappers and agents
+do not have to scrape terminal output to decide whether to review, inspect notes, refresh a report
+or export a bundle.
 
 `notes.md` is not a free summary. It contains selected extractive outline items and top
 decisions/actions/risks/open questions with utterance IDs. Every item that looks like a decision or

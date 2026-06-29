@@ -1719,6 +1719,9 @@ EOF
   tail -1 <<<"$synthesize_cli_output" | grep -q '^next: murmurmark review next '
   ! echo "$synthesize_cli_output" | grep -q '^    murmurmark export '
   jq -e '.selected_transcript_profile == "audit_cleanup_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json" >/dev/null
+  jq -e '(.recommended_next | startswith("murmurmark review next ")) and (.next_commands[0].id == "review_next") and (.open_commands | map(.id) | index("open_quality_verdict"))' "$group_session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
+  jq -e '(.recommended_next | startswith("murmurmark review next ")) and (.next_commands[0].id == "review_next") and (.open_commands | map(.id) | index("open_quality_verdict"))' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json" >/dev/null
+  jq -e '(.recommended_next | startswith("murmurmark review next ")) and (.next_commands[0].id == "review_next") and (.open_commands | map(.id) | index("open_quality_verdict"))' "$group_session/derived/synthesis-simple/extractive/synthesis_manifest.json" >/dev/null
   "$bin" notes "$group_session" --profile audit_cleanup_v1 --path-only | grep -q '/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md$'
   "$bin" notes "$group_session" --profile audit_cleanup_v1 --kind verdict --cat | grep -q '# Quality Verdict'
 
@@ -3216,6 +3219,8 @@ jq -n '{schema: "murmurmark.simple_transcript_quality/v1", utterances: 0, needs_
 jq -n '{schema: "murmurmark.transcript_overlaps/v1", session: "empty", overlaps: []}' >"$empty_resolved/overlaps.json"
 "$repo_root/scripts/synthesize-simple-extractive.py" "$empty_session" --transcript-profile auto >/dev/null
 jq -e '.verdict == "failed"' "$empty_session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
+jq -e '(.recommended_next | type) == "string" and (.next_commands | length) >= 1 and (.open_commands | map(.id) | index("open_quality_verdict"))' "$empty_session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
+jq -e '(.recommended_next | type) == "string" and (.next_commands | length) >= 1' "$empty_session/derived/synthesis-simple/extractive/synthesis_manifest.json" >/dev/null
 
 mic_sha_after="$(shasum -a 256 "$session/audio/mic/000001.caf" | awk '{print $1}')"
 remote_sha_after="$(shasum -a 256 "$session/audio/remote/000001.caf" | awk '{print $1}')"
