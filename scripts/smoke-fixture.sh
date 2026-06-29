@@ -3890,6 +3890,45 @@ PY
   jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.session_count == 1 and .summary.failed_sessions == 0' "$latest_apply_report" >/dev/null
 fi
 
+python3 - "$repo_root" "$workdir" <<'PY'
+import importlib.util
+import json
+import pathlib
+import sys
+
+repo_root = pathlib.Path(sys.argv[1])
+workdir = pathlib.Path(sys.argv[2])
+module_path = repo_root / "scripts/report-operational-readiness.py"
+spec = importlib.util.spec_from_file_location("report_operational_readiness", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(module)
+
+session = workdir / "operational-reviewed-filter-session"
+resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+audit = session / "derived/audit/audio-review-pack"
+resolved.mkdir(parents=True, exist_ok=True)
+audit.mkdir(parents=True, exist_ok=True)
+(resolved / "clean_dialogue.reviewed_v1.json").write_text(json.dumps({
+    "schema": "murmurmark.clean_dialogue/v1",
+    "utterances": [
+        {"id": "utt_confirmed_me", "role": "Me", "source_track": "mic", "start": 1.0, "end": 2.0, "text": "Confirmed local utterance.", "quality": {"needs_review": False, "human_review": {"profile": "reviewed_v1", "decisions": ["keep_me"], "source_audit_ids": ["arp_old"]}}},
+        {"id": "utt_unresolved_me", "role": "Me", "source_track": "mic", "start": 3.0, "end": 4.0, "text": "Unresolved local utterance.", "quality": {"needs_review": True}},
+    ],
+}, ensure_ascii=False), encoding="utf-8")
+rows = [
+    {"schema": "murmurmark.audio_review_audit/v1", "id": "arp_new_same_me", "session_id": "operational-reviewed-filter-session", "interval": {"start": 1.0, "end": 2.0, "duration_sec": 1.0}, "utterance_ids": ["utt_confirmed_me"], "utterances": [{"id": "utt_confirmed_me", "role": "Me", "source_track": "mic", "text": "Confirmed local utterance."}], "classification": {"label": "remote_leak", "verdict": "probable_transcript_error", "confidence": 0.9}},
+    {"schema": "murmurmark.audio_review_audit/v1", "id": "arp_unresolved_me", "session_id": "operational-reviewed-filter-session", "interval": {"start": 3.0, "end": 4.0, "duration_sec": 1.0}, "utterance_ids": ["utt_unresolved_me"], "utterances": [{"id": "utt_unresolved_me", "role": "Me", "source_track": "mic", "text": "Unresolved local utterance."}], "classification": {"label": "remote_leak", "verdict": "probable_transcript_error", "confidence": 0.9}},
+]
+(audit / "audio_review_audit.jsonl").write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n", encoding="utf-8")
+session_row = {"session_id": session.name, "session": str(session), "selected_profile": "reviewed_v1", "use_gate": "review_first", "transcript_review_burden_sec": 1.0}
+queue, low_materiality = module.build_review_queue_details([session_row], 100)
+assert [row["source_audit_id"] for row in queue + low_materiality] == ["arp_unresolved_me"], (queue, low_materiality)
+burden = module.session_review_burden({"session_id": "partial", "meeting_duration_sec": 100.0, "selected_profile": "reviewed_v1", "verdict": "usable_with_review", "review_scope_remaining_seconds": 7.5})
+assert burden["notes_review_burden_sec"] == 7.5
+assert burden["review_scope_remaining_seconds"] == 7.5
+PY
+
 empty_session="$workdir/empty-session"
 empty_resolved="$empty_session/derived/transcript-simple/whisper-cpp/resolved"
 mkdir -p "$empty_resolved"

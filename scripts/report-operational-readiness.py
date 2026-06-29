@@ -321,6 +321,28 @@ def selected_me_ids(session_path: Path, profile: str) -> set[str]:
     return ids
 
 
+def review_confirmed_me_ids(session_path: Path, profile: str) -> set[str]:
+    path = session_path / "derived/transcript-simple/whisper-cpp/resolved" / f"clean_dialogue{suffix(profile)}.json"
+    data = read_json(path)
+    rows = data.get("utterances") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return set()
+    ids: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        source = str(row.get("source_track") or "").lower()
+        role = str(row.get("role") or row.get("speaker_label") or "").lower()
+        if source != "mic" and role != "me":
+            continue
+        quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+        human = quality.get("human_review") if isinstance(quality.get("human_review"), dict) else {}
+        decisions = {str(item) for item in human.get("decisions") or [] if item}
+        if decisions and decisions <= {"keep_me", "drop_remote"}:
+            ids.add(str(row.get("id")))
+    return ids
+
+
 def audio_review_me_ids(row: dict[str, Any]) -> set[str]:
     rows = row.get("utterances")
     if not isinstance(rows, list):
@@ -495,6 +517,32 @@ def review_resolved_local_recall_ids(session_path: Path, profile: str, seen: set
     return resolved
 
 
+def review_resolved_transcript_order_ids(session_path: Path, profile: str, seen: set[str] | None = None) -> set[str]:
+    seen = seen or set()
+    if profile in seen:
+        return set()
+    seen.add(profile)
+    inherited_profile = cleanup_input_profile(session_path, profile)
+    inherited = review_resolved_transcript_order_ids(session_path, inherited_profile, seen) if inherited_profile else set()
+    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+        return inherited
+    path = (
+        session_path
+        / "derived/transcript-simple/whisper-cpp/review-decisions"
+        / f"review_decisions_applied{suffix(profile)}.jsonl"
+    )
+    resolved: set[str] = set(inherited)
+    for row in read_jsonl(path):
+        if str(row.get("source") or "") != "transcript_order":
+            continue
+        if str(row.get("decision") or "") not in {"keep_me", "skip"}:
+            continue
+        source_id = str(row.get("source_audit_id") or "")
+        if source_id:
+            resolved.add(source_id)
+    return resolved
+
+
 def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
     duration = safe_float(session.get("meeting_duration_sec"))
     probable_error = safe_float(session.get("audio_review_notes_probable_error_seconds"))
@@ -503,9 +551,12 @@ def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
     transcript_stronger_judge = safe_float(session.get("audio_review_stronger_judge_seconds"))
     local_recall = safe_float(session.get("local_recall_meaningful_review_seconds"))
     transcript_order = safe_float(session.get("transcript_order_review_seconds"))
+    review_scope_remaining = safe_float(session.get("review_scope_remaining_seconds"))
     harmful = safe_float(session.get("audit_harmful_seconds_after"))
     burden = probable_error + stronger_judge + local_recall + transcript_order
     transcript_burden = transcript_probable_error + transcript_stronger_judge + local_recall + transcript_order
+    burden = max(burden, review_scope_remaining)
+    transcript_burden = max(transcript_burden, review_scope_remaining)
     ratio = burden / duration if duration > 0 else 0.0
     transcript_ratio = transcript_burden / duration if duration > 0 else 0.0
     row = {
@@ -537,6 +588,11 @@ def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
         "transcript_order_review_seconds": round(transcript_order, 3),
         "transcript_order_probable_order_risk_seconds": round(safe_float(session.get("transcript_order_probable_order_risk_seconds")), 3),
         "transcript_order_needs_review_seconds": round(safe_float(session.get("transcript_order_needs_review_seconds")), 3),
+        "review_scope_status": session.get("review_scope_status"),
+        "review_scope_complete": session.get("review_scope_complete"),
+        "review_scope_allowed": session.get("review_scope_allowed"),
+        "review_scope_partial_allowed": session.get("review_scope_partial_allowed"),
+        "review_scope_remaining_seconds": round(review_scope_remaining, 3),
         "audit_harmful_seconds_after": round(harmful, 3),
         "risk_flags": session.get("risk_flags") or [],
         "review_blockers": session.get("review_blockers") or [],
@@ -1397,8 +1453,10 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
     rows: list[dict[str, Any]] = []
     by_session = {str(session.get("session_id")): session for session in sessions}
     me_ids_cache: dict[tuple[str, str], set[str]] = {}
+    review_confirmed_me_ids_cache: dict[tuple[str, str], set[str]] = {}
     review_resolved_cache: dict[tuple[str, str], set[str]] = {}
     local_recall_resolved_cache: dict[tuple[str, str], set[str]] = {}
+    transcript_order_resolved_cache: dict[tuple[str, str], set[str]] = {}
     for session in sessions:
         use_gate = str(session.get("use_gate") or "")
         export_blockers = session.get("export_blockers") if isinstance(session.get("export_blockers"), list) else []
@@ -1410,13 +1468,19 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
         cache_key = (str(session_path), profile)
         if cache_key not in me_ids_cache:
             me_ids_cache[cache_key] = selected_me_ids(session_path, profile)
+        if cache_key not in review_confirmed_me_ids_cache:
+            review_confirmed_me_ids_cache[cache_key] = review_confirmed_me_ids(session_path, profile)
         if cache_key not in review_resolved_cache:
             review_resolved_cache[cache_key] = review_resolved_audio_ids(session_path, profile)
         if cache_key not in local_recall_resolved_cache:
             local_recall_resolved_cache[cache_key] = review_resolved_local_recall_ids(session_path, profile)
+        if cache_key not in transcript_order_resolved_cache:
+            transcript_order_resolved_cache[cache_key] = review_resolved_transcript_order_ids(session_path, profile)
         selected_ids = me_ids_cache[cache_key]
+        confirmed_me_ids = review_confirmed_me_ids_cache[cache_key]
         review_resolved_ids = review_resolved_cache[cache_key]
         local_recall_resolved_ids = local_recall_resolved_cache[cache_key]
+        transcript_order_resolved_ids = transcript_order_resolved_cache[cache_key]
         audit_path = session_path / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
         audit_rows = read_jsonl(audit_path)
         reliable_by_me_id = reliable_audio_review_rows_by_me_id(audit_rows, selected_ids)
@@ -1427,6 +1491,9 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
                 continue
             source_id = str(row.get("id") or "")
             if source_id in review_resolved_ids:
+                continue
+            row_me_ids = audio_review_me_ids(row)
+            if row_me_ids and row_me_ids <= confirmed_me_ids:
                 continue
             if selected_ids and not active_audio_review_row(row, selected_ids):
                 continue
@@ -1465,6 +1532,8 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
         for row in read_jsonl(order_path):
             label = str(row.get("label") or "")
             if label not in {"probable_order_risk", "needs_review"}:
+                continue
+            if str(row.get("item_id") or row.get("id") or "") in transcript_order_resolved_ids:
                 continue
             rows.append(compact_transcript_order_item(session, row))
     rows.sort(key=review_queue_sort_key)
@@ -1833,6 +1902,7 @@ def operational_verdict(
         + safe_int(selected_profiles.get("audit_cleanup_v4"))
         + safe_int(selected_profiles.get("audit_cleanup_v5"))
         + safe_int(selected_profiles.get("audit_cleanup_v6"))
+        + safe_int(selected_profiles.get("audit_cleanup_v7"))
         + safe_int(selected_profiles.get("reviewed_v1"))
         + safe_int(selected_profiles.get("agent_reviewed_v1"))
     )
