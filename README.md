@@ -122,6 +122,7 @@ See [docs/project/open-source-readiness.md](docs/project/open-source-readiness.m
 `self-test`, local config initialization, open-source readiness and release bundle verification. See
 [docs/project/cli-mvp-definition-of-done.md](docs/project/cli-mvp-definition-of-done.md).
 Use `murmurmark acceptance --live-checklist` for the manual recording part of the gate.
+Use `--report PATH` when you need a machine-readable evidence file for a release or handoff.
 
 For the shortest local CLI handoff regression, run:
 
@@ -525,7 +526,7 @@ swift build
 swift run murmurmark doctor
 swift run murmurmark doctor --strict
 swift run murmurmark list-apps
-.build/debug/murmurmark acceptance --skip-release
+.build/debug/murmurmark acceptance --skip-release --report /tmp/murmurmark-acceptance.json
 scripts/build-release-bundle.sh --verify
 scripts/check-open-source-readiness.sh
 scripts/check.sh

@@ -2414,13 +2414,14 @@ EOF
   echo "$main_help" | grep -q '^  murmurmark next corpus$'
   echo "$main_help" | grep -q '^  murmurmark status latest$'
   echo "$main_help" | grep -q '^  murmurmark export latest --format markdown --include-json$'
-  echo "$main_help" | grep -q '^  murmurmark acceptance \[--skip-release\] \[--python PATH\] \[--live-checklist\]$'
+  echo "$main_help" | grep -q '^  murmurmark acceptance \[--skip-release\] \[--python PATH\] \[--live-checklist\] \[--report PATH\]$'
   echo "$main_help" | grep -q '^  murmurmark inspect ./session|latest \[--echo\] \[--sessions-root ./sessions\]$'
   echo "$main_help" | grep -q '^  murmurmark review --help$'
   inspect_help="$("$bin" inspect --help)"
   echo "$inspect_help" | grep -q 'usage: murmurmark inspect ./session|latest'
   acceptance_help="$("$bin" acceptance --help)"
   echo "$acceptance_help" | grep -q 'usage: murmurmark acceptance'
+  echo "$acceptance_help" | grep -q -- '--report PATH'
   acceptance_live="$("$bin" acceptance --live-checklist)"
   echo "$acceptance_live" | grep -q '^live_recording_gate:$'
   echo "$acceptance_live" | grep -q '^    - murmurmark inspect latest$'

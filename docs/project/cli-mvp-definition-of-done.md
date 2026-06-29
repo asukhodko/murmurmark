@@ -19,6 +19,12 @@ For a faster local check without release bundle verification:
 murmurmark acceptance --skip-release
 ```
 
+To keep a machine-readable evidence file for the gate:
+
+```bash
+murmurmark acceptance --skip-release --report /tmp/murmurmark-acceptance.json
+```
+
 The automated gate must pass these checks:
 
 1. `scripts/install-local.sh` installs a working `murmurmark` wrapper into a temporary prefix.
@@ -36,6 +42,10 @@ The gate must finish with:
 ```text
 status: ok
 ```
+
+When `--report PATH` is used, the report must use schema
+`murmurmark.cli_mvp_acceptance_report/v1`, contain `status: ok`, list every automated check and keep
+the live recording gate as `manual`.
 
 ## Manual Live Recording Gate
 
