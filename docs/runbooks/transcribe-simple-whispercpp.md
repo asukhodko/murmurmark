@@ -145,7 +145,9 @@ operational-readiness should be regenerated first, but heavier corpus diagnostic
 If the focus session's recommended lane pack already exists, `next corpus` switches from “build the
 lane pack” to the prepared review handoff: `afplay`, `less`, `$EDITOR`, then lane apply. If the
 answer sheet already contains reviewed answers, the handoff promotes lane apply `--dry-run` ahead of
-replaying the audio.
+replaying the audio. In that prepared-pack mode, `review_actions` is still the corpus-wide remaining
+queue, while `focus_pack_items`, `focus_pack_rows`, `focus_pack_minutes` and `after_focus_pack_*`
+describe the next concrete review step and its expected effect.
 Use `murmurmark open SESSION` when you need the selected local artifact rather than the next action.
 It resolves paths from `session_readiness.json` and prints `less ...` commands for notes,
 transcript, verdict, readiness and audit reports; `--cat` streams one artifact to stdout.
@@ -857,7 +859,10 @@ only reads `sessions/_reports/operational-readiness/operational_readiness_report
 `next: ...` line. When the focus lane pack already exists under
 `SESSION/derived/readiness/review-plan/lane-packs/`, `corpus_next.source` becomes
 `review_lane_pack` and the command becomes the actual next review action, usually `afplay` for the
-assembled lane audio.
+assembled lane audio. The output also shows the prepared pack size and expected remaining queue:
+`focus_pack_items` is the number of answer-sheet decisions to make now, `focus_pack_rows` is the
+number of raw review rows covered by that pack, and `after_focus_pack_actions` is the corpus-wide
+packed action count after this focused pack is applied.
 This prepared-pack shortcut is freshness-gated: if the lane pack manifest is older than the current
 operational-readiness report, `next corpus` ignores it and points back to
 `murmurmark review first-lane --session ...`, so the reviewer does not listen to rows that the latest

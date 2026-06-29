@@ -1869,7 +1869,10 @@ has `review_lane_pack.<lane>.json`, the compact handoff may use that pack as sou
 `review_lane_pack` and promote the prepared `afplay`/`less`/answer-sheet flow over rebuilding the
 same lane pack. It also prints `answer_sheet_status`; once the answer sheet contains reviewed
 answers, `command` switches to lane apply `--dry-run` and the non-dry-run apply command remains
-visible as the follow-up. If the first corpus command is export and the default successful
+visible as the follow-up. In this mode, `focus_pack_items`, `focus_pack_rows`,
+`focus_pack_minutes`, `after_focus_pack_actions` and `after_focus_pack_rows` describe the already
+prepared next review pack; the corpus-wide `review_actions` counter remains unchanged until the
+answers are applied. If the first corpus command is export and the default successful
 `exports/private/<session>/export_manifest.json` already exists, `next corpus` uses source
 `export_manifest` and points to retention instead of repeating export.
 The same terminal summary prints `handoff` commands for opening selected notes, transcript and

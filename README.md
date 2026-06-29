@@ -893,7 +893,10 @@ without opening the JSON report.
 `murmurmark report corpus` and `murmurmark next corpus` also print a compact `use` block derived
 from the same readiness JSON: corpus-level usability summary, `can_use_any_notes`,
 `can_use_medium_risk`, ready/review/incomplete session counts, notes review burden and the minimum
-next command.
+next command. When `next corpus` can reuse an already prepared lane pack, it also prints the size of
+that immediate pack: `focus_pack_items`, `focus_pack_rows`, `focus_pack_minutes`, and the estimated
+`after_focus_pack_*` remainder. `review_actions` stays the corpus-wide total; `focus_pack_items` is
+the number of answers in the next concrete review step.
 `murmurmark report corpus` refreshes the global `sessions/_reports/review-plan/` from the same
 operational-readiness JSON, so the corpus summary, review plan and `next corpus` handoff stay in
 the same state. The first recommended lane is the largest blocking review lane by packed actions;

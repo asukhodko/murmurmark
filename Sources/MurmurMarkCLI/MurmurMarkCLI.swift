@@ -9485,6 +9485,23 @@ enum CorpusPrinter {
         printOperationalUse(payload)
         if let lanePack {
             print("  lane_pack: \(PathDisplay.display(lanePack.manifest))")
+            if let itemCount = lanePack.itemCount {
+                print("  focus_pack_items: \(itemCount)")
+            }
+            if let selectedRows = lanePack.selectedRows {
+                print("  focus_pack_rows: \(selectedRows)")
+            }
+            if let durationSec = lanePack.durationSec {
+                print(String(format: "  focus_pack_minutes: %.2f", durationSec / 60.0))
+            }
+            if let itemCount = lanePack.itemCount {
+                let totalActions = int(summary["review_action_count"]) ?? int(summary["review_queue_items"]) ?? 0
+                print("  after_focus_pack_actions: \(max(0, totalActions - itemCount))")
+            }
+            if let selectedRows = lanePack.selectedRows {
+                let totalRows = int(summary["review_queue_items"]) ?? 0
+                print("  after_focus_pack_rows: \(max(0, totalRows - selectedRows))")
+            }
             if let markdown = lanePack.markdown {
                 print("  read: less \(shellQuote(PathDisplay.display(markdown)))")
             }
@@ -9567,6 +9584,9 @@ enum CorpusPrinter {
         let answerSheetStatus: String?
         let dryRunCommand: String?
         let applyCommand: String?
+        let itemCount: Int?
+        let selectedRows: Int?
+        let durationSec: Double?
     }
 
     private struct ExportHandoff {
@@ -9648,6 +9668,7 @@ enum CorpusPrinter {
         let markdown = urlFromOutput(outputs["markdown"])
         let answerSheet = urlFromOutput(outputs["answer_sheet"])
         let answerState = answerSheet.flatMap(answerSheetState)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
         let applyCommand = "murmurmark review lane apply \(lane) --session \(PathDisplay.display(session))"
         let dryRunCommand = "\(applyCommand) --dry-run"
         let primary = answerState?.hasReviewedAnswers == true
@@ -9664,7 +9685,10 @@ enum CorpusPrinter {
             answerSheet: answerSheet,
             answerSheetStatus: answerState?.description,
             dryRunCommand: dryRunCommand,
-            applyCommand: applyCommand
+            applyCommand: applyCommand,
+            itemCount: int(summary["item_count"]),
+            selectedRows: int(summary["selected_rows"]),
+            durationSec: double(summary["duration_sec"])
         )
     }
 

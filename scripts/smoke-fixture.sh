@@ -665,7 +665,7 @@ jq -n --arg audio "$corpus_next_lane_dir/review_lane_pack.check_unique_me_conten
   --arg answer "$corpus_next_lane_dir/review_lane_answers.check_unique_me_content.txt" '{
     schema: "murmurmark.review_lane_pack/v1",
     outputs: {audio: $audio, markdown: $markdown, answer_sheet: $answer},
-    summary: {selected_rows: 1, item_count: 1}
+    summary: {selected_rows: 1, item_count: 1, duration_sec: 12.0}
   }' >"$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.json"
 jq -n --arg session "$corpus_next_session" '{
   schema: "murmurmark.operational_readiness_report/v1",
@@ -689,6 +689,11 @@ touch "$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.json"
 corpus_lane_next_output="$("$bin" next corpus --sessions-root "$corpus_next_root")"
 assert_no_helper_prefix "$corpus_lane_next_output"
 echo "$corpus_lane_next_output" | grep -q '^  source: review_lane_pack$'
+echo "$corpus_lane_next_output" | grep -q '^  focus_pack_items: 1$'
+echo "$corpus_lane_next_output" | grep -q '^  focus_pack_rows: 1$'
+echo "$corpus_lane_next_output" | grep -q '^  focus_pack_minutes: 0.20$'
+echo "$corpus_lane_next_output" | grep -q '^  after_focus_pack_actions: 0$'
+echo "$corpus_lane_next_output" | grep -q '^  after_focus_pack_rows: 0$'
 echo "$corpus_lane_next_output" | grep -q '^  answer_sheet_status: todo reviewed=0/1'
 echo "$corpus_lane_next_output" | grep -q '^  command: afplay .*review_lane_pack.check_unique_me_content.wav'
 echo "$corpus_lane_next_output" | grep -q '^  read: less .*review_lane_pack.check_unique_me_content.md'
