@@ -1322,6 +1322,40 @@ noise_transcripts = {
 }
 noise_metrics = module.source_metrics(noise_transcripts, "уб", "")
 assert module.classify_item(noise_item, noise_audit, noise_transcripts, noise_metrics)["label"] == "confirm_asr_noise"
+short_leak_item = dict(item)
+short_leak_item["utterances"] = [
+    {"id": "utt_short", "role": "Me", "source_track": "mic", "start": 1.0, "end": 3.0, "text": "Между тем"}
+]
+short_leak_audit = {
+    "classification": {"label": "remote_leak", "verdict": "probable_transcript_error"},
+    "scores": {"local_support": 40, "remote_similarity": 70},
+}
+short_leak_transcripts = {
+    "mic_role_masked": {"text": "вот с постами надо решать вас что тенге пикет", "avg_logprob": -0.8, "no_speech_prob": 0.4},
+    "mic_clean": {"text": "вот с постами надо решать вас что тенге пикет", "avg_logprob": -0.8, "no_speech_prob": 0.4},
+    "mic_raw": {"text": "вот с постами надо решать вас что тем долгом всякие", "avg_logprob": -0.5, "no_speech_prob": 0.3},
+    "remote": {"text": "вот с постами надо решать вас там между тех долгом всякие", "avg_logprob": -0.4, "no_speech_prob": 0.1},
+}
+short_leak_metrics = module.source_metrics(short_leak_transcripts, "Между тем", "")
+short_leak_classification = module.classify_item(
+    short_leak_item,
+    short_leak_audit,
+    short_leak_transcripts,
+    short_leak_metrics,
+)
+assert short_leak_classification["label"] in {"confirm_asr_noise", "confirm_remote_duplicate"}, short_leak_classification
+protected_short_leak_item = dict(short_leak_item)
+protected_short_leak_item["utterances"] = [
+    {"id": "utt_short", "role": "Me", "source_track": "mic", "start": 1.0, "end": 3.0, "text": "Надо проверить"}
+]
+protected_metrics = module.source_metrics(short_leak_transcripts, "Надо проверить", "")
+protected_classification = module.classify_item(
+    protected_short_leak_item,
+    short_leak_audit,
+    short_leak_transcripts,
+    protected_metrics,
+)
+assert protected_classification["label"] == "uncertain", protected_classification
 with tempfile.TemporaryDirectory() as tmp:
     path = Path(tmp) / "faster_whisper_judge.jsonl"
     module.write_jsonl(path, [stale])

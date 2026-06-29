@@ -472,13 +472,14 @@ def transcribe_clip(model: Any, path: Path, args: argparse.Namespace) -> dict[st
 
 def source_metrics(transcripts: dict[str, dict[str, Any]], me_text: str, remote_text: str) -> dict[str, Any]:
     metrics: dict[str, Any] = {}
+    remote_reference_text = remote_text or str(transcripts.get("remote", {}).get("text") or "")
     for source, result in transcripts.items():
         text = str(result.get("text") or "")
         metrics[source] = {
             "text_len": len(text),
             "content_token_count": len(content_tokens(text)),
             "to_me": text_similarity(text, me_text),
-            "to_remote": text_similarity(text, remote_text),
+            "to_remote": text_similarity(text, remote_reference_text),
             "avg_logprob": result.get("avg_logprob"),
             "no_speech_prob": result.get("no_speech_prob"),
         }
@@ -501,8 +502,9 @@ def classify_item(
     metrics: dict[str, Any],
 ) -> dict[str, Any]:
     me_text, remote_text = utterance_texts(item)
+    remote_reference_text = remote_text or str(transcripts.get("remote", {}).get("text") or "")
     me_tokens = content_tokens(me_text)
-    remote_tokens = content_tokens(remote_text)
+    remote_tokens = content_tokens(remote_reference_text)
     mic_sources = tuple(source for source in ("mic_role_masked", "mic_clean", "mic_raw") if source in metrics)
     clean_sources = tuple(source for source in ("mic_role_masked", "mic_clean") if source in metrics)
     best_me, best_me_source = best_score(metrics, clean_sources or mic_sources, "to_me")
@@ -541,6 +543,16 @@ def classify_item(
         and audit_label in {"asr_noise", "remote_leak", "uncertain"}
         and local_support <= 20
     )
+    short_remote_leak_rejected = (
+        very_short_me
+        and len(me_tokens) >= 2
+        and best_me_any < 0.32
+        and audit_verdict == "probable_transcript_error"
+        and audit_label in {"remote_leak", "asr_noise", "uncertain"}
+        and remote_similarity >= 60
+        and mic_content_tokens >= 4
+        and remote_source_tokens >= 4
+    )
 
     if me_confirmed and remote_confirmed and best_remote_in_mic < 0.68:
         label = "confirm_timing_or_doubletalk" if remote_text else "confirm_me"
@@ -564,6 +576,11 @@ def classify_item(
         suggested = "drop_me"
         confidence = 0.88
         reasons.append("non-word short Me fragment is rejected by mic decodes")
+    elif short_remote_leak_rejected:
+        label = "confirm_asr_noise"
+        suggested = "drop_me"
+        confidence = 0.90
+        reasons.append("short Me text is rejected by mic decodes while audio review points to remote leak")
     elif very_short_me and no_mic_me and local_support < 45 and audit_label in {"uncertain", "asr_noise", "remote_leak"}:
         label = "confirm_asr_noise"
         suggested = "drop_me"
