@@ -1722,6 +1722,12 @@ EOF
   jq -e '(.recommended_next | startswith("murmurmark review next ")) and (.next_commands[0].id == "review_next") and (.open_commands | map(.id) | index("open_quality_verdict"))' "$group_session/derived/synthesis-simple/extractive/quality_verdict.json" >/dev/null
   jq -e '(.recommended_next | startswith("murmurmark review next ")) and (.next_commands[0].id == "review_next") and (.open_commands | map(.id) | index("open_quality_verdict"))' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json" >/dev/null
   jq -e '(.recommended_next | startswith("murmurmark review next ")) and (.next_commands[0].id == "review_next") and (.open_commands | map(.id) | index("open_quality_verdict"))' "$group_session/derived/synthesis-simple/extractive/synthesis_manifest.json" >/dev/null
+  json_synthesis_next="$(jq -r '.recommended_next' "$group_session/derived/synthesis-simple/extractive/quality_verdict.json")"
+  printf '%s\n' "$synthesize_cli_output" | grep -Fx "  recommended_next: $json_synthesis_next" >/dev/null
+  printf '%s\n' "$synthesize_cli_output" | grep -Fx "next: $json_synthesis_next" >/dev/null
+  while IFS= read -r json_next_command; do
+    printf '%s\n' "$synthesize_cli_output" | grep -Fx "    $json_next_command" >/dev/null
+  done < <(jq -r '.next_commands[].command' "$group_session/derived/synthesis-simple/extractive/quality_verdict.json")
   "$bin" notes "$group_session" --profile audit_cleanup_v1 --path-only | grep -q '/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md$'
   "$bin" notes "$group_session" --profile audit_cleanup_v1 --kind verdict --cat | grep -q '# Quality Verdict'
 

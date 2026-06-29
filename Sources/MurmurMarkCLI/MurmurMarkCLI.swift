@@ -3735,6 +3735,13 @@ enum SynthesisPrinter {
         let reviewItemCount = intOptional(reviewSummary["review_item_count"]) ?? 0
         let needsReview = reviewItemCount > 0 || !riskItems.isEmpty || verdict == "usable_with_review"
         let canSuggestExport = verdict == "good" && !needsReview
+        let nextCommands = commandList(payload["next_commands"])
+        let recommendedNext = string(payload["recommended_next"])
+            ?? nextCommands.first
+            ?? fallbackRecommendedNext(needsReview: needsReview, sessionPath: sessionPath)
+        let displayedNextCommands = nextCommands.isEmpty
+            ? fallbackNextCommands(needsReview: needsReview, canSuggestExport: canSuggestExport, sessionPath: sessionPath)
+            : nextCommands
 
         print("")
         print("synthesis:")
@@ -3750,19 +3757,10 @@ enum SynthesisPrinter {
         if let overlapSeconds = doubleOptional(metrics["cross_role_overlap_gt2_seconds"]) {
             print(String(format: "  cross_role_overlap_gt2_seconds: %.2f", overlapSeconds))
         }
-        let recommendedNext = needsReview
-            ? "murmurmark review next \(sessionPath)"
-            : "murmurmark notes \(sessionPath)"
         print("  recommended_next: \(recommendedNext)")
         print("  next:")
-        if needsReview {
-            print("    murmurmark review next \(sessionPath)")
-        }
-        print("    murmurmark notes \(sessionPath)")
-        print("    murmurmark transcript \(sessionPath)")
-        print("    murmurmark report \(sessionPath)")
-        if canSuggestExport {
-            print("    murmurmark export \(sessionPath) --format markdown --include-json")
+        for command in displayedNextCommands {
+            print("    \(command)")
         }
         FinalNextPrinter.print(recommendedNext)
     }
@@ -3773,6 +3771,33 @@ enum SynthesisPrinter {
 
     private static func string(_ value: Any?) -> String? {
         value as? String
+    }
+
+    private static func commandList(_ value: Any?) -> [String] {
+        guard let rows = value as? [[String: Any]] else { return [] }
+        return rows.compactMap { row in
+            guard let command = row["command"] as? String else { return nil }
+            let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+    }
+
+    private static func fallbackRecommendedNext(needsReview: Bool, sessionPath: String) -> String {
+        needsReview ? "murmurmark review next \(sessionPath)" : "murmurmark notes \(sessionPath)"
+    }
+
+    private static func fallbackNextCommands(needsReview: Bool, canSuggestExport: Bool, sessionPath: String) -> [String] {
+        var commands: [String] = []
+        if needsReview {
+            commands.append("murmurmark review next \(sessionPath)")
+        }
+        commands.append("murmurmark notes \(sessionPath)")
+        commands.append("murmurmark transcript \(sessionPath)")
+        commands.append("murmurmark report \(sessionPath)")
+        if canSuggestExport {
+            commands.append("murmurmark export \(sessionPath) --format markdown --include-json")
+        }
+        return commands
     }
 
     private static func intOptional(_ value: Any?) -> Int? {
