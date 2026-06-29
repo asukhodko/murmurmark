@@ -49,7 +49,8 @@ UI App не является обязательной частью roadmap. Он
 - `corpus-regression` — текущий контур: корпус сессий, пересборка, baseline thresholds,
   out-of-fold оценка audio judge, local-recall blockers, remote-leak queue и явные notes/export
   blockers.
-- `review-loop` — текущий этап: закрыть последнюю notes-review сессию; ручный workspace review и агентный `review agent` уже есть.
+- `review-loop` — текущий этап: удерживать 13/13 `ready_for_notes` и снижать отдельные
+  transcript/export blockers; ручный workspace review и агентный `review agent` уже есть.
 - `quality-hardening` — текущий этап: улучшение качества transcript без смены топологии; первый
   явный `order_repair_v1` уже чинит только те order-risk регионы, которые безопасно режутся по
   сохранённым source ASR segments. `local_recall_repair_v1` уже восстанавливает короткие
@@ -102,7 +103,8 @@ flowchart LR
 проверкой:
 
 - удержать corpus verdict на уровне `medium_risk_ready` или выше;
-- довести рабочий корпус до 13/13 `ready_for_notes`;
+- удержать рабочий корпус на 13/13 `ready_for_notes`;
+- начать снижать `transcript_review_burden` и `export_blockers`;
 - расширять repair/cleanup только через corpus gates и audio-review evidence;
 - держать raw capture, Echo Guard и основной ASR неизменными без отдельного решения;
 - считать успехом не идеальный transcript, а готовые evidence-backed notes при явно сохранённых

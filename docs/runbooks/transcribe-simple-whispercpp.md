@@ -107,8 +107,9 @@ Read `derived/readiness/session_readiness.md` before using a meeting result. It 
 
 `ready_for_notes` is intentionally narrower than `exportable`. The readiness metrics include
 `notes_review_burden_*` for selected evidence-backed notes and `transcript_review_burden_*` for the
-full transcript/export surface. If `export_blockers` is not empty, the notes may still be usable, but
-`murmurmark export` blocks the bundle by default.
+full transcript/export surface. `notes_needs_review_*` is scoped to utterances used by selected
+notes, while `needs_review_*` still describes the full transcript. If `export_blockers` is not
+empty, the notes may still be usable, but `murmurmark export` blocks the bundle by default.
 
 It also contains `Next Commands`: the shortest CLI path from the current state, such as rerunning
 `murmurmark process`, building the first recommended review lane, exporting Markdown, or planning

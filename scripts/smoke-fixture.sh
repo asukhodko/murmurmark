@@ -1096,6 +1096,39 @@ tail -1 <<<"$ready_review_next_output" | grep -q '^next: murmurmark next '
 ! echo "$ready_review_next_output" | grep -q '^  plan: '
 ! echo "$ready_review_next_output" | grep -q '^  first_lane_flow:'
 ! echo "$ready_review_next_output" | grep -q 'murmurmark review first-lane'
+notes_ready_export_blocked_session="$workdir/notes-ready-export-blocked-session"
+mkdir -p "$notes_ready_export_blocked_session/derived/readiness"
+cp "$ready_export_session/session.json" "$notes_ready_export_blocked_session/session.json"
+jq -n --arg session "$notes_ready_export_blocked_session" '{
+  schema: "murmurmark.session_readiness/v1",
+  use_gate: "ready_for_notes",
+  export_blockers: ["full_transcript_review_required"],
+  review_blockers: [],
+  warnings: [],
+  recommended_next: ("murmurmark notes " + $session),
+  metrics: {
+    review_burden_sec: 0,
+    review_burden_ratio: 0,
+    transcript_review_burden_sec: 20,
+    transcript_review_burden_ratio: 0.2
+  },
+  outputs: {
+    notes: {path: "derived/synthesis-simple/extractive/notes.md", exists: true},
+    quality_verdict: {path: "derived/synthesis-simple/extractive/quality_verdict.md", exists: true}
+  },
+  next_commands: [
+    {id: "open_notes", label: "Read selected notes.", command: ("murmurmark notes " + $session)},
+    {id: "status_session", label: "Inspect blockers.", command: ("murmurmark status " + $session)}
+  ]
+}' >"$notes_ready_export_blocked_session/derived/readiness/session_readiness.json"
+notes_ready_blocked_status_output="$("$bin" status "$notes_ready_export_blocked_session")"
+assert_no_helper_prefix "$notes_ready_blocked_status_output"
+echo "$notes_ready_blocked_status_output" | grep -q '^  status: notes_ready_export_blocked$'
+echo "$notes_ready_blocked_status_output" | grep -q '^    summary: notes ready; full transcript export still blocked$'
+echo "$notes_ready_blocked_status_output" | grep -q '^    can_read_notes: true$'
+echo "$notes_ready_blocked_status_output" | grep -q '^    can_export: false$'
+echo "$notes_ready_blocked_status_output" | grep -q '^  transcript_review_burden: 0.33 min / 20.00%$'
+! echo "$notes_ready_blocked_status_output" | grep -q 'murmurmark review first-lane'
 default_export_dir="$workdir/exports/private"
 "$repo_root/scripts/export-session-bundle.py" "$ready_export_session" --out-dir "$default_export_dir" >/dev/null
 default_status_output="$(cd "$workdir" && "$bin" status "$ready_export_session")"

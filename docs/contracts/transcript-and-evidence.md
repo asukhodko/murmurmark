@@ -1731,6 +1731,11 @@ Explicit command-line flags override config values.
     "notes_review_burden_ratio": 0.031,
     "transcript_review_burden_sec": 74.2,
     "transcript_review_burden_ratio": 0.054,
+    "notes_evidence_utterance_count": 24,
+    "notes_needs_review_count": 2,
+    "notes_needs_review_ratio": 0.083333,
+    "needs_review_count": 49,
+    "needs_review_ratio": 0.198,
     "audio_review_probable_error_count": 2,
     "audio_review_notes_probable_error_count": 1,
     "audio_review_stronger_judge_count": 6,
@@ -1782,15 +1787,19 @@ blockers remain the source of truth.
 only review regions that can affect selected evidence-backed notes, plus blocking local-recall and
 transcript-order risks. They are intentionally equal to `notes_review_burden_*` for compatibility
 with older reports. Full transcript/export risk is kept separately in
-`transcript_review_burden_sec`, `transcript_review_burden_ratio` and `export_blockers`. A session may
+`transcript_review_burden_sec`, `transcript_review_burden_ratio` and `export_blockers`.
+`notes_needs_review_*` is computed only over utterances referenced by selected evidence-backed notes;
+the older `needs_review_*` fields still describe the full selected transcript. A session may
 therefore be `ready_for_notes` while still refusing default export with
-`full_transcript_review_required`.
+`full_transcript_review_required` or `full_transcript_needs_review_required`.
 
 The Swift CLI additionally prints a derived terminal-only `status`:
 
 - `exported`: `ready_for_notes`, no export blockers and a successful default
   `exports/private/<session>/export_manifest.json`;
 - `exportable`: `ready_for_notes` and no export blockers;
+- `notes_ready_export_blocked`: `ready_for_notes`, no review blockers, but full transcript/export
+  blockers remain;
 - `review_required`: review blockers or `review_first`;
 - `incomplete`: pipeline-incomplete gate or blocker;
 - `blocked`: hard no-use gate or export blockers not already classified as review/incomplete;

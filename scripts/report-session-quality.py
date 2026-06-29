@@ -431,17 +431,22 @@ def read_evidence(session: Path, profile: str) -> dict[str, Any] | None:
     return read_json(synthesis / "evidence_notes.json")
 
 
-def dialogue_me_ids(session: Path, profile: str) -> set[str]:
+def dialogue_utterances(session: Path, profile: str) -> list[dict[str, Any]]:
     dialogue = read_json(session / "derived/transcript-simple/whisper-cpp/resolved" / f"clean_dialogue{suffix(profile)}.json")
     if not isinstance(dialogue, dict):
-        return set()
+        return []
     rows = dialogue.get("utterances")
     if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def dialogue_me_ids(session: Path, profile: str) -> set[str]:
+    rows = dialogue_utterances(session, profile)
+    if not rows:
         return set()
     ids: set[str] = set()
     for row in rows:
-        if not isinstance(row, dict):
-            continue
         source = str(row.get("source_track") or "").lower()
         role = str(row.get("role") or row.get("speaker_label") or "").lower()
         if source == "mic" or role == "me":
@@ -559,6 +564,30 @@ def selected_evidence_utterance_ids(evidence: dict[str, Any] | None) -> set[str]
                 if isinstance(representative, dict) and representative.get("utterance_id"):
                     ids.add(str(representative["utterance_id"]))
     return ids
+
+
+def notes_needs_review_metrics(session: Path, profile: str, evidence: dict[str, Any] | None) -> dict[str, Any]:
+    selected_ids = selected_evidence_utterance_ids(evidence)
+    rows = dialogue_utterances(session, profile)
+    if not selected_ids or not rows:
+        return {
+            "notes_evidence_utterance_count": len(selected_ids),
+            "notes_needs_review_count": 0,
+            "notes_needs_review_ratio": 0.0,
+        }
+    by_id = {str(row.get("id")): row for row in rows if row.get("id")}
+    selected_rows = [by_id[utterance_id] for utterance_id in sorted(selected_ids) if utterance_id in by_id]
+    needs_review = 0
+    for row in selected_rows:
+        quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+        if quality.get("needs_review") is True:
+            needs_review += 1
+    denominator = len(selected_rows)
+    return {
+        "notes_evidence_utterance_count": denominator,
+        "notes_needs_review_count": needs_review,
+        "notes_needs_review_ratio": round(needs_review / denominator, 6) if denominator else 0.0,
+    }
 
 
 def hidden_facilitation_count(evidence: dict[str, Any] | None) -> int:
@@ -1030,8 +1059,12 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
             flags.append("low_local_recall")
         elif row.get("local_recall_blocking_low_local_recall") is True and "local_recall_possible_lost_me" not in flags:
             flags.append("low_local_recall")
+    notes_needs_ratio = safe_float(row.get("notes_needs_review_ratio"))
     needs_ratio = safe_float(row.get("needs_review_ratio"))
-    if needs_ratio is not None and needs_ratio > 0.12:
+    if notes_needs_ratio is not None:
+        if notes_needs_ratio > 0.12:
+            flags.append("notes_high_needs_review_ratio")
+    elif needs_ratio is not None and needs_ratio > 0.12:
         flags.append("high_needs_review_ratio")
     duration = safe_float(row.get("meeting_duration_sec")) or 0.0
     harmful = safe_float(row.get("audit_harmful_seconds_after"))
@@ -1113,7 +1146,13 @@ def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
 
     for flag in row.get("risk_flags") or []:
         severity = "block" if flag.startswith("verdict:") else "review"
-        if flag in {"unrepaired_long_mic_crossings", "golden_phrase_fail", "high_needs_review_ratio", "transcript_order_risk"}:
+        if flag in {
+            "unrepaired_long_mic_crossings",
+            "golden_phrase_fail",
+            "high_needs_review_ratio",
+            "notes_high_needs_review_ratio",
+            "transcript_order_risk",
+        }:
             severity = "block"
         reasons.append(
             {
@@ -1173,6 +1212,17 @@ def add_use_gate(row: dict[str, Any]) -> None:
                 "severity": "export",
                 "message": "Full transcript/export still has review-required regions that do not affect selected notes.",
                 "value": round(transcript_burden / duration, 6) if duration > 0 else 0.0,
+            }
+        )
+    transcript_needs = safe_int(row.get("needs_review_count")) or 0
+    notes_needs = safe_int(row.get("notes_needs_review_count")) or 0
+    if transcript_needs > notes_needs:
+        transcript_only_reasons.append(
+            {
+                "id": "full_transcript_needs_review_required",
+                "severity": "export",
+                "message": "Full transcript/export still has needs-review utterances outside selected notes.",
+                "value": safe_float(row.get("needs_review_ratio")) or 0.0,
             }
         )
     reasons.extend(transcript_only_reasons)
@@ -1303,6 +1353,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(cleanup_metrics(quality, cleanup_report))
     row.update(review_decision_metrics(review_report))
     row.update(synthesis_review_metrics(verdict))
+    row.update(notes_needs_review_metrics(session, profile, evidence))
     row.update(audio_review_metrics(audio_summary, session, profile, evidence))
     row.update(remote_leak_segment_plan_metrics(remote_leak_plan))
     row.update(local_recall_metrics(local_recall, review_report))
@@ -1367,6 +1418,9 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "utterances",
         "needs_review_count",
         "needs_review_ratio",
+        "notes_evidence_utterance_count",
+        "notes_needs_review_count",
+        "notes_needs_review_ratio",
         "local_only_island_recall",
         "local_recall_recommended_next_step",
         "local_recall_missing_island_count",
@@ -1464,8 +1518,8 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         "",
         "## Sessions",
         "",
-        "| Session | Label | Gate | Status | Profile | Verdict | Min | Review % | Synthesis Review | Utterances | Needs Review | Local Recall | Local Audit | Order Audit | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
-        "|---|---|---|---|---|---:|---:|---:|---|---:|---:|---:|---|---|---:|---:|---:|---:|---|---|",
+        "| Session | Label | Gate | Status | Profile | Verdict | Min | Notes Review % | Synthesis Review | Utterances | Needs Review | Notes Needs Review | Local Recall | Local Audit | Order Audit | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
+        "|---|---|---|---|---|---:|---:|---:|---|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---|---|",
     ]
     for row in rows:
         duration = safe_float(row.get("meeting_duration_sec"))
@@ -1501,6 +1555,7 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
                     f"{fmt(row.get('synthesis_review_item_count'), '0')} / {fmt(row.get('synthesis_review_item_seconds'), '0')}s; {fmt_review_top_types(row)}",
                     fmt(row.get("utterances")),
                     fmt(row.get("needs_review_count")),
+                    f"{fmt(row.get('notes_needs_review_count'))}/{fmt(row.get('notes_evidence_utterance_count'))}",
                     fmt(row.get("local_only_island_recall")),
                     local_audit,
                     order_audit,
@@ -1609,6 +1664,25 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
             }
         ]
 
+    if gate == "ready_for_notes" and export_blockers and not review_blockers:
+        return [
+            {
+                "id": "open_notes",
+                "label": "Read selected evidence-backed notes; full transcript export is still blocked.",
+                "command": f"murmurmark notes {session_arg}",
+            },
+            {
+                "id": "status_session",
+                "label": "Inspect notes readiness and export blockers.",
+                "command": f"murmurmark status {session_arg}",
+            },
+            {
+                "id": "open_readiness",
+                "label": "Read detailed readiness before forcing any export.",
+                "command": f"less {command_path(session / 'derived/readiness/session_readiness.md')}",
+            },
+        ]
+
     if review_blockers or export_blockers or gate == "review_first":
         commands: list[dict[str, str]] = []
         if "transcript_order_risk" in (row.get("risk_flags") or []):
@@ -1705,6 +1779,8 @@ def preferred_next_command(next_commands: list[dict[str, str]]) -> str | None:
     action_prefixes = (
         "murmurmark process",
         "murmurmark review",
+        "murmurmark notes",
+        "murmurmark status",
         "murmurmark export",
         "murmurmark retention",
         "murmurmark report",
@@ -1801,6 +1877,9 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "remote_leak_segment_plan_next_work": row.get("remote_leak_segment_plan_next_work"),
             "needs_review_count": row.get("needs_review_count"),
             "needs_review_ratio": row.get("needs_review_ratio"),
+            "notes_evidence_utterance_count": row.get("notes_evidence_utterance_count"),
+            "notes_needs_review_count": row.get("notes_needs_review_count"),
+            "notes_needs_review_ratio": row.get("notes_needs_review_ratio"),
             "audit_harmful_seconds_after": row.get("audit_harmful_seconds_after"),
             "audit_review_seconds": row.get("audit_review_seconds"),
             "local_only_island_recall": row.get("local_only_island_recall"),

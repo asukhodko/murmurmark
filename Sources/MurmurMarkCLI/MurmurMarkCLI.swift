@@ -8187,6 +8187,8 @@ enum ReadinessPrinter {
             summary = "exported; plan retention/privacy next"
         case "exportable":
             summary = "ready to read and export"
+        case "notes_ready_export_blocked":
+            summary = "notes ready; full transcript export still blocked"
         case "review_required":
             summary = "read with review; close review before export"
         case "incomplete":
@@ -8338,6 +8340,22 @@ enum ReadinessPrinter {
                 ],
             ]
         }
+        if gate == "ready_for_notes" && !exportBlockers.isEmpty && reviewBlockers.isEmpty {
+            return [
+                [
+                    "label": "Read selected evidence-backed notes; full transcript export is still blocked.",
+                    "command": "murmurmark notes \(sessionPath)",
+                ],
+                [
+                    "label": "Inspect notes readiness and export blockers.",
+                    "command": "murmurmark status \(sessionPath)",
+                ],
+                [
+                    "label": "Read detailed readiness before forcing any export.",
+                    "command": "less \(sessionPath)/derived/readiness/session_readiness.md",
+                ],
+            ]
+        }
         if !reviewBlockers.isEmpty || !exportBlockers.isEmpty || gate == "review_first" {
             return [
                 [
@@ -8394,6 +8412,9 @@ enum ReadinessPrinter {
         }
         if gate == "ready_for_notes" && exportBlockers.isEmpty {
             return "exportable"
+        }
+        if gate == "ready_for_notes" && !exportBlockers.isEmpty && reviewBlockers.isEmpty {
+            return "notes_ready_export_blocked"
         }
         if gate == "review_first" || !reviewBlockers.isEmpty {
             return "review_required"
@@ -8603,6 +8624,9 @@ enum ReviewNextPrinter {
         }
         if gate == "ready_for_notes" && blockers.isEmpty {
             return "exportable"
+        }
+        if gate == "ready_for_notes" && !blockers.isEmpty {
+            return "notes_ready_export_blocked"
         }
         if gate == "do_not_use_without_manual_review" || !blockers.isEmpty {
             return "blocked"

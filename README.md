@@ -26,11 +26,10 @@ murmurmark export latest --format markdown --include-json
 murmurmark retention plan latest
 ```
 
-The next product goal is to reduce notes review burden while preserving the local-first topology:
-use corpus gates, audio-review evidence and the review loop to move more sessions into
-`ready_for_notes`. Full transcript/export review stays separate through `export_blockers`, so a
-session can be safe enough for evidence-backed notes while still blocking an unreviewed transcript
-bundle. UI work remains optional and out of the main path.
+The current product goal is to keep all working sessions `ready_for_notes` while reducing the
+separate transcript/export blockers. Full transcript/export review stays separate through
+`export_blockers`, so a session can be safe enough for evidence-backed notes while still blocking an
+unreviewed transcript bundle. UI work remains optional and out of the main path.
 
 ## Current CLI
 
