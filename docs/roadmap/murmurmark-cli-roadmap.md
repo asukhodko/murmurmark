@@ -106,11 +106,11 @@ flowchart LR
 
 - удержать corpus verdict на уровне `medium_risk_ready` или выше;
 - удержать рабочий корпус на 13/13 `ready_for_notes`;
-- опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `3.02 min`
+- опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `2.81 min`
   отдельной transcript/export проверки на 13 рабочих сессиях;
 - держать export-review очередь явной и исполнимой: сейчас это `40` raw rows / `32` packed actions
   уже после `agent_reviewed_v1` + `audit_cleanup_v7`, через `murmurmark review next` / `review workspace`;
-- снизить `transcript_review_burden` с `3.02 min` до `<= 1.5 min` и очередь с `32` до `<= 15`
+- снизить `transcript_review_burden` с `2.81 min` до `<= 1.5 min` и очередь с `32` до `<= 15`
   packed actions, не смешивая это с готовностью notes;
 - расширять repair/cleanup только через corpus gates и audio-review evidence;
 - держать raw capture, Echo Guard и основной ASR неизменными без отдельного решения;
@@ -122,5 +122,7 @@ selected `Me` interval покрыт high-confidence `likely_reliable` audio-revi
 применён частично: `audit_cleanup_v7` режет доказанные partial `remote_duplicate` spans поверх
 `agent_reviewed_v1` и наследует уже закрытые audio-review decisions. Третий маленький блок добавлен:
 сильная локальная audio-evidence может объяснить узкий `remote_leak` без редактирования transcript.
-Следующий исполнительный блок — разобрать оставшиеся `check_unique_me_content` / `remote_leak`
-элементы, не заходя в possible lost `Me` и спорное содержание.
+Четвёртый маленький блок: bounded short `remote_leak` с уникальным локальным текстом и низкой
+remote similarity закрывается как `keep_me` в `agent_reviewed_v1`. Следующий исполнительный блок —
+разобрать оставшиеся `check_unique_me_content` / `remote_leak` элементы, не заходя в possible lost
+`Me` и спорное содержание.

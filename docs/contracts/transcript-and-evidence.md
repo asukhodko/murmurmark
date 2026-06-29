@@ -2601,16 +2601,18 @@ derived/transcript-simple/whisper-cpp/review-decisions/
 The agent scope is deliberately smaller than the human review template. It may contain only rows that
 the rules can close without listening. `drop_me` is allowed only for clear whole-utterance remote
 duplicates or ASR noise with weak local support and no protected action/decision/risk markers.
-`keep_me` can clear review burden for strong local-support rows or high-confidence audio-judge keep
-rows. Rows not present in the agent template remain unresolved and continue to contribute to review
-burden. `agent_reviewed_v1` is eligible for `auto` only when its own coverage gates pass; it ranks
-below `reviewed_v1` and above automatic cleanup profiles.
+`keep_me` can clear review burden for strong local-support rows, high-confidence audio-judge keep
+rows, or bounded short `remote_leak` rows with unique local text, low remote similarity, no
+duplicate/noise signal and no protected action/decision/risk marker. Rows not present in the agent
+template remain unresolved and continue to contribute to review burden. `agent_reviewed_v1` is
+eligible for `auto` only when its own coverage gates pass; it ranks below `reviewed_v1` and above
+automatic cleanup profiles.
 
 Operational readiness may still expose review rows after `agent_reviewed_v1` is selected. Those
 rows are the remaining transcript/export surface, not a sign that the automatic layer was skipped.
 As of the 2026-06-29 corpus baseline, this queue is tracked separately from notes readiness:
 `13/13` working sessions are `ready_for_notes`, selected notes review is about `0.02 min`, and
-remaining transcript/export review is about `3.02 min` / `40` raw rows / `32` packed actions.
+remaining transcript/export review is about `2.81 min` / `40` raw rows / `32` packed actions.
 Future cleanup or repair layers may reduce that queue only through explicit audit evidence and must
 keep possible lost `Me` speech or semantic uncertainty visible to export gates.
 

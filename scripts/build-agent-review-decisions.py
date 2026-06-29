@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.3.1"
 SCHEMA = "murmurmark.agent_review_decisions/v1"
 OUTPUT_PROFILE = "agent_reviewed_v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -331,6 +331,7 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None) -> tu
     local_support = safe_float(scores.get("local_support"))
     remote_duplicate = safe_float(scores.get("remote_duplicate"))
     remote_leak = safe_float(scores.get("remote_leak"))
+    remote_similarity = safe_float(scores.get("remote_similarity"))
     asr_noise = safe_float(scores.get("asr_noise"))
     likely_reliable = safe_float(scores.get("likely_reliable"))
     similarity = safe_float(text_features.get("similarity"))
@@ -350,6 +351,7 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None) -> tu
         "local_support": local_support,
         "remote_duplicate": remote_duplicate,
         "remote_leak": remote_leak,
+        "remote_similarity": remote_similarity,
         "asr_noise": asr_noise,
         "likely_reliable": likely_reliable,
         "text_similarity": similarity,
@@ -433,6 +435,22 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None) -> tu
 
     if judge_label == "keep" and judge_confidence >= 0.90:
         return "keep_me", "audio_judge_high_confidence_keep", evidence
+
+    if (
+        label == "remote_leak"
+        and verdict == "probable_transcript_error"
+        and confidence >= 0.78
+        and local_support >= 40
+        and remote_similarity <= 45
+        and remote_duplicate <= 0
+        and asr_noise <= 0
+        and similarity <= 0.25
+        and containment <= 0.25
+        and duration <= 4.5
+        and len(unique_tokens) >= 3
+        and not protected
+    ):
+        return "keep_me", "bounded_remote_leak_with_local_content", evidence
 
     if (
         judge_label == "mark_only_error"

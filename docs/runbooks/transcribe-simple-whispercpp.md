@@ -808,10 +808,12 @@ default export remains blocked until transcript-only review is closed or `--forc
 deliberately.
 The 2026-06-29 corpus snapshot is the current convergence baseline: 13/13 working sessions are
 `ready_for_notes`, selected notes require about `0.02 min` of review, and the remaining full
-transcript/export surface is about `3.02 min`. Session-quality reports de-duplicate transcript-only
+transcript/export surface is about `2.81 min`. Session-quality reports de-duplicate transcript-only
 `uncertain` rows when the same selected `Me` interval is already covered by high-confidence
 `likely_reliable` audio-review evidence, and can explain a narrow strong-local `remote_leak` row
-without editing transcript text.
+without editing transcript text. The agent-review layer can also close bounded short `remote_leak`
+rows as `keep_me` when they have unique local text, low remote similarity, no duplicate/noise signal
+and no protected action/decision/risk marker.
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
 The same snapshot exposes the remaining export work as a normal review queue: `40` raw rows /
