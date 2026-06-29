@@ -2210,7 +2210,8 @@ EOF
   echo "$corpus_process_help" | grep -q 'plan-remote-leak-segment-repair.py'
   main_help="$("$bin" --help)"
   echo "$main_help" | grep -q '^Normal flow:$'
-  echo "$main_help" | grep -q '^Main usage:$'
+  echo "$main_help" | grep -q '^Everyday usage:$'
+  echo "$main_help" | grep -q '^Quality and corpus maintenance:$'
   echo "$main_help" | grep -q '^Setup and diagnostics:$'
   echo "$main_help" | grep -q '^Advanced/debugging:$'
   echo "$main_help" | grep -q '^  murmurmark record --target-bundle system$'

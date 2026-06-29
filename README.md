@@ -413,6 +413,9 @@ murmurmark export latest --format markdown --include-json
 murmurmark retention plan latest
 ```
 
+The top-level `murmurmark --help` uses the same split: everyday usage first, quality/corpus
+maintenance separately, then setup and debugging commands.
+
 Operational queues and quality maintenance:
 
 ```bash

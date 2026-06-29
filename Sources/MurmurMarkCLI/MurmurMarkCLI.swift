@@ -99,7 +99,7 @@ struct MurmurMark {
           murmurmark export latest --format markdown --include-json
           murmurmark retention plan latest
 
-        Main usage:
+        Everyday usage:
           murmurmark doctor [--strict]
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
@@ -121,6 +121,19 @@ struct MurmurMark {
           murmurmark review agent [--session-quality sessions/_reports/session-quality/session_quality_report.json]
           murmurmark review workspace [build|apply] [--session latest|./session]
           murmurmark review ./session|latest [--lane fast_confirm_drop] [--no-play]
+          murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
+          murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
+          murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
+          murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
+                             [--include-json] [--force] [--sessions-root ./sessions]
+          murmurmark retention plan|apply ./session|latest [--policy examples/retention-policy.local-first.json]
+                             [--export-manifest ./exports/private/session/export_manifest.json]
+                             [--confirm-delete-raw] [--sessions-root ./sessions]
+          murmurmark retention payload ./session|latest [--policy examples/retention-policy.local-first.json]
+                             [--export-manifest ./exports/private/session/export_manifest.json] [--provider name]
+          murmurmark config print [--config murmurmark.config.json]
+
+        Quality and corpus maintenance:
           murmurmark audit local-recall ./session|latest [--profile shadow_v2] [--sessions-root ./sessions]
           murmurmark audit order ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit group-overlaps ./session|latest [--profile shadow_v2] [--write-clips] [--sessions-root ./sessions]
@@ -130,11 +143,8 @@ struct MurmurMark {
           murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
                                 [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair local-recall ./session|latest [--input-profile auto] [--output-profile local_recall_repair_v1]
-                                       [--mode conservative] [--sessions-root ./sessions]
+                               [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair remote-leak ./session|latest [--sessions-root ./sessions]
-          murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
-          murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
-          murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
           murmurmark corpus process all|latest|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus build all|latest|./session... [--per-label 16] [--max-items 160] [--sessions-root ./sessions]
           murmurmark corpus evaluate
@@ -146,14 +156,6 @@ struct MurmurMark {
           murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus report
-          murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
-                             [--include-json] [--force] [--sessions-root ./sessions]
-          murmurmark retention plan|apply ./session|latest [--policy examples/retention-policy.local-first.json]
-                             [--export-manifest ./exports/private/session/export_manifest.json]
-                             [--confirm-delete-raw] [--sessions-root ./sessions]
-          murmurmark retention payload ./session|latest [--policy examples/retention-policy.local-first.json]
-                             [--export-manifest ./exports/private/session/export_manifest.json] [--provider name]
-          murmurmark config print [--config murmurmark.config.json]
 
         Setup and diagnostics:
           murmurmark list-apps
