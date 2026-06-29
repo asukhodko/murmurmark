@@ -659,12 +659,10 @@ def print_pipeline_summary(report: dict[str, Any], report_path: Path, repo_root:
     outputs = report.get("outputs") if isinstance(report.get("outputs"), dict) else {}
     selected_profile = outputs.get("selected_transcript_profile")
     verdict = outputs.get("verdict")
-    if status == "planned":
-        recommended_next = None
-    elif status == "passed":
-        recommended_next = f"murmurmark report {session_arg}"
-    else:
-        recommended_next = f"less {rel(report_path, repo_root)}"
+    next_commands = command_list(report.get("next_commands"))
+    recommended_next = str(report.get("recommended_next") or "").strip()
+    if not recommended_next:
+        recommended_next = next_commands[0] if next_commands else f"less {rel(report_path, repo_root)}"
 
     print("", flush=True)
     print("pipeline_run:", flush=True)
@@ -677,8 +675,24 @@ def print_pipeline_summary(report: dict[str, Any], report_path: Path, repo_root:
     if status == "planned":
         print(f"  run_command: murmurmark process {session_arg}", flush=True)
         print(f"  current_next: murmurmark next {session_arg}", flush=True)
-    else:
-        print(f"  recommended_next: {recommended_next}", flush=True)
+    print(f"  recommended_next: {recommended_next}", flush=True)
+    if next_commands:
+        print("  next:", flush=True)
+        for command in next_commands:
+            print(f"    {command}", flush=True)
+
+
+def command_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    commands: list[str] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        command = str(item.get("command") or "").strip()
+        if command:
+            commands.append(command)
+    return commands
 
 
 def main() -> int:

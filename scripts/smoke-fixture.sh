@@ -2296,6 +2296,7 @@ EOF
   grep -q '^  verdict: ' "$workdir/pipeline-plan.out"
   grep -q '^  run_command: murmurmark process ' "$workdir/pipeline-plan.out"
   grep -q '^  current_next: murmurmark next ' "$workdir/pipeline-plan.out"
+  grep -q '^  recommended_next: murmurmark process ' "$workdir/pipeline-plan.out"
   ! grep -q '^pipeline_run_report:' "$workdir/pipeline-plan.out"
   ! grep -q '^\[planned\]' "$workdir/pipeline-plan.out"
   [[ -s "$pipeline_plan" ]]
@@ -2306,6 +2307,11 @@ EOF
   jq -e '.outputs.readiness_selected_profile == .outputs.selected_transcript_profile' "$pipeline_plan" >/dev/null
   jq -e '.outputs.synthesis_selected_transcript_profile == "reviewed_v1"' "$pipeline_plan" >/dev/null
   jq -e '(.recommended_next | startswith("murmurmark process ")) and (.next_commands[0].id == "run_process") and (.open_commands | map(.id) | index("open_pipeline_run_report"))' "$pipeline_plan" >/dev/null
+  json_pipeline_next="$(jq -r '.recommended_next' "$pipeline_plan")"
+  grep -Fx "  recommended_next: $json_pipeline_next" "$workdir/pipeline-plan.out" >/dev/null
+  while IFS= read -r json_next_command; do
+    grep -Fx "    $json_next_command" "$workdir/pipeline-plan.out" >/dev/null
+  done < <(jq -r '.next_commands[].command' "$pipeline_plan")
   jq -e 'all(.steps[]; (.started_at | type) == "string" and (.duration_sec | type) == "number")' "$pipeline_plan" >/dev/null
   jq -e 'any(.steps[]; .name == "plan_remote_leak_segment_repair")' "$pipeline_plan" >/dev/null
   jq -e 'any(.steps[]; .name == "session_readiness")' "$pipeline_plan" >/dev/null
