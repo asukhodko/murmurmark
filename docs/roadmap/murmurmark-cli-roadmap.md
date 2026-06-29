@@ -106,13 +106,13 @@ flowchart LR
 
 - удержать corpus verdict на уровне `medium_risk_ready` или выше;
 - удержать рабочий корпус на 13/13 `ready_for_notes`;
-- опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `2.66 min`
+- опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `2.65 min`
   отдельной transcript/export проверки на 13 рабочих сессиях;
 - держать export-review очередь явной и исполнимой: сейчас это `40` raw rows / `31` packed actions
   уже после `agent_reviewed_v1` + `audit_cleanup_v7`, через `murmurmark review next` / `review workspace`;
 - учитывать применённые repair decisions в readiness: local-recall очередь уже сокращена до одной
   короткой unresolved строки, остальные high-confidence repair insertions закрыты как reviewed;
-- снизить `transcript_review_burden` с `2.66 min` до `<= 1.5 min` и очередь с `31` до `<= 15`
+- снизить `transcript_review_burden` с `2.65 min` до `<= 1.5 min` и очередь с `31` до `<= 15`
   packed actions, не смешивая это с готовностью notes;
 - расширять repair/cleanup только через corpus gates и audio-review evidence;
 - держать raw capture, Echo Guard и основной ASR неизменными без отдельного решения;
