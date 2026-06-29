@@ -17,6 +17,7 @@ SCHEMA = "murmurmark.review_lane_pack/v1"
 KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
+CROSS_LANE_RELATED_LANES = {"check_unique_me_content", "classify_audio"}
 DECISION_SHORTCUTS = {
     "drop_me": "d",
     "drop_remote": "c",
@@ -53,6 +54,15 @@ def parse_args() -> argparse.Namespace:
         choices=["auto", "off"],
         default="auto",
         help="Group related review rows into one pack item when safe. Groups selected lanes by Me utterance.",
+    )
+    parser.add_argument(
+        "--include-related-lanes",
+        action="store_true",
+        help=(
+            "When building a single check_unique_me_content/classify_audio lane, include open rows from the "
+            "paired lane that point to the same Me utterance. Workspace builds keep this off to avoid duplicate "
+            "answer sheets."
+        ),
     )
     return parser.parse_args()
 
@@ -274,7 +284,23 @@ def me_utterance_group_key(row: dict[str, Any]) -> str:
     return first_me_utterance_id(row)
 
 
+def cross_lane_related_key(row: dict[str, Any], mode: str) -> str:
+    if mode != "auto":
+        return ""
+    lane = str(row.get("review_lane") or "")
+    if lane not in CROSS_LANE_RELATED_LANES:
+        return ""
+    me_key = me_utterance_group_key(row)
+    if not me_key:
+        return ""
+    session_id = str(row.get("session_id") or row.get("session") or "")
+    return f"cross_lane_me_audio:{session_id}:{me_key}"
+
+
 def related_group_key(row: dict[str, Any], mode: str) -> str:
+    cross_lane_key = cross_lane_related_key(row, mode)
+    if cross_lane_key:
+        return cross_lane_key
     if mode != "auto":
         return ""
     lane = str(row.get("review_lane") or "")
@@ -290,6 +316,39 @@ def related_group_key(row: dict[str, Any], mode: str) -> str:
     label = str(row.get("label") or "")
     allowed = ",".join(sorted(allowed_decisions_for_item(row)))
     return f"{lane}:{session_id}:{label}:{action}:{allowed}:{me_key}"
+
+
+def select_lane_rows(rows: list[dict[str, Any]], args: argparse.Namespace, session_filters: set[str]) -> list[dict[str, Any]]:
+    selected = [
+        row
+        for row in rows
+        if str(row.get("review_lane") or "") == args.lane
+        and session_matches(row, session_filters)
+        and (args.include_reviewed or undecided(row))
+    ]
+    if not args.include_related_lanes or args.group_related != "auto" or args.lane not in CROSS_LANE_RELATED_LANES:
+        return selected
+
+    related_keys = {cross_lane_related_key(row, args.group_related) for row in selected}
+    related_keys.discard("")
+    if not related_keys:
+        return selected
+
+    seen = {review_row_key(row) for row in selected}
+    with_related = list(selected)
+    for row in rows:
+        row_key = review_row_key(row)
+        if row_key in seen:
+            continue
+        if not session_matches(row, session_filters) or not (args.include_reviewed or undecided(row)):
+            continue
+        if str(row.get("review_lane") or "") not in CROSS_LANE_RELATED_LANES:
+            continue
+        if cross_lane_related_key(row, args.group_related) not in related_keys:
+            continue
+        with_related.append(row)
+        seen.add(row_key)
+    return with_related
 
 
 def group_selected_rows(rows: list[dict[str, Any]], mode: str) -> list[list[dict[str, Any]]]:
@@ -912,13 +971,7 @@ def main() -> int:
     existing_rows = read_jsonl(args.decisions.expanduser())
     rows = merge_existing(template_rows, existing_rows)
     session_filters = {item.strip() for item in args.session if item.strip()}
-    selected = [
-        row
-        for row in rows
-        if str(row.get("review_lane") or "") == args.lane
-        and session_matches(row, session_filters)
-        and (args.include_reviewed or undecided(row))
-    ]
+    selected = select_lane_rows(rows, args, session_filters)
 
     out_dir = args.out_dir.expanduser()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1050,6 +1103,7 @@ def main() -> int:
             "silence_sec": args.silence_sec,
             "include_reviewed": args.include_reviewed,
             "group_related": args.group_related,
+            "include_related_lanes": args.include_related_lanes,
         },
         "outputs": {
             "audio": str(audio_path),

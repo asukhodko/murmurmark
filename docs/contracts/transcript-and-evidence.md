@@ -1895,19 +1895,25 @@ sessions/_reports/operational-readiness/
       "remaining_human_review_items": 34
     },
     "review_queue_items": 40,
-    "review_action_count": 34,
-    "grouped_review_row_count": 6,
+    "review_action_count": 30,
+    "grouped_review_row_count": 10,
     "by_review_action": {
-      "check_transcript_order": 26,
-      "check_unique_me_content": 8
+      "check_local_recall_island": 1,
+      "check_unique_me_content": 23,
+      "classify_audio": 14,
+      "confirm_drop_or_keep_me": 2
     },
     "by_review_lane_actions": {
-      "check_transcript_order": 25,
-      "check_unique_me_content": 9
+      "check_local_recall": 1,
+      "check_unique_me_content": 17,
+      "classify_audio": 10,
+      "fast_confirm_drop": 2
     },
     "by_review_lane_grouped_rows": {
-      "check_transcript_order": 1,
-      "check_unique_me_content": 6
+      "check_local_recall": 0,
+      "check_unique_me_content": 10,
+      "classify_audio": 0,
+      "fast_confirm_drop": 0
     }
   },
   "promotion_plan": {
@@ -1915,20 +1921,20 @@ sessions/_reports/operational-readiness/
     "current_verdict": "pilot_ready_with_review",
     "status": "manual_review_or_algorithmic_cleanup_needed",
     "outstanding_conditions": {
-      "sessions_not_ready_for_notes": 6,
+      "sessions_not_ready_for_notes": 0,
       "review_queue_items": 40,
-      "review_action_count": 34,
-      "grouped_review_row_count": 6,
-      "review_queue_raw_audio_minutes": 1.81
+      "review_action_count": 30,
+      "grouped_review_row_count": 10,
+      "review_queue_raw_audio_minutes": 1.73
     },
     "review_queue_strategy": {
-      "first_recommended_lane": "check_local_recall",
+      "first_recommended_lane": "check_unique_me_content",
       "quick_recommended_lane": "fast_confirm_drop",
       "first_recommended_reason": "reduce_largest_blocking_review_lane",
       "after_first_lane_estimate": {
-        "remaining_items": 30,
-        "remaining_actions": 25,
-        "remaining_minutes": 1.28
+        "remaining_items": 13,
+        "remaining_actions": 13,
+        "remaining_minutes": 0.82
       },
       "by_lane": [
         {
@@ -2303,7 +2309,9 @@ utterance ids. In that case `grouped` is `true`, `group_size` is greater than `1
 only the intersection of allowed decisions across those rows, so mixed rows do not accidentally
 offer `drop_remote` when one of the rows cannot accept it. Applying one answer to that pack item
 writes the same decision to each listed review row; no transcript profile is edited until the normal
-review batch apply step runs.
+review batch apply step runs. Single-lane CLI packs can also include same-`Me` rows from the paired
+`check_unique_me_content` / `classify_audio` lane; workspace packs keep lanes separate to avoid
+duplicating open rows across answer sheets.
 
 The Swift CLI prints a compact handoff for the same manifest: selected lane, audio, Markdown, answer
 sheet, suggested answer sheet, the first `answers=...` line from the suggested sheet, and ready-to-run
@@ -2552,14 +2560,14 @@ validation errors:
   "schema": "murmurmark.review_decisions_progress/v1",
   "summary": {
     "total": 40,
-    "reviewed": 10,
-    "remaining": 30,
-    "action_count": 34,
-    "reviewed_actions": 9,
-    "remaining_actions": 25,
-    "grouped_review_row_count": 6,
-    "remaining_grouped_review_row_count": 5,
-    "remaining_minutes": 1.28,
+    "reviewed": 0,
+    "remaining": 40,
+    "action_count": 30,
+    "reviewed_actions": 0,
+    "remaining_actions": 30,
+    "grouped_review_row_count": 10,
+    "remaining_grouped_review_row_count": 10,
+    "remaining_minutes": 1.73,
     "invalid_rows": 0,
     "ready_for_batch_apply": false
   }
@@ -2667,7 +2675,7 @@ Operational readiness may still expose review rows after `agent_reviewed_v1` is 
 rows are the remaining transcript/export surface, not a sign that the automatic layer was skipped.
 As of the 2026-06-29 corpus baseline, this queue is tracked separately from notes readiness:
 `13/13` working sessions are `ready_for_notes`, selected notes review is about `0.02 min`, and
-remaining transcript/export review is about `2.36 min` / `40` raw rows / `33` packed actions.
+remaining transcript/export review is about `2.24 min` / `40` raw rows / `30` packed actions.
 Readiness inherits applied `local_recall` and `local_recall_repair` review decisions as well as
 audio-review decisions. Closed local-recall rows with `keep_me`, `drop_me` or `skip` do not re-enter
 `murmurmark next corpus`; unresolved possible lost speech remains visible in `check_local_recall`.

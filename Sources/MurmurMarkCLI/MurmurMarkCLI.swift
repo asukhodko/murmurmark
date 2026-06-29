@@ -2196,6 +2196,7 @@ enum ReviewLaneCommand {
             "--decisions", planURL.appendingPathComponent("review_decisions.jsonl").path,
             "--lane", lane,
             "--out-dir", lanePackOutURL.path,
+            "--include-related-lanes",
         ]
         if let session {
             laneArgs += ["--session", session.lastPathComponent]
@@ -2762,6 +2763,7 @@ enum ReviewFirstLaneCommand {
             "--decisions", planURL.appendingPathComponent("review_decisions.jsonl").path,
             "--lane", lane,
             "--out-dir", lanePackOutURL.path,
+            "--include-related-lanes",
         ] + forwarded)
         if let session {
             print("SESSION=\"\(PathDisplay.display(session))\"")

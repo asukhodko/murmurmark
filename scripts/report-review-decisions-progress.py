@@ -15,6 +15,7 @@ VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", 
 KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
+CROSS_LANE_RELATED_LANES = {"check_unique_me_content", "classify_audio"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -148,6 +149,11 @@ def me_utterance_group_key(item: dict[str, Any]) -> str:
 
 def review_group_key(item: dict[str, Any]) -> str:
     lane = str(item.get("review_lane") or "")
+    if lane in CROSS_LANE_RELATED_LANES:
+        me_key = me_utterance_group_key(item)
+        if me_key:
+            session_id = str(item.get("session_id") or item.get("session") or "")
+            return f"cross_lane_me_audio:{session_id}:{me_key}"
     if lane not in GROUPABLE_REVIEW_LANES:
         return ""
     me_key = me_utterance_group_key(item)

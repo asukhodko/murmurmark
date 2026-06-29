@@ -48,8 +48,8 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - working sessions: `13/13 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.02 min`;
 - remaining full transcript/export review surface: `2.24 min`;
-- export-review queue: `40` raw rows / `34` packed actions after the current automatic
-  `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `6` grouped rows reachable through `murmurmark review next` /
+- export-review queue: `40` raw rows / `30` packed actions after the current automatic
+  `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `10` grouped rows reachable through `murmurmark review next` /
   `murmurmark review workspace`; the active plan currently spans `7` sessions, with local-recall
   review down to one short row after reviewed repair decisions are inherited by readiness;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
@@ -893,7 +893,9 @@ the same state. The first recommended lane is the largest blocking review lane b
 small local-recall tails stay visible, but they do not steal focus from the main transcript/export
 burden.
 The generated review plan keeps both `raw_item_count` and `review_action_count`: raw items are source
-risks, while actions are answer-sheet decisions after safe grouping by `Me` utterance.
+risks, while actions are answer-sheet decisions after safe grouping by `Me` utterance. The action
+counter also merges same-`Me` `check_unique_me_content` / `classify_audio` rows, because one
+keep/drop/review decision closes the same underlying local utterance.
 `grouped_review_row_count` is the saved manual-action estimate.
 `murmurmark review workspace` can then build all remaining lane packs, editable answer sheets
 and one `review_workspace.md` index for the reviewer.
@@ -937,7 +939,9 @@ programmatically.
 For lanes such as `check_transcript_order`, `check_unique_me_content` and `classify_audio`, the lane
 pack groups rows that point to the same `Me` utterance. One answer can therefore close several
 repeated review rows; the manifest keeps the full `review_row_keys` list so the apply step remains
-explicit and auditable.
+explicit and auditable. Single-lane CLI packs for `check_unique_me_content` and `classify_audio`
+also pull in open rows from the paired lane when they point to the same `Me` utterance. Workspace
+packs keep lanes separate to avoid duplicate answer sheets.
 After listening to that pack, edit the generated `review_lane_answers.<lane>.txt` file and run
 `murmurmark review lane apply <lane> --session SESSION` to copy those answers back into
 `review_decisions.jsonl`. Use `murmurmark review lane apply first --session SESSION` after

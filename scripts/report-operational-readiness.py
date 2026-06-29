@@ -11,6 +11,15 @@ from typing import Any
 SCRIPT_VERSION = "0.3.4"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
+CROSS_LANE_RELATED_LANES = {"check_unique_me_content", "classify_audio"}
+REVIEW_LANE_ORDER = [
+    "fast_confirm_drop",
+    "check_unique_me_content",
+    "check_local_recall",
+    "check_transcript_order",
+    "confirm_benign",
+    "classify_audio",
+]
 MIN_OPERATIONAL_SESSION_DURATION_SEC = 60.0
 DIAGNOSTIC_SESSION_EXACT_IDS = {
     "smoke",
@@ -650,6 +659,11 @@ def enrich_review_item(item: dict[str, Any]) -> dict[str, Any]:
 
 def review_group_key(item: dict[str, Any]) -> str:
     lane = str(item.get("review_lane") or review_lane(item))
+    if lane in CROSS_LANE_RELATED_LANES:
+        me_key = me_utterance_group_key(item)
+        if me_key:
+            session_id = str(item.get("session_id") or item.get("session") or "")
+            return f"cross_lane_me_audio:{session_id}:{me_key}"
     if lane not in GROUPABLE_REVIEW_LANES:
         return ""
     me_key = me_utterance_group_key(item)
@@ -662,6 +676,14 @@ def review_group_key(item: dict[str, Any]) -> str:
     label = str(item.get("label") or "")
     allowed = ",".join(sorted(review_item_allowed_decisions(item)))
     return f"{lane}:{session_id}:{label}:{action}:{allowed}:{me_key}"
+
+
+def review_group_lane(group: list[dict[str, Any]]) -> str:
+    lanes = {str(item.get("review_lane") or review_lane(item)) for item in group}
+    for lane in REVIEW_LANE_ORDER:
+        if lane in lanes:
+            return lane
+    return str(group[0].get("review_lane") or review_lane(group[0])) if group else "classify_audio"
 
 
 def review_action_groups(items: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
@@ -694,7 +716,7 @@ def review_action_summary(review_queue: list[dict[str, Any]]) -> dict[str, Any]:
     for group in groups:
         if not group:
             continue
-        lane = str(group[0].get("review_lane") or review_lane(group[0]))
+        lane = review_group_lane(group)
         by_lane_actions[lane] = by_lane_actions.get(lane, 0) + 1
         by_lane_grouped_rows[lane] = by_lane_grouped_rows.get(lane, 0) + max(0, len(group) - 1)
     return {
@@ -707,14 +729,6 @@ def review_action_summary(review_queue: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, Any]:
-    lane_order = [
-        "fast_confirm_drop",
-        "check_unique_me_content",
-        "check_local_recall",
-        "check_transcript_order",
-        "confirm_benign",
-        "classify_audio",
-    ]
     rows: dict[str, dict[str, Any]] = {
         lane: {
             "lane": lane,
@@ -722,7 +736,7 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
             "seconds": 0.0,
             "labels": {},
         }
-        for lane in lane_order
+        for lane in REVIEW_LANE_ORDER
     }
     action_summary = review_action_summary(review_queue)
     actions_by_lane = action_summary.get("by_review_lane_actions") or {}
@@ -737,7 +751,7 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
         row["seconds"] += safe_float(interval.get("duration_sec"))
         row["labels"][label] = row["labels"].get(label, 0) + 1
     by_lane = []
-    for lane in lane_order:
+    for lane in REVIEW_LANE_ORDER:
         row = rows.get(lane)
         if not row or not row.get("items"):
             continue
@@ -781,6 +795,16 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
     first_items = safe_int(first_row.get("items"))
     first_actions = safe_int(actions_by_lane.get(first_lane or "")) or first_items
     first_seconds = safe_float(first_row.get("seconds"))
+    first_group_items = first_items
+    first_group_seconds = first_seconds
+    if first_lane:
+        first_groups = [group for group in review_action_groups(review_queue) if review_group_lane(group) == first_lane]
+        first_group_items = sum(len(group) for group in first_groups)
+        first_group_seconds = sum(
+            safe_float((item.get("interval") if isinstance(item.get("interval"), dict) else {}).get("duration_sec"))
+            for group in first_groups
+            for item in group
+        )
     return {
         "by_lane": by_lane,
         "review_action_count": action_summary["review_action_count"],
@@ -796,10 +820,10 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
             else ("close_fast_confirm_drop" if first_lane else None)
         ),
         "after_first_lane_estimate": {
-            "remaining_items": max(0, total_items - first_items),
+            "remaining_items": max(0, total_items - first_group_items),
             "remaining_actions": max(0, action_summary["review_action_count"] - first_actions),
-            "remaining_seconds": round(max(0.0, total_seconds - first_seconds), 3),
-            "remaining_minutes": round(max(0.0, total_seconds - first_seconds) / 60.0, 2),
+            "remaining_seconds": round(max(0.0, total_seconds - first_group_seconds), 3),
+            "remaining_minutes": round(max(0.0, total_seconds - first_group_seconds) / 60.0, 2),
         },
         "commands": {
             "build_review_workspace": (

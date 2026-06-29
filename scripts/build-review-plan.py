@@ -12,6 +12,15 @@ from typing import Any
 SCRIPT_VERSION = "0.5.0"
 SCHEMA = "murmurmark.review_plan/v1"
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
+CROSS_LANE_RELATED_LANES = {"check_unique_me_content", "classify_audio"}
+REVIEW_LANE_ORDER = [
+    "fast_confirm_drop",
+    "check_unique_me_content",
+    "check_local_recall",
+    "check_transcript_order",
+    "confirm_benign",
+    "classify_audio",
+]
 
 REVIEW_LANES = {
     "fast_confirm_drop": {
@@ -283,7 +292,21 @@ def me_utterance_group_key(item: dict[str, Any]) -> str:
     return first_me_utterance_id(item)
 
 
+def cross_lane_related_key(item: dict[str, Any]) -> str:
+    lane = str(item.get("review_lane") or "")
+    if lane not in CROSS_LANE_RELATED_LANES:
+        return ""
+    me_key = me_utterance_group_key(item)
+    if not me_key:
+        return ""
+    session_id = str(item.get("session_id") or item.get("session") or "")
+    return f"cross_lane_me_audio:{session_id}:{me_key}"
+
+
 def review_group_key(item: dict[str, Any]) -> str:
+    cross_lane_key = cross_lane_related_key(item)
+    if cross_lane_key:
+        return cross_lane_key
     lane = str(item.get("review_lane") or "")
     if lane not in GROUPABLE_REVIEW_LANES:
         return ""
@@ -297,6 +320,14 @@ def review_group_key(item: dict[str, Any]) -> str:
     label = str(item.get("label") or "")
     allowed = ",".join(sorted(output_allowed_decisions(item)))
     return f"{lane}:{session_id}:{label}:{action}:{allowed}:{me_key}"
+
+
+def review_group_lane(group: list[dict[str, Any]]) -> str:
+    lanes = {str(item.get("review_lane") or "classify_audio") for item in group}
+    for lane in REVIEW_LANE_ORDER:
+        if lane in lanes:
+            return lane
+    return str(group[0].get("review_lane") or "classify_audio") if group else "classify_audio"
 
 
 def review_action_groups(items: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
@@ -497,7 +528,7 @@ def build_plan(report: dict[str, Any], args: argparse.Namespace) -> dict[str, An
     for group in action_groups:
         if not group:
             continue
-        lane = str(group[0].get("review_lane") or "classify_audio")
+        lane = review_group_lane(group)
         by_lane_actions[lane] += 1
         by_lane_grouped_rows[lane] += max(0, len(group) - 1)
     raw_seconds = sum(safe_float(item["interval"].get("duration_sec")) for item in items)
@@ -664,15 +695,7 @@ def write_markdown(path: Path, plan: dict[str, Any]) -> None:
                 "|---|---:|---:|---:|---:|---|",
             ]
         )
-        lane_order = [
-            "fast_confirm_drop",
-            "check_unique_me_content",
-            "check_local_recall",
-            "check_transcript_order",
-            "confirm_benign",
-            "classify_audio",
-        ]
-        for lane in lane_order:
+        for lane in REVIEW_LANE_ORDER:
             row = lanes.get(lane)
             if not isinstance(row, dict):
                 continue

@@ -2436,6 +2436,51 @@ EOF
     and .summary.ready_for_batch_apply == true
     and .by_lane[0].action_count == 1
   ' "$workdir/review_decisions_unique_group_progress.json" >/dev/null
+  cross_lane_group_template="$workdir/review_decisions_cross_lane_group.template.jsonl"
+  cross_lane_group_out="$workdir/review_decisions_cross_lane_group.jsonl"
+  cross_lane_group_dir="$workdir/review_lane_pack_cross_lane_group"
+  cat >"$cross_lane_group_template" <<EOF
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source":"audio_review","source_audit_id":"cross_lane_unique","label":"remote_leak","verdict":"needs_stronger_audio_judge","review_lane":"check_unique_me_content","review_action":"check_unique_me_content","suggested_decision":"needs_review","suggested_decision_confidence":"medium","allowed_decisions":["drop_me","keep_me","needs_review","skip"],"me_utterance_ids":["utt_cross_lane_me"],"remote_utterance_ids":["utt_cross_lane_remote_a"],"utterance_ids":["utt_cross_lane_me","utt_cross_lane_remote_a"],"interval":{"start":10.0,"end":11.0,"duration_sec":1.0},"text":[{"id":"utt_cross_lane_me","role":"Me","source_track":"mic","text":"Локальная реплика для проверки."},{"id":"utt_cross_lane_remote_a","role":"Colleagues","source_track":"remote","text":"Пересечение remote."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 9.000 -t 2.500 \"$group_session/audio/mic/000001.caf\""}}
+{"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source":"audio_review","source_audit_id":"cross_lane_classify","label":"uncertain","verdict":"needs_stronger_audio_judge","review_lane":"classify_audio","review_action":"classify_audio","suggested_decision":"keep_me","suggested_decision_confidence":"low","allowed_decisions":["drop_me","drop_remote","keep_me","needs_review","skip"],"me_utterance_ids":["utt_cross_lane_me"],"remote_utterance_ids":["utt_cross_lane_remote_b"],"utterance_ids":["utt_cross_lane_me","utt_cross_lane_remote_b"],"interval":{"start":10.0,"end":11.1,"duration_sec":1.1},"text":[{"id":"utt_cross_lane_me","role":"Me","source_track":"mic","text":"Локальная реплика для проверки."},{"id":"utt_cross_lane_remote_b","role":"Colleagues","source_track":"remote","text":"Спорное пересечение."}],"commands":{"mic_raw":"ffplay -hide_banner -loglevel error -ss 9.000 -t 2.500 \"$group_session/audio/mic/000001.caf\""}}
+EOF
+  "$repo_root/scripts/build-review-lane-pack.py" \
+    --template "$cross_lane_group_template" \
+    --lane check_unique_me_content \
+    --include-related-lanes \
+    --out-dir "$cross_lane_group_dir" >/dev/null
+  jq -e '
+    .summary.selected_rows == 2
+    and .summary.item_count == 1
+    and .summary.grouped_item_count == 1
+    and .summary.grouped_row_count == 1
+    and .items[0].grouped == true
+    and .items[0].group_size == 2
+    and (.items[0].review_lane == "check_unique_me_content")
+    and (.items[0].source_audit_ids == ["cross_lane_unique", "cross_lane_classify"])
+    and (.items[0].allowed_decisions | index("drop_remote") | not)
+    and .parameters.include_related_lanes == true
+  ' "$cross_lane_group_dir/review_lane_pack.check_unique_me_content.json" >/dev/null
+  "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
+    "$cross_lane_group_dir/review_lane_pack.check_unique_me_content.json" \
+    --template "$cross_lane_group_template" \
+    --out "$cross_lane_group_out" \
+    --answers k >/dev/null
+  jq -s '
+    length == 2
+    and all(.[]; .decision == "keep_me" and .status == "reviewed" and .review_lane_pack_group_size == 2)
+  ' "$cross_lane_group_out" >/dev/null
+  "$repo_root/scripts/report-review-decisions-progress.py" \
+    --template "$cross_lane_group_template" \
+    --decisions "$cross_lane_group_out" \
+    --out "$workdir/review_decisions_cross_lane_group_progress.json" \
+    --markdown "$workdir/review_decisions_cross_lane_group_progress.md" >/dev/null
+  jq -e '
+    .summary.total == 2
+    and .summary.action_count == 1
+    and .summary.reviewed_actions == 1
+    and .summary.remaining_actions == 0
+    and .summary.grouped_review_row_count == 1
+  ' "$workdir/review_decisions_cross_lane_group_progress.json" >/dev/null
   "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
     "$duplicate_lane_dir/review_lane_pack.fast_confirm_drop.json" \
     --template "$duplicate_source_template" \

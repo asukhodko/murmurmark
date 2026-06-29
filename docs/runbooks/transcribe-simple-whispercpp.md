@@ -830,7 +830,7 @@ speaker-state evidence is mostly local and remote overlap is tiny.
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
 The same snapshot exposes the remaining export work as a normal review queue: `40` raw rows /
-`34` packed actions after the current `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `6` grouped rows reachable
+`30` packed actions after the current `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `10` grouped rows reachable
 through `murmurmark review next SESSION`, `murmurmark review first-lane --session SESSION` and
 `murmurmark review workspace --session SESSION`. This is intentionally separate from notes
 readiness: selected notes can be used, while full transcript/export waits for the review loop.
@@ -998,7 +998,9 @@ workspace command prints every lane pack with suggested compact answers and the
 so the next export or retention command is visible immediately. Use `murmurmark review first-lane`
 or bare `murmurmark review progress` for the global corpus queue.
 The review plan keeps both `raw_item_count` and `review_action_count`: raw items are source risks,
-while actions are answer-sheet decisions after safe grouping by `Me` utterance.
+while actions are answer-sheet decisions after safe grouping by `Me` utterance. Same-`Me`
+`check_unique_me_content` / `classify_audio` rows count as one action because one keep/drop/review
+answer resolves the same local utterance.
 `grouped_review_row_count` is the saved manual-action estimate.
 `murmurmark review first-lane` refreshes the plan and builds the lane pack for that recommended lane.
 With `--session`, its default paths are under `SESSION/derived/readiness/`; without `--session`, it
@@ -1084,7 +1086,9 @@ groups repeated risks for the same exact set of `Me` utterance ids. The answer s
 character per pack item, but a grouped item can apply that answer to several underlying review rows;
 the Markdown shows the grouped row count and source audit ids. For mixed rows, the pack exposes only
 the shared safe decision set, so a grouped item does not offer `drop_remote` unless every underlying
-row allows it.
+row allows it. When the CLI builds one `check_unique_me_content` or `classify_audio` lane, it also
+includes open rows from the paired lane if they point to the same `Me` utterance. Workspace packs keep
+lanes separate, so the same unresolved row does not appear in two answer sheets.
 The generated answer sheet repeats the short focus as `focus=...` on every item comment, so a review
 pass can stay inside the answer file after the first listen.
 The CLI output prints both source `rows` and packed `items`, plus `grouped_rows_saved` when grouping
