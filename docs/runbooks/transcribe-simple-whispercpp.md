@@ -481,12 +481,16 @@ murmurmark cleanup "$SESSION" \
 
 jq '.summary, .gates' \
   "$SESSION/derived/transcript-simple/whisper-cpp/audit-cleanup/audit_cleanup_report.audit_cleanup_v1.json"
+
+jq '{recommended_next, next_commands: [.next_commands[].id], open_commands: [.open_commands[].id]}' \
+  "$SESSION/derived/transcript-simple/whisper-cpp/audit-cleanup/audit_cleanup_report.audit_cleanup_v1.json"
 ```
 
 This stage writes a new transcript profile and leaves `current` and `shadow_v2` untouched. It only
 drops whole `Me` utterances when the group-overlap audit and local safety checks agree. It keeps
 double-talk, timing overlap, remote leak, and human-review cases, but adds audit flags to affected
-utterances.
+utterances. The cleanup report includes `recommended_next`, `next_commands` and `open_commands`; the
+`murmurmark cleanup` terminal summary prints the same handoff.
 
 Then build synthesis from the cleanup profile:
 

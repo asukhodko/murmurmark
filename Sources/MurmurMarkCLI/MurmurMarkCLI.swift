@@ -3528,11 +3528,19 @@ enum CleanupPrinter {
         if let warnings = gates["warnings"] as? [Any], !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
-        print("  recommended_next: murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
+        let fallbackCommands = [
+            "murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)",
+            "murmurmark report \(PathDisplay.display(session))",
+        ]
+        let nextCommands = commandList(payload["next_commands"])
+        let displayedNextCommands = nextCommands.isEmpty ? fallbackCommands : nextCommands
+        let recommendedNext = string(payload["recommended_next"]) ?? displayedNextCommands[0]
+        print("  recommended_next: \(recommendedNext)")
         print("  next:")
-        print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
-        print("    murmurmark report \(PathDisplay.display(session))")
-        FinalNextPrinter.print("murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
+        for command in displayedNextCommands {
+            print("    \(command)")
+        }
+        FinalNextPrinter.print(recommendedNext)
     }
 
     private static func dict(_ value: Any?) -> [String: Any] {
@@ -3540,7 +3548,18 @@ enum CleanupPrinter {
     }
 
     private static func string(_ value: Any?) -> String? {
-        value as? String
+        guard let value = value as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func commandList(_ value: Any?) -> [String] {
+        guard let rows = value as? [[String: Any]] else { return [] }
+        return rows.compactMap { row in
+            guard let command = row["command"] as? String else { return nil }
+            let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
     }
 
     private static func bool(_ value: Any?) -> Bool {

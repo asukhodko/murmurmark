@@ -1709,6 +1709,12 @@ EOF
   [[ -s "$cleanup_patches" ]]
   [[ -s "$cleanup_rejected" ]]
   jq -e '.gates.passed == true' "$cleanup_report" >/dev/null
+  jq -e '(.recommended_next | startswith("murmurmark synthesize ")) and (.next_commands[0].id == "synthesize_cleanup_profile") and (.open_commands | map(.id) | index("open_audit_cleanup_report"))' "$cleanup_report" >/dev/null
+  json_cleanup_next="$(jq -r '.recommended_next' "$cleanup_report")"
+  printf '%s\n' "$cleanup_cli_output" | grep -Fx "  recommended_next: $json_cleanup_next" >/dev/null
+  while IFS= read -r json_next_command; do
+    printf '%s\n' "$cleanup_cli_output" | grep -Fx "    $json_next_command" >/dev/null
+  done < <(jq -r '.next_commands[].command' "$cleanup_report")
   jq -e 'all(.utterances[]; .id != "utt_dup_me" and .id != "utt_noise_me")' "$cleanup_dialogue" >/dev/null
   jq -e 'any(.utterances[]; .id == "utt_dt_me" and (.quality.audit_cleanup.labels | index("probable_double_talk")))' "$cleanup_dialogue" >/dev/null
   jq -e 'any(.utterances[]; .id == "utt_timing_me" and (.quality.audit_cleanup.labels | index("probable_timing_overlap")))' "$cleanup_dialogue" >/dev/null

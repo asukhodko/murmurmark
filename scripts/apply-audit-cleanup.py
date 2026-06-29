@@ -5,6 +5,7 @@ import argparse
 import copy
 import json
 import re
+import shlex
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
@@ -206,6 +207,52 @@ def rel(path: Path, base: Path) -> str:
         return str(path.relative_to(base))
     except ValueError:
         return str(path)
+
+
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return str(resolved.relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(resolved)
+
+
+def shell_path(path: Path) -> str:
+    return shlex.quote(display_path(path))
+
+
+def cleanup_handoff(session: Path, output_profile: str, report_path: Path, transcript_path: Path) -> dict[str, Any]:
+    session_arg = shell_path(session)
+    synthesize_command = f"murmurmark synthesize {session_arg} --transcript-profile {shlex.quote(output_profile)}"
+    report_command = f"less {shell_path(report_path)}"
+    transcript_command = f"less {shell_path(transcript_path)}"
+    return {
+        "recommended_next": synthesize_command,
+        "next_commands": [
+            {
+                "id": "synthesize_cleanup_profile",
+                "command": synthesize_command,
+                "reason": "build quality verdict and notes from the cleanup profile",
+            },
+            {
+                "id": "refresh_session_report",
+                "command": f"murmurmark report {session_arg}",
+                "reason": "refresh readiness after cleanup-derived synthesis",
+            },
+        ],
+        "open_commands": [
+            {
+                "id": "open_audit_cleanup_report",
+                "command": report_command,
+                "path": display_path(report_path),
+            },
+            {
+                "id": "open_cleanup_transcript",
+                "command": transcript_command,
+                "path": display_path(transcript_path),
+            },
+        ],
+    }
 
 
 def tokens(text: Any) -> list[str]:
@@ -1182,12 +1229,18 @@ def main() -> int:
             for row in output_utterances
         ],
     }
-    write_json(resolved / f"clean_dialogue{output_suffix}.json", output_dialogue)
-    write_json(resolved / f"quality_report{output_suffix}.json", output_quality)
-    write_json(resolved / f"overlaps{output_suffix}.json", {"schema": "murmurmark.transcript_overlaps/v1", "session": session.name, "overlaps": output_overlaps})
-    write_json(resolved / f"transcript.simple{output_suffix}.json", simple_payload)
+    clean_dialogue_path = resolved / f"clean_dialogue{output_suffix}.json"
+    quality_report_path = resolved / f"quality_report{output_suffix}.json"
+    overlaps_path = resolved / f"overlaps{output_suffix}.json"
+    simple_transcript_path = resolved / f"transcript.simple{output_suffix}.json"
+    transcript_path = resolved / f"transcript{output_suffix}.md"
+    cleanup_report_path = cleanup_dir / f"audit_cleanup_report{output_suffix}.json"
+    write_json(clean_dialogue_path, output_dialogue)
+    write_json(quality_report_path, output_quality)
+    write_json(overlaps_path, {"schema": "murmurmark.transcript_overlaps/v1", "session": session.name, "overlaps": output_overlaps})
+    write_json(simple_transcript_path, simple_payload)
     write_markdown(
-        resolved / f"transcript{output_suffix}.md",
+        transcript_path,
         output_utterances,
         transcript_report.get("model"),
         transcript_report.get("language"),
@@ -1208,6 +1261,7 @@ def main() -> int:
             if isinstance(row.get("quality"), dict) and row["quality"].get("audit_cleanup")
         ],
     }
+    handoff = cleanup_handoff(session, args.output_profile, cleanup_report_path, transcript_path)
     report = {
         "schema": "murmurmark.audit_cleanup_report/v1",
         "input_profile": args.input_profile,
@@ -1239,15 +1293,18 @@ def main() -> int:
             "audit_harmful_seconds_after": output_quality["audit_cleanup"]["audit_harmful_seconds_after"],
         },
         "gates": gates,
+        "recommended_next": handoff["recommended_next"],
+        "next_commands": handoff["next_commands"],
+        "open_commands": handoff["open_commands"],
     }
-    write_json(cleanup_dir / f"audit_cleanup_report{output_suffix}.json", report)
+    write_json(cleanup_report_path, report)
     write_jsonl(cleanup_dir / f"audit_cleanup_patches{output_suffix}.jsonl", applied)
     write_jsonl(cleanup_dir / f"audit_cleanup_rejected_patches{output_suffix}.jsonl", rejected)
     write_json(cleanup_dir / f"audit_cleanup_diff{output_suffix}.json", diff)
 
-    print(f"audit_cleanup_report: {cleanup_dir / f'audit_cleanup_report{output_suffix}.json'}")
-    print(f"clean_dialogue: {resolved / f'clean_dialogue{output_suffix}.json'}")
-    print(f"transcript: {resolved / f'transcript{output_suffix}.md'}")
+    print(f"audit_cleanup_report: {cleanup_report_path}")
+    print(f"clean_dialogue: {clean_dialogue_path}")
+    print(f"transcript: {transcript_path}")
     print(f"applied_patches: {len(applied)}")
     print(f"dropped_me_duplicate_seconds: {output_quality['audit_cleanup']['dropped_me_duplicate_seconds']}")
     print(f"harmful_after: {output_quality['audit_cleanup']['audit_harmful_seconds_after']}")

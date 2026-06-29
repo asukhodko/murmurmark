@@ -438,7 +438,8 @@ cleared sessions and remaining unrepaired order risks.
 and review buckets, writes listenable clips, and does not change transcripts or quality verdicts by itself.
 `murmurmark cleanup` is the conservative cleanup over audit evidence. It writes separate
 `audit_cleanup_*` profiles and only drops whole `Me` utterances when the audit strongly supports remote
-duplicate or ASR-noise classification. It never edits `shadow_v2`.
+duplicate or ASR-noise classification. It never edits `shadow_v2`. Its cleanup report stores
+`recommended_next`, `next_commands` and `open_commands`; the CLI prints the same post-cleanup handoff.
 `murmurmark synthesize` then selects or accepts a dialogue profile, writes a quality verdict, and creates local extractive notes where every item cites utterance IDs.
 
 ### Command Reference

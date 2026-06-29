@@ -2615,9 +2615,33 @@ derived/transcript-simple/whisper-cpp/audit-cleanup/
     "passed": true,
     "hard_failures": [],
     "warnings": []
-  }
+  },
+  "recommended_next": "murmurmark synthesize sessions/2026-06-26_15-32-02 --transcript-profile audit_cleanup_v1",
+  "next_commands": [
+    {
+      "id": "synthesize_cleanup_profile",
+      "command": "murmurmark synthesize sessions/2026-06-26_15-32-02 --transcript-profile audit_cleanup_v1",
+      "reason": "build quality verdict and notes from the cleanup profile"
+    },
+    {
+      "id": "refresh_session_report",
+      "command": "murmurmark report sessions/2026-06-26_15-32-02",
+      "reason": "refresh readiness after cleanup-derived synthesis"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_audit_cleanup_report",
+      "command": "less sessions/2026-06-26_15-32-02/derived/transcript-simple/whisper-cpp/audit-cleanup/audit_cleanup_report.audit_cleanup_v1.json",
+      "path": "sessions/2026-06-26_15-32-02/derived/transcript-simple/whisper-cpp/audit-cleanup/audit_cleanup_report.audit_cleanup_v1.json"
+    }
+  ]
 }
 ```
+
+`recommended_next` is the profile-specific synthesis command. `next_commands` is the executable
+post-cleanup chain; `open_commands` contains read-only inspection commands for the cleanup report
+and generated cleanup transcript.
 
 Patch JSONL records are explicit and auditable:
 
