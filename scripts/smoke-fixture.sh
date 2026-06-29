@@ -2234,6 +2234,7 @@ EOF
   grep -q '^pipeline_plan:$' "$cli_pipeline_plan_out"
   grep -q '^pipeline_run:$' "$cli_pipeline_plan_out"
   grep -q '^existing_readiness:$' "$cli_pipeline_plan_out"
+  tail -1 "$cli_pipeline_plan_out" | grep -q '^next: murmurmark '
   ! grep -q '^readiness:$' "$cli_pipeline_plan_out"
   corpus_process_help="$("$bin" corpus process --help)"
   echo "$corpus_process_help" | grep -q 'plan-remote-leak-segment-repair.py'

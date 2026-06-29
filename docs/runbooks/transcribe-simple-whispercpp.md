@@ -64,7 +64,8 @@ stores the same stage list in `derived/pipeline-run/pipeline_run_report.json`. U
 `--progress-interval-sec 0` if you need a quieter run. Use `--plan-only` to print a compact
 `pipeline_plan` with enabled/skipped stages, `run_command` for executing that plan and
 `current_next` for the current session state without executing the pipeline; the CLI labels the
-following readiness summary as `existing_readiness`.
+following readiness summary as `existing_readiness`. After `process` finishes, the last line is a
+single copyable `next: ...` command from the current readiness state.
 
 For the usual record-then-process flow:
 

@@ -608,6 +608,7 @@ enum PipelineCommands {
         try Tooling.runPath(python, command)
         let planOnly = ArgumentEditing.hasOption("plan-only", in: forwarded)
         try ReadinessPrinter.printSession(session, label: planOnly ? "existing_readiness" : "readiness")
+        try ReadinessPrinter.printFinalNext(session)
     }
 
     static func status(_ args: [String]) throws {
@@ -7815,6 +7816,27 @@ enum ReadinessPrinter {
             }
         }
         return commands.first
+    }
+
+    static func printFinalNext(_ session: URL) throws {
+        let sessionPath = PathDisplay.display(session)
+        let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        let command: String
+        if FileManager.default.fileExists(atPath: url.path) {
+            let payload = try JSONFiles.object(url)
+            let gate = string(payload["use_gate"]) ?? "unknown"
+            let nextCommands = payload["next_commands"] as? [[String: Any]]
+                ?? fallbackNextCommands(gate: gate, session: session, payload: payload)
+            let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil)
+            command = exportHandoff?.command
+                ?? string(payload["recommended_next"])
+                ?? preferredNextCommand(nextCommands)
+                ?? "murmurmark status \(sessionPath)"
+        } else {
+            command = "murmurmark process \(sessionPath)"
+        }
+        print("")
+        print("next: \(command)")
     }
 
     private static func outputPath(_ key: String, outputs: [String: Any]) -> String? {
