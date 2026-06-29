@@ -16,6 +16,9 @@ Run:
 scripts/install-local.sh
 export PATH="$HOME/.local/bin:$PATH"
 murmurmark doctor
+murmurmark self-test
+murmurmark config init
+murmurmark config print
 ```
 
 To verify the release layout instead of the working checkout:
@@ -38,9 +41,9 @@ If screen or system audio access is missing, grant it in macOS privacy settings 
 
 If microphone access is missing, grant microphone access to the same launching application.
 
-Re-run `doctor` after changing permissions. It prints the next normal CLI commands when the machine
-is usable. Use `murmurmark doctor --strict` when a setup script should fail on missing required
-dependencies.
+Re-run `doctor` after changing permissions. It prints `murmurmark self-test` and the next normal CLI
+commands when the machine is usable. Use `murmurmark doctor --strict` when a setup script should fail
+on missing required dependencies.
 
 ## Short Recording
 
@@ -74,13 +77,14 @@ When testing a real call without headphones, the microphone track may also conta
 
 ## Real Task Recording
 
-For real meetings, build once and run the binary directly:
+For real meetings, install the local wrapper once and then use the `murmurmark` command:
 
 ```bash
-cd murmurmark
 scripts/install-local.sh
 export PATH="$HOME/.local/bin:$PATH"
 murmurmark doctor
+murmurmark self-test
+murmurmark config init
 murmurmark record --target-bundle system
 ```
 
@@ -95,20 +99,20 @@ recording until Ctrl-C -> ./sessions/<session>
 ```
 
 Use that printed path for processing and export. If the terminal scrollback is gone,
-`murmurmark latest` prints a copyable `SESSION="..."` assignment.
+`murmurmark latest` prints a copyable `SESSION="..."` assignment. For normal work, `latest` is also
+safe when the newest session is the one you just recorded.
 
 ```bash
-SESSION=./sessions/<session>
-
-murmurmark process "$SESSION"
-murmurmark status "$SESSION"
+murmurmark process latest
+murmurmark status latest
+murmurmark next latest
 
 # If readiness says review_first, follow the printed review command first.
-murmurmark notes "$SESSION" --kind verdict
-murmurmark notes "$SESSION"
-murmurmark transcript "$SESSION"
-murmurmark export "$SESSION" --format markdown --include-json
-murmurmark retention plan "$SESSION"
+murmurmark notes latest --kind verdict
+murmurmark notes latest
+murmurmark transcript latest
+murmurmark export latest --format markdown --include-json
+murmurmark retention plan latest
 ```
 
 `--mic-backend voice-processing` and `--remote-backend audio-input` are experimental comparison modes. They are not the main product path and should not be used to judge the algorithmic subtraction problem unless the test explicitly says so.

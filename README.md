@@ -339,6 +339,8 @@ cd murmurmark
 
 git pull
 murmurmark doctor
+murmurmark self-test
+murmurmark config init
 murmurmark config print
 
 murmurmark record --target-bundle system
