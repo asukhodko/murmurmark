@@ -570,6 +570,12 @@ echo "$corpus_report_output" | grep -q '^corpus:$'
 echo "$corpus_report_output" | grep -q '^operational_readiness:$'
 echo "$corpus_report_output" | grep -q '^  sessions_in_scope: '
 echo "$corpus_report_output" | grep -q '^  sessions_excluded: '
+echo "$corpus_report_output" | grep -q '^  use:$'
+echo "$corpus_report_output" | grep -q '^    summary: '
+echo "$corpus_report_output" | grep -q '^    can_use_any_notes: '
+echo "$corpus_report_output" | grep -q '^    can_use_medium_risk: '
+echo "$corpus_report_output" | grep -q '^    ready_sessions: '
+echo "$corpus_report_output" | grep -q '^    minimum_step: '
 echo "$corpus_report_output" | grep -q '  next_command: '
 tail -1 <<<"$corpus_report_output" | grep -q '^next: '
 corpus_next_output="$("$bin" next corpus --sessions-root "$workdir")"
@@ -577,6 +583,10 @@ assert_no_helper_prefix "$corpus_next_output"
 echo "$corpus_next_output" | grep -q '^corpus_next:$'
 echo "$corpus_next_output" | grep -q '^  command: '
 echo "$corpus_next_output" | grep -q '^  sessions_in_scope: '
+echo "$corpus_next_output" | grep -q '^  use:$'
+echo "$corpus_next_output" | grep -q '^    summary: '
+echo "$corpus_next_output" | grep -q '^    ready_sessions: '
+echo "$corpus_next_output" | grep -q '^    minimum_step: '
 tail -1 <<<"$corpus_next_output" | grep -q '^next: '
 corpus_next_root="$workdir/corpus-next-root"
 corpus_next_session="$corpus_next_root/session-a"

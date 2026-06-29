@@ -757,10 +757,14 @@ review target exists. It also prints `sessions_in_scope` and `sessions_excluded`
 working-meeting scope visible next to the full corpus count. The same block prints
 `review_actions` and `grouped_review_rows`, so the handoff shows the number of actual answer-sheet
 decisions rather than only the noisier raw row count.
+It also prints a `use` block with the practical corpus verdict: whether any notes are already
+usable, whether the corpus is ready for medium-risk meetings, ready/review/incomplete session
+counts, review burden and the minimum next command.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
 `--refresh` it first rebuilds session-quality and operational-readiness reports, then prints
-`corpus_next.command`, focus metadata, alternatives and a final copyable `next: ...` line. When the focus lane pack already exists under
+`corpus_next.command`, the same `use` summary, focus metadata, alternatives and a final copyable
+`next: ...` line. When the focus lane pack already exists under
 `SESSION/derived/readiness/review-plan/lane-packs/`, `corpus_next.source` becomes
 `review_lane_pack` and the command becomes the actual next review action, usually `afplay` for the
 assembled lane audio.

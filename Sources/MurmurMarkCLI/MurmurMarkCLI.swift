@@ -8875,6 +8875,7 @@ enum CorpusPrinter {
         print(String(format: "  review_minutes: %.2f", reviewSeconds / 60))
         print("  review_actions: \(int(summary["review_action_count"]) ?? int(summary["review_queue_items"]) ?? 0)")
         print("  grouped_review_rows: \(int(summary["grouped_review_row_count"]) ?? 0)")
+        printOperationalUse(payload)
         printFirstNextCommand(payload)
         printOperationalFocus(payload)
         if let command = firstNextCommand(payload) {
@@ -8928,6 +8929,7 @@ enum CorpusPrinter {
         print("  sessions_excluded: \(int(summary["excluded_diagnostic_session_count"]) ?? 0)")
         print(String(format: "  review_minutes: %.2f", reviewSeconds / 60))
         print("  review_actions: \(int(summary["review_action_count"]) ?? int(summary["review_queue_items"]) ?? 0)")
+        printOperationalUse(payload)
         if let lanePack {
             print("  lane_pack: \(PathDisplay.display(lanePack.manifest))")
             if let markdown = lanePack.markdown {
@@ -8955,6 +8957,53 @@ enum CorpusPrinter {
         }
         printOperationalFocus(payload)
         FinalNextPrinter.print(command)
+    }
+
+    private static func printOperationalUse(_ payload: [String: Any]) {
+        let verdict = string(payload["operational_verdict"]) ?? "unknown"
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        let useGates = summary["use_gates"] as? [String: Any] ?? [:]
+        let sessionCount = int(summary["session_count"]) ?? 0
+        let ready = int(useGates["ready_for_notes"]) ?? 0
+        let reviewFirst = int(useGates["review_first"]) ?? 0
+        let incomplete = useGates.reduce(0) { total, item in
+            item.key.hasPrefix("pipeline_incomplete")
+                ? total + (int(item.value) ?? 0)
+                : total
+        }
+        let reviewActions = int(summary["review_action_count"]) ?? int(summary["review_queue_items"]) ?? 0
+        let reviewSeconds = double(summary["total_review_burden_sec"]) ?? 0
+        let blockers = (payload["blockers"] as? [Any] ?? []).map { String(describing: $0) }
+        let warnings = (payload["warnings"] as? [Any] ?? []).map { String(describing: $0) }
+        let summaryText: String
+        switch verdict {
+        case "medium_risk_ready":
+            summaryText = "corpus ready for medium-risk meeting notes"
+        case "pilot_ready_with_review":
+            summaryText = "pilot-ready with review; close queued review before broader use"
+        case "not_ready":
+            summaryText = "not ready; fix blockers before relying on corpus output"
+        default:
+            summaryText = "check operational readiness before use"
+        }
+
+        print("  use:")
+        print("    summary: \(summaryText)")
+        print("    can_use_any_notes: \(ready > 0)")
+        print("    can_use_medium_risk: \(verdict == "medium_risk_ready")")
+        print("    ready_sessions: \(ready)/\(sessionCount)")
+        print("    review_first_sessions: \(reviewFirst)")
+        print("    incomplete_sessions: \(incomplete)")
+        print("    review_actions: \(reviewActions)")
+        if reviewSeconds > 0 {
+            print(String(format: "    review_burden_min: %.2f", reviewSeconds / 60))
+        }
+        if let blocker = blockers.first ?? warnings.first {
+            print("    blocker: \(blocker)")
+        }
+        if let command = firstNextCommand(payload) {
+            print("    minimum_step: \(command)")
+        }
     }
 
     private struct PreparedLanePackHandoff {

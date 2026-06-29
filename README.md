@@ -176,7 +176,9 @@ first `murmurmark review ...` commands for that session. Its readiness block als
 without making them look like working meetings. It also prints `review_actions` and
 `grouped_review_rows`: the first is the number of answer-sheet decisions after safe grouping, the
 second is how many raw review rows were packed behind those decisions. Corpus readiness and
-`next corpus` summaries also end with the final copyable `next: ...` command.
+`next corpus` summaries also print a `use` block: whether any notes are already usable, whether the
+whole corpus is ready for medium-risk meetings, how many sessions still require review or processing,
+and the minimum next command. They also end with the final copyable `next: ...` command.
 
 Retention is explicit and local:
 
@@ -728,6 +730,10 @@ When a concrete review target is known, top-level `next_commands` and `murmurmar
 include `--session sessions/<id>` rather than a generic corpus-wide review command. The report also
 surfaces the same target as `focus_session` and `focus_next`, so the next operator action is visible
 without opening the JSON report.
+`murmurmark report corpus` and `murmurmark next corpus` also print a compact `use` block derived
+from the same readiness JSON: corpus-level usability summary, `can_use_any_notes`,
+`can_use_medium_risk`, ready/review/incomplete session counts, review burden and the minimum next
+command.
 The generated review plan keeps both `raw_item_count` and `review_action_count`: raw items are source
 risks, while actions are answer-sheet decisions after safe grouping by `Me` utterance.
 `grouped_review_row_count` is the saved manual-action estimate.
