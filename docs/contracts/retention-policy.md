@@ -80,9 +80,9 @@ Schema: `murmurmark.retention_plan/v1`.
 The CLI also prints a human-readable summary with:
 
 - plan path;
-- mode, raw-audio file count and planned action counts;
+- mode, derived retention status, raw-audio file count and planned action counts;
 - `can_apply` and `applied`;
-- export manifest and audit-log paths when known;
+- export manifest path, success flag, status/reason and audit-log paths when known;
 - warnings and the next safe command.
 
 The JSON plan is the authoritative artifact; the CLI summary is only a handoff view.

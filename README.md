@@ -174,9 +174,11 @@ less "$SESSION/derived/retention/retention_plan.json"
 less "$SESSION/derived/retention/provider_payload_manifest.json"
 ```
 
-Both commands print a short handoff summary: selected plan or payload manifest, raw-audio action
-counts, blockers/warnings, and the next safe command. If readiness is not exportable yet, retention
-points back to the current `process` or `review` step instead of suggesting a blocked export.
+Both commands print a short handoff summary: selected plan or payload manifest, retention status,
+raw-audio action counts, blockers/warnings, export-manifest state when present, and the next safe
+command. If readiness is not exportable yet, or if only a forced export with blockers exists,
+retention points back to the current `process`, `review` or successful `export` step instead of
+suggesting a blocked privacy action.
 `retention_plan.json` and `provider_payload_manifest.json` also store `recommended_next`,
 `next_commands` and `open_commands`, so post-export privacy steps are machine-readable.
 

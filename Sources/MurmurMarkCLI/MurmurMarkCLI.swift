@@ -4573,11 +4573,13 @@ enum RetentionPrinter {
         let exportManifest = exportPath(from: export)
         let exportManifestReady = exportManifest.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
         let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+        let status = retentionStatus(payload: payload, export: export, actionCounts: actionCounts)
 
         print("")
         print("retention:")
         print("  plan: \(PathDisplay.display(planURL))")
         print("  mode: \(string(payload["mode"]) ?? "unknown")")
+        print("  status: \(status)")
         print("  raw_audio_files: \(actions.count)")
         print("  actions: \(compactJSON(actionCounts))")
         if !appliedCounts.isEmpty {
@@ -4587,6 +4589,13 @@ enum RetentionPrinter {
         print("  applied: \(bool(payload["applied"]))")
         if let exportManifest {
             print("  export_manifest: \(PathDisplay.display(exportManifest))")
+            print("  export_successful: \(bool(export["successful"]))")
+            if let exportStatus = string(export["status"]) {
+                print("  export_status: \(exportStatus)")
+            }
+            if let exportReason = string(export["reason"]) {
+                print("  export_reason: \(exportReason)")
+            }
         }
         if let auditLog {
             print("  audit_log: \(PathDisplay.display(auditLog))")
@@ -4615,6 +4624,32 @@ enum RetentionPrinter {
                 }
             }
         }
+    }
+
+    private static func retentionStatus(
+        payload: [String: Any],
+        export: [String: Any],
+        actionCounts: [String: Int]
+    ) -> String {
+        if bool(payload["applied"]) {
+            return "applied"
+        }
+        if !bool(export["found"]) {
+            return "waiting_for_export"
+        }
+        if !bool(export["valid"]) {
+            return "blocked_invalid_export_manifest"
+        }
+        if !bool(export["successful"]) {
+            return "waiting_for_successful_export"
+        }
+        if bool(payload["can_apply"]) {
+            return "ready_to_apply"
+        }
+        if actionCounts.keys.allSatisfy({ $0 == "keep_raw_audio" }) {
+            return "ready_no_raw_deletion"
+        }
+        return "ready"
     }
 
     private static func readinessNextCommand(session: URL) -> String? {

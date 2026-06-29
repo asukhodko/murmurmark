@@ -229,6 +229,7 @@ echo "$selected_export_output" | grep -q 'exporting mic from derived/preprocess/
 retention_plan_output="$("$bin" retention plan "$session")"
 assert_no_helper_prefix "$retention_plan_output"
 echo "$retention_plan_output" | grep -q '^retention:$'
+echo "$retention_plan_output" | grep -q '^  status: waiting_for_export$'
 echo "$retention_plan_output" | grep -q '  raw_audio_files: 2'
 echo "$retention_plan_output" | grep -q '^  recommended_next: murmurmark export '
 echo "$retention_plan_output" | grep -q '  next:'
@@ -886,6 +887,13 @@ jq -e '.schema == "murmurmark.export_manifest/v1" and (.status | startswith("exp
   "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
 jq -e '(.next | startswith("murmurmark process ")) and (.next_commands | map(.command | startswith("murmurmark process ")) | any) and (.open_commands | map(.command | startswith("less ")) | any) and (.debug_retention_commands | map(.command | contains("murmurmark retention plan ")) | any) and (.export_commands.rerun | startswith("murmurmark export "))' \
   "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
+retention_forced_output="$("$bin" retention plan "$session" --export-manifest "$export_force_dir/$(basename "$session")/export_manifest.json")"
+assert_no_helper_prefix "$retention_forced_output"
+echo "$retention_forced_output" | grep -q '^  status: waiting_for_successful_export$'
+echo "$retention_forced_output" | grep -q '^  export_successful: false$'
+echo "$retention_forced_output" | grep -q '^  export_status: exported_forced'
+echo "$retention_forced_output" | grep -q '^  export_reason: export_not_successful$'
+echo "$retention_forced_output" | grep -q '^  recommended_next: murmurmark process '
 
 ready_export_session="$workdir/export-ready-session"
 mkdir -p \

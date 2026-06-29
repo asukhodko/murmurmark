@@ -1456,6 +1456,11 @@ The CLI prints a compact handoff summary after writing the plan, but the JSON fi
 source of truth. When the session readiness gate is not exportable and no successful export manifest
 exists yet, the summary's `recommended_next` follows readiness back to `murmurmark process` or
 `murmurmark review next` rather than pointing at a blocked export.
+The summary also prints a derived `status`: `waiting_for_export`,
+`waiting_for_successful_export`, `ready_no_raw_deletion`, `ready_to_apply`, `applied` or an invalid
+manifest blocker. When a manifest file exists but was produced by forced export with blockers, the
+summary prints `export_successful: false`, the manifest status/reason and keeps the next command on
+the earlier safe step.
 
 `murmurmark retention payload SESSION` writes
 `SESSION/derived/retention/provider_payload_manifest.json` using
