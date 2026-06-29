@@ -28,6 +28,8 @@ fi
 
 doctor_output="$("$bin" doctor)"
 echo "$doctor_output" | grep -q '^next:$'
+echo "$doctor_output" | grep -q '^  murmurmark config init$'
+echo "$doctor_output" | grep -q '^  murmurmark acceptance --skip-release$'
 echo "$doctor_output" | grep -q '^  murmurmark record --target-bundle system$'
 echo "$doctor_output" | grep -q '^  murmurmark status latest$'
 echo "$doctor_output" | grep -q '^status: doctor completed$'
@@ -2397,6 +2399,8 @@ EOF
   echo "$main_help" | grep -q '^Handoff rule:$'
   echo "$main_help" | grep -q 'final line is the primary command to run next'
   echo "$main_help" | grep -q '^Everyday usage:$'
+  echo "$main_help" | grep -q '^  murmurmark config init$'
+  echo "$main_help" | grep -q '^  murmurmark acceptance --skip-release$'
   echo "$main_help" | grep -q '^Quality and corpus maintenance:$'
   echo "$main_help" | grep -q '^Setup and diagnostics:$'
   echo "$main_help" | grep -q '^Advanced/debugging:$'

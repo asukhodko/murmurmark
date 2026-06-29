@@ -95,6 +95,8 @@ struct MurmurMark {
         Normal flow:
           murmurmark doctor
           murmurmark self-test
+          murmurmark config init
+          murmurmark acceptance --skip-release
           murmurmark record --target-bundle system
           murmurmark process latest
           murmurmark next latest
@@ -110,6 +112,7 @@ struct MurmurMark {
         Everyday usage:
           murmurmark doctor [--strict]
           murmurmark self-test
+          murmurmark acceptance [--skip-release] [--python PATH] [--live-checklist]
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
@@ -166,7 +169,6 @@ struct MurmurMark {
 
         Setup and diagnostics:
           murmurmark self-test
-          murmurmark acceptance [--skip-release] [--python PATH] [--live-checklist]
           murmurmark list-apps
           murmurmark list-audio-devices
           murmurmark inspect ./session
@@ -472,6 +474,8 @@ struct DoctorReport {
             print("  optional: resolve warnings above")
         }
         print("  murmurmark self-test")
+        print("  murmurmark config init")
+        print("  murmurmark acceptance --skip-release")
         print("  murmurmark record --target-bundle system")
         print("  murmurmark process latest")
         print("  murmurmark status latest")
