@@ -313,6 +313,10 @@ enum ReviewPrinter {
                 print("    \(command)")
             }
         }
+        if let first = commands.first {
+            print("")
+            print("next: \(first)")
+        }
     }
 
     private struct PreparedLanePackHandoff {
@@ -405,9 +409,12 @@ enum ReviewPrinter {
                 print("    \(command) — \(label)")
             }
         }
+        var finalNext = ReadinessPrinter.preferredNextCommand(reportNextCommands)
         if failedSessions > 0 || failedRefreshSteps > 0 {
             if !hasReportNextCommands {
-                print("  next: less \(PathDisplay.display(report))")
+                let next = "less \(PathDisplay.display(report))"
+                print("  next: \(next)")
+                finalNext = next
             }
         } else if let session = singleAppliedSession(sessions) {
             let sessionURL = PathURLs.fileURL(session)
@@ -415,8 +422,11 @@ enum ReviewPrinter {
                 if let next = readinessRecommendedNext(sessionURL) {
                     print("  next: \(next)")
                     print("  report_next: murmurmark report \(PathDisplay.display(sessionURL))")
+                    finalNext = next
                 } else {
-                    print("  next: murmurmark report \(PathDisplay.display(sessionURL))")
+                    let next = "murmurmark report \(PathDisplay.display(sessionURL))"
+                    print("  next: \(next)")
+                    finalNext = next
                 }
             } else {
                 print("  report_next: murmurmark report \(PathDisplay.display(sessionURL))")
@@ -424,8 +434,14 @@ enum ReviewPrinter {
             try printAppliedSessionReadiness(session)
         } else if !sessions.isEmpty {
             if !hasReportNextCommands {
-                print("  next: murmurmark report corpus")
+                let next = "murmurmark report corpus"
+                print("  next: \(next)")
+                finalNext = next
             }
+        }
+        if let finalNext {
+            print("")
+            print("next: \(finalNext)")
         }
     }
 
@@ -481,6 +497,11 @@ enum ReviewPrinter {
         print("    murmurmark review workspace\(sessionArgument)")
         print("    murmurmark review workspace apply\(sessionArgument)")
         print("    murmurmark review progress\(sessionArgument)")
+        let finalNext = nextLane
+            .map { "murmurmark review lane \($0)\(sessionArgument)" }
+            ?? "murmurmark review first-lane\(sessionArgument)"
+        print("")
+        print("next: \(finalNext)")
     }
 
     static func printAgentBuild(report: URL) throws {

@@ -768,6 +768,7 @@ echo "$review_next_output" | grep -q '^    apply_answers: murmurmark review lane
 echo "$review_next_output" | grep -q '^  workspace_flow:$'
 echo "$review_next_output" | grep -q '^    build_and_listen: murmurmark review workspace --session .*review-next-session'
 echo "$review_next_output" | grep -q '^    apply_answers: murmurmark review workspace apply --session .*review-next-session'
+tail -1 <<<"$review_next_output" | grep -q '^next: murmurmark review first-lane --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review first-lane --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review lane apply check_transcript_order --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review lane fast_confirm_drop --session .*review-next-session'
@@ -787,6 +788,7 @@ echo "$review_apply_missing_output" | grep -q '^    murmurmark review lane apply
 echo "$review_apply_missing_output" | grep -q '^    murmurmark review workspace --session .*review-next-session'
 echo "$review_apply_missing_output" | grep -q '^    murmurmark review workspace apply --session .*review-next-session'
 echo "$review_apply_missing_output" | grep -q '^    murmurmark review progress --session .*review-next-session'
+tail -1 <<<"$review_apply_missing_output" | grep -q '^next: murmurmark review first-lane --session .*review-next-session'
 cat >"$review_next_plan_dir/review_decisions.template.jsonl" <<EOF
 {"schema":"murmurmark.review_decision/v1","status":"todo","decision":"todo","session_id":"review-next-fixture","session":"$review_next_session","input_profile":"order_repair_v1","source_audit_id":"progress_not_ready","label":"local_recall","verdict":"needs_review","review_lane":"check_local_recall","review_action":"check_local_recall","suggested_decision":"needs_review","suggested_decision_confidence":"medium","allowed_decisions":["drop_me","keep_me","needs_review","skip"],"me_utterance_ids":["utt_progress_me"],"utterance_ids":["utt_progress_me"],"interval":{"start":1.0,"end":4.0,"duration_sec":3.0},"text":[{"id":"utt_progress_me","role":"Me","source_track":"mic","text":"Нужно проверить."}],"commands":{}}
 EOF
@@ -812,6 +814,7 @@ echo "$review_apply_not_ready_output" | grep -q '^    murmurmark review progress
 echo "$review_apply_not_ready_output" | grep -q '^    check_local_recall: reviewed=0/1 remaining=1'
 echo "$review_apply_not_ready_output" | grep -q '^    murmurmark review workspace --session .*review-next-session'
 echo "$review_apply_not_ready_output" | grep -q '^    murmurmark review progress --session .*review-next-session'
+tail -1 <<<"$review_apply_not_ready_output" | grep -q '^next: murmurmark review lane check_local_recall --session .*review-next-session'
 review_next_lane_pack_dir="$review_next_plan_dir/lane-packs"
 mkdir -p "$review_next_lane_pack_dir"
 touch "$review_next_lane_pack_dir/review_lane_pack.check_local_recall.wav"
@@ -833,12 +836,14 @@ echo "$review_progress_prepared_output" | grep -q '^  recommended_next: afplay .
 echo "$review_progress_prepared_output" | grep -q '^    less .*review_lane_pack.check_local_recall.md'
 echo "$review_progress_prepared_output" | grep -q '^    \$EDITOR .*review_lane_answers.check_local_recall.txt'
 echo "$review_progress_prepared_output" | grep -q '^    murmurmark review lane apply check_local_recall --session .*review-next-session --dry-run'
+tail -1 <<<"$review_progress_prepared_output" | grep -q '^next: afplay .*review_lane_pack.check_local_recall.wav'
 echo 'answers=k' >"$review_next_lane_pack_dir/review_lane_answers.check_local_recall.txt"
 review_progress_answered_output="$("$bin" review progress --session "$review_next_session")"
 assert_no_helper_prefix "$review_progress_answered_output"
 echo "$review_progress_answered_output" | grep -q '^  answer_sheet_status: complete reviewed=1/1'
 echo "$review_progress_answered_output" | grep -q '^  recommended_next: murmurmark review lane apply check_local_recall --session .*review-next-session --dry-run'
 echo "$review_progress_answered_output" | grep -q '^    murmurmark review lane apply check_local_recall --session .*review-next-session --dry-run'
+tail -1 <<<"$review_progress_answered_output" | grep -q '^next: murmurmark review lane apply check_local_recall --session .*review-next-session --dry-run'
 export_block_dir="$workdir/export-blocked"
 export_block_stdout="$workdir/export_blocked_stdout.txt"
 if "$repo_root/scripts/export-session-bundle.py" "$session" --out-dir "$export_block_dir" >"$export_block_stdout" 2>&1; then
@@ -979,6 +984,7 @@ echo "$ready_review_next_output" | grep -q '^review_next:$'
 echo "$ready_review_next_output" | grep -q '^  status: exportable$'
 echo "$ready_review_next_output" | grep -q '^  reason: no_review_required$'
 echo "$ready_review_next_output" | grep -q '^  recommended_next: murmurmark next '
+tail -1 <<<"$ready_review_next_output" | grep -q '^next: murmurmark next '
 ! echo "$ready_review_next_output" | grep -q '^  plan: '
 ! echo "$ready_review_next_output" | grep -q '^  first_lane_flow:'
 ! echo "$ready_review_next_output" | grep -q 'murmurmark review first-lane'

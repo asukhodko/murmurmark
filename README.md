@@ -840,8 +840,8 @@ commands, so an explicit lane pack is not replaced by an empty refresh. Use `rev
 When a session-local plan exists and the session still requires review, `review next` also shows
 packed `review_actions`, saved grouped rows and the remaining action count after the first lane,
 matching the units from
-`murmurmark report corpus`. The review build/apply/progress commands print a headline `recommended_next`, so
-each screen has one copyable next command before the detailed listen/read/edit/apply flow.
+`murmurmark report corpus`. The key review handoffs (`review next`, `review progress`,
+`review apply`) also repeat the primary command as the final copyable `next: ...` line.
 
 Use the Python scripts directly only when debugging a specific review file, lane pack, or batch
 application edge case.

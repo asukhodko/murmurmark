@@ -871,7 +871,8 @@ estimated queue after closing the first lane. When the local plan carries packed
 `review next` prints `review_actions`, `grouped_review_rows` and `remaining_actions`, so this view
 matches `murmurmark report corpus` instead of falling back to raw row counts only. `review first-lane`,
 `review lane apply`, `review workspace`, `review progress` and workspace apply also print a headline
-`recommended_next`, so every review screen has one copyable next command. If `review progress` sees
+`recommended_next`; `review next`, `review progress` and `review apply` also repeat the primary
+handoff as the final copyable `next: ...` line. If `review progress` sees
 that the current `next_lane` already has a lane pack, it recommends the prepared
 `afplay`/`less`/`$EDITOR` handoff and lane apply commands instead of rebuilding that pack. When the
 answer sheet has reviewed answers, it recommends lane apply `--dry-run` first. The

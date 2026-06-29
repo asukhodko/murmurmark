@@ -8002,6 +8002,8 @@ enum ReviewNextPrinter {
             Swift.print("  readiness: missing")
             Swift.print("  recommended_next: murmurmark report \(sessionPath)")
             Swift.print("  next: murmurmark report \(sessionPath)")
+            Swift.print("")
+            Swift.print("next: murmurmark report \(sessionPath)")
             return
         }
 
@@ -8067,6 +8069,10 @@ enum ReviewNextPrinter {
         for command in focusedCommands {
             Swift.print("    \(command)")
         }
+        if let first = focusedCommands.first {
+            Swift.print("")
+            Swift.print("next: \(first)")
+        }
     }
 
     private struct NoReviewHandoff {
@@ -8104,6 +8110,8 @@ enum ReviewNextPrinter {
         Swift.print("  next:")
         Swift.print("    murmurmark next \(sessionPath)")
         Swift.print("    murmurmark status \(sessionPath)")
+        Swift.print("")
+        Swift.print("next: murmurmark next \(sessionPath)")
     }
 
     private static func statusWithoutReview(gate: String, exportBlockers: [Any]) -> String {
