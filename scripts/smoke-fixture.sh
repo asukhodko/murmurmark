@@ -1356,6 +1356,27 @@ protected_classification = module.classify_item(
     protected_metrics,
 )
 assert protected_classification["label"] == "uncertain", protected_classification
+parsed = module.parse_ffplay_slice(
+    'ffplay -hide_banner -loglevel error -ss 12.500 -t 4.250 "/tmp/murmurmark mic.wav"'
+)
+assert parsed is not None, parsed
+parsed_path, parsed_start, parsed_duration = parsed
+assert str(parsed_path) == "/tmp/murmurmark mic.wav", parsed
+assert parsed_start == 12.5 and parsed_duration == 4.25, parsed
+lane_rows = module.lane_item_text_rows(
+    {
+        "me_utterance_ids": ["utt_me"],
+        "remote_utterance_ids": ["utt_remote"],
+        "evidence_text": [
+            {"role": "Me", "text": "Локальная фраза."},
+            {"role": "Colleagues", "text": "Ответ собеседника."},
+        ],
+    },
+    10.0,
+    15.0,
+)
+assert [row["id"] for row in lane_rows] == ["utt_me", "utt_remote"], lane_rows
+assert [row["source_track"] for row in lane_rows] == ["mic", "remote"], lane_rows
 with tempfile.TemporaryDirectory() as tmp:
     path = Path(tmp) / "faster_whisper_judge.jsonl"
     module.write_jsonl(path, [stale])

@@ -7,6 +7,8 @@ import json
 import math
 import os
 import re
+import shlex
+import subprocess
 from collections import Counter
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -148,6 +150,182 @@ def lane_pack_selectors(args: argparse.Namespace) -> tuple[list[dict[str, Any]],
                 }
             )
     return selectors, missing_pack_files
+
+
+def parse_ffplay_slice(command: Any) -> tuple[Path | None, float, float] | None:
+    if not isinstance(command, str) or not command.strip():
+        return None
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return None
+    if not parts or Path(parts[0]).name not in {"ffplay", "afplay"}:
+        return None
+    start = 0.0
+    duration = 0.0
+    path: Path | None = None
+    index = 1
+    options_with_value = {"-ss", "-t", "-loglevel", "-i"}
+    while index < len(parts):
+        part = parts[index]
+        if part == "-ss" and index + 1 < len(parts):
+            start = safe_float(parts[index + 1])
+            index += 2
+            continue
+        if part == "-t" and index + 1 < len(parts):
+            duration = safe_float(parts[index + 1])
+            index += 2
+            continue
+        if part in options_with_value and index + 1 < len(parts):
+            if part == "-i":
+                path = Path(parts[index + 1]).expanduser()
+            index += 2
+            continue
+        if part.startswith("-"):
+            index += 1
+            continue
+        path = Path(part).expanduser()
+        index += 1
+    if path is None or duration <= 0:
+        return None
+    return path, start, duration
+
+
+def session_audio_sources(session: Path, mic_raw: Path | None) -> dict[str, Path]:
+    return {
+        "mic_raw": mic_raw or session / "audio/mic/000001.caf",
+        "remote": session / "audio/remote/000001.caf",
+        "mic_clean": session / "derived/preprocess/audio/mic_clean_local_fir.wav",
+        "mic_role_masked": session / "derived/preprocess/audio/mic_role_masked_for_asr.wav",
+    }
+
+
+def slice_audio(source: Path, destination: Path, start: float, duration: float) -> bool:
+    if not source.exists() or duration <= 0:
+        return False
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-ss",
+        f"{start:.3f}",
+        "-t",
+        f"{duration:.3f}",
+        "-i",
+        str(source),
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        str(destination),
+    ]
+    return subprocess.run(command, check=False).returncode == 0 and destination.exists() and destination.stat().st_size > 0
+
+
+def lane_item_text_rows(item: dict[str, Any], start: float, end: float) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    me_ids = list_strings(item.get("me_utterance_ids"))
+    remote_ids = list_strings(item.get("remote_utterance_ids"))
+    me_index = 0
+    remote_index = 0
+    for piece in item.get("evidence_text") or []:
+        if not isinstance(piece, dict):
+            continue
+        role_text = str(piece.get("role") or "").lower()
+        text = str(piece.get("text") or "").strip()
+        if not text:
+            continue
+        if "me" in role_text:
+            utterance_id = me_ids[me_index] if me_index < len(me_ids) else ""
+            me_index += 1
+            rows.append(
+                {
+                    "id": utterance_id,
+                    "role": "me",
+                    "source_track": "mic",
+                    "start": start,
+                    "end": end,
+                    "text": text,
+                    "needs_review": True,
+                    "quality_flags": ["review_lane", "transcript_order"],
+                }
+            )
+        elif "remote" in role_text or "colleague" in role_text:
+            utterance_id = remote_ids[remote_index] if remote_index < len(remote_ids) else ""
+            remote_index += 1
+            rows.append(
+                {
+                    "id": utterance_id,
+                    "role": "remote",
+                    "source_track": "remote",
+                    "start": start,
+                    "end": end,
+                    "text": text,
+                    "needs_review": False,
+                    "quality_flags": ["review_lane", "transcript_order"],
+                }
+            )
+    return rows
+
+
+def synthetic_lane_pack_items(args: argparse.Namespace, session: Path, out_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    items: list[dict[str, Any]] = []
+    missing_pack_files: list[str] = []
+    clip_dir = out_dir / "review-lane-clips"
+    for path in args.review_lane_pack:
+        lane_pack = read_json(path.expanduser())
+        if lane_pack is None:
+            missing_pack_files.append(str(path))
+            continue
+        for item in lane_pack.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            source_ids = list_strings(item.get("source_audit_ids")) or list_strings([item.get("source_audit_id")])
+            source_id = source_ids[0] if source_ids else ""
+            if not source_id:
+                continue
+            parsed = parse_ffplay_slice(item.get("command"))
+            if parsed is None:
+                continue
+            mic_raw_path, start, duration = parsed
+            end = start + duration
+            clips: dict[str, str] = {}
+            for source, audio_path in session_audio_sources(session, mic_raw_path).items():
+                destination = clip_dir / f"{source_id}_{source}.wav"
+                if destination.exists() and destination.stat().st_size > 0:
+                    clips[source] = str(destination)
+                    continue
+                if slice_audio(audio_path, destination, start, duration):
+                    clips[source] = str(destination)
+            if not clips:
+                continue
+            utterance_rows = lane_item_text_rows(item, start, end)
+            items.append(
+                {
+                    "schema": "murmurmark.audio_review_pack_item/v1",
+                    "id": source_id,
+                    "session_id": item.get("session_id") or session.name,
+                    "profile": item.get("input_profile") or args.profile,
+                    "interval": {
+                        "start": round(start, 3),
+                        "end": round(end, 3),
+                        "duration_sec": round(duration, 3),
+                        "start_time": format_time(start),
+                        "end_time": format_time(end),
+                    },
+                    "source_reasons": [
+                        f"review_lane:{item.get('review_lane') or lane_pack.get('lane') or 'unknown'}",
+                        str(item.get("label") or "needs_review"),
+                    ],
+                    "utterance_ids": list_strings(item.get("utterance_ids")),
+                    "utterances": utterance_rows,
+                    "clips": clips,
+                }
+            )
+    return items, missing_pack_files
 
 
 def item_id_set(item: dict[str, Any]) -> set[str]:
@@ -791,6 +969,10 @@ def main() -> int:
     pack_dir = args.pack_dir or session / "derived/audit/audio-review-pack"
     out_dir = args.out_dir or pack_dir
     items = read_jsonl(pack_dir / "review_pack_items.jsonl")
+    lane_items, lane_missing_files = synthetic_lane_pack_items(args, session, out_dir)
+    if lane_items:
+        existing_ids = {str(item.get("id") or "") for item in items}
+        items.extend(item for item in lane_items if str(item.get("id") or "") not in existing_ids)
     audio_review_rows = audit_by_id(read_jsonl(pack_dir / "audio_review_audit.jsonl"))
     pack_summary = read_json(pack_dir / "review_pack_summary.json")
     model_path = resolve_model(args)
@@ -821,6 +1003,7 @@ def main() -> int:
         if (row := audio_review_rows.get(str(item.get("id") or ""))) and audit_row_matches_item(row, item)
     }
     requested_target_ids, missing_lane_pack_files, lane_pack_selector_keys = target_item_ids(args, items)
+    missing_lane_pack_files = list(dict.fromkeys(missing_lane_pack_files + lane_missing_files))
     selected = selected_items(items, matched_audio_review_rows, args.max_items, target_ids=requested_target_ids)
     missing_target_ids = [item_id for item_id in requested_target_ids if item_id not in {str(item.get("id") or "") for item in items}]
     cached_rows, missing_items, cached_count = cached_rows_for_items(out_dir, selected, disabled=args.no_cache)
