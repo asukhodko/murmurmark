@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.1"
+SCRIPT_VERSION = "0.4.2"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -611,6 +611,31 @@ def audio_review_row_explained_by_reliable(
     return True
 
 
+def audio_review_row_explained_by_strong_local(row: dict[str, Any]) -> bool:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    if str(classification.get("label") or "") != "remote_leak":
+        return False
+    if str(classification.get("verdict") or "") != "probable_transcript_error":
+        return False
+    scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
+    features = row.get("features") if isinstance(row.get("features"), dict) else {}
+    text = features.get("text") if isinstance(features.get("text"), dict) else {}
+    local_support = safe_float(scores.get("local_support")) or 0.0
+    remote_similarity = safe_float(scores.get("remote_similarity")) or 0.0
+    text_similarity = safe_float(text.get("similarity")) or 0.0
+    containment = safe_float(text.get("containment")) or 0.0
+    remote_duplicate = safe_float(scores.get("remote_duplicate")) or 0.0
+    asr_noise = safe_float(scores.get("asr_noise")) or 0.0
+    return (
+        local_support >= 70.0
+        and remote_similarity <= 35.0
+        and text_similarity <= 0.25
+        and containment <= 0.25
+        and remote_duplicate <= 0.0
+        and asr_noise <= 0.0
+    )
+
+
 def selected_counts(evidence: dict[str, Any] | None) -> dict[str, int]:
     selected = evidence.get("selected") if isinstance(evidence, dict) else None
     if not isinstance(selected, dict):
@@ -835,8 +860,12 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
         remote_leak_intervals: list[tuple[float, float]] = []
         explained_by_reliable_count = 0
         explained_by_reliable_intervals: list[tuple[float, float]] = []
+        explained_by_strong_local_count = 0
+        explained_by_strong_local_intervals: list[tuple[float, float]] = []
         notes_explained_by_reliable_count = 0
         notes_explained_by_reliable_intervals: list[tuple[float, float]] = []
+        notes_explained_by_strong_local_count = 0
+        notes_explained_by_strong_local_intervals: list[tuple[float, float]] = []
         active_count = 0
         active_intervals: list[tuple[float, float]] = []
         for row in audit_rows:
@@ -863,6 +892,13 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
                 if affects_notes:
                     notes_explained_by_reliable_count += 1
                     notes_explained_by_reliable_intervals.append((start, end))
+                continue
+            if audio_review_row_explained_by_strong_local(row):
+                explained_by_strong_local_count += 1
+                explained_by_strong_local_intervals.append((start, end))
+                if affects_notes:
+                    notes_explained_by_strong_local_count += 1
+                    notes_explained_by_strong_local_intervals.append((start, end))
                 continue
             if verdict == "probable_transcript_error":
                 verdict = "probable_error"
@@ -896,8 +932,12 @@ def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, pr
             "audio_review_notes_stronger_judge_seconds": union_seconds(notes_buckets["needs_stronger_audio_judge"]["intervals"]),
             "audio_review_explained_by_reliable_count": explained_by_reliable_count,
             "audio_review_explained_by_reliable_seconds": union_seconds(explained_by_reliable_intervals),
+            "audio_review_explained_by_strong_local_count": explained_by_strong_local_count,
+            "audio_review_explained_by_strong_local_seconds": union_seconds(explained_by_strong_local_intervals),
             "audio_review_notes_explained_by_reliable_count": notes_explained_by_reliable_count,
             "audio_review_notes_explained_by_reliable_seconds": union_seconds(notes_explained_by_reliable_intervals),
+            "audio_review_notes_explained_by_strong_local_count": notes_explained_by_strong_local_count,
+            "audio_review_notes_explained_by_strong_local_seconds": union_seconds(notes_explained_by_strong_local_intervals),
             "audio_review_resolved_by_cleanup_count": resolved_count,
             "audio_review_resolved_by_cleanup_seconds": union_seconds(resolved_intervals),
             "audio_review_resolved_by_review_count": resolved_by_review_count,

@@ -808,13 +808,14 @@ default export remains blocked until transcript-only review is closed or `--forc
 deliberately.
 The 2026-06-29 corpus snapshot is the current convergence baseline: 13/13 working sessions are
 `ready_for_notes`, selected notes require about `0.02 min` of review, and the remaining full
-transcript/export surface is about `3.63 min`. Session-quality reports de-duplicate transcript-only
+transcript/export surface is about `3.02 min`. Session-quality reports de-duplicate transcript-only
 `uncertain` rows when the same selected `Me` interval is already covered by high-confidence
-`likely_reliable` audio-review evidence. This reduces burden without editing transcript text.
+`likely_reliable` audio-review evidence, and can explain a narrow strong-local `remote_leak` row
+without editing transcript text.
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
 The same snapshot exposes the remaining export work as a normal review queue: `40` raw rows /
-`33` packed actions after the current `agent_reviewed_v1` layer, with `7` grouped rows reachable
+`32` packed actions after the current `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `8` grouped rows reachable
 through `murmurmark review next SESSION`, `murmurmark review first-lane --session SESSION` and
 `murmurmark review workspace --session SESSION`. This is intentionally separate from notes
 readiness: selected notes can be used, while full transcript/export waits for the review loop.

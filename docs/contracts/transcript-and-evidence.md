@@ -1034,6 +1034,11 @@ that row are covered by high-confidence `likely_reliable` audio-review intervals
 deduplication only: it does not change transcript profiles, does not delete utterances, and does not
 apply to probable transcript errors or possible lost `Me` speech.
 
+Session-quality reports may also count a very narrow `remote_leak / probable_transcript_error` row as
+`audio_review_explained_by_strong_local_*` when local support is strong, remote similarity and text
+overlap are low, and the row is better explained as real local speech with a boundary overlap. This
+also affects only review accounting and queue selection; it does not edit transcript text.
+
 An empty `review_pack_items.jsonl` is valid. In that case `audio_review_audit.jsonl` is empty,
 `audio_review_summary.json.items` is `0`, `recommended_next_step` is
 `no_extra_audio_judge_needed_for_current_pack`, and the pipeline should continue.
@@ -2605,7 +2610,7 @@ Operational readiness may still expose review rows after `agent_reviewed_v1` is 
 rows are the remaining transcript/export surface, not a sign that the automatic layer was skipped.
 As of the 2026-06-29 corpus baseline, this queue is tracked separately from notes readiness:
 `13/13` working sessions are `ready_for_notes`, selected notes review is about `0.02 min`, and
-remaining transcript/export review is about `3.63 min` / `40` raw rows / `33` packed actions.
+remaining transcript/export review is about `3.02 min` / `40` raw rows / `32` packed actions.
 Future cleanup or repair layers may reduce that queue only through explicit audit evidence and must
 keep possible lost `Me` speech or semantic uncertainty visible to export gates.
 

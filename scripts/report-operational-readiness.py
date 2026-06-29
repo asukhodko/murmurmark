@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.3"
+SCRIPT_VERSION = "0.3.4"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 MIN_OPERATIONAL_SESSION_DURATION_SEC = 60.0
@@ -262,6 +262,31 @@ def audio_review_row_explained_by_reliable(
         if not covered:
             return False
     return True
+
+
+def audio_review_row_explained_by_strong_local(row: dict[str, Any]) -> bool:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    if str(classification.get("label") or "") != "remote_leak":
+        return False
+    if str(classification.get("verdict") or "") != "probable_transcript_error":
+        return False
+    scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
+    features = row.get("features") if isinstance(row.get("features"), dict) else {}
+    text = features.get("text") if isinstance(features.get("text"), dict) else {}
+    local_support = safe_float(scores.get("local_support")) or 0.0
+    remote_similarity = safe_float(scores.get("remote_similarity")) or 0.0
+    text_similarity = safe_float(text.get("similarity")) or 0.0
+    containment = safe_float(text.get("containment")) or 0.0
+    remote_duplicate = safe_float(scores.get("remote_duplicate")) or 0.0
+    asr_noise = safe_float(scores.get("asr_noise")) or 0.0
+    return (
+        local_support >= 70.0
+        and remote_similarity <= 35.0
+        and text_similarity <= 0.25
+        and containment <= 0.25
+        and remote_duplicate <= 0.0
+        and asr_noise <= 0.0
+    )
 
 
 def cleanup_input_profile(session_path: Path, profile: str) -> str | None:
@@ -1106,6 +1131,8 @@ def build_review_queue(sessions: list[dict[str, Any]], max_items: int) -> list[d
             if selected_ids and not active_audio_review_row(row, selected_ids):
                 continue
             if audio_review_row_explained_by_reliable(row, selected_ids, reliable_by_me_id):
+                continue
+            if audio_review_row_explained_by_strong_local(row):
                 continue
             session_id = str(row.get("session_id") or session.get("session_id"))
             rows.append(compact_review_item(by_session.get(session_id, session), row))
