@@ -52,7 +52,8 @@ UI App не является обязательной частью roadmap. Он
 - `review-loop` — текущий этап: удерживать 13/13 `ready_for_notes` и снижать отдельные
   transcript/export blockers; ручный workspace review и агентный `review agent` уже есть. Оставшаяся
   очередь считается после `agent_reviewed_v1`, поэтому следующий шаг должен закрывать новые
-  доказуемые классы, а не повторно запускать уже применённый агентный слой.
+  доказуемые классы или текущую первую review lane, а не повторно запускать уже применённый
+  агентный слой.
 - `quality-hardening` — текущий этап: улучшение качества transcript без смены топологии; первый
   явный `order_repair_v1` уже чинит только те order-risk регионы, которые безопасно режутся по
   сохранённым source ASR segments. `local_recall_repair_v1` уже восстанавливает короткие
@@ -106,23 +107,24 @@ flowchart LR
 
 - удержать corpus verdict на уровне `medium_risk_ready` или выше;
 - удержать рабочий корпус на 13/13 `ready_for_notes`;
-- опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `2.65 min`
+- опираться на текущую точку 2026-06-29: `0.02 min` проверки для selected notes и `2.36 min`
   отдельной transcript/export проверки на 13 рабочих сессиях;
-- держать export-review очередь явной и исполнимой: сейчас это `40` raw rows / `31` packed actions
+- держать export-review очередь явной и исполнимой: сейчас это `40` raw rows / `33` packed actions
   уже после `agent_reviewed_v1` + `audit_cleanup_v7`, через `murmurmark review next` / `review workspace`;
 - учитывать применённые repair decisions в readiness: local-recall очередь уже сокращена до одной
   короткой unresolved строки, остальные high-confidence repair insertions закрыты как reviewed;
-- снизить `transcript_review_burden` с `2.65 min` до `<= 1.5 min` и очередь с `31` до `<= 15`
+- снизить `transcript_review_burden` с `2.36 min` до `<= 1.5 min` и очередь с `33` до `<= 15`
   packed actions, не смешивая это с готовностью notes;
 - расширять repair/cleanup только через corpus gates и audio-review evidence;
 - держать raw capture, Echo Guard и основной ASR неизменными без отдельного решения;
 - считать успехом не идеальный transcript, а готовые evidence-backed notes при явно сохранённых
   transcript/export blockers.
 
-Выбранный ближайший шаг: идти через уже подготовленный `murmurmark next corpus`, закрыть первую
-`check_unique_me_content` lane, применить решения и заново построить readiness. Только после этого
-имеет смысл добавлять новое автоматическое правило: оно должно повторять фактически подтверждённый
-класс, а не угадывать его по метрикам.
+Выбранный ближайший шаг: идти через актуальный `murmurmark next corpus`, закрыть первую
+`check_unique_me_content` lane, применить решения и заново построить readiness. Если до ручного
+разбора появляется ещё одно автоматическое правило, оно должно быть таким же узким, как текущая
+propagation-логика: распространять уже подтверждённый `keep_me` только на sibling `remote_leak`
+для той же `Me`-реплики и не трогать `remote_duplicate`.
 
 Первый блок уже применён: transcript-only `uncertain` rows снимаются из burden только когда тот же
 selected `Me` interval покрыт high-confidence `likely_reliable` audio-review evidence. Второй блок
@@ -137,8 +139,10 @@ short `remote_leak` без remote-utterance закрывается как `keep_
 показывает чистый `local_only`, overlap с remote-репликой мал, а в `Me` есть уникальный локальный
 текст. Седьмой маленький блок: short partial `remote_duplicate` закрывается как `keep_me`, когда
 дубликат покрывает только часть `Me`, `speaker_state` показывает чистый `local_only`, а оставшаяся
-часть `Me` содержит уникальное продолжение. Следующий исполнительный блок — закрыть первую
-`check_unique_me_content` lane (`13` rows / `11` review items) через
-`murmurmark review first-lane --session sessions/2026-06-26_11-15-50`, применить ответы и только
-после этого переносить подтверждённые повторяющиеся случаи в automation. `check_local_recall`
+часть `Me` содержит уникальное продолжение. Восьмой маленький блок: подтверждённый `keep_me`
+распространяется на sibling `remote_leak` для той же `Me`-реплики, если у sibling-строки нет
+duplicate/noise signal; на `remote_duplicate` это правило не распространяется. Следующий
+исполнительный блок — закрыть первую `check_unique_me_content` lane из актуального
+`murmurmark next corpus`, применить ответы и только после этого переносить подтверждённые
+повторяющиеся случаи в automation. `check_local_recall`
 сейчас содержит только одну короткую unresolved строку и не должен становиться основным фокусом.

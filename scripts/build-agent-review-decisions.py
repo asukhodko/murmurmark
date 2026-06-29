@@ -9,12 +9,20 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.5"
+SCRIPT_VERSION = "0.3.6"
 SCHEMA = "murmurmark.agent_review_decisions/v1"
 OUTPUT_PROFILE = "agent_reviewed_v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 LOCAL_RECALL_REPAIR_PROFILE = "local_recall_repair_v1"
 SPEAKER_STATE_CACHE: dict[Path, list[dict[str, Any]]] = {}
+KEEP_PROPAGATION_REASONS = {
+    "bounded_remote_leak_with_local_content",
+    "likely_reliable_with_local_support",
+    "speaker_state_local_only_remote_leak_keep",
+    "speaker_state_pure_local_partial_duplicate_keep",
+    "speaker_state_pure_local_remote_context_keep",
+    "speaker_state_pure_local_short_duplicate_keep",
+}
 
 STOP_WORDS = {
     "а",
@@ -604,6 +612,46 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, sessi
     return None, "not_safe_for_agent_resolution", evidence
 
 
+def keep_propagation_reason(
+    row: dict[str, Any],
+    evidence: dict[str, Any],
+    keep_rows: list[dict[str, Any]],
+) -> tuple[str | None, dict[str, Any]]:
+    if not keep_rows:
+        return None, evidence
+    if evidence.get("label") != "remote_leak" or evidence.get("verdict") != "probable_transcript_error":
+        return None, evidence
+    if safe_float(evidence.get("remote_duplicate")) > 0 or safe_float(evidence.get("asr_noise")) > 0:
+        return None, evidence
+    if safe_float(evidence.get("local_support")) < 25:
+        return None, evidence
+    if safe_float(evidence.get("me_overlap_coverage")) < 0.25:
+        return None, evidence
+    if safe_float(evidence.get("duration_sec")) > 8.0:
+        return None, evidence
+    if not audio_review_me_ids(row):
+        return None, evidence
+
+    propagated_from = [
+        {
+            "source_audit_id": item.get("source_audit_id"),
+            "reason": item.get("suggested_decision_reason"),
+            "label": item.get("label"),
+            "evidence": item.get("review_features"),
+        }
+        for item in keep_rows
+        if item.get("suggested_decision_reason") in KEEP_PROPAGATION_REASONS
+    ]
+    if not propagated_from:
+        return None, evidence
+
+    enriched = {
+        **evidence,
+        "propagated_from": propagated_from,
+    }
+    return "same_me_utterance_confirmed_local_keep", enriched
+
+
 def decision_base(
     row: dict[str, Any],
     session: Path,
@@ -822,6 +870,7 @@ def session_rows(session: Path, profile: str, queue: dict[tuple[str, str], dict[
         return [], []
     selected_ids = selected_me_ids(session, profile)
     candidates: list[dict[str, Any]] = []
+    rejected_candidates: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
     rejected: list[dict[str, Any]] = []
     for row in read_jsonl(audit_path):
         if not is_active_audio_review_row(row, selected_ids):
@@ -829,16 +878,36 @@ def session_rows(session: Path, profile: str, queue: dict[tuple[str, str], dict[
         queue_row = queue.get((session.name, str(row.get("id") or "")))
         decision, reason, evidence = decision_reason(row, queue_row, session)
         if decision is None:
-            rejected.append(
-                {
-                    "session_id": session.name,
-                    "source_audit_id": row.get("id"),
-                    "reason": reason,
-                    "evidence": evidence,
-                }
-            )
+            rejected_candidates.append((row, reason, evidence))
             continue
         candidates.append(decision_base(row, session, profile, decision, reason, evidence))
+
+    keep_rows_by_me_id: dict[str, list[dict[str, Any]]] = {}
+    for row in candidates:
+        if row.get("decision") != "keep_me" or row.get("suggested_decision_reason") not in KEEP_PROPAGATION_REASONS:
+            continue
+        for utterance_id in row.get("me_utterance_ids") or []:
+            keep_rows_by_me_id.setdefault(str(utterance_id), []).append(row)
+
+    candidate_source_ids = {str(row.get("source_audit_id")) for row in candidates}
+    for row, reason, evidence in rejected_candidates:
+        source_id = str(row.get("id") or "")
+        keep_rows: list[dict[str, Any]] = []
+        for utterance_id in audio_review_me_ids(row):
+            keep_rows.extend(keep_rows_by_me_id.get(str(utterance_id), []))
+        propagation_reason, propagated_evidence = keep_propagation_reason(row, evidence, keep_rows)
+        if propagation_reason and source_id not in candidate_source_ids:
+            candidates.append(decision_base(row, session, profile, "keep_me", propagation_reason, propagated_evidence))
+            candidate_source_ids.add(source_id)
+            continue
+        rejected.append(
+            {
+                "session_id": session.name,
+                "source_audit_id": row.get("id"),
+                "reason": reason,
+                "evidence": evidence,
+            }
+        )
 
     by_me_id: dict[str, list[dict[str, Any]]] = {}
     for row in candidates:
