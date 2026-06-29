@@ -2178,6 +2178,24 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
     "answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt",
     "suggested_answer_sheet": "sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.suggested.txt"
   },
+  "inputs": {
+    "template": "sessions/_reports/review-plan/review_decisions.template.jsonl",
+    "decisions": "sessions/_reports/review-plan/review_decisions.jsonl",
+    "fingerprints": {
+      "template": {
+        "path": "sessions/_reports/review-plan/review_decisions.template.jsonl",
+        "exists": true,
+        "size": 12345,
+        "sha256": "..."
+      },
+      "decisions": {
+        "path": "sessions/_reports/review-plan/review_decisions.jsonl",
+        "exists": true,
+        "size": 678,
+        "sha256": "..."
+      }
+    }
+  },
   "summary": {
     "selected_rows": 10,
     "item_count": 10,
@@ -2268,6 +2286,10 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
 }
 ```
 
+`inputs.fingerprints` stores SHA-256 fingerprints for the template and decisions files used to build
+the pack. `murmurmark next corpus` uses those fingerprints to keep an already prepared pack active
+after a harmless report refresh, while still rejecting it after real review-template or answer-file
+changes.
 `review_row_key` is the stable row identity for applying answers. `source_audit_id` is useful for
 display but is not guaranteed to be unique across clustered review rows. `source`, `input_profile`
 and utterance id arrays are copied from the review template so a lane pack remains auditable even

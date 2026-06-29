@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shlex
 import subprocess
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.7.0"
+SCRIPT_VERSION = "0.8.0"
 SCHEMA = "murmurmark.review_lane_pack/v1"
 KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -74,6 +75,26 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def sha256_file(path: Path) -> str | None:
+    if not path.exists() or not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def file_fingerprint(path: Path) -> dict[str, Any]:
+    exists = path.exists()
+    return {
+        "path": str(path),
+        "exists": exists,
+        "size": path.stat().st_size if exists and path.is_file() else None,
+        "sha256": sha256_file(path) if exists and path.is_file() else None,
+    }
 
 
 def display_path(path: Path) -> str:
@@ -1016,8 +1037,12 @@ def main() -> int:
         "generator": {"name": "build-review-lane-pack", "version": SCRIPT_VERSION},
         "lane": args.lane,
         "inputs": {
-            "template": str(args.template),
-            "decisions": str(args.decisions) if args.decisions.exists() else None,
+            "template": str(template_path),
+            "decisions": str(decisions_path) if decisions_path.exists() else None,
+            "fingerprints": {
+                "template": file_fingerprint(template_path),
+                "decisions": file_fingerprint(decisions_path),
+            },
         },
         "parameters": {
             "session_filters": sorted(session_filters),

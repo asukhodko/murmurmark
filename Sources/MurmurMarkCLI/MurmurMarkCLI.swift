@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import CoreMedia
+import CryptoKit
 import Foundation
 import ScreenCaptureKit
 
@@ -9532,8 +9533,8 @@ enum CorpusPrinter {
         let lanePackDir = session.appendingPathComponent("derived/readiness/review-plan/lane-packs")
         let manifest = lanePackDir.appendingPathComponent("review_lane_pack.\(lane).json")
         guard FileManager.default.fileExists(atPath: manifest.path),
-              !isStale(path: manifest, comparedTo: freshnessReference),
-              let payload = try? JSONFiles.object(manifest)
+              let payload = try? JSONFiles.object(manifest),
+              lanePackIsFresh(payload: payload, manifest: manifest, freshnessReference: freshnessReference)
         else {
             return nil
         }
@@ -9570,6 +9571,71 @@ enum CorpusPrinter {
             return false
         }
         return pathModified < referenceModified
+    }
+
+    private static func lanePackIsFresh(payload: [String: Any], manifest: URL, freshnessReference: URL) -> Bool {
+        if let inputsCurrent = lanePackInputFingerprintsAreCurrent(payload) {
+            return inputsCurrent
+        }
+        return !isStale(path: manifest, comparedTo: freshnessReference)
+    }
+
+    private static func lanePackInputFingerprintsAreCurrent(_ payload: [String: Any]) -> Bool? {
+        guard let inputs = payload["inputs"] as? [String: Any],
+              let fingerprints = inputs["fingerprints"] as? [String: Any]
+        else {
+            return nil
+        }
+        var checked = false
+        for key in ["template", "decisions"] {
+            guard let fingerprint = fingerprints[key] as? [String: Any] else {
+                continue
+            }
+            checked = true
+            if !fingerprintMatchesCurrentFile(fingerprint) {
+                return false
+            }
+        }
+        return checked ? true : nil
+    }
+
+    private static func fingerprintMatchesCurrentFile(_ fingerprint: [String: Any]) -> Bool {
+        guard let path = string(fingerprint["path"]), !path.isEmpty else {
+            return false
+        }
+        let expectedExists = bool(fingerprint["exists"]) ?? false
+        let url = PathURLs.fileURL(path)
+        let exists = FileManager.default.fileExists(atPath: url.path)
+        guard exists == expectedExists else {
+            return false
+        }
+        guard expectedExists else {
+            return true
+        }
+        if let expectedSize = int(fingerprint["size"]),
+           let actualSize = fileSize(url),
+           expectedSize != actualSize {
+            return false
+        }
+        if let expectedSHA = string(fingerprint["sha256"]), !expectedSHA.isEmpty {
+            return sha256File(url) == expectedSHA
+        }
+        return true
+    }
+
+    private static func fileSize(_ url: URL) -> Int? {
+        guard let values = try? url.resourceValues(forKeys: [.fileSizeKey]) else {
+            return nil
+        }
+        return values.fileSize
+    }
+
+    private static func sha256File(_ url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 
     private static func modificationDate(_ path: URL) -> Date? {
@@ -9746,6 +9812,16 @@ enum CorpusPrinter {
     private static func int(_ value: Any?) -> Int? {
         if let number = value as? NSNumber { return number.intValue }
         if let text = value as? String { return Int(text) }
+        return nil
+    }
+
+    private static func bool(_ value: Any?) -> Bool? {
+        if let bool = value as? Bool { return bool }
+        if let number = value as? NSNumber { return number.boolValue }
+        if let text = value as? String {
+            if ["true", "yes", "1"].contains(text.lowercased()) { return true }
+            if ["false", "no", "0"].contains(text.lowercased()) { return false }
+        }
         return nil
     }
 

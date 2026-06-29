@@ -2123,6 +2123,8 @@ EOF
   [[ -s "$lane_pack_dir/review_lane_answers.check_local_recall.txt" ]]
   [[ -s "$lane_pack_dir/review_lane_answers.check_local_recall.suggested.txt" ]]
   jq -e '.schema == "murmurmark.review_lane_pack/v1" and .summary.selected_rows == 1 and .summary.item_count == 1 and .items[0].source_audit_id == "local_recall_0001"' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
+  jq -e '.inputs.fingerprints.template.sha256 and (.inputs.fingerprints.decisions.exists == false)' \
+    "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   jq -e '.outputs.answer_sheet | endswith("review_lane_answers.check_local_recall.txt")' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   jq -e '.outputs.suggested_answer_sheet | endswith("review_lane_answers.check_local_recall.suggested.txt")' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   grep -q '^answers=\.$' "$lane_pack_dir/review_lane_answers.check_local_recall.txt"
