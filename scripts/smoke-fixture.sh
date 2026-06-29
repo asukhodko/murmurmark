@@ -1271,6 +1271,16 @@ PY
   [[ -s "$local_recall_repair_report" ]]
   [[ -s "$local_recall_repair_dialogue" ]]
   jq -e '.gates.passed == true and .summary.applied_repairs == 1' "$local_recall_repair_report" >/dev/null
+  jq -e '
+    (.recommended_next | startswith("murmurmark synthesize ")) and
+    (.next_commands[0].id == "synthesize_repair_profile") and
+    ([.open_commands[].id] | index("open_repair_report"))
+  ' "$local_recall_repair_report" >/dev/null
+  local_recall_repair_next="$(jq -r '.recommended_next' "$local_recall_repair_report")"
+  printf '%s\n' "$local_recall_repair_output" | grep -Fx "  recommended_next: $local_recall_repair_next" >/dev/null
+  while IFS= read -r json_next_command; do
+    printf '%s\n' "$local_recall_repair_output" | grep -Fx "    $json_next_command" >/dev/null
+  done < <(jq -r '.next_commands[].command' "$local_recall_repair_report")
   jq -e 'any(.utterances[]; .id == "local_recall_repair_v1_local_recall_0003" and .speaker_label == "Me" and .text == "Я возьму логи.")' "$local_recall_repair_dialogue" >/dev/null
   "$repo_root/scripts/synthesize-simple-extractive.py" "$group_session" \
     --transcript-profile local_recall_repair_v1 >/dev/null
@@ -1393,6 +1403,17 @@ EOF
   tail -1 <<<"$order_repair_cli_output" | grep -q '^next: murmurmark synthesize '
   jq -e '.gates.passed == true and .summary.applied_repairs == 1 and .summary.split_utterances_created == 2' \
     "$order_session/derived/transcript-simple/whisper-cpp/order-repair/transcript_order_repair_report.order_repair_v1.json" >/dev/null
+  order_repair_report="$order_session/derived/transcript-simple/whisper-cpp/order-repair/transcript_order_repair_report.order_repair_v1.json"
+  jq -e '
+    (.recommended_next | startswith("murmurmark synthesize ")) and
+    (.next_commands[0].id == "synthesize_repair_profile") and
+    ([.open_commands[].id] | index("open_repair_report"))
+  ' "$order_repair_report" >/dev/null
+  order_repair_next="$(jq -r '.recommended_next' "$order_repair_report")"
+  printf '%s\n' "$order_repair_cli_output" | grep -Fx "  recommended_next: $order_repair_next" >/dev/null
+  while IFS= read -r json_next_command; do
+    printf '%s\n' "$order_repair_cli_output" | grep -Fx "    $json_next_command" >/dev/null
+  done < <(jq -r '.next_commands[].command' "$order_repair_report")
   jq -e '
     [.utterances[].id] as $ids |
     ($ids | index("utt_order_me") | not) and

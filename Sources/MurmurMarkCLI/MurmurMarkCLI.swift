@@ -3641,12 +3641,16 @@ enum RepairPrinter {
         if let warnings = gates["warnings"] as? [Any], !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
-        print("  recommended_next: murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
+        let fallbackCommands = repairFallbackCommands(session: session, profile: profile)
+        let displayedNextCommands = commandList(payload["next_commands"])
+        let nextCommands = displayedNextCommands.isEmpty ? fallbackCommands : displayedNextCommands
+        let recommendedNext = string(payload["recommended_next"]) ?? nextCommands[0]
+        print("  recommended_next: \(recommendedNext)")
         print("  next:")
-        print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
-        print("    murmurmark transcript \(PathDisplay.display(session)) --profile \(profile)")
-        print("    murmurmark report \(PathDisplay.display(session))")
-        FinalNextPrinter.print("murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
+        for command in nextCommands {
+            print("    \(command)")
+        }
+        FinalNextPrinter.print(recommendedNext)
     }
 
     static func printOrderSummary(session: URL, args: [String]) throws {
@@ -3679,12 +3683,16 @@ enum RepairPrinter {
         if let warnings = gates["warnings"] as? [Any], !warnings.isEmpty {
             print("  warnings: \(compactJSON(warnings))")
         }
-        print("  recommended_next: murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
+        let fallbackCommands = repairFallbackCommands(session: session, profile: profile)
+        let displayedNextCommands = commandList(payload["next_commands"])
+        let nextCommands = displayedNextCommands.isEmpty ? fallbackCommands : displayedNextCommands
+        let recommendedNext = string(payload["recommended_next"]) ?? nextCommands[0]
+        print("  recommended_next: \(recommendedNext)")
         print("  next:")
-        print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
-        print("    murmurmark transcript \(PathDisplay.display(session)) --profile \(profile)")
-        print("    murmurmark report \(PathDisplay.display(session))")
-        FinalNextPrinter.print("murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
+        for command in nextCommands {
+            print("    \(command)")
+        }
+        FinalNextPrinter.print(recommendedNext)
     }
 
     static func printRemoteLeakSummary(session: URL, args: [String]) throws {
@@ -3726,7 +3734,26 @@ enum RepairPrinter {
     }
 
     private static func string(_ value: Any?) -> String? {
-        value as? String
+        guard let value = value as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func commandList(_ value: Any?) -> [String] {
+        guard let rows = value as? [[String: Any]] else { return [] }
+        return rows.compactMap { row in
+            guard let command = row["command"] as? String else { return nil }
+            let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+    }
+
+    private static func repairFallbackCommands(session: URL, profile: String) -> [String] {
+        [
+            "murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)",
+            "murmurmark transcript \(PathDisplay.display(session)) --profile \(profile)",
+            "murmurmark report \(PathDisplay.display(session))",
+        ]
     }
 
     private static func bool(_ value: Any?) -> Bool {

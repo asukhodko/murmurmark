@@ -482,7 +482,37 @@ derived/transcript-simple/whisper-cpp/local-recall-repair/
     "passed": true,
     "hard_failures": [],
     "warnings": []
-  }
+  },
+  "recommended_next": "murmurmark synthesize sessions/example --transcript-profile local_recall_repair_v1",
+  "next_commands": [
+    {
+      "id": "synthesize_repair_profile",
+      "command": "murmurmark synthesize sessions/example --transcript-profile local_recall_repair_v1",
+      "reason": "build quality verdict and notes from the repair profile"
+    },
+    {
+      "id": "open_repair_transcript",
+      "command": "murmurmark transcript sessions/example --profile local_recall_repair_v1",
+      "reason": "inspect the repair transcript through the CLI"
+    },
+    {
+      "id": "refresh_session_report",
+      "command": "murmurmark report sessions/example",
+      "reason": "refresh readiness after repair-derived synthesis"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_repair_report",
+      "command": "less sessions/example/derived/transcript-simple/whisper-cpp/local-recall-repair/local_recall_repair_report.local_recall_repair_v1.json",
+      "path": "sessions/example/derived/transcript-simple/whisper-cpp/local-recall-repair/local_recall_repair_report.local_recall_repair_v1.json"
+    },
+    {
+      "id": "open_repair_transcript",
+      "command": "less sessions/example/derived/transcript-simple/whisper-cpp/resolved/transcript.local_recall_repair_v1.md",
+      "path": "sessions/example/derived/transcript-simple/whisper-cpp/resolved/transcript.local_recall_repair_v1.md"
+    }
+  ]
 }
 ```
 
@@ -491,6 +521,8 @@ Applied patches use `murmurmark.local_recall_repair_patch/v1`; rejected items us
 `--transcript-profile local_recall_repair_v1` explicitly and adds a review risk when inserted local
 turns exist. Auto-promotion is intentionally left out until corpus evidence proves that the inserted
 turns reduce lost local speech without increasing remote leak.
+The report also carries `recommended_next`, `next_commands` and `open_commands`; the Swift CLI prints
+these fields after `murmurmark repair local-recall` so terminal output and JSON handoff stay identical.
 `local_recall_repair_micro_runs.local_recall_repair_v1.jsonl` keeps per-source/per-window evidence:
 raw transcription text, selected rows, score, source label, window label and fallback metadata.
 Operational readiness exposes applied repair turns as review queue rows with:
@@ -603,7 +635,37 @@ derived/transcript-simple/whisper-cpp/order-repair/
     "passed": true,
     "hard_failures": [],
     "warnings": []
-  }
+  },
+  "recommended_next": "murmurmark synthesize sessions/example --transcript-profile order_repair_v1",
+  "next_commands": [
+    {
+      "id": "synthesize_repair_profile",
+      "command": "murmurmark synthesize sessions/example --transcript-profile order_repair_v1",
+      "reason": "build quality verdict and notes from the repair profile"
+    },
+    {
+      "id": "open_repair_transcript",
+      "command": "murmurmark transcript sessions/example --profile order_repair_v1",
+      "reason": "inspect the repair transcript through the CLI"
+    },
+    {
+      "id": "refresh_session_report",
+      "command": "murmurmark report sessions/example",
+      "reason": "refresh readiness after repair-derived synthesis"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_repair_report",
+      "command": "less sessions/example/derived/transcript-simple/whisper-cpp/order-repair/transcript_order_repair_report.order_repair_v1.json",
+      "path": "sessions/example/derived/transcript-simple/whisper-cpp/order-repair/transcript_order_repair_report.order_repair_v1.json"
+    },
+    {
+      "id": "open_repair_transcript",
+      "command": "less sessions/example/derived/transcript-simple/whisper-cpp/resolved/transcript.order_repair_v1.md",
+      "path": "sessions/example/derived/transcript-simple/whisper-cpp/resolved/transcript.order_repair_v1.md"
+    }
+  ]
 }
 ```
 
@@ -616,6 +678,8 @@ When repair cannot be applied safely, the original utterance remains in the outp
 materialized, and every unrepaired order risk is still explicit as `needs_review`. It does not mean
 all chronology risk disappeared. Partial repairs add `partial_order_repair_needs_review` to warnings
 and keep `unrepaired_order_risk_seconds` in readiness.
+The report also carries `recommended_next`, `next_commands` and `open_commands`; `murmurmark repair
+order` prints those JSON commands instead of keeping a separate hard-coded terminal handoff.
 Synthesis accepts `--transcript-profile order_repair_v1` explicitly and treats failed repair gates as
 a high-severity selection risk. `--transcript-profile auto` may select `order_repair_v1` only when it
 was built over the otherwise selected base profile, gates passed and at least one repair was applied.

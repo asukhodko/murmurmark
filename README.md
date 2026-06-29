@@ -415,7 +415,9 @@ the long `Me` turn can be split by its saved source ASR segments. It never edits
 profiles; if the split is not safe, it marks the affected utterance for review instead. When gates
 pass and at least one repair was applied, session-quality/readiness and synthesis `auto` can select
 `order_repair_v1`. Fully repaired sessions clear the order-risk burden; partial repairs keep the
-remaining unsafe regions as explicit review items.
+remaining unsafe regions as explicit review items. The repair report stores the same
+`recommended_next`, `next_commands` and `open_commands` that the CLI prints, so terminal handoff and
+JSON handoff stay in sync.
 `murmurmark repair remote-leak` is audit-only. It reads `audio_review_audit.jsonl`, selects
 `remote_leak` rows and partial `remote_duplicate` rows that look like probable transcript errors,
 and writes a segment-level repair plan under
@@ -619,6 +621,8 @@ separate `local_recall_repair_v1` profile over the best current safe profile. In
 marked `needs_review`; baseline, cleanup and order profiles are not modified. Use this profile
 explicitly when checking whether a missed short local phrase was recovered:
 `murmurmark synthesize SESSION --transcript-profile local_recall_repair_v1`.
+Its report carries `recommended_next`, `next_commands` and `open_commands`, and the CLI prints those
+JSON commands after repair.
 For short boundary islands, the repair also inspects raw micro-ASR rows. If Whisper produced text
 whose timestamp overlaps or nearly touches the island but whose midpoint is outside it, the row can
 be recovered through `boundary_overlap_fallback`; the attempt stays visible in

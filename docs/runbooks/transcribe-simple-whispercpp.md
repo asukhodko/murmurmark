@@ -357,6 +357,8 @@ murmurmark synthesize "$SESSION" --transcript-profile order_repair_v1
 less "$SESSION/derived/transcript-simple/whisper-cpp/resolved/transcript.order_repair_v1.md"
 jq '.summary, .gates' \
   "$SESSION/derived/transcript-simple/whisper-cpp/order-repair/transcript_order_repair_report.order_repair_v1.json"
+jq '{recommended_next, next_commands: [.next_commands[].id], open_commands: [.open_commands[].id]}' \
+  "$SESSION/derived/transcript-simple/whisper-cpp/order-repair/transcript_order_repair_report.order_repair_v1.json"
 ```
 
 `order_repair_v1` does not rewrite baseline, `shadow_v2`, cleanup or reviewed profiles. It only
@@ -368,6 +370,8 @@ After a passing repair, `murmurmark report "$SESSION"` can select `order_repair_
 `transcript_order_repaired_clear` instead of keeping the old order-risk burden. Partial repair is
 also valid: already-split regions are used, but unrepaired regions stay as `needs_review` and remain
 in `transcript_order_review_seconds`.
+The repair report owns the next-step handoff: `murmurmark repair order` prints the same
+`recommended_next` and `next_commands` that are stored in JSON.
 
 For corpus work, aggregate order risks after the usual session-quality report:
 
@@ -816,10 +820,14 @@ murmurmark repair local-recall "$SESSION" \
 
 murmurmark transcript "$SESSION" --profile local_recall_repair_v1
 murmurmark synthesize "$SESSION" --transcript-profile local_recall_repair_v1
+jq '{recommended_next, next_commands: [.next_commands[].id], open_commands: [.open_commands[].id]}' \
+  "$SESSION/derived/transcript-simple/whisper-cpp/local-recall-repair/local_recall_repair_report.local_recall_repair_v1.json"
 ```
 
 Inserted `Me` turns start as `needs_review`, so this profile is for inspection and explicit use until
 review closes them.
+The local-recall repair report also owns the next-step handoff; the CLI prints those JSON commands
+after repair, with a fallback only for older reports.
 For short islands near a parent boundary, `local_recall_repair_v1` also records raw micro-ASR rows
 and may use `boundary_overlap_fallback` when Whisper recognized text but the row midpoint landed
 just outside the selected local island. This is still conservative: the recovered turn is inserted

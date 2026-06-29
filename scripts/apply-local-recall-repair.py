@@ -6,6 +6,7 @@ import copy
 import importlib.util
 import json
 import re
+import shlex
 import shutil
 import sys
 from pathlib import Path
@@ -75,6 +76,58 @@ def parse_args() -> argparse.Namespace:
 
 def suffix(profile: str) -> str:
     return "" if profile == "current" else f".{profile}"
+
+
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return str(resolved.relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(resolved)
+
+
+def shell_path(path: Path) -> str:
+    return shlex.quote(display_path(path))
+
+
+def repair_handoff(session: Path, output_profile: str, report_path: Path, transcript_path: Path) -> dict[str, Any]:
+    session_arg = shell_path(session)
+    profile_arg = shlex.quote(output_profile)
+    synthesize_command = f"murmurmark synthesize {session_arg} --transcript-profile {profile_arg}"
+    transcript_command = f"murmurmark transcript {session_arg} --profile {profile_arg}"
+    report_command = f"murmurmark report {session_arg}"
+    return {
+        "recommended_next": synthesize_command,
+        "next_commands": [
+            {
+                "id": "synthesize_repair_profile",
+                "command": synthesize_command,
+                "reason": "build quality verdict and notes from the repair profile",
+            },
+            {
+                "id": "open_repair_transcript",
+                "command": transcript_command,
+                "reason": "inspect the repair transcript through the CLI",
+            },
+            {
+                "id": "refresh_session_report",
+                "command": report_command,
+                "reason": "refresh readiness after repair-derived synthesis",
+            },
+        ],
+        "open_commands": [
+            {
+                "id": "open_repair_report",
+                "command": f"less {shell_path(report_path)}",
+                "path": display_path(report_path),
+            },
+            {
+                "id": "open_repair_transcript",
+                "command": f"less {shell_path(transcript_path)}",
+                "path": display_path(transcript_path),
+            },
+        ],
+    }
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -653,6 +706,8 @@ def main() -> int:
     input_profile = resolve_profile(session, args.input_profile)
     input_suffix = suffix(input_profile)
     output_suffix = suffix(args.output_profile)
+    report_path = repair_dir / f"local_recall_repair_report{output_suffix}.json"
+    transcript_path = resolved / f"transcript{output_suffix}.md"
     dialogue_path = resolved / f"clean_dialogue{input_suffix}.json"
     quality_path = resolved / f"quality_report{input_suffix}.json"
     local_recall_audit_path = session / "derived/audit/local-recall/local_recall_audit.json"
@@ -673,9 +728,10 @@ def main() -> int:
             },
             "summary": {},
             "gates": {"passed": False, "hard_failures": ["missing_inputs"], "warnings": []},
+            **repair_handoff(session, args.output_profile, report_path, transcript_path),
         }
-        write_json(repair_dir / f"local_recall_repair_report{output_suffix}.json", report)
-        print(f"local_recall_repair_report: {repair_dir / f'local_recall_repair_report{output_suffix}.json'}")
+        write_json(report_path, report)
+        print(f"local_recall_repair_report: {report_path}")
         print("status: missing_inputs")
         return 2
 
@@ -820,20 +876,21 @@ def main() -> int:
         "local_recall_audit_summary": local_recall_audit.get("summary") if isinstance(local_recall_audit.get("summary"), dict) else {},
         "summary": summary,
         "gates": gates,
+        **repair_handoff(session, args.output_profile, report_path, transcript_path),
     }
 
     write_json(resolved / f"clean_dialogue{output_suffix}.json", output_dialogue)
     write_json(resolved / f"quality_report{output_suffix}.json", output_quality)
     write_json(resolved / f"overlaps{output_suffix}.json", {"schema": "murmurmark.transcript_overlaps/v1", "session": session.name, "overlaps": overlaps})
     write_json(resolved / f"transcript.simple{output_suffix}.json", simple_payload)
-    write_markdown(resolved / f"transcript{output_suffix}.md", output_utterances, transcript_report.get("model"), transcript_report.get("language"))
-    write_json(repair_dir / f"local_recall_repair_report{output_suffix}.json", report)
+    write_markdown(transcript_path, output_utterances, transcript_report.get("model"), transcript_report.get("language"))
+    write_json(report_path, report)
     write_jsonl(repair_dir / f"local_recall_repair_patches{output_suffix}.jsonl", patches)
     write_jsonl(repair_dir / f"local_recall_repair_rejected{output_suffix}.jsonl", rejected)
     write_jsonl(repair_dir / f"local_recall_repair_micro_runs{output_suffix}.jsonl", micro_runs)
     write_review(repair_dir / f"local_recall_repair{output_suffix}.md", session, report, patches, rejected)
 
-    print(f"local_recall_repair_report: {repair_dir / f'local_recall_repair_report{output_suffix}.json'}")
+    print(f"local_recall_repair_report: {report_path}")
     print(f"output_profile: {args.output_profile}")
     print(f"applied_repairs: {summary['applied_repairs']}")
     print(f"inserted_me_seconds: {summary['inserted_me_seconds']}")
