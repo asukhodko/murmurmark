@@ -48,8 +48,8 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - working sessions: `14/15 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.11 min`;
 - remaining full transcript/export review surface: `2.47 min`;
-- mandatory export-review queue: `30` raw rows / `27` packed actions after the current automatic
-  `agent_reviewed_v1` + `audit_cleanup_v7` layers; `10` short low-materiality rows (`0.39 min`) are
+- mandatory export-review queue: `29` raw rows / `26` packed actions after the current automatic
+  `agent_reviewed_v1` + `audit_cleanup_v7` layers; `11` short low-materiality rows (`0.52 min`) are
   kept in the report but outside the mandatory review queue; the active plan currently focuses on
   transcript-order checks, with local-recall review reduced to one short unresolved row;
 - next product target: close or safely explain the remaining transcript/export blockers, especially

@@ -787,6 +787,37 @@ def review_item_me_text(item: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def review_item_remote_text(item: dict[str, Any]) -> str:
+    rows = item.get("text") if isinstance(item.get("text"), list) else []
+    parts: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        source = str(row.get("source_track") or "").lower()
+        role = str(row.get("role") or row.get("speaker_label") or "").lower()
+        if source == "remote" or role in {"remote", "colleagues"}:
+            parts.append(str(row.get("text") or ""))
+    return " ".join(parts)
+
+
+def is_order_backchannel(text: Any) -> bool:
+    tokens = normalized_tokens(text)
+    return tokens in (
+        ["да"],
+        ["окей"],
+        ["окей", "да"],
+        ["ну", "да"],
+        ["ну", "да", "да"],
+        ["ага"],
+        ["угу"],
+        ["хорошо"],
+        ["понял"],
+        ["поняла"],
+        ["спасибо"],
+        ["спасибо", "тебе"],
+    )
+
+
 def review_item_low_materiality(item: dict[str, Any]) -> bool:
     source = str(item.get("source") or "")
     label = str(item.get("label") or "")
@@ -799,10 +830,18 @@ def review_item_low_materiality(item: dict[str, Any]) -> bool:
             return False
         features = item.get("review_features") if isinstance(item.get("review_features"), dict) else {}
         content_tokens = low_materiality_content_tokens(me_text)
+        text_similarity = safe_float(features.get("text_similarity"))
+        remote_containment = safe_float(features.get("remote_text_contained_in_me"))
+        simple_me_tail = len(content_tokens) <= 2
+        remote_backchannel = (
+            is_order_backchannel(review_item_remote_text(item))
+            and 0.0 < safe_float(features.get("overlap_duration_sec")) <= 8.0
+            and safe_float(features.get("pre_remote_lead_sec")) <= 1.0
+        )
         return (
-            len(content_tokens) <= 2
-            and safe_float(features.get("text_similarity")) <= 0.30
-            and safe_float(features.get("remote_text_contained_in_me")) <= 0.05
+            (simple_me_tail or remote_backchannel)
+            and text_similarity <= 0.30
+            and remote_containment <= 0.05
             and not bool(features.get("remote_inside_me"))
             and not bool(features.get("me_wraps_remote"))
         )

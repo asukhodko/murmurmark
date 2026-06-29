@@ -3380,6 +3380,18 @@ technical_order_item = {
     ],
 }
 assert not module.review_item_low_materiality(technical_order_item), technical_order_item
+backchannel_order_item = {
+    **technical_order_item,
+    "review_features": {
+        "text_similarity": 0.08,
+        "remote_text_contained_in_me": 0.0,
+        "remote_inside_me": False,
+        "me_wraps_remote": False,
+        "overlap_duration_sec": 7.5,
+        "pre_remote_lead_sec": 0.3,
+    },
+}
+assert module.review_item_low_materiality(backchannel_order_item), backchannel_order_item
 protected_order_item = {
     **short_order_item,
     "text": [
