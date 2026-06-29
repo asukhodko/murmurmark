@@ -2007,9 +2007,20 @@ EOF
     --out-dir "$cli_review_workspace_dir" >"$cli_workspace_stdout"
   assert_no_helper_prefix "$(cat "$cli_workspace_stdout")"
   [[ -s "$cli_review_workspace_dir/review_workspace.json" ]]
+  jq -e '
+    (.recommended_next | startswith("afplay ")) and
+    (.next_commands[0].id | startswith("first_lane_")) and
+    ([.next_commands[].id] | index("dry_run_review_workspace")) and
+    ([.next_commands[].id] | index("apply_review_workspace")) and
+    ([.open_commands[].id] | index("open_review_workspace_json")) and
+    (.manual_flow.dry_run | contains("murmurmark review workspace apply ")) and
+    (.suggested_flow.dry_run | contains("--answers-source suggested"))
+  ' "$cli_review_workspace_dir/review_workspace.json" >/dev/null
+  cli_workspace_manifest_next="$(jq -r '.recommended_next' "$cli_review_workspace_dir/review_workspace.json")"
   grep -q '^  rows: ' "$cli_workspace_stdout"
   grep -q '^  items: ' "$cli_workspace_stdout"
   grep -q '^  recommended_next: afplay ' "$cli_workspace_stdout"
+  grep -Fx "  recommended_next: $cli_workspace_manifest_next" "$cli_workspace_stdout" >/dev/null
   grep -q '^  lane_packs:$' "$cli_workspace_stdout"
   grep -q '^    check_local_recall: items=.* rows=' "$cli_workspace_stdout"
   grep -q '^      listen: afplay ' "$cli_workspace_stdout"

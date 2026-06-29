@@ -1085,6 +1085,9 @@ murmurmark review workspace apply --answers-source suggested --dry-run
 the same command as `suggested_dry_run` when suggested sheets are present. Dry-run still writes
 `review_workspace_apply_report.json`, so the CLI can print the same summary, `next_lane`, and next
 commands without changing `review_decisions.jsonl`.
+`review_workspace.json` stores the same handoff as `recommended_next`, `next_commands`,
+`open_commands`, `manual_flow`, `suggested_flow` and `after_apply`, so agents can continue from the
+workspace manifest.
 
 To materialize those suggestions as a separate shadow transcript for comparison, write a suggested
 decisions file and build `suggested_review_v1`:

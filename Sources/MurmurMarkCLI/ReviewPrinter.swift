@@ -554,7 +554,7 @@ enum ReviewPrinter {
         }
         print(String(format: "  listen_minutes: %.2f", durationSeconds / 60))
         print("  by_lane: \(compactJSON(byLane))")
-        if let recommended = firstWorkspaceReviewCommand(okLanes) {
+        if let recommended = string(payload["recommended_next"]) ?? firstWorkspaceReviewCommand(okLanes) {
             print("  recommended_next: \(recommended)")
         }
         if !okLanes.isEmpty {

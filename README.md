@@ -844,7 +844,9 @@ progress, the remaining lane Markdown to read, answer sheets to edit, and the ne
 lane/workspace-apply/progress/apply commands. Workspace output also prints
 `manual_flow`, optional `suggested_flow`, and `after_apply`. It still prints `suggested_dry_run`
 and `suggested_apply` for the generated `.suggested.txt` sheets; keep the same rule as lane review
-and run the suggested path with `--dry-run` before writing decisions.
+and run the suggested path with `--dry-run` before writing decisions. The workspace JSON stores the
+same handoff as `recommended_next`, `next_commands`, `open_commands`, `manual_flow`,
+`suggested_flow` and `after_apply`.
 After `murmurmark review apply`, the CLI uses the refreshed readiness report for the primary `next`
 command. For a single session it keeps `report_next: murmurmark report ...` as the explicit refresh
 command and then prints the readiness summary, including export or retention commands when the

@@ -56,6 +56,114 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return str(resolved.relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(resolved)
+
+
+def shell_path(path: Path) -> str:
+    return shlex.quote(display_path(path))
+
+
+def command_item(item_id: str, command: str, reason: str) -> dict[str, str]:
+    return {"id": item_id, "command": command, "reason": reason}
+
+
+def command_strings(rows: Any) -> list[str]:
+    if not isinstance(rows, list):
+        return []
+    commands: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        command = str(row.get("command") or "").strip()
+        if command:
+            commands.append(command)
+    return commands
+
+
+def workspace_handoff(
+    *,
+    workspace_path: Path,
+    workspace_md_path: Path,
+    template_path: Path,
+    decisions_path: Path,
+    report_path: Path,
+    lanes: list[dict[str, Any]],
+) -> dict[str, Any]:
+    apply_base = (
+        "murmurmark review workspace apply "
+        f"--workspace {shell_path(workspace_path)} "
+        f"--template {shell_path(template_path)} "
+        f"--out {shell_path(decisions_path)} "
+        f"--report {shell_path(report_path)}"
+    )
+    next_commands: list[dict[str, str]] = []
+    first_lane = next((lane for lane in lanes if lane.get("status") == "ok"), None)
+    if isinstance(first_lane, dict):
+        for command in command_strings(first_lane.get("next_commands"))[:3]:
+            next_commands.append(command_item(f"first_lane_{len(next_commands) + 1}", command, "continue with the first review lane"))
+    next_commands.extend(
+        [
+            command_item("open_review_workspace", f"less {shell_path(workspace_md_path)}", "inspect the review workspace index"),
+            command_item("dry_run_review_workspace", f"{apply_base} --dry-run", "validate all lane answer sheets before applying"),
+            command_item("apply_review_workspace", apply_base, "apply all lane answer sheets to review_decisions.jsonl"),
+            command_item(
+                "dry_run_suggested_review_workspace",
+                f"{apply_base} --answers-source suggested --dry-run",
+                "validate generated suggested answer sheets before applying",
+            ),
+            command_item(
+                "apply_suggested_review_workspace",
+                f"{apply_base} --answers-source suggested",
+                "apply generated suggested answer sheets",
+            ),
+            command_item(
+                "refresh_review_progress",
+                (
+                    "murmurmark review progress "
+                    f"--template {shell_path(template_path)} "
+                    f"--decisions {shell_path(decisions_path)}"
+                ),
+                "refresh review progress after applying workspace answers",
+            ),
+        ]
+    )
+    open_commands = [
+        command_item("open_review_workspace", f"less {shell_path(workspace_md_path)}", "inspect the review workspace index"),
+        command_item("open_review_workspace_json", f"less {shell_path(workspace_path)}", "inspect review workspace JSON"),
+    ]
+    if isinstance(first_lane, dict) and first_lane.get("markdown"):
+        open_commands.append(
+            command_item(
+                "open_first_lane_pack",
+                f"less {shell_path(Path(str(first_lane.get('markdown'))))}",
+                "inspect the first lane pack",
+            )
+        )
+    return {
+        "recommended_next": next_commands[0]["command"] if next_commands else f"less {shell_path(workspace_md_path)}",
+        "next_commands": next_commands,
+        "open_commands": open_commands,
+        "manual_flow": {"dry_run": f"{apply_base} --dry-run", "apply": apply_base},
+        "suggested_flow": {
+            "dry_run": f"{apply_base} --answers-source suggested --dry-run",
+            "apply": f"{apply_base} --answers-source suggested",
+        },
+        "after_apply": [
+            (
+                "murmurmark review progress "
+                f"--template {shell_path(template_path)} "
+                f"--decisions {shell_path(decisions_path)}"
+            ),
+            "murmurmark review apply",
+        ],
+    }
+
+
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -187,6 +295,12 @@ def build_lane_pack(
         "markdown": outputs.get("markdown"),
         "answer_sheet": answer_sheet,
         "suggested_answer_sheet": suggested_answer_sheet,
+        "recommended_next": manifest.get("recommended_next"),
+        "next_commands": manifest.get("next_commands") if isinstance(manifest.get("next_commands"), list) else [],
+        "open_commands": manifest.get("open_commands") if isinstance(manifest.get("open_commands"), list) else [],
+        "manual_flow": manifest.get("manual_flow") if isinstance(manifest.get("manual_flow"), dict) else {},
+        "suggested_flow": manifest.get("suggested_flow") if isinstance(manifest.get("suggested_flow"), dict) else {},
+        "after_apply": manifest.get("after_apply") if isinstance(manifest.get("after_apply"), list) else [],
     }
 
 
@@ -287,6 +401,9 @@ def main() -> int:
         for row in counts
     ]
     lanes = [lane for lane in lanes if isinstance(lane, dict)]
+    workspace_path = out_dir / "review_workspace.json"
+    workspace_md_path = out_dir / "review_workspace.md"
+    workspace_apply_report = out_dir / "review_workspace_apply_report.json"
     workspace = {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -302,14 +419,24 @@ def main() -> int:
         "lane_counts": counts,
         "lanes": lanes,
         "outputs": {
-            "workspace_json": str(out_dir / "review_workspace.json"),
-            "workspace_markdown": str(out_dir / "review_workspace.md"),
+            "workspace_json": str(workspace_path),
+            "workspace_markdown": str(workspace_md_path),
             "lane_pack_dir": str(lane_pack_dir),
         },
     }
-    write_json(out_dir / "review_workspace.json", workspace)
-    write_markdown(out_dir / "review_workspace.md", workspace)
-    print(f"workspace: {out_dir / 'review_workspace.json'}")
+    workspace.update(
+        workspace_handoff(
+            workspace_path=workspace_path,
+            workspace_md_path=workspace_md_path,
+            template_path=template,
+            decisions_path=decisions,
+            report_path=workspace_apply_report,
+            lanes=lanes,
+        )
+    )
+    write_json(workspace_path, workspace)
+    write_markdown(workspace_md_path, workspace)
+    print(f"workspace: {workspace_path}")
     print(f"lanes: {len(lanes)}")
     failed = [lane for lane in lanes if lane.get("status") != "ok"]
     if failed:

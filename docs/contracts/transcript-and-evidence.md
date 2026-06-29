@@ -2247,6 +2247,9 @@ sessions/_reports/review-plan/
 The Swift CLI also prints a per-lane handoff from `review_workspace.json`: source row count, packed
 item count, grouped rows saved, estimated minutes, suggested `answers=...`, and ready
 `afplay`/`$EDITOR` commands for each lane pack.
+The workspace JSON also stores top-level `recommended_next`, `next_commands`, `open_commands`,
+`manual_flow`, `suggested_flow` and `after_apply`. The first commands come from the first generated
+lane pack, then continue through workspace dry-run/apply/progress.
 
 The JSON uses `murmurmark.review_workspace/v1`:
 
@@ -2259,6 +2262,30 @@ The JSON uses `murmurmark.review_workspace/v1`:
       "template_rows": 10
     }
   ],
+  "recommended_next": "afplay sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav",
+  "next_commands": [
+    {
+      "id": "first_lane_1",
+      "command": "afplay sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav",
+      "reason": "continue with the first review lane"
+    },
+    {
+      "id": "dry_run_review_workspace",
+      "command": "murmurmark review workspace apply --workspace sessions/_reports/review-plan/review_workspace.json --template sessions/_reports/review-plan/review_decisions.template.jsonl --out sessions/_reports/review-plan/review_decisions.jsonl --report sessions/_reports/review-plan/review_workspace_apply_report.json --dry-run",
+      "reason": "validate all lane answer sheets before applying"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_review_workspace",
+      "command": "less sessions/_reports/review-plan/review_workspace.md",
+      "reason": "inspect the review workspace index"
+    }
+  ],
+  "manual_flow": {
+    "dry_run": "murmurmark review workspace apply --workspace sessions/_reports/review-plan/review_workspace.json --template sessions/_reports/review-plan/review_decisions.template.jsonl --out sessions/_reports/review-plan/review_decisions.jsonl --report sessions/_reports/review-plan/review_workspace_apply_report.json --dry-run",
+    "apply": "murmurmark review workspace apply --workspace sessions/_reports/review-plan/review_workspace.json --template sessions/_reports/review-plan/review_decisions.template.jsonl --out sessions/_reports/review-plan/review_decisions.jsonl --report sessions/_reports/review-plan/review_workspace_apply_report.json"
+  },
   "lanes": [
     {
       "lane": "fast_confirm_drop",
