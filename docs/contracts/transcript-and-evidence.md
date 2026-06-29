@@ -2073,10 +2073,11 @@ block `murmurmark export` after notes are ready.
 conditions, sessions that are not yet `ready_for_notes`, notes review minutes and the next actions
 needed to reduce uncertainty. It is report-only: it never edits transcripts or cleanup profiles.
 `summary.review_queue_low_materiality_excluded` is also report-only. It counts short low-content
-`remote_leak` / `uncertain` review rows that were part of the selected top queue but were kept
-outside the mandatory operator queue. These rows are not deleted, marked resolved or removed from
-the underlying session-quality metrics; they only keep `review_queue`, `review_action_count`,
-`murmurmark report corpus` and `murmurmark next corpus` focused on content-bearing review work.
+`remote_leak` / `uncertain` review rows and short low-content transcript-order overlaps that were
+part of the selected top queue but were kept outside the mandatory operator queue. These rows are
+not deleted, marked resolved or removed from the underlying session-quality metrics; they only keep
+`review_queue`, `review_action_count`, `murmurmark report corpus` and `murmurmark next corpus`
+focused on content-bearing review work.
 `review_queue_strategy` is also report-only. It groups the remaining review queue into workflow
 lanes, recommends the first lane to close, and estimates the remaining queue after that first lane is
 reviewed. It reports both raw `items` and packed `actions`; `grouped_rows` is the number of raw rows
@@ -2842,7 +2843,12 @@ signal. The agent can also keep short local-only rows labelled `asr_noise` when 
 contradicts that label, and short adjacent `Me` continuations when the current utterance starts
 immediately after another `Me` turn. It can also close the narrow transcript-order audit case where
 a short remote backchannel such as `Спасибо` is fully inside a long confirmed `Me` turn, has no text
-overlap with it, and only needs `keep_me` marking rather than text or timestamp repair. Rows not
+overlap with it, and only needs `keep_me` marking rather than text or timestamp repair.
+If `faster_whisper_judge.jsonl` exists, the agent may use its high-confidence classes as extra
+evidence: `confirm_me` and `confirm_timing_or_doubletalk` can produce `keep_me` for `remote_leak`,
+while `confirm_remote_duplicate` and `confirm_asr_noise` can produce `drop_me` only when whole-row
+duplicate/noise safety gates still pass. A confirmed local `Me` decision may propagate to sibling
+`uncertain` rows for the same exact `Me` utterance. Rows not
 present in the agent template remain unresolved and continue to contribute to review burden.
 `agent_reviewed_v1` is
 eligible for `auto` only when its own coverage gates pass; it ranks below `reviewed_v1` and above
@@ -2853,9 +2859,10 @@ mostly `local_only` `speaker_state` interval.
 
 Operational readiness may still expose review rows after `agent_reviewed_v1` is selected. Those
 rows are the remaining transcript/export surface, not a sign that the automatic layer was skipped.
-As of the 2026-06-29 corpus baseline after short transcript-order backchannel review, this queue is
+As of the 2026-06-29 corpus baseline after short transcript-order backchannel review and stronger
+audio judge agent evidence, this queue is
 tracked separately from notes readiness: `14/15` working sessions are `ready_for_notes`, selected
-notes review is about `0.11 min`, and remaining transcript/export review is about `2.90 min`.
+notes review is about `0.11 min`, and remaining transcript/export review is about `2.47 min`.
 Readiness inherits applied `local_recall` and `local_recall_repair` review decisions as well as
 audio-review decisions. Closed local-recall rows with `keep_me`, `drop_me` or `skip` do not re-enter
 `murmurmark next corpus`; unresolved possible lost speech remains visible in `check_local_recall`.

@@ -3355,6 +3355,39 @@ protected_item = {
     "text": [{"role": "Me", "source_track": "mic", "text": "надо проверить"}],
 }
 assert not module.review_item_low_materiality(protected_item), protected_item
+short_order_item = {
+    "source": "transcript_order",
+    "label": "needs_review",
+    "verdict": "needs_transcript_order_review",
+    "interval": {"duration_sec": 8.5},
+    "review_features": {
+        "text_similarity": 0.12,
+        "remote_text_contained_in_me": 0.0,
+        "remote_inside_me": False,
+        "me_wraps_remote": False,
+    },
+    "text": [
+        {"role": "Me", "source_track": "mic", "text": "И что-то такое."},
+        {"role": "Colleagues", "source_track": "remote", "text": "Long remote explanation."},
+    ],
+}
+assert module.review_item_low_materiality(short_order_item), short_order_item
+technical_order_item = {
+    **short_order_item,
+    "text": [
+        {"role": "Me", "source_track": "mic", "text": "И это все уже взвешивается и влияет на очередность взятия в работу."},
+        {"role": "Colleagues", "source_track": "remote", "text": "Окей, да."},
+    ],
+}
+assert not module.review_item_low_materiality(technical_order_item), technical_order_item
+protected_order_item = {
+    **short_order_item,
+    "text": [
+        {"role": "Me", "source_track": "mic", "text": "Надо проверить это."},
+        {"role": "Colleagues", "source_track": "remote", "text": "Окей."},
+    ],
+}
+assert not module.review_item_low_materiality(protected_order_item), protected_order_item
 burden = module.session_review_burden(
     {
         "session_id": "order-repair-session",
@@ -3978,6 +4011,88 @@ unsafe["utterances"]["remote"] = {"id": "utt_remote2", "start": 10.0, "end": 18.
 unsafe["features"] = dict(item["features"], remote_duration_sec=8.0, overlap_duration_sec=8.0, post_remote_tail_sec=2.0)
 decision, evidence = module.transcript_order_decision(unsafe, session, "agent_reviewed_v1")
 assert decision is None and evidence["reason"] in {"remote_not_supported_short_backchannel", "duration_outside_short_backchannel_bounds"}, evidence
+
+audio_row = {
+    "id": "arp_stronger_keep",
+    "classification": {"label": "remote_leak", "verdict": "probable_transcript_error", "confidence": 0.78},
+    "scores": {"local_support": 40, "remote_similarity": 70, "remote_duplicate": 0, "remote_leak": 78, "asr_noise": 0},
+    "features": {"text": {"similarity": 0.4, "containment": 0.2}},
+    "interval": {"start": 1.0, "end": 3.0, "duration_sec": 2.0},
+    "utterance_ids": ["utt_keep"],
+    "utterances": [{"id": "utt_keep", "role": "me", "source_track": "mic", "start": 1.0, "end": 3.0, "text": "Local speech stays."}],
+}
+queue_row = {
+    "stronger_audio_judge": {
+        "id": "fwj_keep",
+        "classification": {
+            "label": "confirm_me",
+            "suggested_decision": "keep_me",
+            "confidence": 0.9,
+            "reason": "mic confirms Me",
+        },
+    }
+}
+decision, reason, evidence = module.decision_reason(audio_row, queue_row, session, "agent_reviewed_v1")
+assert (decision, reason) == ("keep_me", "stronger_audio_judge_confirmed_local_keep"), (decision, reason, evidence)
+
+drop_row = {
+    "id": "arp_stronger_drop",
+    "classification": {"label": "remote_leak", "verdict": "probable_transcript_error", "confidence": 0.78},
+    "scores": {"local_support": 40, "remote_similarity": 70, "remote_duplicate": 0, "remote_leak": 78, "asr_noise": 0},
+    "features": {"text": {"similarity": 0.5, "containment": 0.5}},
+    "interval": {"start": 5.0, "end": 6.0, "duration_sec": 1.0},
+    "utterance_ids": ["utt_drop", "utt_remote"],
+    "utterances": [
+        {"id": "utt_drop", "role": "me", "source_track": "mic", "start": 5.0, "end": 6.0, "text": "Тут технический анализ."},
+        {"id": "utt_remote", "role": "remote", "source_track": "remote", "start": 5.0, "end": 7.0, "text": "Тут технический анализ, но дальше другое."},
+    ],
+}
+queue_row = {
+    "stronger_audio_judge": {
+        "id": "fwj_drop",
+        "classification": {
+            "label": "confirm_remote_duplicate",
+            "suggested_decision": "drop_me",
+            "confidence": 0.95,
+            "reason": "mic is remote duplicate",
+        },
+    }
+}
+decision, reason, evidence = module.decision_reason(drop_row, queue_row, session, "agent_reviewed_v1")
+assert (decision, reason) == ("drop_me", "stronger_audio_judge_confirmed_duplicate_or_noise_drop"), (decision, reason, evidence)
+
+protected_drop = dict(drop_row)
+protected_drop["id"] = "arp_stronger_protected"
+protected_drop["utterances"] = [
+    {"id": "utt_protected", "role": "me", "source_track": "mic", "start": 5.0, "end": 6.0, "text": "Надо проверить."},
+    {"id": "utt_remote", "role": "remote", "source_track": "remote", "start": 5.0, "end": 7.0, "text": "Надо проверить."},
+]
+decision, reason, evidence = module.decision_reason(protected_drop, queue_row, session, "agent_reviewed_v1")
+assert decision is None and reason == "protected_action_decision_risk_marker", (decision, reason, evidence)
+
+uncertain_sibling = {
+    "id": "arp_uncertain_sibling",
+    "utterances": [{"id": "utt_keep", "role": "me", "source_track": "mic", "text": "Same local speech."}],
+}
+propagation_reason, propagated = module.keep_propagation_reason(
+    uncertain_sibling,
+    {
+        "label": "uncertain",
+        "verdict": "needs_stronger_audio_judge",
+        "asr_noise": 0,
+        "local_support": 25,
+        "me_overlap_coverage": 0.75,
+        "duration_sec": 2.0,
+    },
+    [
+        {
+            "source_audit_id": "arp_stronger_keep",
+            "label": "remote_leak",
+            "suggested_decision_reason": "stronger_audio_judge_confirmed_local_keep",
+        }
+    ],
+)
+assert propagation_reason == "same_me_utterance_confirmed_local_keep", (propagation_reason, propagated)
 PY
 
 empty_session="$workdir/empty-session"

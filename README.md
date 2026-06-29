@@ -47,12 +47,11 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - operational verdict: `medium_risk_ready`;
 - working sessions: `14/15 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.11 min`;
-- remaining full transcript/export review surface: `2.90 min`;
-- mandatory export-review queue: `32` raw rows / `27` packed actions after the current automatic
-  `agent_reviewed_v1` + `audit_cleanup_v7` layers; `8` short low-materiality rows (`0.11 min`) are
+- remaining full transcript/export review surface: `2.47 min`;
+- mandatory export-review queue: `30` raw rows / `27` packed actions after the current automatic
+  `agent_reviewed_v1` + `audit_cleanup_v7` layers; `10` short low-materiality rows (`0.39 min`) are
   kept in the report but outside the mandatory review queue; the active plan currently focuses on
-  transcript-order and unique-content checks, with local-recall review reduced to one short
-  unresolved row;
+  transcript-order checks, with local-recall review reduced to one short unresolved row;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
   `check_transcript_order`, `check_unique_me_content` and `remote_leak`, without changing capture,
   Echo Guard or the main ASR path, and without hiding unresolved risk from export gates.
@@ -295,8 +294,9 @@ first `murmurmark review ...` commands for that session. Its readiness block als
 without making them look like working meetings. It also prints `review_actions` and
 `grouped_review_rows`: the first is the number of answer-sheet decisions after safe grouping, the
 second is how many raw review rows were packed behind those decisions. Very short low-content
-`remote_leak` / `uncertain` tails are counted as `low_materiality_review_rows`; they remain in the
-JSON summary, but they do not inflate the mandatory review queue or the next review pack.
+`remote_leak` / `uncertain` tails and short low-content transcript-order overlaps are counted as
+`low_materiality_review_rows`; they remain in the JSON summary, but they do not inflate the
+mandatory review queue or the next review pack.
 Corpus readiness and
 `next corpus` summaries also print a `use` block: whether any notes are already usable, whether the
 whole corpus is ready for medium-risk meetings, how many sessions still require review or processing,
@@ -953,7 +953,8 @@ reason it was chosen. `quick_recommended_lane` still points to the fastest confi
 exists, while `first_recommended_lane` targets the largest blocking lane. The report also shows the
 estimated queue remaining after that first lane. It reports both raw queue rows and packed review
 actions, so the remaining work reflects grouped rows that can be answered once per `Me` utterance.
-Short low-materiality `remote_leak` / `uncertain` tails are listed in
+Short low-materiality `remote_leak` / `uncertain` tails and short low-content transcript-order
+overlaps are listed in
 `review_queue_low_materiality_excluded` and printed as `low_materiality_review_rows`; they are not
 deleted, marked resolved or hidden from the full transcript metrics. This only keeps the immediate
 mandatory queue focused on content-bearing review work.
@@ -1111,7 +1112,11 @@ adjacent `Me` continuations when the current utterance starts immediately after 
 The agent also keeps high-confidence local-recall repair insertions with local-only speaker-state
 evidence. It can close the narrow transcript-order case where a very short remote backchannel such as
 `Спасибо` sits inside a long confirmed `Me` turn, has no text overlap with it, and only needs
-`keep_me` audit marking rather than timestamp edits. It writes `agent_reviewed_v1`, which is
+`keep_me` audit marking rather than timestamp edits. When `faster_whisper_judge.jsonl` is available,
+it can also use high-confidence stronger-audio evidence: `confirm_me` / `confirm_timing_or_doubletalk`
+can close a `remote_leak` row as `keep_me`, while `confirm_remote_duplicate` / `confirm_asr_noise`
+can drop a whole `Me` row only when duplicate/noise safety gates still pass. Confirmed local speech
+can also close sibling `uncertain` rows for the same exact `Me` utterance. It writes `agent_reviewed_v1`, which is
 eligible for `--transcript-profile auto` after gates pass. It never
 changes raw CAF files, Echo Guard outputs, ASR output or existing cleanup profiles.
 The report includes `rejected_by_reason`, `rejected_by_label`, `rejected_by_verdict`,

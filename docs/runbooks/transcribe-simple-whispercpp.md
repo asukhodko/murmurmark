@@ -850,9 +850,10 @@ interrupted partial captures are excluded from this operational scope but remain
 session-quality report. The same block prints
 `review_actions` and `grouped_review_rows`, so the handoff shows the number of actual answer-sheet
 decisions rather than only the noisier raw row count. It also prints `low_materiality_review_rows`
-when very short low-content `remote_leak` / `uncertain` tails were kept in the report but excluded
-from the mandatory review queue. Those rows are not treated as resolved; the field only prevents
-tiny non-material tails from taking the next review slot.
+when very short low-content `remote_leak` / `uncertain` tails or short low-content transcript-order
+overlaps were kept in the report but excluded from the mandatory review queue. Those rows are not
+treated as resolved; the field only prevents tiny non-material tails from taking the next review
+slot.
 The command also refreshes `sessions/_reports/review-plan/` from the just-written
 operational-readiness report. That keeps the global review plan, `review first-lane`, and
 `next corpus` aligned. The first lane is chosen by the largest blocking review lane in packed
@@ -1307,6 +1308,11 @@ confirmed that utterance as local speech.
 It can also clear the narrow transcript-order audit case where a short remote backchannel such as
 `Спасибо` is fully inside a long confirmed `Me` utterance, has no text overlap with it, and only
 needs `keep_me` marking rather than text or timestamp repair.
+When `faster_whisper_judge.jsonl` exists, the agent layer also consumes only its high-confidence
+classes: `confirm_me` and `confirm_timing_or_doubletalk` can close a `remote_leak` row as `keep_me`;
+`confirm_remote_duplicate` and `confirm_asr_noise` can drop a whole `Me` row only when the normal
+duplicate/noise safety gates still pass. A confirmed `keep_me` can also propagate to sibling
+`uncertain` rows for the same exact `Me` utterance.
 Its report also explains the remaining queue with rejected-candidate aggregates:
 `rejected_by_reason`, `rejected_by_label`, `rejected_by_verdict`, `rejected_by_reason_and_label` and
 `top_rejected_reasons`. Use those fields to decide the next narrow automation rule. If a lane is still

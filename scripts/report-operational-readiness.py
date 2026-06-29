@@ -788,8 +788,24 @@ def review_item_me_text(item: dict[str, Any]) -> str:
 
 
 def review_item_low_materiality(item: dict[str, Any]) -> bool:
+    source = str(item.get("source") or "")
     label = str(item.get("label") or "")
     verdict = str(item.get("verdict") or "")
+    if source == "transcript_order":
+        if label != "needs_review" or verdict != "needs_transcript_order_review":
+            return False
+        me_text = review_item_me_text(item)
+        if has_protected_review_marker(me_text):
+            return False
+        features = item.get("review_features") if isinstance(item.get("review_features"), dict) else {}
+        content_tokens = low_materiality_content_tokens(me_text)
+        return (
+            len(content_tokens) <= 2
+            and safe_float(features.get("text_similarity")) <= 0.30
+            and safe_float(features.get("remote_text_contained_in_me")) <= 0.05
+            and not bool(features.get("remote_inside_me"))
+            and not bool(features.get("me_wraps_remote"))
+        )
     if label not in {"remote_leak", "uncertain"}:
         return False
     if verdict not in {"probable_transcript_error", "needs_stronger_audio_judge"}:

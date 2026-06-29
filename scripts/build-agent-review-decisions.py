@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.6.0"
+SCRIPT_VERSION = "0.7.0"
 SCHEMA = "murmurmark.agent_review_decisions/v1"
 OUTPUT_PROFILE = "agent_reviewed_v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -27,6 +27,7 @@ KEEP_PROPAGATION_REASONS = {
     "speaker_state_pure_local_partial_duplicate_keep",
     "speaker_state_pure_local_remote_context_keep",
     "speaker_state_pure_local_short_duplicate_keep",
+    "stronger_audio_judge_confirmed_local_keep",
 }
 
 STOP_WORDS = {
@@ -431,6 +432,22 @@ def queue_index(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
     }
 
 
+def stronger_judge_index(session: Path) -> dict[str, dict[str, Any]]:
+    path = session / "derived/audit/audio-review-pack/faster_whisper_judge.jsonl"
+    rows: dict[str, dict[str, Any]] = {}
+    for row in read_jsonl(path):
+        source_id = str(row.get("source_pack_item_id") or "")
+        if not source_id:
+            continue
+        classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+        confidence = safe_float(classification.get("confidence"))
+        previous = rows.get(source_id)
+        previous_classification = previous.get("classification") if isinstance(previous, dict) and isinstance(previous.get("classification"), dict) else {}
+        if previous is None or confidence > safe_float(previous_classification.get("confidence")):
+            rows[source_id] = row
+    return rows
+
+
 def rejection_reason(evidence: dict[str, Any]) -> str:
     label = str(evidence.get("label") or "")
     verdict = str(evidence.get("verdict") or "")
@@ -538,6 +555,12 @@ def decision_reason(
     remote_coverage = interval_coverage(row, "remote")
     judge_label = str((queue_row or {}).get("judge_label") or "")
     judge_confidence = safe_float((queue_row or {}).get("judge_confidence"))
+    stronger = (queue_row or {}).get("stronger_audio_judge") if isinstance((queue_row or {}).get("stronger_audio_judge"), dict) else {}
+    stronger_classification = stronger.get("classification") if isinstance(stronger.get("classification"), dict) else {}
+    stronger_label = str(stronger_classification.get("label") or "")
+    stronger_confidence = safe_float(stronger_classification.get("confidence"))
+    stronger_suggested = str(stronger_classification.get("suggested_decision") or "")
+    stronger_reason = str(stronger_classification.get("reason") or "")
     state = speaker_state_ratios(session, safe_float(interval.get("start")), safe_float(interval.get("end")))
     adjacent_context = adjacent_me_context(session, profile, audio_review_me_ids(row)) if profile else None
 
@@ -563,7 +586,44 @@ def decision_reason(
         "adjacent_me_context": adjacent_context,
         "audio_judge_label": judge_label or None,
         "audio_judge_confidence": judge_confidence if judge_label else None,
+        "stronger_audio_judge": {
+            "id": stronger.get("id"),
+            "label": stronger_label,
+            "confidence": stronger_confidence,
+            "suggested_decision": stronger_suggested,
+            "reason": stronger_reason,
+        }
+        if stronger_label
+        else None,
     }
+
+    if (
+        stronger_label in {"confirm_me", "confirm_timing_or_doubletalk"}
+        and stronger_suggested == "keep_me"
+        and stronger_confidence >= 0.88
+        and label == "remote_leak"
+        and verdict == "probable_transcript_error"
+        and confidence >= 0.78
+        and local_support >= 25
+        and remote_duplicate <= 0
+        and asr_noise <= 0
+        and not protected
+    ):
+        return "keep_me", "stronger_audio_judge_confirmed_local_keep", evidence
+
+    if (
+        stronger_label in {"confirm_remote_duplicate", "confirm_asr_noise"}
+        and stronger_suggested == "drop_me"
+        and stronger_confidence >= 0.95
+        and verdict == "probable_transcript_error"
+        and label in {"remote_duplicate", "remote_leak", "asr_noise"}
+        and confidence >= 0.78
+        and local_support <= 45
+        and me_coverage >= 0.50
+        and not unique_tokens
+        and not protected
+    ):
+        return "drop_me", "stronger_audio_judge_confirmed_duplicate_or_noise_drop", evidence
 
     if (
         label == "asr_noise"
@@ -864,13 +924,21 @@ def keep_propagation_reason(
     if not keep_rows:
         return None, evidence
     label = str(evidence.get("label") or "")
-    if label not in {"remote_duplicate", "remote_leak"} or evidence.get("verdict") != "probable_transcript_error":
+    verdict = str(evidence.get("verdict") or "")
+    if label in {"remote_duplicate", "remote_leak"}:
+        if verdict != "probable_transcript_error":
+            return None, evidence
+    elif label == "uncertain":
+        if verdict != "needs_stronger_audio_judge":
+            return None, evidence
+    else:
         return None, evidence
     if safe_float(evidence.get("asr_noise")) > 0:
         return None, evidence
     if label == "remote_leak" and safe_float(evidence.get("remote_duplicate")) > 0:
         return None, evidence
-    if safe_float(evidence.get("local_support")) < 25:
+    min_local_support = 15.0 if label == "uncertain" else 25.0
+    if safe_float(evidence.get("local_support")) < min_local_support:
         return None, evidence
     if safe_float(evidence.get("me_overlap_coverage")) < 0.25:
         return None, evidence
@@ -1235,13 +1303,17 @@ def session_rows(session: Path, profile: str, queue: dict[tuple[str, str], dict[
     if not audit_path.exists():
         return [], []
     selected_ids = selected_me_ids(session, profile)
+    stronger_by_source_id = stronger_judge_index(session)
     candidates: list[dict[str, Any]] = []
     rejected_candidates: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
     rejected: list[dict[str, Any]] = []
     for row in read_jsonl(audit_path):
         if not is_active_audio_review_row(row, selected_ids):
             continue
-        queue_row = queue.get((session.name, str(row.get("id") or "")))
+        queue_row = dict(queue.get((session.name, str(row.get("id") or ""))) or {})
+        stronger = stronger_by_source_id.get(str(row.get("id") or ""))
+        if stronger:
+            queue_row["stronger_audio_judge"] = stronger
         decision, reason, evidence = decision_reason(row, queue_row, session, profile)
         if decision is None:
             rejected_candidates.append((row, reason, evidence))
