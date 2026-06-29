@@ -119,6 +119,18 @@ When `murmurmark next corpus` points to a prepared lane pack, prefer closing tha
 new automatic rules. The applied answers become better evidence than another broad retune: they show
 which `remote_leak` / `check_unique_me_content` cases are truly safe to keep, drop or leave for
 review.
+For lanes where the text alone is ambiguous, run the optional digital probe before editing answers:
+
+```bash
+.venv/bin/python scripts/probe-review-lane-pack-audio.py \
+  sessions/<session>/derived/readiness/review-plan/lane-packs/review_lane_pack.<lane>.json
+
+less sessions/<session>/derived/readiness/review-plan/lane-packs/review_lane_probe.<lane>.md
+```
+
+The probe transcribes each per-track review clip (`mic_clean`, `mic_role_masked`, `remote`) with
+whisper.cpp and writes evidence next to the lane pack. It never applies decisions; it only makes the
+review loop easier to audit.
 
 `status`, `report`, `open`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
 all print the next safe command for the current session state, so the terminal output is the main handoff.
@@ -905,6 +917,9 @@ next command. When `next corpus` can reuse an already prepared lane pack, it als
 that immediate pack: `focus_pack_items`, `focus_pack_rows`, `focus_pack_minutes`, and the estimated
 `after_focus_pack_*` remainder. `review_actions` stays the corpus-wide total; `focus_pack_items` is
 the number of answers in the next concrete review step.
+Prepared lane packs also include a `probe-review-lane-pack-audio.py` command. Use it when an
+agent needs per-track ASR evidence before deciding whether a `Me` utterance is a real local phrase,
+a remote duplicate or still ambiguous.
 `murmurmark report corpus` refreshes the global `sessions/_reports/review-plan/` from the same
 operational-readiness JSON, so the corpus summary, review plan and `next corpus` handoff stay in
 the same state. The first recommended lane is the largest blocking review lane by packed actions;

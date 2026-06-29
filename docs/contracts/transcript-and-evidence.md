@@ -2208,6 +2208,8 @@ sessions/_reports/review-plan/lane-packs/
   review_lane_pack.fast_confirm_drop.md
   review_lane_answers.fast_confirm_drop.txt
   review_lane_answers.fast_confirm_drop.suggested.txt
+  review_lane_probe.fast_confirm_drop.json
+  review_lane_probe.fast_confirm_drop.md
 ```
 
 The JSON uses `murmurmark.review_lane_pack/v1`:
@@ -2353,6 +2355,72 @@ duplicating open rows across answer sheets.
 The Swift CLI prints a compact handoff for the same manifest: selected lane, audio, Markdown, answer
 sheet, suggested answer sheet, the first `answers=...` line from the suggested sheet, and ready-to-run
 `afplay`, `less`, `$EDITOR`, `dry_run` and `apply` commands.
+
+`probe-review-lane-pack-audio.py` is an optional review aid for hard lanes. It reads
+`review_lane_pack.<lane>.json`, reruns whisper.cpp on per-track clips referenced by lane items
+(`mic_clean`, `mic_role_masked`, `remote` by default), and writes:
+
+```text
+review_lane_probe.<lane>.json
+review_lane_probe.<lane>.md
+```
+
+The JSON uses `murmurmark.review_lane_audio_probe/v1`:
+
+```json
+{
+  "schema": "murmurmark.review_lane_audio_probe/v1",
+  "input": {
+    "manifest": "sessions/.../review_lane_pack.check_unique_me_content.json",
+    "lane": "check_unique_me_content"
+  },
+  "parameters": {
+    "language": "ru",
+    "model": "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin",
+    "tracks": ["mic_clean", "mic_role_masked", "remote"],
+    "dry_run": false
+  },
+  "summary": {
+    "items": 9,
+    "source_clips": 13,
+    "track_probes": 39,
+    "missing_clips": 0
+  },
+  "items": [
+    {
+      "index": 1,
+      "source_audit_ids": ["arp_000098"],
+      "label": "remote_duplicate",
+      "suggested_decision": "needs_review",
+      "evidence": {
+        "me_text": "На что завязаться...",
+        "remote_text": "..."
+      },
+      "sources": [
+        {
+          "source_audit_id": "arp_000098",
+          "tracks": [
+            {
+              "track": "mic_clean",
+              "clip": "sessions/.../arp_000098_mic_clean.wav",
+              "exists": true,
+              "text": "Окей, да, пока непонятно...",
+              "scores": {
+                "token_overlap_to_me": 0.71,
+                "token_overlap_to_remote": 0.27
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+The probe is not a decision source and does not edit answer sheets. It exists to make AI-agent or
+human review faster and more auditable, especially when `mic_clean` and `remote` decode to similar
+phrases and automatic cleanup should remain conservative.
 The manifest also stores that handoff as `recommended_next`, `next_commands`, `open_commands`,
 `manual_flow`, `suggested_flow` and `after_apply`, so agents can continue the review loop without
 scraping terminal text.

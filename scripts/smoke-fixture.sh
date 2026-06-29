@@ -2153,11 +2153,20 @@ EOF
   jq -e '.outputs.suggested_answer_sheet | endswith("review_lane_answers.check_local_recall.suggested.txt")' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   grep -q '^answers=\.$' "$lane_pack_dir/review_lane_answers.check_local_recall.txt"
   grep -q '^answers=r$' "$lane_pack_dir/review_lane_answers.check_local_recall.suggested.txt"
+  grep -q 'probe-review-lane-pack-audio.py' "$lane_pack_dir/review_lane_pack.check_local_recall.md"
   grep -q -- '--answers-file' "$lane_pack_dir/review_lane_pack.check_local_recall.md"
   grep -q 'Review focus:' "$lane_pack_dir/review_lane_pack.check_local_recall.md"
   grep -q 'focus=possible missing Me phrase' "$lane_pack_dir/review_lane_answers.check_local_recall.txt"
   jq -e '.items[0].review_hint.short_focus == "possible missing Me phrase" and (.items[0].review_hint.decision_guide | length) >= 2' \
     "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
+  "$repo_root/scripts/probe-review-lane-pack-audio.py" \
+    "$lane_pack_dir/review_lane_pack.check_local_recall.json" \
+    --dry-run \
+    --force >/dev/null
+  [[ -s "$lane_pack_dir/review_lane_probe.check_local_recall.json" ]]
+  [[ -s "$lane_pack_dir/review_lane_probe.check_local_recall.md" ]]
+  jq -e '.schema == "murmurmark.review_lane_audio_probe/v1" and .parameters.dry_run == true and .summary.items == 1' \
+    "$lane_pack_dir/review_lane_probe.check_local_recall.json" >/dev/null
   review_workspace_dir="$workdir/review_workspace"
   "$repo_root/scripts/build-review-workspace.py" \
     --template "$review_template" \

@@ -152,6 +152,11 @@ def review_lane_handoff(
     next_commands = [
         command_item("listen_review_lane_pack", f"afplay {shell_path(audio_path)}", "listen to the review lane audio pack"),
         command_item("open_review_lane_pack", f"less {shell_path(md_path)}", "inspect review lane evidence"),
+        command_item(
+            "probe_review_lane_audio",
+            f".venv/bin/python scripts/probe-review-lane-pack-audio.py {shell_path(manifest_path)}",
+            "transcribe per-track clips for digital review evidence",
+        ),
         command_item("edit_review_lane_answers", f"$EDITOR {shell_path(answer_sheet_path)}", "fill manual review decisions"),
         command_item("dry_run_review_lane_answers", f"{manual_apply_base} --dry-run", "validate manual decisions before applying"),
         command_item("apply_review_lane_answers", manual_apply_base, "apply manual decisions to review_decisions.jsonl"),
@@ -166,6 +171,11 @@ def review_lane_handoff(
         command_item("listen_review_lane_pack", f"afplay {shell_path(audio_path)}", "listen to the review lane audio pack"),
         command_item("open_review_lane_pack", f"less {shell_path(md_path)}", "inspect review lane evidence"),
         command_item("open_review_lane_manifest", f"less {shell_path(manifest_path)}", "inspect review lane manifest"),
+        command_item(
+            "probe_review_lane_audio",
+            f".venv/bin/python scripts/probe-review-lane-pack-audio.py {shell_path(manifest_path)}",
+            "transcribe per-track clips for digital review evidence",
+        ),
         command_item("edit_review_lane_answers", f"$EDITOR {shell_path(answer_sheet_path)}", "fill manual review decisions"),
         command_item(
             "open_suggested_review_answers",
@@ -890,6 +900,7 @@ def write_markdown(path: Path, manifest: dict[str, Any]) -> None:
         "",
         "```bash",
         f"afplay {shlex.quote(manifest['outputs']['audio'])}",
+        f".venv/bin/python scripts/probe-review-lane-pack-audio.py {shlex.quote(manifest['outputs']['manifest'])}",
         f"$EDITOR {shlex.quote(manifest['outputs']['answer_sheet'])}",
         (
             ".venv/bin/python scripts/apply-review-lane-pack-decisions.py "

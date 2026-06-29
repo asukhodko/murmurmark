@@ -551,6 +551,7 @@ enum DoctorChecks {
             "scripts/audit-group-overlaps.py",
             "scripts/build-audio-review-pack.py",
             "scripts/audit-audio-review-pack.py",
+            "scripts/probe-review-lane-pack-audio.py",
             "scripts/report-session-quality.py",
             "scripts/apply-retention-policy.py",
             "scripts/build-provider-payload-manifest.py",

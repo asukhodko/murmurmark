@@ -148,6 +148,18 @@ answer sheet already contains reviewed answers, the handoff promotes lane apply 
 replaying the audio. In that prepared-pack mode, `review_actions` is still the corpus-wide remaining
 queue, while `focus_pack_items`, `focus_pack_rows`, `focus_pack_minutes` and `after_focus_pack_*`
 describe the next concrete review step and its expected effect.
+When a lane is hard to classify from the transcript text alone, run the optional audio probe:
+
+```bash
+.venv/bin/python scripts/probe-review-lane-pack-audio.py \
+  sessions/<session>/derived/readiness/review-plan/lane-packs/review_lane_pack.<lane>.json
+
+less sessions/<session>/derived/readiness/review-plan/lane-packs/review_lane_probe.<lane>.md
+```
+
+The probe reruns whisper.cpp on each per-track clip in the lane pack (`mic_clean`,
+`mic_role_masked`, `remote`) and writes a Markdown/JSON comparison. Treat it as review evidence,
+not as an automatic decision source.
 Use `murmurmark open SESSION` when you need the selected local artifact rather than the next action.
 It resolves paths from `session_readiness.json` and prints `less ...` commands for notes,
 transcript, verdict, readiness and audit reports; `--cat` streams one artifact to stdout.
@@ -866,6 +878,10 @@ assembled lane audio. The output also shows the prepared pack size and expected 
 `focus_pack_items` is the number of answer-sheet decisions to make now, `focus_pack_rows` is the
 number of raw review rows covered by that pack, and `after_focus_pack_actions` is the corpus-wide
 packed action count after this focused pack is applied.
+The generated lane pack Markdown includes the same `probe-review-lane-pack-audio.py` command for
+digital per-track ASR evidence. This is useful for AI-agent review loops: it can show whether
+`mic_clean`, `mic_role_masked` and `remote` all decode to the same phrase, which is exactly the case
+where automatic cleanup should usually stay conservative.
 This prepared-pack shortcut is freshness-gated: if the lane pack manifest is older than the current
 operational-readiness report, `next corpus` ignores it and points back to
 `murmurmark review first-lane --session ...`, so the reviewer does not listen to rows that the latest
