@@ -125,7 +125,31 @@ def read_json(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def final_capture_stop_reason(session: Path) -> str:
+    events = session / "events.jsonl"
+    if not events.exists():
+        return ""
+    reason = ""
+    try:
+        with events.open("r", encoding="utf-8") as file:
+            for line in file:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(row, dict) and row.get("type") == "capture.stopped":
+                    reason = str(row.get("reason") or "")
+    except OSError:
+        return ""
+    return reason
+
+
 def interrupted_capture_warnings(session: Path) -> list[str]:
+    if final_capture_stop_reason(session) not in {"stream_stopped", "capture_stalled"}:
+        return []
     session_json = read_json(session / "session.json")
     if not isinstance(session_json, dict):
         return []

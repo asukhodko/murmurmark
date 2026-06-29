@@ -2663,6 +2663,7 @@ EOF
       warnings: ["stream stopped with error: interrupted app connection"]
     }
   }' >"$interrupted_session/session.json"
+  printf '%s\n' '{"type":"capture.stopped","reason":"stream_stopped"}' >"$interrupted_session/events.jsonl"
   interrupted_report="$workdir/interrupted-pipeline-run.json"
   if "$repo_root/scripts/run-session-pipeline.py" "$interrupted_session" \
     --skip-build \
@@ -2675,6 +2676,18 @@ EOF
   grep -q '^  hint: inspect the partial session or re-record; use --allow-partial only for debugging$' "$workdir/interrupted-pipeline.out"
   jq -e '.schema == "murmurmark.session_pipeline_run/v1" and .status == "blocked" and .blocker == "interrupted_capture" and (.steps | length) == 0' "$interrupted_report" >/dev/null
   jq -e '.next_commands[0].id == "inspect_partial_session" and (.next_commands[2].command | contains("--allow-partial"))' "$interrupted_report" >/dev/null
+  recovered_session="$workdir/recovered-stream-session"
+  mkdir -p "$recovered_session"
+  cp "$interrupted_session/session.json" "$recovered_session/session.json"
+  printf '%s\n' \
+    '{"type":"capture.restarted","reason":"stream_stopped","restart_count":1}' \
+    '{"type":"capture.stopped","reason":"sigint"}' >"$recovered_session/events.jsonl"
+  "$repo_root/scripts/run-session-pipeline.py" "$recovered_session" \
+    --plan-only \
+    --skip-build \
+    --report "$workdir/recovered-pipeline-run.json" >"$workdir/recovered-pipeline.out"
+  grep -q '^  status: planned$' "$workdir/recovered-pipeline.out"
+  jq -e '.status == "planned" and (.steps | length) >= 10' "$workdir/recovered-pipeline-run.json" >/dev/null
   cli_pipeline_plan_out="$workdir/cli-pipeline-plan.out"
   "$bin" process "$group_session" \
     --plan-only \
@@ -3055,9 +3068,27 @@ with tempfile.TemporaryDirectory() as tmp:
             "warnings": ["stream stopped with error: interrupted app connection"],
         },
     }), encoding="utf-8")
+    (interrupted / "events.jsonl").write_text(
+        '{"type":"capture.stopped","reason":"stream_stopped"}\n',
+        encoding="utf-8",
+    )
     assert module.has_interrupted_capture_warning({
         "session_id": "interrupted-session",
         "session": str(interrupted),
+        "pipeline_status": "partial",
+        "meeting_duration_sec": 145,
+    })
+    recovered = Path(tmp) / "recovered-session"
+    recovered.mkdir()
+    (recovered / "session.json").write_text((interrupted / "session.json").read_text(encoding="utf-8"), encoding="utf-8")
+    (recovered / "events.jsonl").write_text(
+        '{"type":"capture.restarted","reason":"stream_stopped","restart_count":1}\n'
+        '{"type":"capture.stopped","reason":"sigint"}\n',
+        encoding="utf-8",
+    )
+    assert not module.has_interrupted_capture_warning({
+        "session_id": "recovered-session",
+        "session": str(recovered),
         "pipeline_status": "partial",
         "meeting_duration_sec": 145,
     })

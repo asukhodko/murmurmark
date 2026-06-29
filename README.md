@@ -439,11 +439,13 @@ Run `record` as its own live command. It keeps running until `Ctrl-C`; run proce
 the recording finishes normally.
 After a successful recording, the CLI prints `SESSION="..."`, `recommended_next` and the exact
 `murmurmark process ...` command for that session.
-If ScreenCaptureKit stops or stops producing audio before `Ctrl-C`, `record` finalizes the partial
-session, writes `session.json`, records a warning, and exits with an error. Inspect or re-record that
-partial session instead of treating it as a complete meeting. `murmurmark process` blocks interrupted
-partial captures by default; `--allow-partial` exists only for debugging an already-known partial
-recording.
+If ScreenCaptureKit stops before `Ctrl-C`, `record` tries to restart the capture stream and continue
+writing into the same session. A successful restart is recorded in `events.jsonl` as
+`capture.restarted`; the recording keeps going until the normal stop signal. If restart fails or
+capture keeps producing no audio, `record` finalizes the partial session, writes `session.json`,
+records a warning, and exits with an error. Inspect or re-record that partial session instead of
+treating it as a complete meeting. `murmurmark process` blocks unrecovered interrupted partial
+captures by default; `--allow-partial` exists only for debugging an already-known partial recording.
 
 ```bash
 cd murmurmark

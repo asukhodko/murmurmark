@@ -189,7 +189,7 @@ struct MurmurMark {
           audio-input remote capture and voice-processing mic capture are experimental comparison modes.
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C or SIGTERM and finalizes the session.
-          Unexpected ScreenCaptureKit stops finalize a partial session and exit with an error.
+          Unexpected ScreenCaptureKit stops are restarted when possible; unrecovered stops finalize a partial session and exit with an error.
           Without --out, recording creates a unique directory under ./sessions.
           sessions lists recent session packages and their readiness state.
           process runs the current post-recording pipeline and prints the readiness summary.
@@ -5648,6 +5648,8 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private let queue = DispatchQueue(label: "murmurmark.capture.samples")
     private let stateQueue = DispatchQueue(label: "murmurmark.capture.state")
     private var stream: SCStream?
+    private var screenCaptureFilter: SCContentFilter?
+    private var screenCaptureConfiguration: SCStreamConfiguration?
     private var micWriter: AudioFileWriter?
     private var voiceProcessingMic: VoiceProcessingMicCapture?
     private var remoteWriter: AudioFileWriter?
@@ -5660,6 +5662,8 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var stopDate: Date?
     private var stoppingRequested = false
     private var streamStoppedUnexpectedly = false
+    private var restartingScreenCapture = false
+    private var screenCaptureRestartCount = 0
     private var lastSampleDate: Date?
 
     init(
@@ -5755,14 +5759,8 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                     config.microphoneCaptureDeviceID = microphoneID
                 }
 
-                let stream = SCStream(filter: filter, configuration: config, delegate: self)
-                self.stream = stream
-                if remoteBackend == .screenCaptureKit {
-                    try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
-                }
-                if microphoneBackend == .screenCaptureKit {
-                    try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: queue)
-                }
+                screenCaptureFilter = filter
+                screenCaptureConfiguration = config
             }
 
             if microphoneBackend == .voiceProcessing {
@@ -5786,7 +5784,9 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             try eventLog.write(type: "capture.started", fields: startedFields)
             try voiceProcessingMic?.start()
             try remoteInputCapture?.start()
-            try await stream?.startCapture()
+            if needsScreenCaptureKit {
+                try await startScreenCaptureStream()
+            }
             if let duration {
                 print("recording \(String(format: "%.1f", duration))s -> \(outputDirectory.path)")
             } else {
@@ -5855,7 +5855,7 @@ extension SessionRecorder {
 
     func stream(_: SCStream, didStopWithError error: Error) {
         stateQueue.sync {
-            if !stoppingRequested {
+            if !stoppingRequested && !restartingScreenCapture {
                 streamStoppedUnexpectedly = true
                 warnings.append("stream stopped with error: \(error.localizedDescription)")
             }
@@ -5886,7 +5886,10 @@ extension SessionRecorder {
 
     private func waitForUnexpectedStreamStop() async -> StopReason {
         while !Task.isCancelled {
-            if stateQueue.sync(execute: { streamStoppedUnexpectedly }) {
+            if consumeUnexpectedStreamStop() {
+                if await restartScreenCaptureStream(reason: .streamStopped) {
+                    continue
+                }
                 return .streamStopped
             }
             do {
@@ -5907,6 +5910,9 @@ extension SessionRecorder {
             }
             if stalled {
                 appendWarning("capture produced no audio samples for \(Int(stallThreshold))s")
+                if await restartScreenCaptureStream(reason: .captureStalled) {
+                    continue
+                }
                 return .captureStalled
             }
             do {
@@ -5916,6 +5922,78 @@ extension SessionRecorder {
             }
         }
         return .terminated
+    }
+
+    private func startScreenCaptureStream() async throws {
+        guard let filter = screenCaptureFilter, let config = screenCaptureConfiguration else {
+            throw CLIError("ScreenCaptureKit stream is not configured")
+        }
+        let stream = SCStream(filter: filter, configuration: config, delegate: self)
+        if remoteBackend == .screenCaptureKit {
+            try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
+        }
+        if microphoneBackend == .screenCaptureKit {
+            try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: queue)
+        }
+        self.stream = stream
+        try await stream.startCapture()
+        stateQueue.sync {
+            lastSampleDate = Date()
+        }
+    }
+
+    private func consumeUnexpectedStreamStop() -> Bool {
+        stateQueue.sync {
+            if streamStoppedUnexpectedly {
+                streamStoppedUnexpectedly = false
+                return true
+            }
+            return false
+        }
+    }
+
+    private func restartScreenCaptureStream(reason: StopReason) async -> Bool {
+        let shouldRestart = stateQueue.sync {
+            if stoppingRequested {
+                return false
+            }
+            if restartingScreenCapture {
+                return true
+            }
+            restartingScreenCapture = true
+            return true
+        }
+        guard shouldRestart else { return false }
+        defer {
+            stateQueue.sync {
+                restartingScreenCapture = false
+            }
+        }
+
+        let oldStream = stream
+        stream = nil
+        _ = try? await oldStream?.stopCapture()
+        do {
+            try await Task.sleep(nanoseconds: 500_000_000)
+            try await startScreenCaptureStream()
+            let restartCount = stateQueue.sync {
+                screenCaptureRestartCount += 1
+                return screenCaptureRestartCount
+            }
+            appendWarning("ScreenCaptureKit stream restarted after \(reason.rawValue)")
+            try? events?.write(
+                type: "capture.restarted",
+                fields: [
+                    "reason": reason.rawValue,
+                    "restart_count": restartCount,
+                ]
+            )
+            print("\ncapture stream restarted after \(reason.rawValue); recording continues...")
+            return true
+        } catch {
+            appendWarning("ScreenCaptureKit restart failed after \(reason.rawValue): \(error.localizedDescription)")
+            return false
+        }
     }
 
     private func stopScreenCaptureStream() async {

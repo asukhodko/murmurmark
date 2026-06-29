@@ -204,6 +204,25 @@ def has_interrupted_capture_warning(row: dict[str, Any]) -> bool:
     if not session_path:
         return False
     session_json = Path(str(session_path)).expanduser() / "session.json"
+    events_jsonl = Path(str(session_path)).expanduser() / "events.jsonl"
+    final_reason = ""
+    if events_jsonl.exists():
+        try:
+            with events_jsonl.open("r", encoding="utf-8") as file:
+                for line in file:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(event, dict) and event.get("type") == "capture.stopped":
+                        final_reason = str(event.get("reason") or "")
+        except OSError:
+            final_reason = ""
+    if final_reason and final_reason not in {"stream_stopped", "capture_stalled"}:
+        return False
     if not session_json.exists():
         return False
     try:
