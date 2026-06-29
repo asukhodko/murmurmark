@@ -55,8 +55,9 @@ murmurmark retention plan latest
 
 `status`, `report`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
 all print the next safe command for the current session state, so the terminal output is the main handoff.
-For `status`, `report`, review, export and retention commands, use the final `next: ...` line as
-the primary command to run next.
+For normal summary output, use the final `next: ...` line as the primary command to run next.
+Machine-readable modes such as `--path-only` and streamed content modes such as `--cat` keep their
+single-purpose output clean.
 `next` is the shortest answer when you only need the one command to run now.
 `open` is the shortest answer when you need to inspect the selected local output: notes, transcript,
 quality verdict, readiness or audit reports.
@@ -554,8 +555,9 @@ under `debug_retention`; the manifest mirrors that split with `debug_retention_c
 local-recall`, `murmurmark audit order`, `murmurmark audit group-overlaps` and `murmurmark audit audio-review` are the normal
 entry points; direct Python script calls remain useful for debugging.
 After every audit run, the CLI prints a compact handoff summary with the profile, key counters,
-recommendation, `read: less ...` for the Markdown report and `recommended_next`. Risky audits point
-back to `murmurmark review next SESSION`; clean audits point to `murmurmark report SESSION`.
+recommendation, `read: less ...` for the Markdown report, `recommended_next` and the final copyable
+`next: ...` line. Risky audits point back to `murmurmark review next SESSION`; clean audits point to
+`murmurmark report SESSION`.
 
 The group overlap audit reads transcript overlaps, Echo Guard `speaker_state.jsonl`, and local audio derivatives, then writes `derived/audit/group-overlaps/`. It separates likely harmful `Me` duplicates or remote leakage from expected group-call double-talk and timing overlap. This is audit-only: no transcript, Echo Guard output, synthesis output, or `quality_verdict` is modified.
 

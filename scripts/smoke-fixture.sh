@@ -401,6 +401,7 @@ echo "$notes_output" | grep -q '  review_item_types: .*utterance_transcript_orde
 echo "$notes_output" | grep -q '^  recommended_next: murmurmark review next '
 echo "$notes_output" | grep -q '^    murmurmark review next '
 echo "$notes_output" | grep -q '^    less '
+tail -1 <<<"$notes_output" | grep -q '^next: murmurmark review next '
 notes_path_only="$("$bin" notes "$session" --path-only)"
 [[ "$notes_path_only" == */derived/synthesis-simple/extractive/notes.md ]]
 "$bin" notes "$session" --cat | grep -q '# Extractive Notes'
@@ -412,6 +413,7 @@ echo "$transcript_output" | grep -q '  profile: current'
 echo "$transcript_output" | grep -q '^  recommended_next: murmurmark review next '
 echo "$transcript_output" | grep -q '^    murmurmark review next '
 echo "$transcript_output" | grep -q '^    less '
+tail -1 <<<"$transcript_output" | grep -q '^next: murmurmark review next '
 transcript_path_only="$("$bin" transcript "$session" --path-only)"
 [[ "$transcript_path_only" == */derived/transcript-simple/whisper-cpp/resolved/transcript.md ]]
 "$bin" transcript latest --sessions-root "$workdir" --path-only | grep -q '/derived/transcript-simple/whisper-cpp/resolved/transcript.md$'
@@ -1185,6 +1187,7 @@ EOF
   echo "$local_recall_cli_output" | grep -q '  missing_islands: 3'
   echo "$local_recall_cli_output" | grep -q '^  read: less '
   echo "$local_recall_cli_output" | grep -q '^  recommended_next: murmurmark review next '
+  tail -1 <<<"$local_recall_cli_output" | grep -q '^next: murmurmark review next '
   local_recall_summary="$group_session/derived/audit/local-recall/local_recall_audit.json"
   [[ -s "$local_recall_summary" ]]
   [[ -s "$group_session/derived/audit/local-recall/local_recall_items.jsonl" ]]
@@ -1214,6 +1217,7 @@ PY
   echo "$local_recall_repair_output" | grep -q '  kind: local_recall'
   echo "$local_recall_repair_output" | grep -q '  applied_repairs: 1'
   echo "$local_recall_repair_output" | grep -q '^  recommended_next: murmurmark synthesize '
+  tail -1 <<<"$local_recall_repair_output" | grep -q '^next: murmurmark synthesize '
   local_recall_repair_report="$group_session/derived/transcript-simple/whisper-cpp/local-recall-repair/local_recall_repair_report.local_recall_repair_v1.json"
   local_recall_repair_dialogue="$group_resolved/clean_dialogue.local_recall_repair_v1.json"
   [[ -s "$local_recall_repair_report" ]]
@@ -1325,6 +1329,7 @@ EOF
   echo "$order_cli_output" | grep -q '  probable_order_risk: 1 / 2.00s'
   echo "$order_cli_output" | grep -q '^  read: less '
   echo "$order_cli_output" | grep -q '^  recommended_next: murmurmark review next '
+  tail -1 <<<"$order_cli_output" | grep -q '^next: murmurmark review next '
   order_summary="$order_session/derived/audit/order/transcript_order_audit.json"
   [[ -s "$order_summary" ]]
   [[ -s "$order_session/derived/audit/order/transcript_order_items.jsonl" ]]
@@ -1337,6 +1342,7 @@ EOF
   echo "$order_repair_cli_output" | grep -q '  applied_repairs: 1'
   echo "$order_repair_cli_output" | grep -q '  unrepaired_order_risks: 0'
   echo "$order_repair_cli_output" | grep -q '^  recommended_next: murmurmark synthesize '
+  tail -1 <<<"$order_repair_cli_output" | grep -q '^next: murmurmark synthesize '
   jq -e '.gates.passed == true and .summary.applied_repairs == 1 and .summary.split_utterances_created == 2' \
     "$order_session/derived/transcript-simple/whisper-cpp/order-repair/transcript_order_repair_report.order_repair_v1.json" >/dev/null
   jq -e '
@@ -1566,6 +1572,7 @@ PY
   echo "$group_overlap_cli_output" | grep -q '  overlaps: 4 /'
   echo "$group_overlap_cli_output" | grep -q '^  read: less '
   echo "$group_overlap_cli_output" | grep -q '^  recommended_next: murmurmark review next '
+  tail -1 <<<"$group_overlap_cli_output" | grep -q '^next: murmurmark review next '
 
   group_audit="$group_session/derived/audit/group-overlaps/group_overlap_audit.jsonl"
   group_summary="$group_session/derived/audit/group-overlaps/group_overlap_summary.json"
@@ -1639,6 +1646,7 @@ EOF
   echo "$cleanup_cli_output" | grep -q '  applied_patches: 2'
   echo "$cleanup_cli_output" | grep -q '  gates_passed: true'
   echo "$cleanup_cli_output" | grep -q '^  recommended_next: murmurmark synthesize '
+  tail -1 <<<"$cleanup_cli_output" | grep -q '^next: murmurmark synthesize '
   shadow_dialogue_sha_after="$(shasum -a 256 "$group_resolved/clean_dialogue.shadow_v2.json" | awk '{print $1}')"
   [[ "$shadow_dialogue_sha_before" == "$shadow_dialogue_sha_after" ]]
 
@@ -1670,6 +1678,7 @@ EOF
   echo "$synthesize_cli_output" | grep -q '  review_items: '
   echo "$synthesize_cli_output" | grep -q '^  recommended_next: murmurmark review next '
   echo "$synthesize_cli_output" | grep -q '^    murmurmark review next '
+  tail -1 <<<"$synthesize_cli_output" | grep -q '^next: murmurmark review next '
   ! echo "$synthesize_cli_output" | grep -q '^    murmurmark export '
   jq -e '.selected_transcript_profile == "audit_cleanup_v1"' "$group_session/derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v1.json" >/dev/null
   "$bin" notes "$group_session" --profile audit_cleanup_v1 --path-only | grep -q '/derived/synthesis-simple/extractive/notes.audit_cleanup_v1.md$'
@@ -1685,6 +1694,7 @@ EOF
   echo "$audio_review_cli_output" | grep -q '  items:'
   echo "$audio_review_cli_output" | grep -q '^  read: less '
   echo "$audio_review_cli_output" | grep -q '^  recommended_next: murmurmark review next '
+  tail -1 <<<"$audio_review_cli_output" | grep -q '^next: murmurmark review next '
   review_pack="$group_session/derived/audit/audio-review-pack/review_pack_items.jsonl"
   review_summary="$group_session/derived/audit/audio-review-pack/audio_review_summary.json"
   [[ -s "$review_pack" ]]
@@ -1710,6 +1720,7 @@ EOF
   echo "$remote_leak_output" | grep -q '^remote_leak_segment_repair:$'
   echo "$remote_leak_output" | grep -q '  mode: audit_only'
   echo "$remote_leak_output" | grep -q '^  recommended_next: less '
+  tail -1 <<<"$remote_leak_output" | grep -q '^next: less '
   remote_leak_plan="$group_session/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json"
   remote_leak_items="$group_session/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_items.jsonl"
   remote_leak_report="$group_session/derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md"

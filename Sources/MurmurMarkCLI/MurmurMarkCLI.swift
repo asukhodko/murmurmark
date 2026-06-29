@@ -178,7 +178,7 @@ struct MurmurMark {
           process runs the current post-recording pipeline and prints the readiness summary.
           status prints the current readiness dashboard without recomputing reports.
           next prints the single recommended next command from readiness.
-          process, status, report, review, export and retention handoffs end with a final `next: ...` command.
+          Summary handoffs end with a final `next: ...` command.
           open prints or streams the selected local output artifact from readiness.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review next prints the next review command; review --help shows lane/workspace/apply commands.
@@ -2775,6 +2775,13 @@ enum AuditCommands {
     }
 }
 
+enum FinalNextPrinter {
+    static func print(_ command: String) {
+        Swift.print("")
+        Swift.print("next: \(command)")
+    }
+}
+
 enum AuditPrinter {
     static func printLocalRecall(session: URL, args: [String]) throws {
         let outDir = outputDir(args: args, defaultURL: session.appendingPathComponent("derived/audit/local-recall"))
@@ -2948,6 +2955,7 @@ enum AuditPrinter {
         print("  next:")
         print("    \(readCommand)")
         print("    \(actionCommand)")
+        FinalNextPrinter.print(actionCommand)
     }
 
     private static func dict(_ value: Any?) -> [String: Any] {
@@ -3198,6 +3206,7 @@ enum NotesCommands {
             print("    \(reviewNext)")
         }
         print("    \(openCommand)")
+        FinalNextPrinter.print(reviewNext ?? openCommand)
     }
 
     private static func selectedProfile(_ requested: String, session: URL) throws -> String {
@@ -3390,6 +3399,7 @@ enum TranscriptCommands {
             print("    \(reviewNext)")
         }
         print("    \(openCommand)")
+        FinalNextPrinter.print(reviewNext ?? openCommand)
     }
 
     private static func selectedProfile(_ requested: String, session: URL) throws -> String {
@@ -3486,6 +3496,7 @@ enum CleanupPrinter {
         print("  next:")
         print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
         print("    murmurmark report \(PathDisplay.display(session))")
+        FinalNextPrinter.print("murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
     }
 
     private static func dict(_ value: Any?) -> [String: Any] {
@@ -3580,6 +3591,7 @@ enum RepairPrinter {
         print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
         print("    murmurmark transcript \(PathDisplay.display(session)) --profile \(profile)")
         print("    murmurmark report \(PathDisplay.display(session))")
+        FinalNextPrinter.print("murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
     }
 
     static func printOrderSummary(session: URL, args: [String]) throws {
@@ -3617,6 +3629,7 @@ enum RepairPrinter {
         print("    murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
         print("    murmurmark transcript \(PathDisplay.display(session)) --profile \(profile)")
         print("    murmurmark report \(PathDisplay.display(session))")
+        FinalNextPrinter.print("murmurmark synthesize \(PathDisplay.display(session)) --transcript-profile \(profile)")
     }
 
     static func printRemoteLeakSummary(session: URL, args: [String]) throws {
@@ -3650,6 +3663,7 @@ enum RepairPrinter {
         print("  recommended_next: less \(PathDisplay.display(reportURL))")
         print("  next:")
         print("    less \(PathDisplay.display(reportURL))")
+        FinalNextPrinter.print("less \(PathDisplay.display(reportURL))")
     }
 
     private static func dict(_ value: Any?) -> [String: Any] {
@@ -3745,6 +3759,7 @@ enum SynthesisPrinter {
         if canSuggestExport {
             print("    murmurmark export \(sessionPath) --format markdown --include-json")
         }
+        FinalNextPrinter.print(recommendedNext)
     }
 
     private static func dict(_ value: Any?) -> [String: Any] {
