@@ -3807,6 +3807,52 @@ short_remote_duplicate = {
 assert module.review_item_low_materiality(short_remote_duplicate), short_remote_duplicate
 short_remote_duplicate["confidence"] = 0.80
 assert not module.review_item_low_materiality(short_remote_duplicate), short_remote_duplicate
+short_thanks = {
+    "source": "audio_review",
+    "label": "uncertain",
+    "verdict": "needs_stronger_audio_judge",
+    "interval": {"duration_sec": 3.25},
+    "text": [{"role": "me", "source_track": "mic", "text": "Спасибо"}],
+    "review_features": {
+        "me_overlap_coverage": 1.0,
+        "text_similarity": 0.0,
+        "token_containment": 0.0,
+        "likely_partial_me_utterance": False,
+    },
+}
+assert module.review_item_low_materiality(short_thanks), short_thanks
+short_fragment = {
+    "source": "audio_review",
+    "label": "uncertain",
+    "verdict": "needs_stronger_audio_judge",
+    "interval": {"duration_sec": 1.81},
+    "text": [{"role": "me", "source_track": "mic", "text": "Я постар"}],
+    "review_features": {
+        "me_overlap_coverage": 1.0,
+        "text_similarity": 0.0,
+        "token_containment": 0.0,
+        "likely_partial_me_utterance": False,
+    },
+}
+assert module.review_item_low_materiality(short_fragment), short_fragment
+tiny_protected_boundary = {
+    "source": "audio_review",
+    "label": "uncertain",
+    "verdict": "needs_stronger_audio_judge",
+    "interval": {"duration_sec": 0.35},
+    "text": [{"role": "me", "source_track": "mic", "text": "Давайте обсудим следующий блок"}],
+    "review_features": {
+        "me_overlap_coverage": 0.03,
+        "text_similarity": 0.1,
+        "token_containment": 0.0,
+        "likely_partial_me_utterance": True,
+    },
+}
+assert module.review_item_low_materiality(tiny_protected_boundary), tiny_protected_boundary
+long_protected = dict(tiny_protected_boundary)
+long_protected["interval"] = {"duration_sec": 2.0}
+long_protected["review_features"] = {**tiny_protected_boundary["review_features"], "me_overlap_coverage": 0.5}
+assert not module.review_item_low_materiality(long_protected), long_protected
 grouped_a = item("audio_review", "remote_leak", "needs_stronger_audio_judge", 180, 1)
 grouped_b = item("audio_review", "remote_leak", "needs_stronger_audio_judge", 170, 2)
 for grouped in (grouped_a, grouped_b):

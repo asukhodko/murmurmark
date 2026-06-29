@@ -237,6 +237,22 @@ def fuzzy_content_covered_by_remote(me_text: Any, remote_text: Any) -> bool:
     return True
 
 
+def low_materiality_duration_limit(backchannel: bool, content_tokens: list[str]) -> float:
+    if backchannel:
+        return 4.0 if content_tokens and content_tokens[0] == "спасибо" else 3.0
+    if len(content_tokens) <= 1:
+        return 2.0
+    return 1.25
+
+
+def tiny_boundary_review_overlap(features: dict[str, Any], duration: float) -> bool:
+    return (
+        0.0 < duration <= 0.50
+        and safe_float(features.get("me_overlap_coverage")) <= 0.05
+        and bool(features.get("likely_partial_me_utterance"))
+    )
+
+
 def has_protected_review_marker(text: Any) -> bool:
     lowered = str(text or "").lower().replace("ё", "е")
     return any(marker in lowered for marker in PROTECTED_REVIEW_MARKERS)
@@ -967,11 +983,7 @@ def audio_review_row_low_materiality(row: dict[str, Any]) -> bool:
         return False
 
     me_text = audio_review_me_text(row)
-    if has_protected_review_marker(me_text):
-        return False
     backchannel = is_low_materiality_me_backchannel(me_text)
-    if duration > (3.0 if backchannel else 1.25):
-        return False
 
     compacted = compact_review_item({}, row)
     features = compacted.get("review_features") if isinstance(compacted.get("review_features"), dict) else {}
@@ -980,6 +992,11 @@ def audio_review_row_low_materiality(row: dict[str, Any]) -> bool:
     containment = safe_float(features.get("token_containment"))
     me_coverage = safe_float(features.get("me_overlap_coverage"))
     content_tokens = low_materiality_content_tokens(me_text)
+    tiny_boundary = tiny_boundary_review_overlap(features, duration)
+    if has_protected_review_marker(me_text) and not tiny_boundary:
+        return False
+    if duration > low_materiality_duration_limit(backchannel, content_tokens) and not tiny_boundary:
+        return False
     fuzzy_duplicate = fuzzy_content_covered_by_remote(me_text, audio_review_remote_text(row))
     high_confidence_duplicate = (
         label == "remote_duplicate"
@@ -991,7 +1008,8 @@ def audio_review_row_low_materiality(row: dict[str, Any]) -> bool:
     return (
         (label != "remote_duplicate" and len(content_tokens) <= 1)
         or me_coverage <= 0.40
-        or (backchannel and duration <= 3.0)
+        or tiny_boundary
+        or (backchannel and duration <= 4.0)
         or (label != "remote_duplicate" and fuzzy_duplicate)
         or high_confidence_duplicate
         or (label != "remote_duplicate" and len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
@@ -1074,6 +1092,8 @@ def is_low_materiality_me_backchannel(text: Any) -> bool:
         ["хорошо"],
         ["понял"],
         ["поняла"],
+        ["спасибо"],
+        ["спасибо", "тебе"],
     )
 
 
@@ -1113,17 +1133,18 @@ def review_item_low_materiality(item: dict[str, Any]) -> bool:
     if duration <= 0.0:
         return False
     me_text = review_item_me_text(item)
-    if has_protected_review_marker(me_text):
-        return False
     backchannel = is_low_materiality_me_backchannel(me_text)
-    if duration > (3.0 if backchannel else 1.25):
-        return False
     features = item.get("review_features") if isinstance(item.get("review_features"), dict) else {}
     confidence = safe_float(item.get("confidence"))
     text_similarity = safe_float(features.get("text_similarity"))
     containment = safe_float(features.get("token_containment"))
     me_coverage = safe_float(features.get("me_overlap_coverage"))
     content_tokens = low_materiality_content_tokens(me_text)
+    tiny_boundary = tiny_boundary_review_overlap(features, duration)
+    if has_protected_review_marker(me_text) and not tiny_boundary:
+        return False
+    if duration > low_materiality_duration_limit(backchannel, content_tokens) and not tiny_boundary:
+        return False
     fuzzy_duplicate = fuzzy_content_covered_by_remote(me_text, review_item_remote_text(item))
     high_confidence_duplicate = (
         label == "remote_duplicate"
@@ -1134,7 +1155,8 @@ def review_item_low_materiality(item: dict[str, Any]) -> bool:
     return (
         (label != "remote_duplicate" and len(content_tokens) <= 1)
         or me_coverage <= 0.40
-        or (backchannel and duration <= 3.0)
+        or tiny_boundary
+        or (backchannel and duration <= 4.0)
         or (label != "remote_duplicate" and fuzzy_duplicate)
         or high_confidence_duplicate
         or (label != "remote_duplicate" and len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
