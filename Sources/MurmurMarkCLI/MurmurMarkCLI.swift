@@ -99,6 +99,9 @@ struct MurmurMark {
           murmurmark export latest --format markdown --include-json
           murmurmark retention plan latest
 
+        Handoff rule:
+          When a command ends with `next: ...`, that final line is the primary command to run next.
+
         Everyday usage:
           murmurmark doctor [--strict]
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
@@ -175,6 +178,7 @@ struct MurmurMark {
           process runs the current post-recording pipeline and prints the readiness summary.
           status prints the current readiness dashboard without recomputing reports.
           next prints the single recommended next command from readiness.
+          process, review, export and retention handoffs end with a final `next: ...` command.
           open prints or streams the selected local output artifact from readiness.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review next prints the next review command; review --help shows lane/workspace/apply commands.

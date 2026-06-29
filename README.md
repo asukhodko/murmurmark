@@ -55,6 +55,7 @@ murmurmark retention plan latest
 
 `status`, `report`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
 all print the next safe command for the current session state, so the terminal output is the main handoff.
+When a command ends with a final `next: ...` line, use that line as the primary command to run next.
 `next` is the shortest answer when you only need the one command to run now.
 `open` is the shortest answer when you need to inspect the selected local output: notes, transcript,
 quality verdict, readiness or audit reports.
