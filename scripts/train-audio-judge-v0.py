@@ -737,6 +737,23 @@ def main() -> int:
     }
     out_dir: Path = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
+    read_command = f"less {out_dir / 'audio_judge_v0_report.md'}"
+    next_command = f"murmurmark corpus taxonomy --corpus-dir {args.corpus_dir} --audio-judge-dir {out_dir}"
+    report["recommended_next"] = next_command
+    report["next_commands"] = [
+        {
+            "id": "build_audio_error_taxonomy",
+            "command": next_command,
+            "reason": "summarize audio-judge errors and choose the next narrow repair",
+        }
+    ]
+    report["open_commands"] = [
+        {
+            "id": "open_audio_judge_report",
+            "command": read_command,
+            "path": str(out_dir / "audio_judge_v0_report.md"),
+        }
+    ]
     write_json(out_dir / "audio_judge_v0_report.json", report)
     write_jsonl(out_dir / "audio_judge_v0_predictions.jsonl", predictions)
     write_jsonl(out_dir / "audio_judge_v0_cv_predictions.jsonl", cv_predictions)

@@ -229,6 +229,23 @@ def main() -> int:
     if not items:
         raise SystemExit(f"missing or empty corpus: {corpus_dir / 'regression_corpus_items.jsonl'}")
     report, evaluated = evaluate(items)
+    read_command = f"less {out_dir / 'regression_corpus_evaluation.md'}"
+    next_command = f"murmurmark corpus train-audio-judge --corpus-dir {out_dir}"
+    report["recommended_next"] = next_command
+    report["next_commands"] = [
+        {
+            "id": "train_audio_judge",
+            "command": next_command,
+            "reason": "train the local shadow audio judge on evaluated corpus rows",
+        }
+    ]
+    report["open_commands"] = [
+        {
+            "id": "open_regression_corpus_evaluation",
+            "command": read_command,
+            "path": str(out_dir / "regression_corpus_evaluation.md"),
+        }
+    ]
     write_json(out_dir / "regression_corpus_evaluation.json", report)
     write_jsonl(out_dir / "regression_corpus_evaluation_items.jsonl", evaluated)
     write_markdown(out_dir / "regression_corpus_evaluation.md", report, evaluated)

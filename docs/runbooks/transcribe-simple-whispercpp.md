@@ -681,7 +681,8 @@ The first three corpus commands form a CLI ladder: `corpus build` prints
 `recommended_next: murmurmark corpus train-audio-judge --corpus-dir ...`, and
 `corpus train-audio-judge` prints `recommended_next: murmurmark corpus taxonomy ...`. Each stage
 also prints `read: less ...` for its local report and repeats the primary action as the final
-copyable `next: ...` line.
+copyable `next: ...` line. The same continuation is stored in each stage JSON as
+`recommended_next`, `next_commands` and `open_commands`.
 
 For a full refresh with all sessions under `./sessions`, use:
 

@@ -1015,6 +1015,9 @@ sessions/_reports/regression-corpus/
 
 The corpus is private generated data. It is for regression tests, agent review and future local
 audio-judge development. It must not become a tracked fixture when it contains real meeting audio.
+`regression_corpus_summary.json` includes `recommended_next`, `next_commands` and `open_commands`:
+the primary next command is `murmurmark corpus evaluate --corpus-dir ...`, while `open_commands`
+points to `regression_corpus.md`.
 
 `regression_corpus_evaluation.json` uses `murmurmark.regression_corpus_evaluation/v1`. It reports
 readiness buckets:
@@ -1034,6 +1037,9 @@ overlap audit marked it as `probable_timing_overlap`.
 
 Readiness buckets are not human truth labels. They are silver labels derived from current local
 metrics and are suitable for no-regression checks and prioritising future audio-judge work.
+The evaluation report also includes `recommended_next`, `next_commands` and `open_commands`: the
+primary next command is `murmurmark corpus train-audio-judge --corpus-dir ...`, while
+`open_commands` points to `regression_corpus_evaluation.md`.
 
 Audio judge v0 is a local shadow classifier trained on the regression corpus:
 
@@ -1094,6 +1100,10 @@ sessions/_reports/audio-judge-v0/
   }
 }
 ```
+
+The audio-judge report includes `recommended_next`, `next_commands` and `open_commands`: the
+primary next command is `murmurmark corpus taxonomy --corpus-dir ... --audio-judge-dir ...`, while
+`open_commands` points to `audio_judge_v0_report.md`.
 
 The model uses only numeric audio/text metrics, not `label`, `verdict`, readiness bucket, or free-text
 content as features. The labels are still silver labels derived from current local metrics, so v0 is a

@@ -2371,6 +2371,8 @@ EOF
   [[ -s "$corpus_dir/regression_corpus.md" ]]
   jq -e '.schema == "murmurmark.regression_corpus_summary/v1"' "$corpus_dir/regression_corpus_summary.json" >/dev/null
   jq -e '.item_count >= 2 and .skipped_sessions == []' "$corpus_dir/regression_corpus_summary.json" >/dev/null
+  jq -e '(.recommended_next | startswith("murmurmark corpus evaluate --corpus-dir ")) and (.next_commands[0].command == .recommended_next) and (.open_commands[0].id == "open_regression_corpus_report")' \
+    "$corpus_dir/regression_corpus_summary.json" >/dev/null
   jq -s 'any(.[]; .label == "remote_duplicate") and any(.[]; .label == "uncertain")' "$corpus_dir/regression_corpus_items.jsonl" >/dev/null
   corpus_evaluate_output="$("$bin" corpus evaluate --corpus-dir "$corpus_dir")"
   assert_no_helper_prefix "$corpus_evaluate_output"
@@ -2383,6 +2385,8 @@ EOF
   [[ -s "$corpus_dir/regression_corpus_evaluation.md" ]]
   jq -e '.schema == "murmurmark.regression_corpus_evaluation/v1"' "$corpus_dir/regression_corpus_evaluation.json" >/dev/null
   jq -e '.by_readiness_bucket.silver_cleanup_positive.count >= 1 and .by_readiness_bucket.needs_audio_judge.count >= 1' "$corpus_dir/regression_corpus_evaluation.json" >/dev/null
+  jq -e '(.recommended_next | startswith("murmurmark corpus train-audio-judge --corpus-dir ")) and (.next_commands[0].command == .recommended_next) and (.open_commands[0].id == "open_regression_corpus_evaluation")' \
+    "$corpus_dir/regression_corpus_evaluation.json" >/dev/null
 
   judge_dir="$workdir/audio-judge-v0"
   audio_judge_output="$("$bin" corpus train-audio-judge \
@@ -2399,6 +2403,8 @@ EOF
   [[ -s "$judge_dir/audio_judge_v0_report.md" ]]
   jq -e '.schema == "murmurmark.audio_judge_v0_report/v1"' "$judge_dir/audio_judge_v0_report.json" >/dev/null
   jq -e '.policy.may_modify_transcript == false and .training.rows >= 2 and (.evaluation.policy_accuracy | type) == "number"' "$judge_dir/audio_judge_v0_report.json" >/dev/null
+  jq -e '(.recommended_next | startswith("murmurmark corpus taxonomy --corpus-dir ")) and (.next_commands[0].command == .recommended_next) and (.open_commands[0].id == "open_audio_judge_report")' \
+    "$judge_dir/audio_judge_v0_report.json" >/dev/null
   jq -e '.evaluation_detail.per_session | type == "array"' "$judge_dir/audio_judge_v0_report.json" >/dev/null
   jq -e '.evaluation_detail.confidence_buckets | length == 4' "$judge_dir/audio_judge_v0_report.json" >/dev/null
   jq -e '.evaluation_detail.cleanup_precision_by_threshold | length == 3' "$judge_dir/audio_judge_v0_report.json" >/dev/null

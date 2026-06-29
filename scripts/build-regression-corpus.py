@@ -443,6 +443,23 @@ def main() -> int:
             item["commands"] = {}
 
     summary = summarize(items, skipped)
+    read_command = f"less {out_dir / 'regression_corpus.md'}"
+    next_command = f"murmurmark corpus evaluate --corpus-dir {out_dir}"
+    summary["recommended_next"] = next_command
+    summary["next_commands"] = [
+        {
+            "id": "evaluate_regression_corpus",
+            "command": next_command,
+            "reason": "evaluate corpus readiness buckets before training the audio judge",
+        }
+    ]
+    summary["open_commands"] = [
+        {
+            "id": "open_regression_corpus_report",
+            "command": read_command,
+            "path": str(out_dir / "regression_corpus.md"),
+        }
+    ]
     manifest = {
         "schema": SCHEMA_MANIFEST,
         "generated_at": datetime.now(timezone.utc).isoformat(),
