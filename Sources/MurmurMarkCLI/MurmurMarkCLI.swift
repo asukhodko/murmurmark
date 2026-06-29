@@ -152,6 +152,7 @@ struct MurmurMark {
           murmurmark audit group-overlaps ./session|latest [--profile shadow_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80]
+                                                        [--quick] [--max-computed-items N]
                                                         [--review-lane-pack PATH] [--sessions-root ./sessions]
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
                              [--mode conservative] [--sessions-root ./sessions]
@@ -3068,7 +3069,7 @@ enum AuditCommands {
             if let packDir, !ArgumentEditing.hasOption("pack-dir", in: auditArgs) {
                 auditArgs += ["--pack-dir", packDir]
             }
-            try Tooling.runPathQuiet(python, auditArgs)
+            try Tooling.runPath(python, auditArgs)
             try AuditPrinter.printStrongerAudioJudge(session: session, args: auditArgs)
         default:
             throw CLIError("unknown audit command: \(subcommand)")
@@ -3091,12 +3092,13 @@ enum AuditCommands {
             "compute-type",
             "language",
             "beam-size",
+            "max-computed-items",
             "pack-dir",
             "source",
             "pack-item-id",
             "review-lane-pack",
         ]
-        let skipFlags: Set<String> = ["allow-download"]
+        let skipFlags: Set<String> = ["allow-download", "quick", "progress", "no-progress", "no-cache"]
         var filtered: [String] = []
         var index = 0
         while index < args.count {
@@ -3146,7 +3148,8 @@ enum AuditCommands {
           murmurmark audit order ./session|latest [--profile auto] [--sessions-root ./sessions]
           murmurmark audit group-overlaps ./session|latest [--profile shadow_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
-          murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80] [--sessions-root ./sessions]
+          murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80]
+                                             [--quick] [--max-computed-items N] [--sessions-root ./sessions]
 
         Audit commands are local-only wrappers over existing Python scripts:
           local-recall    runs audit-local-recall.py

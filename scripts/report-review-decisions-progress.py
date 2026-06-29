@@ -90,7 +90,10 @@ def review_row_key(row: dict[str, Any]) -> str:
 
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     existing_by_key = {review_row_key(row): row for row in existing_rows}
-    return [{**row, **existing_by_key.get(review_row_key(row), {})} for row in template_rows]
+    template_keys = {review_row_key(row) for row in template_rows}
+    merged = [{**row, **existing_by_key.get(review_row_key(row), {})} for row in template_rows]
+    merged.extend(row for row in existing_rows if review_row_key(row) not in template_keys and is_reviewed(row))
+    return merged
 
 
 def allowed_decisions(row: dict[str, Any]) -> set[str]:

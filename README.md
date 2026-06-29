@@ -838,9 +838,10 @@ transcript errors or possible lost `Me` speech.
 uses `faster-whisper large-v3` on the already cut `mic_raw`, `mic_clean`, `mic_role_masked` and
 `remote` clips, writes `faster_whisper_judge.*` artifacts under
 `derived/audit/audio-review-pack/`, and can improve suggested answers in review lane packs. It still
-does not edit transcripts by itself. The full `process` runner uses a small limit by default. For a
-specific blocker, prefer the targeted lane-pack mode: it reads stable utterance ids from the current
-review lane, not unstable `arp_*` item numbers, and spends CPU only on the rows that block export.
+does not edit transcripts by itself. The command prints progress while loading the local model and
+decoding clips. The full `process` runner uses a small limit by default. For a specific blocker,
+prefer the targeted lane-pack mode: it reads stable utterance ids from the current review lane, not
+unstable `arp_*` item numbers, and spends CPU only on a small batch of rows that block export.
 
 ```bash
 murmurmark review first-lane --session "$SESSION"
@@ -848,7 +849,9 @@ murmurmark review first-lane --session "$SESSION"
 LANE=check_unique_me_content
 murmurmark audit stronger-audio-judge "$SESSION" \
   --review-lane-pack "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_pack.$LANE.json" \
-  --max-items 20
+  --quick \
+  --max-items 5 \
+  --max-computed-items 5
 
 murmurmark review first-lane --session "$SESSION"
 murmurmark review lane apply "$LANE" --session "$SESSION" --answers-source suggested --dry-run

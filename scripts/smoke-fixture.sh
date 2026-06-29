@@ -2561,6 +2561,13 @@ EOF
     --out "$preserve_out" \
     --answers-file "$preserve_answers" >/dev/null
   jq -s 'length == 2 and any(.[]; .source_audit_id == "preserve_existing" and .decision == "keep_me") and any(.[]; .source_audit_id == "preserve_current" and .decision == "keep_me")' "$preserve_out" >/dev/null
+  preserve_progress="$workdir/review_decisions_preserve_progress.json"
+  "$repo_root/scripts/report-review-decisions-progress.py" \
+    --template "$preserve_template" \
+    --decisions "$preserve_out" \
+    --out "$preserve_progress" \
+    --markdown "$workdir/review_decisions_preserve_progress.md" >/dev/null
+  jq -e '.summary.total == 2 and .summary.reviewed == 2 and .summary.remaining == 0 and .summary.ready_for_batch_apply == true' "$preserve_progress" >/dev/null
   duplicate_source_template="$workdir/review_decisions_duplicate_source.template.jsonl"
   duplicate_source_out="$workdir/review_decisions_duplicate_source.jsonl"
   duplicate_lane_dir="$workdir/review_lane_pack_duplicate_source"

@@ -197,7 +197,8 @@ def review_lane_handoff(
             "run_targeted_stronger_audio_judge",
             (
                 f"murmurmark audit stronger-audio-judge {shlex.quote(session_arg)} "
-                f"--review-lane-pack {shell_path(manifest_path)} --max-items 20"
+                f"--review-lane-pack {shell_path(manifest_path)} "
+                f"--quick --max-items 5 --max-computed-items 5"
             ),
             "run faster-whisper judge only for the current review lane items",
         )

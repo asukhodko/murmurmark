@@ -9,6 +9,7 @@ import os
 import re
 import shlex
 import subprocess
+import wave
 from collections import Counter
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -17,10 +18,11 @@ from typing import Any
 
 SCHEMA_ROW = "murmurmark.faster_whisper_judge/v1"
 SCHEMA_SUMMARY = "murmurmark.faster_whisper_judge_summary/v1"
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.1.1"
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/faster-whisper/large-v3"
 DEFAULT_MAX_ITEMS = 80
 DEFAULT_SOURCES = ("mic_role_masked", "mic_clean", "mic_raw", "remote")
+QUICK_SOURCES = ("mic_clean", "remote")
 STOP_WORDS = {
     "а",
     "и",
@@ -77,7 +79,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--compute-type", default="int8")
     parser.add_argument("--language", default="ru")
     parser.add_argument("--max-items", type=int, default=DEFAULT_MAX_ITEMS)
+    parser.add_argument(
+        "--max-computed-items",
+        type=int,
+        default=0,
+        help="Compute at most this many missing items in this run. Cached rows are still kept. 0 means no extra cap.",
+    )
     parser.add_argument("--beam-size", type=int, default=1)
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Quick lane triage: decode mic_clean and remote only unless --source is provided.",
+    )
+    parser.add_argument(
+        "--progress",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Print progress while loading the model and decoding clips.",
+    )
     parser.add_argument("--allow-download", action="store_true", help="Allow Hugging Face network access.")
     parser.add_argument("--no-cache", action="store_true", help="Recompute selected clips even when cached judge rows exist.")
     parser.add_argument(
@@ -96,6 +115,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source", action="append", choices=DEFAULT_SOURCES, help="Clip source to decode. Can repeat.")
     parser.add_argument("--write-clips", action=argparse.BooleanOptionalAction, default=None, help=argparse.SUPPRESS)
     return parser.parse_args()
+
+
+def progress(args: argparse.Namespace, message: str) -> None:
+    if args.progress:
+        print(f"stronger_audio_judge: {message}", flush=True)
+
+
+def selected_sources(args: argparse.Namespace) -> tuple[str, ...]:
+    if args.source:
+        return tuple(args.source)
+    if args.quick:
+        return QUICK_SOURCES
+    return DEFAULT_SOURCES
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -191,6 +223,45 @@ def parse_ffplay_slice(command: Any) -> tuple[Path | None, float, float] | None:
     return path, start, duration
 
 
+def parse_play_path(command: Any) -> Path | None:
+    if not isinstance(command, str) or not command.strip():
+        return None
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return None
+    if not parts or Path(parts[0]).name not in {"ffplay", "afplay"}:
+        return None
+    path: Path | None = None
+    index = 1
+    options_with_value = {"-ss", "-t", "-loglevel", "-i"}
+    while index < len(parts):
+        part = parts[index]
+        if part in options_with_value and index + 1 < len(parts):
+            if part == "-i":
+                path = Path(parts[index + 1]).expanduser()
+            index += 2
+            continue
+        if part.startswith("-"):
+            index += 1
+            continue
+        path = Path(part).expanduser()
+        index += 1
+    return path
+
+
+def wav_duration(path: Path) -> float:
+    try:
+        with wave.open(str(path), "rb") as file:
+            frames = file.getnframes()
+            rate = file.getframerate()
+            if rate > 0:
+                return frames / rate
+    except (OSError, EOFError, wave.Error):
+        return 0.0
+    return 0.0
+
+
 def session_audio_sources(session: Path, mic_raw: Path | None) -> dict[str, Path]:
     return {
         "mic_raw": mic_raw or session / "audio/mic/000001.caf",
@@ -271,6 +342,95 @@ def lane_item_text_rows(item: dict[str, Any], start: float, end: float) -> list[
     return rows
 
 
+def lane_item_text_rows_for_source(item: dict[str, Any], source_id: str, start: float, end: float) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for piece in item.get("evidence_text") or []:
+        if not isinstance(piece, dict):
+            continue
+        role_text = str(piece.get("role") or "").lower()
+        if source_id and source_id.lower() not in role_text:
+            continue
+        text = str(piece.get("text") or "").strip()
+        if not text:
+            continue
+        if "me" in role_text:
+            rows.append(
+                {
+                    "id": "",
+                    "role": "me",
+                    "source_track": "mic",
+                    "start": start,
+                    "end": end,
+                    "text": text,
+                    "needs_review": True,
+                    "quality_flags": ["review_lane", "transcript_order"],
+                }
+            )
+        elif "remote" in role_text or "colleague" in role_text:
+            rows.append(
+                {
+                    "id": "",
+                    "role": "remote",
+                    "source_track": "remote",
+                    "start": start,
+                    "end": end,
+                    "text": text,
+                    "needs_review": False,
+                    "quality_flags": ["review_lane", "transcript_order"],
+                }
+            )
+    return rows
+
+
+def source_clips_from_review_lane_clip(source_id: str, clip_path: Path) -> dict[str, str]:
+    clips: dict[str, str] = {}
+    clip_dir = clip_path.parent
+    for source in DEFAULT_SOURCES:
+        candidate = clip_dir / f"{source_id}_{source}.wav"
+        if candidate.exists() and candidate.stat().st_size > 0:
+            clips[source] = str(candidate)
+    return clips
+
+
+def synthetic_item_from_existing_clips(
+    lane_item: dict[str, Any],
+    source_id: str,
+    clip_path: Path,
+    args: argparse.Namespace,
+) -> dict[str, Any] | None:
+    clips = source_clips_from_review_lane_clip(source_id, clip_path)
+    if not clips:
+        return None
+    duration = max(wav_duration(Path(path)) for path in clips.values())
+    if duration <= 0:
+        duration = safe_float((lane_item.get("interval") or {}).get("duration_sec"), 0.0)
+    if duration <= 0:
+        duration = max(0.0, safe_float(lane_item.get("pack_end")) - safe_float(lane_item.get("pack_start")))
+    start = safe_float((lane_item.get("interval") or {}).get("start"), 0.0)
+    end = start + duration
+    rows = lane_item_text_rows_for_source(lane_item, source_id, start, end) or lane_item_text_rows(lane_item, start, end)
+    return {
+        "schema": "murmurmark.audio_review_pack_item/v1",
+        "id": source_id,
+        "session_id": lane_item.get("session_id") or args.session.name,
+        "profile": lane_item.get("input_profile") or args.profile,
+        "interval": {
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "duration_sec": round(duration, 3),
+            "start_time": format_time(start),
+            "end_time": format_time(end),
+        },
+        "source_reasons": [
+            f"review_lane:{lane_item.get('review_lane') or 'unknown'}",
+            str(lane_item.get("label") or "needs_review"),
+        ],
+        "utterance_ids": list_strings(lane_item.get("utterance_ids")),
+        "utterances": rows,
+        "clips": clips,
+    }
+
+
 def synthetic_lane_pack_items(args: argparse.Namespace, session: Path, out_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
     items: list[dict[str, Any]] = []
     missing_pack_files: list[str] = []
@@ -286,6 +446,24 @@ def synthetic_lane_pack_items(args: argparse.Namespace, session: Path, out_dir: 
             source_ids = list_strings(item.get("source_audit_ids")) or list_strings([item.get("source_audit_id")])
             source_id = source_ids[0] if source_ids else ""
             if not source_id:
+                continue
+            existing_clip_items: list[dict[str, Any]] = []
+            group_commands = item.get("group_commands") if isinstance(item.get("group_commands"), list) else []
+            command_rows = group_commands or [
+                {"source_audit_id": source_id, "command": item.get("command")},
+            ]
+            for command_row in command_rows:
+                if not isinstance(command_row, dict):
+                    continue
+                command_source_id = str(command_row.get("source_audit_id") or source_id)
+                play_path = parse_play_path(command_row.get("command"))
+                if play_path is None:
+                    continue
+                synthetic = synthetic_item_from_existing_clips(item, command_source_id, play_path, args)
+                if synthetic is not None:
+                    existing_clip_items.append(synthetic)
+            if existing_clip_items:
+                items.extend(existing_clip_items)
                 continue
             parsed = parse_ffplay_slice(item.get("command"))
             if parsed is None:
@@ -353,6 +531,17 @@ def target_item_ids(args: argparse.Namespace, items: list[dict[str, Any]]) -> tu
     selectors, missing_pack_files = lane_pack_selectors(args)
     matched_selector_ids: list[str] = []
     for selector in selectors:
+        source_ids = [str(value) for value in selector.get("source_ids") or [] if value]
+        exact = [
+            str(item.get("id") or "")
+            for item in items
+            if item.get("id")
+            and str(item.get("id") or "") in source_ids
+            and item_matches_lane_selector(item, selector)
+        ]
+        if exact:
+            matched_selector_ids.extend(exact)
+            continue
         matched = [str(item.get("id") or "") for item in items if item.get("id") and item_matches_lane_selector(item, selector)]
         if matched:
             matched_selector_ids.extend(matched)
@@ -826,7 +1015,7 @@ def classify_item(
 
 
 def audit_item(model: Any, item: dict[str, Any], audit_row: dict[str, Any] | None, args: argparse.Namespace) -> dict[str, Any]:
-    sources = tuple(args.source or DEFAULT_SOURCES)
+    sources = selected_sources(args)
     clips = item.get("clips") if isinstance(item.get("clips"), dict) else {}
     transcripts: dict[str, dict[str, Any]] = {}
     for source in sources:
@@ -947,6 +1136,11 @@ def write_report(path: Path, summary: dict[str, Any], rows: list[dict[str, Any]]
         "## Summary",
         "",
         f"- Items: `{summary['items']}`",
+        f"- Selected items: `{summary.get('selected_items', 0)}`",
+        f"- Computed items: `{summary.get('computed_items', 0)}`",
+        f"- Cached items: `{summary.get('cached_items', 0)}`",
+        f"- Still pending selected items: `{summary.get('pending_selected_items_after_cap', 0)}`",
+        f"- Sources: `{', '.join(summary.get('sources') or [])}`",
         f"- Suggested keep seconds: `{summary['suggested_keep_me_seconds']}`",
         f"- Suggested drop seconds: `{summary['suggested_drop_me_seconds']}`",
         f"- Recommended next step: `{summary['recommended_next_step']}`",
@@ -1029,19 +1223,46 @@ def main() -> int:
     selected = selected_items(items, matched_audio_review_rows, args.max_items, target_ids=requested_target_ids)
     missing_target_ids = [item_id for item_id in requested_target_ids if item_id not in {str(item.get("id") or "") for item in items}]
     cached_rows, missing_items, cached_count = cached_rows_for_items(out_dir, selected, disabled=args.no_cache)
+    pending_selected_count = len(missing_items)
+    if args.max_computed_items > 0 and len(missing_items) > args.max_computed_items:
+        missing_items = missing_items[: args.max_computed_items]
     cached_by_pack_id = {str(row.get("source_pack_item_id") or ""): row for row in cached_rows}
     if missing_items:
+        progress(
+            args,
+            (
+                f"selected={len(selected)} cached={cached_count} "
+                f"pending={pending_selected_count} computing={len(missing_items)} "
+                f"sources={','.join(selected_sources(args))}"
+            ),
+        )
+        progress(args, f"loading faster-whisper model: {model_path}")
         model = load_model(model_path, args)
-        new_by_pack_id = {
-            str(item.get("id") or ""): audit_item(model, item, matched_audio_review_rows.get(str(item.get("id") or "")), args)
-            for item in missing_items
-        }
+        progress(args, "model loaded")
+        new_by_pack_id: dict[str, dict[str, Any]] = {}
+        for index, item in enumerate(missing_items, start=1):
+            item_id = str(item.get("id") or "")
+            duration = safe_float((item.get("interval") or {}).get("duration_sec"), 0.0)
+            progress(args, f"decode {index}/{len(missing_items)} {item_id} ({duration:.2f}s)")
+            new_by_pack_id[item_id] = audit_item(model, item, matched_audio_review_rows.get(item_id), args)
+            classification = new_by_pack_id[item_id].get("classification") or {}
+            progress(
+                args,
+                (
+                    f"done {index}/{len(missing_items)} {item_id}: "
+                    f"{classification.get('label')} -> {classification.get('suggested_decision')} "
+                    f"confidence={classification.get('confidence')}"
+                ),
+            )
     else:
+        progress(args, f"all selected items are cached ({cached_count}/{len(selected)})")
         new_by_pack_id = {}
-    selected_rows = [
-        new_by_pack_id.get(str(item.get("id") or "")) or cached_by_pack_id[str(item.get("id") or "")]
-        for item in selected
-    ]
+    selected_rows: list[dict[str, Any]] = []
+    for item in selected:
+        item_id = str(item.get("id") or "")
+        row = new_by_pack_id.get(item_id) or cached_by_pack_id.get(item_id)
+        if row:
+            selected_rows.append(row)
     merged_by_pack_id = valid_existing_rows_by_pack_id(out_dir, items)
     for row in selected_rows:
         if row.get("source_pack_item_id"):
@@ -1051,6 +1272,11 @@ def main() -> int:
     summary["cached_items"] = cached_count
     summary["computed_items"] = len(missing_items)
     summary["selected_items"] = len(selected)
+    summary["pending_selected_items_before_cap"] = pending_selected_count
+    summary["pending_selected_items_after_cap"] = max(0, pending_selected_count - len(missing_items))
+    summary["sources"] = list(selected_sources(args))
+    summary["quick"] = bool(args.quick)
+    summary["max_computed_items"] = args.max_computed_items
     summary["target_item_ids"] = requested_target_ids
     summary["missing_target_item_ids"] = missing_target_ids
     summary["missing_review_lane_pack_files"] = missing_lane_pack_files
@@ -1061,6 +1287,8 @@ def main() -> int:
     print(f"items: {len(rows)}")
     print(f"cached_items: {cached_count}")
     print(f"computed_items: {len(missing_items)}")
+    print(f"pending_selected_items_after_cap: {summary['pending_selected_items_after_cap']}")
+    print(f"sources: {', '.join(selected_sources(args))}")
     if requested_target_ids:
         print(f"target_items: {len(selected)}/{len(requested_target_ids)}")
     if missing_target_ids:

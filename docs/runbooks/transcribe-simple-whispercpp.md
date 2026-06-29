@@ -571,7 +571,9 @@ murmurmark review first-lane --session "$SESSION"
 LANE=check_unique_me_content
 murmurmark audit stronger-audio-judge "$SESSION" \
   --review-lane-pack "$SESSION/derived/readiness/review-plan/lane-packs/review_lane_pack.$LANE.json" \
-  --max-items 20
+  --quick \
+  --max-items 5 \
+  --max-computed-items 5
 
 jq '{items, suggested_keep_me_seconds, suggested_drop_me_seconds, skipped_reason}' \
   "$SESSION/derived/audit/audio-review-pack/faster_whisper_judge_summary.json"
@@ -584,10 +586,13 @@ murmurmark review lane apply "$LANE" --session "$SESSION" --answers-source sugge
 
 The stronger judge is local and optional. It decodes only short review clips, writes
 `faster_whisper_judge.jsonl`, `faster_whisper_judge_summary.json` and
-`faster_whisper_judge_report.md`, and never changes transcript profiles by itself. Review lane packs
-use those rows only for safer suggested answers: `confirm_me` and `confirm_timing_or_doubletalk`
-suggest `keep_me` when allowed; `confirm_remote_duplicate` and `confirm_asr_noise` suggest `drop_me`
-only when the lane and safety gates allow that decision. Suggested answer sheets leave
+`faster_whisper_judge_report.md`, and never changes transcript profiles by itself. It prints progress
+while loading the model and decoding items. For CPU runs, prefer targeted lane-pack batches with
+`--quick --max-items 5 --max-computed-items 5`; larger runs are useful only as deliberate long
+audits. Review lane packs use those rows only for safer suggested answers: `confirm_me` and
+`confirm_timing_or_doubletalk` suggest `keep_me` when allowed; `confirm_remote_duplicate` and
+`confirm_asr_noise` suggest `drop_me` only when the lane and safety gates allow that decision.
+Suggested answer sheets leave
 `uncertain`/`needs_review` rows as dots, so applying suggested answers closes only actionable rows.
 Dots preserve already reviewed rows and do not reset earlier decisions back to `todo`.
 
