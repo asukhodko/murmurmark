@@ -107,7 +107,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-clips", type=int, default=80)
     parser.add_argument("--max-audio-review-items", type=int, default=160)
-    parser.add_argument("--max-stronger-audio-judge-items", type=int, default=80)
+    parser.add_argument("--max-stronger-audio-judge-items", type=int, default=12)
     parser.add_argument(
         "--report",
         type=Path,

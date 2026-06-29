@@ -1088,6 +1088,8 @@ def answer_for_item(item: dict[str, Any], suggested: bool) -> str:
     if not suggested:
         return "."
     decision = str(item.get("suggested_decision") or "todo")
+    if decision in {"todo", "needs_review", "skip"}:
+        return "."
     if decision not in allowed_decisions_for_item(item):
         return "."
     return DECISION_SHORTCUTS.get(decision, ".")
@@ -1102,6 +1104,7 @@ def write_answer_sheet(path: Path, manifest: dict[str, Any], *, suggested: bool 
         "# Listen to the lane WAV before applying decisions to medium-risk transcripts.",
         "# d=drop_me, c=drop_remote, k=keep_me, r/?=needs_review, s=skip, ./n/t=todo",
         "# Keep dots for items you have not reviewed or cannot confidently classify.",
+        "# Suggested sheets keep uncertain/needs_review items as dots; they contain only actionable keep/drop suggestions.",
         f"answers={answers}",
         "",
         "# Items",

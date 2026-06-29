@@ -65,6 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-items", type=int, default=DEFAULT_MAX_ITEMS)
     parser.add_argument("--beam-size", type=int, default=1)
     parser.add_argument("--allow-download", action="store_true", help="Allow Hugging Face network access.")
+    parser.add_argument("--no-cache", action="store_true", help="Recompute selected clips even when cached judge rows exist.")
     parser.add_argument("--source", action="append", choices=DEFAULT_SOURCES, help="Clip source to decode. Can repeat.")
     parser.add_argument("--write-clips", action=argparse.BooleanOptionalAction, default=None, help=argparse.SUPPRESS)
     return parser.parse_args()
@@ -496,6 +497,31 @@ def summarize(rows: list[dict[str, Any]], *, model_path: Path, pack_summary: dic
     }
 
 
+def cached_rows_for_items(
+    out_dir: Path,
+    items: list[dict[str, Any]],
+    *,
+    disabled: bool,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int]:
+    if disabled:
+        return [], items, 0
+    cached_by_pack_id = {
+        str(row.get("source_pack_item_id") or ""): row
+        for row in read_jsonl(out_dir / "faster_whisper_judge.jsonl")
+        if row.get("source_pack_item_id")
+    }
+    cached: list[dict[str, Any]] = []
+    missing: list[dict[str, Any]] = []
+    for item in items:
+        pack_id = str(item.get("id") or "")
+        row = cached_by_pack_id.get(pack_id)
+        if row:
+            cached.append(row)
+        else:
+            missing.append(item)
+    return cached, missing, len(cached)
+
+
 def write_report(path: Path, summary: dict[str, Any], rows: list[dict[str, Any]]) -> None:
     lines = [
         "# Faster Whisper Judge",
@@ -573,14 +599,30 @@ def main() -> int:
         print(f"summary: {out_dir / 'faster_whisper_judge_summary.json'}")
         return 0
 
-    model = load_model(model_path, args)
     selected = selected_items(items, audio_review_rows, args.max_items)
-    rows = [audit_item(model, item, audio_review_rows.get(str(item.get("id") or "")), args) for item in selected]
+    cached_rows, missing_items, cached_count = cached_rows_for_items(out_dir, selected, disabled=args.no_cache)
+    cached_by_pack_id = {str(row.get("source_pack_item_id") or ""): row for row in cached_rows}
+    if missing_items:
+        model = load_model(model_path, args)
+        new_by_pack_id = {
+            str(item.get("id") or ""): audit_item(model, item, audio_review_rows.get(str(item.get("id") or "")), args)
+            for item in missing_items
+        }
+    else:
+        new_by_pack_id = {}
+    rows = [
+        new_by_pack_id.get(str(item.get("id") or "")) or cached_by_pack_id[str(item.get("id") or "")]
+        for item in selected
+    ]
     summary = summarize(rows, model_path=model_path, pack_summary=pack_summary)
+    summary["cached_items"] = cached_count
+    summary["computed_items"] = len(missing_items)
     write_jsonl(out_dir / "faster_whisper_judge.jsonl", rows)
     write_json(out_dir / "faster_whisper_judge_summary.json", summary)
     write_report(out_dir / "faster_whisper_judge_report.md", summary, rows)
     print(f"items: {len(rows)}")
+    print(f"cached_items: {cached_count}")
+    print(f"computed_items: {len(missing_items)}")
     print(f"summary: {out_dir / 'faster_whisper_judge_summary.json'}")
     print(f"report: {out_dir / 'faster_whisper_judge_report.md'}")
     return 0

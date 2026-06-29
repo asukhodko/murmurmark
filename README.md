@@ -837,7 +837,8 @@ transcript errors or possible lost `Me` speech.
 uses `faster-whisper large-v3` on the already cut `mic_raw`, `mic_clean`, `mic_role_masked` and
 `remote` clips, writes `faster_whisper_judge.*` artifacts under
 `derived/audit/audio-review-pack/`, and can improve suggested answers in review lane packs. It still
-does not edit transcripts by itself:
+does not edit transcripts by itself. The full `process` runner uses a small targeted limit by default;
+increase `--max-items` manually when a specific lane is worth the CPU time:
 
 ```bash
 murmurmark audit stronger-audio-judge "$SESSION" \
@@ -1051,7 +1052,8 @@ silent replacement for listening when the meeting is medium-risk. Lane-pack outp
 `suggested_dry_run` and `suggested_apply`; those commands use
 `murmurmark review lane apply <lane> --answers-source suggested`, which reads
 `review_lane_answers.<lane>.suggested.txt` explicitly and cannot be mixed with `--answers` or
-`--answers-file`. Run the suggested command with `--dry-run` first.
+`--answers-file`. Suggested sheets leave uncertain/needs-review items as dots and fill only
+actionable keep/drop suggestions. Run the suggested command with `--dry-run` first.
 When several lane answer sheets are edited, `murmurmark review workspace apply` applies
 the whole `review_workspace.json` in one validated pass and then refreshes review progress.
 Use `murmurmark review workspace apply --dry-run` to write only the validation report and print the

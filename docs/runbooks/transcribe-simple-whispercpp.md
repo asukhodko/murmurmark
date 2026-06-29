@@ -580,7 +580,8 @@ The stronger judge is local and optional. It decodes only short review clips, wr
 `faster_whisper_judge_report.md`, and never changes transcript profiles by itself. Review lane packs
 use those rows only for safer suggested answers: `confirm_me` and `confirm_timing_or_doubletalk`
 suggest `keep_me` when allowed; `confirm_remote_duplicate` and `confirm_asr_noise` suggest `drop_me`
-only when the lane and safety gates allow that decision.
+only when the lane and safety gates allow that decision. Suggested answer sheets leave
+`uncertain`/`needs_review` rows as dots, so applying suggested answers closes only actionable rows.
 
 The pack is written under `derived/audit/audio-review-pack/`. It includes short `mic_raw`,
 `remote`, `mic_clean`, `mic_role_masked` and stereo comparison clips for suspicious transcript

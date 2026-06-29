@@ -2159,7 +2159,7 @@ EOF
   jq -e '.outputs.answer_sheet | endswith("review_lane_answers.check_local_recall.txt")' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   jq -e '.outputs.suggested_answer_sheet | endswith("review_lane_answers.check_local_recall.suggested.txt")' "$lane_pack_dir/review_lane_pack.check_local_recall.json" >/dev/null
   grep -q '^answers=\.$' "$lane_pack_dir/review_lane_answers.check_local_recall.txt"
-  grep -q '^answers=r$' "$lane_pack_dir/review_lane_answers.check_local_recall.suggested.txt"
+  grep -q '^answers=\.$' "$lane_pack_dir/review_lane_answers.check_local_recall.suggested.txt"
   grep -q 'probe-review-lane-pack-audio.py' "$lane_pack_dir/review_lane_pack.check_local_recall.md"
   grep -q -- '--answers-file' "$lane_pack_dir/review_lane_pack.check_local_recall.md"
   grep -q 'Review focus:' "$lane_pack_dir/review_lane_pack.check_local_recall.md"
@@ -2190,7 +2190,7 @@ EOF
   grep -q '^answers=\.$' "$answer_sheet"
   suggested_answer_sheet="$review_workspace_dir/lane-packs/review_lane_answers.check_local_recall.suggested.txt"
   [[ -s "$suggested_answer_sheet" ]]
-  grep -q '^answers=r$' "$suggested_answer_sheet"
+  grep -q '^answers=\.$' "$suggested_answer_sheet"
   grep -q -- '--answers-file' "$review_workspace_dir/review_workspace.md"
   suggested_apply_out="$workdir/review_decisions_workspace_suggested_apply.jsonl"
   "$repo_root/scripts/apply-review-workspace-decisions.py" \
@@ -2199,8 +2199,19 @@ EOF
     --out "$suggested_apply_out" \
     --report "$workdir/review_workspace_suggested_apply_report.json" \
     --answers-source suggested >/dev/null
-  jq -s '.[0].decision == "todo" and .[1].decision == "needs_review" and .[1].review_source == "workspace_suggested_answer_sheet"' "$suggested_apply_out" >/dev/null
-  jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .answers_source == "suggested" and .summary.reviewed_count == 1 and .summary.remaining_rows == 1 and .summary.rejected_count == 0' "$workdir/review_workspace_suggested_apply_report.json" >/dev/null
+  jq -s '
+    .[0].decision == "todo"
+    and .[1].decision == "todo"
+    and (.[1].review_source | not)
+  ' "$suggested_apply_out" >/dev/null
+  jq -e '
+    .schema == "murmurmark.review_workspace_apply_report/v1"
+    and .answers_source == "suggested"
+    and .summary.reviewed_count == 0
+    and .summary.remaining_rows == 2
+    and .summary.workspace_todo_count == 1
+    and .summary.rejected_count == 0
+  ' "$workdir/review_workspace_suggested_apply_report.json" >/dev/null
   jq -e '(.recommended_next | length > 0) and (.next_commands | length >= 1) and ([.open_commands[].id] | index("open_review_workspace_apply_report"))' "$workdir/review_workspace_suggested_apply_report.json" >/dev/null
   sed 's/^answers=.*/answers=k/' "$answer_sheet" >"$answer_sheet.tmp"
   mv "$answer_sheet.tmp" "$answer_sheet"
@@ -2288,11 +2299,18 @@ EOF
     --dry-run >"$cli_workspace_suggested_dry_run_stdout"
   assert_no_helper_prefix "$(cat "$cli_workspace_suggested_dry_run_stdout")"
   [[ ! -e "$cli_workspace_suggested_dry_run_out" ]]
-  jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .answers_source == "suggested" and .dry_run == true and .summary.reviewed_count == 1 and .summary.remaining_rows == 1' "$cli_review_workspace_dir/review_workspace_suggested_apply_dry_run_report.json" >/dev/null
+  jq -e '
+    .schema == "murmurmark.review_workspace_apply_report/v1"
+    and .answers_source == "suggested"
+    and .dry_run == true
+    and .summary.reviewed_count == 0
+    and .summary.remaining_rows == 2
+    and .summary.workspace_todo_count == 1
+  ' "$cli_review_workspace_dir/review_workspace_suggested_apply_dry_run_report.json" >/dev/null
   jq -e '(.recommended_next | length > 0) and (.next_commands | length >= 1) and ([.open_commands[].id] | index("open_review_workspace_apply_report"))' "$cli_review_workspace_dir/review_workspace_suggested_apply_dry_run_report.json" >/dev/null
   grep -q '^review_workspace_apply:$' "$cli_workspace_suggested_dry_run_stdout"
   grep -q '^  answers_source: suggested' "$cli_workspace_suggested_dry_run_stdout"
-  grep -q '^    check_local_recall: status=ok reviewed=1 todo=0 rejected=0' "$cli_workspace_suggested_dry_run_stdout"
+  grep -q '^    check_local_recall: status=ok reviewed=0 todo=1 rejected=0' "$cli_workspace_suggested_dry_run_stdout"
   sed 's/^answers=.*/answers=k/' "$cli_answer_sheet" >"$cli_answer_sheet.tmp"
   mv "$cli_answer_sheet.tmp" "$cli_answer_sheet"
   cli_workspace_apply_out="$workdir/review_decisions_workspace_cli_apply.jsonl"
@@ -2380,7 +2398,7 @@ EOF
     and (.items[0].review_row_keys | length == 2)
     and (.items[0].source_audit_ids == ["order_group_001", "order_group_002"])
   ' "$order_group_lane_dir/review_lane_pack.check_transcript_order.json" >/dev/null
-  grep -q '^answers=r$' "$order_group_lane_dir/review_lane_answers.check_transcript_order.suggested.txt"
+  grep -q '^answers=\.$' "$order_group_lane_dir/review_lane_answers.check_transcript_order.suggested.txt"
   "$repo_root/scripts/apply-review-lane-pack-decisions.py" \
     "$order_group_lane_dir/review_lane_pack.check_transcript_order.json" \
     --template "$order_group_template" \
@@ -3529,11 +3547,12 @@ PY
     --dry-run)"
   echo "$first_lane_suggested_dry_run_output" | grep -q '^review_lane_apply:$'
   echo "$first_lane_suggested_dry_run_output" | grep -q '^  answers_source: suggested'
-  echo "$first_lane_suggested_dry_run_output" | grep -q '^  lane_result: reviewed='
+  echo "$first_lane_suggested_dry_run_output" | grep -q '^  lane_result: reviewed=0 todo=1 rejected=0'
   echo "$first_lane_suggested_dry_run_output" | grep -q 'review_lane_answers\..*\.suggested\.txt'
   echo "$first_lane_suggested_dry_run_output" | grep -q '^  next:$'
+  echo "$first_lane_suggested_dry_run_output" | grep -q '^    \$EDITOR .*review_lane_answers\..*\.suggested\.txt'
   echo "$first_lane_suggested_dry_run_output" | grep -q '^    murmurmark review lane apply .* --answers-source suggested'
-  echo "$first_lane_suggested_dry_run_output" | grep -q '^next: murmurmark review lane apply .* --answers-source suggested'
+  echo "$first_lane_suggested_dry_run_output" | grep -q '^next: \$EDITOR .*review_lane_answers\..*\.suggested\.txt'
   ! echo "$first_lane_suggested_dry_run_output" | grep -Eq '^(\{"manifest_items"|Dry run:)'
   if "$bin" review lane apply first \
       --plan-out-dir "$first_lane_plan_dir" \
