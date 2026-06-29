@@ -829,11 +829,11 @@ unique local token or continuation.
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
 The same snapshot exposes the remaining export work as a normal review queue: `40` raw rows /
-`31` packed actions after the current `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `9` grouped rows reachable
+`34` packed actions after the current `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `6` grouped rows reachable
 through `murmurmark review next SESSION`, `murmurmark review first-lane --session SESSION` and
 `murmurmark review workspace --session SESSION`. This is intentionally separate from notes
 readiness: selected notes can be used, while full transcript/export waits for the review loop.
-The active queue currently spans `6` sessions; already-reviewed `local_recall` and
+The active queue currently spans `7` sessions; already-reviewed `local_recall` and
 `local_recall_repair` decisions are inherited by readiness, so only one short unresolved local-recall
 row remains in `check_local_recall`.
 The next engineering target is to shrink that queue to `<= 15` packed actions and

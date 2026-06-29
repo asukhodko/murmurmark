@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.2"
+SCRIPT_VERSION = "0.4.3"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -1416,6 +1416,13 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     suggested_gates = suggested_report.get("gates") if isinstance(suggested_report, dict) else {}
     counts = selected_counts(evidence)
     missing = missing_artifacts(status)
+    meeting_duration_sec = (quality or {}).get("meeting_duration_sec")
+    meeting_duration_value = safe_float(meeting_duration_sec)
+    if meeting_duration_value is None or meeting_duration_value <= 0:
+        meeting_duration_sec = metrics.get("meeting_duration_sec")
+        meeting_duration_value = safe_float(meeting_duration_sec)
+    if meeting_duration_value is None or meeting_duration_value <= 0:
+        meeting_duration_sec = session_duration_sec(session_json)
 
     row: dict[str, Any] = {
         "session": str(session),
@@ -1430,9 +1437,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
         "risk_items_count": len(verdict.get("risk_items") or []) if isinstance(verdict, dict) else None,
         "created_at": session_json.get("created_at"),
         "ended_at": session_json.get("ended_at"),
-        "meeting_duration_sec": round_or_none(
-            (quality or {}).get("meeting_duration_sec", metrics.get("meeting_duration_sec", session_duration_sec(session_json)))
-        ),
+        "meeting_duration_sec": round_or_none(meeting_duration_sec),
         "utterances": safe_int((quality or {}).get("utterances", metrics.get("utterances"))),
         "needs_review_count": safe_int((quality or {}).get("needs_review_count", metrics.get("needs_review_count"))),
         "needs_review_ratio": round_or_none(metrics.get("needs_review_ratio")),

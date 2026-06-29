@@ -47,10 +47,10 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - operational verdict: `medium_risk_ready`;
 - working sessions: `13/13 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.02 min`;
-- remaining full transcript/export review surface: `2.36 min`;
-- export-review queue: `40` raw rows / `33` packed actions after the current automatic
-  `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `7` grouped rows reachable through `murmurmark review next` /
-  `murmurmark review workspace`; the active plan currently spans `6` sessions, with local-recall
+- remaining full transcript/export review surface: `2.26 min`;
+- export-review queue: `40` raw rows / `34` packed actions after the current automatic
+  `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `6` grouped rows reachable through `murmurmark review next` /
+  `murmurmark review workspace`; the active plan currently spans `7` sessions, with local-recall
   review down to one short row after reviewed repair decisions are inherited by readiness;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
   `check_unique_me_content` and `remote_leak`, without changing capture, Echo Guard or the main ASR
@@ -1005,8 +1005,12 @@ ASR noise, `keep_me` for strong local-support cases that no longer need human re
 `keep_me` for short `remote_leak` rows where Echo Guard independently shows near-pure `local_only`
 speaker-state evidence. The latter can include no remote utterance, or only a tiny remote utterance
 overlap, when duplicate/noise signals are absent and the `Me` text has unique local content. It can
-also keep a short `remote_duplicate` when the suspicious slice is locally confirmed, has tiny remote
-overlap coverage, and the `Me` utterance has a unique local token or continuation. It can propagate
+also keep very short `remote_leak` rows with weaker audio-review local support when `speaker_state`
+still shows mostly local speech, remote overlap is tiny, and the text carries several unique local
+tokens. Conversely, it can drop tiny `uncertain` ASR-noise fragments only when local support is zero
+and the whole interval is remote-active. It can also keep a short `remote_duplicate` when the
+suspicious slice is locally confirmed, has tiny remote overlap coverage, and the `Me` utterance has
+a unique local token or continuation. It can propagate
 `keep_me` to sibling `remote_leak` rows for the same exact `Me` utterance after another row has
 already confirmed that utterance as local speech; this propagation does not apply to
 `remote_duplicate`. The agent also

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.6"
+SCRIPT_VERSION = "0.3.7"
 SCHEMA = "murmurmark.agent_review_decisions/v1"
 OUTPUT_PROFILE = "agent_reviewed_v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -19,6 +19,7 @@ KEEP_PROPAGATION_REASONS = {
     "bounded_remote_leak_with_local_content",
     "likely_reliable_with_local_support",
     "speaker_state_local_only_remote_leak_keep",
+    "speaker_state_mostly_local_short_remote_leak_keep",
     "speaker_state_pure_local_partial_duplicate_keep",
     "speaker_state_pure_local_remote_context_keep",
     "speaker_state_pure_local_short_duplicate_keep",
@@ -470,6 +471,23 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, sessi
         return "drop_me", "safe_exact_remote_duplicate_full_coverage", evidence
 
     if (
+        label == "uncertain"
+        and verdict == "needs_stronger_audio_judge"
+        and asr_noise >= 75
+        and local_support <= 0
+        and remote_duplicate <= 0
+        and remote_leak <= 0
+        and duration <= 2.2
+        and len(content_tokens(me_text)) <= 2
+        and len(str(me_text).strip()) <= 16
+        and state["covered_ratio"] >= 0.90
+        and state["remote_active_ratio"] >= 0.95
+        and state["local_only_ratio"] <= 0.05
+        and not protected
+    ):
+        return "drop_me", "safe_remote_active_short_asr_noise", evidence
+
+    if (
         label == "remote_duplicate"
         and verdict == "probable_transcript_error"
         and confidence >= 0.82
@@ -580,6 +598,27 @@ def decision_reason(row: dict[str, Any], queue_row: dict[str, Any] | None, sessi
         and (not protected or state["local_only_ratio"] >= 0.95)
     ):
         return "keep_me", "speaker_state_local_only_remote_leak_keep", evidence
+
+    if (
+        label == "remote_leak"
+        and verdict == "probable_transcript_error"
+        and confidence >= 0.78
+        and local_support >= 15
+        and remote_duplicate <= 0
+        and asr_noise <= 0
+        and remote_similarity <= 70
+        and duration <= 2.5
+        and me_coverage >= 0.75
+        and remote_coverage <= 0.10
+        and len(unique_tokens) >= 3
+        and state["covered_ratio"] >= 0.90
+        and state["local_only_ratio"] >= 0.85
+        and state["remote_active_ratio"] <= 0.15
+        and not protected
+        and similarity <= 0.40
+        and containment <= 0.40
+    ):
+        return "keep_me", "speaker_state_mostly_local_short_remote_leak_keep", evidence
 
     if (
         label == "remote_leak"
