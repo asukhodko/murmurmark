@@ -123,7 +123,9 @@ If readiness is not present yet, `status` and `next` point to `murmurmark proces
 Use `murmurmark next corpus` after corpus reports exist when you need one concrete next command
 across the whole working-meeting corpus; add `--refresh` to rebuild session-quality and
 operational-readiness reports first. If the recommended review lane pack is already built, it points
-to the prepared audio/Markdown/answer-sheet handoff instead of rebuilding the same pack.
+to the prepared audio/Markdown/answer-sheet handoff instead of rebuilding the same pack, but only
+when that pack is at least as fresh as the current operational-readiness report. Stale lane packs
+are ignored and `next corpus` points back to `murmurmark review first-lane --session ...`.
 After a successful default export, `status`, `sessions` and `next` follow the export manifest and
 point to retention planning; `next corpus` does the same when the corpus report's first export
 command targets an already-exported session. Pass `--export-manifest` to `next` when the bundle was

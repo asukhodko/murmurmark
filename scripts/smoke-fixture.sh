@@ -685,6 +685,7 @@ jq -n --arg session "$corpus_next_session" '{
     }
   ]
 }' >"$corpus_next_root/_reports/operational-readiness/operational_readiness_report.json"
+touch "$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.json"
 corpus_lane_next_output="$("$bin" next corpus --sessions-root "$corpus_next_root")"
 assert_no_helper_prefix "$corpus_lane_next_output"
 echo "$corpus_lane_next_output" | grep -q '^  source: review_lane_pack$'

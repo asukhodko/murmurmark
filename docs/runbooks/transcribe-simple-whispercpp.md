@@ -841,6 +841,10 @@ only reads `sessions/_reports/operational-readiness/operational_readiness_report
 `SESSION/derived/readiness/review-plan/lane-packs/`, `corpus_next.source` becomes
 `review_lane_pack` and the command becomes the actual next review action, usually `afplay` for the
 assembled lane audio.
+This prepared-pack shortcut is freshness-gated: if the lane pack manifest is older than the current
+operational-readiness report, `next corpus` ignores it and points back to
+`murmurmark review first-lane --session ...`, so the reviewer does not listen to rows that the latest
+agent-reviewed or cleanup pass has already closed.
 Stale audio-judge queue rows are also ignored when the current audio-review audit has reclassified
 the source item as reliable.
 `murmurmark corpus order` writes a separate chronology-risk corpus report under

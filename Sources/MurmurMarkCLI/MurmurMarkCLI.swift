@@ -9337,7 +9337,7 @@ enum CorpusPrinter {
         let reviewSeconds = double(summary["total_review_burden_sec"]) ?? 0
         let transcriptReviewSeconds = double(summary["total_transcript_review_burden_sec"]) ?? reviewSeconds
         let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
-        let lanePack = preparedLanePackHandoff(payload: payload, sessionsRoot: sessionsRoot)
+        let lanePack = preparedLanePackHandoff(payload: payload, sessionsRoot: sessionsRoot, freshnessReference: url)
         let readinessCommand = nextCommands.compactMap { string($0["command"]) }.first
         let exportHandoff = lanePack == nil ? successfulExportHandoff(fromNextCommand: readinessCommand) : nil
         let command = lanePack?.command ?? exportHandoff?.command ?? readinessCommand ?? reportCommand
@@ -9501,7 +9501,11 @@ enum CorpusPrinter {
         return token
     }
 
-    private static func preparedLanePackHandoff(payload: [String: Any], sessionsRoot: URL) -> PreparedLanePackHandoff? {
+    private static func preparedLanePackHandoff(
+        payload: [String: Any],
+        sessionsRoot: URL,
+        freshnessReference: URL
+    ) -> PreparedLanePackHandoff? {
         guard let focus = firstReviewFocus(payload) else { return nil }
         let sessionID = string(focus["session_id"])
             ?? string(focus["session"]).map { URL(fileURLWithPath: $0).lastPathComponent }
@@ -9516,6 +9520,7 @@ enum CorpusPrinter {
         let lanePackDir = session.appendingPathComponent("derived/readiness/review-plan/lane-packs")
         let manifest = lanePackDir.appendingPathComponent("review_lane_pack.\(lane).json")
         guard FileManager.default.fileExists(atPath: manifest.path),
+              !isStale(path: manifest, comparedTo: freshnessReference),
               let payload = try? JSONFiles.object(manifest)
         else {
             return nil
@@ -9544,6 +9549,22 @@ enum CorpusPrinter {
             dryRunCommand: dryRunCommand,
             applyCommand: applyCommand
         )
+    }
+
+    private static func isStale(path: URL, comparedTo reference: URL) -> Bool {
+        guard let pathModified = modificationDate(path),
+              let referenceModified = modificationDate(reference)
+        else {
+            return false
+        }
+        return pathModified < referenceModified
+    }
+
+    private static func modificationDate(_ path: URL) -> Date? {
+        guard let values = try? path.resourceValues(forKeys: [.contentModificationDateKey]) else {
+            return nil
+        }
+        return values.contentModificationDate
     }
 
     private static func focusSessionURL(focus: [String: Any], sessionID: String, sessionsRoot: URL) -> URL {
