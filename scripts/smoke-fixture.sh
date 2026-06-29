@@ -2417,6 +2417,7 @@ EOF
   acceptance_live="$("$bin" acceptance --live-checklist)"
   echo "$acceptance_live" | grep -q '^live_recording_gate:$'
   echo "$acceptance_live" | grep -q '^status: manual$'
+  tail -1 <<<"$acceptance_live" | grep -q '^next: murmurmark doctor$'
   review_help="$("$bin" review --help)"
   echo "$review_help" | grep -q 'murmurmark review lane apply LANE|first'
   echo "$review_help" | grep -q 'murmurmark review progress \[--session latest|SESSION\]'

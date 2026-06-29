@@ -77,6 +77,7 @@ live_recording_gate:
     - successful export writes an export manifest
     - retention planning does not delete raw audio without apply plus confirmation
 status: manual
+next: murmurmark doctor
 EOF
   exit 0
 fi
@@ -122,3 +123,4 @@ fi
 
 echo "  live_recording: manual"
 echo "status: ok"
+echo "next: murmurmark acceptance --live-checklist"

@@ -11,5 +11,7 @@ scripts/check-open-source-readiness.sh
 if command -v cargo >/dev/null 2>&1; then
   cargo fmt --manifest-path tools/murmurmark-aec-webrtc/Cargo.toml --check
 fi
-.build/debug/murmurmark acceptance --skip-release
+acceptance_output="$(.build/debug/murmurmark acceptance --skip-release)"
+printf '%s\n' "$acceptance_output"
+tail -1 <<<"$acceptance_output" | grep -q '^next: murmurmark acceptance --live-checklist$'
 scripts/smoke-fixture.sh
