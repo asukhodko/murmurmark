@@ -23,6 +23,19 @@ export MURMURMARK_HOME="$repo_root"
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-cli-handoff.XXXXXX")"
 trap 'rm -rf "$workdir"' EXIT
 
+config_path="$workdir/murmurmark.config.json"
+"$bin" config init --config "$config_path" >/dev/null
+"$bin" config print --config "$config_path" >/dev/null
+before_config_hash="$(shasum -a 256 "$config_path" | awk '{print $1}')"
+"$bin" config init --config "$config_path" >/dev/null
+after_config_hash="$(shasum -a 256 "$config_path" | awk '{print $1}')"
+if [[ "$before_config_hash" != "$after_config_hash" ]]; then
+  echo "config init unexpectedly changed existing config without --force" >&2
+  exit 1
+fi
+"$bin" config init --config "$config_path" --force >/dev/null
+"$bin" config print --config "$config_path" >/dev/null
+
 cd "$workdir"
 
 session="$workdir/sessions/cli-handoff"

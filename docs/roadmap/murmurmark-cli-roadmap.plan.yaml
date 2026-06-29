@@ -215,7 +215,7 @@ nodes:
     parent: cli-orchestration
     status: done
     effort: 5
-    notes: "murmurmark.config.json задаёт model/language/prompt/export defaults; явные CLI-флаги имеют приоритет."
+    notes: "murmurmark.config.json задаёт model/language/prompt/export defaults; murmurmark config init создаёт локальный файл из tracked-примера; явные CLI-флаги имеют приоритет."
 
   cli-pipeline-plan-mode:
     title: "Dry-run и plan mode"

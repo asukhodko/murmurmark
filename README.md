@@ -25,6 +25,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 murmurmark doctor
 murmurmark self-test
+murmurmark config init
 murmurmark config print
 ```
 
@@ -153,7 +154,7 @@ metadata still match.
 Local defaults come from `murmurmark.config.json` when it exists:
 
 ```bash
-cp murmurmark.config.example.json murmurmark.config.json
+murmurmark config init
 $EDITOR murmurmark.config.json
 murmurmark config print
 ```
@@ -457,6 +458,7 @@ Everyday CLI commands:
 ```bash
 murmurmark doctor
 murmurmark self-test
+murmurmark config init
 murmurmark record --target-bundle system
 murmurmark process latest
 murmurmark next latest

@@ -1637,7 +1637,9 @@ payload status, blockers and `raw_audio_included`/`sends_data` flags for quick r
 ## Local CLI Config
 
 `murmurmark.config.json` uses `murmurmark.config/v1`. It is local and ignored by git. The tracked
-`murmurmark.config.example.json` documents safe defaults.
+`murmurmark.config.example.json` documents safe defaults. Create the local file with
+`murmurmark config init`; use `--force` only when you intentionally want to overwrite it from the
+tracked example.
 
 ```json
 {

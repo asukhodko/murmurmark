@@ -135,6 +135,7 @@ struct MurmurMark {
                              [--confirm-delete-raw] [--sessions-root ./sessions]
           murmurmark retention payload ./session|latest [--policy examples/retention-policy.local-first.json]
                              [--export-manifest ./exports/private/session/export_manifest.json] [--provider name]
+          murmurmark config init [--config murmurmark.config.json] [--force]
           murmurmark config print [--config murmurmark.config.json]
 
         Quality and corpus maintenance:
@@ -5022,6 +5023,12 @@ enum ConfigCommands {
         let subcommand = args.first ?? "print"
         var forwarded = Array(args.dropFirst())
         switch subcommand {
+        case "init":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                printHelp()
+                return
+            }
+            try initConfig(&forwarded)
         case "print":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 printHelp()
@@ -5037,7 +5044,9 @@ enum ConfigCommands {
 
     private static func printHelp() {
         print("""
-        usage: murmurmark config print [--config murmurmark.config.json]
+        usage:
+          murmurmark config init [--config murmurmark.config.json] [--force]
+          murmurmark config print [--config murmurmark.config.json]
 
         Config lookup order:
           1. --config PATH
@@ -5045,8 +5054,48 @@ enum ConfigCommands {
           3. ./murmurmark.config.json when it exists
 
         Local config is ignored by git. Start from:
-          cp murmurmark.config.example.json murmurmark.config.json
+          murmurmark config init
         """)
+    }
+
+    private static func initConfig(_ args: inout [String]) throws {
+        let force = ArgumentEditing.takeFlag("force", from: &args)
+        let destinationValue = ArgumentEditing.takeOption("config", from: &args) ?? "murmurmark.config.json"
+        guard args.isEmpty else {
+            throw CLIError("config init only supports --config and --force")
+        }
+
+        let source = PathURLs.fileURL("murmurmark.config.example.json")
+        guard FileManager.default.fileExists(atPath: source.path) else {
+            throw CLIError("config example not found: \(PathDisplay.display(source))")
+        }
+
+        let destination = PathURLs.fileURL(destinationValue)
+        if FileManager.default.fileExists(atPath: destination.path) {
+            if !force {
+                Swift.print("config:")
+                Swift.print("  path: \(PathDisplay.display(destination))")
+                Swift.print("  loaded: true")
+                Swift.print("  changed: false")
+                Swift.print("  reason: already_exists")
+                Swift.print("next:")
+                Swift.print("  murmurmark config print --config \(PathDisplay.display(destination))")
+                return
+            }
+            try FileManager.default.removeItem(at: destination)
+        }
+
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.copyItem(at: source, to: destination)
+
+        Swift.print("config:")
+        Swift.print("  created: \(PathDisplay.display(destination))")
+        Swift.print("  source: \(PathDisplay.display(source))")
+        Swift.print("next:")
+        Swift.print("  murmurmark config print --config \(PathDisplay.display(destination))")
     }
 }
 
@@ -5149,7 +5198,7 @@ enum ConfigPrinter {
         } else {
             Swift.print("  path: murmurmark.config.json")
             Swift.print("  loaded: false")
-            Swift.print("  next: cp murmurmark.config.example.json murmurmark.config.json")
+            Swift.print("  next: murmurmark config init")
         }
         Swift.print("  transcription: \(compactJSON(config.section("transcription")))")
         Swift.print("  export: \(compactJSON(config.section("export")))")
