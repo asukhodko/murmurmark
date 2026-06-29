@@ -664,17 +664,28 @@ jq -n --arg audio "$corpus_next_lane_dir/review_lane_pack.check_unique_me_conten
   --arg markdown "$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.md" \
   --arg answer "$corpus_next_lane_dir/review_lane_answers.check_unique_me_content.txt" '{
     schema: "murmurmark.review_lane_pack/v1",
+    session_id: "session-a",
     outputs: {audio: $audio, markdown: $markdown, answer_sheet: $answer},
-    summary: {selected_rows: 1, item_count: 1, duration_sec: 12.0}
+    summary: {selected_rows: 1, item_count: 1, duration_sec: 12.0},
+    items: [{label: "remote_leak", review_action: "check_unique_me_content"}]
   }' >"$corpus_next_lane_dir/review_lane_pack.check_unique_me_content.json"
 jq -n --arg session "$corpus_next_session" '{
   schema: "murmurmark.operational_readiness_report/v1",
   operational_verdict: "not_ready",
   summary: {session_count: 1, excluded_diagnostic_session_count: 0, total_review_burden_sec: 9, review_action_count: 1},
   next_commands: [
-    {id: "review_first_lane", command: ("murmurmark review first-lane --session " + $session)},
+    {id: "review_first_lane", command: ("murmurmark review lane check_unique_me_content --session " + $session)},
     {id: "review_workspace", command: ("murmurmark review workspace --session " + $session)}
   ],
+  promotion_plan: {
+    review_focus: {
+      session_id: "stale-session",
+      session_arg: "sessions/stale-session",
+      label: "stale_label",
+      review_lane: "stale_lane",
+      review_action: "stale_action"
+    }
+  },
   review_queue: [
     {
       session_id: "session-a",
@@ -698,6 +709,9 @@ echo "$corpus_lane_next_output" | grep -q '^  answer_sheet_status: todo reviewed
 echo "$corpus_lane_next_output" | grep -q '^  command: afplay .*review_lane_pack.check_unique_me_content.wav'
 echo "$corpus_lane_next_output" | grep -q '^  read: less .*review_lane_pack.check_unique_me_content.md'
 echo "$corpus_lane_next_output" | grep -q '^  edit: \$EDITOR .*review_lane_answers.check_unique_me_content.txt'
+echo "$corpus_lane_next_output" | grep -q '^  focus_session: session-a$'
+echo "$corpus_lane_next_output" | grep -q '^  focus_label: remote_leak$'
+! echo "$corpus_lane_next_output" | grep -q 'stale-session'
 tail -1 <<<"$corpus_lane_next_output" | grep -q '^next: afplay .*review_lane_pack.check_unique_me_content.wav'
 echo 'answers=k' >"$corpus_next_lane_dir/review_lane_answers.check_unique_me_content.txt"
 corpus_lane_answered_next_output="$("$bin" next corpus --sessions-root "$corpus_next_root")"

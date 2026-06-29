@@ -9782,11 +9782,13 @@ enum CorpusPrinter {
         outDir: URL = PathURLs.fileURL("sessions/_reports/operational-readiness")
     ) throws {
         let url = outDir.appendingPathComponent("operational_readiness_report.json")
+        let sessionsRoot = outDir.deletingLastPathComponent().deletingLastPathComponent()
         let payload = try JSONFiles.object(url)
         let summary = payload["summary"] as? [String: Any] ?? [:]
         let useGates = summary["use_gates"] as? [String: Any] ?? [:]
         let reviewSeconds = double(summary["total_review_burden_sec"]) ?? 0
         let transcriptReviewSeconds = double(summary["total_transcript_review_burden_sec"]) ?? reviewSeconds
+        let lanePack = preparedLanePackHandoff(payload: payload, sessionsRoot: sessionsRoot, freshnessReference: url)
         print("")
         print("operational_readiness:")
         print("  report: \(PathDisplay.display(outDir.appendingPathComponent("operational_readiness_report.md")))")
@@ -9804,7 +9806,11 @@ enum CorpusPrinter {
         print("  grouped_review_rows: \(int(summary["grouped_review_row_count"]) ?? 0)")
         printOperationalUse(payload)
         printFirstNextCommand(payload)
-        printOperationalFocus(payload)
+        if let lanePack {
+            printOperationalFocus(lanePack)
+        } else {
+            printOperationalFocus(payload)
+        }
         if let command = firstNextCommand(payload) {
             FinalNextPrinter.print(command)
         }
@@ -9904,7 +9910,11 @@ enum CorpusPrinter {
                 print("    \(alternative)")
             }
         }
-        printOperationalFocus(payload)
+        if let lanePack {
+            printOperationalFocus(lanePack)
+        } else {
+            printOperationalFocus(payload)
+        }
         FinalNextPrinter.print(command)
     }
 
@@ -9968,6 +9978,11 @@ enum CorpusPrinter {
 
     private struct PreparedLanePackHandoff {
         let command: String
+        let session: URL
+        let sessionID: String
+        let lane: String
+        let label: String?
+        let action: String?
         let manifest: URL
         let markdown: URL?
         let answerSheet: URL?
@@ -10087,6 +10102,8 @@ enum CorpusPrinter {
         let answerSheet = urlFromOutput(outputs["answer_sheet"])
         let answerState = answerSheet.flatMap(answerSheetState)
         let summary = payload["summary"] as? [String: Any] ?? [:]
+        let items = payload["items"] as? [[String: Any]] ?? []
+        let firstItem = items.first ?? [:]
         let applyCommand = "murmurmark review lane apply \(lane) --session \(PathDisplay.display(session))"
         let dryRunCommand = "\(applyCommand) --dry-run"
         let primary = answerState?.hasReviewedAnswers == true
@@ -10098,6 +10115,11 @@ enum CorpusPrinter {
 
         return PreparedLanePackHandoff(
             command: command,
+            session: session,
+            sessionID: string(payload["session_id"]) ?? session.lastPathComponent,
+            lane: lane,
+            label: string(firstItem["label"]),
+            action: string(firstItem["review_action"]) ?? lane,
             manifest: manifest,
             markdown: markdown,
             answerSheet: answerSheet,
@@ -10287,6 +10309,21 @@ enum CorpusPrinter {
             return "murmurmark report corpus"
         }
         return "murmurmark report corpus --sessions-root \(root)"
+    }
+
+    private static func printOperationalFocus(_ lanePack: PreparedLanePackHandoff) {
+        let sessionArg = PathDisplay.display(lanePack.session)
+        print("  focus_session: \(lanePack.sessionID)")
+        if let label = lanePack.label {
+            print("  focus_label: \(label)")
+        }
+        print("  focus_lane: \(lanePack.lane)")
+        if let action = lanePack.action {
+            print("  focus_action: \(action)")
+        }
+        print("  focus_next:")
+        print("    murmurmark review next \(sessionArg)")
+        print("    murmurmark review lane \(lanePack.lane) --session \(sessionArg)")
     }
 
     private static func printOperationalFocus(_ payload: [String: Any]) {
