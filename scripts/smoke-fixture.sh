@@ -3224,16 +3224,35 @@ PY
   fi
   jq -e 'any(.checks[]; .id == "baseline.ready_for_notes_not_lower" and .status == "fail")' \
     "$gates_dir/with-bad-baseline/corpus_gates_report.json" >/dev/null
-  jq '.summary.complete_blocking_session_count = 1 | .summary.possible_lost_me_seconds = 2.5' \
+  jq '
+    .summary.complete_blocking_session_count = 1
+    | .summary.possible_lost_me_seconds = 2.5
+    | .sessions[0].pipeline_status = "complete"
+    | .sessions[0].use_gate = "ready_for_notes"
+    | .sessions[0].blocking_low_local_recall = true
+    | .sessions[0].possible_lost_me_count = 1
+    | .sessions[0].possible_lost_me_seconds = 2.5
+  ' \
     "$local_recall_corpus_dir/local_recall_corpus_report.json" >"$gates_dir/local_recall_bad.json"
+  jq '
+    .sessions[0].pipeline_status = "complete"
+    | .sessions[0].use_gate = "ready_for_notes"
+    | .sessions[0].local_recall_possible_lost_me_seconds = 2.5
+    | .sessions[0].local_recall_meaningful_review_seconds = 2.5
+    | .sessions[0].local_only_island_recall = 0.5
+  ' \
+    "$quality_dir/session_quality_report.json" >"$gates_dir/session_quality_local_recall_bad.json"
   if "$repo_root/scripts/check-corpus-gates.py" \
     "${gate_args[@]}" \
+    --session-quality "$gates_dir/session_quality_local_recall_bad.json" \
     --local-recall "$gates_dir/local_recall_bad.json" \
     --out-dir "$gates_dir/with-bad-local-recall" \
     --baseline "$gates_dir/baseline.json" >/dev/null 2>&1; then
     echo "expected corpus gate to fail against local-recall blocker regression" >&2
     exit 1
   fi
+  jq -e 'any(.checks[]; .id == "transcript.no_selected_local_recall_blockers" and .status == "fail")' \
+    "$gates_dir/with-bad-local-recall/corpus_gates_report.json" >/dev/null
   jq -e 'any(.checks[]; .id == "local_recall.no_complete_blocking_sessions" and .status == "fail")' \
     "$gates_dir/with-bad-local-recall/corpus_gates_report.json" >/dev/null
   jq -e 'any(.checks[]; .id == "baseline.local_recall_complete_blocking_not_higher" and .status == "fail")' \

@@ -585,8 +585,9 @@ the remote phrase that triggered it.
 
 `report-session-quality.py` reads this audit. Blocking order risk contributes to
 `review_burden_sec`, adds `risk:transcript_order_risk` to readiness blockers, and is checked by
-`check-corpus-gates.py` as `transcript.no_blocking_order_risk`. The operational readiness report
-also includes such items in the review queue under lane `check_transcript_order`.
+`check-corpus-gates.py` as `transcript.no_blocking_order_risk` for the selected operational session
+scope. The operational readiness report also includes such items in the review queue under lane
+`check_transcript_order`.
 
 ### Transcript Order Repair
 
@@ -748,9 +749,11 @@ or to `murmurmark process ...` when only incomplete blocking sessions remain.
 
 `check-corpus-gates.py` reads this aggregate report via `--transcript-order` (default:
 `sessions/_reports/transcript-order/transcript_order_corpus_report.json`). It warns when the report
-has missing order audits and fails `transcript_order.no_complete_blocking_sessions` when a complete
-session still has blocking chronology risk. `murmurmark corpus process` builds the aggregate order
-report before running corpus gates.
+has missing order audits and fails `transcript_order.no_complete_blocking_sessions` when a selected
+operational session still has blocking chronology risk. Blocking rows from diagnostic sessions or
+profiles superseded by the selected transcript profile are reported as
+`transcript_order.raw_complete_blocking_sessions` warnings. `murmurmark corpus process` builds the
+aggregate order report before running corpus gates.
 
 `murmurmark corpus local-recall` aggregates per-session local-recall audits into:
 
@@ -1370,10 +1373,15 @@ sessions/_reports/corpus-gates/
   },
   "summary": {
     "complete_pipeline_count": 10,
+    "selected_operational_complete_pipeline_count": 8,
+    "excluded_diagnostic_session_count": 2,
     "ready_for_notes": 6,
     "audio_judge_cv_accuracy": 0.970297,
     "total_review_burden_ratio": 0.007082,
     "local_recall_complete_blocking_sessions": 0,
+    "local_recall_selected_blocking_sessions": 0,
+    "local_recall_selected_profile_blocking_sessions": 0,
+    "local_recall_selected_profile_review_sessions": 1,
     "local_recall_possible_lost_me_seconds": 0.0,
     "remote_leak_segment_item_count": 15,
     "remote_leak_segment_protect_local_content_items": 15
@@ -1398,7 +1406,14 @@ sessions/_reports/corpus-gates/
       "status": "pass",
       "severity": "fail",
       "observed": 0,
-      "threshold": "0 complete sessions"
+      "threshold": "0 selected operational sessions"
+    },
+    {
+      "id": "local_recall.raw_complete_blocking_sessions",
+      "status": "warn",
+      "severity": "warn",
+      "observed": 2,
+      "threshold": "0 complete sessions in full historical corpus"
     },
     {
       "id": "remote_leak_segment.no_protected_local_content",
@@ -1419,16 +1434,20 @@ sessions/_reports/corpus-gates/
 of aggregate metrics and per-session gates used by `check-corpus-gates.py --baseline`. A baseline
 built from real meeting sessions must stay under ignored `sessions/_reports/`. Baseline comparison
 covers complete/ready session counts, review burden, audio judge metrics, per-session use/local
-recall gates, complete-session local-recall blockers, possible lost-`Me` seconds and protected
+recall gates, selected-profile local-recall blockers, possible lost-`Me` seconds and protected
 remote-leak queue growth.
 
 Remote-leak segment corpus gates are intentionally warning-level. A pending queue means some `Me`
 regions may still contain unique local content mixed with remote leak and need segment-level repair
 or review. It must not be treated as permission for whole-utterance deletion.
 
-Local-recall corpus gates are stricter: a complete session with remaining blocking possible lost
-`Me` speech fails `local_recall.no_complete_blocking_sessions`. Missing local-recall corpus reports
-or missing per-session audits remain warnings for backwards compatibility.
+Local-recall corpus gates are profile-aware. A selected operational session with remaining possible
+lost-`Me` blockers fails `local_recall.no_complete_blocking_sessions`; a short non-blocking
+`needs_review` island is a warning and stays in the review queue. The full historical local-recall
+report is still surfaced through `local_recall.raw_complete_blocking_sessions`, but diagnostic
+sessions and blockers already resolved by the selected transcript profile do not fail the operational
+gate. Missing local-recall corpus reports or missing per-session audits remain warnings for backwards
+compatibility.
 
 The post-recording runner writes a per-session execution manifest:
 

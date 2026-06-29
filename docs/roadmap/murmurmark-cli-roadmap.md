@@ -26,7 +26,7 @@ export bundle и retention plan. То, что раньше было лабора
 8. `murmurmark review SESSION` — готов базовый CLI-контур.
 9. `murmurmark corpus process all` — готов базовый контур качества по корпусу.
 10. `murmurmark corpus taxonomy` — готова сводная таксономия аудио-ошибок для следующей итерации качества.
-11. `murmurmark corpus gate` — готов no-regression gate с локальным baseline-сравнением, local-recall blockers и warnings по remote-leak очереди.
+11. `murmurmark corpus gate` — готов no-regression gate с локальным baseline-сравнением, hard-проверками по выбранному operational-срезу и warnings по historical/local-recall/remote-leak очередям.
 12. `murmurmark corpus local-recall` — готова корпусная очередь возможных пропусков `Me`.
 13. `murmurmark corpus local-recall-repair` — готова сводка эффекта `local_recall_repair_v1` перед auto-promotion.
 14. `murmurmark export SESSION --format markdown|obsidian` — готов базовый пользовательский output-блок.

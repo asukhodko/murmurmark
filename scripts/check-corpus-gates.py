@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.5.0"
 SCHEMA_REPORT = "murmurmark.corpus_gates_report/v1"
 SCHEMA_BASELINE = "murmurmark.corpus_gates_baseline/v1"
 
@@ -162,6 +162,23 @@ def complete_sessions(session_quality: dict[str, Any] | None) -> list[dict[str, 
 
 def session_ids(rows: list[dict[str, Any]]) -> list[str]:
     return [str(row.get("session_id") or row.get("label") or "?") for row in rows]
+
+
+def operational_excluded_session_ids(operational: dict[str, Any] | None) -> set[str]:
+    if not isinstance(operational, dict):
+        return set()
+    summary = operational.get("summary") if isinstance(operational.get("summary"), dict) else {}
+    values = summary.get("excluded_diagnostic_sessions")
+    if not isinstance(values, list):
+        return set()
+    return {str(value) for value in values if value is not None and str(value)}
+
+
+def report_sessions(report: dict[str, Any] | None) -> list[dict[str, Any]]:
+    rows = report.get("sessions") if isinstance(report, dict) else []
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
 
 
 def session_rank(use_gate: Any) -> int:
@@ -566,7 +583,13 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         message="local-recall corpus report exists; corpus process rebuilds it automatically",
     )
 
+    excluded_session_ids = operational_excluded_session_ids(operational)
     complete = complete_sessions(session_quality)
+    scoped_complete = [
+        row
+        for row in complete
+        if str(row.get("session_id") or row.get("label") or "") not in excluded_session_ids
+    ]
     summary = session_quality.get("summary") if isinstance(session_quality, dict) else {}
     summary = summary if isinstance(summary, dict) else {}
     use_gates = summary.get("use_gates") if isinstance(summary.get("use_gates"), dict) else {}
@@ -626,17 +649,30 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     )
 
     long_crossing_bad = [
-        row for row in complete if safe_int(row.get("unrepaired_long_mic_crossings_count")) > 0
+        row for row in scoped_complete if safe_int(row.get("unrepaired_long_mic_crossings_count")) > 0
     ]
-    golden_bad = [row for row in complete if safe_int(row.get("golden_phrase_fail_count")) > 0]
+    golden_bad = [row for row in scoped_complete if safe_int(row.get("golden_phrase_fail_count")) > 0]
     transcript_order_bad = [
-        row for row in complete if row.get("transcript_order_blocking_order_risk") is True
+        row
+        for row in scoped_complete
+        if row.get("transcript_order_blocking_order_risk") is True
+        or safe_float(row.get("transcript_order_probable_order_risk_seconds")) > 0
     ]
     local_recall_bad = [
-        row for row in complete if safe_float(row.get("local_only_island_recall"), 1.0) < args.min_local_recall
+        row for row in scoped_complete if safe_float(row.get("local_only_island_recall"), 1.0) < args.min_local_recall
+    ]
+    local_recall_selected_blocking = [
+        row
+        for row in scoped_complete
+        if safe_float(row.get("local_recall_possible_lost_me_seconds")) > 0
+    ]
+    local_recall_selected_review = [
+        row
+        for row in scoped_complete
+        if safe_float(row.get("local_recall_needs_review_seconds")) > 0
     ]
     session_review_bad = [
-        row for row in complete if safe_float(row.get("review_burden_ratio")) > args.max_session_review_burden_ratio
+        row for row in scoped_complete if safe_float(row.get("review_burden_ratio")) > args.max_session_review_burden_ratio
     ]
     check(
         checks,
@@ -644,7 +680,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         not long_crossing_bad,
         observed=len(long_crossing_bad),
         threshold="0 sessions",
-        message="no complete session has unrepaired long mic crossings",
+        message="no selected operational session has unrepaired long mic crossings",
         details=session_ids(long_crossing_bad),
     )
     check(
@@ -653,7 +689,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         not golden_bad,
         observed=len(golden_bad),
         threshold="0 sessions",
-        message="no complete session has failed golden phrase checks",
+        message="no selected operational session has failed golden phrase checks",
         details=session_ids(golden_bad),
     )
     check(
@@ -662,7 +698,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         not transcript_order_bad,
         observed=len(transcript_order_bad),
         threshold="0 sessions",
-        message="no complete session has blocking transcript order risk",
+        message="no selected operational session has blocking transcript order risk",
         details=session_ids(transcript_order_bad),
     )
     check(
@@ -670,17 +706,36 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "transcript.local_recall_floor",
         not local_recall_bad,
         observed=len(local_recall_bad),
-        threshold=f"all complete sessions >= {args.min_local_recall}",
+        threshold=f"all selected operational sessions >= {args.min_local_recall}",
         message="local recall does not fall below the configured floor",
         details=session_ids(local_recall_bad),
+    )
+    check(
+        checks,
+        "transcript.no_selected_local_recall_blockers",
+        not local_recall_selected_blocking,
+        observed=len(local_recall_selected_blocking),
+        threshold="0 sessions",
+        message="no selected operational session has possible lost-Me local-recall blockers",
+        details=session_ids(local_recall_selected_blocking),
+    )
+    check(
+        checks,
+        "transcript.selected_local_recall_review_items",
+        not local_recall_selected_review,
+        severity="warn",
+        observed=len(local_recall_selected_review),
+        threshold="0 sessions with local-recall review items",
+        message="selected operational sessions still have non-blocking local-recall review items",
+        details=session_ids(local_recall_selected_review),
     )
     check(
         checks,
         "transcript.session_review_burden_ratio",
         not session_review_bad,
         observed=len(session_review_bad),
-        threshold=f"all complete sessions <= {args.max_session_review_burden_ratio}",
-        message="no single complete session has excessive review burden",
+        threshold=f"all selected operational sessions <= {args.max_session_review_burden_ratio}",
+        message="no selected operational session has excessive review burden",
         details=session_ids(session_review_bad),
     )
 
@@ -768,6 +823,21 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     order_complete_blocking = safe_int(order_summary.get("complete_blocking_session_count"))
     order_audited_sessions = safe_int(order_summary.get("audited_session_count"))
     order_session_count = safe_int(order_summary.get("session_count"))
+    order_report_blocking_rows = [
+        row
+        for row in report_sessions(transcript_order)
+        if row.get("pipeline_status") == "complete" and row.get("blocking_order_risk") is True
+    ]
+    transcript_order_bad_ids = set(session_ids(transcript_order_bad))
+    order_report_scoped_blocking = [
+        row
+        for row in order_report_blocking_rows
+        if str(row.get("session_id") or "") not in excluded_session_ids
+        and (
+            str(row.get("session_id") or "") in transcript_order_bad_ids
+            or str(row.get("use_gate") or "") in {"ready_for_notes", "review_first"}
+        )
+    ]
     local_recall_summary = local_recall.get("summary") if isinstance(local_recall, dict) else {}
     local_recall_summary = local_recall_summary if isinstance(local_recall_summary, dict) else {}
     local_recall_schema = str(local_recall.get("schema") if isinstance(local_recall, dict) else "")
@@ -777,6 +847,18 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     local_recall_session_count = safe_int(local_recall_summary.get("session_count"))
     local_recall_possible_lost_me_seconds = safe_float(local_recall_summary.get("possible_lost_me_seconds"))
     local_recall_needs_review_seconds = safe_float(local_recall_summary.get("needs_review_seconds"))
+    local_recall_report_blocking_rows = [
+        row
+        for row in report_sessions(local_recall)
+        if row.get("pipeline_status") == "complete" and row.get("blocking_low_local_recall") is True
+    ]
+    local_recall_selected_blocking_ids = set(session_ids(local_recall_selected_blocking))
+    local_recall_report_scoped_blocking = [
+        row
+        for row in local_recall_report_blocking_rows
+        if str(row.get("session_id") or "") not in excluded_session_ids
+        and str(row.get("session_id") or "") in local_recall_selected_blocking_ids
+    ]
     remote_leak_summary = remote_leak_segment.get("summary") if isinstance(remote_leak_segment, dict) else {}
     remote_leak_summary = remote_leak_summary if isinstance(remote_leak_summary, dict) else {}
     remote_leak_schema = str(remote_leak_segment.get("schema") if isinstance(remote_leak_segment, dict) else "")
@@ -797,10 +879,20 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     check(
         checks,
         "transcript_order.no_complete_blocking_sessions",
+        not order_report_scoped_blocking,
+        observed=len(order_report_scoped_blocking),
+        threshold="0 selected operational sessions",
+        message="no selected operational session has blocking transcript order risk in the corpus order report",
+        details=session_ids(order_report_scoped_blocking),
+    )
+    check(
+        checks,
+        "transcript_order.raw_complete_blocking_sessions",
         order_complete_blocking == 0,
+        severity="warn",
         observed=order_complete_blocking,
-        threshold="0 complete sessions",
-        message="no complete session has blocking transcript order risk in the corpus order report",
+        threshold="0 complete sessions in full historical corpus",
+        message="full historical order report still contains diagnostic or superseded blocking sessions",
     )
     if local_recall is not None:
         check(
@@ -824,10 +916,20 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         check(
             checks,
             "local_recall.no_complete_blocking_sessions",
+            not local_recall_report_scoped_blocking,
+            observed=len(local_recall_report_scoped_blocking),
+            threshold="0 selected operational sessions",
+            message="no selected operational session has blocking local-recall risk in the corpus local-recall report",
+            details=session_ids(local_recall_report_scoped_blocking),
+        )
+        check(
+            checks,
+            "local_recall.raw_complete_blocking_sessions",
             local_recall_complete_blocking == 0,
+            severity="warn",
             observed=local_recall_complete_blocking,
-            threshold="0 complete sessions",
-            message="no complete session has blocking local-recall risk in the corpus local-recall report",
+            threshold="0 complete sessions in full historical corpus",
+            message="full historical local-recall report still contains diagnostic or superseded blocking sessions",
         )
     if remote_leak_segment is not None:
         check(
@@ -944,6 +1046,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         },
         "summary": {
             "complete_pipeline_count": len(complete),
+            "selected_operational_complete_pipeline_count": len(scoped_complete),
+            "excluded_diagnostic_session_count": len(excluded_session_ids),
             "ready_for_notes": ready_for_notes,
             "review_first": review_first,
             "incomplete_sessions": incomplete,
@@ -963,10 +1067,14 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "transcript_order_session_count": order_session_count,
             "transcript_order_missing_audits": order_missing_audits,
             "transcript_order_complete_blocking_sessions": order_complete_blocking,
+            "transcript_order_selected_blocking_sessions": len(order_report_scoped_blocking),
             "local_recall_audited_sessions": local_recall_audited_sessions,
             "local_recall_session_count": local_recall_session_count,
             "local_recall_missing_audits": local_recall_missing_audit_count,
             "local_recall_complete_blocking_sessions": local_recall_complete_blocking,
+            "local_recall_selected_blocking_sessions": len(local_recall_report_scoped_blocking),
+            "local_recall_selected_profile_blocking_sessions": len(local_recall_selected_blocking),
+            "local_recall_selected_profile_review_sessions": len(local_recall_selected_review),
             "local_recall_possible_lost_me_seconds": round(local_recall_possible_lost_me_seconds, 3),
             "local_recall_needs_review_seconds": round(local_recall_needs_review_seconds, 3),
             "remote_leak_segment_item_count": remote_leak_item_count,

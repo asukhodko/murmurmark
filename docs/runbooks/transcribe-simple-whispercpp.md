@@ -410,12 +410,11 @@ For local recall, `--audit` refreshes per-session `audit-local-recall.py`, refre
 and then rebuilds the corpus queue for possible lost `Me` islands.
 For remote leak, `--plan` refreshes only the audit-only segment plans, then rebuilds the corpus
 summary. It still does not apply transcript edits.
-Complete sessions with
-blocking order risk fail `check-corpus-gates.py` through `transcript.no_blocking_order_risk`; partial
-historical sessions remain visible as review material without blocking the complete-session gate.
-`check-corpus-gates.py` also reads the aggregate report itself and fails
-`transcript_order.no_complete_blocking_sessions` if any complete session remains blocked by
-chronology risk.
+Selected operational sessions with blocking order risk fail `check-corpus-gates.py` through
+`transcript.no_blocking_order_risk`; partial or diagnostic historical sessions remain visible as
+review material without blocking the operational gate. `check-corpus-gates.py` also reads the
+aggregate report itself and fails `transcript_order.no_complete_blocking_sessions` only when a
+selected operational session remains blocked by chronology risk.
 
 ## Remote Leak Segment Plan
 
@@ -722,8 +721,10 @@ murmurmark corpus process all --per-label 16 --max-items 160
 
 `corpus gate` reads the generated session-quality, regression-corpus, audio-judge, transcript-order,
 local-recall, remote-leak segment corpus and operational readiness JSON reports, then writes
-`sessions/_reports/corpus-gates/corpus_gates_report.json` and `.md`. Complete sessions with blocking
-local-recall risk fail the gate. Remote-leak segment queues are reported as warnings: they are
+`sessions/_reports/corpus-gates/corpus_gates_report.json` and `.md`. Hard transcript and
+local-recall checks are scoped to selected operational sessions and selected transcript profiles.
+Full historical corpus blockers from diagnostic sessions, stale raw audit profiles or non-blocking
+short review items are warnings. Remote-leak segment queues are also warnings: they are
 review/repair backlog, not hard no-regression failures. `passed` or `passed_with_warnings` exits
 successfully. `failed` exits non-zero unless `--no-fail` is used, but the CLI still prints
 `read: less ...` and a final copyable `next: less ...` line first. The JSON stores the same handoff

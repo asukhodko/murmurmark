@@ -289,7 +289,7 @@ nodes:
     parent: corpus-regression
     status: done
     effort: 5
-    notes: "murmurmark corpus gate проверяет coverage, transcript-инварианты, corpus readiness, audio judge, review burden, local-recall corpus blockers и warning-очередь remote-leak segment repair."
+    notes: "murmurmark corpus gate проверяет coverage, transcript-инварианты, corpus readiness, audio judge, review burden, local-recall blockers в выбранном operational-срезе и warning-очередь remote-leak segment repair."
 
   corpus-audio-judge-refresh:
     title: "Audio judge evaluation"
@@ -305,7 +305,7 @@ nodes:
     parent: corpus-regression
     status: done
     effort: 5
-    notes: "check-corpus-gates.py поддерживает --write-baseline и --baseline; baseline ловит регрессии по готовым сессиям, use_gate, review burden, local recall, local-recall blockers/lost seconds, protected remote-leak queue, corpus size и audio judge."
+    notes: "check-corpus-gates.py поддерживает --write-baseline и --baseline; baseline ловит регрессии по готовым сессиям, use_gate, review burden, local recall, local-recall blockers/lost seconds, protected remote-leak queue, corpus size и audio judge. Hard transcript/local-recall gates используют выбранный operational-срез, а полный historical corpus остаётся warning-аудитом."
 
   corpus-review-export-blockers:
     title: "Review/export blockers"

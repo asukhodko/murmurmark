@@ -336,8 +336,11 @@ sessions such as `audio-input-*`, `*-talk-routed`, `smoke` and `test`, plus know
 shorter than 60 seconds, are excluded from this operational scope, while their files remain available
 for manual debugging.
 `corpus gate` writes `sessions/_reports/corpus-gates/corpus_gates_report.*`. It also reads the
-local-recall and remote-leak corpus reports when they exist. Complete sessions with blocking
-local-recall risk fail the gate; pending remote-leak segment queues are warnings, not hard failures.
+local-recall and remote-leak corpus reports when they exist. Hard transcript/local-recall gates use
+the selected operational session scope and the selected transcript profiles from session quality.
+Historical diagnostic sessions and superseded raw audit blockers remain visible as warnings instead
+of blocking the operational corpus. Pending remote-leak segment queues are also warnings, not hard
+failures.
 The JSON stores `recommended_next`, `next_commands` and `open_commands`, and the CLI prints
 `read: less ...` plus a final `next: less ...` line before returning a non-zero status for a failed
 strict gate.
