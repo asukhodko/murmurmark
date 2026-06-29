@@ -24,8 +24,8 @@ Working now:
 Current operating point:
 
 - the working corpus is `13/13 ready_for_notes`;
-- selected evidence-backed notes require about `0.02 min` of review;
-- full transcript/export still has about `1.92 min` of explicit blockers;
+- selected evidence-backed notes require about `0.01 min` of review;
+- full transcript/export still has about `1.91 min` of explicit blockers;
 - the remaining export-review queue is `40` raw rows / `29` packed actions after `agent_reviewed_v1` + `audit_cleanup_v7`;
 - the next target is to reduce that queue without changing capture, Echo Guard or the main ASR path.
 

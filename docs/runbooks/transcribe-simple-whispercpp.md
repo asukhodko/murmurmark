@@ -333,6 +333,9 @@ are labelled `likely_harmless_boundary_fragment`; they stay visible in audit JSO
 inflate the review queue unless other local-speech evidence is strong. Short acknowledgement-only
 islands such as `понял` or `окей` are labelled `likely_harmless_ack_fragment`; they remain visible
 for audit, but do not become blocking lost-speech evidence by themselves.
+If a short boundary island contains work markers but nearby remote text already covers enough of its
+meaningful tokens, it is labelled `likely_harmless_remote_boundary_covered`; this keeps attribution
+risk visible without turning a preserved remote phrase into mandatory lost-local review.
 
 ## Transcript Order Audit
 
@@ -813,8 +816,8 @@ as `full_transcript_review_required`. In that state notes can be used with norma
 default export remains blocked until transcript-only review is closed or `--force` is used
 deliberately.
 The 2026-06-29 corpus snapshot is the current convergence baseline: 13/13 working sessions are
-`ready_for_notes`, selected notes require about `0.02 min` of review, and the remaining full
-transcript/export surface is about `1.92 min`. Session-quality reports de-duplicate transcript-only
+`ready_for_notes`, selected notes require about `0.01 min` of review, and the remaining full
+transcript/export surface is about `1.91 min`. Session-quality reports de-duplicate transcript-only
 `uncertain` rows when the same selected `Me` interval is already covered by high-confidence
 `likely_reliable` audio-review evidence, and can explain a narrow strong-local `remote_leak` row
 without editing transcript text. The agent-review layer can also close bounded short `remote_leak`
@@ -837,11 +840,12 @@ The same snapshot exposes the remaining export work as a normal review queue: `4
 through `murmurmark review next SESSION`, `murmurmark review first-lane --session SESSION` and
 `murmurmark review workspace --session SESSION`. This is intentionally separate from notes
 readiness: selected notes can be used, while full transcript/export waits for the review loop.
-The active queue currently spans `7` sessions; already-reviewed `local_recall` and
-`local_recall_repair` decisions are inherited by readiness, so only one short unresolved local-recall
-row remains in `check_local_recall`.
+The active queue currently spans `6` sessions; already-reviewed `local_recall` and
+`local_recall_repair` decisions are inherited by readiness, and the remaining raw local-recall
+islands are explained as harmless short/boundary/remote-covered cases, so no active
+`check_local_recall` lane remains.
 The next engineering target is to shrink that queue to `<= 15` packed actions and
-transcript/export review from `1.92 min` to `<= 1.5 min` by closing or explaining narrow
+transcript/export review from `1.91 min` to `<= 1.5 min` by closing or explaining narrow
 `check_unique_me_content` / `remote_leak` classes, not by weakening gates.
 The chosen next step is review-first: run the command from `murmurmark next corpus`, close the
 prepared `check_unique_me_content` lane, apply the answers, refresh corpus readiness, and only then

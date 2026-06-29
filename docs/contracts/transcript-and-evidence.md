@@ -403,6 +403,7 @@ produce `status: ok`, `audited_missing_island_count: 0`, and an empty `local_rec
 - `likely_harmless_weak_audio`
 - `likely_harmless_remote_guard`
 - `likely_harmless_remote_covered`
+- `likely_harmless_remote_boundary_covered`
 - `likely_harmless_ack_fragment`
 - `likely_harmless_boundary_fragment`
 
@@ -428,10 +429,13 @@ modify raw capture. Session quality gates may ignore low local recall only when 
 `blocking_low_local_recall: false`. Possible lost local speech remains a blocking risk.
 `likely_harmless_remote_covered` means the unrecovered local island text is already covered by a
 nearby remote candidate, so the audit treats it as preserved content rather than missing meeting
-substance. `likely_harmless_ack_fragment` means the missing island is a short acknowledgement such
-as "понял" or "окей" without work markers or unique meeting content. `likely_harmless_boundary_fragment`
-means the missing island is short and sits on a known timeline boundary, so it is tracked as low-risk
-boundary timing noise rather than a lost local turn.
+substance. `likely_harmless_remote_boundary_covered` is the narrower boundary case: the island is
+short, sits on a parent/remote guard boundary and the nearby remote text already covers enough of
+the meaningful tokens, even when the dropped parent contains work markers. `likely_harmless_ack_fragment`
+means the missing island is a short acknowledgement such as "понял" or "окей" without work markers
+or unique meeting content. `likely_harmless_boundary_fragment` means the missing island is short and
+sits on a known timeline boundary, so it is tracked as low-risk boundary timing noise rather than a
+lost local turn.
 
 `murmurmark repair local-recall` is the first conservative repair layer for this queue. It writes a
 separate profile and does not modify `shadow_v2`, cleanup, order repair or reviewed profiles.
@@ -2716,11 +2720,13 @@ mostly `local_only` `speaker_state` interval.
 Operational readiness may still expose review rows after `agent_reviewed_v1` is selected. Those
 rows are the remaining transcript/export surface, not a sign that the automatic layer was skipped.
 As of the 2026-06-29 corpus baseline, this queue is tracked separately from notes readiness:
-`13/13` working sessions are `ready_for_notes`, selected notes review is about `0.02 min`, and
-remaining transcript/export review is about `1.92 min` / `40` raw rows / `29` packed actions.
+`13/13` working sessions are `ready_for_notes`, selected notes review is about `0.01 min`, and
+remaining transcript/export review is about `1.91 min` / `40` raw rows / `29` packed actions.
 Readiness inherits applied `local_recall` and `local_recall_repair` review decisions as well as
 audio-review decisions. Closed local-recall rows with `keep_me`, `drop_me` or `skip` do not re-enter
 `murmurmark next corpus`; unresolved possible lost speech remains visible in `check_local_recall`.
+In the current corpus snapshot, the raw local-recall queue is empty because the remaining islands are
+explained as harmless short/boundary/remote-covered cases.
 Future cleanup or repair layers may reduce that queue only through explicit audit evidence and must
 keep possible lost `Me` speech or semantic uncertainty visible to export gates.
 

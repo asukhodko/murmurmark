@@ -11,7 +11,7 @@ from typing import Any
 
 SCHEMA_AUDIT = "murmurmark.local_recall_audit/v1"
 SCHEMA_ITEM = "murmurmark.local_recall_item/v1"
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.4.1"
 ACK_TOKENS = {
     "ага",
     "угу",
@@ -369,6 +369,12 @@ def classify_item(
         return "likely_harmless_short", "local island is shorter than 550 ms", 0.74
     if token_count >= 3 and remote_coverage >= 0.70:
         return "likely_harmless_remote_covered", "unrecovered local island text is already covered by remote transcript", 0.82
+    if boundary.get("boundary_fragment") and token_count >= 3 and remote_coverage >= 0.50:
+        return (
+            "likely_harmless_remote_boundary_covered",
+            "short boundary island has substantial remote transcript coverage",
+            0.8,
+        )
     if ack and not marker and duration_sec <= 1.6:
         return "likely_harmless_ack_fragment", "short acknowledgement island has no work marker or unique meeting content", 0.79
     if boundary.get("boundary_fragment") and not marker:

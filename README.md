@@ -46,12 +46,12 @@ Current corpus snapshot, refreshed on 2026-06-29:
 
 - operational verdict: `medium_risk_ready`;
 - working sessions: `13/13 ready_for_notes`;
-- required review for selected evidence-backed notes: `0.02 min`;
-- remaining full transcript/export review surface: `1.92 min`;
+- required review for selected evidence-backed notes: `0.01 min`;
+- remaining full transcript/export review surface: `1.91 min`;
 - export-review queue: `40` raw rows / `29` packed actions after the current automatic
   `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `11` grouped rows reachable through `murmurmark review next` /
-  `murmurmark review workspace`; the active plan currently spans `7` sessions, with local-recall
-  review down to one short row after reviewed repair decisions are inherited by readiness;
+  `murmurmark review workspace`; the active plan currently spans `6` sessions, with local-recall
+  review fully explained by harmless short/boundary/remote-covered islands;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
   `check_unique_me_content` and `remote_leak`, without changing capture, Echo Guard or the main ASR
   path, and without hiding unresolved risk from export gates.
@@ -811,8 +811,9 @@ burden.
 Review seconds are measured as a union of active intervals per verdict, so duplicate audit rows for
 the same utterance do not inflate the use gate.
 Low local recall is also profile-aware enough for use gates: if `audit-local-recall.py` explains the
-unrecovered islands as short or weak, the recall warning is kept in the audit report but does not
-block `ready_for_notes`; possible lost `Me` speech still blocks the gate.
+unrecovered islands as short, weak, boundary-only or already covered by nearby remote text, the
+recall warning is kept in the audit report but does not block `ready_for_notes`; possible lost `Me`
+speech still blocks the gate.
 Those blocking local-recall items are included in the operational review queue and review plan with
 short `ffplay` commands against the local mic capture, so `review_first` always points to concrete
 audio to check.
@@ -1038,7 +1039,9 @@ cleanup thresholds just because a row remains in review.
 Operational readiness inherits applied review decisions for both audio-review rows and
 local-recall/local-recall-repair rows. A reviewed `keep_me`, `drop_me` or `skip` decision for an
 inserted local-recall repair no longer reappears in `murmurmark next corpus`; only unresolved repair
-or possible-lost-local rows stay in `check_local_recall`.
+or possible-lost-local rows stay in `check_local_recall`. As of the current corpus snapshot, the
+remaining raw local-recall islands are all explained as harmless short/boundary/remote-covered cases,
+so no active `check_local_recall` lane remains.
 
 ```bash
 murmurmark review agent

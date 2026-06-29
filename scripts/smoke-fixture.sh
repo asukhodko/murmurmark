@@ -1316,6 +1316,7 @@ PY
 {"start":13.0,"end":14.2,"state":"local_only","confidence":0.90,"remote_db":-80,"mic_db":-18}
 {"start":14.6,"end":15.4,"state":"local_only","confidence":0.95,"remote_db":-80,"mic_db":-18}
 {"start":16.5,"end":17.8,"state":"local_only","confidence":0.90,"remote_db":-80,"mic_db":-18}
+{"start":18.0,"end":18.55,"state":"local_only","confidence":0.90,"remote_db":-80,"mic_db":-18}
 {"start":39.0,"end":39.8,"state":"local_only","confidence":0.98,"remote_db":-80,"mic_db":-18}
 {"start":45.0,"end":45.7,"state":"local_only","confidence":0.98,"remote_db":-80,"mic_db":-18}
 {"start":60.0,"end":60.6,"state":"local_only","confidence":0.98,"remote_db":-80,"mic_db":-18}
@@ -1396,13 +1397,14 @@ EOF
 {"action":"drop","parent_candidate_id":"cand_mic_fixture_002","parent_start_ms":13000,"parent_end_ms":14200,"parent_text":"Я понял.","remote_overlaps":[],"local_intervals":[[13000,14200]],"local_islands":[[13000,14200]],"children":[]}
 {"action":"drop","parent_candidate_id":"cand_mic_fixture_boundary","parent_start_ms":15000,"parent_end_ms":19000,"parent_text":"короткий граничный хвост","remote_overlaps":[{"candidate_id":"cand_remote_boundary","start_ms":14000,"end_ms":14750,"guarded_start_ms":13750,"guarded_end_ms":15000,"overlap_ms":0,"guarded_overlap_ms":0,"text":"удаленная фраза"}],"local_intervals":[[15000,15650]],"local_islands":[[15000,15650]],"children":[]}
 {"action":"drop","parent_candidate_id":"cand_mic_fixture_lost","parent_start_ms":16500,"parent_end_ms":17800,"parent_text":"Я возьму логи.","remote_overlaps":[],"local_intervals":[[16500,17800]],"local_islands":[[16500,17800]],"children":[]}
+{"action":"drop","parent_candidate_id":"cand_mic_fixture_remote_boundary","parent_start_ms":18000,"parent_end_ms":22000,"parent_text":"можно добавить задачу alert квоты","remote_overlaps":[{"candidate_id":"cand_remote_boundary_covered","start_ms":17000,"end_ms":17750,"guarded_start_ms":16750,"guarded_end_ms":18000,"overlap_ms":0,"guarded_overlap_ms":0,"text":"добавить задачу alert"}],"local_intervals":[[18000,18550]],"local_islands":[[18000,18550]],"children":[]}
 EOF
 
   local_recall_cli_output="$("$bin" audit local-recall "$group_session" --profile shadow_v2)"
   assert_no_helper_prefix "$local_recall_cli_output"
   echo "$local_recall_cli_output" | grep -q '^audit:$'
   echo "$local_recall_cli_output" | grep -q '  kind: local_recall'
-  echo "$local_recall_cli_output" | grep -q '  missing_islands: 3'
+  echo "$local_recall_cli_output" | grep -q '  missing_islands: 4'
   echo "$local_recall_cli_output" | grep -q '^  read: less '
   echo "$local_recall_cli_output" | grep -q '^  recommended_next: murmurmark review next '
   tail -1 <<<"$local_recall_cli_output" | grep -q '^next: murmurmark review next '
@@ -1411,11 +1413,12 @@ EOF
   [[ -s "$group_session/derived/audit/local-recall/local_recall_items.jsonl" ]]
   [[ -s "$group_session/derived/audit/local-recall/local_recall_review.md" ]]
   jq -e '.schema == "murmurmark.local_recall_audit/v1"' "$local_recall_summary" >/dev/null
-  jq -e '.summary.audited_missing_island_count == 3' "$local_recall_summary" >/dev/null
+  jq -e '.summary.audited_missing_island_count == 4' "$local_recall_summary" >/dev/null
   jq -e '.summary.blocking_low_local_recall == true' "$local_recall_summary" >/dev/null
   jq -s 'any(.[]; .label == "possible_lost_me")' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
   jq -s 'any(.[]; .label == "likely_harmless_ack_fragment" and .parent_is_acknowledgement == true)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
   jq -s 'any(.[]; .label == "likely_harmless_boundary_fragment" and .boundary.boundary_fragment == true)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
+  jq -s 'any(.[]; .label == "likely_harmless_remote_boundary_covered" and .parent_has_work_marker == true and .remote_overlap_text_containment >= 0.5)' "$group_session/derived/audit/local-recall/local_recall_items.jsonl" >/dev/null
   python3 - "$group_session/derived/audit/local-recall/local_recall_items.jsonl" <<'PY'
 import json
 import sys
