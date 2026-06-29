@@ -2709,12 +2709,15 @@ need a human `drop_remote` decision. Rows not present in the agent
 template remain unresolved and continue to contribute to review burden. `agent_reviewed_v1` is
 eligible for `auto` only when its own coverage gates pass; it ranks below `reviewed_v1` and above
 automatic cleanup profiles.
+`uncertain` rows may be cleared as `keep_me` only in the narrow no-error case: no remote duplicate,
+remote leak or ASR-noise score, no remote utterance in the review row, near-full `Me` coverage, and a
+mostly `local_only` `speaker_state` interval.
 
 Operational readiness may still expose review rows after `agent_reviewed_v1` is selected. Those
 rows are the remaining transcript/export surface, not a sign that the automatic layer was skipped.
 As of the 2026-06-29 corpus baseline, this queue is tracked separately from notes readiness:
 `13/13` working sessions are `ready_for_notes`, selected notes review is about `0.02 min`, and
-remaining transcript/export review is about `2.24 min` / `40` raw rows / `30` packed actions.
+remaining transcript/export review is about `1.92 min` / `40` raw rows / `29` packed actions.
 Readiness inherits applied `local_recall` and `local_recall_repair` review decisions as well as
 audio-review decisions. Closed local-recall rows with `keep_me`, `drop_me` or `skip` do not re-enter
 `murmurmark next corpus`; unresolved possible lost speech remains visible in `check_local_recall`.

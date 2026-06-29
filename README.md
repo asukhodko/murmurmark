@@ -47,9 +47,9 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - operational verdict: `medium_risk_ready`;
 - working sessions: `13/13 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.02 min`;
-- remaining full transcript/export review surface: `2.24 min`;
-- export-review queue: `40` raw rows / `30` packed actions after the current automatic
-  `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `10` grouped rows reachable through `murmurmark review next` /
+- remaining full transcript/export review surface: `1.92 min`;
+- export-review queue: `40` raw rows / `29` packed actions after the current automatic
+  `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `11` grouped rows reachable through `murmurmark review next` /
   `murmurmark review workspace`; the active plan currently spans `7` sessions, with local-recall
   review down to one short row after reviewed repair decisions are inherited by readiness;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
@@ -1022,7 +1022,8 @@ and the whole interval is remote-active. It can also keep a short `remote_duplic
 suspicious slice is locally confirmed, has tiny remote overlap coverage, and the `Me` utterance has
 a unique local token or continuation. Short local backchannels can be kept when `speaker_state`
 shows mostly local speech and the remote overlap is tiny, even if the text itself has little unique
-content. It can propagate
+content. `uncertain` rows with no remote/error signal can also be kept when `speaker_state`
+independently shows a mostly local-only interval. It can propagate
 `keep_me` to sibling `remote_leak` rows for the same exact `Me` utterance after another row has
 already confirmed that utterance as local speech; this propagation does not apply to
 `remote_duplicate`. The agent also
