@@ -47,7 +47,7 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - operational verdict: `medium_risk_ready`;
 - working sessions: `13/13 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.02 min`;
-- remaining full transcript/export review surface: `2.26 min`;
+- remaining full transcript/export review surface: `2.24 min`;
 - export-review queue: `40` raw rows / `34` packed actions after the current automatic
   `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `6` grouped rows reachable through `murmurmark review next` /
   `murmurmark review workspace`; the active plan currently spans `7` sessions, with local-recall
@@ -1010,7 +1010,9 @@ still shows mostly local speech, remote overlap is tiny, and the text carries se
 tokens. Conversely, it can drop tiny `uncertain` ASR-noise fragments only when local support is zero
 and the whole interval is remote-active. It can also keep a short `remote_duplicate` when the
 suspicious slice is locally confirmed, has tiny remote overlap coverage, and the `Me` utterance has
-a unique local token or continuation. It can propagate
+a unique local token or continuation. Short local backchannels can be kept when `speaker_state`
+shows mostly local speech and the remote overlap is tiny, even if the text itself has little unique
+content. It can propagate
 `keep_me` to sibling `remote_leak` rows for the same exact `Me` utterance after another row has
 already confirmed that utterance as local speech; this propagation does not apply to
 `remote_duplicate`. The agent also

@@ -813,7 +813,7 @@ default export remains blocked until transcript-only review is closed or `--forc
 deliberately.
 The 2026-06-29 corpus snapshot is the current convergence baseline: 13/13 working sessions are
 `ready_for_notes`, selected notes require about `0.02 min` of review, and the remaining full
-transcript/export surface is about `2.65 min`. Session-quality reports de-duplicate transcript-only
+transcript/export surface is about `2.24 min`. Session-quality reports de-duplicate transcript-only
 `uncertain` rows when the same selected `Me` interval is already covered by high-confidence
 `likely_reliable` audio-review evidence, and can explain a narrow strong-local `remote_leak` row
 without editing transcript text. The agent-review layer can also close bounded short `remote_leak`
@@ -825,7 +825,8 @@ rows additionally require weak duplicate/noise signals, tiny remote overlap cove
 local `Me` content. Protected markers are allowed only for the strongest local-only case because the
 decision keeps local speech rather than deleting it. The same speaker-state evidence can clear a
 short `remote_duplicate` as `keep_me` when remote overlap coverage is tiny and the `Me` text has a
-unique local token or continuation.
+unique local token or continuation. Very short local backchannels can also be kept when
+speaker-state evidence is mostly local and remote overlap is tiny.
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
 The same snapshot exposes the remaining export work as a normal review queue: `40` raw rows /
@@ -837,7 +838,7 @@ The active queue currently spans `7` sessions; already-reviewed `local_recall` a
 `local_recall_repair` decisions are inherited by readiness, so only one short unresolved local-recall
 row remains in `check_local_recall`.
 The next engineering target is to shrink that queue to `<= 15` packed actions and
-transcript/export review from `2.65 min` to `<= 1.5 min` by closing or explaining narrow
+transcript/export review from `2.24 min` to `<= 1.5 min` by closing or explaining narrow
 `check_unique_me_content` / `remote_leak` classes, not by weakening gates.
 The chosen next step is review-first: run the command from `murmurmark next corpus`, close the
 prepared `check_unique_me_content` lane, apply the answers, refresh corpus readiness, and only then
