@@ -702,6 +702,15 @@ def stronger_has_high_confidence_keep(summary: dict[str, Any] | None) -> bool:
     return False
 
 
+def stronger_has_inconclusive_evidence(summary: dict[str, Any] | None) -> bool:
+    if not summary:
+        return False
+    matches = [match for match in summary.get("matches") or [] if isinstance(match, dict)]
+    if not matches:
+        return False
+    return not stronger_has_high_confidence_keep(summary) and not stronger_has_high_confidence_drop(summary)
+
+
 def row_confidence(row: dict[str, Any]) -> float:
     try:
         return float(row.get("confidence") or 0.0)
@@ -794,7 +803,10 @@ def suggested_decision_for_group(
     text_guard_decision, text_guard_confidence, text_guard_reason = text_guard_drop_duplicate_decision(rows, summary)
     if text_guard_decision:
         return text_guard_decision, text_guard_confidence, text_guard_reason or "", summary
-    return group_suggested_decision(rows), common_value(rows, "suggested_decision_confidence", "mixed"), group_suggested_reason(rows), summary
+    fallback_decision = group_suggested_decision(rows)
+    if fallback_decision == "drop_me" and stronger_has_inconclusive_evidence(summary):
+        return "needs_review", "low", "stronger_audio_judge: inconclusive; suppressing automatic drop", summary
+    return fallback_decision, common_value(rows, "suggested_decision_confidence", "mixed"), group_suggested_reason(rows), summary
 
 
 def group_clip_text(rows: list[dict[str, Any]]) -> str:

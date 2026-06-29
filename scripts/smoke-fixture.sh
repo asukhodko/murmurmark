@@ -1648,6 +1648,26 @@ drop_candidate = dict(
 )
 decision, confidence, reason, summary = module.stronger_suggested_decision([row], {"fixture": [drop_candidate]})
 assert decision is None, (decision, confidence, reason, summary)
+old_drop_row = dict(
+    row,
+    suggested_decision="drop_me",
+    suggested_decision_confidence="high",
+    suggested_decision_reason="probable leaked remote duplicate",
+)
+uncertain_candidate = dict(
+    candidate,
+    id="fwj_uncertain",
+    source_pack_item_id="arp_overlap",
+    classification={
+        "label": "uncertain",
+        "suggested_decision": "needs_review",
+        "confidence": 0.69,
+    },
+)
+decision, confidence, reason, summary = module.suggested_decision_for_group([old_drop_row], {"fixture": [uncertain_candidate]})
+assert decision == "needs_review" and "suppressing automatic drop" in reason, (decision, confidence, reason, summary)
+decision, confidence, reason, summary = module.suggested_decision_for_group([old_drop_row], {"fixture": []})
+assert decision == "drop_me", (decision, confidence, reason, summary)
 
 source_match_candidate = dict(
     candidate,
