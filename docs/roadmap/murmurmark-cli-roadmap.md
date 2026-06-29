@@ -119,6 +119,11 @@ flowchart LR
 - считать успехом не идеальный transcript, а готовые evidence-backed notes при явно сохранённых
   transcript/export blockers.
 
+Выбранный ближайший шаг: идти через уже подготовленный `murmurmark next corpus`, закрыть первую
+`check_unique_me_content` lane, применить решения и заново построить readiness. Только после этого
+имеет смысл добавлять новое автоматическое правило: оно должно повторять фактически подтверждённый
+класс, а не угадывать его по метрикам.
+
 Первый блок уже применён: transcript-only `uncertain` rows снимаются из burden только когда тот же
 selected `Me` interval покрыт high-confidence `likely_reliable` audio-review evidence. Второй блок
 применён частично: `audit_cleanup_v7` режет доказанные partial `remote_duplicate` spans поверх

@@ -830,6 +830,9 @@ row remains in `check_local_recall`.
 The next engineering target is to shrink that queue to `<= 15` packed actions and
 transcript/export review from `2.71 min` to `<= 1.5 min` by closing or explaining narrow
 `check_unique_me_content` / `remote_leak` classes, not by weakening gates.
+The chosen next step is review-first: run the command from `murmurmark next corpus`, close the
+prepared `check_unique_me_content` lane, apply the answers, refresh corpus readiness, and only then
+promote a repeated, evidence-backed answer pattern into a new agent-reviewed rule.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
 `--refresh` it first rebuilds session-quality and operational-readiness reports, then prints

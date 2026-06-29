@@ -44,6 +44,9 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - next product target: close or safely explain the remaining transcript/export blockers, especially
   `check_unique_me_content` and `remote_leak`, without changing capture, Echo Guard or the main ASR
   path, and without hiding unresolved risk from export gates.
+- selected next step: follow `murmurmark next corpus`, close the prepared
+  `check_unique_me_content` lane, apply those decisions, refresh corpus readiness, then extract only
+  repeated safe patterns into the next agent-reviewed rule.
 
 ## Current CLI
 
@@ -97,6 +100,10 @@ murmurmark retention plan latest
 Run `murmurmark review agent` when corpus reports show a review queue and you have not already
 rebuilt `agent_reviewed_v1` after the latest pipeline changes. It only applies conservative
 machine decisions; any remaining queue is the real manual/export-review surface.
+When `murmurmark next corpus` points to a prepared lane pack, prefer closing that pack before adding
+new automatic rules. The applied answers become better evidence than another broad retune: they show
+which `remote_leak` / `check_unique_me_content` cases are truly safe to keep, drop or leave for
+review.
 
 `status`, `report`, `open`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
 all print the next safe command for the current session state, so the terminal output is the main handoff.
