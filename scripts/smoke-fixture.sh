@@ -3746,6 +3746,31 @@ assert strategy["first_recommended_lane"] == "check_local_recall", strategy
 assert strategy["quick_recommended_lane"] == "fast_confirm_drop", strategy
 assert strategy["first_recommended_reason"] == "reduce_largest_blocking_review_lane", strategy
 assert "review_lane_pack.check_local_recall.json" in strategy["commands"]["review_first_lane"], strategy
+focus = module.review_queue_focus(
+    [
+        {**item("audio_review", "asr_noise", "probable_transcript_error", 90, 1), "session_id": "largest-session", "review_lane": "fast_confirm_drop"},
+        {**item("local_recall_repair", "local_recall_repair_inserted", "needs_review", 80, 2), "session_id": "strategic-session", "review_lane": "check_local_recall"},
+    ],
+    [
+        {
+            "session_id": "largest-session",
+            "seconds": 50.0,
+            "labels": {"asr_noise": 1},
+            "first_review_lane": "fast_confirm_drop",
+            "by_review_lane": [{"lane": "fast_confirm_drop", "items": 1, "actions": 1, "seconds": 50.0, "labels": {"asr_noise": 1}}],
+        },
+        {
+            "session_id": "strategic-session",
+            "seconds": 1.0,
+            "labels": {"local_recall_repair_inserted": 1},
+            "first_review_lane": "check_local_recall",
+            "by_review_lane": [{"lane": "check_local_recall", "items": 1, "actions": 1, "seconds": 1.0, "labels": {"local_recall_repair_inserted": 1}}],
+        },
+    ],
+    "check_local_recall",
+)
+assert focus["session_id"] == "strategic-session", focus
+assert focus["review_lane"] == "check_local_recall", focus
 grouped_a = item("audio_review", "remote_leak", "needs_stronger_audio_judge", 180, 1)
 grouped_b = item("audio_review", "remote_leak", "needs_stronger_audio_judge", 170, 2)
 for grouped in (grouped_a, grouped_b):

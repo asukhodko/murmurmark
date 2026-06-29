@@ -1860,7 +1860,8 @@ def promotion_plan(
         )
     queue_by_session.sort(key=lambda row: (-safe_float(row.get("seconds")), str(row.get("session_id"))))
     queue_strategy = review_queue_lane_summary(review_queue)
-    review_focus = review_queue_focus(review_queue, queue_by_session)
+    strategic_lane = str(queue_strategy.get("first_recommended_lane") or "") or None
+    review_focus = review_queue_focus(review_queue, queue_by_session, strategic_lane)
     queue_actions = {
         "review_action_count": safe_int(queue_strategy.get("review_action_count")),
         "grouped_review_row_count": safe_int(queue_strategy.get("grouped_review_row_count")),
@@ -1938,13 +1939,36 @@ def session_cli_arg(value: Any) -> str | None:
     return f"sessions/{Path(text).name}"
 
 
-def review_queue_focus(review_queue: list[dict[str, Any]], queue_by_session: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+def review_queue_focus(
+    review_queue: list[dict[str, Any]],
+    queue_by_session: list[dict[str, Any]] | None = None,
+    strategic_lane: str | None = None,
+) -> dict[str, Any] | None:
     if not review_queue:
         return None
     if queue_by_session:
         target_row = queue_by_session[0]
+        lane = str(strategic_lane or target_row.get("first_review_lane") or "")
+        if strategic_lane:
+            candidates: list[tuple[int, float, str, dict[str, Any]]] = []
+            for row in queue_by_session:
+                if not isinstance(row, dict):
+                    continue
+                target = session_cli_arg(row.get("session_id") or row.get("session"))
+                if not target:
+                    continue
+                for lane_row in row.get("by_review_lane") or []:
+                    if not isinstance(lane_row, dict) or str(lane_row.get("lane") or "") != strategic_lane:
+                        continue
+                    actions = safe_int(lane_row.get("actions")) or safe_int(lane_row.get("items"))
+                    seconds = safe_float(lane_row.get("seconds"))
+                    if actions > 0 or seconds > 0:
+                        candidates.append((actions, seconds, target, row))
+                    break
+            if candidates:
+                candidates.sort(key=lambda item: (-item[0], -item[1], item[2]))
+                target_row = candidates[0][3]
         target = session_cli_arg(target_row.get("session_id") or target_row.get("session"))
-        lane = str(target_row.get("first_review_lane") or "")
         if target and lane:
             lane_items = [
                 item
