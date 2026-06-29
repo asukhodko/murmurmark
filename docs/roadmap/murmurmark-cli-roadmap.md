@@ -10,7 +10,11 @@ Roadmap лежит в формате opskarta v3:
 
 MurmurMark уже прошёл стадию proof of concept: запись, подавление эха, локальная транскрибация, timeline repair, audit cleanup, audio review, agent-reviewed слой, extractive notes и quality verdict уже работают.
 
-Ближайшая цель — закончить превращение набора отдельных скриптов в нормальный CLI-пайплайн:
+CLI MVP уже закрыт: есть автоматический acceptance, release bundle, live-session gate,
+export bundle и retention plan. То, что раньше было лабораторией скриптов, теперь имеет
+пользовательскую командную поверхность и проверяемые evidence-артефакты.
+
+Готовый CLI-путь:
 
 1. `murmurmark process SESSION` — готово.
 2. `murmurmark process latest` — готово.
@@ -34,24 +38,25 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 20. `scripts/check-open-source-readiness.sh` — готов public-readiness gate; MIT LICENSE добавлена.
 21. `murmurmark self-test` — готов быстрый CLI smoke через сам инструмент.
 22. `murmurmark acceptance` — готов единый автоматический gate для CLI MVP.
+23. `murmurmark acceptance --live-session latest` — готов проверяемый gate для живой сессии.
 
 UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
 
 ## Крупные направления
 
 - `foundation-done` — уже готовая основа: capture, Echo Guard, whisper.cpp, repair/audit, agent_reviewed_v1, notes, readiness.
-- `cli-orchestration` — текущий фокус: единые команды process/report/audit/review/corpus/export/config; минимальная локальная установка уже готова.
+- `cli-orchestration` — закрытый CLI MVP: process/report/audit/review/corpus/export/config, локальная установка, self-test, release bundle и acceptance gates готовы.
 - `corpus-regression` — текущий контур: корпус сессий, пересборка, baseline thresholds,
   out-of-fold оценка audio judge, local-recall blockers, remote-leak queue и явные review/export
   blockers.
-- `review-loop` — ближайший этап: удобный CLI-review спорных участков; ручный workspace review и агентный `review agent` уже есть.
-- `quality-hardening` — ближайший этап: улучшение качества transcript без смены топологии; первый
+- `review-loop` — текущий этап: снизить review burden и сделать закрытие спорных мест быстрее; ручный workspace review и агентный `review agent` уже есть.
+- `quality-hardening` — текущий этап: улучшение качества transcript без смены топологии; первый
   явный `order_repair_v1` уже чинит только те order-risk регионы, которые безопасно режутся по
   сохранённым source ASR segments. `local_recall_repair_v1` уже восстанавливает короткие
   boundary-сдвинутые `Me`-фразы через micro-ASR, а вставки проходят через обычный review loop;
   следующий короткий шаг — расширение boundary repair только по доказанным случаям.
 - `evidence-notes` и `export-workflows` — пользовательские артефакты; базовый export готов, дальше нужны vault/docs/Jira proposals.
-- `retention-policy` и `packaging` — приватность, хранение raw audio, release layout, provider payload manifest, self-test, CLI MVP acceptance и readiness gate; перед публикацией нужен публичный security contact.
+- `retention-policy` и `packaging` — приватность, хранение raw audio, release layout, provider payload manifest, self-test, CLI MVP acceptance и readiness gate готовы; перед публичной публикацией нужен security contact.
 - `future-heavy-local`, `future-llm-synthesis`, `future-ui-app` — дальние ветки.
 
 ## Проверка
@@ -90,3 +95,13 @@ flowchart LR
     notes --> export
     export --> tail
 ```
+
+## Следующая цель
+
+Сделать MurmurMark уверенно применимым для регулярных рабочих встреч с меньшей ручной проверкой:
+
+- уменьшить обязательный review burden на текущем корпусе;
+- расширять repair/cleanup только через corpus gates и audio-review evidence;
+- держать raw capture, Echo Guard и основной ASR неизменными без отдельного решения;
+- считать успехом не идеальный transcript, а больше сессий в состоянии `exportable` с понятным
+  verdict и короткой очередью review.

@@ -1,5 +1,7 @@
 # CLI MVP Definition of Done
 
+Status: achieved.
+
 MurmurMark reaches CLI MVP when the project is usable as a local command-line
 tool, not as a set of research scripts. The goal is not perfect transcription.
 The goal is a repeatable local workflow that records, processes, reports risk,
@@ -107,3 +109,17 @@ The manual gate passes when:
 Before public sharing, also resolve the owner decision listed in
 [`open-source-readiness.md`](open-source-readiness.md): choose and publish the
 security contact.
+
+## Current Evidence
+
+The gate was last proven with these checks:
+
+- `murmurmark acceptance --report /tmp/murmurmark-acceptance-full.json` finished with `status: ok`
+  and verified the release bundle.
+- `murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session-final.json`
+  passed for `sessions/2026-06-26_17-31-17`.
+- `murmurmark export latest --format markdown --include-json --force` wrote a local export bundle.
+- `murmurmark retention plan latest` kept raw audio by policy and did not apply deletion.
+
+Remaining publication work is outside this CLI MVP gate: decide the public security contact and
+choose the repository history/push strategy.

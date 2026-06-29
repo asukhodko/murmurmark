@@ -37,6 +37,13 @@ nodes:
     notes: |
       Roadmap CLI-версии MurmurMark.
 
+      CLI MVP закрыт: автоматический acceptance, release bundle, live-session gate,
+      export bundle и retention plan уже доказали, что pipeline можно использовать как
+      локальный инструмент, а не как набор лабораторных скриптов.
+
+      Следующая цель — снизить обязательный review burden на реальных встречах без
+      смены топологии capture/Echo Guard/ASR.
+
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
       - Local-first: запись, обработка и аудит по умолчанию локальные.
@@ -134,12 +141,12 @@ nodes:
     kind: phase
     parent: murmurmark-cli
     deps: [foundation-done]
-    status: current
+    status: done
     effort: 32
     notes: |
-      Текущий набор скриптов постепенно становится пользовательской CLI-поверхностью.
-      Уже есть process, latest, report, audit, plan-only и readiness summary. Остались полировка
-      review/export UX и более строгая конфигурация моделей/prompt.
+      CLI MVP закрыт: process/latest/sessions/status/report/next/open/audit/cleanup/synthesize/
+      review/corpus/export/retention/config, install wrapper, self-test, release bundle,
+      automated acceptance и live-session acceptance уже работают как единая командная поверхность.
 
   cli-process-command:
     title: "murmurmark process SESSION"
@@ -382,11 +389,12 @@ nodes:
     kind: phase
     parent: murmurmark-cli
     deps: [review-loop, corpus-regression]
-    status: next
+    status: current
     effort: 27
     notes: |
       Улучшать качество без смены топологии: запись, Echo Guard и основной ASR
-      остаются прежними, меняются repair/cleanup/audit и проверочные контуры.
+      остаются прежними, меняются repair/cleanup/audit и проверочные контуры. Текущий фокус —
+      уменьшить обязательный review burden и увеличить долю exportable-сессий без скрытых рисков.
 
   quality-local-recall-repair:
     title: "Better local recall repair"
@@ -652,7 +660,7 @@ nodes:
     parent: packaging
     status: done
     effort: 3
-    notes: "murmurmark acceptance проверяет install wrapper, doctor, self-test, config init, open-source readiness и release bundle verify в developer checkout; в release bundle проверяет doctor --strict, self-test и config init; --report пишет машинно-читаемый evidence-файл; live recording остаётся отдельным ручным gate в Definition of Done."
+    notes: "murmurmark acceptance проверяет install wrapper, doctor, self-test, config init, open-source readiness и release bundle verify в developer checkout; в release bundle проверяет doctor --strict, self-test и config init; --report пишет машинно-читаемый evidence-файл; --live-session проверяет уже записанную живую сессию по raw track health и readiness."
 
   packaging-open-source-readiness:
     title: "Open-source readiness"
@@ -857,8 +865,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Сделать CLI-пайплайн одной понятной пользовательской командой и надежной review-петлёй."
-      success_by_next_sync: "Есть валидный opskarta-roadmap, показывающий ближайший путь к CLI MVP и будущие хвосты."
+      nearest_goal: "Снизить обязательный review burden на реальных встречах без смены capture/Echo Guard/ASR топологии."
+      success_by_next_sync: "Есть corpus-backed quality plan, который показывает, какие review blockers можно безопасно убрать следующими."
     defaults:
       status_progress:
         done: 1.0
@@ -883,9 +891,9 @@ x:
         scope_nodes: [cli-orchestration, packaging]
         kind: main
         mgmt:
-          health: yellow
-          sync_note: "process/latest/report/review/corpus/export/config, локальная установка, self-test, CLI MVP acceptance и public-readiness gate уже работают."
-          next_sync_goal: "Выбрать public security contact перед публикацией."
+          health: green
+          sync_note: "CLI MVP закрыт: process/latest/report/review/corpus/export/config, локальная установка, self-test, release bundle, automated acceptance и live-session gate работают."
+          next_sync_goal: "Перед публичной публикацией выбрать security contact и стратегию истории/push."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]
@@ -893,7 +901,7 @@ x:
         mgmt:
           health: yellow
           sync_note: "corpus CLI, review loop, audio judge и baseline thresholds уже защищают от части регрессий."
-          next_sync_goal: "Уточнить review/export blockers."
+          next_sync_goal: "Сократить review burden через corpus-backed local recall, order и remote-leak repair без скрытого удаления смысла."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

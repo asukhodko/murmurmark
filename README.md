@@ -11,6 +11,25 @@ retention planning. Full diarization and generative synthesis remain documented 
 synthesis still has review risk, its handoff points to `murmurmark review next` and does not
 advertise export as the next step.
 
+## Project Status
+
+The CLI MVP gate is closed. MurmurMark is now usable as a local command-line tool: it can record a
+meeting, process the session, report transcript risk, export a reviewed local bundle and plan raw
+audio retention without deleting source audio by default.
+
+Evidence for the current gate:
+
+```bash
+murmurmark acceptance --report /tmp/murmurmark-acceptance.json
+murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json
+murmurmark export latest --format markdown --include-json
+murmurmark retention plan latest
+```
+
+The next product goal is to reduce review burden while preserving the local-first topology:
+use the corpus gates, audio-review evidence and review loop to make more sessions confidently
+exportable with less manual checking. UI work remains optional and out of the main path.
+
 ## Current CLI
 
 ### Local Install
