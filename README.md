@@ -55,7 +55,8 @@ murmurmark retention plan latest
 
 `status`, `report`, review, audit, cleanup/repair, synthesis, notes/transcript, export and retention commands
 all print the next safe command for the current session state, so the terminal output is the main handoff.
-When a command ends with a final `next: ...` line, use that line as the primary command to run next.
+For `status`, `report`, review, export and retention commands, use the final `next: ...` line as
+the primary command to run next.
 `next` is the shortest answer when you only need the one command to run now.
 `open` is the shortest answer when you need to inspect the selected local output: notes, transcript,
 quality verdict, readiness or audit reports.
@@ -341,7 +342,8 @@ run, the final line is a single copyable `next: ...` command derived from the re
 Read `session_readiness.md` first, or run `murmurmark status SESSION` for the terminal version.
 Use `murmurmark report SESSION` when readiness should be refreshed. The CLI prints a short status, `recommended_next`, the session use gate, selected profile, review burden,
 synthesis review item summary, next CLI commands, `handoff` open/export commands, and links to the
-transcript, notes, quality verdict and audio-review report.
+transcript, notes, quality verdict and audio-review report, then ends with the final copyable
+`next: ...` command.
 `recommended_next` prefers executable `murmurmark ...` actions from `next_commands`; read-only
 commands such as `less ...` remain visible under `next` and `open`. The underlying
 `session_readiness.json` stores the same `recommended_next`, `next_commands` and `open_commands`,

@@ -457,6 +457,7 @@ echo "$raw_status_output" | grep -q '^  session: '
 echo "$raw_status_output" | grep -q '^  expected: '
 echo "$raw_status_output" | grep -q '^  recommended_next: murmurmark process '
 echo "$raw_status_output" | grep -q '^    murmurmark process '
+tail -1 <<<"$raw_status_output" | grep -q '^next: murmurmark process '
 raw_next_output="$("$bin" next "$raw_status_session")"
 assert_no_helper_prefix "$raw_next_output"
 echo "$raw_next_output" | grep -q '^next:$'
@@ -492,11 +493,13 @@ echo "$report_output" | grep -q '^    open_transcript: less '
 echo "$report_output" | grep -q '^    open_verdict: less '
 echo "$report_output" | grep -q '  synthesis_review_items: '
 echo "$report_output" | grep -q '  synthesis_review_types: .*utterance_transcript_order_review=1'
+tail -1 <<<"$report_output" | grep -q '^next: murmurmark process '
 status_output="$("$bin" status "$session")"
 assert_no_helper_prefix "$status_output"
 echo "$status_output" | grep -q '^readiness:$'
 echo "$status_output" | grep -q '^  status: incomplete$'
 echo "$status_output" | grep -q '^  recommended_next: murmurmark process '
+tail -1 <<<"$status_output" | grep -q '^next: murmurmark process '
 next_output="$("$bin" next "$session")"
 assert_no_helper_prefix "$next_output"
 echo "$next_output" | grep -q '^next:$'
@@ -519,6 +522,7 @@ echo "$retention_readiness_output" | grep -q '^  recommended_next: murmurmark pr
 status_latest_output="$("$bin" status --sessions-root "$workdir")"
 echo "$status_latest_output" | grep -q '^SESSION="'
 echo "$status_latest_output" | grep -q '^readiness:$'
+tail -1 <<<"$status_latest_output" | grep -q '^next: murmurmark process '
 sessions_output="$("$bin" sessions --sessions-root "$workdir" --limit 1)"
 assert_no_helper_prefix "$sessions_output"
 echo "$sessions_output" | grep -q '^sessions:$'
@@ -996,6 +1000,7 @@ echo "$default_status_output" | grep -q '^  status: exported$'
 echo "$default_status_output" | grep -q '^  export_manifest: .*exports/private/export-ready-session/export_manifest.json$'
 echo "$default_status_output" | grep -q '^  recommended_next: murmurmark retention plan '
 echo "$default_status_output" | grep -q '^    retention: murmurmark retention plan '
+tail -1 <<<"$default_status_output" | grep -q '^next: murmurmark retention plan '
 default_sessions_output="$(cd "$workdir" && "$bin" sessions --sessions-root "$workdir" --status exported --limit 1)"
 assert_no_helper_prefix "$default_sessions_output"
 echo "$default_sessions_output" | grep -q '^      status: exported$'

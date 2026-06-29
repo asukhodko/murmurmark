@@ -178,7 +178,7 @@ struct MurmurMark {
           process runs the current post-recording pipeline and prints the readiness summary.
           status prints the current readiness dashboard without recomputing reports.
           next prints the single recommended next command from readiness.
-          process, review, export and retention handoffs end with a final `next: ...` command.
+          process, status, report, review, export and retention handoffs end with a final `next: ...` command.
           open prints or streams the selected local output artifact from readiness.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review next prints the next review command; review --help shows lane/workspace/apply commands.
@@ -629,6 +629,7 @@ enum PipelineCommands {
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         print("SESSION=\"\(PathDisplay.display(session))\"")
         try ReadinessPrinter.printSession(session)
+        try ReadinessPrinter.printFinalNext(session)
     }
 
     static func next(_ args: [String]) throws {
@@ -703,6 +704,7 @@ enum PipelineCommands {
             "--write-session-readiness",
         ])
         try ReadinessPrinter.printSession(session)
+        try ReadinessPrinter.printFinalNext(session)
     }
 
     private static func refreshReadiness(_ session: URL) throws {
