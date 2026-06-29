@@ -1525,6 +1525,30 @@ text_guard_duplicate = dict(
 )
 decision, confidence, reason, summary = module.suggested_decision_for_group([text_guard_duplicate], {"fixture": []})
 assert decision != "keep_me", (decision, confidence, reason, summary)
+text_guard_contained_duplicate = dict(
+    text_guard_row,
+    confidence=0.96,
+    review_features={
+        "me_overlap_coverage": 0.32,
+        "text_similarity": 1.0,
+        "token_containment": 1.0,
+        "sequence_ratio": 0.95,
+    },
+    text=[
+        {"id": "utt_remote", "role": "remote", "source_track": "remote", "text": "Нужно проверить P50 графики, либо падает."},
+        {"id": "utt_me", "role": "me", "source_track": "mic", "text": "Нужно проверить P50 графики"},
+    ],
+)
+decision, confidence, reason, summary = module.suggested_decision_for_group([text_guard_contained_duplicate], {"fixture": []})
+assert decision == "drop_me" and confidence == 0.82 and "text_guard_remote_contains_me" in reason, (
+    decision,
+    confidence,
+    reason,
+    summary,
+)
+text_guard_low_confidence_duplicate = dict(text_guard_contained_duplicate, confidence=0.82)
+decision, confidence, reason, summary = module.suggested_decision_for_group([text_guard_low_confidence_duplicate], {"fixture": []})
+assert decision != "drop_me", (decision, confidence, reason, summary)
 text_guard_action_tail = dict(
     text_guard_row,
     text=[

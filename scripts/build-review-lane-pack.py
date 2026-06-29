@@ -662,6 +662,27 @@ def stronger_has_high_confidence_drop(summary: dict[str, Any] | None) -> bool:
     return False
 
 
+def stronger_has_high_confidence_keep(summary: dict[str, Any] | None) -> bool:
+    if not summary:
+        return False
+    for match in summary.get("matches") or []:
+        classification = match.get("classification") if isinstance(match, dict) else {}
+        if not isinstance(classification, dict):
+            continue
+        label = str(classification.get("label") or "")
+        confidence = float(classification.get("confidence") or 0.0)
+        if label in {"confirm_me", "confirm_timing_or_doubletalk"} and confidence >= 0.74:
+            return True
+    return False
+
+
+def row_confidence(row: dict[str, Any]) -> float:
+    try:
+        return float(row.get("confidence") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def text_guard_keep_decision(rows: list[dict[str, Any]], summary: dict[str, Any] | None) -> tuple[str | None, Any, str | None]:
     if not rows or stronger_has_high_confidence_drop(summary):
         return None, None, None
@@ -694,6 +715,46 @@ def text_guard_keep_decision(rows: list[dict[str, Any]], summary: dict[str, Any]
     return "keep_me", 0.74, reason
 
 
+def text_guard_drop_duplicate_decision(rows: list[dict[str, Any]], summary: dict[str, Any] | None) -> tuple[str | None, Any, str | None]:
+    if not rows or stronger_has_high_confidence_keep(summary):
+        return None, None, None
+    allowed = set(common_allowed_decisions(rows))
+    if "drop_me" not in allowed:
+        return None, None, None
+    if any(str(row.get("review_lane") or "") != "check_unique_me_content" for row in rows):
+        return None, None, None
+    if any(str(row.get("label") or "") != "remote_duplicate" for row in rows):
+        return None, None, None
+    if any(str(row.get("verdict") or "") != "probable_transcript_error" for row in rows):
+        return None, None, None
+    if min(row_confidence(row) for row in rows) < 0.95:
+        return None, None, None
+    similarities = [feature_number(row, "text_similarity") for row in rows]
+    containments = [feature_number(row, "token_containment") for row in rows]
+    sequence_ratios = [feature_number(row, "sequence_ratio") for row in rows]
+    if (
+        not similarities
+        or not containments
+        or not sequence_ratios
+        or any(value is None or value < 0.95 for value in similarities)
+        or any(value is None or value < 0.98 for value in containments)
+        or any(value is None or value < 0.90 for value in sequence_ratios)
+    ):
+        return None, None, None
+    me_text = " ".join(row_role_text(row, "me") for row in rows)
+    remote_text = " ".join(row_role_text(row, "remote") for row in rows)
+    me_tokens = content_tokens(me_text)
+    remote_tokens = set(content_tokens(remote_text))
+    unique_tokens = sorted({token for token in me_tokens if token not in remote_tokens})
+    if len(me_tokens) < 4 or unique_tokens:
+        return None, None, None
+    reason = (
+        "text_guard_remote_contains_me: "
+        "Me text has no unique content tokens and is fully contained in high-confidence remote duplicate"
+    )
+    return "drop_me", 0.82, reason
+
+
 def suggested_decision_for_group(
     rows: list[dict[str, Any]],
     stronger_by_session: dict[str, list[dict[str, Any]]],
@@ -702,6 +763,9 @@ def suggested_decision_for_group(
     if stronger_decision:
         return stronger_decision, confidence, reason or "", summary
     text_guard_decision, text_guard_confidence, text_guard_reason = text_guard_keep_decision(rows, summary)
+    if text_guard_decision:
+        return text_guard_decision, text_guard_confidence, text_guard_reason or "", summary
+    text_guard_decision, text_guard_confidence, text_guard_reason = text_guard_drop_duplicate_decision(rows, summary)
     if text_guard_decision:
         return text_guard_decision, text_guard_confidence, text_guard_reason or "", summary
     return group_suggested_decision(rows), common_value(rows, "suggested_decision_confidence", "mixed"), group_suggested_reason(rows), summary
