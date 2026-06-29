@@ -166,7 +166,8 @@ first `murmurmark review ...` commands for that session. Its readiness block als
 `sessions_in_scope` and `sessions_excluded`, so the corpus total can include old diagnostic captures
 without making them look like working meetings. It also prints `review_actions` and
 `grouped_review_rows`: the first is the number of answer-sheet decisions after safe grouping, the
-second is how many raw review rows were packed behind those decisions.
+second is how many raw review rows were packed behind those decisions. Corpus readiness and
+`next corpus` summaries also end with the final copyable `next: ...` command.
 
 Retention is explicit and local:
 

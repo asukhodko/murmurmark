@@ -8759,6 +8759,9 @@ enum CorpusPrinter {
         print("  grouped_review_rows: \(int(summary["grouped_review_row_count"]) ?? 0)")
         printFirstNextCommand(payload)
         printOperationalFocus(payload)
+        if let command = firstNextCommand(payload) {
+            FinalNextPrinter.print(command)
+        }
     }
 
     static func printOperationalNext(
@@ -8774,6 +8777,7 @@ enum CorpusPrinter {
             print("  command: \(reportCommand)")
             print("  reason: operational_readiness_report.json is missing")
             print("  read: \(reportCommand)")
+            FinalNextPrinter.print(reportCommand)
             return
         }
 
@@ -8832,6 +8836,7 @@ enum CorpusPrinter {
             }
         }
         printOperationalFocus(payload)
+        FinalNextPrinter.print(command)
     }
 
     private struct PreparedLanePackHandoff {
@@ -9116,10 +9121,14 @@ private func corpusPrinterCompactJSON(_ value: Any) -> String {
 }
 
 private func printFirstNextCommand(_ payload: [String: Any]) {
-    let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
-    if let command = nextCommands.compactMap({ $0["command"] as? String }).first {
+    if let command = firstNextCommand(payload) {
         print("  next_command: \(command)")
     }
+}
+
+private func firstNextCommand(_ payload: [String: Any]) -> String? {
+    let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+    return nextCommands.compactMap { $0["command"] as? String }.first
 }
 
 enum SessionPaths {

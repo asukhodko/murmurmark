@@ -555,11 +555,13 @@ echo "$corpus_report_output" | grep -q '^operational_readiness:$'
 echo "$corpus_report_output" | grep -q '^  sessions_in_scope: '
 echo "$corpus_report_output" | grep -q '^  sessions_excluded: '
 echo "$corpus_report_output" | grep -q '  next_command: '
+tail -1 <<<"$corpus_report_output" | grep -q '^next: '
 corpus_next_output="$("$bin" next corpus --sessions-root "$workdir")"
 assert_no_helper_prefix "$corpus_next_output"
 echo "$corpus_next_output" | grep -q '^corpus_next:$'
 echo "$corpus_next_output" | grep -q '^  command: '
 echo "$corpus_next_output" | grep -q '^  sessions_in_scope: '
+tail -1 <<<"$corpus_next_output" | grep -q '^next: '
 corpus_next_root="$workdir/corpus-next-root"
 corpus_next_session="$corpus_next_root/session-a"
 corpus_next_lane_dir="$corpus_next_session/derived/readiness/review-plan/lane-packs"
@@ -600,11 +602,13 @@ echo "$corpus_lane_next_output" | grep -q '^  answer_sheet_status: todo reviewed
 echo "$corpus_lane_next_output" | grep -q '^  command: afplay .*review_lane_pack.check_unique_me_content.wav'
 echo "$corpus_lane_next_output" | grep -q '^  read: less .*review_lane_pack.check_unique_me_content.md'
 echo "$corpus_lane_next_output" | grep -q '^  edit: \$EDITOR .*review_lane_answers.check_unique_me_content.txt'
+tail -1 <<<"$corpus_lane_next_output" | grep -q '^next: afplay .*review_lane_pack.check_unique_me_content.wav'
 echo 'answers=k' >"$corpus_next_lane_dir/review_lane_answers.check_unique_me_content.txt"
 corpus_lane_answered_next_output="$("$bin" next corpus --sessions-root "$corpus_next_root")"
 assert_no_helper_prefix "$corpus_lane_answered_next_output"
 echo "$corpus_lane_answered_next_output" | grep -q '^  answer_sheet_status: complete reviewed=1/1'
 echo "$corpus_lane_answered_next_output" | grep -q '^  command: murmurmark review lane apply check_unique_me_content --session .* --dry-run'
+tail -1 <<<"$corpus_lane_answered_next_output" | grep -q '^next: murmurmark review lane apply check_unique_me_content --session .* --dry-run'
 [[ -s "$workdir/_reports/session-quality/session_quality_report.json" ]]
 [[ -s "$workdir/_reports/operational-readiness/operational_readiness_report.json" ]]
 jq -e '(.export_blockers | index("pipeline_incomplete")) and (.review_blockers | index("pipeline_incomplete"))' "$session/derived/readiness/session_readiness.json" >/dev/null

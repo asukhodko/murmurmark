@@ -755,7 +755,7 @@ decisions rather than only the noisier raw row count.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
 `--refresh` it first rebuilds session-quality and operational-readiness reports, then prints
-`corpus_next.command`, focus metadata and alternatives. When the focus lane pack already exists under
+`corpus_next.command`, focus metadata, alternatives and a final copyable `next: ...` line. When the focus lane pack already exists under
 `SESSION/derived/readiness/review-plan/lane-packs/`, `corpus_next.source` becomes
 `review_lane_pack` and the command becomes the actual next review action, usually `afplay` for the
 assembled lane audio.
