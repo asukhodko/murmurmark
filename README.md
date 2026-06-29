@@ -819,7 +819,9 @@ visible without reading the runbook. The lane-pack manifest stores the same hand
 `after_apply`, so agents can continue from JSON.
 `review lane apply --dry-run` writes `review_lane_pack_apply_report.json`, prints the lane result and
 either points back to the answer sheet when rows are still `todo`, or prints the exact non-dry-run
-command when the dry run would close rows. After applying the lane, the CLI refreshes
+command when the dry run would close rows. The apply report stores the same handoff as
+`recommended_next`, `next_commands` and `open_commands`, so automation can continue from the report
+without scraping terminal output. After applying the lane, the CLI refreshes
 `review_decisions_progress.json`: if more rows remain it points back to
 the next remaining lane and the workspace flow. If that lane pack is already built, `review progress`
 points to the prepared `afplay`, `less`, `$EDITOR`, dry-run and apply commands instead of asking to
@@ -846,7 +848,8 @@ lane/workspace-apply/progress/apply commands. Workspace output also prints
 and `suggested_apply` for the generated `.suggested.txt` sheets; keep the same rule as lane review
 and run the suggested path with `--dry-run` before writing decisions. The workspace JSON stores the
 same handoff as `recommended_next`, `next_commands`, `open_commands`, `manual_flow`,
-`suggested_flow` and `after_apply`.
+`suggested_flow` and `after_apply`; `review_workspace_apply_report.json` stores the post-apply
+handoff as `recommended_next`, `next_commands` and `open_commands`.
 After `murmurmark review apply`, the CLI uses the refreshed readiness report for the primary `next`
 command. For a single session it keeps `report_next: murmurmark report ...` as the explicit refresh
 command and then prints the readiness summary, including export or retention commands when the

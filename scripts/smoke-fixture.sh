@@ -1990,6 +1990,7 @@ EOF
     --answers-source suggested >/dev/null
   jq -s '.[0].decision == "todo" and .[1].decision == "needs_review" and .[1].review_source == "workspace_suggested_answer_sheet"' "$suggested_apply_out" >/dev/null
   jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .answers_source == "suggested" and .summary.reviewed_count == 1 and .summary.remaining_rows == 1 and .summary.rejected_count == 0' "$workdir/review_workspace_suggested_apply_report.json" >/dev/null
+  jq -e '(.recommended_next | length > 0) and (.next_commands | length >= 1) and ([.open_commands[].id] | index("open_review_workspace_apply_report"))' "$workdir/review_workspace_suggested_apply_report.json" >/dev/null
   sed 's/^answers=.*/answers=k/' "$answer_sheet" >"$answer_sheet.tmp"
   mv "$answer_sheet.tmp" "$answer_sheet"
   workspace_apply_out="$workdir/review_decisions_workspace_apply.jsonl"
@@ -2000,6 +2001,7 @@ EOF
     --report "$workdir/review_workspace_apply_report.json" >/dev/null
   jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "workspace_answer_sheet"' "$workspace_apply_out" >/dev/null
   jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .summary.reviewed_count == 1 and .summary.remaining_rows == 1 and .summary.workspace_todo_count == 0 and .summary.rejected_count == 0' "$workdir/review_workspace_apply_report.json" >/dev/null
+  jq -e '(.recommended_next | length > 0) and (.next_commands | length >= 1) and ([.open_commands[].id] | index("open_review_workspace_apply_report"))' "$workdir/review_workspace_apply_report.json" >/dev/null
   cli_review_workspace_dir="$workdir/review_workspace_cli_session/derived/readiness/review-plan"
   cli_workspace_stdout="$workdir/review_workspace_cli_stdout.txt"
   "$repo_root/.build/debug/murmurmark" review workspace \
@@ -2052,6 +2054,7 @@ EOF
   assert_no_helper_prefix "$(cat "$cli_workspace_dry_run_stdout")"
   [[ ! -e "$cli_workspace_dry_run_out" ]]
   jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .dry_run == true and .summary.remaining_rows == 2' "$cli_review_workspace_dir/review_workspace_apply_dry_run_report.json" >/dev/null
+  jq -e '(.recommended_next | length > 0) and ([.next_commands[].id] | index("retry_review_workspace_dry_run")) and ([.open_commands[].id] | index("open_review_workspace_apply_report"))' "$cli_review_workspace_dir/review_workspace_apply_dry_run_report.json" >/dev/null
   grep -q '^review_workspace_apply:$' "$cli_workspace_dry_run_stdout"
   grep -q '^  answers_source: review' "$cli_workspace_dry_run_stdout"
   grep -q '  dry_run: true' "$cli_workspace_dry_run_stdout"
@@ -2075,6 +2078,7 @@ EOF
   assert_no_helper_prefix "$(cat "$cli_workspace_suggested_dry_run_stdout")"
   [[ ! -e "$cli_workspace_suggested_dry_run_out" ]]
   jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .answers_source == "suggested" and .dry_run == true and .summary.reviewed_count == 1 and .summary.remaining_rows == 1' "$cli_review_workspace_dir/review_workspace_suggested_apply_dry_run_report.json" >/dev/null
+  jq -e '(.recommended_next | length > 0) and (.next_commands | length >= 1) and ([.open_commands[].id] | index("open_review_workspace_apply_report"))' "$cli_review_workspace_dir/review_workspace_suggested_apply_dry_run_report.json" >/dev/null
   grep -q '^review_workspace_apply:$' "$cli_workspace_suggested_dry_run_stdout"
   grep -q '^  answers_source: suggested' "$cli_workspace_suggested_dry_run_stdout"
   grep -q '^    check_local_recall: status=ok reviewed=1 todo=0 rejected=0' "$cli_workspace_suggested_dry_run_stdout"
@@ -2090,6 +2094,7 @@ EOF
   assert_no_helper_prefix "$(cat "$cli_workspace_apply_stdout")"
   jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "workspace_answer_sheet"' "$cli_workspace_apply_out" >/dev/null
   jq -e '.schema == "murmurmark.review_workspace_apply_report/v1" and .summary.reviewed_count == 1 and .summary.remaining_rows == 1' "$cli_review_workspace_dir/review_workspace_apply_report.json" >/dev/null
+  jq -e '(.recommended_next | length > 0) and (.next_commands | length >= 1) and ([.open_commands[].id] | index("open_review_workspace_apply_report"))' "$cli_review_workspace_dir/review_workspace_apply_report.json" >/dev/null
   grep -q '^  answers_source: review' "$cli_workspace_apply_stdout"
   grep -q '^  lane_progress:$' "$cli_workspace_apply_stdout"
   grep -q '^    check_local_recall: status=ok reviewed=1 todo=0 rejected=0' "$cli_workspace_apply_stdout"
@@ -2102,6 +2107,7 @@ EOF
     --answers-file "$answer_sheet" >/dev/null
   jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "lane_pack"' "$lane_pack_apply_out" >/dev/null
   jq -e '.schema == "murmurmark.review_lane_pack_apply_report/v1" and .summary.reviewed_count == 1 and .summary.rejected_count == 0' "$workdir/review_lane_pack_apply_report.json" >/dev/null
+  jq -e '(.recommended_next | length > 0) and (.next_commands | length >= 1) and ([.open_commands[].id] | index("open_review_lane_apply_report"))' "$workdir/review_lane_pack_apply_report.json" >/dev/null
   duplicate_source_template="$workdir/review_decisions_duplicate_source.template.jsonl"
   duplicate_source_out="$workdir/review_decisions_duplicate_source.jsonl"
   duplicate_lane_dir="$workdir/review_lane_pack_duplicate_source"
@@ -3043,11 +3049,13 @@ PY
     --plan-out-dir "$first_lane_plan_dir" \
     --out-dir "$first_lane_pack_dir" \
     --dry-run)"
+  first_lane_apply_report="$first_lane_plan_dir/review_lane_pack_apply_report.json"
   echo "$first_lane_apply_dry_run_output" | grep -q '^review_lane_apply:$'
   ! echo "$first_lane_apply_dry_run_output" | grep -Eq '^(\{"manifest_items"|Dry run:)'
   echo "$first_lane_apply_dry_run_output" | grep -q "^  lane: $first_lane"
   echo "$first_lane_apply_dry_run_output" | grep -q '^  report: '
   echo "$first_lane_apply_dry_run_output" | grep -q '^  lane_result: reviewed=0 todo='
+  jq -e '(.schema == "murmurmark.review_lane_pack_apply_report/v1") and (.dry_run == true) and (.recommended_next | length > 0) and ([.next_commands[].id] | index("retry_review_lane_dry_run")) and ([.open_commands[].id] | index("open_review_lane_apply_report"))' "$first_lane_apply_report" >/dev/null
   echo "$first_lane_apply_dry_run_output" | grep -q '^  recommended_next: \$EDITOR '
   echo "$first_lane_apply_dry_run_output" | grep -q '^  next:$'
   echo "$first_lane_apply_dry_run_output" | grep -q '^    less '

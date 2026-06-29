@@ -72,6 +72,22 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return str(resolved.relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(resolved)
+
+
+def shell_path(path: Path) -> str:
+    return shlex.quote(display_path(path))
+
+
+def command_item(item_id: str, command: str, reason: str) -> dict[str, str]:
+    return {"id": item_id, "command": command, "reason": reason}
+
+
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -192,6 +208,77 @@ def item_lookup_keys(item: dict[str, Any]) -> list[str]:
     return [key] if key else []
 
 
+def lane_apply_base_command(args: argparse.Namespace, manifest_path: Path, template: Path, out: Path) -> str:
+    parts = [
+        "murmurmark",
+        "review",
+        "lane",
+        "apply",
+        shlex.quote(str(read_json(manifest_path).get("lane") or "unknown")),
+        "--manifest",
+        shell_path(manifest_path),
+        "--template",
+        shell_path(template),
+        "--decisions-out",
+        shell_path(out),
+    ]
+    if args.answers_file:
+        parts.extend(["--answers-file", shell_path(args.answers_file.expanduser())])
+    elif args.answers:
+        parts.extend(["--answers", shlex.quote(str(args.answers))])
+    if args.reviewer:
+        parts.extend(["--reviewer", shlex.quote(str(args.reviewer))])
+    return " ".join(parts)
+
+
+def lane_apply_handoff(
+    *,
+    args: argparse.Namespace,
+    manifest_path: Path,
+    template: Path,
+    out: Path,
+    report_path: Path,
+    summary: dict[str, Any],
+    rejected: list[dict[str, Any]],
+) -> dict[str, Any]:
+    base = lane_apply_base_command(args, manifest_path, template, out)
+    batch_command = (
+        "murmurmark review apply "
+        f"--decisions {shell_path(out)} "
+        f"--review-template {shell_path(template)}"
+    )
+    next_commands: list[dict[str, str]] = []
+    if args.dry_run:
+        if rejected or summary.get("todo_count") or not summary.get("reviewed_count"):
+            if args.answers_file:
+                next_commands.append(
+                    command_item(
+                        "edit_review_lane_answers",
+                        f"$EDITOR {shell_path(args.answers_file.expanduser())}",
+                        "finish manual answers before applying",
+                    )
+                )
+            next_commands.append(command_item("retry_review_lane_dry_run", f"{base} --dry-run", "rerun lane apply validation"))
+        else:
+            next_commands.append(command_item("apply_review_lane_answers", base, "apply validated lane answers"))
+    else:
+        next_commands.append(command_item("refresh_review_progress", "murmurmark review progress", "refresh review progress"))
+        next_commands.append(command_item("apply_review_decisions", batch_command, "materialize reviewed decisions into transcript profile"))
+    open_commands = [
+        command_item("open_review_lane_apply_report", f"less {shell_path(report_path)}", "inspect lane apply report"),
+        command_item("open_review_lane_manifest", f"less {shell_path(manifest_path)}", "inspect lane pack manifest"),
+    ]
+    if args.answers_file:
+        open_commands.append(
+            command_item("edit_review_lane_answers", f"$EDITOR {shell_path(args.answers_file.expanduser())}", "edit manual answers")
+        )
+    return {
+        "recommended_next": next_commands[0]["command"] if next_commands else f"less {shell_path(report_path)}",
+        "next_commands": next_commands,
+        "open_commands": open_commands,
+    }
+
+
 def main() -> int:
     args = parse_args()
     manifest_path = args.manifest.expanduser()
@@ -275,6 +362,15 @@ def main() -> int:
                 }
             )
 
+    report_path = out.with_name("review_lane_pack_apply_report.json")
+    summary = {
+        "manifest_items": len(items),
+        "answer_count": len(decisions),
+        "applied_count": len(applied),
+        "rejected_count": len(rejected),
+        "reviewed_count": sum(1 for row in applied if row.get("status") == "reviewed"),
+        "todo_count": sum(1 for row in applied if row.get("status") == "todo"),
+    }
     report = {
         "schema": SCHEMA,
         "generated_at": now,
@@ -287,19 +383,22 @@ def main() -> int:
         },
         "lane": manifest.get("lane"),
         "dry_run": args.dry_run,
-        "summary": {
-            "manifest_items": len(items),
-            "answer_count": len(decisions),
-            "applied_count": len(applied),
-            "rejected_count": len(rejected),
-            "reviewed_count": sum(1 for row in applied if row.get("status") == "reviewed"),
-            "todo_count": sum(1 for row in applied if row.get("status") == "todo"),
-        },
+        "summary": summary,
         "applied": applied,
         "rejected": rejected,
     }
+    report.update(
+        lane_apply_handoff(
+            args=args,
+            manifest_path=manifest_path,
+            template=template,
+            out=out,
+            report_path=report_path,
+            summary=summary,
+            rejected=rejected,
+        )
+    )
 
-    report_path = out.with_name("review_lane_pack_apply_report.json")
     if not args.dry_run:
         write_jsonl(out, rows)
     write_json(report_path, report)

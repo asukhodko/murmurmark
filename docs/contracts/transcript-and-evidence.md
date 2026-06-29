@@ -2341,13 +2341,35 @@ file with an `answers=...` line:
     "rejected_count": 0,
     "reviewed_count": 10,
     "todo_count": 0
-  }
+  },
+  "recommended_next": "murmurmark review progress",
+  "next_commands": [
+    {
+      "id": "refresh_review_progress",
+      "command": "murmurmark review progress",
+      "reason": "refresh review progress"
+    },
+    {
+      "id": "apply_review_decisions",
+      "command": "murmurmark review apply --decisions sessions/_reports/review-plan/review_decisions.jsonl --review-template sessions/_reports/review-plan/review_decisions.template.jsonl",
+      "reason": "materialize reviewed decisions into transcript profile"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_review_lane_apply_report",
+      "command": "less sessions/_reports/review-plan/review_lane_pack_apply_report.json",
+      "reason": "inspect lane apply report"
+    }
+  ]
 }
 ```
 
-`--dry-run` writes the same report without changing `review_decisions.jsonl`. The Swift CLI prints
-that report as `lane_items` and `lane_result`. If rows remain `todo`, it points back to the lane
-Markdown and answer sheet; otherwise it shows the next non-dry-run command.
+`--dry-run` writes the same report without changing `review_decisions.jsonl`. The report always
+includes `recommended_next`, `next_commands` and `open_commands`, so the Swift CLI and agents can
+continue without scraping terminal output. The Swift CLI prints that report as `lane_items` and
+`lane_result`. If rows remain `todo`, it points back to the lane Markdown and answer sheet; otherwise
+it shows the next non-dry-run command.
 
 `murmurmark review workspace apply` applies every lane answer sheet referenced by
 `review_workspace.json` into one `review_decisions.jsonl`. It validates item counts, answer
@@ -2389,9 +2411,34 @@ The JSON uses `murmurmark.review_workspace_apply_report/v1`:
         "rejected_count": 0
       }
     }
+  ],
+  "recommended_next": "$EDITOR sessions/_reports/review-plan/lane-packs/review_lane_answers.check_local_recall.txt",
+  "next_commands": [
+    {
+      "id": "edit_workspace_lane_answers",
+      "command": "$EDITOR sessions/_reports/review-plan/lane-packs/review_lane_answers.check_local_recall.txt",
+      "reason": "finish the first incomplete lane answer sheet"
+    },
+    {
+      "id": "retry_review_workspace_dry_run",
+      "command": "murmurmark review workspace apply --workspace sessions/_reports/review-plan/review_workspace.json --template sessions/_reports/review-plan/review_decisions.template.jsonl --out sessions/_reports/review-plan/review_decisions.jsonl --report sessions/_reports/review-plan/review_workspace_apply_report.json --dry-run",
+      "reason": "rerun workspace validation"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_review_workspace_apply_report",
+      "command": "less sessions/_reports/review-plan/review_workspace_apply_report.json",
+      "reason": "inspect workspace apply report"
+    }
   ]
 }
 ```
+
+Workspace apply reports use the same handoff fields as lane apply reports:
+`recommended_next`, `next_commands` and `open_commands`. Dry runs usually point to the first
+incomplete lane answer sheet and a retry command. Non-dry runs point to progress refresh or the final
+`murmurmark review apply` batch step when every selected row is reviewed.
 
 The Swift CLI prints `lane_progress` from the `lanes` array. For each lane it shows status,
 reviewed/todo/rejected counts, then the remaining lane Markdown and answer sheet when

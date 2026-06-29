@@ -1035,7 +1035,8 @@ It also prints `suggested_dry_run` and `suggested_apply`; these call
 `review_lane_answers.<lane>.suggested.txt`, and are meant for explicit reviewer-approved use after a
 dry run. `review lane apply --dry-run` writes `review_lane_pack_apply_report.json` and prints
 `lane_result`, so you can see how many items would become reviewed or remain `todo` before writing
-`review_decisions.jsonl`.
+`review_decisions.jsonl`. The report stores `recommended_next`, `next_commands` and `open_commands`,
+so scripts and agents can continue from the JSON report.
 When rows remain `todo`, the dry run points back to the lane Markdown and answer sheet. When the dry
 run would close rows, it prints the exact non-dry-run command under `next`. Applying the
 lane refreshes `review_decisions_progress.json` and prints the next remaining lane before the
@@ -1084,7 +1085,9 @@ murmurmark review workspace apply --answers-source suggested --dry-run
 `murmurmark review workspace` prints `manual_flow`, optional `suggested_flow`, `after_apply`, and
 the same command as `suggested_dry_run` when suggested sheets are present. Dry-run still writes
 `review_workspace_apply_report.json`, so the CLI can print the same summary, `next_lane`, and next
-commands without changing `review_decisions.jsonl`.
+commands without changing `review_decisions.jsonl`. The apply report also stores
+`recommended_next`, `next_commands` and `open_commands`, so automation can resume from the report
+after manual review.
 `review_workspace.json` stores the same handoff as `recommended_next`, `next_commands`,
 `open_commands`, `manual_flow`, `suggested_flow` and `after_apply`, so agents can continue from the
 workspace manifest.

@@ -81,6 +81,22 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return str(resolved.relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(resolved)
+
+
+def shell_path(path: Path) -> str:
+    return shlex.quote(display_path(path))
+
+
+def command_item(item_id: str, command: str, reason: str) -> dict[str, str]:
+    return {"id": item_id, "command": command, "reason": reason}
+
+
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -225,6 +241,85 @@ def workspace_lane_inputs(workspace: dict[str, Any], answers_source: str) -> lis
             }
         )
     return result
+
+
+def workspace_apply_base_command(args: argparse.Namespace, workspace_path: Path, template: Path, out: Path) -> str:
+    base = (
+        "murmurmark review workspace apply "
+        f"--workspace {shell_path(workspace_path)} "
+        f"--template {shell_path(template)} "
+        f"--out {shell_path(out)} "
+        f"--report {shell_path(args.report.expanduser())}"
+    )
+    if args.answers_source == "suggested":
+        base += " --answers-source suggested"
+    if args.reviewer:
+        base += f" --reviewer {shlex.quote(str(args.reviewer))}"
+    if args.require_complete:
+        base += " --require-complete"
+    return base
+
+
+def workspace_apply_handoff(
+    *,
+    args: argparse.Namespace,
+    workspace_path: Path,
+    template: Path,
+    out: Path,
+    report_path: Path,
+    summary: dict[str, Any],
+    lanes: list[dict[str, Any]],
+    errors: list[dict[str, Any]],
+) -> dict[str, Any]:
+    base = workspace_apply_base_command(args, workspace_path, template, out)
+    progress_command = f"murmurmark review progress --template {shell_path(template)} --decisions {shell_path(out)}"
+    batch_apply_command = f"murmurmark review apply --decisions {shell_path(out)} --review-template {shell_path(template)}"
+    first_todo_lane = next(
+        (
+            lane
+            for lane in lanes
+            if safe_int((lane.get("summary") or {}).get("todo_count")) > 0
+        ),
+        None,
+    )
+    next_commands: list[dict[str, str]] = []
+    if args.dry_run:
+        if first_todo_lane:
+            if first_todo_lane.get("answer_sheet"):
+                next_commands.append(
+                    command_item(
+                        "edit_workspace_lane_answers",
+                        f"$EDITOR {shell_path(Path(str(first_todo_lane.get('answer_sheet'))))}",
+                        "finish the first incomplete lane answer sheet",
+                    )
+                )
+            if first_todo_lane.get("markdown"):
+                next_commands.append(
+                    command_item(
+                        "open_workspace_lane_pack",
+                        f"less {shell_path(Path(str(first_todo_lane.get('markdown'))))}",
+                        "inspect evidence for the first incomplete lane",
+                    )
+                )
+            next_commands.append(command_item("retry_review_workspace_dry_run", f"{base} --dry-run", "rerun workspace validation"))
+        elif errors:
+            next_commands.append(command_item("open_review_workspace_apply_report", f"less {shell_path(report_path)}", "inspect validation errors"))
+            next_commands.append(command_item("retry_review_workspace_dry_run", f"{base} --dry-run", "rerun workspace validation"))
+        else:
+            next_commands.append(command_item("apply_review_workspace", base, "apply validated workspace answers"))
+    elif summary.get("ready_for_batch_apply"):
+        next_commands.append(command_item("apply_review_decisions", batch_apply_command, "materialize reviewed decisions into transcript profile"))
+    else:
+        next_commands.append(command_item("refresh_review_progress", progress_command, "refresh review progress"))
+    open_commands = [
+        command_item("open_review_workspace_apply_report", f"less {shell_path(report_path)}", "inspect workspace apply report"),
+        command_item("open_review_workspace", f"less {shell_path(workspace_path)}", "inspect review workspace JSON"),
+    ]
+    return {
+        "recommended_next": next_commands[0]["command"] if next_commands else f"less {shell_path(report_path)}",
+        "next_commands": next_commands,
+        "open_commands": open_commands,
+    }
 
 
 def row_seconds(row: dict[str, Any]) -> float:
@@ -457,6 +552,24 @@ def main() -> int:
     workspace_todo_count = sum(safe_int((lane.get("summary") or {}).get("todo_count")) for lane in lane_reports)
     complete_error = args.require_complete and workspace_todo_count > 0
 
+    summary = {
+        "lane_count": len(lane_reports),
+        "failed_lanes": sum(1 for lane in lane_reports if lane.get("status") != "ok"),
+        "skipped_count": sum(safe_int((lane.get("summary") or {}).get("skipped_count")) for lane in lane_reports),
+        "applied_count": sum(safe_int((lane.get("summary") or {}).get("applied_count")) for lane in lane_reports),
+        "reviewed_count": sum(safe_int((lane.get("summary") or {}).get("reviewed_count")) for lane in lane_reports),
+        "workspace_todo_count": workspace_todo_count,
+        "rejected_count": len(rejected),
+        "total_rows": len(rows),
+        "remaining_rows": len(remaining_rows),
+        "remaining_seconds": round(sum(row_seconds(row) for row in remaining_rows), 3),
+        "remaining_minutes": round(sum(row_seconds(row) for row in remaining_rows) / 60.0, 2),
+        "ready_for_batch_apply": len(rows) > 0 and not remaining_rows and not rejected and not complete_error,
+        "decisions": dict(sorted(decision_counts.items())),
+        "suggested_conflict_downgraded_count": len(suggested_conflict_downgrades),
+    }
+    errors = rejected + ([{"reason": "workspace_answers_incomplete", "todo_count": workspace_todo_count}] if complete_error else [])
+    report_path = args.report.expanduser()
     report = {
         "schema": SCHEMA,
         "generated_at": now,
@@ -469,30 +582,27 @@ def main() -> int:
         "dry_run": args.dry_run,
         "answers_source": args.answers_source,
         "require_complete": args.require_complete,
-        "summary": {
-            "lane_count": len(lane_reports),
-            "failed_lanes": sum(1 for lane in lane_reports if lane.get("status") != "ok"),
-            "skipped_count": sum(safe_int((lane.get("summary") or {}).get("skipped_count")) for lane in lane_reports),
-            "applied_count": sum(safe_int((lane.get("summary") or {}).get("applied_count")) for lane in lane_reports),
-            "reviewed_count": sum(safe_int((lane.get("summary") or {}).get("reviewed_count")) for lane in lane_reports),
-            "workspace_todo_count": workspace_todo_count,
-            "rejected_count": len(rejected),
-            "total_rows": len(rows),
-            "remaining_rows": len(remaining_rows),
-            "remaining_seconds": round(sum(row_seconds(row) for row in remaining_rows), 3),
-            "remaining_minutes": round(sum(row_seconds(row) for row in remaining_rows) / 60.0, 2),
-            "ready_for_batch_apply": len(rows) > 0 and not remaining_rows and not rejected and not complete_error,
-            "decisions": dict(sorted(decision_counts.items())),
-            "suggested_conflict_downgraded_count": len(suggested_conflict_downgrades),
-        },
+        "summary": summary,
         "lanes": lane_reports,
         "suggested_conflict_downgrades": suggested_conflict_downgrades,
-        "errors": rejected + ([{"reason": "workspace_answers_incomplete", "todo_count": workspace_todo_count}] if complete_error else []),
+        "errors": errors,
     }
+    report.update(
+        workspace_apply_handoff(
+            args=args,
+            workspace_path=workspace_path,
+            template=template,
+            out=out,
+            report_path=report_path,
+            summary=summary,
+            lanes=lane_reports,
+            errors=errors,
+        )
+    )
 
     if not args.dry_run and not rejected and not complete_error:
         write_jsonl(out, rows)
-    write_json(args.report.expanduser(), report)
+    write_json(report_path, report)
 
     if not args.quiet:
         print(json.dumps(report["summary"], ensure_ascii=False))
