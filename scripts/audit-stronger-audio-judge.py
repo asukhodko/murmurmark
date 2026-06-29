@@ -899,6 +899,8 @@ def classify_item(
     best_me_any, best_me_any_source = best_score(metrics, mic_sources, "to_me")
     best_remote_in_mic, remote_in_mic_source = best_score(metrics, mic_sources, "to_remote")
     remote_source_to_remote = safe_float(metrics.get("remote", {}).get("to_remote", {}).get("similarity"), 0.0)
+    remote_source_to_me = safe_float(metrics.get("remote", {}).get("to_me", {}).get("similarity"), 0.0)
+    remote_source_to_me_containment = safe_float(metrics.get("remote", {}).get("to_me", {}).get("containment"), 0.0)
     remote_source_tokens = int(metrics.get("remote", {}).get("content_token_count") or 0)
     mic_content_tokens = max(int(metrics.get(source, {}).get("content_token_count") or 0) for source in mic_sources) if mic_sources else 0
 
@@ -922,6 +924,7 @@ def classify_item(
     remote_confirmed = remote_source_to_remote >= 0.46 or (remote_source_tokens >= 2 and remote_text)
     remote_duplicate = best_remote_in_mic >= 0.70 and best_me_any < 0.42 and remote_similarity >= 35
     very_short_me = len(me_tokens) <= 3 and len(normalize_text(me_text).split()) <= 4
+    short_content_me = len(me_tokens) <= 3 and len(normalize_text(me_text).split()) <= 6
     short_me_contained, short_me_source = short_me_tokens_contained(transcripts, clean_sources or mic_sources, me_tokens)
     noise_fragment_me = looks_like_noise_fragment(me_text)
     no_mic_me = best_me_any < 0.24 and mic_content_tokens <= 2
@@ -942,6 +945,27 @@ def classify_item(
         and mic_content_tokens >= 4
         and remote_source_tokens >= 4
     )
+    remote_contains_short_me = (
+        short_content_me
+        and len(me_tokens) >= 2
+        and best_me_any < 0.46
+        and audit_verdict == "probable_transcript_error"
+        and audit_label in {"remote_leak", "asr_noise", "uncertain"}
+        and local_support <= 35
+        and remote_similarity >= 60
+        and remote_source_to_me >= 0.80
+        and remote_source_to_me_containment >= 0.90
+    )
+    short_remote_leak_unconfirmed = (
+        short_content_me
+        and len(me_tokens) >= 2
+        and best_me_any < 0.43
+        and audit_verdict == "probable_transcript_error"
+        and audit_label == "remote_leak"
+        and local_support <= 20
+        and mic_content_tokens >= 4
+        and best_remote_in_mic >= 0.35
+    )
 
     if me_confirmed and remote_confirmed and best_remote_in_mic < 0.68:
         label = "confirm_timing_or_doubletalk" if remote_text else "confirm_me"
@@ -960,6 +984,11 @@ def classify_item(
         suggested = "keep_me"
         confidence = 0.78
         reasons.append(f"short Me phrase is contained in mic decode via {short_me_source}")
+    elif remote_contains_short_me:
+        label = "confirm_remote_duplicate"
+        suggested = "drop_me"
+        confidence = 0.90
+        reasons.append("remote track contains the short Me text while mic decodes do not confirm it")
     elif remote_duplicate:
         label = "confirm_remote_duplicate"
         suggested = "drop_me"
@@ -975,6 +1004,11 @@ def classify_item(
         suggested = "drop_me"
         confidence = 0.90
         reasons.append("short Me text is rejected by mic decodes while audio review points to remote leak")
+    elif short_remote_leak_unconfirmed:
+        label = "confirm_asr_noise"
+        suggested = "drop_me"
+        confidence = 0.88
+        reasons.append("short Me text is unconfirmed by mic decodes under low local support remote-leak evidence")
     elif very_short_me and no_mic_me and local_support < 45 and audit_label in {"uncertain", "asr_noise", "remote_leak"}:
         label = "confirm_asr_noise"
         suggested = "drop_me"
@@ -1005,6 +1039,8 @@ def classify_item(
             "best_me_any_similarity": round(best_me_any, 6),
             "best_remote_in_mic_similarity": round(best_remote_in_mic, 6),
             "remote_source_to_remote_similarity": round(remote_source_to_remote, 6),
+            "remote_source_to_me_similarity": round(remote_source_to_me, 6),
+            "remote_source_to_me_containment": round(remote_source_to_me_containment, 6),
             "mic_content_tokens": mic_content_tokens,
             "me_content_tokens": len(me_tokens),
             "remote_content_tokens": len(remote_tokens),

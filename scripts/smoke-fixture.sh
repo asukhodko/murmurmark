@@ -1358,6 +1358,58 @@ short_leak_classification = module.classify_item(
     short_leak_metrics,
 )
 assert short_leak_classification["label"] in {"confirm_asr_noise", "confirm_remote_duplicate"}, short_leak_classification
+remote_contains_short_me_item = dict(item)
+remote_contains_short_me_item["utterances"] = [
+    {"id": "utt_remote_fragment", "role": "Me", "source_track": "mic", "start": 1.0, "end": 2.0, "text": "А какие у нее будут"}
+]
+remote_contains_short_me_audit = {
+    "classification": {"label": "remote_leak", "verdict": "probable_transcript_error"},
+    "scores": {"local_support": 25, "remote_similarity": 70},
+}
+remote_contains_short_me_transcripts = {
+    "mic_role_masked": {"text": "вот эту проблему которая тут чинилась"},
+    "mic_clean": {"text": "вот эту проблему которая тут чинилась"},
+    "mic_raw": {"text": "а у слуга она на кьюне будут эти связи"},
+    "remote": {"text": "А вот слуга, какие у нее будут эти связи?"},
+}
+remote_contains_short_me_metrics = module.source_metrics(
+    remote_contains_short_me_transcripts,
+    "А какие у нее будут",
+    "а вот слуга она на ки у нее будут не связи",
+)
+remote_contains_short_me_classification = module.classify_item(
+    remote_contains_short_me_item,
+    remote_contains_short_me_audit,
+    remote_contains_short_me_transcripts,
+    remote_contains_short_me_metrics,
+)
+assert remote_contains_short_me_classification["label"] == "confirm_remote_duplicate", remote_contains_short_me_classification
+unconfirmed_short_leak_item = dict(item)
+unconfirmed_short_leak_item["utterances"] = [
+    {"id": "utt_unconfirmed", "role": "Me", "source_track": "mic", "start": 1.0, "end": 2.0, "text": "Яренькая фандома была"}
+]
+unconfirmed_short_leak_audit = {
+    "classification": {"label": "remote_leak", "verdict": "probable_transcript_error"},
+    "scores": {"local_support": 15, "remote_similarity": 45},
+}
+unconfirmed_short_leak_transcripts = {
+    "mic_role_masked": {"text": "на что завязаться или просто чтобы фондовая была"},
+    "mic_clean": {"text": "на что завязаться или просто чтобы фондовая была"},
+    "mic_raw": {"text": "на что завязаться или просто что фондово было"},
+    "remote": {"text": "на что завязаться или просто что фандока было"},
+}
+unconfirmed_short_leak_metrics = module.source_metrics(
+    unconfirmed_short_leak_transcripts,
+    "Яренькая фандома была",
+    "Чтобы ее эти фонды ругали Чтобы она первая отстреливала",
+)
+unconfirmed_short_leak_classification = module.classify_item(
+    unconfirmed_short_leak_item,
+    unconfirmed_short_leak_audit,
+    unconfirmed_short_leak_transcripts,
+    unconfirmed_short_leak_metrics,
+)
+assert unconfirmed_short_leak_classification["label"] == "confirm_asr_noise", unconfirmed_short_leak_classification
 protected_short_leak_item = dict(short_leak_item)
 protected_short_leak_item["utterances"] = [
     {"id": "utt_short", "role": "Me", "source_track": "mic", "start": 1.0, "end": 3.0, "text": "Надо проверить"}
@@ -3644,6 +3696,13 @@ with tempfile.TemporaryDirectory() as tmp:
                 {
                     "status": "reviewed",
                     "decision": "keep_me",
+                    "input_profile": "audit_cleanup_v7",
+                    "source": "audio_review",
+                    "source_audit_id": "arp_pending_cleanup_profile",
+                },
+                {
+                    "status": "reviewed",
+                    "decision": "keep_me",
                     "input_profile": "other_profile",
                     "source": "audio_review",
                     "source_audit_id": "arp_other_profile",
@@ -3657,6 +3716,9 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "arp_pending_keep" in resolved_ids, resolved_ids
     assert "arp_pending_todo" not in resolved_ids, resolved_ids
     assert "arp_other_profile" not in resolved_ids, resolved_ids
+    cleanup_profile_resolved_ids = module.review_resolved_audio_ids(session_path, "audit_cleanup_v7")
+    assert "arp_pending_cleanup_profile" in cleanup_profile_resolved_ids, cleanup_profile_resolved_ids
+    assert "arp_pending_keep" not in cleanup_profile_resolved_ids, cleanup_profile_resolved_ids
 short_order_item = {
     "source": "transcript_order",
     "label": "needs_review",

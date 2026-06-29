@@ -506,15 +506,10 @@ def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] |
     inherited: set[str] = set()
     for inherited_profile in inherited_profiles_for_review(session_path, profile):
         inherited.update(review_resolved_audio_ids(session_path, inherited_profile, seen))
-    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
-        return inherited
-    path = (
-        session_path
-        / "derived/transcript-simple/whisper-cpp/review-decisions"
-        / f"review_decisions_applied{suffix(profile)}.jsonl"
-    )
     resolved: set[str] = set(inherited)
-    for row in read_jsonl(path):
+    for row in pending_review_decision_rows(session_path, profile):
+        if str(row.get("status") or "") != "reviewed":
+            continue
         if str(row.get("source") or "") != "audio_review":
             continue
         if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
@@ -522,9 +517,14 @@ def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] |
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
             resolved.add(source_id)
-    for row in pending_review_decision_rows(session_path, profile):
-        if str(row.get("status") or "") != "reviewed":
-            continue
+    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+        return resolved
+    path = (
+        session_path
+        / "derived/transcript-simple/whisper-cpp/review-decisions"
+        / f"review_decisions_applied{suffix(profile)}.jsonl"
+    )
+    for row in read_jsonl(path):
         if str(row.get("source") or "") != "audio_review":
             continue
         if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
@@ -543,15 +543,10 @@ def review_resolved_local_recall_ids(session_path: Path, profile: str, seen: set
     inherited: set[str] = set()
     for inherited_profile in inherited_profiles_for_review(session_path, profile):
         inherited.update(review_resolved_local_recall_ids(session_path, inherited_profile, seen))
-    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
-        return inherited
-    path = (
-        session_path
-        / "derived/transcript-simple/whisper-cpp/review-decisions"
-        / f"review_decisions_applied{suffix(profile)}.jsonl"
-    )
     resolved: set[str] = set(inherited)
-    for row in read_jsonl(path):
+    for row in pending_review_decision_rows(session_path, profile):
+        if str(row.get("status") or "") != "reviewed":
+            continue
         if str(row.get("source") or "") not in {"local_recall", "local_recall_repair"}:
             continue
         if str(row.get("decision") or "") not in {"drop_me", "keep_me", "skip"}:
@@ -559,9 +554,14 @@ def review_resolved_local_recall_ids(session_path: Path, profile: str, seen: set
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
             resolved.add(source_id)
-    for row in pending_review_decision_rows(session_path, profile):
-        if str(row.get("status") or "") != "reviewed":
-            continue
+    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+        return resolved
+    path = (
+        session_path
+        / "derived/transcript-simple/whisper-cpp/review-decisions"
+        / f"review_decisions_applied{suffix(profile)}.jsonl"
+    )
+    for row in read_jsonl(path):
         if str(row.get("source") or "") not in {"local_recall", "local_recall_repair"}:
             continue
         if str(row.get("decision") or "") not in {"drop_me", "keep_me", "skip"}:
@@ -580,15 +580,10 @@ def review_resolved_transcript_order_ids(session_path: Path, profile: str, seen:
     inherited: set[str] = set()
     for inherited_profile in inherited_profiles_for_review(session_path, profile):
         inherited.update(review_resolved_transcript_order_ids(session_path, inherited_profile, seen))
-    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
-        return inherited
-    path = (
-        session_path
-        / "derived/transcript-simple/whisper-cpp/review-decisions"
-        / f"review_decisions_applied{suffix(profile)}.jsonl"
-    )
     resolved: set[str] = set(inherited)
-    for row in read_jsonl(path):
+    for row in pending_review_decision_rows(session_path, profile):
+        if str(row.get("status") or "") != "reviewed":
+            continue
         if str(row.get("source") or "") != "transcript_order":
             continue
         if str(row.get("decision") or "") not in {"keep_me", "skip"}:
@@ -596,9 +591,14 @@ def review_resolved_transcript_order_ids(session_path: Path, profile: str, seen:
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
             resolved.add(source_id)
-    for row in pending_review_decision_rows(session_path, profile):
-        if str(row.get("status") or "") != "reviewed":
-            continue
+    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+        return resolved
+    path = (
+        session_path
+        / "derived/transcript-simple/whisper-cpp/review-decisions"
+        / f"review_decisions_applied{suffix(profile)}.jsonl"
+    )
+    for row in read_jsonl(path):
         if str(row.get("source") or "") != "transcript_order":
             continue
         if str(row.get("decision") or "") not in {"keep_me", "skip"}:
