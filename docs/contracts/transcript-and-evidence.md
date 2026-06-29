@@ -2249,11 +2249,13 @@ display but is not guaranteed to be unique across clustered review rows. `source
 and utterance id arrays are copied from the review template so a lane pack remains auditable even
 when it is opened outside the full `review_plan.json`.
 For lanes such as `check_transcript_order`, `check_unique_me_content` and `classify_audio`,
-`build-review-lane-pack.py` may group several rows that point to the same `Me` utterance. In that
-case `grouped` is `true`, `group_size` is greater than `1`, and `review_row_keys` /
-`source_audit_ids` contain every underlying row. Applying one answer to that pack item writes the
-same decision to each listed review row; no transcript profile is edited until the normal review
-batch apply step runs.
+`build-review-lane-pack.py` may group several rows that point to the same exact set of `Me`
+utterance ids. In that case `grouped` is `true`, `group_size` is greater than `1`, and
+`review_row_keys` / `source_audit_ids` contain every underlying row. The grouped pack item exposes
+only the intersection of allowed decisions across those rows, so mixed rows do not accidentally
+offer `drop_remote` when one of the rows cannot accept it. Applying one answer to that pack item
+writes the same decision to each listed review row; no transcript profile is edited until the normal
+review batch apply step runs.
 
 The Swift CLI prints a compact handoff for the same manifest: selected lane, audio, Markdown, answer
 sheet, suggested answer sheet, the first `answers=...` line from the suggested sheet, and ready-to-run
@@ -2603,9 +2605,9 @@ Operational readiness may still expose review rows after `agent_reviewed_v1` is 
 rows are the remaining transcript/export surface, not a sign that the automatic layer was skipped.
 As of the 2026-06-29 corpus baseline, this queue is tracked separately from notes readiness:
 `13/13` working sessions are `ready_for_notes`, selected notes review is about `0.02 min`, and
-remaining transcript/export review is about `3.63 min` / `40` packed actions. Future cleanup or
-repair layers may reduce that queue only through explicit audit evidence and must keep possible
-lost `Me` speech or semantic uncertainty visible to export gates.
+remaining transcript/export review is about `3.63 min` / `40` raw rows / `33` packed actions.
+Future cleanup or repair layers may reduce that queue only through explicit audit evidence and must
+keep possible lost `Me` speech or semantic uncertainty visible to export gates.
 
 The same hint stream can be materialized for measurement as `suggested_review_v1`:
 

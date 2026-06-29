@@ -813,13 +813,14 @@ transcript/export surface is about `3.63 min`. Session-quality reports de-duplic
 `likely_reliable` audio-review evidence. This reduces burden without editing transcript text.
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
-The same snapshot exposes the remaining export work as a normal review queue: `40` packed actions
-after the current `agent_reviewed_v1` layer, reachable through `murmurmark review next SESSION`,
-`murmurmark review first-lane --session SESSION` and `murmurmark review workspace --session
-SESSION`. This is intentionally separate from notes readiness: selected notes can be used, while
-full transcript/export waits for the review loop. The next engineering target is to shrink that
-queue to `<= 15` packed actions and transcript/export review to `<= 1.5 min` by closing or
-explaining narrow `check_unique_me_content` / `remote_leak` classes, not by weakening gates.
+The same snapshot exposes the remaining export work as a normal review queue: `40` raw rows /
+`33` packed actions after the current `agent_reviewed_v1` layer, with `7` grouped rows reachable
+through `murmurmark review next SESSION`, `murmurmark review first-lane --session SESSION` and
+`murmurmark review workspace --session SESSION`. This is intentionally separate from notes
+readiness: selected notes can be used, while full transcript/export waits for the review loop.
+The next engineering target is to shrink that queue to `<= 15` packed actions and
+transcript/export review to `<= 1.5 min` by closing or explaining narrow
+`check_unique_me_content` / `remote_leak` classes, not by weakening gates.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
 `--refresh` it first rebuilds session-quality and operational-readiness reports, then prints
@@ -1048,9 +1049,11 @@ lane-pack command prints the suggested compact answer line, `afplay`, `$EDITOR`,
 the lane Markdown, which is the fastest place to inspect allowed decisions, suggested reasons and
 evidence text before editing the answer sheet.
 For lanes such as `check_transcript_order`, `check_unique_me_content` and `classify_audio`, the pack
-groups repeated risks for the same `Me` utterance. The answer sheet still has one character per pack
-item, but a grouped item can apply that answer to several underlying review rows; the Markdown shows
-the grouped row count and source audit ids.
+groups repeated risks for the same exact set of `Me` utterance ids. The answer sheet still has one
+character per pack item, but a grouped item can apply that answer to several underlying review rows;
+the Markdown shows the grouped row count and source audit ids. For mixed rows, the pack exposes only
+the shared safe decision set, so a grouped item does not offer `drop_remote` unless every underlying
+row allows it.
 The CLI output prints both source `rows` and packed `items`, plus `grouped_rows_saved` when grouping
 was applied.
 It also prints `manual_flow`, optional `suggested_flow`, and `after_apply`, so a reviewer can follow

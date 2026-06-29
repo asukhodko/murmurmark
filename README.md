@@ -37,8 +37,9 @@ Current corpus snapshot, refreshed on 2026-06-29:
 - working sessions: `13/13 ready_for_notes`;
 - required review for selected evidence-backed notes: `0.02 min`;
 - remaining full transcript/export review surface: `3.63 min`;
-- export-review queue: `40` packed actions after the current automatic `agent_reviewed_v1` layer,
-  reachable through `murmurmark review next` / `murmurmark review workspace`;
+- export-review queue: `40` raw rows / `33` packed actions after the current automatic
+  `agent_reviewed_v1` layer, with `7` grouped rows reachable through `murmurmark review next` /
+  `murmurmark review workspace`;
 - next product target: close or safely explain the remaining transcript/export blockers, especially
   `check_unique_me_content` and `remote_leak`, without changing capture, Echo Guard or the main ASR
   path, and without hiding unresolved risk from export gates.

@@ -276,18 +276,27 @@ def first_me_utterance_id(item: dict[str, Any]) -> str:
     return utterance_ids[0] if utterance_ids else ""
 
 
+def me_utterance_group_key(item: dict[str, Any]) -> str:
+    me_ids = item_list_values(item, "me_utterance_ids")
+    if me_ids:
+        return ",".join(me_ids)
+    return first_me_utterance_id(item)
+
+
 def review_group_key(item: dict[str, Any]) -> str:
     lane = str(item.get("review_lane") or "")
     if lane not in GROUPABLE_REVIEW_LANES:
         return ""
-    me_id = first_me_utterance_id(item)
-    if not me_id:
+    me_key = me_utterance_group_key(item)
+    if not me_key:
         return ""
     session_id = str(item.get("session_id") or item.get("session") or "")
-    label = str(item.get("label") or "")
     action = str(item.get("review_action") or "")
+    if lane == "check_unique_me_content":
+        return f"{lane}:{session_id}:{action}:{me_key}"
+    label = str(item.get("label") or "")
     allowed = ",".join(sorted(output_allowed_decisions(item)))
-    return f"{lane}:{session_id}:{label}:{action}:{allowed}:{me_id}"
+    return f"{lane}:{session_id}:{label}:{action}:{allowed}:{me_key}"
 
 
 def review_action_groups(items: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:

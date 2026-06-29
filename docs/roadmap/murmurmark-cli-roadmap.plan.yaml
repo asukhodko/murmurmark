@@ -45,10 +45,10 @@ nodes:
       выбранного профиля, а 13 из 13 рабочих сессий находятся в `ready_for_notes`.
       Снимок на 2026-06-29: selected evidence-backed notes требуют около `0.02 min`
       проверки, а отдельная поверхность transcript/export review остаётся около `3.63 min`.
-      Оставшийся export-review теперь представлен как исполнимая очередь из `40` packed actions
-      уже после `agent_reviewed_v1`, доступная через `murmurmark review next` /
+      Оставшийся export-review теперь представлен как исполнимая очередь из `40` raw rows /
+      `33` packed actions уже после `agent_reviewed_v1`, доступная через `murmurmark review next` /
       `murmurmark review workspace`. Следующая цель — снизить transcript/export surface с
-      `3.63 min` до `<= 1.5 min` и очередь с `40` до `<= 15` действий без смены топологии
+      `3.63 min` до `<= 1.5 min` и очередь с `33` до `<= 15` действий без смены топологии
       capture/Echo Guard/ASR, не ломая готовность evidence-backed notes и не скрывая спорные места
       от export gate.
 
@@ -387,7 +387,8 @@ nodes:
     notes: |
       Ближайшая выбранная цель после CLI MVP: сократить оставшуюся export-review очередь
       уже после agent-reviewed слоя. Стартовая точка 2026-06-29: 13/13 `ready_for_notes`,
-      `0.02 min` notes review, `3.63 min` transcript/export review и `40` packed actions.
+      `0.02 min` notes review, `3.63 min` transcript/export review и `40` raw rows /
+      `33` packed actions.
       Acceptance: сохранить 13/13 `ready_for_notes`, снизить transcript/export review до
       `<= 1.5 min` и очередь до `<= 15` actions, не меняя capture, Echo Guard и основной ASR.
       Основной материал: `check_unique_me_content` / `remote_leak`; possible lost `Me` и спорное
@@ -892,7 +893,7 @@ x:
   exec:
     program:
       nearest_goal: "Снизить transcript/export blockers, которые уже объяснены надёжными audio-review evidence, при сохранении 13/13 ready_for_notes и отдельного export gate."
-      success_by_next_sync: "Corpus остаётся medium_risk_ready или лучше, 13/13 рабочих сессий готовы для notes, notes review burden остаётся около 0.02 min или ниже, transcript/export review burden падает ниже 3.63 min, а export-review очередь становится короче 40 actions без скрытия possible lost Me и спорного содержания."
+      success_by_next_sync: "Corpus остаётся medium_risk_ready или лучше, 13/13 рабочих сессий готовы для notes, notes review burden остаётся около 0.02 min или ниже, transcript/export review burden падает ниже 3.63 min, а export-review очередь становится короче 33 actions без скрытия possible lost Me и спорного содержания."
     defaults:
       status_progress:
         done: 1.0
