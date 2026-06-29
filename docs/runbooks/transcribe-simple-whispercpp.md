@@ -879,7 +879,9 @@ prints `first_lane_flow` for the current blocker,
 order. It also prints why the first lane was chosen, which lane is the fastest quick pass, and the
 estimated queue after closing the first lane. When the local plan carries packed-action metrics,
 `review next` prints `review_actions`, `grouped_review_rows` and `remaining_actions`, so this view
-matches `murmurmark report corpus` instead of falling back to raw row counts only. `review first-lane`,
+matches `murmurmark report corpus` instead of falling back to raw row counts only. It also prints
+`open` commands for existing readiness/review-plan/progress reports, so the review entry point has
+both the reading path and the action path in one terminal block. `review first-lane`,
 `review lane apply`, `review workspace`, `review progress` and workspace apply also print a headline
 `recommended_next`; `review next`, `review progress` and `review apply` also repeat the primary
 handoff as the final copyable `next: ...` line. If `review progress` sees

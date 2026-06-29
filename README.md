@@ -371,7 +371,8 @@ SESSION` instead. When a review plan exists for a review-required session, it al
 that is a different lane,
 and `workspace_flow` for reviewing all lanes. It also prints the recommended first lane reason, the
 fastest quick lane and the estimated remaining queue after the first lane, so the normal order is
-visible without opening `review_plan.json`.
+visible without opening `review_plan.json`. When local Markdown reports already exist, `review next`
+also prints `open` commands for readiness, review plan, review progress and operational readiness.
 For `review_first` sessions, those next commands point to `murmurmark review next ...`,
 `murmurmark review first-lane --session ...`, `murmurmark review workspace --session ...`,
 `murmurmark review lane apply ...`, `murmurmark review workspace apply`,

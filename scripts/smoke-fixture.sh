@@ -747,6 +747,7 @@ jq -n --arg session "$review_next_session" '{
     {id: "review_apply", label: "Apply decisions.", command: ("murmurmark review apply --session " + $session)}
   ]
 }' >"$review_next_session/derived/readiness/session_readiness.json"
+echo '# Review Next Readiness' >"$review_next_session/derived/readiness/session_readiness.md"
 jq -n '{
   schema: "murmurmark.review_plan/v1",
   summary: {
@@ -763,6 +764,7 @@ jq -n '{
     after_first_lane_estimate: {remaining_items: 3, remaining_actions: 2, remaining_minutes: 1.25}
   }
 }' >"$review_next_plan_dir/review_plan.json"
+echo '# Review Plan' >"$review_next_plan_dir/review_plan.md"
 review_next_output="$("$bin" review next "$review_next_session" --no-refresh)"
 echo "$review_next_output" | grep -q '^SESSION="'
 echo "$review_next_output" | grep -q 'review_next:'
@@ -775,6 +777,9 @@ echo "$review_next_output" | grep -q 'first_lane: check_transcript_order'
 echo "$review_next_output" | grep -q 'quick_lane: fast_confirm_drop'
 echo "$review_next_output" | grep -q 'first_lane_reason: close_blocking_review_lane'
 echo "$review_next_output" | grep -q 'after_first_lane: remaining_items=3 remaining_actions=2 remaining_minutes=1.25'
+echo "$review_next_output" | grep -q '^  open:$'
+echo "$review_next_output" | grep -q '^    less .*session_readiness.md$'
+echo "$review_next_output" | grep -q '^    less .*review_plan.md$'
 echo "$review_next_output" | grep -q '^  recommended_next: murmurmark review first-lane --session .*review-next-session'
 echo "$review_next_output" | grep -q '^  first_lane_flow:$'
 echo "$review_next_output" | grep -q '^    build_and_listen: murmurmark review first-lane --session .*review-next-session'

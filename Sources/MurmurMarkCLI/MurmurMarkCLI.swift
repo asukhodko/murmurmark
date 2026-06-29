@@ -8105,6 +8105,7 @@ enum ReviewNextPrinter {
             Swift.print("  export_blockers: \(compactJSON(exportBlockers))")
         }
         printPlanHint(planOutDir: planOutDir)
+        printOpenHandoff(session: session, planOutDir: planOutDir)
         if let recommended = focusedCommands.first {
             Swift.print("  recommended_next: \(recommended)")
         }
@@ -8156,6 +8157,24 @@ enum ReviewNextPrinter {
         Swift.print("    murmurmark status \(sessionPath)")
         Swift.print("")
         Swift.print("next: murmurmark next \(sessionPath)")
+    }
+
+    private static func printOpenHandoff(session: URL, planOutDir: URL) {
+        var commands: [String] = []
+        appendOpen(session.appendingPathComponent("derived/readiness/session_readiness.md"), to: &commands)
+        appendOpen(planOutDir.appendingPathComponent("review_plan.md"), to: &commands)
+        appendOpen(planOutDir.appendingPathComponent("review_decisions_progress.md"), to: &commands)
+        appendOpen(session.appendingPathComponent("derived/readiness/operational-readiness/operational_readiness_report.md"), to: &commands)
+        guard !commands.isEmpty else { return }
+        Swift.print("  open:")
+        for command in commands {
+            Swift.print("    \(command)")
+        }
+    }
+
+    private static func appendOpen(_ url: URL, to commands: inout [String]) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        commands.append("less \(PathDisplay.display(url))")
     }
 
     private static func statusWithoutReview(gate: String, exportBlockers: [Any]) -> String {
