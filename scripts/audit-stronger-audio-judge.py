@@ -51,6 +51,17 @@ STOP_WORDS = {
     "оно",
     "я",
 }
+MEANINGFUL_SHORT_UTTERANCES = {
+    "да",
+    "нет",
+    "ок",
+    "окей",
+    "ага",
+    "угу",
+    "неа",
+    "ну",
+    "вот",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -211,6 +222,16 @@ def normalize_text(value: Any) -> str:
 
 def content_tokens(value: Any) -> list[str]:
     return [token for token in normalize_text(value).split() if token not in STOP_WORDS and len(token) > 1]
+
+
+def looks_like_noise_fragment(value: Any) -> bool:
+    tokens = normalize_text(value).split()
+    if not tokens or len(tokens) > 2:
+        return False
+    text = " ".join(tokens)
+    if text in MEANINGFUL_SHORT_UTTERANCES:
+        return False
+    return all(len(token) <= 2 for token in tokens)
 
 
 def text_similarity(left: Any, right: Any) -> dict[str, float]:
@@ -511,7 +532,15 @@ def classify_item(
     remote_confirmed = remote_source_to_remote >= 0.46 or (remote_source_tokens >= 2 and remote_text)
     remote_duplicate = best_remote_in_mic >= 0.70 and best_me_any < 0.42 and remote_similarity >= 35
     very_short_me = len(me_tokens) <= 3 and len(normalize_text(me_text).split()) <= 4
+    noise_fragment_me = looks_like_noise_fragment(me_text)
     no_mic_me = best_me_any < 0.24 and mic_content_tokens <= 2
+    mic_rejects_noise_fragment = (
+        noise_fragment_me
+        and best_me_any < 0.18
+        and audit_verdict == "probable_transcript_error"
+        and audit_label in {"asr_noise", "remote_leak", "uncertain"}
+        and local_support <= 20
+    )
 
     if me_confirmed and remote_confirmed and best_remote_in_mic < 0.68:
         label = "confirm_timing_or_doubletalk" if remote_text else "confirm_me"
@@ -530,6 +559,11 @@ def classify_item(
         suggested = "drop_me"
         confidence = min(0.95, max(0.82, best_remote_in_mic + 0.12))
         reasons.append(f"mic resembles remote via {remote_in_mic_source}")
+    elif mic_rejects_noise_fragment:
+        label = "confirm_asr_noise"
+        suggested = "drop_me"
+        confidence = 0.88
+        reasons.append("non-word short Me fragment is rejected by mic decodes")
     elif very_short_me and no_mic_me and local_support < 45 and audit_label in {"uncertain", "asr_noise", "remote_leak"}:
         label = "confirm_asr_noise"
         suggested = "drop_me"

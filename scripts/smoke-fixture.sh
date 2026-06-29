@@ -1304,6 +1304,24 @@ assert not module.cached_row_matches_item(stale, item)
 assert module.cached_row_matches_item(fresh, item)
 assert not module.audit_row_matches_item(stale, item)
 assert module.audit_row_matches_item(item, item)
+assert module.looks_like_noise_fragment("уб")
+assert not module.looks_like_noise_fragment("да")
+assert not module.looks_like_noise_fragment("нет")
+noise_item = dict(item)
+noise_item["utterances"] = [
+    {"id": "utt_noise", "role": "Me", "source_track": "mic", "start": 1.0, "end": 2.0, "text": "уб"}
+]
+noise_audit = {
+    "classification": {"label": "remote_leak", "verdict": "probable_transcript_error"},
+    "scores": {"local_support": 15, "remote_similarity": 70},
+}
+noise_transcripts = {
+    "mic_role_masked": {"text": "и роли идеи", "avg_logprob": -0.5, "no_speech_prob": 0.3},
+    "mic_clean": {"text": "и роли идеи", "avg_logprob": -0.5, "no_speech_prob": 0.3},
+    "mic_raw": {"text": "и роли идеи они генерируют себе токены", "avg_logprob": -0.5, "no_speech_prob": 0.3},
+}
+noise_metrics = module.source_metrics(noise_transcripts, "уб", "")
+assert module.classify_item(noise_item, noise_audit, noise_transcripts, noise_metrics)["label"] == "confirm_asr_noise"
 with tempfile.TemporaryDirectory() as tmp:
     path = Path(tmp) / "faster_whisper_judge.jsonl"
     module.write_jsonl(path, [stale])
