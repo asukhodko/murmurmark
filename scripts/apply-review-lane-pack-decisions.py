@@ -115,18 +115,18 @@ def normalize_text(value: Any) -> str:
 
 
 def review_row_key(row: dict[str, Any]) -> str:
-    source_id = str(row.get("source_audit_id") or "").strip()
     cluster_id = str(row.get("cluster_id") or "").strip()
     utterance_ids = row.get("utterance_ids")
     utterance_key = ",".join(str(item) for item in utterance_ids) if isinstance(utterance_ids, list) else ""
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    start = interval.get("start")
+    end = interval.get("end")
     return (
         "review:"
-        f"{source_id}:"
         f"{row.get('session_id') or ''}:"
         f"{cluster_id}:"
         f"{utterance_key}:"
-        f"{interval.get('start')}:{interval.get('end')}:"
+        f"{start}:{end}:"
         f"{row.get('label')}"
     )
 
@@ -142,6 +142,10 @@ def allowed_decisions(row: dict[str, Any]) -> set[str]:
         return set(DEFAULT_ALLOWED_DECISIONS)
     allowed = {str(value) for value in values if str(value) in KNOWN_REVIEW_DECISIONS}
     return allowed or set(DEFAULT_ALLOWED_DECISIONS)
+
+
+def is_reviewed(row: dict[str, Any]) -> bool:
+    return str(row.get("decision") or "todo") not in {"", "todo"}
 
 
 def parse_answers(raw: str) -> list[str]:
@@ -338,8 +342,9 @@ def main() -> int:
         for row_index in concrete_indexes:
             row = rows[row_index]
             if decision in {"", "todo"}:
-                row["decision"] = "todo"
-                row["status"] = "todo"
+                if not is_reviewed(row):
+                    row["decision"] = "todo"
+                    row["status"] = "todo"
             else:
                 row["decision"] = decision
                 row["status"] = "reviewed"
@@ -356,7 +361,8 @@ def main() -> int:
                 {
                     "source_audit_id": row.get("source_audit_id") or source_id,
                     "index": item.get("index"),
-                    "decision": decision,
+                    "answer_decision": decision,
+                    "decision": row.get("decision"),
                     "status": row["status"],
                     "review_row_key": review_row_key(row),
                 }

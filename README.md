@@ -1053,7 +1053,8 @@ silent replacement for listening when the meeting is medium-risk. Lane-pack outp
 `murmurmark review lane apply <lane> --answers-source suggested`, which reads
 `review_lane_answers.<lane>.suggested.txt` explicitly and cannot be mixed with `--answers` or
 `--answers-file`. Suggested sheets leave uncertain/needs-review items as dots and fill only
-actionable keep/drop suggestions. Run the suggested command with `--dry-run` first.
+actionable keep/drop suggestions. Dots preserve already reviewed rows; they do not reset earlier
+decisions back to `todo`. Run the suggested command with `--dry-run` first.
 When several lane answer sheets are edited, `murmurmark review workspace apply` applies
 the whole `review_workspace.json` in one validated pass and then refreshes review progress.
 Use `murmurmark review workspace apply --dry-run` to write only the validation report and print the

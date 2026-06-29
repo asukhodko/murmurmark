@@ -582,6 +582,7 @@ use those rows only for safer suggested answers: `confirm_me` and `confirm_timin
 suggest `keep_me` when allowed; `confirm_remote_duplicate` and `confirm_asr_noise` suggest `drop_me`
 only when the lane and safety gates allow that decision. Suggested answer sheets leave
 `uncertain`/`needs_review` rows as dots, so applying suggested answers closes only actionable rows.
+Dots preserve already reviewed rows and do not reset earlier decisions back to `todo`.
 
 The pack is written under `derived/audit/audio-review-pack/`. It includes short `mic_raw`,
 `remote`, `mic_clean`, `mic_role_masked` and stereo comparison clips for suspicious transcript

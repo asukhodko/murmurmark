@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -208,8 +209,57 @@ def utterance_ids(item: dict[str, Any]) -> list[str]:
     return list(dict.fromkeys(ids))
 
 
+def item_fingerprint_payload(item: dict[str, Any]) -> dict[str, Any]:
+    interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
+    utterances: list[dict[str, Any]] = []
+    for row in item.get("utterances") or []:
+        if not isinstance(row, dict):
+            continue
+        utterances.append(
+            {
+                "id": str(row.get("id") or ""),
+                "role": str(row.get("role") or ""),
+                "source_track": str(row.get("source_track") or ""),
+                "start": round(safe_float(row.get("start")), 3),
+                "end": round(safe_float(row.get("end")), 3),
+                "text": normalize_text(row.get("text")),
+            }
+        )
+    return {
+        "session_id": str(item.get("session_id") or ""),
+        "profile": str(item.get("profile") or ""),
+        "interval": {
+            "start": round(safe_float(interval.get("start")), 3),
+            "end": round(safe_float(interval.get("end")), 3),
+        },
+        "utterance_ids": [str(value) for value in item.get("utterance_ids") or []],
+        "utterances": utterances,
+    }
+
+
+def item_fingerprint(item: dict[str, Any]) -> str:
+    payload = item_fingerprint_payload(item)
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def cached_row_matches_item(row: dict[str, Any], item: dict[str, Any]) -> bool:
+    expected = item_fingerprint(item)
+    actual = str(row.get("source_pack_item_fingerprint") or "")
+    if actual:
+        return actual == expected
+    # Compatibility for rows written before fingerprints existed.
+    return item_fingerprint_payload(row) == item_fingerprint_payload(item)
+
+
 def audit_by_id(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {str(row.get("id")): row for row in rows if row.get("id")}
+
+
+def audit_row_matches_item(row: dict[str, Any] | None, item: dict[str, Any]) -> bool:
+    if not row:
+        return False
+    return item_fingerprint_payload(row) == item_fingerprint_payload(item)
 
 
 def item_priority(item: dict[str, Any], audit_row: dict[str, Any] | None) -> tuple[int, float, str]:
@@ -437,6 +487,7 @@ def audit_item(model: Any, item: dict[str, Any], audit_row: dict[str, Any] | Non
         "schema": SCHEMA_ROW,
         "id": f"fwj_{str(item.get('id') or '').replace('arp_', '')}",
         "source_pack_item_id": item.get("id"),
+        "source_pack_item_fingerprint": item_fingerprint(item),
         "session_id": item.get("session_id"),
         "profile": item.get("profile") or args.profile,
         "interval": item.get("interval"),
@@ -515,7 +566,7 @@ def cached_rows_for_items(
     for item in items:
         pack_id = str(item.get("id") or "")
         row = cached_by_pack_id.get(pack_id)
-        if row:
+        if row and cached_row_matches_item(row, item):
             cached.append(row)
         else:
             missing.append(item)
@@ -599,13 +650,18 @@ def main() -> int:
         print(f"summary: {out_dir / 'faster_whisper_judge_summary.json'}")
         return 0
 
-    selected = selected_items(items, audio_review_rows, args.max_items)
+    matched_audio_review_rows = {
+        str(item.get("id") or ""): row
+        for item in items
+        if (row := audio_review_rows.get(str(item.get("id") or ""))) and audit_row_matches_item(row, item)
+    }
+    selected = selected_items(items, matched_audio_review_rows, args.max_items)
     cached_rows, missing_items, cached_count = cached_rows_for_items(out_dir, selected, disabled=args.no_cache)
     cached_by_pack_id = {str(row.get("source_pack_item_id") or ""): row for row in cached_rows}
     if missing_items:
         model = load_model(model_path, args)
         new_by_pack_id = {
-            str(item.get("id") or ""): audit_item(model, item, audio_review_rows.get(str(item.get("id") or "")), args)
+            str(item.get("id") or ""): audit_item(model, item, matched_audio_review_rows.get(str(item.get("id") or "")), args)
             for item in missing_items
         }
     else:

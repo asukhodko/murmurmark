@@ -1277,6 +1277,40 @@ benign_tie["timing_overlap"] = 75
 assert module.classify(benign_tie, False)["verdict"] == "likely_reliable"
 PY
 
+  "$audit_python" - "$repo_root/scripts/audit-stronger-audio-judge.py" <<'PY'
+import importlib.util
+import sys
+import tempfile
+from pathlib import Path
+
+path = sys.argv[1]
+spec = importlib.util.spec_from_file_location("stronger_audio_judge", path)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+item = {
+    "id": "arp_000001",
+    "session_id": "fixture",
+    "profile": "audit_cleanup_v2",
+    "interval": {"start": 1.0, "end": 2.0},
+    "utterance_ids": ["utt_a"],
+    "utterances": [
+        {"id": "utt_a", "role": "Me", "source_track": "mic", "start": 1.0, "end": 2.0, "text": "Привет"}
+    ],
+}
+stale = dict(item, interval={"start": 3.0, "end": 4.0}, source_pack_item_id="arp_000001")
+fresh = dict(item, source_pack_item_id="arp_000001", source_pack_item_fingerprint=module.item_fingerprint(item))
+assert not module.cached_row_matches_item(stale, item)
+assert module.cached_row_matches_item(fresh, item)
+assert not module.audit_row_matches_item(stale, item)
+assert module.audit_row_matches_item(item, item)
+with tempfile.TemporaryDirectory() as tmp:
+    path = Path(tmp) / "faster_whisper_judge.jsonl"
+    module.write_jsonl(path, [stale])
+    cached, missing, count = module.cached_rows_for_items(Path(tmp), [item], disabled=False)
+    assert cached == [] and missing == [item] and count == 0
+PY
+
   group_session="$workdir/group-session"
   group_resolved="$group_session/derived/transcript-simple/whisper-cpp/resolved"
   mkdir -p \
