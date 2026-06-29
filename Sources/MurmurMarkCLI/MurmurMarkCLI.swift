@@ -2331,10 +2331,14 @@ enum ReviewLaneApplyCommand {
             print("  recommended_next: \(nextCommand)")
             print("  next:")
             print("    \(nextCommand)")
+            print("")
+            print("next: \(nextCommand)")
         } else if context.progress.map(isReadyForApply) == true {
             print("  recommended_next: murmurmark review apply\(sessionArgument)")
             print("  next:")
             print("    murmurmark review apply\(sessionArgument)")
+            print("")
+            print("next: murmurmark review apply\(sessionArgument)")
         } else {
             let nextLane = context.progress.flatMap(firstRemainingLane)
             let recommendedNext = nextLane
@@ -2354,6 +2358,8 @@ enum ReviewLaneApplyCommand {
             print("    murmurmark review progress\(sessionArgument)")
             print("  after_ready:")
             print("    murmurmark review apply\(sessionArgument)")
+            print("")
+            print("next: \(recommendedNext)")
         }
     }
 
@@ -2374,6 +2380,8 @@ enum ReviewLaneApplyCommand {
             print("    murmurmark review lane \(context.lane)\(sessionArgument)")
         }
         print("    \(retry)")
+        print("")
+        print("next: \(nextCommand)")
     }
 
     private static func printLaneApplyReport(_ report: URL) {
