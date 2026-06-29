@@ -2663,6 +2663,31 @@ EOF
   fi
   jq -e '.gates.passed == false and (.gates.hard_failures | index("incomplete_review_scope"))' \
     "$group_session/derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_partial_v1.json" >/dev/null
+  partial_allowed_decisions="$workdir/review_decisions_partial_allowed.jsonl"
+  jq -c '
+    if input_line_number == 1 then
+      .decision = (((.allowed_decisions // ["keep_me"]) | map(select(. != "todo" and . != ""))[0]) // "keep_me")
+      | .status = "reviewed"
+    else
+      .
+    end
+  ' "$review_template" >"$partial_allowed_decisions"
+  "$repo_root/scripts/apply-review-decisions.py" "$group_session" \
+    --decisions "$partial_allowed_decisions" \
+    --review-template "$review_template" \
+    --input-profile auto \
+    --output-profile reviewed_partial_allowed_v1 \
+    --allow-partial-review >/dev/null
+  jq -e '
+    .gates.passed == true
+    and (.gates.warnings | index("partial_review_scope_allowed"))
+    and .coverage.status == "partial_allowed"
+    and .coverage.allowed == true
+    and .coverage.complete == false
+    and .coverage.remaining_review_seconds >= 0
+    and .summary.review_scope_partial_allowed == true
+    and .summary.review_scope_complete == false
+  ' "$group_session/derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.reviewed_partial_allowed_v1.json" >/dev/null
 
   cat >"$review_decisions" <<EOF
 {"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","session_id":"group-session","session":"$group_session","input_profile":"audit_cleanup_v4","source_audit_id":"arp_manual_review_keep","label":"uncertain","verdict":"needs_stronger_audio_judge","review_action":"classify_audio","me_utterance_ids":["utt_audio_uncertain_me"],"remote_utterance_ids":["utt_audio_uncertain_remote"],"utterance_ids":["utt_audio_uncertain_remote","utt_audio_uncertain_me"],"text":[{"id":"utt_audio_uncertain_remote","role":"remote","source_track":"remote","text":"Там есть спорный кусок."},{"id":"utt_audio_uncertain_me","role":"me","source_track":"mic","text":"Я уточню отдельно."}],"reviewer":"smoke","notes":"confirmed local speech"}

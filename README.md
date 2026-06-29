@@ -1172,10 +1172,12 @@ decisions into a fresh `reviewed_v1` profile and refreshed readiness reports.
 `scripts/apply-review-decisions.py` closes the manual review loop. After the CLI or a manual edit has
 filled each `decision` as `drop_me`, `drop_remote`, `keep_me`, `needs_review`, or `skip`, apply the
 decisions to a session. The script
-writes a separate `reviewed_v1` profile and never changes the automatic cleanup profiles. The
-profile is eligible for `--transcript-profile auto` only when the review template has no remaining
-`todo` rows for that session and every row respects `allowed_decisions`; partial or invalid review
-stays as an audit artifact with failing gates.
+writes a separate `reviewed_v1` profile and never changes the automatic cleanup profiles. By
+default, the profile is eligible for `--transcript-profile auto` only when the review template has no
+remaining `todo` rows for that session and every row respects `allowed_decisions`; invalid review
+stays as an audit artifact with failing gates. `--allow-partial-review` materializes already closed
+rows while recording `partial_review_scope_allowed`; the remaining rows still appear in readiness
+metrics, so this mode is for shrinking review burden, not for declaring the transcript fully checked.
 For local-recall rows, `drop_me` is invalid because there is no transcript utterance to drop.
 `keep_me` or `skip` closes the local-recall risk as checked; `needs_review` keeps it blocking.
 For audio-review rows, `drop_remote` removes the reviewed `Colleagues` utterance when the remote
@@ -1213,10 +1215,11 @@ show no hard metric regressions before these rules are considered for promotion.
 suggested cleanup edits are unsafe.
 `scripts/apply-review-decisions-batch.py` applies the same edited file to every session mentioned in
 the review plan and can immediately regenerate extractive notes with `--synthesize`. Use
-`--refresh-reports` when the review is closed: it also refreshes session quality,
-operational readiness, and the next review plan, so the visible verdict is not stale. Its report also
-copies the refreshed `next_commands`, which lets `murmurmark review apply` and agents continue from
-one machine-readable handoff instead of guessing the next shell command.
+`--refresh-reports` when the review is closed, or add `--allow-partial-review` when enough rows are
+closed to improve the selected profile but some rows intentionally remain in review. The refresh also
+updates session quality, operational readiness, and the next review plan, so the visible verdict is
+not stale. Its report copies the refreshed `next_commands`, which lets `murmurmark review apply` and
+agents continue from one machine-readable handoff instead of guessing the next shell command.
 
 Timeline repair treats `remote` as the authoritative `Colleagues` timeline. If whisper.cpp glues a long `Me` segment across a remote reply, the bridge cuts that mic candidate around guarded remote intervals, keeps only local islands from Echo Guard speaker state, and can run micro-ASR on those short islands. If no local island can be recovered, the misleading long `Me` block is dropped rather than published whole. `source_start`, `source_end`, `timeline_repair_examples.jsonl`, and `role_decisions.json` remain available for audit.
 

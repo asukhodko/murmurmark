@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.3.1"
 OUTPUT_PROFILE_DEFAULT = "reviewed_v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 OPEN_DECISIONS = {"", "todo"}
@@ -311,6 +311,15 @@ def review_coverage(
     template_path: Path | None,
     allow_partial_review: bool,
 ) -> dict[str, Any]:
+    def row_duration(row: dict[str, Any]) -> float:
+        interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+        duration = safe_float(interval.get("duration_sec"))
+        if duration > 0:
+            return duration
+        start = safe_float(interval.get("start", row.get("start")))
+        end = safe_float(interval.get("end", row.get("end")))
+        return max(0.0, end - start)
+
     decision_by_key: dict[str, dict[str, Any]] = {}
     duplicates: list[str] = []
     for row in all_decisions:
@@ -334,23 +343,32 @@ def review_coverage(
     if template_rows:
         required_rows = len(template_rows)
         closed_rows = required_rows - len(missing) - len(pending)
-        complete = len(missing) == 0 and len(pending) == 0
-        status = "complete" if complete else "incomplete"
+        full_scope_complete = len(missing) == 0 and len(pending) == 0
+        partial_allowed = allow_partial_review and not full_scope_complete and closed_rows > 0
+        status = "complete" if full_scope_complete else ("partial_allowed" if partial_allowed else "incomplete")
     elif allow_partial_review:
         required_rows = len(all_decisions)
         closed_rows = sum(1 for row in all_decisions if str(row.get("decision") or "") not in OPEN_DECISIONS)
-        complete = True
-        status = "partial_allowed"
+        full_scope_complete = False
+        partial_allowed = closed_rows > 0
+        status = "partial_allowed" if partial_allowed else "missing_template_scope"
     else:
         required_rows = 0
         closed_rows = 0
-        complete = False
+        full_scope_complete = False
+        partial_allowed = False
         status = "missing_template_scope"
+    allowed = full_scope_complete or partial_allowed
+    missing_seconds = round(sum(row_duration(row) for row in missing), 3)
+    pending_seconds = round(sum(row_duration(row) for row in pending), 3)
 
     return {
         "schema": "murmurmark.review_coverage/v1",
         "status": status,
-        "complete": complete,
+        "complete": full_scope_complete,
+        "full_scope_complete": full_scope_complete,
+        "allowed": allowed,
+        "partial_allowed": partial_allowed,
         "allow_partial_review": allow_partial_review,
         "template_path": str(template_path) if template_path else None,
         "required_rows": required_rows,
@@ -358,6 +376,9 @@ def review_coverage(
         "coverage_ratio": round(closed_rows / max(1, required_rows), 6),
         "missing_rows": len(missing),
         "pending_rows": len(pending),
+        "missing_review_seconds": missing_seconds,
+        "pending_review_seconds": pending_seconds,
+        "remaining_review_seconds": round(missing_seconds + pending_seconds, 3),
         "duplicate_decision_keys": sorted(set(duplicates)),
         "missing_examples": [
             {
@@ -365,6 +386,7 @@ def review_coverage(
                 "source_audit_id": row.get("source_audit_id"),
                 "cluster_id": row.get("cluster_id"),
                 "utterance_ids": row.get("utterance_ids"),
+                "interval": row.get("interval"),
                 "reason": row.get("reason"),
             }
             for row in missing[:10]
@@ -375,6 +397,7 @@ def review_coverage(
                 "source_audit_id": row.get("source_audit_id"),
                 "cluster_id": row.get("cluster_id"),
                 "utterance_ids": row.get("utterance_ids"),
+                "interval": row.get("interval"),
                 "decision": row.get("decision"),
                 "reason": row.get("reason"),
             }
@@ -694,14 +717,20 @@ def main() -> int:
             sum(safe_float((row.get("interval") or {}).get("duration_sec")) for row in transcript_order_risk_remaining),
             3,
         ),
+        "review_scope_status": coverage["status"],
+        "review_scope_allowed": coverage["allowed"],
+        "review_scope_partial_allowed": coverage["partial_allowed"],
         "review_scope_complete": coverage["complete"],
         "review_scope_required_rows": coverage["required_rows"],
         "review_scope_closed_rows": coverage["closed_rows"],
         "review_scope_coverage_ratio": coverage["coverage_ratio"],
+        "review_scope_missing_rows": coverage["missing_rows"],
+        "review_scope_pending_rows": coverage["pending_rows"],
+        "review_scope_remaining_seconds": coverage["remaining_review_seconds"],
     }
     output_quality = quality_report(input_quality, output_utterances, overlaps, review_summary, args.output_profile)
     gates = {
-        "passed": not invalid_decisions and not conflicts and coverage["complete"],
+        "passed": not invalid_decisions and not conflicts and coverage["allowed"],
         "hard_failures": [],
         "warnings": [],
     }
@@ -709,8 +738,10 @@ def main() -> int:
         gates["hard_failures"].append("invalid_decisions")
     if conflicts:
         gates["hard_failures"].append("conflicting_decisions")
-    if not coverage["complete"]:
+    if not coverage["allowed"]:
         gates["hard_failures"].append("incomplete_review_scope")
+    elif not coverage["complete"]:
+        gates["warnings"].append("incomplete_review_scope_allowed")
     if not valid_decisions:
         gates["warnings"].append("no_review_decisions_applied")
     if coverage["status"] == "partial_allowed":
@@ -746,6 +777,7 @@ def main() -> int:
             "decisions": str(args.decisions),
             "clean_dialogue": rel(dialogue_path, session),
             "quality_report": rel(quality_path, session),
+            "allow_partial_review": args.allow_partial_review,
         },
         "summary": review_summary,
         "coverage": coverage,

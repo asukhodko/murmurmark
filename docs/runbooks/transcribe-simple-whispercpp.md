@@ -1343,8 +1343,10 @@ Local-recall rows are audit-only: they do not add missing words to the transcrip
 clear or keep the chronology risk and records `quality.transcript_order_review` on affected
 utterances, but it does not move utterances or edit text. `reviewed_v1` gates pass only when
 the corresponding `review_decisions.template.jsonl` rows for that session are all closed with
-an allowed `drop_me`, `drop_remote`, `keep_me`, `needs_review`, or `skip`; a partial or invalid file is written for
-audit but is not selected by `auto`. The template includes `suggested_decision` hints, but they are
+an allowed `drop_me`, `drop_remote`, `keep_me`, `needs_review`, or `skip`; an invalid file is written for
+audit but is not selected by `auto`. `--allow-partial-review` is the exception for agent-led cleanup:
+closed rows are applied, `coverage.complete` stays `false`, and `partial_review_scope_allowed` plus
+`review_scope_remaining_seconds` keep the session in `review_first` until the rest is resolved. The template includes `suggested_decision` hints, but they are
 not applied until the reviewer explicitly edits `decision`. For `remote_duplicate`, those hints are coverage-aware:
 if the duplicate covers only part of a longer `Me` utterance, the plan uses
 `check_unique_me_content` and suggests `needs_review`, because `drop_me` would remove the whole
@@ -1357,6 +1359,7 @@ After closing a review file, prefer:
 .venv/bin/python scripts/apply-review-decisions-batch.py \
   --decisions sessions/_reports/review-plan/review_decisions.jsonl \
   --review-template sessions/_reports/review-plan/review_decisions.template.jsonl \
+  --allow-partial-review \
   --synthesize \
   --refresh-reports
 ```

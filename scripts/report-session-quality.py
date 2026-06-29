@@ -804,12 +804,16 @@ def review_decision_metrics(review_report: dict[str, Any] | None) -> dict[str, A
         coverage = {}
     return {
         "review_decisions_gates_passed": gates.get("passed"),
+        "review_scope_status": coverage.get("status"),
+        "review_scope_allowed": coverage.get("allowed"),
+        "review_scope_partial_allowed": coverage.get("partial_allowed"),
         "review_scope_complete": coverage.get("complete"),
         "review_scope_required_rows": safe_int(coverage.get("required_rows")),
         "review_scope_closed_rows": safe_int(coverage.get("closed_rows")),
         "review_scope_coverage_ratio": round_or_none(coverage.get("coverage_ratio"), 6),
         "review_scope_missing_rows": safe_int(coverage.get("missing_rows")),
         "review_scope_pending_rows": safe_int(coverage.get("pending_rows")),
+        "review_scope_remaining_seconds": round_or_none(coverage.get("remaining_review_seconds")),
         "review_decisions_applied": safe_int(summary.get("applied_decision_rows")),
         "review_decisions_rejected": safe_int(summary.get("rejected_decision_rows")),
         "review_decisions_conflicts": safe_int(summary.get("conflict_count")),
@@ -1171,6 +1175,8 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
         flags.append("no_audit_cleanup_profile")
     if row.get("selected_profile") == "reviewed_v1" and row.get("review_decisions_gates_passed") is not True:
         flags.append("review_decisions_gates_failed")
+    if row.get("selected_profile") == "reviewed_v1" and row.get("review_scope_complete") is False:
+        flags.append("partial_review_scope")
     if row.get("selected_profile") == "agent_reviewed_v1" and row.get("review_decisions_gates_passed") is not True:
         flags.append("agent_review_decisions_gates_failed")
     missing = row.get("missing_artifacts") or []
@@ -1325,8 +1331,11 @@ def add_use_gate(row: dict[str, Any]) -> None:
     stronger_judge = notes_stronger_judge if notes_stronger_judge is not None else transcript_stronger_judge
     local_recall_review = safe_float(row.get("local_recall_meaningful_review_seconds")) or 0.0
     transcript_order_review = safe_float(row.get("transcript_order_review_seconds")) or 0.0
+    review_scope_remaining = safe_float(row.get("review_scope_remaining_seconds")) or 0.0
     notes_burden = probable_error + stronger_judge + local_recall_review + transcript_order_review
     transcript_burden = transcript_probable_error + transcript_stronger_judge + local_recall_review + transcript_order_review
+    notes_burden = max(notes_burden, review_scope_remaining)
+    transcript_burden = max(transcript_burden, review_scope_remaining)
     row["notes_review_burden_sec"] = round(notes_burden, 3)
     row["notes_review_burden_ratio"] = round(notes_burden / duration, 6) if duration > 0 else 0.0
     row["transcript_review_burden_sec"] = round(transcript_burden, 3)

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.3.1"
 SCHEMA = "murmurmark.review_decisions_batch_report/v1"
 
 
@@ -29,6 +29,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--input-profile", default="auto")
     parser.add_argument("--output-profile", default="reviewed_v1")
+    parser.add_argument(
+        "--allow-partial-review",
+        action="store_true",
+        help="Apply closed rows even when some template rows are still missing or todo.",
+    )
     parser.add_argument(
         "--session",
         action="append",
@@ -333,6 +338,8 @@ def main() -> int:
             "--output-profile",
             args.output_profile,
         ]
+        if args.allow_partial_review:
+            apply_command.append("--allow-partial-review")
         apply_result = run_command(apply_command)
         review_report_path = (
             session
@@ -363,6 +370,9 @@ def main() -> int:
                     "returncode": apply_result["returncode"],
                     "gates_passed": gates.get("passed") if isinstance(gates, dict) else None,
                     "coverage_complete": coverage.get("complete") if isinstance(coverage, dict) else None,
+                    "coverage_allowed": coverage.get("allowed") if isinstance(coverage, dict) else None,
+                    "coverage_status": coverage.get("status") if isinstance(coverage, dict) else None,
+                    "coverage_remaining_review_seconds": coverage.get("remaining_review_seconds") if isinstance(coverage, dict) else None,
                     "coverage_ratio": coverage.get("coverage_ratio") if isinstance(coverage, dict) else None,
                     "review_report": review_report_path.as_posix(),
                     "stdout": apply_result["stdout"],
@@ -396,6 +406,7 @@ def main() -> int:
             "review_template": template.as_posix(),
             "input_profile": args.input_profile,
             "output_profile": args.output_profile,
+            "allow_partial_review": args.allow_partial_review,
             "synthesize": args.synthesize,
             "synthesize_effective": args.synthesize or args.refresh_reports,
             "refresh_reports": args.refresh_reports,

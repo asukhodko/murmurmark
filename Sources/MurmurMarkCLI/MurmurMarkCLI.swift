@@ -1703,6 +1703,7 @@ enum ReviewCommands {
             if let session {
                 ReviewSessionLocalPlan.addReviewApplyDefaults(for: session, to: &preflightArgs)
             }
+            let allowPartialReview = ArgumentEditing.hasOption("allow-partial-review", in: forwarded)
             let decisions = ReviewPaths.reviewApplyDecisions(from: preflightArgs)
             let template = ReviewPaths.reviewApplyTemplate(from: preflightArgs)
             let progress = ReviewPaths.reviewApplyProgress(decisions: decisions)
@@ -1721,11 +1722,14 @@ enum ReviewCommands {
                 "--markdown", progress.deletingPathExtension().appendingPathExtension("md").path,
             ])
             if !ReviewPaths.isProgressReadyForApply(progress) {
-                if let session {
-                    print("SESSION=\"\(PathDisplay.display(session))\"")
+                if !allowPartialReview {
+                    if let session {
+                        print("SESSION=\"\(PathDisplay.display(session))\"")
+                    }
+                    try ReviewPrinter.printApplyNotReady(session: session, decisions: decisions, progress: progress)
+                    return
                 }
-                try ReviewPrinter.printApplyNotReady(session: session, decisions: decisions, progress: progress)
-                return
+                print("partial_review_scope_allowed: true")
             }
             let report = try apply(forwarded, sessionsRoot: sessionsRoot)
             if let session {
@@ -2240,7 +2244,7 @@ enum ReviewHelp {
                murmurmark review workspace [build|apply] [--session latest|SESSION] [--answers-source review|suggested]
                murmurmark review SESSION|latest [--lane LANE] [--no-play]
                murmurmark review progress [--session latest|SESSION]
-               murmurmark review apply [--session latest|SESSION]
+               murmurmark review apply [--session latest|SESSION] [--allow-partial-review]
                murmurmark review agent
 
         Review turns audit evidence into explicit decisions, applies those decisions into a
@@ -2252,6 +2256,9 @@ enum ReviewHelp {
           # listen/edit the generated answer sheet
           murmurmark review lane apply first --session latest
           murmurmark review apply --session latest
+
+        Use --allow-partial-review to materialize already closed rows while keeping the
+        remaining review scope visible in readiness reports.
         """)
     }
 }

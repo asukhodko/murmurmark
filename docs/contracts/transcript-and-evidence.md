@@ -2747,10 +2747,17 @@ sessions/_reports/review-plan/
 `drop_me` removes whole reviewed `Me` utterances. `drop_remote` removes whole reviewed `Colleagues`
 utterances when the remote row is a duplicate of local speech. `keep_me` keeps the utterance and can
 clear its review flag. `needs_review` keeps the utterance marked for review. Conflicting decisions fail the
-`reviewed_v1` gates. Coverage is also a hard gate: every template row for that session must be
+`reviewed_v1` gates. Coverage is also a hard gate by default: every template row for that session must be
 closed with `drop_me`, `drop_remote`, `keep_me`, `needs_review`, or `skip`. If a row is missing or still `todo`,
 the script still writes audit artifacts, but `review_decisions_report.reviewed_v1.json.gates.passed`
 is `false` and `--transcript-profile auto` must not select `reviewed_v1`.
+
+`--allow-partial-review` makes this gate explicit rather than silent. The report may pass with
+`coverage.allowed: true`, `coverage.complete: false` and warning `partial_review_scope_allowed` when
+at least one row was closed and the remaining rows are intentionally left for later. `coverage` must
+also expose `missing_review_seconds`, `pending_review_seconds` and `remaining_review_seconds`.
+Readiness must count those remaining seconds as review burden and must not treat partial review as a
+fully checked transcript.
 For `source: "local_recall"` rows, `drop_me` and `drop_remote` are invalid because the row points to a timeline-repair
 island, not a transcript utterance. `keep_me` and `skip` close that local-recall risk as checked;
 `needs_review` keeps it in the readiness burden. These rows are recorded in

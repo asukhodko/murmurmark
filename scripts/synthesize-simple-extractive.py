@@ -1029,6 +1029,10 @@ def metrics_from_quality(quality: dict[str, Any], utterances: list[dict[str, Any
         "local_only_island_recall": float(quality.get("local_only_island_recall", 1.0) or 0.0),
         "meeting_duration_sec": round(meeting_duration, 3),
     }
+    human_review = quality.get("human_review") if isinstance(quality.get("human_review"), dict) else {}
+    if human_review:
+        metrics["review_scope_complete"] = human_review.get("review_scope_complete")
+        metrics["review_scope_remaining_seconds"] = float(human_review.get("review_scope_remaining_seconds", 0.0) or 0.0)
     for key in (
         "audit_harmful_seconds_before",
         "audit_harmful_seconds_after",
@@ -1105,6 +1109,16 @@ def verdict_from_metrics(
                 }
             )
             return "risky", items
+        if selected_profile == "reviewed_v1" and metrics.get("review_scope_complete") is False:
+            items.append(
+                {
+                    "type": "partial_review_scope",
+                    "severity": "medium",
+                    "reason": "some review rows are still missing or todo",
+                    "remaining_seconds": metrics.get("review_scope_remaining_seconds"),
+                }
+            )
+            return "usable_with_review", items
         if harmful > max(30.0, duration * 0.01) or review > max(60.0, duration * 0.03):
             items.append(
                 {
