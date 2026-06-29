@@ -50,5 +50,7 @@ files or outside the repository.
 
 - Decide the public security contact.
 - Re-run `scripts/check.sh` and `scripts/check-open-source-readiness.sh`.
-- Build a release bundle with `scripts/build-release-bundle.sh --verify` and verify
-  `bin/murmurmark doctor --strict`.
+- Run `scripts/acceptance-cli-mvp.sh`.
+- Build a release bundle with `scripts/build-release-bundle.sh --verify` when you need to inspect the
+  bundle directly; the acceptance gate already verifies `doctor --strict` and `self-test` through the
+  bundled wrapper.

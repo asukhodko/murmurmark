@@ -33,6 +33,7 @@ MurmurMark уже прошёл стадию proof of concept: запись, по
 19. `murmurmark retention payload SESSION` — готов provider payload manifest; default policy блокирует внешние payload’ы.
 20. `scripts/check-open-source-readiness.sh` — готов public-readiness gate; MIT LICENSE добавлена.
 21. `murmurmark self-test` — готов быстрый CLI smoke через сам инструмент.
+22. `scripts/acceptance-cli-mvp.sh` — готов единый автоматический gate для CLI MVP.
 
 UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
 
@@ -50,7 +51,7 @@ UI App не является обязательной частью roadmap. Он
   boundary-сдвинутые `Me`-фразы через micro-ASR, а вставки проходят через обычный review loop;
   следующий короткий шаг — расширение boundary repair только по доказанным случаям.
 - `evidence-notes` и `export-workflows` — пользовательские артефакты; базовый export готов, дальше нужны vault/docs/Jira proposals.
-- `retention-policy` и `packaging` — приватность, хранение raw audio, release layout, provider payload manifest, self-test и readiness gate; перед публикацией нужен публичный security contact.
+- `retention-policy` и `packaging` — приватность, хранение raw audio, release layout, provider payload manifest, self-test, CLI MVP acceptance и readiness gate; перед публикацией нужен публичный security contact.
 - `future-heavy-local`, `future-llm-synthesis`, `future-ui-app` — дальние ветки.
 
 ## Проверка

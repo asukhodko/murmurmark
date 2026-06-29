@@ -108,12 +108,17 @@ Before sharing or publishing the repository:
 
 ```bash
 scripts/check-open-source-readiness.sh
+scripts/acceptance-cli-mvp.sh
 ```
 
 This gate fails on tracked real sessions, raw audio, local configs, private prompts/glossaries,
 personal paths and workspace-specific domain packs. The repository uses the MIT license; set a public
 security contact before a public release.
 See [docs/project/open-source-readiness.md](docs/project/open-source-readiness.md).
+
+`scripts/acceptance-cli-mvp.sh` is the current CLI MVP gate: it verifies local install, `doctor`,
+`self-test`, local config initialization, open-source readiness and release bundle verification. See
+[docs/project/cli-mvp-definition-of-done.md](docs/project/cli-mvp-definition-of-done.md).
 
 For the shortest local CLI handoff regression, run:
 
@@ -516,6 +521,7 @@ swift build
 swift run murmurmark doctor
 swift run murmurmark doctor --strict
 swift run murmurmark list-apps
+scripts/acceptance-cli-mvp.sh --skip-release
 scripts/build-release-bundle.sh --verify
 scripts/check-open-source-readiness.sh
 scripts/check.sh
