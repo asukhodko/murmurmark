@@ -719,6 +719,23 @@ assert_no_helper_prefix "$corpus_lane_answered_next_output"
 echo "$corpus_lane_answered_next_output" | grep -q '^  answer_sheet_status: complete reviewed=1/1'
 echo "$corpus_lane_answered_next_output" | grep -q '^  command: murmurmark review lane apply check_unique_me_content --session .* --dry-run'
 tail -1 <<<"$corpus_lane_answered_next_output" | grep -q '^next: murmurmark review lane apply check_unique_me_content --session .* --dry-run'
+echo 'answers=.' >"$corpus_next_lane_dir/review_lane_answers.check_unique_me_content.txt"
+jq '.promotion_plan.review_focus = {
+      session_id: "session-a",
+      session_arg: "sessions/session-a",
+      source_audit_id: "arp_not_in_existing_pack",
+      label: "remote_duplicate",
+      review_lane: "check_unique_me_content",
+      review_action: "check_unique_me_content"
+    }' "$corpus_next_root/_reports/operational-readiness/operational_readiness_report.json" \
+  >"$corpus_next_root/_reports/operational-readiness/operational_readiness_report.tmp.json"
+mv "$corpus_next_root/_reports/operational-readiness/operational_readiness_report.tmp.json" \
+  "$corpus_next_root/_reports/operational-readiness/operational_readiness_report.json"
+corpus_mismatched_lane_next_output="$("$bin" next corpus --sessions-root "$corpus_next_root")"
+assert_no_helper_prefix "$corpus_mismatched_lane_next_output"
+! echo "$corpus_mismatched_lane_next_output" | grep -q '^  source: review_lane_pack$'
+echo "$corpus_mismatched_lane_next_output" | grep -q '^  command: murmurmark review lane check_unique_me_content --session '
+tail -1 <<<"$corpus_mismatched_lane_next_output" | grep -q '^next: murmurmark review lane check_unique_me_content --session '
 [[ -s "$workdir/_reports/session-quality/session_quality_report.json" ]]
 [[ -s "$workdir/_reports/operational-readiness/operational_readiness_report.json" ]]
 jq -e '(.export_blockers | index("pipeline_incomplete")) and (.review_blockers | index("pipeline_incomplete"))' "$session/derived/readiness/session_readiness.json" >/dev/null
@@ -3894,6 +3911,25 @@ burden = module.session_review_burden(
 assert burden["use_gate"] == "review_first", burden
 assert burden["review_burden_sec"] == 4, burden
 assert burden["transcript_review_burden_sec"] == 20, burden
+resolved_review_row = {
+    "session_id": "identity-session",
+    "source": "audio_review",
+    "source_audit_id": "arp_old",
+    "status": "reviewed",
+    "decision": "keep_me",
+    "utterance_ids": ["utt_me", "utt_remote"],
+    "interval": {"start": 12.3, "end": 15.6},
+    "label": "remote_duplicate",
+    "review_lane": "check_unique_me_content",
+    "review_action": "check_unique_me_content",
+}
+rebuilt_review_row = {
+    **resolved_review_row,
+    "source_audit_id": "arp_new",
+    "status": "todo",
+    "decision": "todo",
+}
+assert module.review_decision_identity_key(resolved_review_row) == module.review_decision_identity_key(rebuilt_review_row)
 blocked_next = module.build_next_commands(
     ["not_enough_complete_pipelines"],
     {
@@ -3945,6 +3981,20 @@ focused_review_next = module.build_next_commands(
 assert focused_review_next[0]["command"] == "murmurmark review lane check_transcript_order --session sessions/focus-session", focused_review_next
 assert "(check_transcript_order)" in focused_review_next[0]["label"], focused_review_next
 assert focused_review_next[1]["command"] == "murmurmark review workspace --session sessions/focus-session", focused_review_next
+focused_review_next_with_path = module.build_next_commands(
+    [],
+    {
+        "review_queue_strategy": {"first_recommended_lane": "check_transcript_order"},
+        "review_focus": {"session_id": "focus-session"},
+        "review_queue_by_session": [
+            {"session_id": "focus-session", "first_review_lane": "check_unique_me_content"}
+        ],
+    },
+    Path("sessions/_reports/operational-readiness/operational_readiness_report.json"),
+)
+assert focused_review_next_with_path[0]["command"].endswith(
+    "--operational-readiness sessions/_reports/operational-readiness/operational_readiness_report.json"
+), focused_review_next_with_path
 strategic_lane_next = module.build_next_commands(
     [],
     {

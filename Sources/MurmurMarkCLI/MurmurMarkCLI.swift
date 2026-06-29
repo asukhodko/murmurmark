@@ -10054,17 +10054,19 @@ enum CorpusPrinter {
         sessionsRoot: URL,
         freshnessReference: URL
     ) -> PreparedLanePackHandoff? {
+        let expectedFocus = firstReviewFocus(payload)
         let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
         if let command = nextCommands.compactMap({ string($0["command"]) }).first,
            let target = reviewLaneTarget(fromNextCommand: command, sessionsRoot: sessionsRoot) {
             return preparedLanePackHandoff(
                 session: target.session,
                 lane: target.lane,
-                freshnessReference: freshnessReference
+                freshnessReference: freshnessReference,
+                expectedFocus: expectedFocus
             )
         }
 
-        guard let focus = firstReviewFocus(payload) else { return nil }
+        guard let focus = expectedFocus else { return nil }
         let sessionID = string(focus["session_id"])
             ?? string(focus["session"]).map { URL(fileURLWithPath: $0).lastPathComponent }
             ?? ""
@@ -10078,14 +10080,16 @@ enum CorpusPrinter {
         return preparedLanePackHandoff(
             session: session,
             lane: lane,
-            freshnessReference: freshnessReference
+            freshnessReference: freshnessReference,
+            expectedFocus: focus
         )
     }
 
     private static func preparedLanePackHandoff(
         session: URL,
         lane: String,
-        freshnessReference: URL
+        freshnessReference: URL,
+        expectedFocus: [String: Any]? = nil
     ) -> PreparedLanePackHandoff? {
         let lanePackDir = session.appendingPathComponent("derived/readiness/review-plan/lane-packs")
         let manifest = lanePackDir.appendingPathComponent("review_lane_pack.\(lane).json")
@@ -10103,6 +10107,11 @@ enum CorpusPrinter {
         let answerState = answerSheet.flatMap(answerSheetState)
         let summary = payload["summary"] as? [String: Any] ?? [:]
         let items = payload["items"] as? [[String: Any]] ?? []
+        guard !items.isEmpty,
+              lanePackItems(items, match: expectedFocus)
+        else {
+            return nil
+        }
         let firstItem = items.first ?? [:]
         let applyCommand = "murmurmark review lane apply \(lane) --session \(PathDisplay.display(session))"
         let dryRunCommand = "\(applyCommand) --dry-run"
@@ -10130,6 +10139,24 @@ enum CorpusPrinter {
             selectedRows: int(summary["selected_rows"]),
             durationSec: double(summary["duration_sec"])
         )
+    }
+
+    private static func lanePackItems(_ items: [[String: Any]], match focus: [String: Any]?) -> Bool {
+        guard let focus,
+              let expectedID = string(focus["source_audit_id"]),
+              !expectedID.isEmpty
+        else {
+            return true
+        }
+        return items.contains { item in
+            if string(item["source_audit_id"]) == expectedID {
+                return true
+            }
+            if let ids = item["source_audit_ids"] as? [Any] {
+                return ids.contains { string($0) == expectedID }
+            }
+            return false
+        }
     }
 
     private static func reviewLaneTarget(fromNextCommand command: String, sessionsRoot: URL) -> ReviewLaneTarget? {

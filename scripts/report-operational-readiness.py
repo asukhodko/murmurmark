@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -498,6 +499,45 @@ def pending_review_decision_rows(session_path: Path, profile: str) -> list[dict[
     return rows
 
 
+def text_utterance_ids(row: dict[str, Any], *, role: str) -> list[str]:
+    rows = row.get("text") if isinstance(row.get("text"), list) else []
+    ids: list[str] = []
+    role = role.lower()
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        source_track = str(item.get("source_track") or "").lower()
+        row_role = str(item.get("role") or "").lower()
+        if role == "me":
+            matches = source_track == "mic" or row_role == "me"
+        else:
+            matches = source_track == "remote" or row_role in {"remote", "colleagues"}
+        value = item.get("id")
+        if matches and value is not None and str(value):
+            ids.append(str(value))
+    return ids
+
+
+def review_decision_identity_key(row: dict[str, Any]) -> str:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    utterance_ids = row.get("utterance_ids") if isinstance(row.get("utterance_ids"), list) else []
+    stable_utterance_ids = [str(item) for item in utterance_ids if item is not None and str(item)]
+    if not stable_utterance_ids:
+        stable_utterance_ids = text_utterance_ids(row, role="me") + text_utterance_ids(row, role="remote")
+    return "|".join(
+        [
+            str(row.get("session_id") or ""),
+            str(row.get("source") or "audio_review"),
+            ",".join(stable_utterance_ids),
+            str(interval.get("start") or ""),
+            str(interval.get("end") or ""),
+            str(row.get("label") or ""),
+            str(row.get("review_lane") or ""),
+            str(row.get("review_action") or ""),
+        ]
+    )
+
+
 def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] | None = None) -> set[str]:
     seen = seen or set()
     if profile in seen:
@@ -532,6 +572,42 @@ def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] |
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
             resolved.add(source_id)
+    return resolved
+
+
+def review_resolved_audio_keys(session_path: Path, profile: str, seen: set[str] | None = None) -> set[str]:
+    seen = seen or set()
+    if profile in seen:
+        return set()
+    seen.add(profile)
+    resolved: set[str] = set()
+    for inherited_profile in inherited_profiles_for_review(session_path, profile):
+        resolved.update(review_resolved_audio_keys(session_path, inherited_profile, seen))
+    for row in pending_review_decision_rows(session_path, profile):
+        if str(row.get("status") or "") != "reviewed":
+            continue
+        if str(row.get("source") or "") != "audio_review":
+            continue
+        if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
+            continue
+        key = review_decision_identity_key(row)
+        if key:
+            resolved.add(key)
+    if profile not in {"reviewed_v1", "agent_reviewed_v1"}:
+        return resolved
+    path = (
+        session_path
+        / "derived/transcript-simple/whisper-cpp/review-decisions"
+        / f"review_decisions_applied{suffix(profile)}.jsonl"
+    )
+    for row in read_jsonl(path):
+        if str(row.get("source") or "") != "audio_review":
+            continue
+        if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
+            continue
+        key = review_decision_identity_key(row)
+        if key:
+            resolved.add(key)
     return resolved
 
 
@@ -1602,6 +1678,7 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
     me_ids_cache: dict[tuple[str, str], set[str]] = {}
     review_confirmed_me_ids_cache: dict[tuple[str, str], set[str]] = {}
     review_resolved_cache: dict[tuple[str, str], set[str]] = {}
+    review_resolved_keys_cache: dict[tuple[str, str], set[str]] = {}
     local_recall_resolved_cache: dict[tuple[str, str], set[str]] = {}
     transcript_order_resolved_cache: dict[tuple[str, str], set[str]] = {}
     for session in sessions:
@@ -1619,6 +1696,8 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
             review_confirmed_me_ids_cache[cache_key] = review_confirmed_me_ids(session_path, profile)
         if cache_key not in review_resolved_cache:
             review_resolved_cache[cache_key] = review_resolved_audio_ids(session_path, profile)
+        if cache_key not in review_resolved_keys_cache:
+            review_resolved_keys_cache[cache_key] = review_resolved_audio_keys(session_path, profile)
         if cache_key not in local_recall_resolved_cache:
             local_recall_resolved_cache[cache_key] = review_resolved_local_recall_ids(session_path, profile)
         if cache_key not in transcript_order_resolved_cache:
@@ -1626,6 +1705,7 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
         selected_ids = me_ids_cache[cache_key]
         confirmed_me_ids = review_confirmed_me_ids_cache[cache_key]
         review_resolved_ids = review_resolved_cache[cache_key]
+        review_resolved_keys = review_resolved_keys_cache[cache_key]
         local_recall_resolved_ids = local_recall_resolved_cache[cache_key]
         transcript_order_resolved_ids = transcript_order_resolved_cache[cache_key]
         audit_path = session_path / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
@@ -1649,7 +1729,10 @@ def build_review_queue_details(sessions: list[dict[str, Any]], max_items: int) -
             if audio_review_row_explained_by_strong_local(row):
                 continue
             session_id = str(row.get("session_id") or session.get("session_id"))
-            rows.append(compact_review_item(by_session.get(session_id, session), row))
+            compacted = enrich_review_item(compact_review_item(by_session.get(session_id, session), row))
+            if review_decision_identity_key(compacted) in review_resolved_keys:
+                continue
+            rows.append(compacted)
         repair_patches_path = (
             session_path
             / "derived/transcript-simple/whisper-cpp/local-recall-repair/local_recall_repair_patches.local_recall_repair_v1.jsonl"
@@ -2143,6 +2226,7 @@ def build_report(
     audio_judge_queue: list[dict[str, Any]],
     inputs: dict[str, str],
     max_review_items: int,
+    operational_readiness_path: Path | None = None,
 ) -> dict[str, Any]:
     raw_sessions = session_quality.get("sessions") if isinstance(session_quality.get("sessions"), list) else []
     session_quality, excluded_diagnostics = operational_scope(session_quality)
@@ -2214,11 +2298,15 @@ def build_report(
         "review_queue": review_queue,
         "promotion_plan": promotion,
         "recommendations": recommendations(verdict, blockers, warnings),
-        "next_commands": build_next_commands(blockers, promotion),
+        "next_commands": build_next_commands(blockers, promotion, operational_readiness_path),
     }
 
 
-def build_next_commands(blockers: list[str], promotion: dict[str, Any]) -> list[dict[str, str]]:
+def build_next_commands(
+    blockers: list[str],
+    promotion: dict[str, Any],
+    operational_readiness_path: Path | None = None,
+) -> list[dict[str, str]]:
     commands: list[dict[str, str]] = []
     if "not_enough_complete_pipelines" in blockers:
         target = first_pipeline_target(promotion)
@@ -2244,18 +2332,23 @@ def build_next_commands(blockers: list[str], promotion: dict[str, Any]) -> list[
     first_lane = strategic_lane or first_review_lane_for_target(promotion, review_target)
     if first_lane:
         session_option = f" --session {review_target}" if review_target else ""
+        readiness_option = (
+            f" --operational-readiness {shlex.quote(str(operational_readiness_path))}"
+            if operational_readiness_path is not None
+            else ""
+        )
         commands.append(
             {
                 "id": "review_first_lane",
                 "label": f"Build the first review lane pack ({first_lane}).",
-                "command": f"murmurmark review lane {first_lane}{session_option}",
+                "command": f"murmurmark review lane {first_lane}{session_option}{readiness_option}",
             }
         )
         commands.append(
             {
                 "id": "review_workspace",
                 "label": "Build all review lane packs and answer sheets.",
-                "command": f"murmurmark review workspace{session_option}",
+                "command": f"murmurmark review workspace{session_option}{readiness_option}",
             }
         )
     if not commands:
@@ -2532,10 +2625,19 @@ def main() -> int:
         "audio_judge": str(args.audio_judge),
         "audio_judge_queue": str(args.audio_judge_queue),
     }
-    report = build_report(session_quality, corpus, audio_judge, audio_judge_queue, inputs, args.max_review_items)
     out_dir: Path = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
-    write_json(out_dir / "operational_readiness_report.json", report)
+    report_path = out_dir / "operational_readiness_report.json"
+    report = build_report(
+        session_quality,
+        corpus,
+        audio_judge,
+        audio_judge_queue,
+        inputs,
+        args.max_review_items,
+        report_path,
+    )
+    write_json(report_path, report)
     write_markdown(out_dir / "operational_readiness_report.md", report)
     print(f"verdict: {report['operational_verdict']}")
     print(f"written: {out_dir / 'operational_readiness_report.json'}")
