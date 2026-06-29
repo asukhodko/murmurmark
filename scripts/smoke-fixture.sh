@@ -3012,6 +3012,14 @@ PY
   [[ -s "$first_lane_pack_dir/review_lane_pack.$first_lane.json" ]]
   [[ -s "$first_lane_pack_dir/review_lane_pack.$first_lane.md" ]]
   [[ -s "$first_lane_pack_dir/review_lane_answers.$first_lane.txt" ]]
+  jq -e '
+    (.recommended_next | startswith("afplay ")) and
+    (.next_commands[0].id == "listen_review_lane_pack") and
+    ([.next_commands[].id] | index("dry_run_review_lane_answers")) and
+    ([.next_commands[].id] | index("apply_review_lane_answers")) and
+    ([.open_commands[].id] | index("open_review_lane_manifest"))
+  ' "$first_lane_pack_dir/review_lane_pack.$first_lane.json" >/dev/null
+  first_lane_manifest_next="$(jq -r '.recommended_next' "$first_lane_pack_dir/review_lane_pack.$first_lane.json")"
   grep -q '^## Review Items' "$first_lane_pack_dir/review_lane_pack.$first_lane.md"
   grep -q 'Suggested reason:' "$first_lane_pack_dir/review_lane_pack.$first_lane.md"
   grep -q 'Allowed:' "$first_lane_pack_dir/review_lane_pack.$first_lane.md"
@@ -3019,6 +3027,7 @@ PY
   echo "$first_lane_output" | grep -q '^  rows: '
   echo "$first_lane_output" | grep -q '^  items: '
   echo "$first_lane_output" | grep -q '^  recommended_next: afplay '
+  printf '%s\n' "$first_lane_output" | grep -Fx "  recommended_next: $first_lane_manifest_next" >/dev/null
   first_lane_apply_dry_run_output="$("$bin" review lane apply first \
     --plan-out-dir "$first_lane_plan_dir" \
     --out-dir "$first_lane_pack_dir" \

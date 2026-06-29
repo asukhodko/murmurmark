@@ -44,9 +44,10 @@ enum ReviewPrinter {
         let readCommand = string(outputs["markdown"]).map { "less \(shellQuote(displayPath($0)))" }
         let editCommand = string(outputs["answer_sheet"]).map { "$EDITOR \(shellQuote(displayPath($0)))" }
         let answerState = string(outputs["answer_sheet"]).flatMap { answerSheetState(url: PathURLs.fileURL($0)) }
+        let manifestRecommendedNext = string(payload["recommended_next"])
         let recommendedNext = answerState?.hasReviewedAnswers == true
             ? "\(applyCommand) --dry-run"
-            : listenCommand ?? readCommand ?? editCommand ?? "\(applyCommand) --dry-run"
+            : manifestRecommendedNext ?? listenCommand ?? readCommand ?? editCommand ?? "\(applyCommand) --dry-run"
         print("  recommended_next: \(recommendedNext)")
         if let listenCommand {
             print("  listen: \(listenCommand)")

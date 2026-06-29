@@ -1027,7 +1027,9 @@ the grouped row count and source audit ids.
 The CLI output prints both source `rows` and packed `items`, plus `grouped_rows_saved` when grouping
 was applied.
 It also prints `manual_flow`, optional `suggested_flow`, and `after_apply`, so a reviewer can follow
-the terminal handoff through dry-run, apply and progress without opening this runbook.
+the terminal handoff through dry-run, apply and progress without opening this runbook. The lane-pack
+JSON stores the same handoff as `recommended_next`, `next_commands`, `open_commands`, `manual_flow`,
+`suggested_flow` and `after_apply`, so agents can continue from the manifest.
 It also prints `suggested_dry_run` and `suggested_apply`; these call
 `review lane apply ... --answers-source suggested`, read
 `review_lane_answers.<lane>.suggested.txt`, and are meant for explicit reviewer-approved use after a

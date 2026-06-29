@@ -814,7 +814,9 @@ script remains available for debugging, but the Swift CLI uses the correct sessi
 default. Lane-pack commands print the exact `review lane apply ...` command for the generated answer
 sheet, plus the `afplay`, `less` for the lane Markdown, `$EDITOR` and dry-run commands for that pack.
 They also print `manual_flow`, optional `suggested_flow`, and `after_apply`, so the safe order is
-visible without reading the runbook.
+visible without reading the runbook. The lane-pack manifest stores the same handoff as
+`recommended_next`, `next_commands`, `open_commands`, `manual_flow`, `suggested_flow` and
+`after_apply`, so agents can continue from JSON.
 `review lane apply --dry-run` writes `review_lane_pack_apply_report.json`, prints the lane result and
 either points back to the answer sheet when rows are still `todo`, or prints the exact non-dry-run
 command when the dry run would close rows. After applying the lane, the CLI refreshes

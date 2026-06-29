@@ -76,6 +76,88 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return str(resolved.relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(resolved)
+
+
+def shell_path(path: Path) -> str:
+    return shlex.quote(display_path(path))
+
+
+def command_item(item_id: str, command: str, reason: str) -> dict[str, str]:
+    return {"id": item_id, "command": command, "reason": reason}
+
+
+def review_lane_handoff(
+    *,
+    lane: str,
+    audio_path: Path,
+    manifest_path: Path,
+    md_path: Path,
+    answer_sheet_path: Path,
+    suggested_answer_sheet_path: Path,
+    template_path: Path,
+    decisions_path: Path,
+) -> dict[str, Any]:
+    lane_arg = shlex.quote(lane)
+    manual_apply_base = (
+        f"murmurmark review lane apply {lane_arg} "
+        f"--manifest {shell_path(manifest_path)} "
+        f"--template {shell_path(template_path)} "
+        f"--decisions-out {shell_path(decisions_path)} "
+        f"--answers-file {shell_path(answer_sheet_path)}"
+    )
+    suggested_apply_base = (
+        f"murmurmark review lane apply {lane_arg} "
+        f"--manifest {shell_path(manifest_path)} "
+        f"--template {shell_path(template_path)} "
+        f"--decisions-out {shell_path(decisions_path)} "
+        "--answers-source suggested"
+    )
+    next_commands = [
+        command_item("listen_review_lane_pack", f"afplay {shell_path(audio_path)}", "listen to the review lane audio pack"),
+        command_item("open_review_lane_pack", f"less {shell_path(md_path)}", "inspect review lane evidence"),
+        command_item("edit_review_lane_answers", f"$EDITOR {shell_path(answer_sheet_path)}", "fill manual review decisions"),
+        command_item("dry_run_review_lane_answers", f"{manual_apply_base} --dry-run", "validate manual decisions before applying"),
+        command_item("apply_review_lane_answers", manual_apply_base, "apply manual decisions to review_decisions.jsonl"),
+        command_item(
+            "dry_run_suggested_review_answers",
+            f"{suggested_apply_base} --dry-run",
+            "validate generated suggestions before applying",
+        ),
+        command_item("apply_suggested_review_answers", suggested_apply_base, "apply generated suggestions"),
+    ]
+    open_commands = [
+        command_item("listen_review_lane_pack", f"afplay {shell_path(audio_path)}", "listen to the review lane audio pack"),
+        command_item("open_review_lane_pack", f"less {shell_path(md_path)}", "inspect review lane evidence"),
+        command_item("open_review_lane_manifest", f"less {shell_path(manifest_path)}", "inspect review lane manifest"),
+        command_item("edit_review_lane_answers", f"$EDITOR {shell_path(answer_sheet_path)}", "fill manual review decisions"),
+        command_item(
+            "open_suggested_review_answers",
+            f"less {shell_path(suggested_answer_sheet_path)}",
+            "inspect generated suggested answers",
+        ),
+    ]
+    return {
+        "recommended_next": next_commands[0]["command"],
+        "next_commands": next_commands,
+        "open_commands": open_commands,
+        "manual_flow": {
+            "dry_run": f"{manual_apply_base} --dry-run",
+            "apply": manual_apply_base,
+        },
+        "suggested_flow": {
+            "dry_run": f"{suggested_apply_base} --dry-run",
+            "apply": suggested_apply_base,
+        },
+        "after_apply": ["murmurmark review progress", "murmurmark review apply"],
+    }
+
+
 def normalize_text(value: Any) -> str:
     return " ".join(str(value or "").lower().replace("ё", "е").split())
 
@@ -647,6 +729,8 @@ def main() -> int:
     md_path = out_dir / f"review_lane_pack.{args.lane}.md"
     answer_sheet_path = out_dir / f"review_lane_answers.{args.lane}.txt"
     suggested_answer_sheet_path = out_dir / f"review_lane_answers.{args.lane}.suggested.txt"
+    template_path = args.template.expanduser()
+    decisions_path = args.decisions.expanduser()
 
     selected_groups = group_selected_rows(selected, args.group_related)
     manifest_items: list[dict[str, Any]] = []
@@ -782,6 +866,18 @@ def main() -> int:
         "items": manifest_items,
         "skipped": skipped,
     }
+    manifest.update(
+        review_lane_handoff(
+            lane=args.lane,
+            audio_path=audio_path,
+            manifest_path=manifest_path,
+            md_path=md_path,
+            answer_sheet_path=answer_sheet_path,
+            suggested_answer_sheet_path=suggested_answer_sheet_path,
+            template_path=template_path,
+            decisions_path=decisions_path,
+        )
+    )
     write_json(manifest_path, manifest)
     write_answer_sheet(answer_sheet_path, manifest)
     write_answer_sheet(suggested_answer_sheet_path, manifest, suggested=True)

@@ -2141,6 +2141,35 @@ The JSON uses `murmurmark.review_lane_pack/v1`:
     "skipped_count": 0,
     "duration_sec": 93.42
   },
+  "recommended_next": "afplay sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav",
+  "next_commands": [
+    {
+      "id": "listen_review_lane_pack",
+      "command": "afplay sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.wav",
+      "reason": "listen to the review lane audio pack"
+    },
+    {
+      "id": "dry_run_review_lane_answers",
+      "command": "murmurmark review lane apply fast_confirm_drop --manifest sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.json --template sessions/_reports/review-plan/review_decisions.template.jsonl --decisions-out sessions/_reports/review-plan/review_decisions.jsonl --answers-file sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt --dry-run",
+      "reason": "validate manual decisions before applying"
+    }
+  ],
+  "open_commands": [
+    {
+      "id": "open_review_lane_pack",
+      "command": "less sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.md",
+      "reason": "inspect review lane evidence"
+    },
+    {
+      "id": "edit_review_lane_answers",
+      "command": "$EDITOR sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt",
+      "reason": "fill manual review decisions"
+    }
+  ],
+  "manual_flow": {
+    "dry_run": "murmurmark review lane apply fast_confirm_drop --manifest sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.json --template sessions/_reports/review-plan/review_decisions.template.jsonl --decisions-out sessions/_reports/review-plan/review_decisions.jsonl --answers-file sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt --dry-run",
+    "apply": "murmurmark review lane apply fast_confirm_drop --manifest sessions/_reports/review-plan/lane-packs/review_lane_pack.fast_confirm_drop.json --template sessions/_reports/review-plan/review_decisions.template.jsonl --decisions-out sessions/_reports/review-plan/review_decisions.jsonl --answers-file sessions/_reports/review-plan/lane-packs/review_lane_answers.fast_confirm_drop.txt"
+  },
   "items": [
     {
       "index": 1,
@@ -2191,6 +2220,9 @@ batch apply step runs.
 The Swift CLI prints a compact handoff for the same manifest: selected lane, audio, Markdown, answer
 sheet, suggested answer sheet, the first `answers=...` line from the suggested sheet, and ready-to-run
 `afplay`, `less`, `$EDITOR`, `dry_run` and `apply` commands.
+The manifest also stores that handoff as `recommended_next`, `next_commands`, `open_commands`,
+`manual_flow`, `suggested_flow` and `after_apply`, so agents can continue the review loop without
+scraping terminal text.
 
 The Markdown index is intentionally self-contained for human review. It starts with the compact
 shortcut protocol, then lists each item with allowed decisions, suggested decision reason, utterance
