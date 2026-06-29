@@ -465,6 +465,17 @@ def cleanup_input_profile(session_path: Path, profile: str) -> str | None:
     return str(value) if value else None
 
 
+def pending_review_decision_rows(session_path: Path, profile: str) -> list[dict[str, Any]]:
+    path = session_path / "derived/readiness/review-plan/review_decisions.jsonl"
+    rows: list[dict[str, Any]] = []
+    for row in read_jsonl(path):
+        input_profile = str(row.get("input_profile") or "")
+        if input_profile and input_profile != profile:
+            continue
+        rows.append(row)
+    return rows
+
+
 def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] | None = None) -> set[str]:
     seen = seen or set()
     if profile in seen:
@@ -481,6 +492,16 @@ def review_resolved_audio_ids(session_path: Path, profile: str, seen: set[str] |
     )
     resolved: set[str] = set(inherited)
     for row in read_jsonl(path):
+        if str(row.get("source") or "") != "audio_review":
+            continue
+        if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
+            continue
+        source_id = str(row.get("source_audit_id") or "")
+        if source_id:
+            resolved.add(source_id)
+    for row in pending_review_decision_rows(session_path, profile):
+        if str(row.get("status") or "") != "reviewed":
+            continue
         if str(row.get("source") or "") != "audio_review":
             continue
         if str(row.get("decision") or "") not in {"drop_me", "drop_remote", "keep_me", "skip"}:
@@ -514,6 +535,16 @@ def review_resolved_local_recall_ids(session_path: Path, profile: str, seen: set
         source_id = str(row.get("source_audit_id") or "")
         if source_id:
             resolved.add(source_id)
+    for row in pending_review_decision_rows(session_path, profile):
+        if str(row.get("status") or "") != "reviewed":
+            continue
+        if str(row.get("source") or "") not in {"local_recall", "local_recall_repair"}:
+            continue
+        if str(row.get("decision") or "") not in {"drop_me", "keep_me", "skip"}:
+            continue
+        source_id = str(row.get("source_audit_id") or "")
+        if source_id:
+            resolved.add(source_id)
     return resolved
 
 
@@ -533,6 +564,16 @@ def review_resolved_transcript_order_ids(session_path: Path, profile: str, seen:
     )
     resolved: set[str] = set(inherited)
     for row in read_jsonl(path):
+        if str(row.get("source") or "") != "transcript_order":
+            continue
+        if str(row.get("decision") or "") not in {"keep_me", "skip"}:
+            continue
+        source_id = str(row.get("source_audit_id") or "")
+        if source_id:
+            resolved.add(source_id)
+    for row in pending_review_decision_rows(session_path, profile):
+        if str(row.get("status") or "") != "reviewed":
+            continue
         if str(row.get("source") or "") != "transcript_order":
             continue
         if str(row.get("decision") or "") not in {"keep_me", "skip"}:
@@ -736,11 +777,14 @@ def audio_review_row_low_materiality(row: dict[str, Any]) -> bool:
 
     interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
     duration = safe_float(interval.get("duration_sec"))
-    if duration <= 0.0 or duration > 1.25:
+    if duration <= 0.0:
         return False
 
     me_text = audio_review_me_text(row)
     if has_protected_review_marker(me_text):
+        return False
+    backchannel = is_low_materiality_me_backchannel(me_text)
+    if duration > (3.0 if backchannel else 1.25):
         return False
 
     compacted = compact_review_item({}, row)
@@ -753,6 +797,7 @@ def audio_review_row_low_materiality(row: dict[str, Any]) -> bool:
     return (
         len(content_tokens) <= 1
         or me_coverage <= 0.40
+        or (backchannel and duration <= 3.0)
         or (len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
     )
 
@@ -803,6 +848,7 @@ def review_item_remote_text(item: dict[str, Any]) -> str:
 def is_order_backchannel(text: Any) -> bool:
     tokens = normalized_tokens(text)
     return tokens in (
+        ["вот"],
         ["да"],
         ["окей"],
         ["окей", "да"],
@@ -815,6 +861,23 @@ def is_order_backchannel(text: Any) -> bool:
         ["поняла"],
         ["спасибо"],
         ["спасибо", "тебе"],
+    )
+
+
+def is_low_materiality_me_backchannel(text: Any) -> bool:
+    tokens = normalized_tokens(text)
+    return tokens in (
+        ["вот"],
+        ["да"],
+        ["окей"],
+        ["окей", "да"],
+        ["ну", "да"],
+        ["ну", "да", "да"],
+        ["ага"],
+        ["угу"],
+        ["хорошо"],
+        ["понял"],
+        ["поняла"],
     )
 
 
@@ -851,10 +914,13 @@ def review_item_low_materiality(item: dict[str, Any]) -> bool:
         return False
     interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
     duration = safe_float(interval.get("duration_sec"))
-    if duration <= 0.0 or duration > 1.25:
+    if duration <= 0.0:
         return False
     me_text = review_item_me_text(item)
     if has_protected_review_marker(me_text):
+        return False
+    backchannel = is_low_materiality_me_backchannel(me_text)
+    if duration > (3.0 if backchannel else 1.25):
         return False
     features = item.get("review_features") if isinstance(item.get("review_features"), dict) else {}
     text_similarity = safe_float(features.get("text_similarity"))
@@ -864,6 +930,7 @@ def review_item_low_materiality(item: dict[str, Any]) -> bool:
     return (
         len(content_tokens) <= 1
         or me_coverage <= 0.40
+        or (backchannel and duration <= 3.0)
         or (len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
     )
 

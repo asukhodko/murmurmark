@@ -3365,6 +3365,23 @@ low_materiality_item = {
     "text": [{"role": "Me", "source_track": "mic", "text": "ических"}],
 }
 assert module.review_item_low_materiality(low_materiality_item), low_materiality_item
+backchannel_item = {
+    "label": "uncertain",
+    "verdict": "needs_stronger_audio_judge",
+    "interval": {"duration_sec": 3.0},
+    "review_features": {
+        "me_overlap_coverage": 0.95,
+        "text_similarity": 0.0,
+        "token_containment": 0.0,
+    },
+    "text": [{"role": "Me", "source_track": "mic", "text": "окей"}],
+}
+assert module.review_item_low_materiality(backchannel_item), backchannel_item
+long_backchannel_item = {
+    **backchannel_item,
+    "interval": {"duration_sec": 3.5},
+}
+assert not module.review_item_low_materiality(long_backchannel_item), long_backchannel_item
 technical_item = {
     "label": "remote_leak",
     "verdict": "needs_stronger_audio_judge",
@@ -3389,6 +3406,44 @@ protected_item = {
     "text": [{"role": "Me", "source_track": "mic", "text": "надо проверить"}],
 }
 assert not module.review_item_low_materiality(protected_item), protected_item
+with tempfile.TemporaryDirectory() as tmp:
+    session_path = Path(tmp) / "reviewed-session"
+    decisions_dir = session_path / "derived/readiness/review-plan"
+    decisions_dir.mkdir(parents=True)
+    (decisions_dir / "review_decisions.jsonl").write_text(
+        "\n".join(
+            json.dumps(row, ensure_ascii=False)
+            for row in [
+                {
+                    "status": "reviewed",
+                    "decision": "keep_me",
+                    "input_profile": "reviewed_v1",
+                    "source": "audio_review",
+                    "source_audit_id": "arp_pending_keep",
+                },
+                {
+                    "status": "todo",
+                    "decision": "todo",
+                    "input_profile": "reviewed_v1",
+                    "source": "audio_review",
+                    "source_audit_id": "arp_pending_todo",
+                },
+                {
+                    "status": "reviewed",
+                    "decision": "keep_me",
+                    "input_profile": "other_profile",
+                    "source": "audio_review",
+                    "source_audit_id": "arp_other_profile",
+                },
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    resolved_ids = module.review_resolved_audio_ids(session_path, "reviewed_v1")
+    assert "arp_pending_keep" in resolved_ids, resolved_ids
+    assert "arp_pending_todo" not in resolved_ids, resolved_ids
+    assert "arp_other_profile" not in resolved_ids, resolved_ids
 short_order_item = {
     "source": "transcript_order",
     "label": "needs_review",
