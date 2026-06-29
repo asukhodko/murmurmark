@@ -317,10 +317,16 @@ retention_output="$("$bin" retention plan "$session" --export-manifest "$manifes
 echo "$retention_output" | grep -q '^retention:$'
 echo "$retention_output" | grep -q '^  export_successful: true$'
 echo "$retention_output" | grep -q '^  export_status: exported$'
+echo "$retention_output" | grep -q '^  open:$'
+echo "$retention_output" | grep -q '^    less .*retention_plan.json$'
+echo "$retention_output" | grep -q '^    less .*export_manifest.json$'
 tail -1 <<<"$retention_output" | grep -q '^next: murmurmark retention payload '
 
 payload_output="$("$bin" retention payload "$session" --export-manifest "$manifest")"
 echo "$payload_output" | grep -q '^retention_payload:$'
+echo "$payload_output" | grep -q '^  open:$'
+echo "$payload_output" | grep -q '^    less .*provider_payload_manifest.json$'
+echo "$payload_output" | grep -q '^    less .*export_manifest.json$'
 tail -1 <<<"$payload_output" | grep -q '^next: less '
 
 post_export_next="$("$bin" next "$session" --export-manifest "$manifest")"

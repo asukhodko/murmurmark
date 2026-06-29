@@ -4600,6 +4600,7 @@ enum RetentionPrinter {
         let exportManifest = exportPath(from: export)
         let exportManifestReady = exportManifest.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
         let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+        let openCommands = payload["open_commands"] as? [[String: Any]] ?? []
         let status = retentionStatus(payload: payload, export: export, actionCounts: actionCounts)
 
         print("")
@@ -4641,6 +4642,14 @@ enum RetentionPrinter {
             recommendedNext = "murmurmark export \(PathDisplay.display(session)) --format markdown --include-json"
         }
         print("  recommended_next: \(recommendedNext)")
+        if !openCommands.isEmpty {
+            print("  open:")
+            for item in openCommands {
+                if let command = string(item["command"]) {
+                    print("    \(command)")
+                }
+            }
+        }
         print("  next:")
         if nextCommands.isEmpty {
             print("    \(recommendedNext)")
@@ -4726,6 +4735,7 @@ enum RetentionPrinter {
         let warnings = payload["warnings"] as? [Any] ?? []
         let export = payload["export_manifest"] as? [String: Any] ?? [:]
         let nextCommands = payload["next_commands"] as? [[String: Any]] ?? []
+        let openCommands = payload["open_commands"] as? [[String: Any]] ?? []
 
         print("")
         print("retention_payload:")
@@ -4748,6 +4758,14 @@ enum RetentionPrinter {
         let recommendedNext = ReadinessPrinter.preferredNextCommand(nextCommands)
             ?? "less \(PathDisplay.display(manifestURL))"
         print("  recommended_next: \(recommendedNext)")
+        if !openCommands.isEmpty {
+            print("  open:")
+            for item in openCommands {
+                if let command = string(item["command"]) {
+                    print("    \(command)")
+                }
+            }
+        }
         print("  next:")
         if nextCommands.isEmpty {
             print("    \(recommendedNext)")

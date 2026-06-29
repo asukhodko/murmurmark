@@ -232,6 +232,8 @@ echo "$retention_plan_output" | grep -q '^retention:$'
 echo "$retention_plan_output" | grep -q '^  status: waiting_for_export$'
 echo "$retention_plan_output" | grep -q '  raw_audio_files: 2'
 echo "$retention_plan_output" | grep -q '^  recommended_next: murmurmark export '
+echo "$retention_plan_output" | grep -q '^  open:$'
+echo "$retention_plan_output" | grep -q '^    less .*retention_plan.json$'
 echo "$retention_plan_output" | grep -q '  next:'
 tail -1 <<<"$retention_plan_output" | grep -q '^next: murmurmark export '
 [[ -s "$session/derived/retention/retention_plan.json" ]]
@@ -246,6 +248,8 @@ echo "$retention_payload_output" | grep -q '^retention_payload:$'
 echo "$retention_payload_output" | grep -q '  sends_data: false'
 echo "$retention_payload_output" | grep -q '  raw_audio_included: false'
 echo "$retention_payload_output" | grep -q '^  recommended_next: less '
+echo "$retention_payload_output" | grep -q '^  open:$'
+echo "$retention_payload_output" | grep -q '^    less .*provider_payload_manifest.json$'
 tail -1 <<<"$retention_payload_output" | grep -q '^next: less '
 [[ -s "$session/derived/retention/provider_payload_manifest.json" ]]
 jq -e '.schema == "murmurmark.provider_payload_manifest/v1"' "$session/derived/retention/provider_payload_manifest.json" >/dev/null
@@ -915,6 +919,9 @@ echo "$retention_forced_output" | grep -q '^  export_successful: false$'
 echo "$retention_forced_output" | grep -q '^  export_status: exported_forced'
 echo "$retention_forced_output" | grep -q '^  export_reason: export_not_successful$'
 echo "$retention_forced_output" | grep -q '^  recommended_next: murmurmark process '
+echo "$retention_forced_output" | grep -q '^  open:$'
+echo "$retention_forced_output" | grep -q '^    less .*retention_plan.json$'
+echo "$retention_forced_output" | grep -q '^    less .*export_manifest.json$'
 tail -1 <<<"$retention_forced_output" | grep -q '^next: murmurmark process '
 
 ready_export_session="$workdir/export-ready-session"
