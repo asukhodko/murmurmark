@@ -1,71 +1,186 @@
 # MurmurMark CLI Roadmap
 
-Roadmap лежит в формате opskarta v3:
+This roadmap is mirrored as an opskarta v3 plan:
 
 - `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
-- no-schedule: без календарных дат, только структура, зависимости, статусы и effort
-- основной путь: CLI-first, local-first, evidence-backed
+- no calendar dates;
+- dependencies, statuses and effort instead of delivery promises;
+- CLI-first, local-first, evidence-backed.
 
-## Смысл карты
+## Product Direction
 
-MurmurMark уже прошёл стадию proof of concept: запись, подавление эха, локальная транскрибация, timeline repair, audit cleanup, audio review, agent-reviewed слой, extractive notes и quality verdict уже работают.
+MurmurMark should become a dependable local CLI pipeline for sensitive meetings:
 
-CLI MVP уже закрыт: есть автоматический acceptance, release bundle, live-session gate,
-export bundle и retention plan. То, что раньше было лабораторией скриптов, теперь имеет
-пользовательскую командную поверхность и проверяемые evidence-артефакты.
+1. record local `mic` and `remote` tracks;
+2. process them locally;
+3. produce a transcript with visible uncertainty;
+4. produce evidence-backed notes;
+5. offer a short review queue when needed;
+6. export reviewed artifacts;
+7. plan or apply raw-audio retention.
 
-Готовый CLI-путь:
+The optional UI/app path is deliberately late. It should not block the useful CLI product.
 
-1. `murmurmark process SESSION` — готово.
-2. `murmurmark process latest` — готово.
-3. `murmurmark sessions` — готов короткий список последних записей с временем, длительностью, review burden, readiness-статусом, фильтром, JSON-выводом и next-командой.
-4. `murmurmark status SESSION`, `murmurmark report SESSION`, `murmurmark report corpus` и `murmurmark next corpus` — готово.
-5. `murmurmark open SESSION` — готов короткий CLI-вход к выбранным notes/transcript/verdict/readiness/audit артефактам.
-6. `murmurmark audit local-recall|group-overlaps|audio-review|stronger-audio-judge` — готов CLI-вход к audit-слоям со сводкой; stronger-audio-judge работает только как optional локальный второй слух по коротким клипам.
-7. `murmurmark cleanup` и `murmurmark synthesize` — готовы CLI-входы к cleanup-профилям и extractive notes.
-8. `murmurmark review SESSION` — готов базовый CLI-контур.
-9. `murmurmark corpus process all` — готов базовый контур качества по корпусу.
-10. `murmurmark corpus taxonomy` — готова сводная таксономия аудио-ошибок для следующей итерации качества.
-11. `murmurmark corpus gate` — готов no-regression gate с локальным baseline-сравнением, hard-проверками по выбранному operational-срезу и warnings по historical/local-recall/remote-leak очередям.
-12. `murmurmark corpus local-recall` — готова корпусная очередь возможных пропусков `Me`.
-13. `murmurmark corpus local-recall-repair` — готова сводка эффекта `local_recall_repair_v1` перед auto-promotion.
-14. `murmurmark export SESSION --format markdown|obsidian` — готов базовый пользовательский output-блок.
-15. `scripts/install-local.sh` — готов минимальный локальный install wrapper для команды `murmurmark`.
-16. `murmurmark doctor` — готов расширенный health check локальной установки и pipeline-зависимостей.
-17. `scripts/build-release-bundle.sh` — готов локальный release layout с manifest и без приватных данных.
-18. `murmurmark retention plan SESSION` — готов локальный retention plan; raw deletion защищён отдельным `apply`.
-19. `murmurmark retention payload SESSION` — готов provider payload manifest; default policy блокирует внешние payload’ы.
-20. `scripts/check-open-source-readiness.sh` — готов public-readiness gate; MIT LICENSE добавлена.
-21. `murmurmark self-test` — готов быстрый CLI smoke через сам инструмент.
-22. `murmurmark acceptance` — готов единый автоматический gate для CLI MVP.
-23. `murmurmark acceptance --live-session latest` — готов проверяемый gate для живой сессии.
+## Current State
 
-UI App не является обязательной частью roadmap. Он остаётся optional tail после зрелого CLI, review loop, export и retention policy.
+The CLI MVP is already real:
 
-## Крупные направления
+- `murmurmark record` records separate local tracks;
+- `murmurmark process SESSION|latest` runs the post-recording pipeline;
+- `murmurmark next`, `status`, `report`, `open`, `notes`, `transcript` provide handoff and inspection;
+- `murmurmark review` handles lane packs, answer sheets, suggested decisions and reviewed profiles;
+- `murmurmark corpus` runs the regression/readiness loop;
+- `murmurmark export` builds Markdown/Obsidian bundles;
+- `murmurmark retention` plans payloads and raw deletion;
+- `murmurmark doctor`, `self-test`, `acceptance`, release bundle and open-source checks exist.
 
-- `foundation-done` — уже готовая основа: capture, Echo Guard, whisper.cpp, repair/audit, agent_reviewed_v1, notes, readiness.
-- `cli-orchestration` — закрытый CLI MVP: process/report/audit/review/corpus/export/config, локальная установка, self-test, release bundle и acceptance gates готовы.
-- `corpus-regression` — текущий контур: корпус сессий, пересборка, baseline thresholds,
-  out-of-fold оценка audio judge, local-recall blockers, remote-leak queue и явные notes/export
-  blockers.
-- `review-loop` — текущий этап: вернуть корпус из `not_ready` в устойчивый `medium_risk_ready`,
-  удерживая большинство рабочих сессий `ready_for_notes` и снижая отдельные
-  transcript/export blockers; ручный workspace review и агентный `review agent` уже есть. Оставшаяся
-  очередь считается после `agent_reviewed_v1`, поэтому следующий шаг должен закрывать новые
-  доказуемые классы или текущую первую review lane, а не повторно запускать уже применённый
-  агентный слой.
-- `quality-hardening` — текущий этап: улучшение качества transcript без смены топологии; первый
-  явный `order_repair_v1` уже чинит только те order-risk регионы, которые безопасно режутся по
-  сохранённым source ASR segments. `local_recall_repair_v1` уже восстанавливает короткие
-  boundary-сдвинутые и сильные local-only `Me`-фразы через micro-ASR, а подтверждённые вставки
-  попадают в `agent_reviewed_v1`; следующий короткий шаг — расширять repair только по доказанным
-  случаям.
-- `evidence-notes` и `export-workflows` — пользовательские артефакты; базовый export готов, дальше нужны vault/docs/Jira proposals.
-- `retention-policy` и `packaging` — приватность, хранение raw audio, release layout, provider payload manifest, self-test, CLI MVP acceptance и readiness gate готовы; перед публичной публикацией нужен security contact.
-- `future-heavy-local`, `future-llm-synthesis`, `future-ui-app` — дальние ветки.
+Operational corpus snapshot from 2026-06-30:
 
-## Проверка
+- status: `medium_risk_ready`;
+- usable for medium-risk notes: yes;
+- working sessions: `15`;
+- excluded diagnostic sessions: `26`;
+- readiness: `14/15 ready_for_notes`, `1/15 review_first`;
+- selected notes review burden: `0.10 min`;
+- full transcript/export review surface: `1.91 min`;
+- remaining mandatory review queue: `4` actions in `classify_audio`.
+
+This is enough to use MurmurMark with caution on real working meetings. It is not enough to claim
+zero-review transcript quality.
+
+## Roadmap Tree
+
+```mermaid
+flowchart LR
+    mission["mission<br/>local meeting memory"]
+    foundation["foundation-done<br/>capture / Echo Guard / ASR / repair"]
+    cli["cli-orchestration<br/>single user-facing CLI"]
+    corpus["corpus-regression<br/>quality gates"]
+    review["review-loop<br/>short explicit review queue"]
+    hardening["quality-hardening<br/>fewer order/recall/duplicate failures"]
+    notes["evidence-notes<br/>useful notes with IDs"]
+    export["export-workflows<br/>Markdown / Obsidian / proposals"]
+    retention["retention-policy<br/>raw deletion and payload manifests"]
+    packaging["packaging<br/>install, release, public readiness"]
+    future_asr["future-heavy-local<br/>validators / diarization"]
+    future_llm["future-llm-synthesis<br/>evidence-guarded generation"]
+    future_ui["future-ui-app<br/>optional tail"]
+
+    mission --> foundation
+    foundation --> cli
+    foundation --> corpus
+    cli --> review
+    corpus --> review
+    review --> hardening
+    corpus --> hardening
+    hardening --> notes
+    notes --> export
+    export --> retention
+    cli --> packaging
+    review --> packaging
+    export --> packaging
+    corpus --> future_asr
+    hardening --> future_asr
+    notes --> future_llm
+    packaging --> future_ui
+    retention --> future_ui
+```
+
+## Status By Block
+
+### Done
+
+- Two-track capture and session package.
+- Echo Guard with local FIR and preserve-local policy.
+- `whisper.cpp` transcription pipeline.
+- Timeline/start-of-call repair.
+- Conservative cleanup profiles and reviewed profiles.
+- Group overlap, local recall, audio review and optional stronger-audio-judge audits.
+- Extractive notes, quality verdict and review items.
+- CLI process/status/next/report/open/notes/transcript/review/corpus/export/retention surface.
+- Local install wrapper, self-test, acceptance gate, release bundle and public-readiness check.
+
+### Current
+
+- Keep the corpus at `medium_risk_ready` or better.
+- Close the remaining `classify_audio` queue without unsafe automatic drops.
+- Make the everyday path boring:
+
+  ```bash
+  murmurmark record --target-bundle system
+  murmurmark process latest
+  murmurmark next latest
+  murmurmark review next latest   # only when printed
+  murmurmark export latest --format markdown --include-json
+  murmurmark retention plan latest
+  ```
+
+- Keep documentation aligned with the actual command surface.
+
+### Next
+
+- Review loop polish:
+  - better "what now?" output for partial recordings and long ASR runs;
+  - clearer lane packs and suggested answers;
+  - explicit "safe to export / review first / do not use" handoff.
+- Corpus regression discipline:
+  - stable small operational corpus;
+  - baseline comparison before new heuristics;
+  - no-regression gates for order, local recall, duplicates and selected notes.
+- Export workflow:
+  - better Markdown/Obsidian bundles;
+  - one obvious artifact to read first;
+  - clearer retention guidance after export.
+
+### Later
+
+- Stronger extractive notes and stable `evidence_notes.json`.
+- Reviewed docs/ticket export proposals.
+- Configurable domain packs without committing private terms.
+- Retention policy profiles and privacy manifests.
+- Public release hardening: security contact, issue templates, generated/private artifact audit.
+
+### Ideas
+
+- Per-speaker diarization inside `Colleagues`.
+- `transcript.rich.json` with stronger alignment and confidence fields.
+- Heavy local ASR/forced-alignment validators.
+- Local or controlled LLM synthesis with strict evidence guard.
+- Optional menu bar or desktop UI after the CLI is mature.
+
+## Current Goal
+
+Reduce mandatory review burden on real MurmurMark meetings without changing capture, Echo Guard or
+the main ASR path.
+
+In practical terms:
+
+- keep `medium_risk_ready`;
+- turn the one `review_first` session into `ready_for_notes` if evidence allows;
+- reduce the remaining 4 review actions;
+- do not hide possible lost `Me` speech or meaningful transcript uncertainty;
+- do not auto-delete doubtful content just to improve metrics;
+- keep export blockers separate from notes readiness.
+
+Success is not a perfect transcript. Success is a useful meeting artifact with a small, explicit,
+evidence-backed review queue.
+
+## Candidate Next Goals
+
+1. **Finish the current review queue.** Close the remaining `classify_audio` actions and refresh the
+   corpus gate. This is the shortest path to a cleaner readiness state.
+2. **Improve the recording handoff.** Make unexpected capture stops and partial sessions easier to
+   diagnose, with a clear "recording stopped, do this next" path.
+3. **Polish export bundles.** Make the exported Markdown/Obsidian result the natural user-facing
+   artifact, not just a dump of derived files.
+4. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
+   changes to beat or preserve it.
+5. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
+   to utterance IDs and review flags.
+6. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
+   artifacts and add security/contact guidance.
+
+## Validation
 
 ```bash
 OPSKARTA_REPO="${OPSKARTA_REPO:-../opskarta}"
@@ -77,83 +192,3 @@ PYTHONPATH="$OPSKARTA_REPO" python3 -m specs.v3.tools.cli render deps "$PLAN" --
 PYTHONPATH="$OPSKARTA_REPO" python3 -m specs.v3.tools.cli render executive "$PLAN" --view exec-top
 PYTHONPATH="$OPSKARTA_REPO" python3 -m specs.v3.tools.cli render executive-report "$PLAN" --section status --lang ru
 ```
-
-## Ближайшая дуга
-
-```mermaid
-flowchart LR
-    foundation["foundation-done<br/>готовая основа"]
-    cli["cli-orchestration<br/>process/report/review/export"]
-    corpus["corpus-regression<br/>no-regression gates"]
-    review["review-loop<br/>закрытие review_first"]
-    quality["quality-hardening<br/>меньше дублей и пропусков"]
-    notes["evidence-notes<br/>проверяемые итоги"]
-    export["export-workflows<br/>Markdown/Obsidian/docs/Jira proposals"]
-    tail["future-ui-app<br/>optional tail"]
-
-    foundation --> cli
-    foundation --> corpus
-    cli --> review
-    corpus --> review
-    review --> quality
-    corpus --> quality
-    quality --> notes
-    notes --> export
-    export --> tail
-```
-
-## Следующая цель
-
-Сделать MurmurMark уверенно применимым для регулярных рабочих встреч и довести полный transcript/export
-до короткой, понятной проверки:
-
-- удержать corpus verdict на уровне `medium_risk_ready` или выше;
-- удержать рабочий корпус на 13/13 `ready_for_notes`;
-- опираться на текущую точку 2026-06-29: `0.01 min` проверки для selected notes и `1.73 min`
-  отдельной transcript/export проверки на 13 рабочих сессиях;
-- держать export-review очередь явной и исполнимой: сейчас это `33` raw rows / `26` packed actions
-  уже после `agent_reviewed_v1` + `audit_cleanup_v7`, через `murmurmark review next` / `review workspace`;
-- учитывать применённые repair decisions в readiness: local-recall очередь сейчас пуста, потому что
-  оставшиеся острова объяснены как harmless short/boundary/remote-covered cases;
-- снизить `transcript_review_burden` с `1.73 min` до `<= 1.5 min` и очередь с `26` до `<= 20`
-  packed actions, не смешивая это с готовностью notes;
-- расширять repair/cleanup только через corpus gates и audio-review evidence;
-- держать raw capture, Echo Guard и основной ASR неизменными без отдельного решения;
-- считать успехом не идеальный transcript, а готовые evidence-backed notes при явно сохранённых
-  transcript/export blockers.
-
-Выбранный ближайший шаг: закрыть текущую `check_transcript_order` lane из `murmurmark next corpus`,
-обновить corpus readiness и переносить в automation только повторяющиеся ответы, подтверждённые
-review-артефактами. `murmurmark audit stronger-audio-judge` остаётся опцией для маленьких
-прицельных наборов, но не должен быть первым интерактивным шагом для всей очереди.
-
-Первый блок уже применён: transcript-only `uncertain` rows снимаются из burden только когда тот же
-selected `Me` interval покрыт high-confidence `likely_reliable` audio-review evidence. Второй блок
-применён частично: `audit_cleanup_v7` режет доказанные partial `remote_duplicate` spans поверх
-`agent_reviewed_v1` и наследует уже закрытые audio-review decisions. Третий маленький блок добавлен:
-сильная локальная audio-evidence может объяснить узкий `remote_leak` без редактирования transcript.
-Четвёртый маленький блок: bounded short `remote_leak` с уникальным локальным текстом и низкой
-remote similarity закрывается как `keep_me` в `agent_reviewed_v1`. Пятый маленький блок:
-short `remote_leak` без remote-utterance закрывается как `keep_me`, если Echo Guard
-`speaker_state` независимо показывает почти чистый `local_only`. Шестой маленький блок: короткий
-`remote_leak` с крошечным remote-контекстом тоже закрывается как `keep_me`, если `speaker_state`
-показывает чистый `local_only`, overlap с remote-репликой мал, а в `Me` есть уникальный локальный
-текст. Седьмой маленький блок: short partial `remote_duplicate` закрывается как `keep_me`, когда
-дубликат покрывает только часть `Me`, `speaker_state` показывает чистый `local_only`, а оставшаяся
-часть `Me` содержит уникальное продолжение. Восьмой маленький блок: подтверждённый `keep_me`
-распространяется на sibling `remote_leak` для той же `Me`-реплики, если у sibling-строки нет
-duplicate/noise signal; на `remote_duplicate` это правило не распространяется. Девятый маленький
-блок: `uncertain` без remote/error-сигналов закрывается как `keep_me`, когда в строке нет remote
-utterance, покрытие `Me` почти полное, а `speaker_state` показывает mostly local-only. Десятый
-маленький блок: короткий remote-backchannel внутри длинной локальной реплики закрывается как
-`keep_me` в transcript-order audit, если это только audit-риск порядка, а не потеря текста.
-Одиннадцатый блок: high-confidence `faster-whisper` audio judge evidence используется внутри
-`murmurmark review agent` для `keep_me`/`drop_me` только при сохранении прежних safety gates, а
-подтверждённый `keep_me` может закрыть sibling `uncertain` rows для того же `Me` utterance.
-Двенадцатый блок: local-recall repair теперь может брать узкие `needs_review` local-only острова;
-сырой repair-профиль остаётся промежуточным, а выбранным результатом становится
-`agent_reviewed_v1`, если агент подтвердил вставку.
-Следующий исполнительный блок — дальше сокращать transcript/export review queue: сначала закрывать
-повторяющиеся узкие lanes вручную или агентным review, и только после подтверждения переносить
-точный паттерн в automation. `check_local_recall` содержит только одну короткую unresolved строку
-и не должен становиться основным фокусом.

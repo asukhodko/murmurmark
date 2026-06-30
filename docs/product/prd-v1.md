@@ -21,15 +21,18 @@ Working now:
 - local extractive synthesis with quality verdicts, review items and evidence-backed notes;
 - Markdown/Obsidian-style export bundles, JSON/audit artifacts for review, and raw retention plans.
 
-Current operating point:
+Current operating point, measured by `murmurmark next corpus --refresh` on 2026-06-30:
 
-- the current working corpus has `13/15 ready_for_notes`, one `review_first` session and one session
-  that should not be used without manual review;
+- the current working corpus is `medium_risk_ready`;
+- `15` working sessions are in scope and `26` diagnostic sessions are excluded from operational
+  readiness;
+- `14/15` working sessions are `ready_for_notes`, `1/15` is `review_first`, and no in-scope session
+  is incomplete;
 - selected evidence-backed notes require about `0.10 min` of review;
-- full transcript/export still has about `2.28 min` of explicit blockers;
-- the remaining export-review queue is `13` raw rows / `12` packed actions after `agent_reviewed_v1` + `audit_cleanup_v7`;
-- the next target is to return the corpus to `medium_risk_ready` and reduce that queue without changing
-  capture, Echo Guard or the main ASR path.
+- full transcript/export still has about `1.91 min` of explicit review surface;
+- the remaining mandatory queue is `4` review actions in the `classify_audio` lane;
+- the next target is to close or explain that remaining queue while keeping the corpus
+  `medium_risk_ready`, without changing capture, Echo Guard or the main ASR path.
 
 Still future:
 

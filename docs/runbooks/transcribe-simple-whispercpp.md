@@ -871,42 +871,27 @@ counts, notes review burden and the minimum next command. Full transcript/export
 as `full_transcript_review_required`. In that state notes can be used with normal caution, while a
 default export remains blocked until transcript-only review is closed or `--force` is used
 deliberately.
-The 2026-06-29 corpus snapshot is the current convergence baseline: 13/13 working sessions are
-`ready_for_notes`, selected notes require about `0.01 min` of review, and the remaining full
-transcript/export surface is about `1.73 min`. Session-quality reports de-duplicate transcript-only
-`uncertain` rows when the same selected `Me` interval is already covered by high-confidence
-`likely_reliable` audio-review evidence, and can explain a narrow strong-local `remote_leak` row
-without editing transcript text. The agent-review layer can also close bounded short `remote_leak`
-rows as `keep_me` when they have unique local text, low remote similarity, no duplicate/noise signal
-and no protected action/decision/risk marker. It can also close short `remote_leak` rows when Echo
-Guard `speaker_state.jsonl` independently covers the interval as near-pure `local_only`, even if the
-row has only a tiny remote utterance overlap. No-remote rows remain the simplest case; remote-context
-rows additionally require weak duplicate/noise signals, tiny remote overlap coverage and unique
-local `Me` content. Protected markers are allowed only for the strongest local-only case because the
-decision keeps local speech rather than deleting it. The same speaker-state evidence can clear a
-short `remote_duplicate` as `keep_me` when remote overlap coverage is tiny and the `Me` text has a
-unique local token or continuation. Very short local backchannels can also be kept when
-speaker-state evidence is mostly local and remote overlap is tiny. The same agent can now keep short
-local-only rows labelled `asr_noise`, and short adjacent `Me` continuations when the current
-utterance starts immediately after another `Me` turn.
-`uncertain` rows with no remote/error signal can also be cleared as `keep_me` when the row has no
-remote utterance, near-full `Me` coverage and a mostly local-only `speaker_state` interval.
+The 2026-06-30 corpus snapshot is the current convergence baseline: `murmurmark next corpus --refresh`
+reports `medium_risk_ready`, `15` working sessions in scope, `26` diagnostic sessions excluded,
+`14/15 ready_for_notes`, one `review_first` session and no incomplete in-scope sessions. Selected
+notes require about `0.10 min` of review; the remaining full transcript/export surface is about
+`1.91 min`.
+
+Session-quality reports de-duplicate transcript-only `uncertain` rows when the same selected `Me`
+interval is already covered by high-confidence `likely_reliable` audio-review evidence. The
+agent-review layer can also keep narrow local speech rows when speaker-state and audio-review
+evidence support `Me`, and cleanup profiles can remove only tightly gated duplicate/noise material.
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
-The same snapshot exposes the remaining export work as a normal review queue: `33` raw rows /
-`26` packed actions after the current `agent_reviewed_v1` + `audit_cleanup_v7` layers, with `7` grouped rows reachable
-through `murmurmark review next SESSION`, `murmurmark review first-lane --session SESSION` and
-`murmurmark review workspace --session SESSION`. This is intentionally separate from notes
-readiness: selected notes can be used, while full transcript/export waits for the review loop.
-The active queue currently spans the current operational corpus; already-reviewed `local_recall` and
-`local_recall_repair` decisions are inherited by readiness, and the remaining raw local-recall
-islands are explained as harmless short/boundary/remote-covered cases, so no active
-`check_local_recall` lane remains.
-The next engineering target is to shrink that queue to `<= 15` packed actions and
-transcript/export review from `1.73 min` to `<= 1.5 min` by closing or explaining narrow
-`check_unique_me_content` / `remote_leak` classes, not by weakening gates.
-The chosen next step is review-first: run the command from `murmurmark next corpus`, close the
-prepared `check_unique_me_content` lane, apply the answers, refresh corpus readiness, and only then
+
+The same snapshot exposes the remaining work as a normal review queue: `4` packed actions in the
+`classify_audio` lane. This is intentionally separate from notes readiness: selected notes can be
+used with caution, while full transcript/export may still wait for the review loop. The next
+engineering target is to close or explicitly explain those remaining actions without weakening
+gates, changing capture, changing Echo Guard, or changing the main ASR path.
+
+The chosen next step is review-first: run the command from `murmurmark next corpus --refresh`, close
+the prepared `classify_audio` lane, apply the answers, refresh corpus readiness, and only then
 promote a repeated, evidence-backed answer pattern into a new agent-reviewed rule.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
@@ -1020,8 +1005,8 @@ Operational readiness excludes obvious diagnostic/smoke sessions (`audio-input-*
 `*-talk-audio-input`, `smoke`, `test`, `talk-solo`, `voice-processing-smoke`) and known-duration
 captures shorter than 60 seconds from the working-meeting scope. The files remain in `sessions/` for
 debugging, but they do not become next actions for the CLI MVP readiness loop.
-Its `promotion_plan` section explains the current delta to `medium_risk_ready`: unresolved warnings,
-sessions not ready for notes, remaining review minutes, and the next action class.
+Its `promotion_plan` section explains the current readiness delta: unresolved warnings, sessions not
+ready for notes, remaining review minutes, and the next action class.
 Its `Review Queue Strategy` section groups the remaining queue into lanes and shows the first useful
 lane to close. Export-blocking lanes such as transcript order, local recall, or unique `Me` content
 come first; `fast_confirm_drop` remains the quick lane when no blocking lane needs priority. The
@@ -1592,7 +1577,7 @@ does not call an LLM, and does not read raw audio.
 Profile selection:
 
 ```text
-auto      -> reviewed_v1 when review gates pass, then audit_cleanup_v7 when it passed and applied segment repair, then agent_reviewed_v1 when agent gates pass, then audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, but may select order_repair_v1 over any of those bases when order repair gates pass and at least one repair was applied; then shadow_v2 if repair_comparison.json passes, otherwise current
+auto      -> audit_cleanup_v7 when it passed and applied material segment repair, then reviewed_v1 when review gates pass, then agent_reviewed_v1 when agent gates pass, then audit_cleanup_v6/v5/v4/v3/v2/v1 with passing cleanup gates, but may select order_repair_v1 over any of those bases when order repair gates pass and at least one repair was applied; then shadow_v2 if repair_comparison.json passes, otherwise current
 current   -> baseline clean_dialogue.json
 shadow_v2 -> shadow clean_dialogue.shadow_v2.json, marked risky if comparison failed
 audit_cleanup_v1..v7 -> audit-cleaned dialogue, marked risky if cleanup gates failed

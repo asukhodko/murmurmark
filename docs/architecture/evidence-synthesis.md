@@ -31,11 +31,12 @@ derived/synthesis-simple/extractive/
   review_items.jsonl
 ```
 
-The `auto` profile prefers `reviewed_v1` when review gates pass, then `agent_reviewed_v1` when
-agent gates pass, then the highest passing `audit_cleanup_v*` profile that actually applied a
-cleanup patch. If `order_repair_v1` was built over that selected base, passed its gates and applied
-at least one repair, `auto` selects the repaired order profile. Otherwise it falls back to
-`shadow_v2` only when `repair_comparison.json` passes, and finally the baseline `clean_dialogue.json`.
+The `auto` profile first prefers `audit_cleanup_v7` when its gates pass and it applied a material
+segment repair. Then it tries `reviewed_v1`, `agent_reviewed_v1`, and the remaining passing
+`audit_cleanup_v6..v1` profiles. If `order_repair_v1` was built over the selected base, passed its
+gates and applied at least one repair, `auto` selects the repaired order profile. Otherwise it falls
+back to `shadow_v2` only when `repair_comparison.json` passes, and finally the baseline
+`clean_dialogue.json`.
 The script reads only derived transcript and audit JSON; it never reads raw audio.
 
 The output is intentionally extractive:

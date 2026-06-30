@@ -2861,10 +2861,9 @@ mostly `local_only` `speaker_state` interval.
 
 Operational readiness may still expose review rows after `agent_reviewed_v1` is selected. Those
 rows are the remaining transcript/export surface, not a sign that the automatic layer was skipped.
-As of the 2026-06-29 corpus baseline after short transcript-order backchannel review and stronger
-audio judge agent evidence, this queue is
-tracked separately from notes readiness: `14/15` working sessions are `ready_for_notes`, selected
-notes review is about `0.11 min`, and remaining transcript/export review is about `2.47 min`.
+As of the 2026-06-30 corpus baseline, this queue is tracked separately from notes readiness:
+`14/15` working sessions are `ready_for_notes`, one session is `review_first`, selected notes review
+is about `0.10 min`, and remaining transcript/export review is about `1.91 min`.
 Readiness inherits applied `local_recall` and `local_recall_repair` review decisions as well as
 audio-review decisions. Closed local-recall rows with `keep_me`, `drop_me` or `skip` do not re-enter
 `murmurmark next corpus`; unresolved possible lost speech remains visible in `check_local_recall`.
