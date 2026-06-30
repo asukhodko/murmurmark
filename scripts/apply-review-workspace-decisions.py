@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.0"
+SCRIPT_VERSION = "0.6.0"
 SCHEMA = "murmurmark.review_workspace_apply_report/v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
@@ -61,6 +61,11 @@ def parse_args() -> argparse.Namespace:
         choices=["review", "suggested"],
         default="review",
         help="Use edited review answer sheets or generated suggested answer sheets.",
+    )
+    parser.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help="Write reviewed rows even when some workspace answers are still todo.",
     )
     parser.add_argument("--require-complete", action="store_true", help="Fail if any workspace answer is still todo.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and print a report without writing --out.")
@@ -257,6 +262,8 @@ def workspace_apply_base_command(args: argparse.Namespace, workspace_path: Path,
         base += f" --reviewer {shlex.quote(str(args.reviewer))}"
     if args.require_complete:
         base += " --require-complete"
+    if args.allow_partial:
+        base += " --allow-partial"
     return base
 
 
@@ -283,9 +290,30 @@ def workspace_apply_handoff(
         None,
     )
     next_commands: list[dict[str, str]] = []
+    can_write_partial = args.allow_partial and not errors and safe_int(summary.get("reviewed_count")) > 0
     if args.dry_run:
-        if first_todo_lane:
-            if first_todo_lane.get("answer_sheet"):
+        if first_todo_lane and can_write_partial:
+            next_commands.append(command_item("apply_review_workspace_partial", base, "apply reviewed suggested rows and leave todo rows open"))
+            next_commands.append(command_item("refresh_review_progress", progress_command, "show exact manual review remainder"))
+            next_commands.append(command_item("apply_partial_review_decisions", f"{batch_apply_command} --allow-partial-review", "refresh reviewed transcript profile with closed rows"))
+            if first_todo_lane.get("markdown"):
+                next_commands.append(
+                    command_item(
+                        "open_first_incomplete_lane_pack",
+                        f"less {shell_path(Path(str(first_todo_lane.get('markdown'))))}",
+                        "inspect evidence for the first remaining manual lane",
+                    )
+                )
+        elif first_todo_lane:
+            if args.answers_source == "suggested" and first_todo_lane.get("markdown"):
+                next_commands.append(
+                    command_item(
+                        "open_first_manual_review_lane",
+                        f"less {shell_path(Path(str(first_todo_lane.get('markdown'))))}",
+                        "generated suggestions left todo rows; inspect this lane manually",
+                    )
+                )
+            elif first_todo_lane.get("answer_sheet"):
                 next_commands.append(
                     command_item(
                         "edit_workspace_lane_answers",
@@ -309,6 +337,9 @@ def workspace_apply_handoff(
             next_commands.append(command_item("apply_review_workspace", base, "apply validated workspace answers"))
     elif summary.get("ready_for_batch_apply"):
         next_commands.append(command_item("apply_review_decisions", batch_apply_command, "materialize reviewed decisions into transcript profile"))
+    elif summary.get("ready_for_partial_apply"):
+        next_commands.append(command_item("refresh_review_progress", progress_command, "show exact manual review remainder"))
+        next_commands.append(command_item("apply_partial_review_decisions", f"{batch_apply_command} --allow-partial-review", "refresh reviewed transcript profile with closed rows"))
     else:
         next_commands.append(command_item("refresh_review_progress", progress_command, "refresh review progress"))
     open_commands = [
@@ -549,10 +580,14 @@ def main() -> int:
         resolve_suggested_drop_conflicts(rows, now) if args.answers_source == "suggested" else []
     )
     rejected = [row for lane in lane_reports for row in lane.get("rejected") or []]
-    remaining_rows = [row for row in rows if not is_reviewed(row)]
     decision_counts = Counter(str(row.get("decision") or "todo") for row in rows)
     workspace_todo_count = sum(safe_int((lane.get("summary") or {}).get("todo_count")) for lane in lane_reports)
     complete_error = args.require_complete and workspace_todo_count > 0
+    remaining_rows = [row for row in rows if not is_reviewed(row)]
+    newly_reviewed_count = sum(safe_int((lane.get("summary") or {}).get("reviewed_count")) for lane in lane_reports)
+    can_write_partial = args.allow_partial and not rejected and not complete_error and newly_reviewed_count > 0
+    ready_for_batch_apply = len(rows) > 0 and not remaining_rows and not rejected and not complete_error
+    ready_for_partial_apply = can_write_partial and bool(remaining_rows)
 
     summary = {
         "lane_count": len(lane_reports),
@@ -566,7 +601,9 @@ def main() -> int:
         "remaining_rows": len(remaining_rows),
         "remaining_seconds": round(sum(row_seconds(row) for row in remaining_rows), 3),
         "remaining_minutes": round(sum(row_seconds(row) for row in remaining_rows) / 60.0, 2),
-        "ready_for_batch_apply": len(rows) > 0 and not remaining_rows and not rejected and not complete_error,
+        "ready_for_batch_apply": ready_for_batch_apply,
+        "ready_for_partial_apply": ready_for_partial_apply,
+        "partial_apply_allowed": args.allow_partial,
         "decisions": dict(sorted(decision_counts.items())),
         "suggested_conflict_downgraded_count": len(suggested_conflict_downgrades),
     }
@@ -582,9 +619,10 @@ def main() -> int:
             "out": str(out),
         },
         "dry_run": args.dry_run,
-        "answers_source": args.answers_source,
-        "require_complete": args.require_complete,
-        "summary": summary,
+            "answers_source": args.answers_source,
+            "require_complete": args.require_complete,
+            "allow_partial": args.allow_partial,
+            "summary": summary,
         "lanes": lane_reports,
         "suggested_conflict_downgrades": suggested_conflict_downgrades,
         "errors": errors,
@@ -602,7 +640,10 @@ def main() -> int:
         )
     )
 
-    if not args.dry_run and not rejected and not complete_error:
+    can_write_incomplete_manual = args.answers_source == "review"
+    if not args.dry_run and not rejected and not complete_error and (
+        not remaining_rows or can_write_partial or can_write_incomplete_manual
+    ):
         write_jsonl(out, rows)
     write_json(report_path, report)
 
@@ -615,7 +656,7 @@ def main() -> int:
         if args.dry_run:
             print(f"Report: {args.report}")
             print("Dry run: no decisions file written.")
-        elif rejected or complete_error:
+        elif rejected or complete_error or (remaining_rows and not args.allow_partial):
             print(f"Report: {args.report}")
             print("No decisions file written because validation failed.")
         else:

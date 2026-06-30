@@ -29,6 +29,7 @@ The CLI MVP is already real:
 - `murmurmark process SESSION|latest` runs the post-recording pipeline;
 - `murmurmark next`, `status`, `report`, `open`, `notes`, `transcript` provide handoff and inspection;
 - `murmurmark review` handles lane packs, answer sheets, suggested decisions and reviewed profiles;
+- `murmurmark review suggested` previews and applies safe generated suggestions before manual listening;
 - `murmurmark corpus` runs the regression/readiness loop;
 - `murmurmark export` builds Markdown/Obsidian bundles;
 - `murmurmark retention` plans payloads and raw deletion;
@@ -48,6 +49,12 @@ Operational corpus snapshot from 2026-06-30:
 
 This is enough to use MurmurMark with caution on real working meetings. It is not enough to claim
 zero-review transcript quality.
+
+The 2026-06-30 daily sync showed the current review-loop gap: a meeting can have healthy capture and
+no harmful duplicate seconds, but still be marked `risky` because several order/local-recall rows are
+not formally closed. The immediate path is now `murmurmark review suggested SESSION`, then
+`murmurmark review suggested apply SESSION`; this closes only high-confidence local-audio suggestions
+and leaves the exact remaining manual queue visible.
 
 ## Roadmap Tree
 
@@ -108,6 +115,10 @@ flowchart LR
 - Keep the corpus at `medium_risk_ready` or better.
 - Keep readiness/status/next honest when the actionable review queue is empty but residual risk
   remains documented.
+- Close safe review rows with local audio evidence before asking the user to listen manually.
+  The 2026-06-30 daily sync showed the important pattern: the session was marked `risky`, but
+  stronger audio judge confirmed most `check_transcript_order` rows as timing/double-talk, leaving
+  only a few real manual checks.
 - Make the everyday path boring:
 
   ```bash
@@ -124,8 +135,10 @@ flowchart LR
 ### Next
 
 - Review loop polish:
-  - better "what now?" output for partial recordings and long ASR runs;
-  - clearer lane packs and suggested answers;
+  - make suggested review closure first-class: show how many rows can be accepted from stronger local
+    audio evidence, how many remain manual, and what readiness would become after applying them;
+  - keep lane packs clear, but avoid sending the user to listen through rows already confirmed by the
+    local judge;
   - explicit "safe to export / review first / do not use" handoff.
 - Corpus regression discipline:
   - stable small operational corpus;
@@ -180,13 +193,17 @@ Recently completed:
 
 ## Candidate Next Goals
 
-1. **Polish export bundles.** Make the exported Markdown/Obsidian result the natural user-facing
+1. **Suggested review closure.** Turn stronger-audio-judge suggestions into a safe first-class review
+   path: preview, apply, refresh readiness and show the exact remaining manual queue. The daily sync
+   example should move from `risky` to either `usable_with_review` or a much smaller explicit queue
+   without changing capture, Echo Guard or primary ASR.
+2. **Polish export bundles.** Make the exported Markdown/Obsidian result the natural user-facing
    artifact, not just a dump of derived files.
-2. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
+3. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
    changes to beat or preserve it.
-3. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
+4. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
    to utterance IDs and review flags.
-4. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
+5. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
    artifacts and add security/contact guidance.
 
 ## Validation

@@ -198,12 +198,17 @@ Common review commands:
 ```bash
 murmurmark next latest
 murmurmark review next latest
-murmurmark review first-lane --session latest
 
-# Listen/edit the generated answer sheet, then:
+# First close only high-confidence generated suggestions, then inspect the exact manual remainder:
+murmurmark review suggested latest
+murmurmark review suggested apply latest
+
+# If manual review is still required, listen/edit the generated answer sheet, then:
+murmurmark review first-lane --session latest
 murmurmark review lane apply first --session latest
 murmurmark review apply --session latest
 murmurmark status latest
+murmurmark report corpus
 ```
 
 If `review next` prints `review_actions: 0` and `review_handoff: no_actionable_review_rows`, do not
@@ -220,8 +225,12 @@ murmurmark status sessions/<session-id>
 murmurmark report sessions/<session-id>
 ```
 
-The review loop writes decisions into separate reviewed profiles. It should not rewrite raw audio or
-hide unresolved risk.
+`review suggested` builds all lane packs, dry-runs generated suggested answers and shows how many
+rows can be closed without listening. `review suggested apply` writes only those safe reviewed rows,
+keeps dots as the manual queue, refreshes `reviewed_v1` readiness and still blocks export when risk
+remains. Run `murmurmark report corpus` after that when you want the corpus readiness delta. The
+review loop writes decisions into separate reviewed profiles. It should not rewrite raw audio or hide
+unresolved risk.
 
 ## Export And Retention
 
@@ -350,20 +359,24 @@ Current focus:
 - keep the corpus at `medium_risk_ready` or better;
 - keep `next`/`status`/`review` honest when the actionable queue is already empty but residual risk
   remains documented;
+- use local stronger-audio evidence to close safe review rows before asking the user to listen
+  manually;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 
 Near-term goals for discussion:
 
-1. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
+1. Suggested review closure: make the new suggested preview/apply path visible in session and corpus
+   reports, and keep measuring how much manual review it removes.
+2. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
-2. Export readiness: make Markdown/Obsidian bundles the normal output for usable meetings, with
+3. Export readiness: make Markdown/Obsidian bundles the normal output for usable meetings, with
    explicit blockers and retention guidance.
-3. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
+4. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
    regressions before new heuristics ship.
-4. Evidence notes vNext: improve extractive notes quality while preserving citations and review
+5. Evidence notes vNext: improve extractive notes quality while preserving citations and review
    flags.
-5. Open-source release hardening: trim private fixtures, document setup, add security/contact
+6. Open-source release hardening: trim private fixtures, document setup, add security/contact
    guidance and keep generated/private artifacts ignored.
 
 Recently completed:

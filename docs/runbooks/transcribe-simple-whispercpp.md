@@ -1214,17 +1214,41 @@ you need the evidence and allowed decisions again.
 To estimate what the generated suggestions would do without writing decisions:
 
 ```bash
-murmurmark review workspace apply --answers-source suggested --dry-run
+murmurmark review suggested "$SESSION"
+```
+
+To accept only those generated suggestions and leave all dots as manual review:
+
+```bash
+murmurmark review suggested apply "$SESSION"
+```
+
+This is the normal safe shortcut when the local stronger-audio judge has already produced confident
+`keep_me` or `drop_me` hints. It builds the workspace, applies only reviewed suggested rows with
+partial apply enabled, materializes `reviewed_v1` with `--allow-partial-review`, refreshes readiness,
+and prints the remaining manual queue. It does not change capture, Echo Guard, ASR cache or raw CAF
+tracks. If all generated suggested sheets contain only dots, it writes no decisions and points back to
+the first manual lane.
+
+The lower-level equivalent is:
+
+```bash
+murmurmark review workspace --session "$SESSION"
+murmurmark review workspace apply --session "$SESSION" \
+  --answers-source suggested \
+  --allow-partial \
+  --dry-run
 ```
 
 `murmurmark review workspace` prints `manual_flow`, optional `suggested_flow`, `after_apply`, and
 the same command as `suggested_dry_run` when suggested sheets are present. Dry-run still writes
-`review_workspace_apply_report.json`, so the CLI can print the same summary, `next_lane`, and next
-commands without changing `review_decisions.jsonl`. The apply report also stores
+`review_workspace_apply_report.json`, so the CLI can print the same summary, exact remaining rows and
+next commands without changing `review_decisions.jsonl`. The apply report also stores
 `recommended_next`, `next_commands` and `open_commands`, so automation can resume from the report
-after manual review. `review workspace apply` prints those report commands directly; incomplete
-manual review now points to the concrete answer sheet edit command instead of asking you to rebuild
-the same lane pack.
+after manual review. `review workspace apply --allow-partial` writes reviewed suggested rows even
+when some workspace answers are still `todo`; without `--allow-partial`, incomplete suggested sheets
+remain preview-only. Incomplete manual review now points to the concrete answer sheet edit command
+instead of asking you to rebuild the same lane pack.
 `review_workspace.json` stores the same handoff as `recommended_next`, `next_commands`,
 `open_commands`, `manual_flow`, `suggested_flow` and `after_apply`, so agents can continue from the
 workspace manifest.

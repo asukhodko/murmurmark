@@ -1760,6 +1760,12 @@ enum ReviewCommands {
                 return
             }
             try ReviewFirstLaneCommand.run(forwarded, sessionsRoot: sessionsRoot)
+        case "suggested":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                ReviewSuggestedCommand.printHelp()
+                return
+            }
+            try ReviewSuggestedCommand.run(forwarded, sessionsRoot: sessionsRoot)
         case "lane":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 ReviewLaneCommand.printHelp()
@@ -2256,6 +2262,7 @@ enum ReviewHelp {
         usage: murmurmark review plan
                murmurmark review next [SESSION|latest]
                murmurmark review first-lane [--session latest|SESSION]
+               murmurmark review suggested [preview|apply] [SESSION|latest|--session SESSION]
                murmurmark review lane LANE [--session latest|SESSION]
                murmurmark review lane apply LANE|first [--session latest|SESSION] [--answers-file PATH|--answers TEXT]
                                     [--answers-source manual|suggested]
@@ -2270,6 +2277,8 @@ enum ReviewHelp {
 
         Common flow:
           murmurmark review next latest
+          murmurmark review suggested latest
+          murmurmark review suggested apply latest
           murmurmark review first-lane --session latest
           # listen/edit the generated answer sheet
           murmurmark review lane apply first --session latest
@@ -2278,6 +2287,110 @@ enum ReviewHelp {
         Use --allow-partial-review to materialize already closed rows while keeping the
         remaining review scope visible in readiness reports.
         """)
+    }
+}
+
+enum ReviewSuggestedCommand {
+    static func run(_ args: [String], sessionsRoot: URL) throws {
+        var forwarded = args
+        let mode: String
+        if let first = forwarded.first, ["preview", "apply"].contains(first) {
+            mode = first
+            forwarded.removeFirst()
+        } else {
+            mode = "preview"
+        }
+        let noMaterialize = ArgumentEditing.takeFlag("no-materialize", from: &forwarded)
+        let explicitSession = ReviewSessionLocalPlan.takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot)
+        let target: String
+        if let first = forwarded.first, !first.hasPrefix("-") {
+            target = first
+            forwarded.removeFirst()
+        } else {
+            target = "latest"
+        }
+        guard forwarded.isEmpty else {
+            throw CLIError("review suggested accepts only preview|apply, SESSION|latest, --session and --no-materialize")
+        }
+        let session: URL
+        if let explicitSession {
+            session = explicitSession
+        } else {
+            session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        }
+        try ReviewSessionLocalPlan.prepareIfNeeded(session: session)
+
+        let python = try PythonRuntime.resolve()
+        var workspaceArgs: [String] = []
+        ReviewSessionLocalPlan.addBuildDefaults(for: session, to: &workspaceArgs)
+        workspaceArgs += ["--session", session.lastPathComponent]
+        try Tooling.runPathQuiet(python, [try script("build-review-workspace.py").path] + workspaceArgs)
+
+        var workspaceApplyArgs = ["--answers-source", "suggested", "--allow-partial", "--quiet"]
+        ReviewSessionLocalPlan.addWorkspaceApplyDefaults(for: session, to: &workspaceApplyArgs)
+        if mode == "preview" {
+            workspaceApplyArgs.append("--dry-run")
+        }
+        try Tooling.runPathQuiet(python, [try script("apply-review-workspace-decisions.py").path] + workspaceApplyArgs)
+
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        let workspaceReport = ReviewPaths.workspaceApplyReport(from: workspaceApplyArgs)
+        try ReviewPrinter.printWorkspaceApply(report: workspaceReport)
+
+        guard mode == "apply", !noMaterialize else {
+            return
+        }
+        let payload = try JSONFiles.object(workspaceReport)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        let readyForProfile = (summary["ready_for_batch_apply"] as? Bool) == true
+            || (summary["ready_for_partial_apply"] as? Bool) == true
+        guard readyForProfile else {
+            return
+        }
+
+        var progressArgs: [String] = []
+        ReviewSessionLocalPlan.addProgressDefaults(for: session, to: &progressArgs)
+        try ReviewProgressRunner.run(args: progressArgs)
+
+        var batchArgs = ["--allow-partial-review", "--session", session.lastPathComponent, "--synthesize", "--refresh-reports"]
+        ReviewSessionLocalPlan.addReviewApplyDefaults(for: session, to: &batchArgs)
+        let status = try Tooling.runPathAllowingExitCodes(
+            python,
+            [try script("apply-review-decisions-batch.py").path] + batchArgs,
+            allowedExitCodes: [0, 2]
+        )
+        try ReviewPrinter.printApply(report: ReviewPaths.applyReport(from: batchArgs))
+        print("")
+        print("corpus_delta:")
+        print("  refresh: murmurmark report corpus")
+        if status != 0 {
+            throw CLIError("suggested review apply did not pass; inspect \(PathDisplay.display(ReviewPaths.applyReport(from: batchArgs)))")
+        }
+    }
+
+    static func printHelp() {
+        print("""
+        usage: murmurmark review suggested [preview|apply] [SESSION|latest]
+                                         [--session SESSION] [--no-materialize]
+
+        Builds all session-local review lanes, applies generated suggested answers in preview
+        mode and shows the exact manual remainder. `apply` writes only reviewed suggested
+        rows, keeps dots/todo as manual review, then refreshes reviewed_v1 readiness unless
+        --no-materialize is passed.
+
+        Common:
+          murmurmark review suggested latest
+          murmurmark review suggested apply latest
+          murmurmark review suggested apply --session latest --no-materialize
+        """)
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("review script not found: \(url.path)")
+        }
+        return url
     }
 }
 
@@ -9432,6 +9545,9 @@ enum ReviewNextPrinter {
             return
         }
         let firstLane = firstRecommendedLane(planOutDir: planOutDir) ?? "first"
+        Swift.print("  suggested_flow:")
+        Swift.print("    preview: murmurmark review suggested \(sessionArg)")
+        Swift.print("    apply_safe_suggestions: murmurmark review suggested apply \(sessionArg)")
         Swift.print("  first_lane_flow:")
         Swift.print("    build_and_listen: murmurmark review first-lane --session \(sessionArg)")
         Swift.print("    apply_answers: murmurmark review lane apply \(firstLane) --session \(sessionArg)")
@@ -9532,6 +9648,8 @@ enum ReviewNextPrinter {
     private static func sessionLocalReviewCommands(sessionArg: String, planOutDir: URL) -> [String] {
         let firstLane = firstRecommendedLane(planOutDir: planOutDir) ?? "first"
         var commands = [
+            "murmurmark review suggested \(sessionArg)",
+            "murmurmark review suggested apply \(sessionArg)",
             "murmurmark review first-lane --session \(sessionArg)",
             "murmurmark review lane apply \(firstLane) --session \(sessionArg)",
         ]

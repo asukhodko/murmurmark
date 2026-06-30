@@ -2631,9 +2631,13 @@ it shows the next non-dry-run command.
 `review_workspace.json` into one `review_decisions.jsonl`. It validates item counts, answer
 shortcuts and `allowed_decisions`; with `--answers-source suggested` it reads
 `suggested_answer_sheet` instead of the manual `answer_sheet`, and with `--require-complete` it fails
-if any selected workspace answer is still `todo`. The Swift workspace handoff prints
-`suggested_dry_run` and `suggested_apply` commands whenever the workspace has suggested sheets. It
-writes:
+if any selected workspace answer is still `todo`. With `--allow-partial`, suggested or manual
+workspace apply may write the reviewed rows while preserving `todo` rows as the remaining manual
+queue. This is the path used by `murmurmark review suggested apply SESSION`: it closes only generated
+answers that are already `keep_me`/`drop_me`/`needs_review`, then `review apply
+--allow-partial-review` materializes a reviewed profile with explicit remaining scope. The Swift
+workspace handoff prints `suggested_dry_run` and `suggested_apply` commands whenever the workspace
+has suggested sheets. It writes:
 
 ```text
 sessions/_reports/review-plan/
@@ -2653,7 +2657,9 @@ The JSON uses `murmurmark.review_workspace_apply_report/v1`:
     "skipped_count": 0,
     "rejected_count": 0,
     "remaining_rows": 30,
-    "ready_for_batch_apply": false
+    "ready_for_batch_apply": false,
+    "ready_for_partial_apply": true,
+    "partial_apply_allowed": true
   },
   "lanes": [
     {

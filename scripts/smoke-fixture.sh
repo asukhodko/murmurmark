@@ -1067,7 +1067,10 @@ echo "$review_next_output" | grep -q 'after_first_lane: remaining_items=3 remain
 echo "$review_next_output" | grep -q '^  open:$'
 echo "$review_next_output" | grep -q '^    less .*session_readiness.md$'
 echo "$review_next_output" | grep -q '^    less .*review_plan.md$'
-echo "$review_next_output" | grep -q '^  recommended_next: murmurmark review first-lane --session .*review-next-session'
+echo "$review_next_output" | grep -q '^  recommended_next: murmurmark review suggested .*review-next-session'
+echo "$review_next_output" | grep -q '^  suggested_flow:$'
+echo "$review_next_output" | grep -q '^    preview: murmurmark review suggested .*review-next-session'
+echo "$review_next_output" | grep -q '^    apply_safe_suggestions: murmurmark review suggested apply .*review-next-session'
 echo "$review_next_output" | grep -q '^  first_lane_flow:$'
 echo "$review_next_output" | grep -q '^    build_and_listen: murmurmark review first-lane --session .*review-next-session'
 echo "$review_next_output" | grep -q '^    apply_answers: murmurmark review lane apply check_transcript_order --session .*review-next-session'
@@ -1077,7 +1080,9 @@ echo "$review_next_output" | grep -q '^    apply_answers: murmurmark review lane
 echo "$review_next_output" | grep -q '^  workspace_flow:$'
 echo "$review_next_output" | grep -q '^    build_and_listen: murmurmark review workspace --session .*review-next-session'
 echo "$review_next_output" | grep -q '^    apply_answers: murmurmark review workspace apply --session .*review-next-session'
-tail -1 <<<"$review_next_output" | grep -q '^next: murmurmark review first-lane --session .*review-next-session'
+tail -1 <<<"$review_next_output" | grep -q '^next: murmurmark review suggested .*review-next-session'
+echo "$review_next_output" | grep -q 'murmurmark review suggested .*review-next-session'
+echo "$review_next_output" | grep -q 'murmurmark review suggested apply .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review first-lane --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review lane apply check_transcript_order --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review lane fast_confirm_drop --session .*review-next-session'
@@ -2837,11 +2842,7 @@ EOF
     --out "$suggested_apply_out" \
     --report "$workdir/review_workspace_suggested_apply_report.json" \
     --answers-source suggested >/dev/null
-  jq -s '
-    .[0].decision == "todo"
-    and .[1].decision == "todo"
-    and (.[1].review_source | not)
-  ' "$suggested_apply_out" >/dev/null
+  [[ ! -e "$suggested_apply_out" ]]
   jq -e '
     .schema == "murmurmark.review_workspace_apply_report/v1"
     and .answers_source == "suggested"
@@ -2849,6 +2850,7 @@ EOF
     and .summary.remaining_rows == 2
     and .summary.workspace_todo_count == 1
     and .summary.rejected_count == 0
+    and .summary.ready_for_partial_apply == false
   ' "$workdir/review_workspace_suggested_apply_report.json" >/dev/null
   jq -e '(.recommended_next | length > 0) and (.next_commands | length >= 1) and ([.open_commands[].id] | index("open_review_workspace_apply_report"))' "$workdir/review_workspace_suggested_apply_report.json" >/dev/null
   sed 's/^answers=.*/answers=k/' "$answer_sheet" >"$answer_sheet.tmp"
@@ -2949,6 +2951,37 @@ EOF
   grep -q '^review_workspace_apply:$' "$cli_workspace_suggested_dry_run_stdout"
   grep -q '^  answers_source: suggested' "$cli_workspace_suggested_dry_run_stdout"
   grep -q '^    check_local_recall: status=ok reviewed=0 todo=1 rejected=0' "$cli_workspace_suggested_dry_run_stdout"
+  cli_suggested_answer_sheet="$cli_review_workspace_dir/lane-packs/review_lane_answers.check_local_recall.suggested.txt"
+  sed 's/^answers=.*/answers=k/' "$cli_suggested_answer_sheet" >"$cli_suggested_answer_sheet.tmp"
+  mv "$cli_suggested_answer_sheet.tmp" "$cli_suggested_answer_sheet"
+  cli_workspace_suggested_partial_out="$workdir/review_decisions_workspace_cli_suggested_partial.jsonl"
+  cli_workspace_suggested_partial_stdout="$workdir/review_workspace_cli_suggested_partial_stdout.txt"
+  "$repo_root/.build/debug/murmurmark" review workspace apply \
+    --workspace "$cli_review_workspace_dir/review_workspace.json" \
+    --template "$review_template" \
+    --out "$cli_workspace_suggested_partial_out" \
+    --report "$cli_review_workspace_dir/review_workspace_suggested_partial_report.json" \
+    --answers-source suggested \
+    --allow-partial \
+    --dry-run >"$cli_workspace_suggested_partial_stdout"
+  [[ ! -e "$cli_workspace_suggested_partial_out" ]]
+  jq -e '
+    .schema == "murmurmark.review_workspace_apply_report/v1"
+    and .answers_source == "suggested"
+    and .summary.reviewed_count == 1
+    and .summary.remaining_rows == 1
+    and .summary.ready_for_partial_apply == true
+    and .summary.partial_apply_allowed == true
+  ' "$cli_review_workspace_dir/review_workspace_suggested_partial_report.json" >/dev/null
+  grep -q '^  ready_for_partial_apply: true' "$cli_workspace_suggested_partial_stdout"
+  "$repo_root/.build/debug/murmurmark" review workspace apply \
+    --workspace "$cli_review_workspace_dir/review_workspace.json" \
+    --template "$review_template" \
+    --out "$cli_workspace_suggested_partial_out" \
+    --report "$cli_review_workspace_dir/review_workspace_suggested_partial_apply_report.json" \
+    --answers-source suggested \
+    --allow-partial >/dev/null
+  jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "workspace_suggested_answer_sheet"' "$cli_workspace_suggested_partial_out" >/dev/null
   sed 's/^answers=.*/answers=k/' "$cli_answer_sheet" >"$cli_answer_sheet.tmp"
   mv "$cli_answer_sheet.tmp" "$cli_answer_sheet"
   cli_workspace_apply_out="$workdir/review_decisions_workspace_cli_apply.jsonl"

@@ -636,6 +636,9 @@ enum ReviewPrinter {
         print("  answers_source: \(string(payload["answers_source"]) ?? "review")")
         print("  dry_run: \(bool(payload["dry_run"]) ?? false)")
         print("  ready_for_apply: \(bool(summary["ready_for_batch_apply"]) ?? false)")
+        if bool(summary["partial_apply_allowed"]) == true {
+            print("  ready_for_partial_apply: \(bool(summary["ready_for_partial_apply"]) ?? false)")
+        }
         printWorkspaceApplyLanes(payload)
         let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
         if printWorkspaceApplyReportHandoff(payload, sessionID: sessionID) {
@@ -724,6 +727,9 @@ enum ReviewPrinter {
             if command.contains("--require-complete") {
                 normalized += " --require-complete"
             }
+            if command.contains("--allow-partial") {
+                normalized += " --allow-partial"
+            }
             if command.contains("--dry-run") {
                 normalized += " --dry-run"
             }
@@ -733,7 +739,11 @@ enum ReviewPrinter {
             return "murmurmark review progress --session \(sessionID)"
         }
         if command.hasPrefix("murmurmark review apply ") {
-            return "murmurmark review apply --session \(sessionID)"
+            var normalized = "murmurmark review apply --session \(sessionID)"
+            if command.contains("--allow-partial-review") {
+                normalized += " --allow-partial-review"
+            }
+            return normalized
         }
         return command
     }

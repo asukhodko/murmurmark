@@ -346,8 +346,8 @@ nodes:
       Удобный review CLI для спорных мест. Базовые plan/progress/apply и интерактивный
       review SESSION/latest уже доступны. Workspace review и агентный review agent доступны
       через CLI, readiness и blocked export ведут к workspace next commands. Текущий слой —
-      сужение оставшейся export-review очереди после `agent_reviewed_v1` и полировка reviewed
-      export handoff.
+      suggested review closure: безопасно принимать строки, которые stronger local audio judge уже
+      подтвердил как timing/double-talk или keep_me, и явно показывать остаток ручной проверки.
 
   cli-review-command:
     title: "murmurmark review SESSION"
@@ -405,6 +405,23 @@ nodes:
       не предлагается, а единственная `review_first` сессия показывает documented non-actionable
       blocker. Capture, Echo Guard и основной ASR не менялись.
       Possible lost `Me` и спорное содержание остаются в review/export gate.
+
+  review-suggested-closure-v2:
+    title: "Suggested review closure v2"
+    kind: task
+    parent: review-loop
+    deps: [review-agent-command, review-export-closure-v1, quality-audio-judge-labels]
+    status: current
+    effort: 5
+    notes: |
+      Текущий слой после анализа daily sync `2026-06-30_11-15-56`.
+      Сессия прошла capture/Echo Guard/ASR, но получила `risky` из-за transcript order и local recall.
+      При этом faster-whisper stronger judge подтвердил большую часть order rows как real Me +
+      real remote timing/double-talk, а suggested answer sheet закрыл 9/12 строк dry-run без
+      auto-drop. Реализован first-class путь `murmurmark review suggested` /
+      `murmurmark review suggested apply`: preview exact remaining queue, partial apply безопасных
+      suggestions, `reviewed_v1` refresh через `--allow-partial-review`. Следующий доводочный шаг —
+      вывести этот delta в corpus reports и удержать поведение на нескольких групповых sync.
 
   review-burden-report:
     title: "Review burden report"
@@ -508,9 +525,9 @@ nodes:
     kind: task
     parent: quality-hardening
     deps: [corpus-error-taxonomy]
-    status: next
+    status: current
     effort: 6
-    notes: "Более точные метки: lost_me, remote_duplicate, asr_noise, timing_overlap, double_talk. Начинается с taxonomy report, который показывает, какие метки уже покрыты, где judge путается и какой класс ошибок чинить следующим."
+    notes: "Более точные метки: lost_me, remote_duplicate, asr_noise, timing_overlap, double_talk. Daily sync 2026-06-30 показал, что confirm_timing_or_doubletalk уже полезен для suggested review closure, но readiness/review plan ещё должны считать остаток после suggested apply, а не только после ручного закрытия всей lane."
 
   evidence-notes:
     title: "Evidence-backed notes и quality verdict"
@@ -905,8 +922,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Выбрать следующий CLI-hardening фокус: export bundles, corpus gates, notes quality или public release hardening."
-      success_by_next_sync: "Следующая цель выбрана явно, roadmap и README называют её критерием успеха, а Recording Reliability остаётся закрытой verified-точкой."
+      nearest_goal: "Suggested review closure v2: превратить stronger-audio-judge подсказки в безопасный first-class путь закрытия review queue для групповых daily sync."
+      success_by_next_sync: "Daily sync 2026-06-30 показывает preview/apply suggested closure, точный остаток ручной проверки, обновлённый readiness и corpus delta без смены capture, Echo Guard и основного ASR."
     defaults:
       status_progress:
         done: 1.0
@@ -933,15 +950,15 @@ x:
         mgmt:
           health: yellow
           sync_note: "CLI MVP закрыт, readiness reconciliation и Recording Reliability завершены; status/next/process теперь честно ведут partial capture в inspect."
-          next_sync_goal: "Выбрать следующий CLI-hardening фокус: export bundles, corpus gates, notes quality или public release hardening."
+          next_sync_goal: "Поддержать suggested review closure в CLI handoff: preview, apply, refresh readiness, exact remaining queue."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]
         kind: main
         mgmt:
           health: green
-          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до medium_risk_ready; actionable review queue сейчас 0, остаточный blocker документирован."
-          next_sync_goal: "Удерживать gates и baseline, пока текущий фокус смещён на Recording Reliability."
+          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до medium_risk_ready; новая daily sync выявила, что risky часто означает не вредный transcript, а незакрытые suggested timing/double-talk rows."
+          next_sync_goal: "Сделать suggested review closure измеримым и безопасным, затем добавить его в corpus delta/gates."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]
