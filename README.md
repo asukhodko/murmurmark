@@ -24,26 +24,29 @@ evidence.
 The CLI pipeline is usable for regular medium-risk working meetings with a short explicit review
 queue.
 
-Current corpus snapshot from `murmurmark next corpus --refresh` on 2026-06-30:
+Current corpus snapshot from `murmurmark report corpus` on 2026-06-30:
 
-- operational status: `medium_risk_ready`;
-- use gate: `can_use_medium_risk: true`;
-- working sessions in scope: `15`;
+- operational status: `not_ready`;
+- use gate: `can_use_medium_risk: false`;
+- working sessions in scope: `16`;
 - diagnostic sessions excluded from readiness: `26`;
-- session readiness: `14/15 ready_for_notes`, `1/15 review_first`, `0 incomplete`;
-- selected notes review burden: `0.55 min`;
-- full transcript/export review surface: `3.05 min`;
-- remaining actionable review queue: `0` actions;
-- one session remains `review_first` because its residual risk is documented but no longer has an
-  actionable review lane.
+- session readiness: `14/16 ready_for_notes`, `1/16 review_first`, one risky session blocking the
+  operational corpus;
+- selected notes review burden: `0.69 min`;
+- full transcript/export review surface: `3.19 min`;
+- remaining actionable review queue: `5` actions, all in `sessions/2026-06-30_11-15-56`;
+- suggested closure reports exist for `5` sessions: `8` generated suggestions, `0` actionable
+  keep/drop rows, `8` needs-review rows, `61` manual rows remaining.
 
-This does not mean "zero review". It means MurmurMark is already useful when the user accepts the
-remaining explicit risk. Full transcript/export can still be blocked while evidence-backed notes are
-usable.
+This does not mean the CLI is unusable. It means the current corpus is honestly blocked by a small
+manual review queue instead of pretending to be green. Most sessions are still usable for
+evidence-backed notes when their own `status` says so; full transcript/export can remain blocked
+until the explicit review items are closed.
 
-Latest completed project goal: [Export Bundle Quality v1](docs/project/current-goal.md). `finish`
-now writes a readable local handoff bundle whose `index.md` answers whether the result can be used,
-what still needs review and what retention/privacy step comes next.
+Current project goal: [Echo Guard Complete Removal v0](docs/project/current-goal.md). Latest
+completed milestone: Export Bundle Quality v1; `finish` now writes a readable local handoff bundle
+whose `index.md` answers whether the result can be used, what still needs review and what
+retention/privacy step comes next.
 
 ## What Works Now
 
@@ -68,7 +71,9 @@ what still needs review and what retention/privacy step comes next.
 ## What Is Still Out Of Scope
 
 - Per-person diarization inside `Colleagues`.
-- Studio-quality echo removal.
+- Product-complete echo removal is not yet a default capability. The current `local_fir` path
+  reduces leakage and protects local speech; the active research path is a shadow `offline_aec_v2`
+  lab tracked in [Complete Echo Removal Research](docs/research/2026-06-30-complete-echo-removal.md).
 - Fully automatic zero-review summaries.
 - Cloud ASR or cloud LLM by default.
 - Jira/docs/Confluence writes without human review.
@@ -229,12 +234,15 @@ murmurmark status sessions/<session-id>
 murmurmark report sessions/<session-id>
 ```
 
-`review suggested` builds all lane packs, dry-runs generated suggested answers and shows how many
-rows can be closed without listening. `review suggested apply` writes only those safe reviewed rows,
-keeps dots as the manual queue, refreshes `reviewed_v1` readiness and still blocks export when risk
-remains. Run `murmurmark report corpus` after that when you want the corpus readiness delta. The
-review loop writes decisions into separate reviewed profiles. It should not rewrite raw audio or hide
-unresolved risk.
+`review suggested` builds all lane packs, dry-runs generated suggested answers and prints a
+`suggested_closure` block: before/after manual rows, generated/actionable/needs-review counts, a
+conservative readiness projection, rows that can be closed without listening and the exact remaining
+manual queue by lane. `review suggested apply` writes only those safe reviewed rows, keeps dots as
+the manual queue, refreshes `reviewed_v1` readiness when anything was closed and still blocks export
+when risk remains. If nothing is safe to close, it writes no decisions and points to the first
+remaining manual lane. Run `murmurmark report corpus` after that when you want the corpus readiness
+delta. The review loop writes decisions into separate reviewed profiles. It should
+not rewrite raw audio or hide unresolved risk.
 
 ## Export And Retention
 
@@ -372,33 +380,39 @@ the selected profile by filename.
 - [Transcript and evidence contracts](docs/contracts/transcript-and-evidence.md)
 - [Evidence synthesis architecture](docs/architecture/evidence-synthesis.md)
 - [Open-source readiness](docs/project/open-source-readiness.md)
-- [Latest completed goal](docs/project/current-goal.md)
+- [Current goal](docs/project/current-goal.md)
 
 ## Roadmap Summary
 
 Current focus:
 
-- keep the corpus at `medium_risk_ready` or better;
-- keep `next`/`status`/`review` honest when the actionable queue is already empty but residual risk
-  remains documented;
-- use local stronger-audio evidence to close safe review rows before asking the user to listen
-  manually;
+- use the shadow `offline_aec_v2_v0` Echo Guard lab to understand which complete-removal
+  hypotheses are worth pursuing next;
+- keep `local_fir` as the default: v0 improves proxy metrics, but does not beat `local_fir` on
+  ASR-token leakage gates;
+- rank echo-removal candidates by remote-token leakage, local-word recall and artifacts, not by
+  loudness or ERLE alone;
+- keep `next`/`status`/`review` honest about residual risk while this lab is experimental;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 
 Near-term goals for discussion:
 
-1. Suggested review closure: make the new suggested preview/apply path visible in session and corpus
-   reports, and keep measuring how much manual review it removes.
-2. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
+1. Echo Guard Complete Removal vNext: use the v0 negative result to test more targeted approaches:
+   better speaker-state segmentation, segment-local candidate switching, target-speaker extraction
+   or token-level remote-forbidden decoding.
+2. Suggested review closure maintenance: keep the preview/apply path visible in session and corpus
+   reports, distinguish generated/actionable/needs-review suggestions and avoid closing unmatched
+   risky rows.
+3. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
-3. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
+4. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
    especially Obsidian-vault placement and reviewed proposal exports.
-4. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
+5. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
    regressions before new heuristics ship.
-5. Evidence notes vNext: improve extractive notes quality while preserving citations and review
+6. Evidence notes vNext: improve extractive notes quality while preserving citations and review
    flags.
-6. Open-source release hardening: trim private fixtures, document setup, add security/contact
+7. Open-source release hardening: trim private fixtures, document setup, add security/contact
    guidance and keep generated/private artifacts ignored.
 
 Recently completed:

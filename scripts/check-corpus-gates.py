@@ -215,6 +215,24 @@ def build_baseline_snapshot(
     remote_leak_missing_plan_count: int,
     remote_leak_protect_local_content_items: int,
     remote_leak_protect_local_content_seconds: float,
+    suggested_closure_generated_rows: int,
+    suggested_closure_generated_seconds: float,
+    suggested_closure_actionable_rows: int,
+    suggested_closure_actionable_seconds: float,
+    suggested_closure_needs_review_rows: int,
+    suggested_closure_needs_review_seconds: float,
+    suggested_closure_todo_rows: int,
+    suggested_closure_todo_seconds: float,
+    suggested_closure_auto_rows: int,
+    suggested_closure_auto_seconds: float,
+    suggested_closure_auto_keep_rows: int,
+    suggested_closure_auto_keep_seconds: float,
+    suggested_closure_auto_drop_rows: int,
+    suggested_closure_auto_drop_seconds: float,
+    suggested_closure_auto_review_rows: int,
+    suggested_closure_auto_review_seconds: float,
+    suggested_closure_manual_remaining_rows: int,
+    suggested_closure_manual_remaining_seconds: float,
 ) -> dict[str, Any]:
     sessions: dict[str, dict[str, Any]] = {}
     for row in complete:
@@ -274,6 +292,24 @@ def build_baseline_snapshot(
             "remote_leak_segment_missing_plan_count": remote_leak_missing_plan_count,
             "remote_leak_segment_protect_local_content_items": remote_leak_protect_local_content_items,
             "remote_leak_segment_protect_local_content_seconds": round(remote_leak_protect_local_content_seconds, 3),
+            "suggested_closure_generated_rows": suggested_closure_generated_rows,
+            "suggested_closure_generated_seconds": round(suggested_closure_generated_seconds, 3),
+            "suggested_closure_actionable_rows": suggested_closure_actionable_rows,
+            "suggested_closure_actionable_seconds": round(suggested_closure_actionable_seconds, 3),
+            "suggested_closure_needs_review_rows": suggested_closure_needs_review_rows,
+            "suggested_closure_needs_review_seconds": round(suggested_closure_needs_review_seconds, 3),
+            "suggested_closure_todo_rows": suggested_closure_todo_rows,
+            "suggested_closure_todo_seconds": round(suggested_closure_todo_seconds, 3),
+            "suggested_closure_auto_rows": suggested_closure_auto_rows,
+            "suggested_closure_auto_seconds": round(suggested_closure_auto_seconds, 3),
+            "suggested_closure_auto_keep_rows": suggested_closure_auto_keep_rows,
+            "suggested_closure_auto_keep_seconds": round(suggested_closure_auto_keep_seconds, 3),
+            "suggested_closure_auto_drop_rows": suggested_closure_auto_drop_rows,
+            "suggested_closure_auto_drop_seconds": round(suggested_closure_auto_drop_seconds, 3),
+            "suggested_closure_auto_review_rows": suggested_closure_auto_review_rows,
+            "suggested_closure_auto_review_seconds": round(suggested_closure_auto_review_seconds, 3),
+            "suggested_closure_manual_remaining_rows": suggested_closure_manual_remaining_rows,
+            "suggested_closure_manual_remaining_seconds": round(suggested_closure_manual_remaining_seconds, 3),
         },
         "sessions": sessions,
     }
@@ -604,6 +640,24 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         total_review_sec = sum(safe_float(row.get("review_burden_sec")) for row in complete)
         total_duration_sec = sum(safe_float(row.get("meeting_duration_sec")) for row in complete)
         total_review_burden_ratio = total_review_sec / total_duration_sec if total_duration_sec > 0 else 0.0
+    suggested_closure_generated_rows = safe_int(summary.get("suggested_closure_generated_rows"))
+    suggested_closure_generated_seconds = safe_float(summary.get("suggested_closure_generated_seconds"))
+    suggested_closure_actionable_rows = safe_int(summary.get("suggested_closure_actionable_rows"))
+    suggested_closure_actionable_seconds = safe_float(summary.get("suggested_closure_actionable_seconds"))
+    suggested_closure_needs_review_rows = safe_int(summary.get("suggested_closure_needs_review_rows"))
+    suggested_closure_needs_review_seconds = safe_float(summary.get("suggested_closure_needs_review_seconds"))
+    suggested_closure_todo_rows = safe_int(summary.get("suggested_closure_todo_rows"))
+    suggested_closure_todo_seconds = safe_float(summary.get("suggested_closure_todo_seconds"))
+    suggested_closure_auto_rows = safe_int(summary.get("suggested_closure_auto_rows"))
+    suggested_closure_auto_seconds = safe_float(summary.get("suggested_closure_auto_seconds"))
+    suggested_closure_auto_keep_rows = safe_int(summary.get("suggested_closure_auto_keep_rows"))
+    suggested_closure_auto_keep_seconds = safe_float(summary.get("suggested_closure_auto_keep_seconds"))
+    suggested_closure_auto_drop_rows = safe_int(summary.get("suggested_closure_auto_drop_rows"))
+    suggested_closure_auto_drop_seconds = safe_float(summary.get("suggested_closure_auto_drop_seconds"))
+    suggested_closure_auto_review_rows = safe_int(summary.get("suggested_closure_auto_review_rows"))
+    suggested_closure_auto_review_seconds = safe_float(summary.get("suggested_closure_auto_review_seconds"))
+    suggested_closure_manual_remaining_rows = safe_int(summary.get("suggested_closure_manual_remaining_rows"))
+    suggested_closure_manual_remaining_seconds = safe_float(summary.get("suggested_closure_manual_remaining_seconds"))
 
     check(
         checks,
@@ -1023,6 +1077,24 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         remote_leak_missing_plan_count=remote_leak_missing_plan_count,
         remote_leak_protect_local_content_items=remote_leak_protect_local_content_items,
         remote_leak_protect_local_content_seconds=remote_leak_protect_local_content_seconds,
+        suggested_closure_generated_rows=suggested_closure_generated_rows,
+        suggested_closure_generated_seconds=suggested_closure_generated_seconds,
+        suggested_closure_actionable_rows=suggested_closure_actionable_rows,
+        suggested_closure_actionable_seconds=suggested_closure_actionable_seconds,
+        suggested_closure_needs_review_rows=suggested_closure_needs_review_rows,
+        suggested_closure_needs_review_seconds=suggested_closure_needs_review_seconds,
+        suggested_closure_todo_rows=suggested_closure_todo_rows,
+        suggested_closure_todo_seconds=suggested_closure_todo_seconds,
+        suggested_closure_auto_rows=suggested_closure_auto_rows,
+        suggested_closure_auto_seconds=suggested_closure_auto_seconds,
+        suggested_closure_auto_keep_rows=suggested_closure_auto_keep_rows,
+        suggested_closure_auto_keep_seconds=suggested_closure_auto_keep_seconds,
+        suggested_closure_auto_drop_rows=suggested_closure_auto_drop_rows,
+        suggested_closure_auto_drop_seconds=suggested_closure_auto_drop_seconds,
+        suggested_closure_auto_review_rows=suggested_closure_auto_review_rows,
+        suggested_closure_auto_review_seconds=suggested_closure_auto_review_seconds,
+        suggested_closure_manual_remaining_rows=suggested_closure_manual_remaining_rows,
+        suggested_closure_manual_remaining_seconds=suggested_closure_manual_remaining_seconds,
     )
     baseline = read_json(args.baseline) if args.baseline else None
     compare_baseline(checks, baseline=baseline, current=baseline_snapshot, args=args)
@@ -1082,6 +1154,24 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "remote_leak_segment_protect_local_content_items": remote_leak_protect_local_content_items,
             "remote_leak_segment_protect_local_content_seconds": round(remote_leak_protect_local_content_seconds, 3),
             "remote_leak_segment_sessions_with_protect_local_content": remote_leak_sessions_with_protected,
+            "suggested_closure_generated_rows": suggested_closure_generated_rows,
+            "suggested_closure_generated_seconds": round(suggested_closure_generated_seconds, 3),
+            "suggested_closure_actionable_rows": suggested_closure_actionable_rows,
+            "suggested_closure_actionable_seconds": round(suggested_closure_actionable_seconds, 3),
+            "suggested_closure_needs_review_rows": suggested_closure_needs_review_rows,
+            "suggested_closure_needs_review_seconds": round(suggested_closure_needs_review_seconds, 3),
+            "suggested_closure_todo_rows": suggested_closure_todo_rows,
+            "suggested_closure_todo_seconds": round(suggested_closure_todo_seconds, 3),
+            "suggested_closure_auto_rows": suggested_closure_auto_rows,
+            "suggested_closure_auto_seconds": round(suggested_closure_auto_seconds, 3),
+            "suggested_closure_auto_keep_rows": suggested_closure_auto_keep_rows,
+            "suggested_closure_auto_keep_seconds": round(suggested_closure_auto_keep_seconds, 3),
+            "suggested_closure_auto_drop_rows": suggested_closure_auto_drop_rows,
+            "suggested_closure_auto_drop_seconds": round(suggested_closure_auto_drop_seconds, 3),
+            "suggested_closure_auto_review_rows": suggested_closure_auto_review_rows,
+            "suggested_closure_auto_review_seconds": round(suggested_closure_auto_review_seconds, 3),
+            "suggested_closure_manual_remaining_rows": suggested_closure_manual_remaining_rows,
+            "suggested_closure_manual_remaining_seconds": round(suggested_closure_manual_remaining_seconds, 3),
         },
         "checks": checks,
         "baseline_snapshot": baseline_snapshot,

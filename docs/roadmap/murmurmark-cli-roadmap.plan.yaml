@@ -32,8 +32,8 @@ nodes:
   murmurmark-cli:
     title: "MurmurMark CLI"
     kind: summary
-    status: current
-    effort: 277
+    status: done
+    effort: 291
     notes: |
       Roadmap CLI-версии MurmurMark.
 
@@ -41,21 +41,24 @@ nodes:
       export bundle и retention plan уже доказали, что pipeline можно использовать как
       локальный инструмент, а не как набор лабораторных скриптов.
 
-      Текущий корпус находится в состоянии `medium_risk_ready`: в рабочем наборе 15 сессий, из них
-      14 `ready_for_notes`, одна `review_first`, незавершённых сессий в operational-срезе нет.
-      Снимок на 2026-06-30: selected evidence-backed notes несут около `0.55 min`
+      Текущий корпус находится в состоянии `not_ready`: в рабочем наборе 16 сессий, из них
+      14 `ready_for_notes`, одна `review_first`, и одна risky daily sync блокирует operational-срез.
+      Снимок на 2026-06-30: selected evidence-backed notes несут около `0.69 min`
       документированного остаточного review burden, отдельная поверхность transcript/export review
-      остаётся около `3.05 min`, а обязательная actionable review-очередь сведена к `0` действий.
-      Следующая цель — удержать `medium_risk_ready`, честно объяснить оставшийся non-actionable риск
-      без смены топологии capture/Echo Guard/ASR и не скрывать спорные места от export gate.
+      остаётся около `3.19 min`, а обязательная actionable review-очередь равна `5` действиям.
+      Suggested closure уже показывает generated/actionable/manual остаток, но свежие сессии
+      подтвердили более глубокую причину review burden: remote speech всё ещё просачивается в
+      mic и потом требует transcript repair, cleanup и ручной проверки. Следующая крупная цель —
+      shadow-only Echo Guard Complete Removal v0: проверить, можно ли заметно снизить remote-token
+      leakage до ASR без потери настоящей локальной речи.
 
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
       - Local-first: запись, обработка и аудит по умолчанию локальные.
       - Evidence-backed: transcript, notes и export должны ссылаться на ids реплик,
         audit records и проверяемые артефакты.
-      - Raw CAF, baseline, Echo Guard и ASR остаются воспроизводимыми и
-        неразрушаемыми.
+      - Raw CAF, baseline, текущий `local_fir` и основной ASR остаются воспроизводимыми и
+        неразрушаемыми; новые echo engines сначала работают только в shadow.
       - Synthesis/export не пишут во внешние системы без review.
       - UI App или menu bar не являются обязательным путём к полезному продукту.
 
@@ -407,12 +410,11 @@ nodes:
     status: done
     effort: 4
     notes: |
-      Завершено 2026-06-30: readiness/status/next согласованы после закрытия обязательной
-      review-очереди. Текущая точка: 14/15 `ready_for_notes`, 1 `review_first`, `0.55 min`
-      notes review, `3.05 min` transcript/export review и `0` actionable packed actions.
-      Acceptance закрыт: corpus удерживает `medium_risk_ready`, пустой `review first-lane` больше
-      не предлагается, а единственная `review_first` сессия показывает documented non-actionable
-      blocker. Capture, Echo Guard и основной ASR не менялись.
+      Завершено 2026-06-30: readiness/status/next больше не отправляют пользователя в пустой
+      `review first-lane`. Этот слой не означает, что текущий корпус зелёный: после новой daily sync
+      corpus снова `not_ready` с 5 actionable rows. Завершённая часть — корректная маршрутизация:
+      ready sessions ведут в notes/finish, пустые очереди не предлагаются, а реальные rows остаются
+      явными. Capture, Echo Guard и основной ASR не менялись.
       Possible lost `Me` и спорное содержание остаются в review/export gate.
 
   review-suggested-closure-v2:
@@ -425,12 +427,15 @@ nodes:
     notes: |
       Текущий слой после анализа daily sync `2026-06-30_11-15-56`.
       Сессия прошла capture/Echo Guard/ASR, но получила `risky` из-за transcript order и local recall.
-      При этом faster-whisper stronger judge подтвердил большую часть order rows как real Me +
-      real remote timing/double-talk, а suggested answer sheet закрыл 9/12 строк dry-run без
-      auto-drop. Реализован first-class путь `murmurmark review suggested` /
-      `murmurmark review suggested apply`: preview exact remaining queue, partial apply безопасных
-      suggestions, `reviewed_v1` refresh через `--allow-partial-review`. Следующий доводочный шаг —
-      вывести этот delta в corpus reports и удержать поведение на нескольких групповых sync.
+      При этом faster-whisper stronger judge подтвердил ряд overlap-фрагментов как real Me +
+      real remote timing/double-talk, но текущая очередь daily sync состоит из unmatched order/local-recall
+      rows. Реализован first-class путь `murmurmark review suggested` /
+      `murmurmark review suggested apply`: preview exact remaining queue, partial apply только
+      безопасных suggestions, reason/evidence в applied rows, `suggested_closure` в workspace report,
+      status/readiness/corpus metrics. Guardrail текущего шага: если безопасных suggested rows нет,
+      CLI честно печатает `auto_closable: 0` и ведёт в первую ручную lane, а не скрывает риск.
+      Текущий corpus report: `8` generated suggestions, `0` actionable rows, `8` needs-review rows,
+      `61` manual rows remaining.
 
   review-burden-report:
     title: "Review burden report"
@@ -454,13 +459,16 @@ nodes:
     parent: murmurmark-cli
     deps: [review-loop, corpus-regression]
     status: current
-    effort: 27
+    effort: 41
     notes: |
-      Улучшать качество без смены топологии: запись, Echo Guard и основной ASR
-      остаются прежними, меняются repair/cleanup/audit и проверочные контуры. `audit_cleanup_v7`
-      уже чинит частичные remote-дубли внутри длинных `Me` реплик без whole-utterance drop.
-      Текущий quality-фокус — удерживать corpus gates и не расширять cleanup без доказанного
-      выигрыша. Следующий продуктовый фокус — suggested review closure и corpus gates.
+      Улучшать качество без разрушения уже работающего pipeline. Запись, raw CAF, текущий
+      `local_fir` default и основной ASR остаются воспроизводимыми. Новые echo-removal идеи
+      сначала работают как shadow candidates.
+
+      `audit_cleanup_v7` и review loop уже умеют компенсировать часть remote leak после ASR, но
+      это дорогая защита. Свежая цель — проверить, можно ли убрать больше remote-derived speech
+      до ASR через offline AEC v2 lab: длинный echo tail, нелинейные remote bases, residual mask и
+      ASR-level scoring.
 
   quality-local-recall-repair:
     title: "Better local recall repair"
@@ -536,7 +544,92 @@ nodes:
     deps: [corpus-error-taxonomy]
     status: current
     effort: 6
-    notes: "Более точные метки: lost_me, remote_duplicate, asr_noise, timing_overlap, double_talk. Daily sync 2026-06-30 показал, что confirm_timing_or_doubletalk уже полезен для suggested review closure, но readiness/review plan ещё должны считать остаток после suggested apply, а не только после ручного закрытия всей lane."
+    notes: "Более точные метки: lost_me, remote_duplicate, asr_noise, timing_overlap, double_talk. Daily sync 2026-06-30 показал, что confirm_timing_or_doubletalk полезен для suggested review closure; status теперь должен показывать текущий остаток после частичного suggested apply, а не старый прогноз."
+
+  quality-offline-aec-v2-lab:
+    title: "Echo Guard complete-removal lab"
+    kind: task
+    parent: quality-hardening
+    deps: [corpus-regression, quality-remote-leak-corpus-queue, quality-audio-judge-labels]
+    status: current
+    effort: 12
+    notes: |
+      Shadow-only `offline_aec_v2_v0` exists: delay trajectory, 80/160/320 ms tails, nonlinear
+      remote-basis bank, residual mask, `remote_floor` control candidate, corpus report and optional
+      faster-whisper ASR clip audit. `local_fir` remains default. v0 improved proxy metrics but did
+      not beat `local_fir` on ASR-token leakage gates.
+
+  quality-offline-aec-v2-gates:
+    title: "Product gates for complete removal"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-offline-aec-v2-lab]
+    status: done
+    effort: 2
+    notes: "Implemented for v0. Reports emit proxy metrics, ASR clip audit metrics when requested, artifact flags and `promotion_decision: shadow_only_not_promoted`. Proxy gates can pass without ASR promotion."
+
+  quality-offline-aec-v2-delay-linear:
+    title: "Delay trajectory and long-tail linear stage"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-offline-aec-v2-gates]
+    status: done
+    effort: 4
+    notes: "Implemented in v0 as smoothed delay trajectory and 80/160/320 ms offline FIR candidates."
+
+  quality-offline-aec-v2-nonlinear-mask:
+    title: "Nonlinear basis and residual mask"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-offline-aec-v2-delay-linear]
+    status: done
+    effort: 4
+    notes: "Implemented in v0 with clipped, tanh, compressed, band-limited and signed-power remote bases plus `remote_only` residual masks."
+
+  quality-offline-aec-v2-corpus-ranking:
+    title: "ASR-level candidate ranking"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-offline-aec-v2-nonlinear-mask]
+    status: done
+    effort: 4
+    notes: "Implemented for v0. Four-session smoke found `asr_candidate_gate_passed: 0`: no candidate reduced remote-token leakage below `local_fir` without local-recall regression."
+
+  quality-echo-vnext-asr-positive:
+    title: "ASR-positive echo removal vNext"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-offline-aec-v2-corpus-ranking]
+    status: next
+    effort: 8
+    notes: "Use the v0 negative result to test mechanisms that target ASR-visible remote words directly: better speaker-state segmentation, segment-local candidate switching, target-speaker extraction, or token-level remote-forbidden decoding. Do not spend another cycle on dB-only tuning."
+
+  quality-neural-residual-echo-spike:
+    title: "Neural residual echo suppression spike"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-echo-vnext-asr-positive]
+    status: idea
+    effort: 8
+    notes: "Only after offline AEC v2 establishes contracts: train or test a narrow local model that estimates echo/local confidence maps from mic, remote, echo_hat and speaker_state."
+
+  quality-target-me-extractor-spike:
+    title: "Target-Me extractor spike"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-echo-vnext-asr-positive]
+    status: idea
+    effort: 6
+    notes: "Use high-confidence local-only islands to enroll Me, then test target-speaker extraction on overlap-heavy clips. Useful for double-talk where pure subtraction is underdetermined."
+
+  quality-token-remote-forbidden:
+    title: "Token-level remote-forbidden transcript"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-offline-aec-v2-corpus-ranking]
+    status: later
+    effort: 4
+    notes: "Keep transcript safety even after better audio: align mic and remote tokens and prevent remote-explainable tokens from becoming Me unless local evidence is strong."
 
   evidence-notes:
     title: "Evidence-backed notes и quality verdict"
@@ -944,8 +1037,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Suggested review closure v2: превратить stronger-audio-judge подсказки в безопасный first-class путь закрытия review queue для групповых daily sync."
-      success_by_next_sync: "Daily sync 2026-06-30 показывает preview/apply suggested closure, точный остаток ручной проверки, обновлённый readiness и corpus delta без смены capture, Echo Guard и основного ASR."
+      nearest_goal: "Echo Guard Complete Removal vNext: после v0 выбрать механизм, который снижает именно ASR-видимую remote-речь, а не только waveform/proxy энергию."
+      success_by_next_sync: "Есть план и первый spike для ASR-positive echo removal: v0 остаётся shadow baseline, local_fir остаётся default, новый кандидат должен снижать remote-token leakage ниже local_fir без local-recall регрессии."
     defaults:
       status_progress:
         done: 1.0
@@ -979,16 +1072,16 @@ x:
         kind: main
         mgmt:
           health: green
-          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до medium_risk_ready; новая daily sync выявила, что risky часто означает не вредный transcript, а незакрытые suggested timing/double-talk rows."
-          next_sync_goal: "Сделать suggested review closure измеримым и безопасным, затем добавить его в corpus delta/gates."
+          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до рабочей основы. offline_aec_v2_v0 теперь даёт repeatable shadow baseline: proxy улучшается, ASR-gate не проходит."
+          next_sync_goal: "Проверить ASR-positive echo removal vNext: segment-local switching, target-speaker extraction или token-level remote-forbidden decoding."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]
         kind: context
         mgmt:
           health: neutral
-          sync_note: "Rich transcript, LLM synthesis и exports полезны после укрепления CLI и evidence contracts."
-          next_sync_goal: "Держать эти ветки зависимыми от качества transcript и notes."
+          sync_note: "Neural residual echo suppression, target-speaker extraction, rich transcript and LLM synthesis stay behind evidence contracts and corpus gates."
+          next_sync_goal: "Тяжёлые модели подключать только как gated validator/spike против v0 baseline, а не как замену production pipeline."
       optional-ui:
         title: "Optional UI"
         scope_nodes: [future-ui-app]

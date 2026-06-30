@@ -28,6 +28,23 @@ ANSWER_SHORTCUTS = {
     "?": "needs_review",
 }
 
+SAFE_SUGGESTED_DECISION_CLASSES = {
+    "keep_me": [
+        "confirmed local Me speech",
+        "confirmed timing/double-talk where both sides are real",
+    ],
+    "drop_me": [
+        "confirmed remote duplicate after safety gates",
+        "confirmed short ASR noise after safety gates",
+    ],
+    "needs_review": [
+        "uncertain audio evidence",
+        "local recall risk",
+        "transcript order risk without matching high-confidence judge evidence",
+        "any case where keep/drop evidence conflicts",
+    ],
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Apply all MurmurMark review workspace answer sheets.")
@@ -267,6 +284,18 @@ def workspace_apply_base_command(args: argparse.Namespace, workspace_path: Path,
     return base
 
 
+def session_arg_from_workspace(workspace_path: Path) -> str | None:
+    plan = workspace_path.expanduser().resolve().parent
+    if plan.name != "review-plan":
+        return None
+    readiness = plan.parent
+    derived = readiness.parent
+    session = derived.parent
+    if readiness.name != "readiness" or derived.name != "derived" or not session.name:
+        return None
+    return display_path(session)
+
+
 def workspace_apply_handoff(
     *,
     args: argparse.Namespace,
@@ -281,6 +310,9 @@ def workspace_apply_handoff(
     base = workspace_apply_base_command(args, workspace_path, template, out)
     progress_command = f"murmurmark review progress --template {shell_path(template)} --decisions {shell_path(out)}"
     batch_apply_command = f"murmurmark review apply --decisions {shell_path(out)} --review-template {shell_path(template)}"
+    session_arg = session_arg_from_workspace(workspace_path)
+    status_command = f"murmurmark status {shlex.quote(session_arg)}" if session_arg else "murmurmark status"
+    report_command = f"murmurmark report {shlex.quote(session_arg)}" if session_arg else "murmurmark report corpus"
     first_todo_lane = next(
         (
             lane
@@ -291,6 +323,36 @@ def workspace_apply_handoff(
     )
     next_commands: list[dict[str, str]] = []
     can_write_partial = args.allow_partial and not errors and safe_int(summary.get("reviewed_count")) > 0
+    total_rows = safe_int(summary.get("total_rows"))
+    if total_rows == 0:
+        return {
+            "recommended_next": status_command,
+            "next_commands": [
+                command_item("status_session", status_command, "review workspace has no actionable rows"),
+                command_item("report_session", report_command, "refresh readiness before finish/export"),
+            ],
+            "open_commands": [
+                command_item("open_review_workspace_apply_report", f"less {shell_path(report_path)}", "inspect workspace apply report"),
+                command_item("open_review_workspace", f"less {shell_path(workspace_path)}", "inspect review workspace JSON"),
+            ],
+        }
+    if not lanes and safe_int(summary.get("remaining_rows")) > 0:
+        review_workspace_command = (
+            f"murmurmark review workspace --session {shlex.quote(session_arg)}"
+            if session_arg
+            else "murmurmark review workspace"
+        )
+        return {
+            "recommended_next": review_workspace_command,
+            "next_commands": [
+                command_item("rebuild_review_workspace", review_workspace_command, "workspace has remaining rows but no usable lane reports"),
+                command_item("status_session", status_command, "inspect current readiness"),
+            ],
+            "open_commands": [
+                command_item("open_review_workspace_apply_report", f"less {shell_path(report_path)}", "inspect workspace apply report"),
+                command_item("open_review_workspace", f"less {shell_path(workspace_path)}", "inspect review workspace JSON"),
+            ],
+        }
     if args.dry_run:
         if first_todo_lane and can_write_partial:
             next_commands.append(command_item("apply_review_workspace_partial", base, "apply reviewed suggested rows and leave todo rows open"))
@@ -340,6 +402,16 @@ def workspace_apply_handoff(
     elif summary.get("ready_for_partial_apply"):
         next_commands.append(command_item("refresh_review_progress", progress_command, "show exact manual review remainder"))
         next_commands.append(command_item("apply_partial_review_decisions", f"{batch_apply_command} --allow-partial-review", "refresh reviewed transcript profile with closed rows"))
+    elif args.answers_source == "suggested" and first_todo_lane:
+        if first_todo_lane.get("markdown"):
+            next_commands.append(
+                command_item(
+                    "open_first_manual_review_lane",
+                    f"less {shell_path(Path(str(first_todo_lane.get('markdown'))))}",
+                    "no safe suggestions were applied; inspect the first remaining manual lane",
+                )
+            )
+        next_commands.append(command_item("refresh_review_progress", progress_command, "show exact manual review remainder"))
     else:
         next_commands.append(command_item("refresh_review_progress", progress_command, "refresh review progress"))
     open_commands = [
@@ -361,8 +433,187 @@ def row_seconds(row: dict[str, Any]) -> float:
         return 0.0
 
 
+def row_lane(row: dict[str, Any]) -> str:
+    return str(row.get("review_lane") or "unknown")
+
+
+def row_label(row: dict[str, Any]) -> str:
+    return str(row.get("label") or "unknown")
+
+
 def is_reviewed(row: dict[str, Any]) -> bool:
     return str(row.get("decision") or "todo") not in {"", "todo"}
+
+
+def reviewed_transition(before: dict[str, Any], after: dict[str, Any]) -> bool:
+    return not is_reviewed(before) and is_reviewed(after)
+
+
+def decision_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    return dict(sorted(Counter(str(row.get("decision") or "todo") for row in rows).items()))
+
+
+def row_seconds_sum(rows: list[dict[str, Any]]) -> float:
+    return round(sum(row_seconds(row) for row in rows), 3)
+
+
+def bucket_rows(rows: list[dict[str, Any]], key_fn) -> list[dict[str, Any]]:
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        buckets.setdefault(str(key_fn(row)), []).append(row)
+    result: list[dict[str, Any]] = []
+    for key, bucket in sorted(buckets.items()):
+        result.append(
+            {
+                "key": key,
+                "count": len(bucket),
+                "seconds": row_seconds_sum(bucket),
+            }
+        )
+    return result
+
+
+def bucket_records(records: list[dict[str, Any]], key_name: str) -> list[dict[str, Any]]:
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        buckets.setdefault(str(record.get(key_name) or "unknown"), []).append(record)
+    result: list[dict[str, Any]] = []
+    for key, bucket in sorted(buckets.items()):
+        result.append(
+            {
+                "key": key,
+                "count": sum(safe_int(item.get("rows")) or 1 for item in bucket),
+                "items": len(bucket),
+                "seconds": round(sum(float(item.get("seconds") or 0.0) for item in bucket), 3),
+            }
+        )
+    return result
+
+
+def suggested_records_from_lane_reports(lane_reports: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for lane in lane_reports or []:
+        for item in lane.get("suggested_decision_items") or []:
+            if isinstance(item, dict):
+                records.append(item)
+    return records
+
+
+def suggested_decision_summary(lane_reports: list[dict[str, Any]] | None) -> dict[str, Any]:
+    records = suggested_records_from_lane_reports(lane_reports)
+    actionable = [record for record in records if str(record.get("decision") or "") in {"keep_me", "drop_me"}]
+    needs_review = [record for record in records if str(record.get("decision") or "") == "needs_review"]
+    todo = [record for record in records if str(record.get("decision") or "") in {"todo", ""}]
+    return {
+        "rows": sum(safe_int(record.get("rows")) or 1 for record in records),
+        "items": len(records),
+        "seconds": round(sum(float(record.get("seconds") or 0.0) for record in records), 3),
+        "actionable_rows": sum(safe_int(record.get("rows")) or 1 for record in actionable),
+        "actionable_seconds": round(sum(float(record.get("seconds") or 0.0) for record in actionable), 3),
+        "needs_review_rows": sum(safe_int(record.get("rows")) or 1 for record in needs_review),
+        "needs_review_seconds": round(sum(float(record.get("seconds") or 0.0) for record in needs_review), 3),
+        "todo_rows": sum(safe_int(record.get("rows")) or 1 for record in todo),
+        "todo_seconds": round(sum(float(record.get("seconds") or 0.0) for record in todo), 3),
+        "by_decision": bucket_records(records, "decision"),
+    }
+
+
+def closure_item(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "review_row_key": review_row_key(row),
+        "source_audit_id": row.get("source_audit_id"),
+        "review_lane": row.get("review_lane"),
+        "label": row.get("label"),
+        "decision": row.get("decision") or "todo",
+        "seconds": round(row_seconds(row), 3),
+        "reason": row.get("review_suggested_decision_reason")
+        or row.get("suggested_decision_reason")
+        or row.get("review_reason")
+        or "",
+        "confidence": row.get("review_suggested_decision_confidence")
+        or row.get("suggested_decision_confidence"),
+        "evidence": row.get("review_evidence") or {},
+    }
+
+
+def suggested_closure_summary(
+    before_rows: list[dict[str, Any]],
+    after_rows: list[dict[str, Any]],
+    answers_source: str,
+    lane_reports: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    before_remaining = [row for row in before_rows if not is_reviewed(row)]
+    after_remaining = [row for row in after_rows if not is_reviewed(row)]
+    closed_rows = [
+        after
+        for before, after in zip(before_rows, after_rows)
+        if reviewed_transition(before, after)
+    ]
+    suggested_closed = [
+        row for row in closed_rows if str(row.get("review_source") or "") == "workspace_suggested_answer_sheet"
+    ]
+    suggested_by_decision = bucket_rows(suggested_closed, lambda row: row.get("decision") or "todo")
+    remaining_by_lane = bucket_rows(after_remaining, row_lane)
+    remaining_by_label = bucket_rows(after_remaining, row_label)
+    if suggested_closed:
+        status = "partial_apply_ready" if after_remaining else "ready_for_review_apply"
+    elif after_remaining:
+        status = "manual_review_required"
+    else:
+        status = "already_closed"
+    before_seconds = row_seconds_sum(before_remaining)
+    after_seconds = row_seconds_sum(after_remaining)
+    if suggested_closed and after_remaining:
+        readiness_effect = "manual_review_reduced"
+        projected_after = "review_required"
+    elif suggested_closed:
+        readiness_effect = "all_suggested_rows_closed"
+        projected_after = "review_apply_ready"
+    elif after_remaining:
+        readiness_effect = "no_safe_closure"
+        projected_after = "review_required"
+    else:
+        readiness_effect = "already_closed"
+        projected_after = "review_closed"
+    return {
+        "schema": "murmurmark.suggested_review_closure/v1",
+        "answers_source": answers_source,
+        "status": status,
+        "before": {
+            "manual_rows": len(before_remaining),
+            "manual_seconds": before_seconds,
+            "decisions": decision_counts(before_rows),
+        },
+        "after": {
+            "manual_rows": len(after_remaining),
+            "manual_seconds": after_seconds,
+            "decisions": decision_counts(after_rows),
+        },
+        "readiness_projection": {
+            "before_state": "review_required" if before_remaining else "review_closed",
+            "after_state": projected_after,
+            "effect": readiness_effect,
+            "manual_rows_delta": len(after_remaining) - len(before_remaining),
+            "manual_seconds_delta": round(after_seconds - before_seconds, 3),
+            "requires_review_apply": projected_after == "review_apply_ready",
+            "requires_manual_review": bool(after_remaining),
+        },
+        "closed_by_suggestions": {
+            "rows": len(suggested_closed),
+            "seconds": row_seconds_sum(suggested_closed),
+            "by_decision": suggested_by_decision,
+            "items": [closure_item(row) for row in suggested_closed[:50]],
+        },
+        "generated_suggestions": suggested_decision_summary(lane_reports),
+        "remaining_manual_queue": {
+            "rows": len(after_remaining),
+            "seconds": row_seconds_sum(after_remaining),
+            "by_lane": remaining_by_lane,
+            "by_label": remaining_by_label,
+            "items": [closure_item(row) for row in after_remaining[:50]],
+        },
+        "safe_decision_classes": SAFE_SUGGESTED_DECISION_CLASSES,
+    }
 
 
 def me_utterance_ids(row: dict[str, Any]) -> list[str]:
@@ -432,6 +683,7 @@ def apply_lane(
     answer_sheet = path_from_value(lane_input.get("answer_sheet"))
     rejected: list[dict[str, Any]] = []
     applied: list[dict[str, Any]] = []
+    suggested_items: list[dict[str, Any]] = []
 
     if not manifest_path.exists():
         rejected.append({"lane": lane, "reason": "missing_manifest", "path": str(manifest_path)})
@@ -493,6 +745,22 @@ def apply_lane(
             )
             continue
         concrete_indexes = [row_index for row_index in row_indexes if row_index is not None]
+        suggested_decision = str(item.get("suggested_decision") or "todo")
+        if suggested_decision not in VALID_DECISIONS:
+            suggested_decision = "todo"
+        suggested_items.append(
+            {
+                "index": item.get("index"),
+                "source_audit_id": source_id,
+                "source_audit_ids": source_ids,
+                "decision": suggested_decision,
+                "confidence": item.get("suggested_decision_confidence"),
+                "reason": item.get("suggested_decision_reason") or "",
+                "rows": len(concrete_indexes),
+                "seconds": round(sum(row_seconds(rows[row_index]) for row_index in concrete_indexes), 3),
+                "allowed_decisions": item.get("allowed_decisions"),
+            }
+        )
         invalid_rows = [
             {
                 "review_row_key": review_row_key(rows[row_index]),
@@ -520,6 +788,7 @@ def apply_lane(
                     row["decision"] = "todo"
                     row["status"] = "todo"
             else:
+                stronger_summary = item.get("stronger_audio_judge") if isinstance(item.get("stronger_audio_judge"), dict) else {}
                 row["decision"] = decision
                 row["status"] = "reviewed"
                 row["reviewed_at"] = now
@@ -531,6 +800,25 @@ def apply_lane(
                 row["review_lane_pack_index"] = item.get("index")
                 if item.get("grouped"):
                     row["review_lane_pack_group_size"] = item.get("group_size")
+                row["review_reason"] = item.get("suggested_decision_reason") or ""
+                row["review_evidence"] = {
+                    "source_audit_ids": source_ids,
+                    "review_lane": lane,
+                    "lane_pack_index": item.get("index"),
+                    "suggested_decision": item.get("suggested_decision"),
+                    "suggested_decision_confidence": item.get("suggested_decision_confidence"),
+                    "suggested_decision_reason": item.get("suggested_decision_reason"),
+                    "allowed_decisions": item.get("allowed_decisions"),
+                    "stronger_audio_judge": {
+                        "count": stronger_summary.get("count"),
+                        "labels": stronger_summary.get("labels"),
+                        "max_confidence": stronger_summary.get("max_confidence"),
+                    },
+                }
+                if answers_source == "suggested":
+                    row["review_suggested_decision"] = item.get("suggested_decision")
+                    row["review_suggested_decision_confidence"] = item.get("suggested_decision_confidence")
+                    row["review_suggested_decision_reason"] = item.get("suggested_decision_reason")
                 if reviewer:
                     row["reviewer"] = reviewer
             rows[row_index] = row
@@ -542,6 +830,8 @@ def apply_lane(
                     "decision": row.get("decision"),
                     "status": row["status"],
                     "review_row_key": review_row_key(row),
+                    "reason": row.get("review_reason") or row.get("suggested_decision_reason") or "",
+                    "evidence": row.get("review_evidence") or {},
                 }
             )
 
@@ -561,6 +851,8 @@ def apply_lane(
             "todo_count": sum(1 for row in applied if row.get("status") == "todo"),
             "rejected_count": len(rejected),
         },
+        "suggested_decision_items": suggested_items,
+        "suggested_decision_summary": suggested_decision_summary([{"suggested_decision_items": suggested_items}]),
         "rejected": rejected,
     }
 
@@ -572,6 +864,7 @@ def main() -> int:
     out = args.out.expanduser()
     workspace = read_json(workspace_path)
     rows = merge_existing(read_jsonl(template), read_jsonl(out))
+    before_rows = [dict(row) for row in rows]
     lookup = row_lookup(rows)
     now = datetime.now(timezone.utc).isoformat()
     lanes = workspace_lane_inputs(workspace, args.answers_source)
@@ -607,6 +900,7 @@ def main() -> int:
         "decisions": dict(sorted(decision_counts.items())),
         "suggested_conflict_downgraded_count": len(suggested_conflict_downgrades),
     }
+    suggested_closure = suggested_closure_summary(before_rows, rows, args.answers_source, lane_reports)
     errors = rejected + ([{"reason": "workspace_answers_incomplete", "todo_count": workspace_todo_count}] if complete_error else [])
     report_path = args.report.expanduser()
     report = {
@@ -619,10 +913,11 @@ def main() -> int:
             "out": str(out),
         },
         "dry_run": args.dry_run,
-            "answers_source": args.answers_source,
-            "require_complete": args.require_complete,
-            "allow_partial": args.allow_partial,
-            "summary": summary,
+        "answers_source": args.answers_source,
+        "require_complete": args.require_complete,
+        "allow_partial": args.allow_partial,
+        "summary": summary,
+        "suggested_closure": suggested_closure,
         "lanes": lane_reports,
         "suggested_conflict_downgrades": suggested_conflict_downgrades,
         "errors": errors,

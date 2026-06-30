@@ -291,6 +291,98 @@ preserve_local
 
 This policy intentionally keeps ambiguous remote-active regions as mildly cleaned audio instead of hard-muting them. The product risk being avoided is losing the user's quiet speech, especially greetings, short confirmations and overlap speech. More aggressive policies exist for experiments, but they are not the default.
 
+## Complete Echo Removal Research
+
+Status: research and experiment plan, not a default engine.
+
+The current `local_fir` engine is a preserve-local compromise: it reduces remote leakage, but it is not expected to remove every recognizable remote word from `mic`. Real sessions show that remaining remote residue creates review burden and role-attribution risk.
+
+The next Echo Guard research line is documented in [Complete Echo Removal Research](../research/2026-06-30-complete-echo-removal.md). The working definition of "complete" is product-complete, not waveform-perfect:
+
+- ASR on cleaned mic must not recover remote words as `Me`;
+- local words must remain recoverable, including greetings, backchannels and overlap comments;
+- genuinely ambiguous regions must stay auditable instead of being silently muted;
+- raw CAF tracks remain immutable.
+
+Promising directions:
+
+- `offline_aec_v2`: long-tail adaptive filtering, drift-aware alignment, nonlinear remote bases, multi-hypothesis echo path banks and residual masks;
+- neural residual echo suppression after a classical echo estimate;
+- target-speaker extraction for `Me` from local-only enrollment islands;
+- token-level remote-forbidden transcript construction as the final safety net.
+
+None of these should replace `local_fir` by default until corpus gates show lower remote-token leakage without worse local-word recall.
+
+## Offline AEC v2 Shadow Lab
+
+Status: implemented as a diagnostic lab, not as a default Echo Guard engine.
+
+Command:
+
+```bash
+.venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION"
+```
+
+The lab assumes the normal working files already exist:
+
+```text
+derived/preprocess/audio/mic_raw_for_asr.wav
+derived/preprocess/audio/remote_for_aec.wav
+derived/preprocess/echo/speaker_state.jsonl
+derived/preprocess/echo/local_fir_report.json
+```
+
+It creates multiple candidates:
+
+- `linear_tail80`;
+- `linear_tail160`;
+- `linear_tail320`;
+- `nonlinear_tail160_mask`;
+- `nonlinear_tail160_remote_strongmask`;
+- `nonlinear_tail160_remote_floor`.
+
+The current nonlinear candidates use a small remote basis bank:
+
+```text
+remote
+band_limited
+clipped
+tanh
+compressed
+signed_power
+```
+
+The first implementation is deliberately conservative:
+
+- delay is estimated as a smoothed trajectory;
+- FIR application uses offline FFT convolution;
+- residual masking is strongest only in `remote_only` regions;
+- local-only, opening/backchannel and double-talk preservation are measured separately;
+- reports always say `promotion_decision: shadow_only_not_promoted`.
+
+Primary outputs:
+
+```text
+derived/preprocess/audio/mic_clean_offline_aec_v2.wav
+derived/preprocess/audio/echo_hat_offline_aec_v2.wav
+derived/preprocess/echo/offline_aec_v2_report.json
+derived/preprocess/echo/offline_aec_v2_candidates.jsonl
+derived/preprocess/echo/offline_aec_v2_segments.jsonl
+derived/preprocess/echo/offline_aec_v2_asr_leak_report.json
+derived/preprocess/echo/offline_aec_v2_near_end_preservation_report.json
+```
+
+Current evidence on the first six-session smoke:
+
+- no candidate is promoted;
+- `nonlinear_tail160_remote_floor` improves proxy harmful-remote seconds and remote-only dB on all
+  checked sessions;
+- this is a `remote_only` speech-aware floor, not waveform-perfect echo cancellation;
+- one mostly-silent session regressed local-only recall proxy, which keeps the candidate blocked;
+- faster-whisper ASR clip audit across all candidates found no session where `offline_aec_v2_v0`
+  reduced remote-token leakage below `local_fir` without local-recall regression;
+- the next iteration needs a genuinely ASR-positive mechanism, not a stronger dB/proxy mask.
+
 ## Other Conservative Cleanup Engines
 
 Cleanup is for ASR quality, not for rewriting history.

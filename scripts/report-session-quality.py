@@ -65,6 +65,14 @@ def read_json(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def read_review_progress_summary(session: Path) -> dict[str, Any]:
+    payload = read_json(session / "derived/readiness/review-plan/review_decisions_progress.json")
+    if not payload:
+        return {}
+    summary = payload.get("summary")
+    return summary if isinstance(summary, dict) else {}
+
+
 def safe_float(value: Any) -> float | None:
     if value is None:
         return None
@@ -888,6 +896,78 @@ def review_decision_metrics(review_report: dict[str, Any] | None) -> dict[str, A
     }
 
 
+def suggested_closure_metrics(
+    workspace_apply_report: dict[str, Any] | None,
+    review_progress: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if not isinstance(workspace_apply_report, dict):
+        return {}
+    closure = workspace_apply_report.get("suggested_closure")
+    if not isinstance(closure, dict):
+        return {}
+    before = closure.get("before") if isinstance(closure.get("before"), dict) else {}
+    after = closure.get("after") if isinstance(closure.get("after"), dict) else {}
+    closed = (
+        closure.get("closed_by_suggestions")
+        if isinstance(closure.get("closed_by_suggestions"), dict)
+        else {}
+    )
+    remaining = (
+        closure.get("remaining_manual_queue")
+        if isinstance(closure.get("remaining_manual_queue"), dict)
+        else {}
+    )
+    generated = (
+        closure.get("generated_suggestions")
+        if isinstance(closure.get("generated_suggestions"), dict)
+        else {}
+    )
+    closed_by_decision = closed.get("by_decision") if isinstance(closed.get("by_decision"), list) else []
+
+    def bucket_value(rows: list[Any], key: str, field: str) -> Any:
+        for item in rows:
+            if isinstance(item, dict) and str(item.get("key") or "") == key:
+                return item.get(field)
+        return None
+
+    manual_remaining_rows = safe_int(remaining.get("rows"))
+    manual_remaining_seconds = round_or_none(remaining.get("seconds"))
+    if isinstance(review_progress, dict):
+        reviewed = safe_int(review_progress.get("reviewed")) or 0
+        current_remaining = safe_int(review_progress.get("remaining"))
+        if reviewed > 0 and current_remaining is not None:
+            manual_remaining_rows = current_remaining
+            remaining_minutes = safe_float(review_progress.get("remaining_minutes"))
+            if remaining_minutes is not None:
+                manual_remaining_seconds = round(remaining_minutes * 60.0, 3)
+
+    return {
+        "suggested_closure_status": closure.get("status"),
+        "suggested_closure_generated_rows": safe_int(generated.get("rows")),
+        "suggested_closure_generated_seconds": round_or_none(generated.get("seconds")),
+        "suggested_closure_actionable_rows": safe_int(generated.get("actionable_rows")),
+        "suggested_closure_actionable_seconds": round_or_none(generated.get("actionable_seconds")),
+        "suggested_closure_needs_review_rows": safe_int(generated.get("needs_review_rows")),
+        "suggested_closure_needs_review_seconds": round_or_none(generated.get("needs_review_seconds")),
+        "suggested_closure_todo_rows": safe_int(generated.get("todo_rows")),
+        "suggested_closure_todo_seconds": round_or_none(generated.get("todo_seconds")),
+        "suggested_closure_before_manual_rows": safe_int(before.get("manual_rows")),
+        "suggested_closure_before_manual_seconds": round_or_none(before.get("manual_seconds")),
+        "suggested_closure_after_manual_rows": safe_int(after.get("manual_rows")),
+        "suggested_closure_after_manual_seconds": round_or_none(after.get("manual_seconds")),
+        "suggested_closure_auto_rows": safe_int(closed.get("rows")),
+        "suggested_closure_auto_seconds": round_or_none(closed.get("seconds")),
+        "suggested_closure_auto_keep_rows": safe_int(bucket_value(closed_by_decision, "keep_me", "count")),
+        "suggested_closure_auto_keep_seconds": round_or_none(bucket_value(closed_by_decision, "keep_me", "seconds")),
+        "suggested_closure_auto_drop_rows": safe_int(bucket_value(closed_by_decision, "drop_me", "count")),
+        "suggested_closure_auto_drop_seconds": round_or_none(bucket_value(closed_by_decision, "drop_me", "seconds")),
+        "suggested_closure_auto_review_rows": safe_int(bucket_value(closed_by_decision, "needs_review", "count")),
+        "suggested_closure_auto_review_seconds": round_or_none(bucket_value(closed_by_decision, "needs_review", "seconds")),
+        "suggested_closure_manual_remaining_rows": manual_remaining_rows,
+        "suggested_closure_manual_remaining_seconds": manual_remaining_seconds,
+    }
+
+
 def audio_review_metrics(audio_summary: dict[str, Any] | None, session: Path, profile: str, evidence: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(audio_summary, dict):
         return {}
@@ -1456,6 +1536,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     suggested_report = read_json(
         session / "derived/transcript-simple/whisper-cpp/review-decisions/review_decisions_report.suggested_review_v1.json"
     )
+    workspace_apply_report = read_json(session / "derived/readiness/review-plan/review_workspace_apply_report.json")
     local_recall_repair_report = read_json(
         session / "derived/transcript-simple/whisper-cpp/local-recall-repair/local_recall_repair_report.local_recall_repair_v1.json"
     )
@@ -1570,6 +1651,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(group_metrics(group_summary))
     row.update(cleanup_metrics(quality, cleanup_report))
     row.update(review_decision_metrics(review_report))
+    row.update(suggested_closure_metrics(workspace_apply_report, read_review_progress_summary(session)))
     if profile == "local_recall_repair_v1" and isinstance(local_recall_repair_report, dict):
         summary = local_recall_repair_report.get("summary")
         row["local_recall_repair_applied_repairs"] = safe_int(
@@ -1597,6 +1679,17 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
     risk_rows = [row for row in rows if row.get("risk_flags")]
     complete = sum(1 for row in rows if row.get("pipeline_status") == "complete")
     synthesis_review_seconds = sum(safe_float(row.get("synthesis_review_item_seconds")) or 0.0 for row in rows)
+    suggested_auto_seconds = sum(safe_float(row.get("suggested_closure_auto_seconds")) or 0.0 for row in rows)
+    suggested_remaining_seconds = sum(
+        safe_float(row.get("suggested_closure_manual_remaining_seconds")) or 0.0 for row in rows
+    )
+
+    def sum_rows(key: str) -> int:
+        return sum(safe_int(row.get(key)) or 0 for row in rows)
+
+    def sum_seconds(key: str) -> float:
+        return round(sum(safe_float(row.get(key)) or 0.0 for row in rows), 3)
+
     return {
         "session_count": len(rows),
         "complete_pipeline_count": complete,
@@ -1607,6 +1700,29 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "by_verdict": dict(sorted(verdicts.items())),
         "by_selected_profile": dict(sorted(profiles.items())),
         "sessions_with_suggested_review_v1": sum(1 for row in rows if row.get("suggested_review_v1_available")),
+        "sessions_with_suggested_closure": sum(
+            1 for row in rows if row.get("suggested_closure_status") is not None
+        ),
+        "suggested_closure_generated_rows": sum_rows("suggested_closure_generated_rows"),
+        "suggested_closure_generated_seconds": sum_seconds("suggested_closure_generated_seconds"),
+        "suggested_closure_actionable_rows": sum_rows("suggested_closure_actionable_rows"),
+        "suggested_closure_actionable_seconds": sum_seconds("suggested_closure_actionable_seconds"),
+        "suggested_closure_needs_review_rows": sum_rows("suggested_closure_needs_review_rows"),
+        "suggested_closure_needs_review_seconds": sum_seconds("suggested_closure_needs_review_seconds"),
+        "suggested_closure_todo_rows": sum_rows("suggested_closure_todo_rows"),
+        "suggested_closure_todo_seconds": sum_seconds("suggested_closure_todo_seconds"),
+        "suggested_closure_auto_rows": sum_rows("suggested_closure_auto_rows"),
+        "suggested_closure_auto_seconds": round(suggested_auto_seconds, 3),
+        "suggested_closure_auto_keep_rows": sum_rows("suggested_closure_auto_keep_rows"),
+        "suggested_closure_auto_keep_seconds": sum_seconds("suggested_closure_auto_keep_seconds"),
+        "suggested_closure_auto_drop_rows": sum_rows("suggested_closure_auto_drop_rows"),
+        "suggested_closure_auto_drop_seconds": sum_seconds("suggested_closure_auto_drop_seconds"),
+        "suggested_closure_auto_review_rows": sum_rows("suggested_closure_auto_review_rows"),
+        "suggested_closure_auto_review_seconds": sum_seconds("suggested_closure_auto_review_seconds"),
+        "suggested_closure_manual_remaining_rows": sum(
+            safe_int(row.get("suggested_closure_manual_remaining_rows")) or 0 for row in rows
+        ),
+        "suggested_closure_manual_remaining_seconds": round(suggested_remaining_seconds, 3),
         "total_synthesis_review_items": sum(safe_int(row.get("synthesis_review_item_count")) or 0 for row in rows),
         "total_synthesis_review_seconds": round(synthesis_review_seconds, 3),
         "sessions_with_risk_flags": len(risk_rows),
@@ -1679,6 +1795,25 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "suggested_review_v1_applied_decision_rows",
         "suggested_review_v1_dropped_me_utterances",
         "suggested_review_v1_dropped_me_seconds",
+        "suggested_closure_status",
+        "suggested_closure_generated_rows",
+        "suggested_closure_generated_seconds",
+        "suggested_closure_actionable_rows",
+        "suggested_closure_actionable_seconds",
+        "suggested_closure_needs_review_rows",
+        "suggested_closure_needs_review_seconds",
+        "suggested_closure_todo_rows",
+        "suggested_closure_todo_seconds",
+        "suggested_closure_auto_rows",
+        "suggested_closure_auto_seconds",
+        "suggested_closure_auto_keep_rows",
+        "suggested_closure_auto_keep_seconds",
+        "suggested_closure_auto_drop_rows",
+        "suggested_closure_auto_drop_seconds",
+        "suggested_closure_auto_review_rows",
+        "suggested_closure_auto_review_seconds",
+        "suggested_closure_manual_remaining_rows",
+        "suggested_closure_manual_remaining_seconds",
         "echo_reduction_db",
         "selected_notes",
         "hidden_meeting_facilitation_count",
@@ -1739,13 +1874,19 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         f"- Verdicts: `{json.dumps(payload['summary']['by_verdict'], ensure_ascii=False, sort_keys=True)}`",
         f"- Profiles: `{json.dumps(payload['summary']['by_selected_profile'], ensure_ascii=False, sort_keys=True)}`",
         f"- Suggested review shadow profiles: `{payload['summary'].get('sessions_with_suggested_review_v1', 0)}`",
+        f"- Suggested closure: generated `{payload['summary'].get('suggested_closure_generated_rows', 0)}` rows "
+        f"(`{payload['summary'].get('suggested_closure_actionable_rows', 0)}` actionable, "
+        f"`{payload['summary'].get('suggested_closure_needs_review_rows', 0)}` needs-review, "
+        f"`{payload['summary'].get('suggested_closure_todo_rows', 0)}` todo); "
+        f"auto `{payload['summary'].get('suggested_closure_auto_rows', 0)}` rows / `{payload['summary'].get('suggested_closure_auto_seconds', 0.0)}` sec, "
+        f"manual `{payload['summary'].get('suggested_closure_manual_remaining_rows', 0)}` rows / `{payload['summary'].get('suggested_closure_manual_remaining_seconds', 0.0)}` sec",
         f"- Synthesis review items: `{payload['summary'].get('total_synthesis_review_items', 0)}` / `{payload['summary'].get('total_synthesis_review_seconds', 0.0)}` sec",
         f"- Sessions with risk flags: `{payload['summary']['sessions_with_risk_flags']}`",
         "",
         "## Sessions",
         "",
-        "| Session | Label | Gate | Status | Profile | Verdict | Min | Notes Review % | Synthesis Review | Utterances | Needs Review | Notes Needs Review | Local Recall | Local Audit | Order Audit | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
-        "|---|---|---|---|---|---:|---:|---:|---|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---|---|",
+        "| Session | Label | Gate | Status | Profile | Verdict | Min | Notes Review % | Synthesis Review | Suggested Closure | Utterances | Needs Review | Notes Needs Review | Local Recall | Local Audit | Order Audit | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
+        "|---|---|---|---|---|---:|---:|---:|---|---|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---|---|",
     ]
     for row in rows:
         duration = safe_float(row.get("meeting_duration_sec"))
@@ -1755,6 +1896,12 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
             f"{fmt(row.get('audio_review_reliable_count'), '0')}/"
             f"{fmt(row.get('audio_review_probable_error_count'), '0')}/"
             f"{fmt(row.get('audio_review_stronger_judge_count'), '0')}"
+        )
+        suggested_closure = (
+            f"{fmt(row.get('suggested_closure_auto_rows'), '0')}/"
+            f"{fmt(row.get('suggested_closure_manual_remaining_rows'), '0')} rows; "
+            f"{fmt(row.get('suggested_closure_auto_seconds'), '0')}/"
+            f"{fmt(row.get('suggested_closure_manual_remaining_seconds'), '0')}s"
         )
         local_audit = (
             f"{fmt(row.get('local_recall_recommended_next_step'))}; "
@@ -1779,6 +1926,7 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
                     fmt(round(duration / 60.0, 1) if duration is not None else None),
                     fmt((safe_float(row.get("review_burden_ratio")) or 0.0) * 100.0),
                     f"{fmt(row.get('synthesis_review_item_count'), '0')} / {fmt(row.get('synthesis_review_item_seconds'), '0')}s; {fmt_review_top_types(row)}",
+                    suggested_closure,
                     fmt(row.get("utterances")),
                     fmt(row.get("needs_review_count")),
                     f"{fmt(row.get('notes_needs_review_count'))}/{fmt(row.get('notes_evidence_utterance_count'))}",
@@ -2001,8 +2149,66 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
                 ]
             )
             return commands
+        progress = read_review_progress_summary(session)
+        has_partial_review = (
+            (safe_int(progress.get("reviewed")) or 0) > 0
+            and (safe_int(progress.get("remaining")) or 0) > 0
+        )
+        manual_review_commands = [
+            {
+                "id": "review_progress",
+                "label": "Check the exact remaining manual review queue.",
+                "command": f"murmurmark review progress --session {session_arg}",
+            },
+            {
+                "id": "review_first_lane",
+                "label": "Build the recommended first manual review lane pack.",
+                "command": f"murmurmark review first-lane --session {session_arg}",
+            },
+            {
+                "id": "review_lane_apply_first",
+                "label": "Apply the edited first lane answer sheet.",
+                "command": f"murmurmark review lane apply first --session {session_arg}",
+            },
+            {
+                "id": "review_apply",
+                "label": "Refresh the reviewed transcript profile after more decisions are closed.",
+                "command": f"murmurmark review apply --session {session_arg}",
+            },
+        ]
+        suggested_commands = [
+            {
+                "id": "review_suggested_preview",
+                "label": "Preview locally suggested safe review decisions and exact manual remainder.",
+                "command": f"murmurmark review suggested {session_arg}",
+            },
+            {
+                "id": "review_suggested_apply",
+                "label": "Apply only safe suggested review decisions, leaving uncertain rows open.",
+                "command": f"murmurmark review suggested apply {session_arg}",
+            },
+        ]
+        if has_partial_review:
+            commands.extend(manual_review_commands)
+            commands.extend(suggested_commands)
+            commands.extend(
+                [
+                    {
+                        "id": "review_workspace",
+                        "label": "Build lane packs and answer sheets for this session.",
+                        "command": f"murmurmark review workspace --session {session_arg}",
+                    },
+                    {
+                        "id": "review_workspace_apply",
+                        "label": "Apply edited review workspace answers.",
+                        "command": f"murmurmark review workspace apply --session {session_arg}",
+                    },
+                ]
+            )
+            return commands
         commands.extend(
             [
+                *suggested_commands,
                 {
                     "id": "review_next",
                     "label": "Refresh this session's review handoff and recommended first lane.",
@@ -2169,6 +2375,25 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "review_scope_required_rows": row.get("review_scope_required_rows"),
             "review_scope_closed_rows": row.get("review_scope_closed_rows"),
             "review_scope_remaining_seconds": row.get("review_scope_remaining_seconds"),
+            "suggested_closure_status": row.get("suggested_closure_status"),
+            "suggested_closure_generated_rows": row.get("suggested_closure_generated_rows"),
+            "suggested_closure_generated_seconds": row.get("suggested_closure_generated_seconds"),
+            "suggested_closure_actionable_rows": row.get("suggested_closure_actionable_rows"),
+            "suggested_closure_actionable_seconds": row.get("suggested_closure_actionable_seconds"),
+            "suggested_closure_needs_review_rows": row.get("suggested_closure_needs_review_rows"),
+            "suggested_closure_needs_review_seconds": row.get("suggested_closure_needs_review_seconds"),
+            "suggested_closure_todo_rows": row.get("suggested_closure_todo_rows"),
+            "suggested_closure_todo_seconds": row.get("suggested_closure_todo_seconds"),
+            "suggested_closure_auto_rows": row.get("suggested_closure_auto_rows"),
+            "suggested_closure_auto_seconds": row.get("suggested_closure_auto_seconds"),
+            "suggested_closure_auto_keep_rows": row.get("suggested_closure_auto_keep_rows"),
+            "suggested_closure_auto_keep_seconds": row.get("suggested_closure_auto_keep_seconds"),
+            "suggested_closure_auto_drop_rows": row.get("suggested_closure_auto_drop_rows"),
+            "suggested_closure_auto_drop_seconds": row.get("suggested_closure_auto_drop_seconds"),
+            "suggested_closure_auto_review_rows": row.get("suggested_closure_auto_review_rows"),
+            "suggested_closure_auto_review_seconds": row.get("suggested_closure_auto_review_seconds"),
+            "suggested_closure_manual_remaining_rows": row.get("suggested_closure_manual_remaining_rows"),
+            "suggested_closure_manual_remaining_seconds": row.get("suggested_closure_manual_remaining_seconds"),
             "remote_leak_segment_plan_items": row.get("remote_leak_segment_plan_items"),
             "remote_leak_segment_plan_seconds": row.get("remote_leak_segment_plan_seconds"),
             "remote_leak_segment_plan_protect_local_content_items": row.get("remote_leak_segment_plan_protect_local_content_items"),

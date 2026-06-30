@@ -21,20 +21,21 @@ Working now:
 - local extractive synthesis with quality verdicts, review items and evidence-backed notes;
 - Markdown/Obsidian-style export bundles, JSON/audit artifacts for review, and raw retention plans.
 
-Current operating point, measured by `murmurmark next corpus --refresh` on 2026-06-30:
+Current operating point, measured by `murmurmark report corpus` on 2026-06-30:
 
-- the current working corpus is `medium_risk_ready`;
-- `15` working sessions are in scope and `26` diagnostic sessions are excluded from operational
+- the current working corpus is `not_ready` because one risky daily-sync session still has a small
+  mandatory review queue;
+- `16` working sessions are in scope and `26` diagnostic sessions are excluded from operational
   readiness;
-- `14/15` working sessions are `ready_for_notes`, `1/15` is `review_first`, and no in-scope session
-  is incomplete;
-- selected evidence-backed notes carry about `0.55 min` of documented residual review burden;
-- full transcript/export still has about `3.05 min` of explicit review surface;
-- the remaining actionable review queue is `0` actions;
-- readiness reconciliation is complete: the remaining `review_first` session has a documented
-  non-actionable blocker instead of an empty review lane;
-- the next target is recording reliability: `record` should continue until explicit user stop, or
-  fail with durable diagnostics and a clear partial-session handoff.
+- `14/16` working sessions are `ready_for_notes`, `1/16` is `review_first`, and one risky session
+  blocks the corpus;
+- selected evidence-backed notes carry about `0.69 min` of documented residual review burden;
+- full transcript/export still has about `3.19 min` of explicit review surface;
+- the remaining actionable review queue is `5` actions;
+- suggested review closure currently reports `8` generated suggestions, all `needs_review`, and no
+  safe automatic keep/drop rows;
+- readiness reconciliation is complete: MurmurMark no longer sends the user to empty review packs,
+  and it keeps the remaining manual queue explicit.
 
 Still future:
 

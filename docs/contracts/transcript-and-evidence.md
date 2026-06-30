@@ -1482,7 +1482,10 @@ of aggregate metrics and per-session gates used by `check-corpus-gates.py --base
 built from real meeting sessions must stay under ignored `sessions/_reports/`. Baseline comparison
 covers complete/ready session counts, review burden, audio judge metrics, per-session use/local
 recall gates, selected-profile local-recall blockers, possible lost-`Me` seconds and protected
-remote-leak queue growth.
+remote-leak queue growth. Current summaries and baselines also carry suggested review closure
+metrics: auto-closed rows/seconds and remaining manual rows/seconds. Those metrics are informational
+in v2; hard gates still come from use gate, review burden, local recall, transcript order and audio
+judge checks.
 
 Remote-leak segment corpus gates are intentionally warning-level. A pending queue means some `Me`
 regions may still contain unique local content mixed with remote leak and need segment-level repair
@@ -2674,10 +2677,12 @@ shortcuts and `allowed_decisions`; with `--answers-source suggested` it reads
 if any selected workspace answer is still `todo`. With `--allow-partial`, suggested or manual
 workspace apply may write the reviewed rows while preserving `todo` rows as the remaining manual
 queue. This is the path used by `murmurmark review suggested apply SESSION`: it closes only generated
-answers that are already `keep_me`/`drop_me`/`needs_review`, then `review apply
---allow-partial-review` materializes a reviewed profile with explicit remaining scope. The Swift
-workspace handoff prints `suggested_dry_run` and `suggested_apply` commands whenever the workspace
-has suggested sheets. It writes:
+answers that are already actionable `keep_me`/`drop_me`, keeps dotted rows as manual review, then
+`review apply --allow-partial-review` materializes a reviewed profile only when at least one safe row
+was closed. If generated suggested sheets contain only dots, no decisions are written and the next
+command points to the first remaining manual lane. The Swift workspace handoff prints
+`suggested_dry_run` and `suggested_apply` commands whenever the workspace has suggested sheets. It
+writes:
 
 ```text
 sessions/_reports/review-plan/
@@ -2700,6 +2705,78 @@ The JSON uses `murmurmark.review_workspace_apply_report/v1`:
     "ready_for_batch_apply": false,
     "ready_for_partial_apply": true,
     "partial_apply_allowed": true
+  },
+  "suggested_closure": {
+    "schema": "murmurmark.suggested_review_closure/v1",
+    "answers_source": "suggested",
+    "status": "partial_apply_ready",
+    "before": {
+      "manual_rows": 12,
+      "manual_seconds": 42.2
+    },
+    "after": {
+      "manual_rows": 5,
+      "manual_seconds": 8.84
+    },
+    "readiness_projection": {
+      "before_state": "review_required",
+      "after_state": "review_required",
+      "effect": "manual_review_reduced",
+      "manual_rows_delta": -7,
+      "manual_seconds_delta": -33.36,
+      "requires_review_apply": false,
+      "requires_manual_review": true
+    },
+    "generated_suggestions": {
+      "rows": 12,
+      "seconds": 42.2,
+      "actionable_rows": 7,
+      "actionable_seconds": 33.36,
+      "needs_review_rows": 3,
+      "needs_review_seconds": 6.35,
+      "todo_rows": 2,
+      "todo_seconds": 2.49,
+      "by_decision": [
+        {"key": "keep_me", "count": 7, "seconds": 33.36},
+        {"key": "needs_review", "count": 3, "seconds": 6.35},
+        {"key": "todo", "count": 2, "seconds": 2.49}
+      ]
+    },
+    "closed_by_suggestions": {
+      "rows": 7,
+      "seconds": 33.36,
+      "by_decision": [
+        {"key": "keep_me", "count": 7, "seconds": 33.36}
+      ],
+      "items": [
+        {
+          "source_audit_id": "arp_000001",
+          "review_lane": "classify_audio",
+          "label": "timing_overlap",
+          "decision": "keep_me",
+          "reason": "stronger_audio_judge: confirm_timing_or_doubletalk",
+          "evidence": {
+            "stronger_audio_judge": {
+              "labels": ["confirm_timing_or_doubletalk"],
+              "max_confidence": 0.92
+            }
+          }
+        }
+      ]
+    },
+    "remaining_manual_queue": {
+      "rows": 5,
+      "seconds": 8.84,
+      "by_lane": [
+        {"key": "check_local_recall", "count": 2, "seconds": 2.49},
+        {"key": "check_transcript_order", "count": 3, "seconds": 6.35}
+      ]
+    },
+    "safe_decision_classes": {
+      "keep_me": ["confirmed local Me speech", "confirmed timing/double-talk where both sides are real"],
+      "drop_me": ["confirmed remote duplicate after safety gates", "confirmed short ASR noise after safety gates"],
+      "needs_review": ["uncertain audio evidence", "local recall risk", "transcript order risk without matching high-confidence judge evidence"]
+    }
   },
   "lanes": [
     {
@@ -2736,6 +2813,19 @@ The JSON uses `murmurmark.review_workspace_apply_report/v1`:
   ]
 }
 ```
+
+`suggested_closure` is present when `answers_source == "suggested"`. Its `status` is one of:
+`ready_for_review_apply`, `partial_apply_ready`, `manual_review_required`, or `already_closed`.
+`generated_suggestions` reports what the generated answer sheets proposed before applying them:
+safe actionable decisions, explicit `needs_review` suggestions and untouched `todo` rows are counted
+separately.
+`readiness_projection` is a conservative pre-batch projection, not a claim that session readiness has
+already changed. If `after_state` is `review_apply_ready`, the next required step is still
+`murmurmark review apply ...` or the wrapper command that materializes the reviewed profile and
+refreshes readiness.
+`closed_by_suggestions.items[*].reason` and `evidence` explain every generated decision that was
+converted into a reviewed row. `remaining_manual_queue` is intentionally separate from closed rows;
+uncertain rows must remain there and must not disappear silently.
 
 Workspace apply reports use the same handoff fields as lane apply reports:
 `recommended_next`, `next_commands` and `open_commands`. Dry runs usually point to the first
@@ -3575,6 +3665,96 @@ outputs:
   require_human_review_before_docs_update: true
   reject_uncited_facts: true
 ```
+
+## `offline_aec_v2_report.json`
+
+`offline_aec_v2` is a shadow Echo Guard lab. These artifacts are diagnostic evidence, not selected
+ASR input.
+
+Files:
+
+```text
+derived/preprocess/audio/mic_clean_offline_aec_v2.wav
+derived/preprocess/audio/echo_hat_offline_aec_v2.wav
+derived/preprocess/audio/mic_clean_offline_aec_v2_<candidate>.wav
+derived/preprocess/audio/echo_hat_offline_aec_v2_<candidate>.wav
+derived/preprocess/echo/offline_aec_v2_report.json
+derived/preprocess/echo/offline_aec_v2_candidates.jsonl
+derived/preprocess/echo/offline_aec_v2_segments.jsonl
+derived/preprocess/echo/offline_aec_v2_delay_curve.jsonl
+derived/preprocess/echo/offline_aec_v2_window_metrics.jsonl
+derived/preprocess/echo/offline_aec_v2_asr_leak_report.json
+derived/preprocess/echo/offline_aec_v2_near_end_preservation_report.json
+```
+
+Report schema:
+
+```json
+{
+  "schema": "murmurmark.echo.offline_aec_v2_report/v1",
+  "engine": "offline_aec_v2_v0",
+  "mode": "shadow_only",
+  "summary": {
+    "selected_candidate": "nonlinear_tail160_remote_floor",
+    "promotion_decision": "shadow_only_not_promoted",
+    "candidate_gate_passed": true,
+    "candidate_gate_reason": "shadow_candidate_passed_gates",
+    "local_fir_remains_default": true,
+    "asr_audit_mode": "faster_whisper_clip_audit",
+    "asr_selected_candidate": null,
+    "asr_candidate_gate_passed": false,
+    "asr_candidate_gate_reason": "no_candidate_reduced_remote_tokens_without_local_recall_regression"
+  },
+  "baseline": {
+    "local_fir": {
+      "remote_only_median_reduction_db": 17.369,
+      "harmful_remote_seconds_in_me_proxy": 121.0,
+      "local_only_word_recall_proxy": 0.988
+    }
+  },
+  "selected_candidate": {
+    "candidate": "nonlinear_tail160_remote_floor",
+    "score": 115.0,
+    "promotion_decision": "shadow_candidate_passed_gates",
+    "metrics": {
+      "remote_only_median_reduction_db": 54.522,
+      "harmful_remote_seconds_in_me_proxy": 1.0,
+      "local_only_word_recall_proxy": 1.0,
+      "opening_ack_recall_proxy": 1.0,
+      "double_talk_local_recall_proxy": 0.954
+    }
+  }
+}
+```
+
+Required invariants:
+
+- `mode` is `shadow_only`;
+- `summary.promotion_decision` is not `accepted_for_asr`;
+- raw CAF files are not listed as outputs and are not modified;
+- `local_fir_remains_default` stays true until a separate promotion decision exists;
+- ASR token leakage fields may be null when `--asr-audit` is not run;
+- if ASR audit is run, `asr_candidate_gate_reason` must be explicit even when proxy gates pass;
+- a proxy pass never means default promotion.
+
+`offline_aec_v2_segments.jsonl` contains one row per candidate per speaker-state window. Each row
+must include:
+
+```json
+{
+  "candidate": "nonlinear_tail160_remote_floor",
+  "index": 42,
+  "start_sec": 84.0,
+  "end_sec": 86.0,
+  "state": "remote_only",
+  "segment_candidate_score": 142.3,
+  "segment_candidate_rank": 1,
+  "segment_candidate_selected": true
+}
+```
+
+The segment rank is diagnostic. It is meant for future segment-local switching experiments and must
+not be used to rewrite `mic_for_asr.wav` in v0.
 
 For sanitized external synthesis:
 

@@ -39,24 +39,35 @@ The CLI MVP is already real:
 
 Operational corpus snapshot from 2026-06-30:
 
-- status: `medium_risk_ready`;
-- usable for medium-risk notes: yes;
-- working sessions: `15`;
+- status: `not_ready`;
+- usable for medium-risk notes: no at corpus level; yes session-by-session when `status` says so;
+- working sessions: `16`;
 - excluded diagnostic sessions: `26`;
-- readiness: `14/15 ready_for_notes`, `1/15 review_first`;
-- selected notes review burden: `0.55 min`;
-- full transcript/export review surface: `3.05 min`;
-- remaining actionable review queue: `0` actions;
-- remaining `review_first` session: documented non-actionable blocker.
+- readiness: `14/16 ready_for_notes`, `1/16 review_first`, one risky daily-sync blocker;
+- selected notes review burden: `0.69 min`;
+- full transcript/export review surface: `3.19 min`;
+- remaining actionable review queue: `5` actions in `sessions/2026-06-30_11-15-56`;
+- suggested closure: `8` generated suggestions across `5` reports, all `needs_review`, `0`
+  actionable keep/drop rows.
 
-This is enough to use MurmurMark with caution on real working meetings. It is not enough to claim
-zero-review transcript quality.
+This is enough to use many individual MurmurMark sessions with caution. It is not enough to call the
+current operational corpus green.
 
 The 2026-06-30 daily sync showed the current review-loop gap: a meeting can have healthy capture and
 no harmful duplicate seconds, but still be marked `risky` because several order/local-recall rows are
 not formally closed. The immediate path is now `murmurmark review suggested SESSION`, then
 `murmurmark review suggested apply SESSION`; this closes only high-confidence local-audio suggestions
-and leaves the exact remaining manual queue visible.
+when they match the current review queue. If nothing is safe to close, it says so explicitly and
+prints the exact remaining manual queue instead of implying that the user should trust unrelated
+audio-judge seconds.
+
+The same corpus also shows a deeper quality limit: much of the later cleanup work exists because
+remote speech is still audible and sometimes recognizable in the mic track. `local_fir` remains the
+right default because it protects local speech, but it is not a complete-removal engine.
+`offline_aec_v2_v0` now gives a repeatable shadow baseline: proxy masking can reduce remote energy
+and harmful seconds, but ASR-token gates still do not beat `local_fir`. The next quality direction is
+an ASR-positive echo-removal experiment, not another transcript-only cleanup layer and not another
+dB-only tuning pass.
 
 ## Roadmap Tree
 
@@ -68,6 +79,7 @@ flowchart LR
     corpus["corpus-regression<br/>quality gates"]
     review["review-loop<br/>short explicit review queue"]
     hardening["quality-hardening<br/>fewer order/recall/duplicate failures"]
+    echo_lab["echo-removal-lab<br/>offline AEC v2 shadow"]
     notes["evidence-notes<br/>useful notes with IDs"]
     export["export-workflows<br/>Markdown / Obsidian / proposals"]
     retention["retention-policy<br/>raw deletion and payload manifests"]
@@ -83,13 +95,15 @@ flowchart LR
     corpus --> review
     review --> hardening
     corpus --> hardening
+    hardening --> echo_lab
+    corpus --> echo_lab
     hardening --> notes
     notes --> export
     export --> retention
     cli --> packaging
     review --> packaging
     export --> packaging
-    corpus --> future_asr
+    echo_lab --> future_asr
     hardening --> future_asr
     notes --> future_llm
     packaging --> future_ui
@@ -114,13 +128,21 @@ flowchart LR
 
 ### Current
 
-- Keep the corpus at `medium_risk_ready` or better.
+- Restore the corpus to `medium_risk_ready` by closing or safely explaining the five manual review
+  rows in `sessions/2026-06-30_11-15-56`.
 - Keep readiness/status/next honest when the actionable review queue is empty but residual risk
   remains documented.
 - Close safe review rows with local audio evidence before asking the user to listen manually.
   The 2026-06-30 daily sync showed the important pattern: the session was marked `risky`, but
   stronger audio judge confirmed most `check_transcript_order` rows as timing/double-talk, leaving
   only a few real manual checks.
+- Continue **Echo Guard Complete Removal** after v0:
+  - keep `local_fir` as the production default;
+  - use the shadow `offline_aec_v2_v0` lab as a repeatable diagnostic baseline;
+  - treat `remote_floor` as a useful proxy/control candidate, not as a production replacement;
+  - move the next experiment toward ASR-visible leakage reduction: better speaker-state
+    segmentation, segment-local candidate switching, target-speaker extraction, or token-level
+    remote-forbidden decoding.
 - Keep the final handoff readable: `finish` now opens a bundle whose `index.md` is the first working
   artifact, not a derived-file directory listing.
 - Make the everyday path boring:
@@ -138,8 +160,9 @@ flowchart LR
 ### Next
 
 - Review loop polish:
-  - make suggested review closure first-class: show how many rows can be accepted from stronger local
-    audio evidence, how many remain manual, and what readiness would become after applying them;
+  - keep suggested review closure first-class: show how many rows can be accepted from stronger
+    local audio evidence, how many remain manual, and whether generated suggestions are actionable
+    or still `needs_review`;
   - keep lane packs clear, but avoid sending the user to listen through rows already confirmed by the
     local judge;
   - explicit "safe to export / review first / do not use" handoff.
@@ -147,6 +170,10 @@ flowchart LR
   - stable small operational corpus;
   - baseline comparison before new heuristics;
   - no-regression gates for order, local recall, duplicates and selected notes.
+- Echo Guard promotion path after the lab:
+  - keep candidate artifacts separate from `mic_for_asr.wav`;
+  - promote only after corpus gates prove lower remote-token leakage without worse local recall;
+  - keep transcript-level remote-forbidden reconciliation as the final safety net.
 - Export workflow:
   - keep `murmurmark finish` as the normal final handoff;
   - maintain Export Bundle Quality v1 and test it against real 1x1, group and review-blocked
@@ -201,17 +228,19 @@ Recently completed:
 
 ## Candidate Next Goals
 
-1. **Suggested review closure.** Turn stronger-audio-judge suggestions into a safe first-class review
-   path: preview, apply, refresh readiness and show the exact remaining manual queue. The daily sync
-   example should move from `risky` to either `usable_with_review` or a much smaller explicit queue
-   without changing capture, Echo Guard or primary ASR.
-2. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
+1. **Echo Guard Complete Removal vNext.** Build on the v0 lab result: proxy masking can improve
+   energy metrics, but ASR gates still block promotion. The next goal should test an ASR-positive
+   mechanism, not another dB-only tuning pass.
+2. **Suggested review closure maintenance.** Keep stronger-audio-judge suggestions first-class:
+   preview, apply, refresh readiness and show the exact remaining manual queue. This remains
+   operationally important, but it now supports the larger echo-removal direction.
+3. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
    reviewed docs/ticket proposal exports.
-3. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
+4. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
    changes to beat or preserve it.
-4. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
+5. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
    to utterance IDs and review flags.
-5. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
+6. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
    artifacts and add security/contact guidance.
 
 ## Validation

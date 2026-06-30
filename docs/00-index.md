@@ -29,11 +29,12 @@ Read in this order:
 25. [Talk validation log](testing/2026-06-22-talk-validation.md)
 26. [Echo Guard Local FIR validation log](testing/2026-06-23-echo-guard-local-fir.md)
 27. [Mic remote bleed reduction](backlog/mic-remote-bleed-reduction.md)
+28. [Complete echo removal research](research/2026-06-30-complete-echo-removal.md)
 
 ## Current Planning Entry Points
 
 - Start with [README](../README.md) for the current command-line workflow and latest corpus snapshot.
-- Latest completed project goal: [Export Bundle Quality v1](project/current-goal.md).
+- Current project goal: [Echo Guard Complete Removal v0](project/current-goal.md).
 - Use [CLI MVP Definition of Done](project/cli-mvp-definition-of-done.md) to check whether the command-line product gate still holds.
 - Use [CLI roadmap](roadmap/murmurmark-cli-roadmap.md) for the next implementation goal and the dependency map.
 

@@ -9293,6 +9293,7 @@ enum ReadinessPrinter {
         }
         ReviewSummaryPrinter.printSynthesisReviewMetrics(metrics, indent: "  ")
         printStrongerAudioJudgeSummary(session)
+        printSuggestedClosureSummary(session)
         print("  open:")
         if openCommands.isEmpty {
             for key in ["transcript", "notes", "quality_verdict", "audio_review_report", "local_recall_review", "transcript_order_review"] {
@@ -9337,6 +9338,65 @@ enum ReadinessPrinter {
         if let skipped = string(payload["skipped_reason"]), !skipped.isEmpty {
             print("    skipped: \(skipped)")
         }
+    }
+
+    private static func printSuggestedClosureSummary(_ session: URL) {
+        let reportURL = session.appendingPathComponent("derived/readiness/review-plan/review_workspace_apply_report.json")
+        guard FileManager.default.fileExists(atPath: reportURL.path),
+              let payload = try? JSONFiles.object(reportURL),
+              string(payload["answers_source"]) == "suggested",
+              let closure = payload["suggested_closure"] as? [String: Any]
+        else {
+            return
+        }
+        let closed = closure["closed_by_suggestions"] as? [String: Any] ?? [:]
+        let remaining = closure["remaining_manual_queue"] as? [String: Any] ?? [:]
+        let projection = closure["readiness_projection"] as? [String: Any] ?? [:]
+        let closedRows = int(closed["rows"]) ?? 0
+        var remainingRows = int(remaining["rows"]) ?? 0
+        var remainingSeconds = double(remaining["seconds"]) ?? 0.0
+        if let current = currentReviewRemaining(session) {
+            remainingRows = current.rows
+            remainingSeconds = current.seconds
+        }
+        print("  suggested_closure:")
+        print("    status: \(string(closure["status"]) ?? "unknown")")
+        print(String(format: "    auto_closed: %d rows / %.2f min", closedRows, (double(closed["seconds"]) ?? 0.0) / 60.0))
+        print(String(format: "    manual_remaining: %d rows / %.2f min", remainingRows, remainingSeconds / 60.0))
+        if let beforeState = string(projection["before_state"]),
+           let afterState = string(projection["after_state"]) {
+            print("    readiness_projection: \(beforeState) -> \(afterState)")
+        }
+        if suggestedClosureAlreadyPartiallyApplied(session) {
+            print("    status_detail: applied_safe_rows; continue with manual review progress")
+        } else if closedRows > 0 {
+            print("    apply: murmurmark review suggested apply \(PathDisplay.display(session))")
+        } else if remainingRows > 0 {
+            print("    manual: murmurmark review workspace --session \(PathDisplay.display(session))")
+        }
+    }
+
+    private static func suggestedClosureAlreadyPartiallyApplied(_ session: URL) -> Bool {
+        guard let current = currentReviewRemaining(session) else {
+            return false
+        }
+        return current.rows > 0
+    }
+
+    private static func currentReviewRemaining(_ session: URL) -> (rows: Int, seconds: Double)? {
+        let progressURL = session.appendingPathComponent("derived/readiness/review-plan/review_decisions_progress.json")
+        guard let payload = try? JSONFiles.object(progressURL),
+              let summary = payload["summary"] as? [String: Any]
+        else {
+            return nil
+        }
+        let reviewed = int(summary["reviewed"]) ?? 0
+        let remaining = int(summary["remaining"])
+        guard reviewed > 0, let remaining else {
+            return nil
+        }
+        let seconds = (double(summary["remaining_minutes"]) ?? 0.0) * 60.0
+        return (remaining, seconds)
     }
 
     private struct UseSummary {
@@ -9418,6 +9478,28 @@ enum ReadinessPrinter {
         }
         if let verdicts = summary["by_verdict"] as? [String: Any] {
             print("  by_verdict: \(compactJSON(verdicts))")
+        }
+        if summary["sessions_with_suggested_closure"] != nil {
+            let generatedRows = int(summary["suggested_closure_generated_rows"]) ?? 0
+            let actionableRows = int(summary["suggested_closure_actionable_rows"]) ?? 0
+            let needsReviewRows = int(summary["suggested_closure_needs_review_rows"]) ?? 0
+            let todoRows = int(summary["suggested_closure_todo_rows"]) ?? 0
+            let autoRows = int(summary["suggested_closure_auto_rows"]) ?? 0
+            let autoSeconds = double(summary["suggested_closure_auto_seconds"]) ?? 0.0
+            let keepRows = int(summary["suggested_closure_auto_keep_rows"]) ?? 0
+            let dropRows = int(summary["suggested_closure_auto_drop_rows"]) ?? 0
+            let reviewRows = int(summary["suggested_closure_auto_review_rows"]) ?? 0
+            let manualRows = int(summary["suggested_closure_manual_remaining_rows"]) ?? 0
+            let manualSeconds = double(summary["suggested_closure_manual_remaining_seconds"]) ?? 0.0
+            print("  suggested_closure:")
+            print("    sessions: \(int(summary["sessions_with_suggested_closure"]) ?? 0)")
+            print(
+                "    generated: \(generatedRows) rows "
+                    + "(actionable=\(actionableRows), needs_review=\(needsReviewRows), todo=\(todoRows))"
+            )
+            print(String(format: "    auto: %d rows / %.2fs", autoRows, autoSeconds))
+            print("    auto_decisions: keep=\(keepRows), drop=\(dropRows), review=\(reviewRows)")
+            print(String(format: "    manual_remaining: %d rows / %.2fs", manualRows, manualSeconds))
         }
     }
 
@@ -9865,12 +9947,18 @@ enum ReviewNextPrinter {
             return
         }
         let firstLane = firstRecommendedLane(planOutDir: planOutDir) ?? "first"
-        Swift.print("  suggested_flow:")
-        Swift.print("    preview: murmurmark review suggested \(sessionArg)")
-        Swift.print("    apply_safe_suggestions: murmurmark review suggested apply \(sessionArg)")
         Swift.print("  first_lane_flow:")
         Swift.print("    build_and_listen: murmurmark review first-lane --session \(sessionArg)")
         Swift.print("    apply_answers: murmurmark review lane apply \(firstLane) --session \(sessionArg)")
+        if hasPartialReviewProgress(planOutDir: planOutDir) {
+            Swift.print("  review_progress:")
+            Swift.print("    inspect_remaining: murmurmark review progress --session \(sessionArg)")
+            Swift.print("    refresh_profile: murmurmark review apply --session \(sessionArg)")
+        } else {
+            Swift.print("  suggested_flow:")
+            Swift.print("    preview: murmurmark review suggested \(sessionArg)")
+            Swift.print("    apply_safe_suggestions: murmurmark review suggested apply \(sessionArg)")
+        }
         if let quickLane = quickRecommendedLane(planOutDir: planOutDir), quickLane != firstLane {
             Swift.print("  quick_lane_flow:")
             Swift.print("    build_and_listen: murmurmark review lane \(quickLane) --session \(sessionArg)")
@@ -9967,12 +10055,24 @@ enum ReviewNextPrinter {
 
     private static func sessionLocalReviewCommands(sessionArg: String, planOutDir: URL) -> [String] {
         let firstLane = firstRecommendedLane(planOutDir: planOutDir) ?? "first"
-        var commands = [
-            "murmurmark review suggested \(sessionArg)",
-            "murmurmark review suggested apply \(sessionArg)",
+        let manualLaneCommands = [
             "murmurmark review first-lane --session \(sessionArg)",
             "murmurmark review lane apply \(firstLane) --session \(sessionArg)",
         ]
+        let suggestedCommands = [
+            "murmurmark review suggested \(sessionArg)",
+            "murmurmark review suggested apply \(sessionArg)",
+        ]
+        var commands: [String] = []
+        if hasPartialReviewProgress(planOutDir: planOutDir) {
+            commands.append("murmurmark review progress --session \(sessionArg)")
+            commands += manualLaneCommands
+            commands.append("murmurmark review apply --session \(sessionArg)")
+            commands += suggestedCommands
+        } else {
+            commands += suggestedCommands
+            commands += manualLaneCommands
+        }
         if let quickLane = quickRecommendedLane(planOutDir: planOutDir), quickLane != firstLane {
             commands += [
                 "murmurmark review lane \(quickLane) --session \(sessionArg)",
@@ -9982,10 +10082,26 @@ enum ReviewNextPrinter {
         commands += [
             "murmurmark review workspace --session \(sessionArg)",
             "murmurmark review workspace apply --session \(sessionArg)",
-            "murmurmark review progress --session \(sessionArg)",
-            "murmurmark review apply --session \(sessionArg)",
         ]
+        if !hasPartialReviewProgress(planOutDir: planOutDir) {
+            commands += [
+                "murmurmark review progress --session \(sessionArg)",
+                "murmurmark review apply --session \(sessionArg)",
+            ]
+        }
         return commands
+    }
+
+    private static func hasPartialReviewProgress(planOutDir: URL) -> Bool {
+        let progressURL = planOutDir.appendingPathComponent("review_decisions_progress.json")
+        guard let payload = try? JSONFiles.object(progressURL),
+              let summary = payload["summary"] as? [String: Any]
+        else {
+            return false
+        }
+        let reviewed = int(summary["reviewed"]) ?? 0
+        let remaining = int(summary["remaining"]) ?? 0
+        return reviewed > 0 && remaining > 0
     }
 
     private static func firstRecommendedLane(planOutDir: URL) -> String? {
@@ -10417,6 +10533,20 @@ enum CorpusPrinter {
         }
         if let protectedItems = int(summary["remote_leak_segment_protect_local_content_items"]) {
             print("  remote_leak_protect_local_content_items: \(protectedItems)")
+        }
+        let suggestedGeneratedRows = int(summary["suggested_closure_generated_rows"]) ?? 0
+        let suggestedActionableRows = int(summary["suggested_closure_actionable_rows"]) ?? 0
+        let suggestedNeedsReviewRows = int(summary["suggested_closure_needs_review_rows"]) ?? 0
+        let suggestedAutoRows = int(summary["suggested_closure_auto_rows"]) ?? 0
+        let suggestedManualRows = int(summary["suggested_closure_manual_remaining_rows"]) ?? 0
+        if suggestedGeneratedRows > 0 || suggestedAutoRows > 0 || suggestedManualRows > 0 {
+            print("  suggested_closure:")
+            print(
+                "    generated: \(suggestedGeneratedRows) rows "
+                    + "(actionable=\(suggestedActionableRows), needs_review=\(suggestedNeedsReviewRows))"
+            )
+            print("    auto: \(suggestedAutoRows) rows")
+            print("    manual_remaining: \(suggestedManualRows) rows")
         }
         print("  read: \(readCommand)")
         print("  recommended_next: \(readCommand)")

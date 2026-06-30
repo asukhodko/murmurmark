@@ -889,11 +889,11 @@ counts, notes review burden and the minimum next command. Full transcript/export
 as `full_transcript_review_required`. In that state notes can be used with normal caution, while a
 default export remains blocked until transcript-only review is closed or `--force` is used
 deliberately.
-The 2026-06-30 corpus snapshot is the current convergence baseline: `murmurmark next corpus --refresh`
-reports `medium_risk_ready`, `15` working sessions in scope, `26` diagnostic sessions excluded,
-`14/15 ready_for_notes`, one `review_first` session and no incomplete in-scope sessions. Selected
-notes carry about `0.55 min` of documented residual review burden; the remaining full
-transcript/export surface is about `3.05 min`.
+The 2026-06-30 corpus snapshot is the current convergence baseline: `murmurmark report corpus`
+reports `not_ready`, `16` working sessions in scope and `26` diagnostic sessions excluded.
+`14/16` sessions are `ready_for_notes`, one is `review_first`, and one risky daily-sync session
+blocks the operational corpus. Selected notes carry about `0.69 min` of documented residual review
+burden; the remaining full transcript/export surface is about `3.19 min`.
 
 Session-quality reports de-duplicate transcript-only `uncertain` rows when the same selected `Me`
 interval is already covered by high-confidence `likely_reliable` audio-review evidence. The
@@ -902,10 +902,11 @@ evidence support `Me`, and cleanup profiles can remove only tightly gated duplic
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
 
-The same snapshot exposes no mandatory review queue: `review_actions` is `0`. The remaining
-`review_first` session is therefore a documented non-actionable blocker, not a request to listen to
-another empty lane pack. Selected notes can be used with caution, while full transcript/export may
-still wait for a better cleanup rule or a deliberate manual decision outside the normal queue.
+The same snapshot exposes a small mandatory review queue: `review_actions` is `5`, all in
+`sessions/2026-06-30_11-15-56`. Suggested closure currently generates `8` suggestions across the
+corpus, but all of them are `needs_review`; there are no safe keep/drop rows to apply. Selected
+notes can still be used session-by-session when `status` says they are ready, while the operational
+corpus stays blocked until those five rows are closed or a safer local rule explains them.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
 `--refresh` it first rebuilds session-quality and operational-readiness reports, then prints
@@ -1239,11 +1240,14 @@ murmurmark review suggested apply "$SESSION"
 ```
 
 This is the normal safe shortcut when the local stronger-audio judge has already produced confident
-`keep_me` or `drop_me` hints. It builds the workspace, applies only reviewed suggested rows with
-partial apply enabled, materializes `reviewed_v1` with `--allow-partial-review`, refreshes readiness,
-and prints the remaining manual queue. It does not change capture, Echo Guard, ASR cache or raw CAF
-tracks. If all generated suggested sheets contain only dots, it writes no decisions and points back to
-the first manual lane.
+`keep_me` or `drop_me` hints for the current review rows. It builds the workspace and prints a
+`suggested_closure` block with before/after manual rows, generated/actionable/needs-review counts,
+a conservative readiness projection, auto-closable rows and the exact remaining manual queue by
+lane. If at least one row is safe, apply writes only those reviewed suggested rows with partial
+apply enabled, materializes `reviewed_v1` with `--allow-partial-review`, refreshes readiness and
+keeps unresolved rows visible. It does not change capture, Echo Guard, ASR cache or raw CAF tracks.
+If all generated suggested sheets contain only dots or `needs_review`, it writes no decisions and
+points to the first manual lane.
 
 The lower-level equivalent is:
 
@@ -1264,9 +1268,11 @@ after manual review. `review workspace apply --allow-partial` writes reviewed su
 when some workspace answers are still `todo`; without `--allow-partial`, incomplete suggested sheets
 remain preview-only. Incomplete manual review now points to the concrete answer sheet edit command
 instead of asking you to rebuild the same lane pack.
-`review_workspace.json` stores the same handoff as `recommended_next`, `next_commands`,
-`open_commands`, `manual_flow`, `suggested_flow` and `after_apply`, so agents can continue from the
-workspace manifest.
+`review_workspace_apply_report.json` stores the `suggested_closure` block even in dry-run mode.
+That block is the source of truth for “what can be closed without listening” versus “what still
+needs a human”. `review_workspace.json` stores the same handoff as `recommended_next`,
+`next_commands`, `open_commands`, `manual_flow`, `suggested_flow` and `after_apply`, so agents can
+continue from the workspace manifest.
 
 To materialize those suggestions as a separate shadow transcript for comparison, write a suggested
 decisions file and build `suggested_review_v1`:

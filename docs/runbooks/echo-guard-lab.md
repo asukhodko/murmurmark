@@ -279,6 +279,79 @@ ffmpeg -y -ss "$START" -t "$DUR" \
 afplay "$SESSION/derived/preprocess/echo/local_subtract_${START}_from_session.wav"
 ```
 
+## Offline AEC v2 Shadow Lab
+
+Use this lab when `local_fir` leaves recognizable remote speech in `mic` and the later transcript
+layers start doing too much cleanup work.
+
+The lab is shadow-only. It does not change `mic_for_asr.wav`, does not replace `local_fir`, and does
+not modify raw CAF files.
+
+Prepare the normal Echo Guard working files first:
+
+```bash
+SESSION=sessions/<session-id>
+
+murmurmark preprocess "$SESSION" --echo clean --echo-engine local_fir
+```
+
+Run the v0 lab:
+
+```bash
+.venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION"
+```
+
+Run a slower local ASR clip audit when a proxy result looks promising:
+
+```bash
+.venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION" \
+  --asr-audit \
+  --asr-max-clips 2
+```
+
+The lab writes:
+
+```text
+derived/preprocess/audio/mic_clean_offline_aec_v2.wav
+derived/preprocess/audio/echo_hat_offline_aec_v2.wav
+derived/preprocess/audio/mic_clean_offline_aec_v2_<candidate>.wav
+derived/preprocess/audio/echo_hat_offline_aec_v2_<candidate>.wav
+derived/preprocess/echo/offline_aec_v2_report.json
+derived/preprocess/echo/offline_aec_v2_segments.jsonl
+derived/preprocess/echo/offline_aec_v2_candidates.jsonl
+derived/preprocess/echo/offline_aec_v2_delay_curve.jsonl
+derived/preprocess/echo/offline_aec_v2_window_metrics.jsonl
+derived/preprocess/echo/offline_aec_v2_asr_leak_report.json
+derived/preprocess/echo/offline_aec_v2_near_end_preservation_report.json
+```
+
+Compare several sessions:
+
+```bash
+.venv/bin/python scripts/report-offline-aec-v2-corpus.py \
+  sessions/2026-06-23_14-04-37 \
+  sessions/2026-06-29_16-31-02 \
+  sessions/2026-06-30_11-15-56 \
+  sessions/2026-06-30_17-17-20
+
+less sessions/_reports/offline-aec-v2/offline_aec_v2_corpus_report.md
+```
+
+Current v0 reading:
+
+- `nonlinear_tail160_remote_floor` is the current best proxy candidate;
+- it combines nonlinear remote bases with an aggressive `remote_only` floor, but does not touch
+  `local_only` or `double_talk` regions;
+- proxy harmful-remote seconds and remote-only dB improved on the current six-session smoke;
+- three sessions passed proxy gates, and three remained blocked by opening/backchannel or other quality
+  gates;
+- local-only proxy recall regressed in one mostly-silent session;
+- faster-whisper ASR clip audit on all candidates found no session where `offline_aec_v2_v0`
+  reduced remote-token leakage below `local_fir` without local-recall regression;
+- this means v0 is useful as a diagnostic lab, but not as a production replacement.
+
+Do not use `mic_clean_offline_aec_v2.wav` as `mic_for_asr.wav` until corpus gates explicitly say so.
+
 ## Stop Rules
 
 Stop audio cleanup work and prefer transcript-level suppression when:

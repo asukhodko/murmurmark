@@ -639,6 +639,7 @@ enum ReviewPrinter {
         if bool(summary["partial_apply_allowed"]) == true {
             print("  ready_for_partial_apply: \(bool(summary["ready_for_partial_apply"]) ?? false)")
         }
+        printSuggestedClosure(payload)
         printWorkspaceApplyLanes(payload)
         let sessionID = sessionIDForSessionLocalPlan(report.deletingLastPathComponent())
         if printWorkspaceApplyReportHandoff(payload, sessionID: sessionID) {
@@ -672,6 +673,66 @@ enum ReviewPrinter {
             print("")
             print("next: \(recommended)")
         }
+    }
+
+    private static func printSuggestedClosure(_ payload: [String: Any]) {
+        guard string(payload["answers_source"]) == "suggested",
+              let closure = payload["suggested_closure"] as? [String: Any]
+        else {
+            return
+        }
+        let before = closure["before"] as? [String: Any] ?? [:]
+        let after = closure["after"] as? [String: Any] ?? [:]
+        let projection = closure["readiness_projection"] as? [String: Any] ?? [:]
+        let closed = closure["closed_by_suggestions"] as? [String: Any] ?? [:]
+        let generated = closure["generated_suggestions"] as? [String: Any] ?? [:]
+        let remaining = closure["remaining_manual_queue"] as? [String: Any] ?? [:]
+        let closedRows = int(closed["rows"]) ?? 0
+        let generatedRows = int(generated["rows"]) ?? 0
+        let actionableRows = int(generated["actionable_rows"]) ?? 0
+        let reviewRows = int(generated["needs_review_rows"]) ?? 0
+        let remainingRows = int(remaining["rows"]) ?? 0
+        let beforeRows = int(before["manual_rows"]) ?? 0
+        let afterRows = int(after["manual_rows"]) ?? remainingRows
+        print("  suggested_closure:")
+        print("    status: \(string(closure["status"]) ?? "unknown")")
+        print(String(format: "    before_manual: %d rows / %.2fs", beforeRows, double(before["manual_seconds"]) ?? 0.0))
+        print(String(format: "    after_manual: %d rows / %.2fs", afterRows, double(after["manual_seconds"]) ?? 0.0))
+        if let beforeState = string(projection["before_state"]),
+           let afterState = string(projection["after_state"]) {
+            let effect = string(projection["effect"]) ?? "unknown"
+            let deltaRows = int(projection["manual_rows_delta"]) ?? (afterRows - beforeRows)
+            let deltaSeconds = double(projection["manual_seconds_delta"]) ?? 0.0
+            print(
+                String(
+                    format: "    readiness_projection: %@ -> %@ (%@, manual_delta=%+d rows / %+.2fs)",
+                    beforeState,
+                    afterState,
+                    effect,
+                    deltaRows,
+                    deltaSeconds
+                )
+            )
+        }
+        print(String(format: "    generated: %d rows; actionable=%d needs_review=%d", generatedRows, actionableRows, reviewRows))
+        print(String(format: "    auto_closable: %d rows / %.2fs", closedRows, double(closed["seconds"]) ?? 0.0))
+        print(String(format: "    manual_remaining: %d rows / %.2fs", remainingRows, double(remaining["seconds"]) ?? 0.0))
+        printClosureBuckets("    auto_by_decision", closed["by_decision"])
+        printClosureBuckets("    manual_by_lane", remaining["by_lane"])
+        if closedRows == 0 && remainingRows > 0 {
+            print("    note: no safe suggested keep/drop decisions for this queue; manual review is still required")
+        }
+    }
+
+    private static func printClosureBuckets(_ label: String, _ value: Any?) {
+        guard let rows = value as? [[String: Any]], !rows.isEmpty else { return }
+        let pieces = rows.map { row in
+            let key = string(row["key"]) ?? "unknown"
+            let count = int(row["count"]) ?? 0
+            let seconds = double(row["seconds"]) ?? 0.0
+            return String(format: "%@=%d/%.2fs", key, count, seconds)
+        }
+        print("\(label): \(pieces.joined(separator: ", "))")
     }
 
     private static func printWorkspaceApplyReportHandoff(_ payload: [String: Any], sessionID: String?) -> Bool {

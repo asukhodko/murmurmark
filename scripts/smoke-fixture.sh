@@ -758,7 +758,19 @@ commands = module.readiness_next_commands(
     {"use_gate": "review_first", "review_blockers": ["risk:audio_review_probable_errors"]},
 )
 ids = [item["id"] for item in commands]
-assert ids == ["review_next", "review_first_lane", "review_lane_apply_first", "review_workspace", "review_workspace_apply", "review_progress", "review_apply"], ids
+assert ids == [
+    "review_suggested_preview",
+    "review_suggested_apply",
+    "review_next",
+    "review_first_lane",
+    "review_lane_apply_first",
+    "review_workspace",
+    "review_workspace_apply",
+    "review_progress",
+    "review_apply",
+], ids
+assert any("murmurmark review suggested sessions/review-session" == item["command"] for item in commands)
+assert any("murmurmark review suggested apply sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review next sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review first-lane --session sessions/review-session" == item["command"] for item in commands)
 assert any("murmurmark review lane apply first --session sessions/review-session" == item["command"] for item in commands)
@@ -2854,6 +2866,16 @@ EOF
     and .summary.workspace_todo_count == 1
     and .summary.rejected_count == 0
     and .summary.ready_for_partial_apply == false
+    and .suggested_closure.status == "manual_review_required"
+    and .suggested_closure.readiness_projection.before_state == "review_required"
+    and .suggested_closure.readiness_projection.after_state == "review_required"
+    and .suggested_closure.readiness_projection.effect == "no_safe_closure"
+    and (.suggested_closure.generated_suggestions.rows | type == "number")
+    and (.suggested_closure.generated_suggestions.actionable_rows | type == "number")
+    and (.suggested_closure.generated_suggestions.needs_review_rows | type == "number")
+    and (.suggested_closure.generated_suggestions.todo_rows | type == "number")
+    and .suggested_closure.closed_by_suggestions.rows == 0
+    and .suggested_closure.remaining_manual_queue.rows == 2
   ' "$workdir/review_workspace_suggested_apply_report.json" >/dev/null
   jq -e '(.recommended_next | length > 0) and (.next_commands | length >= 1) and ([.open_commands[].id] | index("open_review_workspace_apply_report"))' "$workdir/review_workspace_suggested_apply_report.json" >/dev/null
   sed 's/^answers=.*/answers=k/' "$answer_sheet" >"$answer_sheet.tmp"
@@ -2949,10 +2971,24 @@ EOF
     and .summary.reviewed_count == 0
     and .summary.remaining_rows == 2
     and .summary.workspace_todo_count == 1
+    and .suggested_closure.status == "manual_review_required"
+    and .suggested_closure.readiness_projection.before_state == "review_required"
+    and .suggested_closure.readiness_projection.after_state == "review_required"
+    and .suggested_closure.readiness_projection.effect == "no_safe_closure"
+    and (.suggested_closure.generated_suggestions.rows | type == "number")
+    and (.suggested_closure.generated_suggestions.actionable_rows | type == "number")
+    and (.suggested_closure.generated_suggestions.needs_review_rows | type == "number")
+    and (.suggested_closure.generated_suggestions.todo_rows | type == "number")
+    and .suggested_closure.closed_by_suggestions.rows == 0
+    and .suggested_closure.remaining_manual_queue.rows == 2
   ' "$cli_review_workspace_dir/review_workspace_suggested_apply_dry_run_report.json" >/dev/null
   jq -e '(.recommended_next | length > 0) and (.next_commands | length >= 1) and ([.open_commands[].id] | index("open_review_workspace_apply_report"))' "$cli_review_workspace_dir/review_workspace_suggested_apply_dry_run_report.json" >/dev/null
   grep -q '^review_workspace_apply:$' "$cli_workspace_suggested_dry_run_stdout"
   grep -q '^  answers_source: suggested' "$cli_workspace_suggested_dry_run_stdout"
+  grep -q '^  suggested_closure:$' "$cli_workspace_suggested_dry_run_stdout"
+  grep -q '^    status: manual_review_required' "$cli_workspace_suggested_dry_run_stdout"
+  grep -q '^    readiness_projection: review_required -> review_required' "$cli_workspace_suggested_dry_run_stdout"
+  grep -q '^    auto_closable: 0 rows / 0.00s' "$cli_workspace_suggested_dry_run_stdout"
   grep -q '^    check_local_recall: status=ok reviewed=0 todo=1 rejected=0' "$cli_workspace_suggested_dry_run_stdout"
   cli_suggested_answer_sheet="$cli_review_workspace_dir/lane-packs/review_lane_answers.check_local_recall.suggested.txt"
   sed 's/^answers=.*/answers=k/' "$cli_suggested_answer_sheet" >"$cli_suggested_answer_sheet.tmp"
@@ -2975,8 +3011,22 @@ EOF
     and .summary.remaining_rows == 1
     and .summary.ready_for_partial_apply == true
     and .summary.partial_apply_allowed == true
+    and .suggested_closure.status == "partial_apply_ready"
+    and .suggested_closure.readiness_projection.before_state == "review_required"
+    and .suggested_closure.readiness_projection.after_state == "review_required"
+    and .suggested_closure.readiness_projection.effect == "manual_review_reduced"
+    and (.suggested_closure.generated_suggestions.rows | type == "number")
+    and (.suggested_closure.generated_suggestions.actionable_rows | type == "number")
+    and (.suggested_closure.generated_suggestions.needs_review_rows | type == "number")
+    and (.suggested_closure.generated_suggestions.todo_rows | type == "number")
+    and .suggested_closure.closed_by_suggestions.rows == 1
+    and .suggested_closure.remaining_manual_queue.rows == 1
   ' "$cli_review_workspace_dir/review_workspace_suggested_partial_report.json" >/dev/null
   grep -q '^  ready_for_partial_apply: true' "$cli_workspace_suggested_partial_stdout"
+  grep -q '^  suggested_closure:$' "$cli_workspace_suggested_partial_stdout"
+  grep -q '^    status: partial_apply_ready' "$cli_workspace_suggested_partial_stdout"
+  grep -q '^    readiness_projection: review_required -> review_required' "$cli_workspace_suggested_partial_stdout"
+  grep -q '^    auto_closable: 1 rows / ' "$cli_workspace_suggested_partial_stdout"
   "$repo_root/.build/debug/murmurmark" review workspace apply \
     --workspace "$cli_review_workspace_dir/review_workspace.json" \
     --template "$review_template" \
@@ -2984,7 +3034,12 @@ EOF
     --report "$cli_review_workspace_dir/review_workspace_suggested_partial_apply_report.json" \
     --answers-source suggested \
     --allow-partial >/dev/null
-  jq -s '.[0].decision == "todo" and .[1].decision == "keep_me" and .[1].review_source == "workspace_suggested_answer_sheet"' "$cli_workspace_suggested_partial_out" >/dev/null
+  jq -s '
+    .[0].decision == "todo"
+    and .[1].decision == "keep_me"
+    and .[1].review_source == "workspace_suggested_answer_sheet"
+    and (.[1].review_evidence.suggested_decision == "keep_me")
+  ' "$cli_workspace_suggested_partial_out" >/dev/null
   sed 's/^answers=.*/answers=k/' "$cli_answer_sheet" >"$cli_answer_sheet.tmp"
   mv "$cli_answer_sheet.tmp" "$cli_answer_sheet"
   cli_workspace_apply_out="$workdir/review_decisions_workspace_cli_apply.jsonl"

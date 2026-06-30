@@ -3,7 +3,7 @@
 Status: active prototype
 Created: 2026-06-22
 
-Design home: [Echo Guard Architecture](../architecture/echo-suppression.md) and [ADR-0009](../adr/0009-derived-echo-suppression-only.md).
+Design home: [Echo Guard Architecture](../architecture/echo-suppression.md), [ADR-0009](../adr/0009-derived-echo-suppression-only.md) and [Complete Echo Removal Research](../research/2026-06-30-complete-echo-removal.md).
 
 ## Problem
 
@@ -39,6 +39,10 @@ The target product behavior is Echo Guard, not destructive mic cleanup:
 - During transcription, prefer `remote` text over matching `mic` text when the same phrase appears in both streams.
 - Add a quality report warning when cross-correlation suggests strong remote bleed in `mic`.
 
+The next research line is stronger than reduction: product-complete removal of remote-derived speech from mic ASR input. The leading hypotheses are offline AEC v2 with long-tail/nonlinear echo models, residual echo suppression, target-speaker extraction for `Me`, and token-level remote-forbidden transcript construction. See the research note for the experiment matrix and gates.
+
+The nearest implementable step is `offline_aec_v2_v0` as a shadow lab: delay trajectory, long-tail MDF/PF-NLMS filtering, a small nonlinear remote-basis bank, conservative residual spectral masking, and candidate ranking by remote-token leakage plus local-word recall. `local_fir` remains the default until the corpus gates prove a better candidate.
+
 ## Constraints
 
 - Never mutate raw CAF recordings in place.
@@ -71,3 +75,5 @@ Validated on a private validation session:
 - Test at least one more real call with different speaker volume, room acoustics and overlap.
 - Add automated dropout audit fixtures for quiet greetings and short local replies.
 - Keep transcript-level reconciliation as the safety net when audio cleanup leaves residue.
+- Add a shadow-only `offline_aec_v2` lab and compare candidates by remote-token leakage and local-word recall, not only by echo-reduction dB.
+- Add synthetic evaluation fixtures from local-only MurmurMark islands mixed with transformed remote windows.
