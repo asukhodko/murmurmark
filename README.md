@@ -31,13 +31,15 @@ Current corpus snapshot from `murmurmark next corpus --refresh` on 2026-06-30:
 - working sessions in scope: `15`;
 - diagnostic sessions excluded from readiness: `26`;
 - session readiness: `14/15 ready_for_notes`, `1/15 review_first`, `0 incomplete`;
-- selected notes review burden: `0.10 min`;
-- full transcript/export review surface: `1.91 min`;
-- remaining review queue: `4` actions, currently in the `classify_audio` lane.
+- selected notes review burden: `0.55 min`;
+- full transcript/export review surface: `3.05 min`;
+- remaining actionable review queue: `0` actions;
+- one session remains `review_first` because its residual risk is documented but no longer has an
+  actionable review lane.
 
 This does not mean "zero review". It means MurmurMark is already useful when the user accepts the
-remaining explicit review queue. Full transcript/export can still be blocked while evidence-backed
-notes are usable.
+remaining explicit risk. Full transcript/export can still be blocked while evidence-backed notes are
+usable.
 
 ## What Works Now
 
@@ -193,14 +195,18 @@ murmurmark review apply --session latest
 murmurmark status latest
 ```
 
+If `review next` prints `review_actions: 0` and `review_handoff: no_actionable_review_rows`, do not
+build or listen to another lane pack. The queue is exhausted; inspect the printed readiness/status
+documents or improve the cleanup algorithm.
+
 For the current corpus queue:
 
 ```bash
 murmurmark next corpus --refresh
 
-# Current printed focus is usually similar to:
-murmurmark review lane classify_audio --session sessions/<session-id>
-murmurmark review lane apply classify_audio --session sessions/<session-id>
+# With no actionable review rows, the current focus is usually:
+murmurmark status sessions/<session-id>
+murmurmark report sessions/<session-id>
 ```
 
 The review loop writes decisions into separate reviewed profiles. It should not rewrite raw audio or
@@ -330,15 +336,17 @@ the selected profile by filename.
 Current focus:
 
 - keep the corpus at `medium_risk_ready` or better;
-- reduce the remaining `classify_audio` review queue from 4 actions to zero without unsafe automatic
-  drops;
+- keep `next`/`status`/`review` honest when the actionable queue is already empty but residual risk
+  remains documented;
+- make recording failures and partial sessions diagnosable without discovering the problem only after
+  the meeting;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 
 Near-term goals for discussion:
 
-1. Review-loop finish: close the remaining corpus review lane and turn the one `review_first` session
-   into `ready_for_notes`, if the evidence supports it.
+1. Recording reliability: make `record` continue until explicit user stop, or fail with durable
+   diagnostics, health events and an exact next command for partial sessions.
 2. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
 3. Export readiness: make Markdown/Obsidian bundles the normal output for usable meetings, with
@@ -349,6 +357,12 @@ Near-term goals for discussion:
    flags.
 6. Open-source release hardening: trim private fixtures, document setup, add security/contact
    guidance and keep generated/private artifacts ignored.
+
+Recently completed:
+
+- Readiness reconciliation: when `review_actions` is `0`, MurmurMark no longer recommends an empty
+  `review first-lane`; it either points to a real review pack, a ready state or a documented
+  non-actionable blocker.
 
 Longer-term:
 

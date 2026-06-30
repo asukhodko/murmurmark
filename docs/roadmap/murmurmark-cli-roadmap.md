@@ -41,9 +41,10 @@ Operational corpus snapshot from 2026-06-30:
 - working sessions: `15`;
 - excluded diagnostic sessions: `26`;
 - readiness: `14/15 ready_for_notes`, `1/15 review_first`;
-- selected notes review burden: `0.10 min`;
-- full transcript/export review surface: `1.91 min`;
-- remaining mandatory review queue: `4` actions in `classify_audio`.
+- selected notes review burden: `0.55 min`;
+- full transcript/export review surface: `3.05 min`;
+- remaining actionable review queue: `0` actions;
+- remaining `review_first` session: documented non-actionable blocker.
 
 This is enough to use MurmurMark with caution on real working meetings. It is not enough to claim
 zero-review transcript quality.
@@ -103,7 +104,10 @@ flowchart LR
 ### Current
 
 - Keep the corpus at `medium_risk_ready` or better.
-- Close the remaining `classify_audio` queue without unsafe automatic drops.
+- Keep readiness/status/next honest when the actionable review queue is empty but residual risk
+  remains documented.
+- Make recording failures and partial sessions diagnosable before the user relies on an incomplete
+  meeting result.
 - Make the everyday path boring:
 
   ```bash
@@ -150,34 +154,38 @@ flowchart LR
 
 ## Current Goal
 
-Reduce mandatory review burden on real MurmurMark meetings without changing capture, Echo Guard or
-the main ASR path.
+Make recording reliable enough for everyday meetings.
 
 In practical terms:
 
-- keep `medium_risk_ready`;
-- turn the one `review_first` session into `ready_for_notes` if evidence allows;
-- reduce the remaining 4 review actions;
-- do not hide possible lost `Me` speech or meaningful transcript uncertainty;
-- do not auto-delete doubtful content just to improve metrics;
-- keep export blockers separate from notes readiness.
+- `murmurmark record` should continue until the user stops it explicitly;
+- if capture ends unexpectedly, the session package should record why, when and which stream failed;
+- `inspect`, `status`, `next` and `process` should treat interrupted recordings as partial unless
+  the user explicitly allows processing;
+- the CLI should print a clear next command after a stop, failure or partial capture;
+- diagnostics should preserve raw CAF tracks and never silently rewrite or discard captured audio;
+- capture, Echo Guard and the main ASR path stay reproducible.
 
-Success is not a perfect transcript. Success is a useful meeting artifact with a small, explicit,
-evidence-backed review queue.
+Success is not perfect audio. Success is that the user can trust whether the meeting was fully
+recorded, and if not, immediately knows what was captured and what to do next.
+
+Recently completed:
+
+- **Readiness reconciliation.** A zero-action review queue no longer turns into an empty
+  `first-lane` handoff. MurmurMark now points to `ready_for_notes`, a non-empty actionable review
+  pack, or a documented non-actionable blocker.
 
 ## Candidate Next Goals
 
-1. **Finish the current review queue.** Close the remaining `classify_audio` actions and refresh the
-   corpus gate. This is the shortest path to a cleaner readiness state.
-2. **Improve the recording handoff.** Make unexpected capture stops and partial sessions easier to
-   diagnose, with a clear "recording stopped, do this next" path.
-3. **Polish export bundles.** Make the exported Markdown/Obsidian result the natural user-facing
+1. **Recording reliability.** Make unexpected capture stops and partial sessions easy to diagnose,
+   with durable health events and a clear "recording stopped, do this next" path.
+2. **Polish export bundles.** Make the exported Markdown/Obsidian result the natural user-facing
    artifact, not just a dump of derived files.
-4. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
+3. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
    changes to beat or preserve it.
-5. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
+4. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
    to utterance IDs and review flags.
-6. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
+5. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
    artifacts and add security/contact guidance.
 
 ## Validation

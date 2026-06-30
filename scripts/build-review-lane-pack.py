@@ -195,6 +195,7 @@ def review_lane_handoff(
     template_path: Path,
     decisions_path: Path,
     session_arg: str = "",
+    has_items: bool = True,
 ) -> dict[str, Any]:
     lane_arg = shlex.quote(lane)
     manual_apply_base = (
@@ -257,6 +258,34 @@ def review_lane_handoff(
         )
         next_commands.insert(3, targeted_stronger)
         open_commands.insert(4, targeted_stronger)
+    if not has_items:
+        empty_next_commands = [
+            command_item("open_review_lane_pack", f"less {shell_path(md_path)}", "inspect the empty review lane pack"),
+        ]
+        if session_arg:
+            empty_next_commands.extend(
+                [
+                    command_item(
+                        "review_next",
+                        f"murmurmark review next {shlex.quote(session_arg)}",
+                        "show the honest session review handoff",
+                    ),
+                    command_item(
+                        "status_session",
+                        f"murmurmark status {shlex.quote(session_arg)}",
+                        "inspect the documented non-actionable review blocker",
+                    ),
+                ]
+            )
+        return {
+            "recommended_next": empty_next_commands[0]["command"],
+            "next_commands": empty_next_commands,
+            "open_commands": empty_next_commands,
+            "manual_flow": {},
+            "suggested_flow": {},
+            "after_apply": [],
+            "empty_reason": "no_actionable_review_rows",
+        }
     return {
         "recommended_next": next_commands[0]["command"],
         "next_commands": next_commands,
@@ -1285,6 +1314,22 @@ def write_item_details(lines: list[str], item: dict[str, Any]) -> None:
 
 
 def write_markdown(path: Path, manifest: dict[str, Any]) -> None:
+    has_items = bool(manifest.get("items"))
+    command_lines = [
+        f"less {shlex.quote(manifest['outputs']['markdown'])}",
+    ]
+    if has_items:
+        command_lines = [
+            f"afplay {shlex.quote(manifest['outputs']['audio'])}",
+            f".venv/bin/python scripts/probe-review-lane-pack-audio.py {shlex.quote(manifest['outputs']['manifest'])}",
+            f"$EDITOR {shlex.quote(manifest['outputs']['answer_sheet'])}",
+            (
+                ".venv/bin/python scripts/apply-review-lane-pack-decisions.py "
+                f"{shlex.quote(manifest['outputs']['manifest'])} "
+                f"--answers-file {shlex.quote(manifest['outputs']['answer_sheet'])} "
+                "--out sessions/_reports/review-plan/review_decisions.jsonl"
+            ),
+        ]
     lines = [
         "# MurmurMark Review Lane Pack",
         "",
@@ -1299,15 +1344,7 @@ def write_markdown(path: Path, manifest: dict[str, Any]) -> None:
         "Use only decisions listed in `Allowed` for each item.",
         "",
         "```bash",
-        f"afplay {shlex.quote(manifest['outputs']['audio'])}",
-        f".venv/bin/python scripts/probe-review-lane-pack-audio.py {shlex.quote(manifest['outputs']['manifest'])}",
-        f"$EDITOR {shlex.quote(manifest['outputs']['answer_sheet'])}",
-        (
-            ".venv/bin/python scripts/apply-review-lane-pack-decisions.py "
-            f"{shlex.quote(manifest['outputs']['manifest'])} "
-            f"--answers-file {shlex.quote(manifest['outputs']['answer_sheet'])} "
-            "--out sessions/_reports/review-plan/review_decisions.jsonl"
-        ),
+        *command_lines,
         "```",
         "",
         "| # | Pack time | Session | Rows | Audit id | Suggestion | Text |",
@@ -1557,6 +1594,7 @@ def main() -> int:
             template_path=template_path,
             decisions_path=decisions_path,
             session_arg=session_arg,
+            has_items=bool(manifest_items),
         )
     )
     write_json(manifest_path, manifest)

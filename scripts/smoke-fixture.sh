@@ -1086,6 +1086,61 @@ echo "$review_next_output" | grep -q 'murmurmark review workspace --session .*re
 echo "$review_next_output" | grep -q 'murmurmark review workspace apply --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review progress --session .*review-next-session'
 echo "$review_next_output" | grep -q 'murmurmark review apply --session .*review-next-session'
+
+review_empty_session="$workdir/review-empty-session"
+mkdir -p "$review_empty_session/derived/readiness/review-plan"
+cp "$review_next_session/session.json" "$review_empty_session/session.json"
+jq -n --arg session "$review_empty_session" '{
+  schema: "murmurmark.session_readiness/v1",
+  session_id: "review-empty-fixture",
+  session: $session,
+  use_gate: "review_first",
+  recommendation: "review flagged regions before medium-risk use",
+  selected_profile: "reviewed_v1",
+  verdict: "usable_with_review",
+  review_blockers: ["review_burden_requires_review"],
+  export_blockers: ["review_burden_requires_review"],
+  non_actionable_blockers: [{id: "review_queue_exhausted"}],
+  metrics: {
+    review_burden_sec: 12.0,
+    review_burden_ratio: 0.2,
+    review_scope_complete: true,
+    review_scope_remaining_seconds: 0.0
+  },
+  next_commands: [
+    {id: "review_next", label: "Refresh review handoff.", command: ("murmurmark review next " + $session)},
+    {id: "review_first_lane", label: "Build first lane.", command: ("murmurmark review first-lane --session " + $session)}
+  ]
+}' >"$review_empty_session/derived/readiness/session_readiness.json"
+echo '# Review Empty Readiness' >"$review_empty_session/derived/readiness/session_readiness.md"
+jq -n '{
+  schema: "murmurmark.review_plan/v1",
+  summary: {
+    by_review_lane: {},
+    raw_item_count: 0,
+    review_action_count: 0,
+    grouped_review_row_count: 0,
+    cluster_count: 0
+  },
+  review_queue_strategy: {
+    first_recommended_lane: null,
+    quick_recommended_lane: null,
+    first_recommended_reason: null,
+    after_first_lane_estimate: {remaining_items: 0, remaining_actions: 0, remaining_minutes: 0.0}
+  }
+}' >"$review_empty_session/derived/readiness/review-plan/review_plan.json"
+echo '# Empty Review Plan' >"$review_empty_session/derived/readiness/review-plan/review_plan.md"
+review_empty_output="$("$bin" review next "$review_empty_session" --no-refresh)"
+echo "$review_empty_output" | grep -q 'review_next:'
+echo "$review_empty_output" | grep -q 'gate: review_first'
+echo "$review_empty_output" | grep -q 'review_actions: 0'
+echo "$review_empty_output" | grep -q '^  review_handoff: no_actionable_review_rows$'
+echo "$review_empty_output" | grep -q '^  recommended_next: murmurmark status .*review-empty-session'
+tail -1 <<<"$review_empty_output" | grep -q '^next: murmurmark status .*review-empty-session'
+! echo "$review_empty_output" | grep -q '^  first_lane_flow:'
+! echo "$review_empty_output" | grep -q '^    build_and_listen: murmurmark review first-lane'
+! echo "$review_empty_output" | grep -q '^  recommended_next: murmurmark review first-lane'
+
 review_apply_missing_output="$("$bin" review apply --session "$review_next_session")"
 assert_no_helper_prefix "$review_apply_missing_output"
 echo "$review_apply_missing_output" | grep -q '^SESSION="'

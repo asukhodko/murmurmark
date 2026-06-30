@@ -8685,6 +8685,8 @@ enum ReadinessPrinter {
             summary = "notes ready; full transcript export still blocked"
         case "review_required":
             summary = "read with review; close review before export"
+        case "non_actionable_review_blocker":
+            summary = "residual review risk is documented, but there is no actionable review lane"
         case "incomplete":
             summary = "pipeline incomplete; process before use"
         case "blocked":
@@ -8901,6 +8903,7 @@ enum ReadinessPrinter {
     private static func readinessStatus(gate: String, payload: [String: Any]) -> String {
         let exportBlockers = (payload["export_blockers"] as? [Any] ?? []).map { String(describing: $0) }
         let reviewBlockers = (payload["review_blockers"] as? [Any] ?? []).map { String(describing: $0) }
+        let nonActionable = payload["non_actionable_blockers"] as? [Any] ?? []
         if gate.hasPrefix("pipeline_incomplete") || exportBlockers.contains("pipeline_incomplete") {
             return "incomplete"
         }
@@ -8909,6 +8912,9 @@ enum ReadinessPrinter {
         }
         if gate == "ready_for_notes" && !exportBlockers.isEmpty && reviewBlockers.isEmpty {
             return "notes_ready_export_blocked"
+        }
+        if !nonActionable.isEmpty {
+            return "non_actionable_review_blocker"
         }
         if gate == "review_first" || !reviewBlockers.isEmpty {
             return "review_required"
@@ -9140,6 +9146,10 @@ enum ReviewNextPrinter {
         guard FileManager.default.fileExists(atPath: planOutDir.appendingPathComponent("review_plan.json").path) else {
             return
         }
+        guard planHasReviewActions(planOutDir: planOutDir) else {
+            Swift.print("  review_handoff: no_actionable_review_rows")
+            return
+        }
         let firstLane = firstRecommendedLane(planOutDir: planOutDir) ?? "first"
         Swift.print("  first_lane_flow:")
         Swift.print("    build_and_listen: murmurmark review first-lane --session \(sessionArg)")
@@ -9208,6 +9218,9 @@ enum ReviewNextPrinter {
         planOutDir: URL
     ) -> [String] {
         if FileManager.default.fileExists(atPath: planOutDir.appendingPathComponent("review_plan.json").path) {
+            if !planHasReviewActions(planOutDir: planOutDir) {
+                return nonActionableReviewCommands(sessionPath: sessionPath)
+            }
             return sessionLocalReviewCommands(sessionArg: sessionPath, planOutDir: planOutDir)
         }
         let commands = rows.compactMap { string($0["command"]) }.filter { !$0.isEmpty }
@@ -9225,6 +9238,14 @@ enum ReviewNextPrinter {
             return ["murmurmark process \(sessionPath)"]
         }
         return commands.isEmpty ? ["less \(sessionPath)/derived/readiness/session_readiness.md"] : commands
+    }
+
+    private static func nonActionableReviewCommands(sessionPath: String) -> [String] {
+        [
+            "murmurmark status \(sessionPath)",
+            "murmurmark report \(sessionPath)",
+            "less \(sessionPath)/derived/readiness/session_readiness.md",
+        ]
     }
 
     private static func sessionLocalReviewCommands(sessionArg: String, planOutDir: URL) -> [String] {
@@ -9265,6 +9286,18 @@ enum ReviewNextPrinter {
             return nil
         }
         return string(strategy[key])
+    }
+
+    private static func planHasReviewActions(planOutDir: URL) -> Bool {
+        let plan = planOutDir.appendingPathComponent("review_plan.json")
+        guard FileManager.default.fileExists(atPath: plan.path),
+              let payload = try? JSONFiles.object(plan),
+              let summary = payload["summary"] as? [String: Any]
+        else {
+            return false
+        }
+        let actions = int(summary["review_action_count"]) ?? int(summary["raw_item_count"]) ?? 0
+        return actions > 0
     }
 
     private static func string(_ value: Any?) -> String? {
@@ -10354,6 +10387,28 @@ enum CorpusPrinter {
     }
 
     private static func printOperationalFocus(_ payload: [String: Any]) {
+        if operationalReviewActionCount(payload) <= 0 {
+            guard let first = firstNonActionableReviewTarget(payload) else { return }
+            let sessionID = string(first["session_id"])
+                ?? string(first["session"]).map { URL(fileURLWithPath: $0).lastPathComponent }
+                ?? ""
+            guard !sessionID.isEmpty else { return }
+            let sessionArg = sessionID.hasPrefix("sessions/") || sessionID.hasPrefix("./sessions/")
+                ? sessionID
+                : "sessions/\(sessionID)"
+            print("  focus_session: \(sessionID)")
+            if let label = string(first["label"]) {
+                print("  focus_label: \(label)")
+            }
+            print("  focus_reason: no_actionable_review_rows")
+            if let action = string(first["recommended_action"]) {
+                print("  focus_action: \(action)")
+            }
+            print("  focus_next:")
+            print("    murmurmark status \(sessionArg)")
+            print("    murmurmark report \(sessionArg)")
+            return
+        }
         guard let first = firstReviewFocus(payload) else { return }
         let sessionID = string(first["session_id"])
             ?? string(first["session"]).map { URL(fileURLWithPath: $0).lastPathComponent }
@@ -10381,6 +10436,19 @@ enum CorpusPrinter {
             print("    murmurmark review lane \(lane) --session \(sessionArg)")
         } else {
             print("    murmurmark review first-lane --session \(sessionArg)")
+        }
+    }
+
+    private static func operationalReviewActionCount(_ payload: [String: Any]) -> Int {
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        return int(summary["review_action_count"]) ?? int(summary["review_queue_items"]) ?? 0
+    }
+
+    private static func firstNonActionableReviewTarget(_ payload: [String: Any]) -> [String: Any]? {
+        let plan = payload["promotion_plan"] as? [String: Any] ?? [:]
+        let targets = plan["session_targets"] as? [[String: Any]] ?? []
+        return targets.first { row in
+            string(row["recommended_action"]) == "inspect_documented_non_actionable_blocker"
         }
     }
 

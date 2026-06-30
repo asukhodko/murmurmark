@@ -874,8 +874,8 @@ deliberately.
 The 2026-06-30 corpus snapshot is the current convergence baseline: `murmurmark next corpus --refresh`
 reports `medium_risk_ready`, `15` working sessions in scope, `26` diagnostic sessions excluded,
 `14/15 ready_for_notes`, one `review_first` session and no incomplete in-scope sessions. Selected
-notes require about `0.10 min` of review; the remaining full transcript/export surface is about
-`1.91 min`.
+notes carry about `0.55 min` of documented residual review burden; the remaining full
+transcript/export surface is about `3.05 min`.
 
 Session-quality reports de-duplicate transcript-only `uncertain` rows when the same selected `Me`
 interval is already covered by high-confidence `likely_reliable` audio-review evidence. The
@@ -884,15 +884,10 @@ evidence support `Me`, and cleanup profiles can remove only tightly gated duplic
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
 
-The same snapshot exposes the remaining work as a normal review queue: `4` packed actions in the
-`classify_audio` lane. This is intentionally separate from notes readiness: selected notes can be
-used with caution, while full transcript/export may still wait for the review loop. The next
-engineering target is to close or explicitly explain those remaining actions without weakening
-gates, changing capture, changing Echo Guard, or changing the main ASR path.
-
-The chosen next step is review-first: run the command from `murmurmark next corpus --refresh`, close
-the prepared `classify_audio` lane, apply the answers, refresh corpus readiness, and only then
-promote a repeated, evidence-backed answer pattern into a new agent-reviewed rule.
+The same snapshot exposes no mandatory review queue: `review_actions` is `0`. The remaining
+`review_first` session is therefore a documented non-actionable blocker, not a request to listen to
+another empty lane pack. Selected notes can be used with caution, while full transcript/export may
+still wait for a better cleanup rule or a deliberate manual decision outside the normal queue.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
 `--refresh` it first rebuilds session-quality and operational-readiness reports, then prints
@@ -904,6 +899,9 @@ assembled lane audio. The output also shows the prepared pack size and expected 
 `focus_pack_items` is the number of answer-sheet decisions to make now, `focus_pack_rows` is the
 number of raw review rows covered by that pack, and `after_focus_pack_actions` is the corpus-wide
 packed action count after this focused pack is applied.
+When no actionable pack exists, `next corpus` keeps `command: murmurmark corpus report` and prints
+`focus_reason: no_actionable_review_rows` plus `murmurmark status/report SESSION` as the honest
+follow-up.
 The generated lane pack Markdown includes the same `probe-review-lane-pack-audio.py` command for
 digital per-track ASR evidence. This is useful for AI-agent review loops: it can show whether
 `mic_clean`, `mic_role_masked` and `remote` all decode to the same phrase, which is exactly the case
@@ -1044,7 +1042,10 @@ estimated queue after closing the first lane. When the local plan carries packed
 `review next` prints `review_actions`, `grouped_review_rows` and `remaining_actions`, so this view
 matches `murmurmark report corpus` instead of falling back to raw row counts only. It also prints
 `open` commands for existing readiness/review-plan/progress reports, so the review entry point has
-both the reading path and the action path in one terminal block. `review first-lane`,
+both the reading path and the action path in one terminal block. If `review_actions` is `0`, `review
+next` prints `review_handoff: no_actionable_review_rows` and points to `status`/`report`/readiness
+documents instead of recommending `review first-lane`; this means the queue is exhausted and the
+remaining blocker is documented, not a hidden audio task. `review first-lane`,
 `review lane apply`, `review workspace`, `review progress` and workspace apply also print a headline
 `recommended_next`; `review next`, `review progress` and `review apply` also repeat the primary
 handoff as the final copyable `next: ...` line. If `review progress` sees

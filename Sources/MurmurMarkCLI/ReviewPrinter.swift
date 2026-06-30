@@ -48,6 +48,26 @@ enum ReviewPrinter {
             .flatMap { string($0["command"]) }
         let answerState = string(outputs["answer_sheet"]).flatMap { answerSheetState(url: PathURLs.fileURL($0)) }
         let manifestRecommendedNext = string(payload["recommended_next"])
+        if items == 0 {
+            let recommendedNext = manifestRecommendedNext ?? readCommand ?? "murmurmark review next"
+            print("  recommended_next: \(recommendedNext)")
+            if let readCommand {
+                print("  read: \(readCommand)")
+            }
+            if let reason = string(payload["empty_reason"]) {
+                print("  reason: \(reason)")
+            }
+            print("  next:")
+            if nextCommands.isEmpty {
+                print("    \(recommendedNext)")
+            } else {
+                for item in nextCommands {
+                    guard let command = string(item["command"]), !command.isEmpty else { continue }
+                    print("    \(command)")
+                }
+            }
+            return
+        }
         let recommendedNext = answerState?.hasReviewedAnswers == true
             ? "\(applyCommand) --dry-run"
             : manifestRecommendedNext ?? listenCommand ?? readCommand ?? editCommand ?? "\(applyCommand) --dry-run"
@@ -560,7 +580,7 @@ enum ReviewPrinter {
         }
         print(String(format: "  listen_minutes: %.2f", durationSeconds / 60))
         print("  by_lane: \(compactJSON(byLane))")
-        if let recommended = string(payload["recommended_next"]) ?? firstWorkspaceReviewCommand(okLanes) {
+        if let recommended = workspaceRecommendedCommand(payload: payload, lanes: okLanes) {
             print("  recommended_next: \(recommended)")
         }
         if !okLanes.isEmpty {
@@ -728,6 +748,7 @@ enum ReviewPrinter {
 
     private static func firstWorkspaceReviewCommand(_ lanes: [[String: Any]]) -> String? {
         for lane in lanes {
+            guard (int(lane["items"]) ?? 0) > 0 else { continue }
             if let audio = string(lane["audio"]) {
                 return "afplay \(shellQuote(displayPath(audio)))"
             }
@@ -739,6 +760,26 @@ enum ReviewPrinter {
             }
         }
         return nil
+    }
+
+    private static func workspaceRecommendedCommand(payload: [String: Any], lanes: [[String: Any]]) -> String? {
+        if let recommended = string(payload["recommended_next"]),
+           workspaceCommandTargetsNonEmptyLane(recommended, lanes: lanes) {
+            return recommended
+        }
+        return firstWorkspaceReviewCommand(lanes) ?? string(payload["recommended_next"])
+    }
+
+    private static func workspaceCommandTargetsNonEmptyLane(_ command: String, lanes: [[String: Any]]) -> Bool {
+        for lane in lanes where (int(lane["items"]) ?? 0) > 0 {
+            for key in ["audio", "markdown", "answer_sheet"] {
+                guard let value = string(lane[key]), !value.isEmpty else { continue }
+                if command.contains(value) || command.contains(displayPath(value)) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     private static func workspaceApplyCommand(payload: [String: Any], outDir: URL, sessionID: String?) -> String {
@@ -828,13 +869,13 @@ enum ReviewPrinter {
         let suffix = suggested.map { " suggested=\($0)" } ?? ""
         let grouping = groupedRows > 0 ? " rows=\(rows) grouped_saved=\(groupedRows)" : " rows=\(rows)"
         print(String(format: "    %@: items=%d%@ minutes=%.2f%@", name, items, grouping, minutes, suffix))
-        if let audio = string(lane["audio"]) {
+        if items > 0, let audio = string(lane["audio"]) {
             print("      listen: afplay \(shellQuote(displayPath(audio)))")
         }
         if let markdown = string(lane["markdown"]) {
             print("      read: less \(shellQuote(displayPath(markdown)))")
         }
-        if let answerSheet = string(lane["answer_sheet"]) {
+        if items > 0, let answerSheet = string(lane["answer_sheet"]) {
             print("      edit: $EDITOR \(shellQuote(displayPath(answerSheet)))")
         }
     }

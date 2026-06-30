@@ -1865,6 +1865,35 @@ def readiness_recommendation(gate: str) -> str:
     return "do_not_use_without_manual_review"
 
 
+def non_actionable_review_blockers(row: dict[str, Any]) -> list[dict[str, Any]]:
+    gate = str(row.get("use_gate") or "")
+    review_blockers = [str(item) for item in (row.get("review_blockers") or []) if str(item)]
+    if gate != "review_first" and not review_blockers:
+        return []
+    if row.get("pipeline_status") != "complete":
+        return []
+    scope_complete = row.get("review_scope_complete") is True
+    remaining = safe_float(row.get("review_scope_remaining_seconds")) or 0.0
+    if not scope_complete or remaining > 0.001:
+        return []
+    blockers = review_blockers or [gate]
+    return [
+        {
+            "id": "review_queue_exhausted",
+            "severity": "documented_blocker",
+            "message": (
+                "The session still has residual review risk, but the actionable review scope is already closed. "
+                "Do not build an empty review lane; inspect the documented risk or improve cleanup heuristics."
+            ),
+            "blockers": blockers,
+            "review_scope_status": row.get("review_scope_status"),
+            "review_scope_required_rows": safe_int(row.get("review_scope_required_rows")),
+            "review_scope_closed_rows": safe_int(row.get("review_scope_closed_rows")),
+            "review_scope_remaining_seconds": round(remaining, 3),
+        }
+    ]
+
+
 def command_path(path: Path) -> str:
     if not path.is_absolute():
         return shlex.quote(str(path))
@@ -1880,6 +1909,7 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
     gate = str(row.get("use_gate") or "pipeline_incomplete")
     export_blockers = row.get("export_blockers") or []
     review_blockers = row.get("review_blockers") or []
+    non_actionable = non_actionable_review_blockers(row)
 
     if gate.startswith("pipeline_incomplete") or "pipeline_incomplete" in export_blockers:
         return [
@@ -1950,6 +1980,27 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
                     "command": f"murmurmark repair remote-leak {session_arg}",
                 }
             )
+        if non_actionable:
+            commands.extend(
+                [
+                    {
+                        "id": "status_session",
+                        "label": "Inspect the documented non-actionable review blocker.",
+                        "command": f"murmurmark status {session_arg}",
+                    },
+                    {
+                        "id": "report_session",
+                        "label": "Refresh and read the session readiness report.",
+                        "command": f"murmurmark report {session_arg}",
+                    },
+                    {
+                        "id": "open_readiness",
+                        "label": "Read detailed readiness and blocker reasons.",
+                        "command": f"less {command_path(session / 'derived/readiness/session_readiness.md')}",
+                    },
+                ]
+            )
+            return commands
         commands.extend(
             [
                 {
@@ -2087,6 +2138,7 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         "review_blockers": row.get("review_blockers") or [],
         "export_blockers": row.get("export_blockers") or [],
         "warnings": row.get("readiness_warnings") or [],
+        "non_actionable_blockers": non_actionable_review_blockers(row),
         "recommended_next": preferred_next_command(next_commands),
         "next_commands": next_commands,
         "open_commands": open_commands,
@@ -2111,6 +2163,11 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "audio_review_notes_stronger_judge_seconds": row.get("audio_review_notes_stronger_judge_seconds"),
             "audio_review_remote_leak_probable_error_count": row.get("audio_review_remote_leak_probable_error_count"),
             "audio_review_remote_leak_probable_error_seconds": row.get("audio_review_remote_leak_probable_error_seconds"),
+            "review_scope_status": row.get("review_scope_status"),
+            "review_scope_complete": row.get("review_scope_complete"),
+            "review_scope_required_rows": row.get("review_scope_required_rows"),
+            "review_scope_closed_rows": row.get("review_scope_closed_rows"),
+            "review_scope_remaining_seconds": row.get("review_scope_remaining_seconds"),
             "remote_leak_segment_plan_items": row.get("remote_leak_segment_plan_items"),
             "remote_leak_segment_plan_seconds": row.get("remote_leak_segment_plan_seconds"),
             "remote_leak_segment_plan_protect_local_content_items": row.get("remote_leak_segment_plan_protect_local_content_items"),
@@ -2166,6 +2223,13 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
     review_blockers = row.get("review_blockers") or []
     if review_blockers:
         lines.extend(f"- `{item}`" for item in review_blockers)
+    else:
+        lines.append("- none")
+    non_actionable = payload.get("non_actionable_blockers") or []
+    lines.extend(["", "## Non-Actionable Review Blockers", ""])
+    if non_actionable:
+        for item in non_actionable:
+            lines.append(f"- `{item.get('id')}`: {item.get('message')}")
     else:
         lines.append("- none")
     lines.extend(["", "## Export Blockers", ""])

@@ -28,11 +28,13 @@ Current operating point, measured by `murmurmark next corpus --refresh` on 2026-
   readiness;
 - `14/15` working sessions are `ready_for_notes`, `1/15` is `review_first`, and no in-scope session
   is incomplete;
-- selected evidence-backed notes require about `0.10 min` of review;
-- full transcript/export still has about `1.91 min` of explicit review surface;
-- the remaining mandatory queue is `4` review actions in the `classify_audio` lane;
-- the next target is to close or explain that remaining queue while keeping the corpus
-  `medium_risk_ready`, without changing capture, Echo Guard or the main ASR path.
+- selected evidence-backed notes carry about `0.55 min` of documented residual review burden;
+- full transcript/export still has about `3.05 min` of explicit review surface;
+- the remaining actionable review queue is `0` actions;
+- readiness reconciliation is complete: the remaining `review_first` session has a documented
+  non-actionable blocker instead of an empty review lane;
+- the next target is recording reliability: `record` should continue until explicit user stop, or
+  fail with durable diagnostics and a clear partial-session handoff.
 
 Still future:
 

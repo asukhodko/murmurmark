@@ -1922,6 +1922,7 @@ def promotion_plan(
     audio_judge_review_queue: dict[str, Any] | None,
 ) -> dict[str, Any]:
     not_ready = [row for row in burdens if row.get("use_gate") != "ready_for_notes"]
+    non_actionable_targets = [row for row in not_ready if session_review_non_actionable(row)]
     high_burden = sorted(not_ready, key=lambda row: safe_float(row.get("review_burden_ratio")), reverse=True)
     by_session: dict[str, dict[str, Any]] = {}
     by_session_items: dict[str, list[dict[str, Any]]] = {}
@@ -1970,6 +1971,8 @@ def promotion_plan(
         status = "blocked_by_structural_issues"
     elif warnings:
         status = "manual_review_or_algorithmic_cleanup_needed"
+    elif not_ready and not review_queue and non_actionable_targets:
+        status = "medium_risk_ready_with_documented_non_actionable_review_blockers"
     elif not_ready:
         status = "medium_risk_ready_but_some_sessions_need_review"
     else:
@@ -1978,8 +1981,12 @@ def promotion_plan(
     next_actions: list[str] = []
     if blockers:
         next_actions.append("fix_blockers_before_using_for_medium_risk_meetings")
-    if not_ready:
+    if not_ready and review_queue:
         next_actions.append("review_or_improve_sessions_with_use_gate_not_ready_for_notes")
+    elif not_ready and non_actionable_targets:
+        next_actions.append("inspect_documented_non_actionable_review_blockers_or_improve_cleanup")
+    elif not_ready:
+        next_actions.append("investigate_missing_review_queue_or_improve_cleanup")
     if review_queue:
         next_actions.append("run_build_review_plan_and_close_review_decisions")
     if audio_judge_review_queue and safe_int(audio_judge_review_queue.get("remaining_human_review_items")):
@@ -1995,6 +2002,7 @@ def promotion_plan(
             "blockers": blockers,
             "warnings": warnings,
             "sessions_not_ready_for_notes": len(not_ready),
+            "non_actionable_review_targets": len(non_actionable_targets),
             "review_queue_items": len(review_queue),
             **queue_actions,
             "review_queue_raw_audio_minutes": review_queue_minutes(review_queue),
@@ -2013,6 +2021,9 @@ def promotion_plan(
                 "review_burden_min": round(safe_float(row.get("review_burden_sec")) / 60.0, 2),
                 "review_burden_ratio": row.get("review_burden_ratio"),
                 "risk_flags": row.get("risk_flags") or [],
+                "review_scope_status": row.get("review_scope_status"),
+                "review_scope_complete": row.get("review_scope_complete"),
+                "review_scope_remaining_seconds": row.get("review_scope_remaining_seconds"),
                 "recommended_action": session_target_action(row),
             }
             for row in high_burden
@@ -2219,7 +2230,17 @@ def session_target_action(row: dict[str, Any]) -> str:
         return "rerun_pipeline_or_fix_artifacts"
     if use_gate == "ready_for_notes":
         return "use_notes_with_normal_caution"
+    if session_review_non_actionable(row):
+        return "inspect_documented_non_actionable_blocker"
     return "close_review_decisions_or_improve_cleanup"
+
+
+def session_review_non_actionable(row: dict[str, Any]) -> bool:
+    if str(row.get("use_gate") or "") == "ready_for_notes":
+        return False
+    if row.get("review_scope_complete") is not True:
+        return False
+    return safe_float(row.get("review_scope_remaining_seconds")) <= 0.001
 
 
 def active_audio_judge_queue_summary(sessions: list[dict[str, Any]], predictions: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -2618,6 +2639,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"- Target: `{plan.get('target')}`",
             f"- Status: `{plan.get('status')}`",
             f"- Sessions not ready for notes: `{conditions.get('sessions_not_ready_for_notes')}`",
+            f"- Non-actionable review blockers: `{conditions.get('non_actionable_review_targets')}`",
             f"- Review queue: `{conditions.get('review_queue_items')}` rows / `{conditions.get('review_action_count')}` packed actions / `{conditions.get('review_queue_raw_audio_minutes')}` raw audio min",
             f"- Grouped review rows saved: `{conditions.get('grouped_review_row_count')}`",
             f"- Audio judge remaining human review items: `{conditions.get('audio_judge_remaining_human_review_items')}`",

@@ -1763,6 +1763,7 @@ Explicit command-line flags override config values.
   "review_blockers": ["risk:audio_review_probable_errors"],
   "export_blockers": ["risk:audio_review_probable_errors"],
   "warnings": [],
+  "non_actionable_blockers": [],
   "recommended_next": "murmurmark review next sessions/2026-06-26_15-32-02",
   "next_commands": [
     {
@@ -1845,6 +1846,12 @@ Explicit command-line flags override config values.
   }
 }
 ```
+
+When `review_scope_complete` is true and `review_scope_remaining_seconds` is zero, a session may
+still have residual risk flags without any actionable review rows. In that case
+`non_actionable_blockers` contains `review_queue_exhausted`, `recommended_next` points to
+`murmurmark status SESSION` or a linked evidence document, and `next_commands` must not include
+`review_first_lane`. This is a documented blocker, not a hidden lane-pack task.
 
 `use_gate` is the short per-session answer for practical use:
 
@@ -2095,6 +2102,9 @@ If the refreshed session gate no longer requires review, `review next` ignores a
 `SESSION/derived/readiness/review-plan/review_plan.json` and prints `reason: no_review_required`
 with `recommended_next: murmurmark next SESSION`. The regular `next` command remains the source of
 truth for exportable, exported, blocked and incomplete sessions.
+If the gate still requires review but the local plan has `review_action_count: 0`, `review next`
+prints `review_handoff: no_actionable_review_rows` and points to `status`/`report`/readiness
+documents. It must not recommend `review first-lane` unless the pack is non-empty.
 Top-level `next_commands` is the executable handoff: structural blockers such as too few complete
 pipelines point to the first concrete `murmurmark process sessions/<id>` target only when that target
 is still pipeline-incomplete, and fall back to `murmurmark corpus process all` when no incomplete
@@ -2863,7 +2873,8 @@ Operational readiness may still expose review rows after `agent_reviewed_v1` is 
 rows are the remaining transcript/export surface, not a sign that the automatic layer was skipped.
 As of the 2026-06-30 corpus baseline, this queue is tracked separately from notes readiness:
 `14/15` working sessions are `ready_for_notes`, one session is `review_first`, selected notes review
-is about `0.10 min`, and remaining transcript/export review is about `1.91 min`.
+is about `0.55 min`, remaining transcript/export review is about `3.05 min`, and actionable
+`review_actions` is `0`.
 Readiness inherits applied `local_recall` and `local_recall_repair` review decisions as well as
 audio-review decisions. Closed local-recall rows with `keep_me`, `drop_me` or `skip` do not re-enter
 `murmurmark next corpus`; unresolved possible lost speech remains visible in `check_local_recall`.

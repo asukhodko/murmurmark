@@ -43,10 +43,10 @@ nodes:
 
       Текущий корпус находится в состоянии `medium_risk_ready`: в рабочем наборе 15 сессий, из них
       14 `ready_for_notes`, одна `review_first`, незавершённых сессий в operational-срезе нет.
-      Снимок на 2026-06-30: selected evidence-backed notes требуют около `0.10 min`
-      проверки, отдельная поверхность transcript/export review остаётся около `1.91 min`,
-      а обязательная очередь сведена к `4` действиям в lane `classify_audio`.
-      Следующая цель — удержать `medium_risk_ready`, закрыть или объяснить оставшуюся review-очередь
+      Снимок на 2026-06-30: selected evidence-backed notes несут около `0.55 min`
+      документированного остаточного review burden, отдельная поверхность transcript/export review
+      остаётся около `3.05 min`, а обязательная actionable review-очередь сведена к `0` действий.
+      Следующая цель — удержать `medium_risk_ready`, честно объяснить оставшийся non-actionable риск
       без смены топологии capture/Echo Guard/ASR и не скрывать спорные места от export gate.
 
       Философия:
@@ -169,6 +169,20 @@ nodes:
     status: done
     effort: 4
     notes: "Путь для обычной работы: записать новую сессию и обработать её через process latest."
+
+  cli-recording-reliability:
+    title: "Recording Reliability"
+    kind: task
+    parent: cli-orchestration
+    deps: [cli-record-process-latest, readiness-single-output]
+    status: current
+    effort: 5
+    notes: |
+      Следующая цель после readiness reconciliation: `murmurmark record` должен продолжаться до
+      явной остановки пользователем. Если capture завершается неожиданно, session package должен
+      содержать durable health/events, причину/момент остановки, состояние mic/remote streams и
+      честный CLI handoff: inspect/status/process только как partial или с явным --allow-partial.
+      Raw CAF не переписывать и не удалять; Echo Guard и основной ASR не менять.
 
   cli-sessions-command:
     title: "murmurmark sessions"
@@ -379,16 +393,15 @@ nodes:
     kind: task
     parent: review-loop
     deps: [review-agent-command, review-burden-report, review-unresolved-explicit]
-    status: current
+    status: done
     effort: 4
     notes: |
-      Ближайшая выбранная цель после CLI MVP: закрыть оставшуюся обязательную review-очередь
-      уже после agent-reviewed и cleanup слоёв. Текущая точка 2026-06-30: 14/15 `ready_for_notes`,
-      1 `review_first`, `0.10 min` notes review, `1.91 min` transcript/export review и `4`
-      packed actions в lane `classify_audio`.
-      Acceptance: удержать `medium_risk_ready`, по возможности перевести единственную
-      `review_first` сессию в `ready_for_notes`, снизить обязательную очередь до нуля или до
-      явного documented exception, не меняя capture, Echo Guard и основной ASR.
+      Завершено 2026-06-30: readiness/status/next согласованы после закрытия обязательной
+      review-очереди. Текущая точка: 14/15 `ready_for_notes`, 1 `review_first`, `0.55 min`
+      notes review, `3.05 min` transcript/export review и `0` actionable packed actions.
+      Acceptance закрыт: corpus удерживает `medium_risk_ready`, пустой `review first-lane` больше
+      не предлагается, а единственная `review_first` сессия показывает documented non-actionable
+      blocker. Capture, Echo Guard и основной ASR не менялись.
       Possible lost `Me` и спорное содержание остаются в review/export gate.
 
   review-burden-report:
@@ -418,7 +431,8 @@ nodes:
       Улучшать качество без смены топологии: запись, Echo Guard и основной ASR
       остаются прежними, меняются repair/cleanup/audit и проверочные контуры. `audit_cleanup_v7`
       уже чинит частичные remote-дубли внутри длинных `Me` реплик без whole-utterance drop.
-      Текущий фокус — довести оставшиеся review-first сессии до ready/exportable без скрытых рисков.
+      Текущий quality-фокус — удерживать corpus gates и не расширять cleanup без доказанного
+      выигрыша. Следующий продуктовый фокус смещён в Recording Reliability.
 
   quality-local-recall-repair:
     title: "Better local recall repair"
@@ -889,8 +903,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Закрыть или явно объяснить оставшиеся 4 review actions в lane classify_audio, удержав corpus на medium_risk_ready и не меняя capture/Echo Guard/ASR."
-      success_by_next_sync: "Corpus остаётся medium_risk_ready или лучше, 14/15 или 15/15 рабочих сессий готовы для notes, notes review burden остаётся около 0.10 min или ниже, transcript/export review surface не растёт выше 1.91 min, а оставшаяся очередь становится нулевой или оформленной как явный documented exception."
+      nearest_goal: "Recording Reliability: сделать запись устойчивой до явной остановки пользователем или честно диагностировать partial capture с понятным следующим CLI-шагом."
+      success_by_next_sync: "Новая live/fixture-проверка доказывает: record без --duration не завершается молча, unexpected stop пишет durable health/events, status/inspect/process видят partial-состояние, а raw CAF, Echo Guard и основной ASR не меняются."
     defaults:
       status_progress:
         done: 1.0
@@ -915,17 +929,17 @@ x:
         scope_nodes: [cli-orchestration, packaging]
         kind: main
         mgmt:
-          health: green
-          sync_note: "CLI MVP закрыт: process/latest/report/review/corpus/export/config, локальная установка, self-test, release bundle, automated acceptance и live-session gate работают."
-          next_sync_goal: "Перед публичной публикацией выбрать security contact и стратегию истории/push."
+          health: yellow
+          sync_note: "CLI MVP закрыт, readiness reconciliation завершена; следующий риск в пользовательском пути — запись, которая может оказаться partial только после встречи."
+          next_sync_goal: "Закрыть Recording Reliability: durable record health/events, диагностика unexpected stop и честный partial-session handoff."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]
         kind: main
         mgmt:
-          health: yellow
-          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 уже довели корпус до medium_risk_ready; 14/15 рабочих сессий готовы для notes, обязательная очередь сведена к 4 действиям classify_audio."
-          next_sync_goal: "Закрыть classify_audio queue через review/apply или documented exception, автоматизируя только подтверждённые узкие паттерны."
+          health: green
+          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до medium_risk_ready; actionable review queue сейчас 0, остаточный blocker документирован."
+          next_sync_goal: "Удерживать gates и baseline, пока текущий фокус смещён на Recording Reliability."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]
