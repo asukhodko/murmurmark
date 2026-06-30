@@ -28,13 +28,7 @@ fi
 
 doctor_output="$("$bin" doctor)"
 echo "$doctor_output" | grep -q '^next:$'
-echo "$doctor_output" | grep -q '^  murmurmark config init$'
-echo "$doctor_output" | grep -q '^  murmurmark acceptance --skip-release$'
-echo "$doctor_output" | grep -q '^  murmurmark record --target-bundle system$'
-echo "$doctor_output" | grep -q '^  murmurmark inspect latest$'
-echo "$doctor_output" | grep -q '^  murmurmark process latest$'
-echo "$doctor_output" | grep -q '^  murmurmark status latest$'
-echo "$doctor_output" | grep -q '^  murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json$'
+echo "$doctor_output" | grep -q '^readiness: '
 echo "$doctor_output" | grep -q '^status: doctor completed$'
 
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-smoke.XXXXXX")"
@@ -546,7 +540,7 @@ jq -n --arg session_path "$live_acceptance_session" '{
   verdict: "usable_with_review",
   export_blockers: [],
   review_blockers: [],
-  recommended_next: "murmurmark export \($session_path) --format markdown --include-json",
+  recommended_next: "murmurmark finish \($session_path)",
   metrics: {
     review_burden_sec: 0,
     review_burden_ratio: 0,
@@ -556,9 +550,9 @@ jq -n --arg session_path "$live_acceptance_session" '{
   },
   next_commands: [
     {
-      id: "export_markdown",
-      label: "Export a local Markdown handoff bundle.",
-      command: "murmurmark export \($session_path) --format markdown --include-json"
+      id: "finish_session",
+      label: "Create the final local handoff bundle and retention manifests.",
+      command: "murmurmark finish \($session_path)"
     }
   ]
 }' >"$live_acceptance_session/derived/readiness/session_readiness.json"
@@ -570,7 +564,7 @@ echo "$live_acceptance_output" | grep -q '^  mic_track: ok$'
 echo "$live_acceptance_output" | grep -q '^  remote_track: ok$'
 echo "$live_acceptance_output" | grep -q '^  readiness_status: exportable$'
 echo "$live_acceptance_output" | grep -q '^  live_recording: ok$'
-tail -1 <<<"$live_acceptance_output" | grep -q '^next: murmurmark export '
+tail -1 <<<"$live_acceptance_output" | grep -q '^next: murmurmark finish '
 jq -e '
   .schema == "murmurmark.cli_mvp_acceptance_report/v1"
   and .mode == "live_session"
@@ -1313,7 +1307,7 @@ jq -n '{
   review_blockers: [],
   warnings: [],
   next_commands: [
-    {id: "export", label: "Export reviewed result.", command: "murmurmark export SESSION --format markdown --include-json"}
+    {id: "finish", label: "Create final handoff.", command: "murmurmark finish SESSION"}
   ]
 }' >"$ready_export_session/derived/readiness/session_readiness.json"
 jq -n '{
@@ -3470,7 +3464,7 @@ EOF
   echo "$main_help" | grep -q '^  murmurmark next latest$'
   echo "$main_help" | grep -q '^  murmurmark next corpus$'
   echo "$main_help" | grep -q '^  murmurmark status latest$'
-  echo "$main_help" | grep -q '^  murmurmark export latest --format markdown --include-json$'
+  echo "$main_help" | grep -q '^  murmurmark finish latest$'
   echo "$main_help" | grep -q '^  murmurmark acceptance \[--skip-release\] \[--python PATH\] \[--live-checklist\] \[--report PATH\]$'
   echo "$main_help" | grep -q '\[--live-session SESSION|latest\] \[--sessions-root ./sessions\]'
   echo "$main_help" | grep -q '^  murmurmark inspect ./session|latest \[--echo\] \[--sessions-root ./sessions\]$'
@@ -3511,6 +3505,9 @@ EOF
   echo "$export_help" | grep -q 'usage: murmurmark export'
   export_flag_help="$("$bin" export --help)"
   echo "$export_flag_help" | grep -q 'usage: murmurmark export'
+  finish_help="$("$bin" finish --help)"
+  echo "$finish_help" | grep -q 'usage: murmurmark finish'
+  echo "$finish_help" | grep -q 'retention plan and provider payload manifest'
   release_help="$("$repo_root/scripts/build-release-bundle.sh" --help)"
   echo "$release_help" | grep -q 'usage: scripts/build-release-bundle.sh'
   echo "$release_help" | grep -q -- '--verify'

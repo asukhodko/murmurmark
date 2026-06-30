@@ -62,6 +62,8 @@ struct MurmurMark {
                 try TranscriptCommands.transcript(args)
             case "corpus":
                 try CorpusCommands.corpus(args)
+            case "finish":
+                try FinishCommands.finish(args)
             case "export":
                 try ExportCommands.export(args)
             case "retention":
@@ -104,8 +106,7 @@ struct MurmurMark {
           murmurmark next corpus
           murmurmark status latest
           # follow printed review commands when the gate is review_first
-          murmurmark export latest --format markdown --include-json
-          murmurmark retention plan latest
+          murmurmark finish latest
 
         Handoff rule:
           When a command ends with `next: ...`, that final line is the primary command to run next.
@@ -136,6 +137,8 @@ struct MurmurMark {
           murmurmark synthesize ./session|latest [--transcript-profile auto] [--sessions-root ./sessions]
           murmurmark notes ./session|latest [--kind notes|verdict|review-items|evidence] [--profile auto|current|NAME] [--path-only|--cat]
           murmurmark transcript ./session|latest [--profile auto] [--path-only|--cat] [--sessions-root ./sessions]
+          murmurmark finish [./session|latest] [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
+                             [--force-export] [--skip-retention] [--sessions-root ./sessions]
           murmurmark export ./session|latest [--format markdown|obsidian] [--profile auto] [--out-dir exports/private]
                              [--include-json] [--force] [--sessions-root ./sessions]
           murmurmark retention plan|apply ./session|latest [--policy examples/retention-policy.local-first.json]
@@ -210,6 +213,7 @@ struct MurmurMark {
           notes prints or streams the selected notes/verdict artifacts.
           transcript prints or streams the selected transcript path.
           corpus wraps regression-corpus, audio-judge, corpus gates and operational-readiness scripts.
+          finish refreshes readiness, creates the export bundle when allowed, and writes retention/payload recommendations.
           export creates a local user-facing Markdown or Obsidian bundle and blocks readiness export blockers by default.
           retention plans or applies local retention policy; raw deletion requires apply plus --confirm-delete-raw.
           config shows local defaults loaded by process/export.
@@ -4432,7 +4436,7 @@ enum SynthesisPrinter {
         commands.append("murmurmark transcript \(sessionPath)")
         commands.append("murmurmark report \(sessionPath)")
         if canSuggestExport {
-            commands.append("murmurmark export \(sessionPath) --format markdown --include-json")
+            commands.append("murmurmark finish \(sessionPath)")
         }
         return commands
     }
@@ -5174,6 +5178,322 @@ enum ExportCommands {
 
         Creates a local user-facing Markdown or Obsidian bundle. By default export refuses sessions
         with readiness export blockers; pass --force only after consciously accepting that risk.
+        """)
+    }
+}
+
+enum FinishCommands {
+    private struct ExportRun {
+        let format: String
+        let status: Int32
+        let manifestURL: URL
+        let blockedURL: URL
+        let manifest: [String: Any]?
+        let blocked: [String: Any]?
+
+        var succeeded: Bool {
+            status == 0 && manifest != nil
+        }
+    }
+
+    private struct ExportOptions {
+        let format: String
+        let profile: String
+        let outDir: URL
+        let includeJSON: Bool
+        let force: Bool
+    }
+
+    static func finish(_ args: [String]) throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            printHelp()
+            return
+        }
+
+        var remaining = args
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let format = ArgumentEditing.takeOption("format", from: &remaining) ?? "markdown"
+        let profile = ArgumentEditing.takeOption("profile", from: &remaining) ?? "auto"
+        let outDir = PathURLs.fileURL(ArgumentEditing.takeOption("out-dir", from: &remaining) ?? "exports/private")
+        let forceExport = ArgumentEditing.takeFlag("force-export", from: &remaining)
+        let noJSON = ArgumentEditing.takeFlag("no-json", from: &remaining)
+        let skipRetention = ArgumentEditing.takeFlag("skip-retention", from: &remaining)
+        let policy = ArgumentEditing.takeOption("policy", from: &remaining)
+        let provider = ArgumentEditing.takeOption("provider", from: &remaining)
+        let target = remaining.isEmpty ? "latest" : remaining.removeFirst()
+        guard remaining.isEmpty else {
+            throw CLIError("unexpected finish arguments: \(remaining.joined(separator: " "))")
+        }
+        guard ["markdown", "obsidian"].contains(format) else {
+            throw CLIError("finish --format must be markdown or obsidian")
+        }
+
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        fflush(stdout)
+
+        try refreshReadiness(session)
+        try ReadinessPrinter.printSession(session, label: "readiness")
+
+        let exportRun = try runExport(
+            session: session,
+            options: ExportOptions(
+                format: format,
+                profile: profile,
+                outDir: outDir,
+                includeJSON: !noJSON,
+                force: forceExport
+            )
+        )
+        printExport(exportRun)
+
+        if exportRun.succeeded {
+            if skipRetention {
+                print("")
+                print("retention:")
+                print("  status: skipped")
+                print("  reason: --skip-retention")
+            } else {
+                try runRetention(session: session, manifestURL: exportRun.manifestURL, policy: policy, provider: provider)
+            }
+            printFinishReady(session: session, exportRun: exportRun)
+        } else {
+            printFinishBlocked(session: session, exportRun: exportRun)
+        }
+    }
+
+    private static func refreshReadiness(_ session: URL) throws {
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
+            try script("report-session-quality.py").path,
+            session.path,
+            "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
+            "--write-session-readiness",
+        ])
+    }
+
+    private static func runExport(session: URL, options: ExportOptions) throws -> ExportRun {
+        var command = [
+            try script("export-session-bundle.py").path,
+            session.path,
+            "--format", options.format,
+            "--profile", options.profile,
+            "--out-dir", options.outDir.path,
+        ]
+        if options.includeJSON {
+            command.append("--include-json")
+        }
+        if options.force {
+            command.append("--force")
+        }
+
+        let status = try Tooling.runPathQuietAllowingExitCodes(
+            try PythonRuntime.resolve(),
+            command,
+            allowedExitCodes: [0, 2]
+        )
+        let manifestURL = options.outDir
+            .appendingPathComponent(session.lastPathComponent)
+            .appendingPathComponent("export_manifest.json")
+        let blockedURL = options.outDir.appendingPathComponent("\(session.lastPathComponent).export_blocked.json")
+        return ExportRun(
+            format: options.format,
+            status: status,
+            manifestURL: manifestURL,
+            blockedURL: blockedURL,
+            manifest: try? JSONFiles.object(manifestURL),
+            blocked: try? JSONFiles.object(blockedURL)
+        )
+    }
+
+    private static func runRetention(session: URL, manifestURL: URL, policy: String?, provider: String?) throws {
+        var planCommand = [
+            try script("apply-retention-policy.py").path,
+            session.path,
+            "--export-manifest", manifestURL.path,
+        ]
+        if let policy {
+            planCommand += ["--policy", policy]
+        }
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), planCommand)
+
+        var payloadCommand = [
+            try script("build-provider-payload-manifest.py").path,
+            session.path,
+            "--export-manifest", manifestURL.path,
+        ]
+        if let policy {
+            payloadCommand += ["--policy", policy]
+        }
+        if let provider {
+            payloadCommand += ["--provider", provider]
+        }
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), payloadCommand)
+        try printRetention(session: session)
+    }
+
+    private static func printExport(_ exportRun: ExportRun) {
+        print("")
+        print("export:")
+        print("  format: \(exportRun.format)")
+        if let manifest = exportRun.manifest, exportRun.status == 0 {
+            let files = dict(manifest["files"])
+            print("  status: \(string(manifest["status"]) ?? "ok")")
+            print("  manifest: \(PathDisplay.display(exportRun.manifestURL))")
+            print("  profile: \(string(manifest["selected_profile"]) ?? "unknown")")
+            print("  verdict: \(string(manifest["verdict"]) ?? "unknown")")
+            for key in ["index", "obsidian_note", "quality_verdict_md", "notes_md", "transcript_md"] {
+                if let path = exportedPath(key, files: files) {
+                    print("  \(key): \(PathDisplay.display(path))")
+                }
+            }
+            return
+        }
+
+        let blocked = exportRun.blocked ?? [:]
+        let blockers = blocked["blockers"] as? [Any] ?? []
+        let warnings = blocked["warnings"] as? [Any] ?? []
+        print("  status: blocked")
+        print("  report: \(PathDisplay.display(exportRun.blockedURL))")
+        print("  profile: \(string(blocked["selected_profile"]) ?? string(blocked["requested_profile"]) ?? "unknown")")
+        print("  blockers: \(compactJSON(blockers))")
+        if !warnings.isEmpty {
+            print("  warnings: \(compactJSON(warnings))")
+        }
+        if let next = recommendedNext(from: blocked) {
+            print("  recommended_next: \(next)")
+        }
+    }
+
+    private static func printRetention(session: URL) throws {
+        let planURL = session.appendingPathComponent("derived/retention/retention_plan.json")
+        let payloadURL = session.appendingPathComponent("derived/retention/provider_payload_manifest.json")
+        let plan = (try? JSONFiles.object(planURL)) ?? [:]
+        let payload = (try? JSONFiles.object(payloadURL)) ?? [:]
+        let planActions = plan["actions"] as? [[String: Any]] ?? []
+        let payloadBlockers = payload["blockers"] as? [Any] ?? []
+
+        print("")
+        print("retention:")
+        print("  plan: \(PathDisplay.display(planURL))")
+        print("  payload: \(PathDisplay.display(payloadURL))")
+        print("  raw_audio_files: \(planActions.count)")
+        print("  can_apply: \(bool(plan["can_apply"]))")
+        print("  applied: \(bool(plan["applied"]))")
+        print("  payload_status: \(string(payload["status"]) ?? "unknown")")
+        print("  sends_data: \(bool(payload["sends_data"]))")
+        print("  raw_audio_included: \(bool(payload["raw_audio_included"]))")
+        if !payloadBlockers.isEmpty {
+            print("  payload_blockers: \(compactJSON(payloadBlockers))")
+        }
+    }
+
+    private static func printFinishReady(session: URL, exportRun: ExportRun) {
+        let files = dict(exportRun.manifest?["files"])
+        let readPath = exportedPath("index", files: files)
+            ?? exportedPath("obsidian_note", files: files)
+            ?? exportedPath("notes_md", files: files)
+            ?? exportedPath("transcript_md", files: files)
+        let readCommand = readPath.map { "less \(PathDisplay.display($0))" }
+            ?? "murmurmark export \(PathDisplay.display(session)) --format \(exportRun.format) --include-json"
+        print("")
+        print("finish:")
+        print("  status: ready")
+        print("  bundle_manifest: \(PathDisplay.display(exportRun.manifestURL))")
+        print("  recommended_next: \(readCommand)")
+        FinalNextPrinter.print(readCommand)
+    }
+
+    private static func printFinishBlocked(session: URL, exportRun: ExportRun) {
+        let next = recommendedNext(from: exportRun.blocked ?? [:])
+            ?? readinessNext(session: session)
+            ?? "murmurmark status \(PathDisplay.display(session))"
+        print("")
+        print("finish:")
+        print("  status: blocked")
+        print("  bundle_manifest: not_created")
+        print("  recommended_next: \(next)")
+        FinalNextPrinter.print(next)
+    }
+
+    private static func readinessNext(session: URL) -> String? {
+        let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        guard FileManager.default.fileExists(atPath: url.path),
+              let payload = try? JSONFiles.object(url)
+        else {
+            return nil
+        }
+        if let next = string(payload["recommended_next"]) {
+            return next
+        }
+        let commands = payload["next_commands"] as? [[String: Any]] ?? []
+        return ReadinessPrinter.preferredNextCommand(commands)
+    }
+
+    private static func recommendedNext(from payload: [String: Any]) -> String? {
+        if let nextCommands = payload["next_commands"] as? [[String: Any]],
+           let command = ReadinessPrinter.preferredNextCommand(nextCommands) {
+            return command
+        }
+        return string(payload["next"])
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts/\(name)")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("script not found: \(url.path)")
+        }
+        return url
+    }
+
+    private static func exportedPath(_ key: String, files: [String: Any]) -> URL? {
+        guard let item = files[key] as? [String: Any],
+              let path = string(item["path"])
+        else {
+            return nil
+        }
+        return PathURLs.fileURL(path)
+    }
+
+    private static func dict(_ value: Any?) -> [String: Any] {
+        value as? [String: Any] ?? [:]
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        guard let value = value as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func bool(_ value: Any?) -> Bool {
+        if let value = value as? Bool {
+            return value
+        }
+        if let value = value as? String {
+            return ["true", "yes", "1"].contains(value.lowercased())
+        }
+        return false
+    }
+
+    private static func compactJSON(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return "\(value)"
+        }
+        return text
+    }
+
+    private static func printHelp() {
+        print("""
+        usage: murmurmark finish [./session|latest] [--format markdown|obsidian] [--profile auto]
+                                [--out-dir exports/private] [--force-export] [--no-json]
+                                [--skip-retention] [--policy ./policy.json] [--provider name]
+                                [--sessions-root ./sessions]
+
+        Refreshes readiness, attempts a normal guarded export with JSON evidence included by default,
+        then writes retention plan and provider payload manifest when the export succeeds. It never
+        deletes raw audio; use `murmurmark retention apply` explicitly for that.
         """)
     }
 }
@@ -9106,6 +9426,7 @@ enum ReadinessPrinter {
         let actionPrefixes = [
             "murmurmark process",
             "murmurmark review",
+            "murmurmark finish",
             "murmurmark export",
             "murmurmark retention",
             "murmurmark report",
@@ -9196,8 +9517,7 @@ enum ReadinessPrinter {
             commands.append(("retention", exportHandoff.command))
         } else if status == "exportable" {
             let sessionPath = PathDisplay.display(session)
-            commands.append(("export", "murmurmark export \(sessionPath) --format markdown --include-json"))
-            commands.append(("retention", "murmurmark retention plan \(sessionPath)"))
+            commands.append(("finish", "murmurmark finish \(sessionPath)"))
         }
         guard !commands.isEmpty else { return }
         print("  handoff:")
@@ -9277,12 +9597,12 @@ enum ReadinessPrinter {
         if gate == "ready_for_notes" {
             return [
                 [
-                    "label": "Export a local Markdown handoff bundle.",
-                    "command": "murmurmark export \(sessionPath) --format markdown --include-json",
+                    "label": "Create the final local handoff bundle and retention manifests.",
+                    "command": "murmurmark finish \(sessionPath)",
                 ],
                 [
-                    "label": "Inspect local retention/privacy actions.",
-                    "command": "murmurmark retention plan \(sessionPath)",
+                    "label": "Low-level export command for debugging the handoff bundle.",
+                    "command": "murmurmark export \(sessionPath) --format markdown --include-json",
                 ],
             ]
         }
@@ -9627,8 +9947,8 @@ enum ReviewNextPrinter {
         }
         if gate == "ready_for_notes" {
             return [
+                "murmurmark finish \(sessionPath)",
                 "murmurmark export \(sessionPath) --format markdown --include-json",
-                "murmurmark retention plan \(sessionPath)",
             ]
         }
         if gate.hasPrefix("pipeline_incomplete") {

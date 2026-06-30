@@ -262,6 +262,15 @@ nodes:
     effort: 2
     notes: "Создаёт локальный Markdown/Obsidian bundle и блокирует сессии с readiness export_blockers без --force."
 
+  cli-finish-command:
+    title: "murmurmark finish SESSION"
+    kind: task
+    parent: cli-orchestration
+    deps: [cli-export-command]
+    status: done
+    effort: 2
+    notes: "Финальная CLI-обёртка: refresh readiness, guarded export, retention plan, provider payload manifest и один read-only next для пользователя."
+
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
     kind: phase
@@ -588,8 +597,8 @@ nodes:
     status: current
     effort: 19
     notes: |
-      Базовый локальный Markdown/Obsidian bundle уже есть. Следующий слой — Obsidian vault
-      handoff, docs/Jira proposals и retention policy.
+      Базовый локальный Markdown/Obsidian bundle и murmurmark finish handoff уже есть.
+      Следующий слой — более читаемый bundle, Obsidian vault handoff и docs/Jira proposals.
 
   export-markdown-bundle:
     title: "Markdown bundle"

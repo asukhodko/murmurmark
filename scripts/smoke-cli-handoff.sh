@@ -266,7 +266,7 @@ jq -n --arg session "$session" '{
   review_blockers: [],
   warnings: [],
   next_commands: [
-    {id: "export", label: "Export reviewed result.", command: ("murmurmark export " + $session + " --format markdown --include-json")}
+    {id: "finish", label: "Create final handoff.", command: ("murmurmark finish " + $session)}
   ],
   open_commands: [
     {id: "open_notes", label: "Read notes.", command: ("less " + $session + "/derived/synthesis-simple/extractive/notes.md")}
@@ -388,8 +388,8 @@ echo "$status_output" | grep -q '^  use:$'
 echo "$status_output" | grep -q '^    summary: ready to read and export$'
 echo "$status_output" | grep -q '^    can_read_notes: true$'
 echo "$status_output" | grep -q '^    can_export: true$'
-echo "$status_output" | grep -q '^    minimum_step: murmurmark export '
-tail -1 <<<"$status_output" | grep -q '^next: murmurmark export '
+echo "$status_output" | grep -q '^    minimum_step: murmurmark finish '
+tail -1 <<<"$status_output" | grep -q '^next: murmurmark finish '
 
 report_output="$("$bin" report "$session")"
 echo "$report_output" | grep -q '^readiness:$'
@@ -397,11 +397,11 @@ echo "$report_output" | grep -q '^  status: exportable$'
 echo "$report_output" | grep -q '^  use:$'
 echo "$report_output" | grep -q '^    summary: ready to read and export$'
 echo "$report_output" | grep -q '^    can_export: true$'
-tail -1 <<<"$report_output" | grep -q '^next: murmurmark export '
+tail -1 <<<"$report_output" | grep -q '^next: murmurmark finish '
 
 next_output="$("$bin" next "$session")"
 echo "$next_output" | grep -q '^next:$'
-echo "$next_output" | grep -q '^  command: murmurmark export '
+echo "$next_output" | grep -q '^  command: murmurmark finish '
 
 open_output="$("$bin" open "$session" --kind all)"
 echo "$open_output" | grep -q '^open:$'
@@ -434,6 +434,17 @@ echo "$payload_output" | grep -q '^  open:$'
 echo "$payload_output" | grep -q '^    less .*provider_payload_manifest.json$'
 echo "$payload_output" | grep -q '^    less .*export_manifest.json$'
 tail -1 <<<"$payload_output" | grep -q '^next: less '
+
+finish_output="$("$bin" finish "$session" --out-dir "$workdir/finish/private")"
+echo "$finish_output" | grep -q '^readiness:$'
+echo "$finish_output" | grep -q '^export:$'
+echo "$finish_output" | grep -q '^retention:$'
+echo "$finish_output" | grep -q '^finish:$'
+echo "$finish_output" | grep -q '^  status: ready$'
+tail -1 <<<"$finish_output" | grep -q '^next: less '
+[[ -s "$workdir/finish/private/cli-handoff/export_manifest.json" ]]
+[[ -s "$session/derived/retention/retention_plan.json" ]]
+[[ -s "$session/derived/retention/provider_payload_manifest.json" ]]
 
 post_export_next="$("$bin" next "$session" --export-manifest "$manifest")"
 echo "$post_export_next" | grep -q '^  status: exportable$'

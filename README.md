@@ -148,6 +148,7 @@ murmurmark status latest
 murmurmark notes latest --kind verdict
 murmurmark notes latest
 murmurmark transcript latest
+murmurmark finish latest
 ```
 
 If `next` or `status` prints a review command, follow that command before relying on the result for
@@ -171,6 +172,7 @@ murmurmark status "$SESSION"
 murmurmark notes "$SESSION" --kind verdict
 murmurmark notes "$SESSION"
 murmurmark transcript "$SESSION"
+murmurmark finish "$SESSION"
 ```
 
 Force ASR only when you intentionally want to regenerate the expensive transcription layer:
@@ -234,7 +236,18 @@ unresolved risk.
 
 ## Export And Retention
 
-Export is local and blocks when readiness reports export blockers, unless `--force` is used
+`finish` is the normal end of the CLI flow. It refreshes readiness, attempts the guarded export,
+includes JSON evidence by default, and then writes retention and provider-payload recommendations when
+export succeeds. It never deletes raw audio.
+
+```bash
+murmurmark finish latest
+murmurmark finish "$SESSION" --format obsidian
+```
+
+If the session is not exportable yet, `finish` writes the blocked export report and ends with the next
+review or processing command. For lower-level debugging you can still run export and retention
+directly. Export is local and blocks when readiness reports export blockers, unless `--force` is used
 deliberately.
 
 ```bash
@@ -294,8 +307,7 @@ murmurmark notes latest --kind verdict
 murmurmark notes latest
 murmurmark transcript latest
 murmurmark review next latest
-murmurmark export latest --format markdown --include-json
-murmurmark retention plan latest
+murmurmark finish latest
 ```
 
 For the full command surface:

@@ -87,8 +87,7 @@ murmurmark status latest
 murmurmark notes latest --kind verdict
 murmurmark notes latest
 murmurmark transcript latest
-murmurmark export latest --format markdown --include-json
-murmurmark retention plan latest
+murmurmark finish latest
 ```
 
 After a successful recording, `record` prints `SESSION="..."`, `recommended_next` and the exact
@@ -97,9 +96,9 @@ the one you just recorded. If capture ended unexpectedly, `record` exits with an
 a partial session. In that state, use `murmurmark inspect SESSION` first; `status`, `next` and
 `process` do not treat the session as complete, and `process` requires explicit `--allow-partial`
 for debugging.
-If `export` blocks, follow its printed review commands first, then rerun the same export command.
+If `finish` blocks, follow its printed review commands first, then rerun the same finish command.
 For terminal handoff, prefer the last `next: ...` line when it is present; it repeats the primary
-safe command after detailed status, review, export or retention blocks.
+safe command after detailed status, review, export, finish or retention blocks.
 
 Read `derived/readiness/session_readiness.md` before using a meeting result. It contains:
 
@@ -178,7 +177,18 @@ refreshes session readiness, builds a session-local review plan under
 command chain. Pass `--no-refresh` to read an already current `session_readiness.json`, or
 `--no-plan` to refresh readiness without rebuilding the session-local plan.
 
-After export, keep a retention plan with the session:
+When you want one final handoff, use `finish`:
+
+```bash
+murmurmark finish "$SESSION"
+```
+
+It refreshes readiness, attempts the guarded export with JSON evidence, writes retention plan and
+provider payload manifest after a successful export, and ends with a read-only `less ...` command for
+the bundle. If export is still blocked, it writes the blocked export report and points back to the
+next review or processing command.
+
+For low-level inspection, the individual commands remain available:
 
 ```bash
 murmurmark export "$SESSION" --format markdown --include-json

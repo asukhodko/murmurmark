@@ -132,8 +132,7 @@ murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-sessio
 murmurmark notes latest --kind verdict
 murmurmark notes latest
 murmurmark transcript latest
-murmurmark export latest --format markdown --include-json
-murmurmark retention plan latest
+murmurmark finish latest
 ```
 
 `--mic-backend voice-processing` and `--remote-backend audio-input` are experimental comparison modes. They are not the main product path and should not be used to judge the algorithmic subtraction problem unless the test explicitly says so.

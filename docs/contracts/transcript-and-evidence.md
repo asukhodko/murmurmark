@@ -1684,6 +1684,23 @@ post-export chain, usually retention planning and provider-payload inventory. `o
 read-only bundle inspection chain. Forced exports with blockers keep the retention commands under
 `debug_retention_commands` and keep readiness repair/review commands in `next_commands`.
 
+## Finish Handoff
+
+`murmurmark finish SESSION` is a CLI orchestration command over existing artifacts. It does not define
+a new data schema and does not change capture, Echo Guard, ASR, transcript repair or synthesis.
+
+The command:
+
+1. refreshes `SESSION/derived/readiness/session_readiness.json`;
+2. attempts `murmurmark export` semantics through `export-session-bundle.py`;
+3. includes JSON evidence by default unless `--no-json` is passed;
+4. writes `retention_plan.json` and `provider_payload_manifest.json` after a successful export;
+5. prints one final `next: ...` line, usually a read-only `less ...` command for the exported bundle.
+
+If export is blocked, `finish` writes the same `<session>.export_blocked.json` artifact as the export
+command and points back to the review or processing command from readiness. It never deletes raw
+audio; raw deletion remains possible only through explicit `murmurmark retention apply ...`.
+
 ## Retention Plan
 
 `murmurmark retention plan SESSION` records how the current retention policy treats raw audio,

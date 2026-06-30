@@ -31,6 +31,7 @@ The CLI MVP is already real:
 - `murmurmark review` handles lane packs, answer sheets, suggested decisions and reviewed profiles;
 - `murmurmark review suggested` previews and applies safe generated suggestions before manual listening;
 - `murmurmark corpus` runs the regression/readiness loop;
+- `murmurmark finish` turns readiness, export and retention/payload manifests into one final handoff;
 - `murmurmark export` builds Markdown/Obsidian bundles;
 - `murmurmark retention` plans payloads and raw deletion;
 - `murmurmark doctor`, `self-test`, `acceptance`, release bundle and open-source checks exist.
@@ -126,8 +127,7 @@ flowchart LR
   murmurmark process latest
   murmurmark next latest
   murmurmark review next latest   # only when printed
-  murmurmark export latest --format markdown --include-json
-  murmurmark retention plan latest
+  murmurmark finish latest
   ```
 
 - Keep documentation aligned with the actual command surface.
@@ -145,9 +145,9 @@ flowchart LR
   - baseline comparison before new heuristics;
   - no-regression gates for order, local recall, duplicates and selected notes.
 - Export workflow:
-  - better Markdown/Obsidian bundles;
-  - one obvious artifact to read first;
-  - clearer retention guidance after export.
+  - keep `murmurmark finish` as the normal final handoff;
+  - improve Markdown/Obsidian bundle readability;
+  - add Obsidian-vault export only after the bundle is stable.
 
 ### Later
 
@@ -197,8 +197,8 @@ Recently completed:
    path: preview, apply, refresh readiness and show the exact remaining manual queue. The daily sync
    example should move from `risky` to either `usable_with_review` or a much smaller explicit queue
    without changing capture, Echo Guard or primary ASR.
-2. **Polish export bundles.** Make the exported Markdown/Obsidian result the natural user-facing
-   artifact, not just a dump of derived files.
+2. **Polish export bundles.** `murmurmark finish` now gives one final handoff; the next export work is
+   making the Markdown/Obsidian content itself more comfortable to read and archive.
 3. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
    changes to beat or preserve it.
 4. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied

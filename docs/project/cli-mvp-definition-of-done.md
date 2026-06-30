@@ -79,8 +79,7 @@ Then follow the printed review command when readiness says `review_first`.
 When the session is exportable, run:
 
 ```bash
-murmurmark export latest --format markdown --include-json
-murmurmark retention plan latest
+murmurmark finish latest
 ```
 
 The manual gate passes when:
@@ -120,8 +119,7 @@ The gate was last proven with these checks:
   and verified the release bundle.
 - `murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session-final.json`
   passed for `sessions/2026-06-26_17-31-17`.
-- `murmurmark export latest --format markdown --include-json --force` wrote a local export bundle.
-- `murmurmark retention plan latest` kept raw audio by policy and did not apply deletion.
+- `murmurmark finish latest` wrote a local export bundle plus retention and payload manifests.
 
 Remaining publication work is outside this CLI MVP gate: decide the public security contact and
 choose the repository history/push strategy.

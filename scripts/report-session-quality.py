@@ -2045,14 +2045,14 @@ def readiness_next_commands(session: Path, row: dict[str, Any]) -> list[dict[str
     if gate == "ready_for_notes":
         return [
             {
-                "id": "export_markdown",
-                "label": "Export a local Markdown handoff bundle.",
-                "command": f"murmurmark export {session_arg} --format markdown --include-json",
+                "id": "finish_session",
+                "label": "Create the final local handoff bundle and retention manifests.",
+                "command": f"murmurmark finish {session_arg}",
             },
             {
-                "id": "retention_plan",
-                "label": "Inspect local retention/privacy actions.",
-                "command": f"murmurmark retention plan {session_arg}",
+                "id": "export_markdown",
+                "label": "Low-level export command for debugging the handoff bundle.",
+                "command": f"murmurmark export {session_arg} --format markdown --include-json",
             },
         ]
 
@@ -2073,6 +2073,7 @@ def preferred_next_command(next_commands: list[dict[str, str]]) -> str | None:
         "murmurmark review",
         "murmurmark notes",
         "murmurmark status",
+        "murmurmark finish",
         "murmurmark export",
         "murmurmark retention",
         "murmurmark report",

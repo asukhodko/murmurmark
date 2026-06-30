@@ -166,8 +166,7 @@ live_recording_gate:
     - murmurmark next latest
     - murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json
     - follow printed review command when readiness says review_first
-    - murmurmark export latest --format markdown --include-json
-    - murmurmark retention plan latest
+    - murmurmark finish latest
   pass_when:
     - recording creates separate non-empty mic and remote tracks
     - process latest completes or prints a concrete next command
@@ -175,8 +174,8 @@ live_recording_gate:
     - acceptance --live-session reports status ok
     - risky transcript regions remain explicit review items
     - export is blocked while required review/export blockers exist
-    - successful export writes an export manifest
-    - retention planning does not delete raw audio without apply plus confirmation
+    - successful finish writes an export manifest and retention manifests
+    - retention planning does not delete raw audio without explicit apply plus confirmation
 EOF
   write_report "live_checklist" "manual" "murmurmark doctor"
   echo "status: manual"
