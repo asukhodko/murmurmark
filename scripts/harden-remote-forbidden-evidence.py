@@ -423,6 +423,10 @@ def bucket_seconds(rows: list[dict[str, Any]], action: str) -> float:
     )
 
 
+def total_seconds(rows: list[dict[str, Any]]) -> float:
+    return round(sum(safe_float(row.get("interval", {}).get("duration_sec")) for row in rows), 3)
+
+
 def build_summary(
     *,
     session: Path,
@@ -437,6 +441,11 @@ def build_summary(
     actions = Counter(str(row.get("decision", {}).get("action") or "unknown") for row in rows)
     remote_rows = [row for row in rows if row.get("kind") == "remote_forbidden_token"]
     local_rows = [row for row in rows if row.get("kind") == "local_speech_gate"]
+    review_burden_seconds = (
+        bucket_seconds(rows, "suggest_drop")
+        + bucket_seconds(rows, "quarantine")
+        + bucket_seconds(rows, "needs_review")
+    )
     candidate = {}
     if isinstance(leak_report, dict):
         candidates = leak_report.get("candidates") if isinstance(leak_report.get("candidates"), dict) else {}
@@ -484,6 +493,10 @@ def build_summary(
         "metrics": {
             "remote_forbidden_rows": len(remote_rows),
             "local_speech_gate_rows": len(local_rows),
+            "guarded_seconds": total_seconds(rows),
+            "remote_forbidden_guarded_seconds": total_seconds(remote_rows),
+            "local_speech_gate_guarded_seconds": total_seconds(local_rows),
+            "review_burden_seconds": round(review_burden_seconds, 3),
             "actions": dict(sorted(actions.items())),
             "suggest_drop_seconds": bucket_seconds(rows, "suggest_drop"),
             "quarantine_seconds": bucket_seconds(rows, "quarantine"),
@@ -522,6 +535,8 @@ def render_markdown(summary: dict[str, Any], rows: list[dict[str, Any]]) -> str:
         f"- Gate: `{gates.get('passed')}` / `{gates.get('reason')}`",
         f"- Remote-token leak delta: `{metrics.get('remote_token_leak_delta')}`",
         f"- Local-word recall delta: `{metrics.get('local_word_recall_delta')}`",
+        f"- Guarded seconds: `{metrics.get('guarded_seconds')}`",
+        f"- Review-burden seconds: `{metrics.get('review_burden_seconds')}`",
         f"- Actions: `{json.dumps(metrics.get('actions') or {}, ensure_ascii=False, sort_keys=True)}`",
         "",
         "## Evidence Rows",

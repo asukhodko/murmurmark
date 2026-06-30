@@ -1167,6 +1167,8 @@ def remote_forbidden_metrics(summary: dict[str, Any] | None) -> dict[str, Any]:
             "remote_forbidden_suggest_drop_count": None,
             "remote_forbidden_quarantine_count": None,
             "remote_forbidden_needs_review_count": None,
+            "remote_forbidden_guarded_seconds": None,
+            "remote_forbidden_review_burden_seconds": None,
             "remote_forbidden_suggest_drop_seconds": None,
             "remote_forbidden_quarantine_seconds": None,
             "remote_forbidden_needs_review_seconds": None,
@@ -1185,6 +1187,8 @@ def remote_forbidden_metrics(summary: dict[str, Any] | None) -> dict[str, Any]:
         "remote_forbidden_suggest_drop_count": safe_int(actions.get("suggest_drop")) or 0,
         "remote_forbidden_quarantine_count": safe_int(actions.get("quarantine")) or 0,
         "remote_forbidden_needs_review_count": safe_int(actions.get("needs_review")) or 0,
+        "remote_forbidden_guarded_seconds": round_or_none(metrics.get("guarded_seconds")),
+        "remote_forbidden_review_burden_seconds": round_or_none(metrics.get("review_burden_seconds")),
         "remote_forbidden_suggest_drop_seconds": round_or_none(metrics.get("suggest_drop_seconds")),
         "remote_forbidden_quarantine_seconds": round_or_none(metrics.get("quarantine_seconds")),
         "remote_forbidden_needs_review_seconds": round_or_none(metrics.get("needs_review_seconds")),
@@ -1484,11 +1488,7 @@ def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     if row.get("remote_forbidden_status") == "ok":
-        guarded_seconds = (
-            (safe_float(row.get("remote_forbidden_suggest_drop_seconds")) or 0.0)
-            + (safe_float(row.get("remote_forbidden_quarantine_seconds")) or 0.0)
-            + (safe_float(row.get("remote_forbidden_needs_review_seconds")) or 0.0)
-        )
+        guarded_seconds = safe_float(row.get("remote_forbidden_review_burden_seconds")) or 0.0
         if guarded_seconds > 0.0:
             reasons.append(
                 {
@@ -1787,6 +1787,8 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "remote_forbidden_suggest_drop_count": sum_rows("remote_forbidden_suggest_drop_count"),
         "remote_forbidden_quarantine_count": sum_rows("remote_forbidden_quarantine_count"),
         "remote_forbidden_needs_review_count": sum_rows("remote_forbidden_needs_review_count"),
+        "remote_forbidden_guarded_seconds": sum_seconds("remote_forbidden_guarded_seconds"),
+        "remote_forbidden_review_burden_seconds": sum_seconds("remote_forbidden_review_burden_seconds"),
         "remote_forbidden_suggest_drop_seconds": sum_seconds("remote_forbidden_suggest_drop_seconds"),
         "remote_forbidden_quarantine_seconds": sum_seconds("remote_forbidden_quarantine_seconds"),
         "remote_forbidden_needs_review_seconds": sum_seconds("remote_forbidden_needs_review_seconds"),
@@ -1904,6 +1906,8 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "remote_forbidden_suggest_drop_count",
         "remote_forbidden_quarantine_count",
         "remote_forbidden_needs_review_count",
+        "remote_forbidden_guarded_seconds",
+        "remote_forbidden_review_burden_seconds",
         "remote_forbidden_suggest_drop_seconds",
         "remote_forbidden_quarantine_seconds",
         "remote_forbidden_needs_review_seconds",
@@ -1959,6 +1963,8 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         f"manual `{payload['summary'].get('suggested_closure_manual_remaining_rows', 0)}` rows / `{payload['summary'].get('suggested_closure_manual_remaining_seconds', 0.0)}` sec",
         f"- Remote-forbidden evidence: `{payload['summary'].get('remote_forbidden_sessions', 0)}` sessions, "
         f"`{payload['summary'].get('remote_forbidden_gate_passed_sessions', 0)}` gate-passed; "
+        f"guarded `{payload['summary'].get('remote_forbidden_guarded_seconds', 0.0)}` sec, "
+        f"review burden `{payload['summary'].get('remote_forbidden_review_burden_seconds', 0.0)}` sec, "
         f"suggest_drop `{payload['summary'].get('remote_forbidden_suggest_drop_count', 0)}` / "
         f"`{payload['summary'].get('remote_forbidden_suggest_drop_seconds', 0.0)}` sec, "
         f"quarantine `{payload['summary'].get('remote_forbidden_quarantine_count', 0)}` / "
@@ -1985,6 +1991,7 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         remote_forbidden = (
             f"{fmt(row.get('remote_forbidden_status'))}; "
             f"Δleak {fmt(row.get('remote_forbidden_token_leak_delta'))}; "
+            f"guarded {fmt(row.get('remote_forbidden_guarded_seconds'), '0')}; "
             f"s/q/r {fmt(row.get('remote_forbidden_suggest_drop_count'), '0')}/"
             f"{fmt(row.get('remote_forbidden_quarantine_count'), '0')}/"
             f"{fmt(row.get('remote_forbidden_needs_review_count'), '0')}"
@@ -2503,6 +2510,8 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "remote_forbidden_suggest_drop_count": row.get("remote_forbidden_suggest_drop_count"),
             "remote_forbidden_quarantine_count": row.get("remote_forbidden_quarantine_count"),
             "remote_forbidden_needs_review_count": row.get("remote_forbidden_needs_review_count"),
+            "remote_forbidden_guarded_seconds": row.get("remote_forbidden_guarded_seconds"),
+            "remote_forbidden_review_burden_seconds": row.get("remote_forbidden_review_burden_seconds"),
             "remote_forbidden_suggest_drop_seconds": row.get("remote_forbidden_suggest_drop_seconds"),
             "remote_forbidden_quarantine_seconds": row.get("remote_forbidden_quarantine_seconds"),
             "remote_forbidden_needs_review_seconds": row.get("remote_forbidden_needs_review_seconds"),

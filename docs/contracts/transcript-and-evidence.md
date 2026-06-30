@@ -3864,6 +3864,8 @@ Summary schema:
     "local_word_recall_before": 0.916667,
     "local_word_recall_after": 0.916667,
     "local_word_recall_delta": 0.0,
+    "guarded_seconds": 8.0,
+    "review_burden_seconds": 6.0,
     "actions": {"suggest_drop": 1, "quarantine": 2, "keep": 1}
   },
   "gates": {
@@ -3882,7 +3884,44 @@ Invariants:
 - `mic_for_asr.wav` is not changed;
 - `local_fir` remains the selected production Echo Guard path;
 - corpus reports must count local-recall regressions separately from remote-token improvements;
+- corpus reports must include `acceptance.why_not_more_safe_sessions` when fewer than two sessions
+  are safely improved;
 - a corpus target of one safe improved session is not enough for default promotion.
+
+Corpus summary:
+
+```json
+{
+  "schema": "murmurmark.echo.remote_forbidden_corpus_report/v1",
+  "summary": {
+    "safe_improved_sessions": 1,
+    "assessment_classes": {
+      "no_baseline_asr_visible_leak": 5,
+      "safe_improved": 1
+    },
+    "guarded_seconds": 28.0,
+    "review_burden_seconds": 18.0,
+    "target_status": "target_not_met_only_one_safe_session",
+    "promotion_decision": "shadow_review_only_do_not_promote"
+  },
+  "acceptance": {
+    "two_session_target_met": false,
+    "explanation": "Only one session has measurable ASR-visible remote-token reduction with local-word recall preserved.",
+    "why_not_more_safe_sessions": [
+      {
+        "session": "sessions/2026-06-30_11-15-56",
+        "class": "no_baseline_asr_visible_leak",
+        "reason": "local_fir_leak_rate_before_is_zero"
+      }
+    ]
+  }
+}
+```
+
+`no_baseline_asr_visible_leak` means the sampled ASR-positive audit window did not reproduce the
+harmful condition in the selected baseline transcript: there were no remote tokens visible in the
+`local_fir` candidate for that window. Such a session cannot count as safely improved, because the
+evidence layer has nothing measurable to remove without inventing a fix.
 
 For sanitized external synthesis:
 

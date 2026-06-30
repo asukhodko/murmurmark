@@ -397,6 +397,11 @@ Corpus view:
 less sessions/_reports/remote-forbidden/remote_forbidden_corpus_report.md
 ```
 
+The corpus report includes guarded seconds, review-burden seconds and an explicit
+`why_not_more_safe_sessions` explanation. If fewer than two sessions are safely improved, the layer
+stays shadow-only and the report should say whether the blocker is missing ASR-visible baseline leak,
+local-recall risk or weak quarantine-only evidence.
+
 ## Documentation Map
 
 - [Mission and vision](docs/product/vision.md)

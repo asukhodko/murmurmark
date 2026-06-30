@@ -172,12 +172,15 @@ Outcome:
 
 - `remote_forbidden_token_guard` passed ASR-token gates on one difficult 1x1 session:
   `remote_token_leak_delta = -0.5`, `local_only_word_recall_delta = 0.0`;
-- corpus summary: `asr_candidate_gate_passed = 1/6`,
-  `asr_remote_token_leak_improved = 1/6`, `asr_local_word_recall_regressions = 0/6`;
+- hardened corpus summary: `safe_improved_sessions = 1/6`,
+  `remote_token_leak_improved_sessions = 1/6`, `local_recall_regressions = 0/6`;
+- the other sampled sessions currently explain as `no_baseline_asr_visible_leak`: the selected
+  ASR-positive windows do not contain measurable remote-token leakage in the `local_fir` baseline, so
+  they cannot safely count as fixed cases yet;
 - no audio candidate beat `local_fir` well enough for promotion.
 
 Interpretation: vNext proved the right measurement direction. It did not solve complete echo
-removal. The next step is evidence hardening, not default replacement.
+removal. The next step is broader window selection and stronger evidence, not default replacement.
 
 ---
 
