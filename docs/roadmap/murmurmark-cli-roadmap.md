@@ -64,10 +64,12 @@ audio-judge seconds.
 The same corpus also shows a deeper quality limit: much of the later cleanup work exists because
 remote speech is still audible and sometimes recognizable in the mic track. `local_fir` remains the
 right default because it protects local speech, but it is not a complete-removal engine.
-`offline_aec_v2_v0` now gives a repeatable shadow baseline: proxy masking can reduce remote energy
-and harmful seconds, but ASR-token gates still do not beat `local_fir`. The next quality direction is
-an ASR-positive echo-removal experiment, not another transcript-only cleanup layer and not another
-dB-only tuning pass.
+`offline_aec_v2_v0` gives a repeatable shadow baseline: proxy masking can reduce remote energy and
+harmful seconds, but ASR-token gates still do not beat `local_fir`. The follow-up vNext spike added
+segment switching and `remote_forbidden_token_guard`; it produced the first ASR-positive improvement
+on one difficult session without local-recall regression. That is enough to choose the next quality
+direction: harden remote-forbidden evidence and connect it to review/status before trying to promote
+any audio candidate.
 
 ## Roadmap Tree
 
@@ -136,13 +138,14 @@ flowchart LR
   The 2026-06-30 daily sync showed the important pattern: the session was marked `risky`, but
   stronger audio judge confirmed most `check_transcript_order` rows as timing/double-talk, leaving
   only a few real manual checks.
-- Continue **Echo Guard Complete Removal** after v0:
+- Continue **Echo Guard Complete Removal** after the first vNext spike:
   - keep `local_fir` as the production default;
   - use the shadow `offline_aec_v2_v0` lab as a repeatable diagnostic baseline;
-  - treat `remote_floor` as a useful proxy/control candidate, not as a production replacement;
-  - move the next experiment toward ASR-visible leakage reduction: better speaker-state
-    segmentation, segment-local candidate switching, target-speaker extraction, or token-level
-    remote-forbidden decoding.
+  - treat `remote_floor` and segment switching as useful proxy/control candidates, not as production
+    replacements;
+  - harden `remote_forbidden_token_guard` into persistent evidence and review decisions;
+  - keep target-speaker extraction and neural residual suppression as later spikes behind corpus
+    gates.
 - Keep the final handoff readable: `finish` now opens a bundle whose `index.md` is the first working
   artifact, not a derived-file directory listing.
 - Make the everyday path boring:
@@ -170,9 +173,11 @@ flowchart LR
   - stable small operational corpus;
   - baseline comparison before new heuristics;
   - no-regression gates for order, local recall, duplicates and selected notes.
-- Echo Guard promotion path after the lab:
+- Echo Guard evidence and promotion path:
   - keep candidate artifacts separate from `mic_for_asr.wav`;
-  - promote only after corpus gates prove lower remote-token leakage without worse local recall;
+  - first persist remote-forbidden evidence rows and expose them through review/status;
+  - promote audio only after corpus gates prove lower remote-token leakage without worse local
+    recall;
   - keep transcript-level remote-forbidden reconciliation as the final safety net.
 - Export workflow:
   - keep `murmurmark finish` as the normal final handoff;
@@ -216,6 +221,10 @@ handoff and keeps uncertainty visible.
 
 Recently completed:
 
+- **Echo Guard Complete Removal vNext.** Segment switching plus `remote_forbidden_token_guard`
+  produced the first ASR-positive remote-leakage improvement on a difficult real session:
+  `asr_candidate_gate_passed: 1/6`, with no local-word recall regressions in the six-session smoke
+  corpus. It remains shadow-only and becomes the baseline for the next evidence-hardening goal.
 - **Export Bundle Quality v1.** `finish` now produces a user-facing Markdown/Obsidian handoff:
   "Can I use this?", selected profile, review burden, evidence-backed notes, transcript utterance IDs
   and retention/privacy next steps.
@@ -228,20 +237,23 @@ Recently completed:
 
 ## Candidate Next Goals
 
-1. **Echo Guard Complete Removal vNext.** The first ASR-positive mechanism exists:
-   `segment_switch_remote_floor_local_fir` plus `remote_forbidden_token_guard` beats `local_fir` on
-   one difficult ASR-audit case without local-recall regression. The next step is to harden this
-   into a less clip-specific safety layer with stricter evidence gates.
-2. **Suggested review closure maintenance.** Keep stronger-audio-judge suggestions first-class:
+1. **Remote-Forbidden Evidence Hardening v1.** The nearest meaningful goal: make the first
+   ASR-positive safety layer less clip-specific, persist evidence rows, connect them to
+   transcript/review artifacts and enforce local-speech gates before any cleanup action.
+2. **ASR-positive audio candidate v2.** Find an actual audio candidate that beats `local_fir` on
+   remote-token leakage without local-recall loss. This depends on the evidence gates from goal 1.
+3. **Target-Me extraction spike.** Use high-confidence local-only speech as enrollment material for
+   difficult double-talk and open-space-noise cases.
+4. **Suggested review closure maintenance.** Keep stronger-audio-judge suggestions first-class:
    preview, apply, refresh readiness and show the exact remaining manual queue. This remains
    operationally important, but it now supports the larger echo-removal direction.
-3. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
+5. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
    reviewed docs/ticket proposal exports.
-4. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
+6. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
    changes to beat or preserve it.
-5. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
+7. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
    to utterance IDs and review flags.
-6. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
+8. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
    artifacts and add security/contact guidance.
 
 ## Validation

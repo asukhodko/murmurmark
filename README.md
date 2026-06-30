@@ -43,9 +43,11 @@ manual review queue instead of pretending to be green. Most sessions are still u
 evidence-backed notes when their own `status` says so; full transcript/export can remain blocked
 until the explicit review items are closed.
 
-Current project goal: [Echo Guard Complete Removal v0](docs/project/current-goal.md). Latest
-completed milestone: Export Bundle Quality v1; `finish` now writes a readable local handoff bundle
-whose `index.md` answers whether the result can be used, what still needs review and what
+Current project goal: [Remote-Forbidden Evidence Hardening v1](docs/project/current-goal.md). Latest
+completed Echo Guard milestone: the first ASR-positive vNext spike reduced remote-token leakage on
+one difficult session without local-recall regression, but stayed shadow-only. Latest product
+milestone: Export Bundle Quality v1; `finish` now writes a readable local handoff bundle whose
+`index.md` answers whether the result can be used, what still needs review and what
 retention/privacy step comes next.
 
 ## What Works Now
@@ -386,37 +388,46 @@ the selected profile by filename.
 
 Current focus:
 
-- use the shadow `offline_aec_v2_v0` Echo Guard lab to understand which complete-removal
-  hypotheses are worth pursuing next;
-- keep `local_fir` as the default: v0 improves proxy metrics, but does not beat `local_fir` on
-  ASR-token leakage gates;
-- rank echo-removal candidates by remote-token leakage, local-word recall and artifacts, not by
-  loudness or ERLE alone;
-- keep `next`/`status`/`review` honest about residual risk while this lab is experimental;
+- harden the first ASR-positive Echo Guard result: `remote_forbidden_token_guard` lowered
+  remote-token leakage on one difficult 1x1 session without local-recall loss;
+- keep `local_fir` as the default: the current audio candidates are useful diagnostics, not a
+  production replacement;
+- turn remote-forbidden token evidence into normal review/status artifacts instead of keeping it
+  only in lab reports;
+- rank echo-removal work by ASR-visible remote-token leakage, local-word recall and review burden,
+  not by loudness or ERLE alone;
+- keep `next`/`status`/`review` honest about residual risk while this layer is shadow-only;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 
 Near-term goals for discussion:
 
-1. Echo Guard Complete Removal vNext: extend the first ASR-positive safety layer. Segment switching
-   plus `remote_forbidden_token_guard` now beats `local_fir` on one difficult ASR-audit case without
-   local-recall regression; the next step is to make this less clip-specific and keep it auditable.
-2. Suggested review closure maintenance: keep the preview/apply path visible in session and corpus
+1. Remote-Forbidden Evidence Hardening v1: make the token-level guard less clip-specific, persist
+   evidence rows, connect them to transcript/review artifacts and enforce gates against lost `Me`
+   speech.
+2. ASR-positive audio candidate v2: find an actual audio candidate that beats `local_fir` on
+   remote-token leakage without local-recall loss.
+3. Target-Me extraction spike: use high-confidence local-only speech as enrollment material for
+   harder double-talk and open-space noise cases.
+4. Suggested review closure maintenance: keep the preview/apply path visible in session and corpus
    reports, distinguish generated/actionable/needs-review suggestions and avoid closing unmatched
    risky rows.
-3. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
+5. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
-4. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
+6. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
    especially Obsidian-vault placement and reviewed proposal exports.
-5. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
+7. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
    regressions before new heuristics ship.
-6. Evidence notes vNext: improve extractive notes quality while preserving citations and review
+8. Evidence notes vNext: improve extractive notes quality while preserving citations and review
    flags.
-7. Open-source release hardening: trim private fixtures, document setup, add security/contact
+9. Open-source release hardening: trim private fixtures, document setup, add security/contact
    guidance and keep generated/private artifacts ignored.
 
 Recently completed:
 
+- Echo Guard Complete Removal vNext: segment switching plus `remote_forbidden_token_guard` produced
+  the first ASR-positive remote-leakage improvement on a real difficult session, with no local-word
+  recall regression in the six-session smoke corpus. It remains shadow-only.
 - Readiness reconciliation: when `review_actions` is `0`, MurmurMark no longer recommends an empty
   `review first-lane`; it either points to a real review pack, a ready state or a documented
   non-actionable blocker.

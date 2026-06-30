@@ -1,39 +1,79 @@
-# Current Goal: Echo Guard Complete Removal vNext
+# Current Goal: Remote-Forbidden Evidence Hardening v1
 
-Status, 2026-06-30: the first vNext shadow mechanism is implemented and checked on a six-session
-smoke corpus. It produced the first ASR-positive result: `remote_forbidden_token_guard` reduced
-remote-token leakage below `local_fir` on `sessions/2026-06-23_14-04-37` without local-recall
-regression. Promotion is still blocked because this is a token-level safety layer, not a production
-audio engine.
+Status, 2026-06-30: selected as the next major goal after the first ASR-positive Echo Guard vNext
+spike.
 
-MurmurMark already proves the product pain: when remote speech leaks into `mic`, later transcript
-repair, cleanup, audio review and manual review can reduce the damage, but they do not fully remove
-the cause. The next meaningful quality goal is to attack the source again: build a stronger offline
-Echo Guard lab that tries to remove remote-derived speech from the mic-derived ASR input while
-preserving every phrase actually spoken into the microphone.
+MurmurMark has enough evidence that remote speech leaking into the mic track is a root cause of
+false `Me` utterances, wrong order, extra cleanup work and remaining review burden. The previous
+Echo Guard vNext spike produced the first positive result at the ASR level:
+`remote_forbidden_token_guard` reduced remote-token leakage below `local_fir` on one difficult 1x1
+session without local-recall regression.
 
-This is an experimental goal, not a promise to replace `local_fir` immediately.
+That is not complete echo removal yet. It is a useful proof that MurmurMark can judge echo cleanup
+by recognized words, not only by loudness, ERLE or waveform similarity. The next goal is to harden
+that mechanism into an auditable safety layer.
 
 ## Goal
 
-Build on the `offline_aec_v2_v0` lab and test mechanisms that reduce ASR-visible remote speech, not
-only waveform/proxy energy. vNext currently adds:
+Make ASR-visible remote leakage measurable, reviewable and safely reducible across real sessions
+without changing capture, raw CAF files, the default `local_fir` engine or the primary ASR topology.
 
-- `segment_switch_remote_floor_local_fir`: a shadow audio candidate that uses `remote_floor` only in
-  `remote_only` windows and keeps `local_fir` elsewhere;
-- `remote_forbidden_token_guard`: a token-level safety candidate for ASR audit windows that removes
-  tokens matching the forbidden remote reference only in `remote_only` regions;
-- per-session and corpus reports comparing the result with `local_fir` and v0 candidates.
+In plain words: when a phrase from `remote` appears in the `Me` transcript, MurmurMark should be able
+to prove it, mark it, and safely remove or quarantine it only when local speech is protected.
 
-The first useful command shape should be close to:
+## Why This Goal Now
 
-```bash
-murmurmark preprocess "$SESSION" --echo clean --echo-engine offline_aec_v2
-```
+Post-processing already helps, but it is compensating for a bad input signal. The latest research
+showed three important facts:
 
-The engine may stay behind scripts or hidden CLI flags until the contracts settle.
+- waveform/proxy echo reduction can look good while ASR still recognizes remote words in `Me`;
+- audio-only candidates are not ready to replace `local_fir`;
+- a token-level remote-forbidden guard can improve a difficult case without losing local words.
 
-Current command:
+The shortest useful path is therefore not another broad cleanup layer. It is a stricter evidence
+loop around remote-derived words:
+
+1. find ASR-visible remote leakage;
+2. compare against local speech evidence;
+3. choose `keep`, `quarantine`, `suggest_drop`, or `needs_review`;
+4. report the decision with audio, transcript and speaker-state evidence.
+
+## Scope
+
+In scope:
+
+- expand ASR audit windows beyond the first clip-level spike;
+- persist remote-forbidden evidence rows with timestamps, source tokens and confidence;
+- link guard decisions to transcript/review artifacts instead of keeping them only in lab reports;
+- enforce local-speech gates using speaker state, local recall and available audio-judge evidence;
+- produce per-session and corpus summaries: remote-token leakage before/after, local-word recall,
+  guarded seconds and review burden;
+- keep all candidate outputs shadow-only until corpus gates pass.
+
+Out of scope:
+
+- replacing `local_fir` as default;
+- writing a new neural echo canceller;
+- changing capture, raw CAF tracks, primary `whisper.cpp` ASR or reviewed transcript profiles;
+- silently deleting uncertain `Me` text;
+- claiming waveform-perfect echo removal.
+
+## Acceptance
+
+- Raw `audio/mic/*.caf` and `audio/remote/*.caf` are unchanged.
+- `local_fir` remains the selected production Echo Guard path.
+- Every remote-forbidden action has evidence: remote tokens, mic tokens, timestamps, speaker state and
+  review classification.
+- Local-only word recall is no worse than baseline by more than 2 percentage points.
+- At least two difficult real sessions show lower ASR-visible remote leakage, or the report explains
+  why only one case is currently safely fixable.
+- No candidate is promoted to default from proxy metrics alone.
+- `murmurmark status`, corpus reports or review artifacts expose the remaining risk instead of hiding
+  it inside a cleaned transcript.
+
+## Working Commands
+
+Current lab command:
 
 ```bash
 .venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION" --asr-audit --asr-max-clips 2
@@ -45,53 +85,50 @@ Corpus summary:
 .venv/bin/python scripts/report-offline-aec-v2-corpus.py SESSION...
 ```
 
-ASR clip audit for a candidate session:
+Target user-facing shape after hardening:
 
 ```bash
-.venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION" --asr-audit --asr-max-clips 2
+murmurmark process "$SESSION"
+murmurmark status "$SESSION"
+murmurmark review suggested "$SESSION"
 ```
 
-## Why This Goal Now
+The hardened layer should appear as evidence and review decisions in the normal pipeline before it
+is considered for any default audio change.
 
-Current evidence across real sessions shows that residual remote bleed is a root cause of:
+## Larger Goals After This
 
-- false `Me` utterances;
-- long mixed `Me` blocks that require timeline repair;
-- review queues around order, duplicate and local-recall risks;
-- imperfect final transcript even after cleanup.
+1. ASR-positive audio candidate v2: make an actual audio candidate beat `local_fir` on remote-token
+   leakage without local recall loss.
+2. Target-Me extraction spike: use high-confidence local speech to separate the user's voice in
+   difficult double-talk and open-space noise.
+3. Neural residual echo suppression spike: test a narrow local model only after the evidence gates
+   are stable.
+4. Transcript-level remote-forbidden reconciliation: keep a final safety net even when audio cleanup
+   improves.
 
-Post-processing remains necessary, but it is compensating for a bad mic signal. A stronger Echo
-Guard candidate can reduce the burden before ASR and make every later layer simpler.
+## References
 
-## Scope
+- [Complete Echo Removal Research](../research/2026-06-30-complete-echo-removal.md)
+- [Echo Guard architecture](../architecture/echo-suppression.md)
+- [Mic remote bleed reduction backlog](../backlog/mic-remote-bleed-reduction.md)
+- [CLI roadmap](../roadmap/murmurmark-cli-roadmap.md)
 
-In scope:
+---
 
-- segment-local audio candidate switching based on speaker-state windows;
-- token-level remote-forbidden guard for `remote_only` ASR audit windows;
-- ASR-token leakage and local-word recall reports for audio and token-guard candidates;
-- corpus reports comparing `local_fir`, `offline_aec_v2_v0`, segment switch and token guard.
+# Latest Completed Goal: Echo Guard Complete Removal vNext
 
-Out of scope for vNext:
+Status, 2026-06-30: completed as a shadow research spike. Not promoted.
 
-- replacing `local_fir` as default;
-- training a neural model;
-- changing capture, raw CAF, primary `whisper.cpp` ASR or reviewed transcript profiles;
-- claiming waveform-perfect echo removal;
-- auto-promoting a candidate because ERLE, subjective loudness or token-guard success improved.
+## Result
 
-## Acceptance
+The vNext spike added:
 
-- Raw `audio/mic/*.caf` and `audio/remote/*.caf` are unchanged.
-- `local_fir` remains the default selected engine.
-- New artifacts are written separately under `derived/preprocess/echo/offline_aec_v2*` and
-  `derived/preprocess/audio/*offline_aec_v2*`.
-- At least one difficult real session shows lower remote-token leakage than `local_fir`.
-- Local-only word recall is no worse than baseline by more than 2 percentage points.
-- Opening/backchannel recall is reported and any regression blocks audio promotion.
-- If no candidate wins, the report clearly says which gate failed.
-
-## Current vNext Finding
+- `segment_switch_remote_floor_local_fir`: a shadow audio candidate that uses `remote_floor` only in
+  `remote_only` windows and keeps `local_fir` elsewhere;
+- `remote_forbidden_token_guard`: a virtual ASR safety candidate for audit windows that removes
+  forbidden remote-reference tokens only in `remote_only` regions;
+- per-session and corpus reports comparing the result with `local_fir` and v0 candidates.
 
 Smoke corpus:
 
@@ -102,31 +139,20 @@ Smoke corpus:
 - `sessions/2026-06-30_11-15-56`;
 - `sessions/2026-06-30_17-17-20`.
 
-Current result:
+Outcome:
 
-- best proxy candidate is usually `nonlinear_tail160_remote_floor`;
-- `segment_switch_remote_floor_local_fir` became the best proxy candidate on the mostly-silent
-  session because it preserves local regions better;
 - `remote_forbidden_token_guard` passed ASR-token gates on one difficult 1x1 session:
   `remote_token_leak_delta = -0.5`, `local_only_word_recall_delta = 0.0`;
 - corpus summary: `asr_candidate_gate_passed = 1/6`,
   `asr_remote_token_leak_improved = 1/6`, `asr_local_word_recall_regressions = 0/6`;
-- no candidate is promoted.
+- no audio candidate beat `local_fir` well enough for promotion.
 
-Interpretation: vNext has the first ASR-positive safety mechanism, but it is not complete echo
-removal. The audio candidate alone still does not beat `local_fir` on ASR-visible leakage. The next
-work is to make the token guard less clip-specific and connect it to transcript/review evidence
-without hiding uncertainty.
-
-## References
-
-- [Complete Echo Removal Research](../research/2026-06-30-complete-echo-removal.md)
-- [Echo Guard architecture](../architecture/echo-suppression.md)
-- [Mic remote bleed reduction backlog](../backlog/mic-remote-bleed-reduction.md)
+Interpretation: vNext proved the right measurement direction. It did not solve complete echo
+removal. The next step is evidence hardening, not default replacement.
 
 ---
 
-# Latest Completed Goal: Export Bundle Quality v1
+# Previous Completed Goal: Export Bundle Quality v1
 
 Status, 2026-06-30: completed.
 
@@ -168,36 +194,6 @@ The resulting Markdown or Obsidian bundle should answer:
   say "Do not use yet".
 - Raw audio is not copied into export bundles.
 
-## Out Of Scope
-
-- Changing capture, Echo Guard or the main ASR path.
-- Making risky sessions look exportable.
-- Auto-deleting raw audio.
-- Writing directly to Obsidian, Jira, docs repositories or external providers.
-- Generating unsupported summaries without evidence IDs.
-
-## Verification
-
-- `swift build`
-- `.venv/bin/python -m py_compile scripts/*.py`
-- `git diff --check`
-- `scripts/smoke-cli-handoff.sh`
-- `scripts/smoke-fixture.sh`
-- `scripts/check-open-source-readiness.sh`
-- `scripts/check.sh`
-- opskarta v3 validation for `docs/roadmap/murmurmark-cli-roadmap.plan.yaml`
-- Manual export checks on:
-  - an exportable session;
-  - a real forced/debug 1x1 session;
-  - a real blocked/forced group session;
-  - an Obsidian single-note export.
-
 ## Commit
 
 `6362d12 feat: improve export bundle handoff`
-
-## Next Direction
-
-The next large goal moves back to the audio root cause: reduce the remote leak before ASR with a
-shadow offline Echo Guard lab, while keeping the existing capture, raw files, `local_fir` default and
-review gates intact.
