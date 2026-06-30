@@ -120,7 +120,29 @@ Required fields:
   },
   "health": {
     "summary": "ok",
-    "warnings": []
+    "warnings": [],
+    "partial": false,
+    "explicit_stop": true,
+    "stop_reason": "sigint",
+    "actual_duration_sec": 2400.0,
+    "requested_duration_sec": null,
+    "screen_capture_restart_count": 0,
+    "tracks": {
+      "mic": {
+        "frames": 86400000,
+        "sample_rate": 48000,
+        "duration_sec": 1800.0,
+        "bytes": 172800000,
+        "empty": false
+      },
+      "remote": {
+        "frames": 86400000,
+        "sample_rate": 48000,
+        "duration_sec": 1800.0,
+        "bytes": 345600000,
+        "empty": false
+      }
+    }
   }
 }
 ```
@@ -129,6 +151,8 @@ Status values:
 
 - `active`
 - `completed`
+- `completed_with_warnings`
+- `partial`
 - `stopped_deleted`
 - `failed`
 - `quarantined`
@@ -137,8 +161,28 @@ Health summary:
 
 - `ok`
 - `warning`
+- `partial`
 - `degraded`
 - `failed`
+
+`partial` means capture ended before an explicit user stop or requested duration. Current partial
+stop reasons are:
+
+- `stream_stopped`;
+- `capture_stalled`;
+- `sigterm`;
+- `sighup`.
+
+For a partial session:
+
+- `session.json.status` must be `partial`;
+- `health.summary` must be `partial`;
+- `health.partial` must be `true`;
+- `health.explicit_stop` must be `false`;
+- `events.jsonl` must contain `capture.stopped` with `partial: true`;
+- normal `murmurmark process SESSION` must block unless `--allow-partial` is explicit;
+- `murmurmark status SESSION` and `murmurmark next SESSION` must point to `murmurmark inspect SESSION`
+  when readiness has not already been generated.
 
 ## `events.jsonl`
 
@@ -153,7 +197,13 @@ Example:
 {"t":"2026-06-20T14:32:15.300Z","type":"health.remote.level_ok","rms_db":-24.1}
 {"t":"2026-06-20T14:32:15.301Z","type":"health.mic.level_ok","rms_db":-18.7}
 {"t":"2026-06-20T14:45:00.000Z","type":"user.marker","label":"decision"}
-{"t":"2026-06-20T15:05:42.900Z","type":"capture.stopped"}
+{"t":"2026-06-20T15:05:42.900Z","type":"capture.stopped","reason":"sigint","partial":false,"explicit_stop":true}
+```
+
+Partial stop example:
+
+```jsonl
+{"t":"2026-06-20T15:05:42.900Z","type":"capture.stopped","reason":"sighup","partial":true,"explicit_stop":false,"actual_duration_sec":600.2}
 ```
 
 Allowed event families:
@@ -216,6 +266,7 @@ Created after capture when pipeline handoff is requested.
 - non-empty status for mic and remote;
 - sample rates and channels;
 - warnings;
+- partial reason and handoff when `health.partial` is true;
 - retention state;
 - whether derived transcript/notes exist.
 

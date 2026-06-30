@@ -86,6 +86,8 @@ murmurmark retention plan latest
 The manual gate passes when:
 
 - the recording creates separate non-empty mic and remote tracks;
+- the recording status is not `partial`, and `inspect latest` shows an explicit stop reason such as
+  `sigint` or `duration_elapsed`;
 - `process latest` completes or prints a concrete next command;
 - `status latest` reports a clear readiness state;
 - `acceptance --live-session latest` reports `status: ok` and writes a report with

@@ -100,14 +100,14 @@ flowchart LR
 - Extractive notes, quality verdict and review items.
 - CLI process/status/next/report/open/notes/transcript/review/corpus/export/retention surface.
 - Local install wrapper, self-test, acceptance gate, release bundle and public-readiness check.
+- Recording reliability: normal duration/SIGINT stops complete, unexpected SIGTERM/SIGHUP/capture
+  failures become explicit partial sessions, and `doctor` catches missing shareable displays.
 
 ### Current
 
 - Keep the corpus at `medium_risk_ready` or better.
 - Keep readiness/status/next honest when the actionable review queue is empty but residual risk
   remains documented.
-- Make recording failures and partial sessions diagnosable before the user relies on an incomplete
-  meeting result.
 - Make the everyday path boring:
 
   ```bash
@@ -152,40 +152,41 @@ flowchart LR
 - Local or controlled LLM synthesis with strict evidence guard.
 - Optional menu bar or desktop UI after the CLI is mature.
 
-## Current Goal
+## Latest Completed Goal
 
-Make recording reliable enough for everyday meetings.
+Recording is now reliable enough to trust as a CLI workflow for everyday meetings.
 
 In practical terms:
 
-- `murmurmark record` should continue until the user stops it explicitly;
-- if capture ends unexpectedly, the session package should record why, when and which stream failed;
-- `inspect`, `status`, `next` and `process` should treat interrupted recordings as partial unless
+- `murmurmark record` continues until the user stops it explicitly or a requested duration ends;
+- if capture ends unexpectedly, the session package records why, when and which stream failed;
+- `inspect`, `status`, `next` and `process` treat interrupted recordings as partial unless
   the user explicitly allows processing;
-- the CLI should print a clear next command after a stop, failure or partial capture;
-- diagnostics should preserve raw CAF tracks and never silently rewrite or discard captured audio;
+- the CLI prints a clear next command after a stop, failure or partial capture;
+- diagnostics preserve raw CAF tracks and never silently rewrite or discard captured audio;
 - capture, Echo Guard and the main ASR path stay reproducible.
 
-Success is not perfect audio. Success is that the user can trust whether the meeting was fully
+Success is not perfect audio. Success is that the user can trust whether a meeting was fully
 recorded, and if not, immediately knows what was captured and what to do next.
 
 Recently completed:
 
+- **Recording reliability.** Duration and `SIGINT` stops complete normally; `SIGTERM`, `SIGHUP` and
+  unrecovered capture interruptions write `status: partial`, show `inspect` as the safe next command
+  and block normal processing unless `--allow-partial` is explicit.
 - **Readiness reconciliation.** A zero-action review queue no longer turns into an empty
   `first-lane` handoff. MurmurMark now points to `ready_for_notes`, a non-empty actionable review
   pack, or a documented non-actionable blocker.
 
 ## Candidate Next Goals
 
-1. **Recording reliability.** Make unexpected capture stops and partial sessions easy to diagnose,
-   with durable health events and a clear "recording stopped, do this next" path.
-2. **Polish export bundles.** Make the exported Markdown/Obsidian result the natural user-facing
+1. **Polish export bundles.** Make the exported Markdown/Obsidian result the natural user-facing
    artifact, not just a dump of derived files.
-3. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
+2. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
    changes to beat or preserve it.
-4. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
+3. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
    to utterance IDs and review flags.
-5. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
+4. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
    artifacts and add security/contact guidance.
 
 ## Validation

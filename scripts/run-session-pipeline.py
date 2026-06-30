@@ -20,7 +20,9 @@ SCHEMA = "murmurmark.session_pipeline_run/v1"
 INTERRUPTED_CAPTURE_WARNING_MARKERS = (
     "stream stopped with error",
     "capture produced no audio samples",
+    "capture ended unexpectedly",
 )
+INTERRUPTED_CAPTURE_STOP_REASONS = {"stream_stopped", "capture_stalled", "sigterm", "sighup"}
 
 
 STEP_COST_HINTS: dict[str, dict[str, str]] = {
@@ -154,25 +156,31 @@ def final_capture_stop_reason(session: Path) -> str:
 
 
 def interrupted_capture_warnings(session: Path) -> list[str]:
-    if final_capture_stop_reason(session) not in {"stream_stopped", "capture_stalled"}:
+    final_reason = final_capture_stop_reason(session)
+    if final_reason and final_reason not in INTERRUPTED_CAPTURE_STOP_REASONS:
         return []
     session_json = read_json(session / "session.json")
     if not isinstance(session_json, dict):
         return []
-    if session_json.get("status") != "completed_with_warnings":
-        return []
     health = session_json.get("health")
     if not isinstance(health, dict):
         return []
+    health_reason = str(health.get("stop_reason") or "")
+    reason = health_reason or final_reason
+    partial = bool(health.get("partial")) or session_json.get("status") == "partial" or reason in INTERRUPTED_CAPTURE_STOP_REASONS
+    if not partial and session_json.get("status") != "completed_with_warnings":
+        return []
     warnings = health.get("warnings")
     if not isinstance(warnings, list):
-        return []
+        warnings = []
     matched: list[str] = []
     for warning in warnings:
         text = str(warning)
         lowered = text.lower()
         if any(marker in lowered for marker in INTERRUPTED_CAPTURE_WARNING_MARKERS):
             matched.append(text)
+    if partial and not matched:
+        matched.append(f"capture ended unexpectedly: {reason or 'unknown'}")
     return matched
 
 

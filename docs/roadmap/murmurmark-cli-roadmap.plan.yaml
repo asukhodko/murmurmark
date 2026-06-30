@@ -175,14 +175,16 @@ nodes:
     kind: task
     parent: cli-orchestration
     deps: [cli-record-process-latest, readiness-single-output]
-    status: current
+    status: done
     effort: 5
     notes: |
-      Следующая цель после readiness reconciliation: `murmurmark record` должен продолжаться до
-      явной остановки пользователем. Если capture завершается неожиданно, session package должен
-      содержать durable health/events, причину/момент остановки, состояние mic/remote streams и
+      Выполнено после readiness reconciliation: `murmurmark record` продолжается до явной остановки
+      пользователем или requested duration. Если capture завершается неожиданно, session package
+      содержит durable health/events, причину/момент остановки, состояние mic/remote streams и
       честный CLI handoff: inspect/status/process только как partial или с явным --allow-partial.
-      Raw CAF не переписывать и не удалять; Echo Guard и основной ASR не менять.
+      `doctor` заранее видит blockers для system capture, включая отсутствие shareable display.
+      Запись CAF устойчива к межканальному/немежканальному формату входных буферов ScreenCaptureKit.
+      Raw CAF не переписываются и не удаляются; Echo Guard и основной ASR не меняются.
 
   cli-sessions-command:
     title: "murmurmark sessions"
@@ -903,8 +905,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Recording Reliability: сделать запись устойчивой до явной остановки пользователем или честно диагностировать partial capture с понятным следующим CLI-шагом."
-      success_by_next_sync: "Новая live/fixture-проверка доказывает: record без --duration не завершается молча, unexpected stop пишет durable health/events, status/inspect/process видят partial-состояние, а raw CAF, Echo Guard и основной ASR не меняются."
+      nearest_goal: "Выбрать следующий CLI-hardening фокус: export bundles, corpus gates, notes quality или public release hardening."
+      success_by_next_sync: "Следующая цель выбрана явно, roadmap и README называют её критерием успеха, а Recording Reliability остаётся закрытой verified-точкой."
     defaults:
       status_progress:
         done: 1.0
@@ -930,8 +932,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP закрыт, readiness reconciliation завершена; следующий риск в пользовательском пути — запись, которая может оказаться partial только после встречи."
-          next_sync_goal: "Закрыть Recording Reliability: durable record health/events, диагностика unexpected stop и честный partial-session handoff."
+          sync_note: "CLI MVP закрыт, readiness reconciliation и Recording Reliability завершены; status/next/process теперь честно ведут partial capture в inspect."
+          next_sync_goal: "Выбрать следующий CLI-hardening фокус: export bundles, corpus gates, notes quality или public release hardening."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]

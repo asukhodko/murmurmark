@@ -41,6 +41,10 @@ This does not mean "zero review". It means MurmurMark is already useful when the
 remaining explicit risk. Full transcript/export can still be blocked while evidence-backed notes are
 usable.
 
+Latest completed project goal: [Recording Reliability](docs/project/current-goal.md). `record` now
+keeps capturing until explicit user stop, or writes a durable partial session with an honest next
+command.
+
 ## What Works Now
 
 - Two-track macOS capture through ScreenCaptureKit: local microphone and selected system/app audio.
@@ -56,6 +60,8 @@ usable.
 - Review lane packs, suggested answers, review apply flow and corpus readiness reports.
 - Markdown/Obsidian-style export bundles and retention planning.
 - Local release bundle, self-test, acceptance gate and open-source readiness check.
+- Recording reliability: duration/SIGINT complete normally, SIGTERM/SIGHUP/unrecovered capture stops
+  become explicit partial sessions, and `doctor` catches missing shareable displays before recording.
 
 ## What Is Still Out Of Scope
 
@@ -128,6 +134,10 @@ SESSION="sessions/<timestamp>"
 recommended_next: murmurmark process sessions/<timestamp>
 ```
 
+If capture stops before `Ctrl-C`, MurmurMark finalizes a partial session instead of pretending it is
+complete. In that case `record`, `status` and `next` point to `murmurmark inspect ...`; normal
+processing is blocked unless you explicitly pass `--allow-partial` for debugging.
+
 Then run:
 
 ```bash
@@ -175,8 +185,9 @@ For a dry run:
 murmurmark process "$SESSION" --plan-only
 ```
 
-For an interrupted or known-partial capture, processing is blocked by default. Use `--allow-partial`
-only for debugging.
+For an interrupted or known-partial capture, `murmurmark status "$SESSION"` and
+`murmurmark next "$SESSION"` point to `inspect` first. Processing is blocked by default. Use
+`--allow-partial` only for debugging.
 
 ## Review Flow
 
@@ -329,7 +340,8 @@ the selected profile by filename.
 - [Transcription and review runbook](docs/runbooks/transcribe-simple-whispercpp.md)
 - [Transcript and evidence contracts](docs/contracts/transcript-and-evidence.md)
 - [Evidence synthesis architecture](docs/architecture/evidence-synthesis.md)
-- [Open-source readiness](docs/open-source-readiness.md)
+- [Open-source readiness](docs/project/open-source-readiness.md)
+- [Latest completed goal](docs/project/current-goal.md)
 
 ## Roadmap Summary
 
@@ -338,24 +350,20 @@ Current focus:
 - keep the corpus at `medium_risk_ready` or better;
 - keep `next`/`status`/`review` honest when the actionable queue is already empty but residual risk
   remains documented;
-- make recording failures and partial sessions diagnosable without discovering the problem only after
-  the meeting;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 
 Near-term goals for discussion:
 
-1. Recording reliability: make `record` continue until explicit user stop, or fail with durable
-   diagnostics, health events and an exact next command for partial sessions.
-2. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
+1. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
-3. Export readiness: make Markdown/Obsidian bundles the normal output for usable meetings, with
+2. Export readiness: make Markdown/Obsidian bundles the normal output for usable meetings, with
    explicit blockers and retention guidance.
-4. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
+3. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
    regressions before new heuristics ship.
-5. Evidence notes vNext: improve extractive notes quality while preserving citations and review
+4. Evidence notes vNext: improve extractive notes quality while preserving citations and review
    flags.
-6. Open-source release hardening: trim private fixtures, document setup, add security/contact
+5. Open-source release hardening: trim private fixtures, document setup, add security/contact
    guidance and keep generated/private artifacts ignored.
 
 Recently completed:

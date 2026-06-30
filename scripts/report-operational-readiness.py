@@ -282,7 +282,8 @@ def has_interrupted_capture_warning(row: dict[str, Any]) -> bool:
                         final_reason = str(event.get("reason") or "")
         except OSError:
             final_reason = ""
-    if final_reason and final_reason not in {"stream_stopped", "capture_stalled"}:
+    interrupted_reasons = {"stream_stopped", "capture_stalled", "sigterm", "sighup"}
+    if final_reason and final_reason not in interrupted_reasons:
         return False
     if not session_json.exists():
         return False
@@ -290,16 +291,19 @@ def has_interrupted_capture_warning(row: dict[str, Any]) -> bool:
         session = read_json(session_json)
     except (OSError, json.JSONDecodeError, ValueError):
         return False
-    if session.get("status") != "completed_with_warnings":
-        return False
     health = session.get("health")
     if not isinstance(health, dict):
         return False
+    health_reason = str(health.get("stop_reason") or "")
+    reason = health_reason or final_reason
+    partial = bool(health.get("partial")) or session.get("status") == "partial" or reason in interrupted_reasons
+    if not partial and session.get("status") != "completed_with_warnings":
+        return False
     warnings = health.get("warnings")
     if not isinstance(warnings, list):
-        return False
+        warnings = []
     warning_text = "\n".join(str(warning).lower() for warning in warnings)
-    return any(marker in warning_text for marker in INTERRUPTED_CAPTURE_WARNING_MARKERS)
+    return partial or any(marker in warning_text for marker in INTERRUPTED_CAPTURE_WARNING_MARKERS)
 
 
 def is_diagnostic_session(row: dict[str, Any]) -> bool:

@@ -191,7 +191,8 @@ struct MurmurMark {
           acceptance runs the CLI MVP gate for this checkout or release bundle.
           audio-input remote capture and voice-processing mic capture are experimental comparison modes.
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
-          Without --duration, recording runs until Ctrl-C or SIGTERM and finalizes the session.
+          Without --duration, recording runs until Ctrl-C and finalizes the session.
+          SIGTERM/SIGHUP are treated as unexpected stops and leave a partial session.
           Unexpected ScreenCaptureKit stops are restarted when possible; unrecovered stops finalize a partial session and exit with an error.
           Without --out, recording creates a unique directory under ./sessions.
           sessions lists recent session packages and their readiness state.
@@ -254,6 +255,14 @@ enum Commands {
             report.check(.passed, "screen/system audio permission", "ok")
             print("shareable displays: \(content.displays.count)")
             print("shareable applications: \(content.applications.count)")
+            if content.displays.isEmpty {
+                report.check(
+                    .fail,
+                    "shareable displays",
+                    "none visible to ScreenCaptureKit",
+                    hint: "run MurmurMark from a logged-in desktop session and re-check before recording"
+                )
+            }
         } catch {
             report.check(
                 .fail,
@@ -434,7 +443,8 @@ enum Commands {
             let session = PathDisplay.display(out)
             throw CLIError(
                 "recording interrupted before requested end; partial session saved: \(session). " +
-                    "Inspect it with `murmurmark inspect \(session)`, then re-record if this was a live meeting."
+                    "Inspect it with `murmurmark inspect \(session)`, then re-record if this was a live meeting. " +
+                    "Use `murmurmark process \(session) --allow-partial` only for debugging."
             )
         }
     }
@@ -1059,7 +1069,8 @@ enum PipelineCommands {
 enum PipelineHelp {
     static func printSessions() {
         Swift.print("""
-        usage: murmurmark sessions [--limit 10] [--all] [--status exported|exportable|review_required|incomplete|blocked|missing_readiness]
+        usage: murmurmark sessions [--limit 10] [--all]
+                                  [--status exported|exportable|review_required|incomplete|blocked|partial_capture|missing_readiness]
                                   [--path-only|--next-only|--json] [--sessions-root ./sessions]
 
         Lists recent session packages and their current readiness state.
@@ -1127,7 +1138,7 @@ enum PipelineHelp {
         Swift.print("""
         usage: murmurmark next [./session|latest|corpus] [--refresh] [--export-manifest ./export_manifest.json] [--sessions-root ./sessions]
 
-        Prints the single recommended next command from session_readiness.json.
+        Prints the single recommended next command from session_readiness.json or partial-capture health.
         Defaults to latest when no session is provided. Pass corpus to print the current
         operational-readiness handoff for all sessions under --sessions-root.
         Use --refresh to update readiness first without rerunning ASR, Echo Guard or audits.
@@ -1295,6 +1306,9 @@ enum SessionListPrinter {
     }
 
     private static func status(for session: URL, readiness: [String: Any]?) -> String {
+        if CaptureHealthState.partialInfo(session: session) != nil {
+            return "partial_capture"
+        }
         guard let readiness else { return "missing_readiness" }
         let gate = string(readiness["use_gate"]) ?? "unknown"
         let exportBlockers = (readiness["export_blockers"] as? [Any] ?? []).map { String(describing: $0) }
@@ -1318,6 +1332,9 @@ enum SessionListPrinter {
     }
 
     private static func nextCommand(for session: URL, readiness: [String: Any]?) -> String {
+        if CaptureHealthState.partialInfo(session: session) != nil {
+            return CaptureHealthState.preferredPartialNext(session: session)
+        }
         if let readiness {
             if let exportHandoff = successfulExportHandoff(session: session, readiness: readiness) {
                 return exportHandoff.command
@@ -5606,6 +5623,24 @@ extension Commands {
         print("created_at: \(manifest.createdAt)")
         print("ended_at: \(manifest.endedAt ?? "-")")
         print("health: \(manifest.health.summary)")
+        if manifest.health.partial == true || manifest.status == "partial" {
+            print("partial: true")
+        }
+        if let stopReason = manifest.health.stopReason {
+            print("stop_reason: \(stopReason)")
+        }
+        if let explicitStop = manifest.health.explicitStop {
+            print("explicit_stop: \(explicitStop)")
+        }
+        if let actualDuration = manifest.health.actualDurationSec {
+            print(String(format: "actual_duration: %.2fs", actualDuration))
+        }
+        if let requestedDuration = manifest.health.requestedDurationSec {
+            print(String(format: "requested_duration: %.2fs", requestedDuration))
+        }
+        if let restartCount = manifest.health.screenCaptureRestartCount {
+            print("screen_capture_restarts: \(restartCount)")
+        }
 
         for source in ["mic", "remote"] {
             let entries = manifest.files[source] ?? []
@@ -5623,6 +5658,18 @@ extension Commands {
             print("warnings:")
             for warning in manifest.health.warnings {
                 print("- \(warning)")
+            }
+        }
+
+        if let partial = CaptureHealthState.partialInfo(session: session) {
+            print("partial_handoff:")
+            print("  reason: \(partial.reason)")
+            print("  recommended_next: \(CaptureHealthState.preferredPartialNext(session: session))")
+            print("  next:")
+            for item in CaptureHealthState.partialNextCommands(session: session) {
+                if let command = item["command"] {
+                    print("    \(command)")
+                }
             }
         }
 
@@ -5819,6 +5866,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var targetPIDStrategy = "screen_capture_filter"
     private var startDate = Date()
     private var stopDate: Date?
+    private var finalStopReason: StopReason?
     private var stoppingRequested = false
     private var streamStoppedUnexpectedly = false
     private var restartingScreenCapture = false
@@ -5952,16 +6000,28 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 print("recording until Ctrl-C -> \(outputDirectory.path)")
             }
             let stopReason = try await waitForRecordingStop()
-            if stopReason.isSignal {
+            finalStopReason = stopReason
+            if stopReason == .interrupt {
                 print("\nstopping...")
-            } else if stopReason == .streamStopped || stopReason == .captureStalled {
-                print("\ncapture stopped before requested end; finalizing partial session...")
+            } else if stopReason.isUnexpectedCaptureStop {
+                print("\ncapture stopped before explicit user stop; finalizing partial session...")
             }
             await stopScreenCaptureStream()
             stopRemoteInputCapture()
             stopVoiceProcessingMic()
             stopDate = Date()
-            try eventLog.write(type: "capture.stopped", fields: ["reason": stopReason.rawValue])
+            let actualDuration = max(0.0, (stopDate ?? Date()).timeIntervalSince(startDate))
+            var stoppedFields: [String: Any] = [
+                "reason": stopReason.rawValue,
+                "partial": stopReason.isUnexpectedCaptureStop,
+                "explicit_stop": stopReason.isExplicitStop,
+                "actual_duration_sec": Double(round(actualDuration * 1000) / 1000),
+                "screen_capture_restart_count": screenCaptureRestartCount,
+            ]
+            if let duration {
+                stoppedFields["requested_duration_sec"] = duration
+            }
+            try eventLog.write(type: "capture.stopped", fields: stoppedFields)
             try finish()
             if stopReason.isUnexpectedCaptureStop {
                 print("partial session finalized")
@@ -6242,6 +6302,20 @@ extension SessionRecorder {
         )
 
         let endedAt = stopDate ?? Date()
+        let actualDuration = max(0.0, endedAt.timeIntervalSince(startDate))
+        let stopReason = finalStopReason
+        let partial = stopReason?.isUnexpectedCaptureStop ?? false
+        if partial {
+            finalWarnings.append("capture ended unexpectedly: \(stopReason?.rawValue ?? "unknown")")
+        }
+        let healthSummary: String
+        if partial {
+            healthSummary = "partial"
+        } else if finalWarnings.isEmpty {
+            healthSummary = "ok"
+        } else {
+            healthSummary = "warning"
+        }
         let manifest = SessionManifest(
             schema: "murmurmark.session/v1",
             sessionID: SessionIDs.make(from: startDate),
@@ -6249,7 +6323,7 @@ extension SessionRecorder {
             endedAt: DateStrings.iso8601(endedAt),
             appVersion: MurmurMark.version,
             captureMode: captureMode,
-            status: finalWarnings.isEmpty ? "completed" : "completed_with_warnings",
+            status: partial ? "partial" : (finalWarnings.isEmpty ? "completed" : "completed_with_warnings"),
             target: TargetManifest(
                 kind: targetKind,
                 bundleID: targetKind == "bundle_id" ? targetBundleID : nil,
@@ -6283,8 +6357,18 @@ extension SessionRecorder {
                 "remote": [remoteInfo],
             ],
             health: HealthManifest(
-                summary: finalWarnings.isEmpty ? "ok" : "warning",
-                warnings: finalWarnings
+                summary: healthSummary,
+                warnings: finalWarnings,
+                stopReason: stopReason?.rawValue,
+                partial: partial,
+                explicitStop: stopReason?.isExplicitStop,
+                actualDurationSec: roundedSeconds(actualDuration),
+                requestedDurationSec: duration.map(roundedSeconds),
+                screenCaptureRestartCount: screenCaptureRestartCount,
+                tracks: [
+                    "mic": TrackHealthManifest(from: micInfo),
+                    "remote": TrackHealthManifest(from: remoteInfo),
+                ]
             )
         )
 
@@ -6293,7 +6377,18 @@ extension SessionRecorder {
         try encoder.encode(manifest).write(to: outputDirectory.appendingPathComponent("session.json"), options: .atomic)
         try PipelineJob.default(for: manifest).write(to: outputDirectory.appendingPathComponent("pipeline_job.json"))
         try? fileManager.removeItem(at: outputDirectory.appendingPathComponent("session.lock"))
-        try events?.write(type: "manifest.written", fields: ["health": manifest.health.summary])
+        try events?.write(
+            type: "manifest.written",
+            fields: [
+                "health": manifest.health.summary,
+                "partial": partial,
+                "stop_reason": stopReason?.rawValue ?? "",
+            ]
+        )
+    }
+
+    private func roundedSeconds(_ value: Double) -> Double {
+        Double(round(value * 1000) / 1000)
     }
 
     private func printHandoff() {
@@ -6312,6 +6407,8 @@ extension SessionRecorder {
         print("recommended_next: murmurmark inspect \(session)")
         print("next:")
         print("  murmurmark inspect \(session)")
+        print("  murmurmark status \(session)")
+        print("  murmurmark process \(session) --allow-partial  # debug only")
     }
 }
 
@@ -6427,7 +6524,7 @@ final class AudioFileWriter {
 
         if file == nil {
             do {
-                file = try AVAudioFile(forWriting: url, settings: format.settings)
+                file = try Self.makeAudioFile(url: url, processingFormat: format)
             } catch {
                 throw CLIError("cannot create audio file for \(source): \(error.localizedDescription)")
             }
@@ -6438,6 +6535,26 @@ final class AudioFileWriter {
             throw CLIError("cannot write audio buffer for \(source): \(error.localizedDescription)")
         }
         framesWritten += AVAudioFramePosition(frameCount)
+    }
+
+    private static func makeAudioFile(url: URL, processingFormat: AVAudioFormat) throws -> AVAudioFile {
+        guard let fileFormat = AVAudioFormat(
+            commonFormat: processingFormat.commonFormat,
+            sampleRate: processingFormat.sampleRate,
+            channels: processingFormat.channelCount,
+            interleaved: true
+        ) else {
+            var settings = processingFormat.settings
+            settings[AVLinearPCMIsNonInterleaved] = false
+            return try AVAudioFile(forWriting: url, settings: settings)
+        }
+
+        return try AVAudioFile(
+            forWriting: url,
+            settings: fileFormat.settings,
+            commonFormat: processingFormat.commonFormat,
+            interleaved: processingFormat.isInterleaved
+        )
     }
 
     func close() {
@@ -8181,6 +8298,120 @@ enum JSONScalars {
     }
 }
 
+struct PartialCaptureInfo {
+    let reason: String
+    let summary: String
+    let warnings: [String]
+    let actualDurationSec: Double?
+    let requestedDurationSec: Double?
+    let restartCount: Int?
+}
+
+enum CaptureHealthState {
+    private static let partialStopReasons: Set<String> = ["stream_stopped", "capture_stalled", "sigterm", "sighup"]
+
+    static func partialInfo(session: URL) -> PartialCaptureInfo? {
+        let manifestURL = session.appendingPathComponent("session.json")
+        guard let manifest = try? JSONFiles.object(manifestURL) else { return nil }
+        let health = manifest["health"] as? [String: Any] ?? [:]
+        let status = manifest["status"] as? String ?? ""
+        let reason = string(health["stop_reason"])
+            ?? finalCaptureStopReason(session: session)
+            ?? ""
+        let partial = bool(health["partial"]) == true
+            || status == "partial"
+            || partialStopReasons.contains(reason)
+        guard partial else { return nil }
+        return PartialCaptureInfo(
+            reason: reason.isEmpty ? "unknown" : reason,
+            summary: string(health["summary"]) ?? status,
+            warnings: strings(health["warnings"]),
+            actualDurationSec: JSONScalars.double(health["actual_duration_sec"]),
+            requestedDurationSec: JSONScalars.double(health["requested_duration_sec"]),
+            restartCount: int(health["screen_capture_restart_count"])
+        )
+    }
+
+    static func partialNextCommands(session: URL) -> [[String: String]] {
+        let sessionPath = PathDisplay.display(session)
+        return [
+            [
+                "id": "inspect_partial_session",
+                "label": "Inspect partial recording health and raw track durations.",
+                "command": "murmurmark inspect \(sessionPath)",
+            ],
+            [
+                "id": "record_again",
+                "label": "Start a fresh recording for a live meeting.",
+                "command": "murmurmark record --target-bundle system",
+            ],
+            [
+                "id": "debug_process_partial",
+                "label": "Debug only: force processing of the partial recording.",
+                "command": "murmurmark process \(sessionPath) --allow-partial",
+            ],
+        ]
+    }
+
+    static func preferredPartialNext(session: URL) -> String {
+        partialNextCommands(session: session)[0]["command"] ?? "murmurmark inspect \(PathDisplay.display(session))"
+    }
+
+    private static func finalCaptureStopReason(session: URL) -> String? {
+        let eventsURL = session.appendingPathComponent("events.jsonl")
+        guard FileManager.default.fileExists(atPath: eventsURL.path),
+              let text = try? String(contentsOf: eventsURL, encoding: .utf8)
+        else {
+            return nil
+        }
+        var reason: String?
+        for line in text.split(separator: "\n") {
+            guard let data = String(line).data(using: .utf8),
+                  let row = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  row["type"] as? String == "capture.stopped"
+            else {
+                continue
+            }
+            reason = row["reason"] as? String
+        }
+        return reason
+    }
+
+    private static func string(_ value: Any?) -> String? {
+        value as? String
+    }
+
+    private static func strings(_ value: Any?) -> [String] {
+        (value as? [Any] ?? []).map { String(describing: $0) }
+    }
+
+    private static func bool(_ value: Any?) -> Bool? {
+        switch value {
+        case let value as Bool:
+            value
+        case let value as String:
+            ["true", "yes", "1"].contains(value.lowercased())
+        case let value as NSNumber:
+            value.boolValue
+        default:
+            nil
+        }
+    }
+
+    private static func int(_ value: Any?) -> Int? {
+        switch value {
+        case let value as Int:
+            value
+        case let value as NSNumber:
+            value.intValue
+        case let value as String:
+            Int(value)
+        default:
+            nil
+        }
+    }
+}
+
 enum JSONObject {
     static func readDictionary(from url: URL) throws -> [String: Any] {
         let data = try Data(contentsOf: url)
@@ -8483,6 +8714,15 @@ enum ReadinessPrinter {
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
         let sessionPath = PathDisplay.display(session)
         guard FileManager.default.fileExists(atPath: url.path) else {
+            if let partial = CaptureHealthState.partialInfo(session: session) {
+                print("")
+                print("next:")
+                print("  status: partial_capture")
+                print("  command: \(CaptureHealthState.preferredPartialNext(session: session))")
+                print("  reason: \(partial.reason)")
+                print("  read: murmurmark status \(sessionPath)")
+                return
+            }
             print("")
             print("next:")
             print("  status: missing_readiness")
@@ -8556,6 +8796,10 @@ enum ReadinessPrinter {
     static func printSession(_ session: URL, label: String = "readiness") throws {
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
         guard FileManager.default.fileExists(atPath: url.path) else {
+            if let partial = CaptureHealthState.partialInfo(session: session) {
+                printPartialCaptureReadiness(label: label, session: session, partial: partial)
+                return
+            }
             print("\(label): missing")
             let sessionPath = PathDisplay.display(session)
             print("  session: \(sessionPath)")
@@ -8775,11 +9019,48 @@ enum ReadinessPrinter {
                 ?? string(payload["recommended_next"])
                 ?? preferredNextCommand(nextCommands)
                 ?? "murmurmark status \(sessionPath)"
+        } else if CaptureHealthState.partialInfo(session: session) != nil {
+            command = CaptureHealthState.preferredPartialNext(session: session)
         } else {
             command = "murmurmark process \(sessionPath)"
         }
         print("")
         print("next: \(command)")
+    }
+
+    private static func printPartialCaptureReadiness(label: String, session: URL, partial: PartialCaptureInfo) {
+        let commands = CaptureHealthState.partialNextCommands(session: session)
+        print("\(label):")
+        print("  session: \(PathDisplay.display(session))")
+        print("  status: partial_capture")
+        print("  reason: \(partial.reason)")
+        if let actual = partial.actualDurationSec {
+            print(String(format: "  actual_duration: %.2fs", actual))
+        }
+        if let requested = partial.requestedDurationSec {
+            print(String(format: "  requested_duration: %.2fs", requested))
+        }
+        if let restartCount = partial.restartCount {
+            print("  screen_capture_restarts: \(restartCount)")
+        }
+        print("  recommended_next: \(CaptureHealthState.preferredPartialNext(session: session))")
+        print("  use:")
+        print("    summary: partial recording; inspect before processing")
+        print("    can_read_notes: false")
+        print("    can_export: false")
+        print("    blocker: partial_capture")
+        if !partial.warnings.isEmpty {
+            print("  warnings:")
+            for warning in partial.warnings.prefix(5) {
+                print("    - \(warning)")
+            }
+        }
+        print("  next:")
+        for item in commands {
+            let label = item["label"] ?? item["id"] ?? "next"
+            let command = item["command"] ?? ""
+            print("    \(command) — \(label)")
+        }
     }
 
     private static func outputPath(_ key: String, outputs: [String: Any]) -> String? {
@@ -10592,15 +10873,20 @@ enum StopReason: String {
     case durationElapsed = "duration_elapsed"
     case interrupt = "sigint"
     case terminated = "sigterm"
+    case hangup = "sighup"
     case streamStopped = "stream_stopped"
     case captureStalled = "capture_stalled"
 
     var isSignal: Bool {
-        self == .interrupt || self == .terminated
+        self == .interrupt || self == .terminated || self == .hangup
+    }
+
+    var isExplicitStop: Bool {
+        self == .interrupt || self == .durationElapsed
     }
 
     var isUnexpectedCaptureStop: Bool {
-        self == .streamStopped || self == .captureStalled
+        self == .streamStopped || self == .captureStalled || self == .terminated || self == .hangup
     }
 }
 
@@ -10657,8 +10943,10 @@ final class SignalBridge: @unchecked Sendable {
     func start() {
         signal(SIGINT, SIG_IGN)
         signal(SIGTERM, SIG_IGN)
+        signal(SIGHUP, SIG_IGN)
         addSource(signal: SIGINT, reason: .interrupt)
         addSource(signal: SIGTERM, reason: .terminated)
+        addSource(signal: SIGHUP, reason: .hangup)
     }
 
     private func addSource(signal: Int32, reason: StopReason) {
@@ -11006,6 +11294,60 @@ struct FileEntry: Codable {
 struct HealthManifest: Codable {
     let summary: String
     let warnings: [String]
+    let stopReason: String?
+    let partial: Bool?
+    let explicitStop: Bool?
+    let actualDurationSec: Double?
+    let requestedDurationSec: Double?
+    let screenCaptureRestartCount: Int?
+    let tracks: [String: TrackHealthManifest]?
+
+    enum CodingKeys: String, CodingKey {
+        case summary
+        case warnings
+        case stopReason = "stop_reason"
+        case partial
+        case explicitStop = "explicit_stop"
+        case actualDurationSec = "actual_duration_sec"
+        case requestedDurationSec = "requested_duration_sec"
+        case screenCaptureRestartCount = "screen_capture_restart_count"
+        case tracks
+    }
+}
+
+struct TrackHealthManifest: Codable {
+    let frames: AVAudioFramePosition
+    let sampleRate: Int
+    let durationSec: Double
+    let bytes: Int64
+    let empty: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case frames
+        case sampleRate = "sample_rate"
+        case durationSec = "duration_sec"
+        case bytes
+        case empty
+    }
+
+    init(frames: AVAudioFramePosition, sampleRate: Int, durationSec: Double, bytes: Int64, empty: Bool) {
+        self.frames = frames
+        self.sampleRate = sampleRate
+        self.durationSec = durationSec
+        self.bytes = bytes
+        self.empty = empty
+    }
+
+    init(from file: FileEntry) {
+        let duration = Double(file.frames) / Double(max(file.sampleRate, 1))
+        self.init(
+            frames: file.frames,
+            sampleRate: file.sampleRate,
+            durationSec: Double(round(duration * 1000) / 1000),
+            bytes: file.bytes,
+            empty: file.frames == 0 || file.bytes == 0
+        )
+    }
 }
 
 struct PipelineJob: Codable {

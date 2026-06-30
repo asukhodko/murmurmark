@@ -35,7 +35,8 @@ Expected before permissions are granted:
 - `ffmpeg`, `ffprobe`, `whisper-cli`, Python and required Python modules are found;
 - the configured whisper.cpp model exists;
 - `microphone permission` is `ok` or clearly reports the missing state;
-- `screen/system audio permission` is `ok` or clearly reports that access is missing.
+- `screen/system audio permission` is `ok` or clearly reports that access is missing;
+- `shareable displays` is not zero for the normal `record --target-bundle system` path.
 - `readiness` is `ok` or `usable_with_warnings` when only optional checks are missing.
 
 If screen or system audio access is missing, grant it in macOS privacy settings for the terminal application or Codex app that launches the CLI. On current macOS versions the setting may appear as either `Screen & System Audio Recording` or screen recording/system audio capture wording.
@@ -45,6 +46,10 @@ If microphone access is missing, grant microphone access to the same launching a
 Re-run `doctor` after changing permissions. It prints `murmurmark self-test` and the next normal CLI
 commands when the machine is usable. Use `murmurmark doctor --strict` when a setup script should fail
 on missing required dependencies.
+
+If `doctor` reports `shareable displays: 0`, run MurmurMark from a logged-in desktop session and
+re-check before a real meeting. The CLI may have permission but still be unable to build the system
+capture filter when macOS does not expose a shareable display to the launching process.
 
 ## Short Recording
 
@@ -93,14 +98,19 @@ murmurmark inspect latest
 
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
 
-Without `--duration`, recording continues until `Ctrl-C`. MurmurMark catches the stop signal, stops capture, closes audio files and writes `session.json`.
+Without `--duration`, recording continues until `Ctrl-C`. MurmurMark catches that explicit stop,
+stops capture, closes audio files and writes `session.json`.
 If ScreenCaptureKit stops before `Ctrl-C`, MurmurMark tries to restart the capture stream and keep
 recording into the same session. A successful restart is written to `events.jsonl` as
 `capture.restarted`. If restart fails or capture keeps producing no audio, MurmurMark finalizes the
-partial session, writes `session.json`, records a warning and exits with an error. Do not process
-that partial session as a complete meeting; inspect it or start a new recording. The normal
-`murmurmark process` path refuses unrecovered interrupted partial captures unless `--allow-partial`
-is passed explicitly for debugging.
+partial session, writes `session.json` with `status: partial`, records `health.partial: true`,
+records `capture.stopped` with `partial: true`, and exits with an error. `SIGTERM` and `SIGHUP` are
+also treated as unexpected stops rather than successful meeting ends.
+
+Do not process a partial session as a complete meeting; inspect it or start a new recording.
+`murmurmark status SESSION` and `murmurmark next SESSION` point to `murmurmark inspect SESSION` when
+readiness has not been generated yet. The normal `murmurmark process` path refuses unrecovered
+interrupted partial captures unless `--allow-partial` is passed explicitly for debugging.
 
 Without `--out`, MurmurMark creates a fresh directory under `./sessions`, for example:
 

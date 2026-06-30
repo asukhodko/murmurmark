@@ -3365,13 +3365,27 @@ EOF
     session_id: "interrupted-fixture",
     created_at: "2026-06-29T12:00:00.000Z",
     ended_at: "2026-06-29T12:10:00.000Z",
-    status: "completed_with_warnings",
+    status: "partial",
     health: {
-      summary: "warning",
+      summary: "partial",
+      partial: true,
+      stop_reason: "stream_stopped",
+      explicit_stop: false,
+      actual_duration_sec: 600.0,
+      screen_capture_restart_count: 0,
       warnings: ["stream stopped with error: interrupted app connection"]
     }
   }' >"$interrupted_session/session.json"
-  printf '%s\n' '{"type":"capture.stopped","reason":"stream_stopped"}' >"$interrupted_session/events.jsonl"
+  printf '%s\n' '{"type":"capture.stopped","reason":"stream_stopped","partial":true,"explicit_stop":false}' >"$interrupted_session/events.jsonl"
+  interrupted_status_output="$("$bin" status "$interrupted_session")"
+  echo "$interrupted_status_output" | grep -q '^  status: partial_capture$'
+  echo "$interrupted_status_output" | grep -q '^  reason: stream_stopped$'
+  echo "$interrupted_status_output" | grep -q '^  recommended_next: murmurmark inspect '
+  tail -1 <<<"$interrupted_status_output" | grep -q '^next: murmurmark inspect '
+  interrupted_next_output="$("$bin" next "$interrupted_session")"
+  echo "$interrupted_next_output" | grep -q '^  status: partial_capture$'
+  echo "$interrupted_next_output" | grep -q '^  command: murmurmark inspect '
+  ! echo "$interrupted_next_output" | grep -q '^  command: murmurmark process '
   interrupted_report="$workdir/interrupted-pipeline-run.json"
   if "$repo_root/scripts/run-session-pipeline.py" "$interrupted_session" \
     --skip-build \
@@ -3770,14 +3784,18 @@ with tempfile.TemporaryDirectory() as tmp:
     interrupted = Path(tmp) / "interrupted-session"
     interrupted.mkdir()
     (interrupted / "session.json").write_text(json.dumps({
-        "status": "completed_with_warnings",
+        "status": "partial",
         "health": {
-            "summary": "warning",
+            "summary": "partial",
+            "partial": True,
+            "stop_reason": "stream_stopped",
+            "explicit_stop": False,
+            "actual_duration_sec": 145.0,
             "warnings": ["stream stopped with error: interrupted app connection"],
         },
     }), encoding="utf-8")
     (interrupted / "events.jsonl").write_text(
-        '{"type":"capture.stopped","reason":"stream_stopped"}\n',
+        '{"type":"capture.stopped","reason":"stream_stopped","partial":true,"explicit_stop":false}\n',
         encoding="utf-8",
     )
     assert module.has_interrupted_capture_warning({

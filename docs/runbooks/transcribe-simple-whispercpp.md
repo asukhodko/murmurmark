@@ -93,8 +93,11 @@ murmurmark retention plan latest
 
 After a successful recording, `record` prints `SESSION="..."`, `recommended_next` and the exact
 `murmurmark process ...` command for that session. `process latest` remains a convenient shortcut when the newest session is
-the one you just recorded. If `export` blocks, follow its printed review commands first, then rerun
-the same export command.
+the one you just recorded. If capture ended unexpectedly, `record` exits with an error after writing
+a partial session. In that state, use `murmurmark inspect SESSION` first; `status`, `next` and
+`process` do not treat the session as complete, and `process` requires explicit `--allow-partial`
+for debugging.
+If `export` blocks, follow its printed review commands first, then rerun the same export command.
 For terminal handoff, prefer the last `next: ...` line when it is present; it repeats the primary
 safe command after detailed status, review, export or retention blocks.
 
