@@ -25,6 +25,15 @@ from scipy.io import wavfile
 
 EPSILON = 1.0e-12
 SCRIPT_VERSION = "0.1.0"
+REMOTE_FLOOR_KEY = "nonlinear_tail160_remote_floor"
+SEGMENT_SWITCH_KEY = "segment_switch_remote_floor_local_fir"
+REMOTE_FORBIDDEN_KEY = "remote_forbidden_token_guard"
+KNOWN_ASR_HALLUCINATION_PATTERNS = (
+    re.compile(r"^\s*продолжение следует\s*[.!?…-]*\s*$", re.IGNORECASE),
+    re.compile(r"^\s*субтитры.*$", re.IGNORECASE),
+    re.compile(r"^\s*редактор субтитров.*$", re.IGNORECASE),
+    re.compile(r"^\s*dima(?:torzok|torzhok).*$", re.IGNORECASE),
+)
 
 
 @dataclass(frozen=True)
@@ -91,6 +100,13 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def is_known_asr_hallucination(text: str) -> bool:
+    normalized = " ".join(text.strip().lower().split())
+    if not normalized:
+        return False
+    return any(pattern.match(normalized) for pattern in KNOWN_ASR_HALLUCINATION_PATTERNS)
 
 
 def model_path(args: argparse.Namespace) -> Path:
@@ -710,6 +726,43 @@ def rank_segment_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return ranked
 
 
+def build_segment_switch_candidate(
+    mic: np.ndarray,
+    local_fir_clean: np.ndarray | None,
+    remote_floor_clean: np.ndarray | None,
+    rows: list[dict[str, Any]],
+    sample_rate: int,
+) -> tuple[np.ndarray | None, list[dict[str, Any]]]:
+    if remote_floor_clean is None:
+        return None, []
+    base = local_fir_clean if local_fir_clean is not None else mic
+    count = min(mic.size, base.size, remote_floor_clean.size)
+    switched = base[:count].astype(np.float32).copy()
+    plan: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        start, end = row_bounds(row, sample_rate, count)
+        if end <= start:
+            continue
+        state = str(row.get("state") or "")
+        selected_source = "local_fir" if local_fir_clean is not None else "raw_mic"
+        reason = "preserve_local_or_uncertain"
+        if state.startswith("remote_only"):
+            switched[start:end] = remote_floor_clean[start:end]
+            selected_source = REMOTE_FLOOR_KEY
+            reason = "remote_only_use_remote_floor"
+        plan.append(
+            {
+                "index": index,
+                "start_sec": round(start / sample_rate, 3),
+                "end_sec": round(end / sample_rate, 3),
+                "state": state,
+                "selected_source": selected_source,
+                "reason": reason,
+            }
+        )
+    return switched, plan
+
+
 def token_counts(text: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for token in re.findall(r"[\wёЁ]+", text.lower()):
@@ -717,6 +770,50 @@ def token_counts(text: str) -> dict[str, int]:
             continue
         counts[token] = counts.get(token, 0) + 1
     return counts
+
+
+def tokenize_with_separators(text: str) -> list[tuple[str, str]]:
+    parts: list[tuple[str, str]] = []
+    cursor = 0
+    for match in re.finditer(r"[\wёЁ]+", text):
+        if match.start() > cursor:
+            parts.append(("sep", text[cursor : match.start()]))
+        parts.append(("token", match.group(0)))
+        cursor = match.end()
+    if cursor < len(text):
+        parts.append(("sep", text[cursor:]))
+    return parts
+
+
+def remote_forbidden_text(remote_text: str, candidate_text: str) -> tuple[str, dict[str, Any]]:
+    if is_known_asr_hallucination(candidate_text):
+        return "", {
+            "removed_tokens": [],
+            "kept_tokens": [],
+            "removed_reason": "known_asr_hallucination",
+        }
+    forbidden = token_counts(remote_text)
+    removed: list[str] = []
+    kept: list[str] = []
+    output_parts: list[str] = []
+    for kind, value in tokenize_with_separators(candidate_text):
+        if kind == "sep":
+            if output_parts:
+                output_parts.append(value)
+            continue
+        token_key = value.lower()
+        if forbidden.get(token_key, 0) > 0:
+            forbidden[token_key] -= 1
+            removed.append(value)
+        else:
+            output_parts.append(value)
+            kept.append(value)
+    cleaned = re.sub(r"\s+", " ", "".join(output_parts)).strip(" ,.!?;:-—")
+    return cleaned, {
+        "removed_tokens": removed,
+        "kept_tokens": kept,
+        "removed_reason": "remote_forbidden_overlap" if removed else "no_remote_overlap",
+    }
 
 
 def token_overlap_precision(reference_text: str, candidate_text: str) -> float:
@@ -876,11 +973,20 @@ def run_asr_clip_audit(
 
     candidate_stats: dict[str, dict[str, Any]] = {
         key: {
+            "candidate_kind": "audio",
             "remote_only_rows": [],
             "local_only_rows": [],
         }
         for key in sorted(candidate_audio)
     }
+    token_guard_base_key = SEGMENT_SWITCH_KEY if SEGMENT_SWITCH_KEY in candidate_audio else proxy_selected_candidate
+    if token_guard_base_key in candidate_audio:
+        candidate_stats[REMOTE_FORBIDDEN_KEY] = {
+            "candidate_kind": "token_guard",
+            "base_candidate": token_guard_base_key,
+            "remote_only_rows": [],
+            "local_only_rows": [],
+        }
     remote_rows: list[dict[str, Any]] = []
     for index, row in enumerate(select_asr_rows(rows, "remote_only", args.asr_max_clips), start=1):
         start, end = row_bounds(row, sample_rate, count)
@@ -925,6 +1031,34 @@ def run_asr_clip_audit(
                     "wav": str(candidate_path),
                 }
             )
+        if REMOTE_FORBIDDEN_KEY in candidate_stats:
+            base_candidate = row_result["candidates"].get(token_guard_base_key)
+            if isinstance(base_candidate, dict):
+                base_text = str(base_candidate.get("text") or "")
+                guarded_text, guard_metadata = remote_forbidden_text(remote_text, base_text)
+                guarded_overlap = token_overlap_precision(remote_text, guarded_text)
+                row_result["candidates"][REMOTE_FORBIDDEN_KEY] = {
+                    "text": guarded_text,
+                    "remote_token_overlap": guarded_overlap,
+                    "base_candidate": token_guard_base_key,
+                    "candidate_kind": "token_guard",
+                    "guard": guard_metadata,
+                }
+                candidate_stats[REMOTE_FORBIDDEN_KEY]["remote_only_rows"].append(
+                    {
+                        "index": index,
+                        "start_sec": row_result["start_sec"],
+                        "end_sec": row_result["end_sec"],
+                        "remote_text": remote_text,
+                        "candidate_text": guarded_text,
+                        "base_candidate_text": base_text,
+                        "local_fir_text": local_text,
+                        "candidate_remote_token_overlap": guarded_overlap,
+                        "local_fir_remote_token_overlap": row_result["local_fir_remote_token_overlap"],
+                        "base_candidate": token_guard_base_key,
+                        "guard": guard_metadata,
+                    }
+                )
         remote_rows.append(row_result)
 
     local_rows: list[dict[str, Any]] = []
@@ -971,6 +1105,32 @@ def run_asr_clip_audit(
                     "wav": str(candidate_path),
                 }
             )
+        if REMOTE_FORBIDDEN_KEY in candidate_stats:
+            base_candidate = row_result["candidates"].get(token_guard_base_key)
+            if isinstance(base_candidate, dict):
+                base_text = str(base_candidate.get("text") or "")
+                base_recall = safe_float(base_candidate.get("local_token_recall"), 0.0)
+                row_result["candidates"][REMOTE_FORBIDDEN_KEY] = {
+                    "text": base_text,
+                    "local_token_recall": base_recall,
+                    "base_candidate": token_guard_base_key,
+                    "candidate_kind": "token_guard",
+                    "guard": {"applied": False, "reason": "local_only_preserve_base_candidate"},
+                }
+                candidate_stats[REMOTE_FORBIDDEN_KEY]["local_only_rows"].append(
+                    {
+                        "index": index,
+                        "start_sec": row_result["start_sec"],
+                        "end_sec": row_result["end_sec"],
+                        "raw_mic_text": mic_text,
+                        "candidate_text": base_text,
+                        "base_candidate_text": base_text,
+                        "local_fir_text": local_text,
+                        "candidate_local_token_recall": base_recall,
+                        "local_fir_local_token_recall": row_result["local_fir_local_token_recall"],
+                        "base_candidate": token_guard_base_key,
+                    }
+                )
         local_rows.append(row_result)
 
     baseline_leak = average([safe_float(row["local_fir_remote_token_overlap"]) for row in remote_rows])
@@ -1209,17 +1369,68 @@ def main() -> int:
             best_clean = clean
             best_echo_hat = echo_hat
 
-    assert best_key is not None and best_clean is not None and best_echo_hat is not None
-    write_wav_float(audio_dir / "mic_clean_offline_aec_v2.wav", args.sample_rate, best_clean)
-    write_wav_float(audio_dir / "echo_hat_offline_aec_v2.wav", args.sample_rate, best_echo_hat)
-
-    selected_candidate = next(row for row in candidate_rows if row["candidate"] == best_key)
     local_fir_clean: np.ndarray | None = None
     local_fir_path = audio_dir / "mic_clean_local_fir.wav"
     if local_fir_path.exists():
         local_fir_rate, local_fir_raw = read_wav_float(local_fir_path)
         local_fir_clean = resample_if_needed(local_fir_raw, local_fir_rate, args.sample_rate)
         local_fir_clean = speech_band(local_fir_clean[: mic.size], args.sample_rate, args.highpass_hz, args.lowpass_hz)
+    switch_plan: list[dict[str, Any]] = []
+    switch_clean, switch_plan = build_segment_switch_candidate(
+        mic,
+        local_fir_clean,
+        candidate_audio.get(REMOTE_FLOOR_KEY),
+        speaker_rows,
+        args.sample_rate,
+    )
+    if switch_clean is not None:
+        switch_echo_hat = mic[: switch_clean.size].astype(np.float64) - switch_clean.astype(np.float64)
+        metrics, segment_rows, leak_report, preservation_report = candidate_metrics(
+            SEGMENT_SWITCH_KEY,
+            mic[: switch_clean.size],
+            switch_clean,
+            switch_echo_hat,
+            remote_aligned[: switch_clean.size],
+            speaker_rows,
+            args.sample_rate,
+        )
+        score, reasons, promotion_decision = score_candidate(metrics, baseline)
+        candidate_rows.append(
+            {
+                "schema": "murmurmark.echo.offline_aec_v2_candidate/v1",
+                "candidate": SEGMENT_SWITCH_KEY,
+                "tail_ms": None,
+                "bases": [REMOTE_FLOOR_KEY, "local_fir"],
+                "residual_mask": False,
+                "score": score,
+                "promotion_decision": promotion_decision,
+                "reasons": reasons + ["segment_local_switch_candidate"],
+                "metrics": metrics,
+                "fit": {"type": "segment_switch", "plan": "derived/preprocess/echo/offline_aec_v2_segment_switch_plan.jsonl"},
+                "mask_segments": 0,
+                "outputs": {
+                    "clean_mic": f"derived/preprocess/audio/mic_clean_offline_aec_v2_{SEGMENT_SWITCH_KEY}.wav",
+                    "echo_hat": f"derived/preprocess/audio/echo_hat_offline_aec_v2_{SEGMENT_SWITCH_KEY}.wav",
+                },
+            }
+        )
+        all_segment_rows.extend(segment_rows)
+        leak_reports[SEGMENT_SWITCH_KEY] = leak_report
+        preservation_reports[SEGMENT_SWITCH_KEY] = preservation_report
+        candidate_audio[SEGMENT_SWITCH_KEY] = switch_clean.astype(np.float32)
+        write_wav_float(audio_dir / f"mic_clean_offline_aec_v2_{SEGMENT_SWITCH_KEY}.wav", args.sample_rate, switch_clean)
+        write_wav_float(audio_dir / f"echo_hat_offline_aec_v2_{SEGMENT_SWITCH_KEY}.wav", args.sample_rate, switch_echo_hat)
+        if score > best_score:
+            best_score = score
+            best_key = SEGMENT_SWITCH_KEY
+            best_clean = switch_clean
+            best_echo_hat = switch_echo_hat
+
+    assert best_key is not None and best_clean is not None and best_echo_hat is not None
+    write_wav_float(audio_dir / "mic_clean_offline_aec_v2.wav", args.sample_rate, best_clean)
+    write_wav_float(audio_dir / "echo_hat_offline_aec_v2.wav", args.sample_rate, best_echo_hat)
+
+    selected_candidate = next(row for row in candidate_rows if row["candidate"] == best_key)
     if args.asr_audit:
         leak_reports[best_key], preservation_reports[best_key], asr_choice = run_asr_clip_audit(
             session,
@@ -1247,6 +1458,35 @@ def main() -> int:
                         "local_fir_local_only_word_recall": candidate_asr.get("local_fir_local_only_word_recall"),
                         "local_only_word_recall_delta": candidate_asr.get("local_only_word_recall_delta"),
                     }
+            token_guard_asr = asr_candidates.get(REMOTE_FORBIDDEN_KEY)
+            if isinstance(token_guard_asr, dict):
+                candidate_rows.append(
+                    {
+                        "schema": "murmurmark.echo.offline_aec_v2_candidate/v1",
+                        "candidate": REMOTE_FORBIDDEN_KEY,
+                        "candidate_kind": "token_guard",
+                        "base_candidate": token_guard_asr.get("base_candidate"),
+                        "score": None,
+                        "promotion_decision": "shadow_token_guard_candidate",
+                        "reasons": [
+                            "token_level_remote_forbidden_guard",
+                            "applies_only_to_remote_only_asr_audit_windows",
+                        ],
+                        "metrics": {},
+                        "asr_audit": {
+                            "remote_token_leak_rate": token_guard_asr.get("remote_token_leak_rate"),
+                            "local_fir_remote_token_leak_rate": token_guard_asr.get("local_fir_remote_token_leak_rate"),
+                            "remote_token_leak_delta": token_guard_asr.get("remote_token_leak_delta"),
+                            "local_only_word_recall": token_guard_asr.get("local_only_word_recall"),
+                            "local_fir_local_only_word_recall": token_guard_asr.get("local_fir_local_only_word_recall"),
+                            "local_only_word_recall_delta": token_guard_asr.get("local_only_word_recall_delta"),
+                        },
+                        "outputs": {
+                            "base_clean_mic": f"derived/preprocess/audio/mic_clean_offline_aec_v2_{SEGMENT_SWITCH_KEY}.wav",
+                            "asr_guard_report": "derived/preprocess/echo/offline_aec_v2_asr_leak_report.json",
+                        },
+                    }
+                )
     gates_passed = selected_candidate["promotion_decision"] == "shadow_candidate_passed_gates"
     report = {
         "schema": "murmurmark.echo.offline_aec_v2_report/v1",
@@ -1270,6 +1510,7 @@ def main() -> int:
             "window_metrics": "derived/preprocess/echo/offline_aec_v2_window_metrics.jsonl",
             "asr_leak_report": "derived/preprocess/echo/offline_aec_v2_asr_leak_report.json",
             "near_end_preservation_report": "derived/preprocess/echo/offline_aec_v2_near_end_preservation_report.json",
+            "segment_switch_plan": "derived/preprocess/echo/offline_aec_v2_segment_switch_plan.jsonl",
         },
         "parameters": {
             "sample_rate": args.sample_rate,
@@ -1302,6 +1543,7 @@ def main() -> int:
     write_jsonl(out_dir / "offline_aec_v2_delay_curve.jsonl", delay_rows)
     write_jsonl(out_dir / "offline_aec_v2_segments.jsonl", ranked_segment_rows)
     write_jsonl(out_dir / "offline_aec_v2_candidates.jsonl", candidate_rows)
+    write_jsonl(out_dir / "offline_aec_v2_segment_switch_plan.jsonl", switch_plan)
     write_jsonl(out_dir / "offline_aec_v2_window_metrics.jsonl", ranked_segment_rows)
     write_json(out_dir / "offline_aec_v2_asr_leak_report.json", leak_reports[best_key])
     write_json(out_dir / "offline_aec_v2_near_end_preservation_report.json", preservation_reports[best_key])

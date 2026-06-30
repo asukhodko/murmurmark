@@ -228,9 +228,10 @@ Recently completed:
 
 ## Candidate Next Goals
 
-1. **Echo Guard Complete Removal vNext.** Build on the v0 lab result: proxy masking can improve
-   energy metrics, but ASR gates still block promotion. The next goal should test an ASR-positive
-   mechanism, not another dB-only tuning pass.
+1. **Echo Guard Complete Removal vNext.** The first ASR-positive mechanism exists:
+   `segment_switch_remote_floor_local_fir` plus `remote_forbidden_token_guard` beats `local_fir` on
+   one difficult ASR-audit case without local-recall regression. The next step is to harden this
+   into a less clip-specific safety layer with stricter evidence gates.
 2. **Suggested review closure maintenance.** Keep stronger-audio-judge suggestions first-class:
    preview, apply, refresh readiness and show the exact remaining manual queue. This remains
    operationally important, but it now supports the larger echo-removal direction.

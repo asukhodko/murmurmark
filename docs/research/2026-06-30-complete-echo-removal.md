@@ -743,6 +743,18 @@ v0 result on 2026-06-30:
 - the next hypothesis should target ASR-visible speech leakage directly, not only residual waveform
   energy.
 
+vNext first spike on 2026-06-30:
+
+- `segment_switch_remote_floor_local_fir` writes a shadow switched audio candidate;
+- `remote_forbidden_token_guard` removes remote-reference tokens only in `remote_only` ASR audit
+  windows;
+- on `sessions/2026-06-23_14-04-37`, remote-token leakage dropped below `local_fir`
+  (`remote_token_leak_delta = -0.5`) with no local-recall regression;
+- on the six-session smoke corpus, ASR gates passed on `1/6` sessions and local-word recall
+  regressions stayed at `0/6`;
+- this supports token-level remote-forbidden decoding as the next safety layer, but it is not
+  waveform-level echo removal.
+
 ## Library and Dataset Watchlist
 
 Priority references for the first implementation:

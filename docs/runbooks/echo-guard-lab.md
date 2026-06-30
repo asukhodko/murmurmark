@@ -330,6 +330,8 @@ Compare several sessions:
 ```bash
 .venv/bin/python scripts/report-offline-aec-v2-corpus.py \
   sessions/2026-06-23_14-04-37 \
+  sessions/2026-06-26_15-32-02 \
+  sessions/2026-06-29_15-46-17 \
   sessions/2026-06-29_16-31-02 \
   sessions/2026-06-30_11-15-56 \
   sessions/2026-06-30_17-17-20
@@ -351,6 +353,33 @@ Current v0 reading:
 - this means v0 is useful as a diagnostic lab, but not as a production replacement.
 
 Do not use `mic_clean_offline_aec_v2.wav` as `mic_for_asr.wav` until corpus gates explicitly say so.
+
+Current vNext reading:
+
+- `segment_switch_remote_floor_local_fir` writes a shadow WAV that uses `remote_floor` only in
+  `remote_only` windows and keeps `local_fir` elsewhere;
+- `offline_aec_v2_segment_switch_plan.jsonl` explains every selected source window by window;
+- `remote_forbidden_token_guard` is a virtual ASR candidate, not an audio file;
+- on the six-session smoke corpus it reduced ASR-visible remote leakage below `local_fir` on one
+  difficult 1x1 session without local-recall regression;
+- corpus summary: `asr_candidate_gate_passed = 1/6`, `asr_remote_token_leak_improved = 1/6`,
+  `asr_local_word_recall_regressions = 0/6`;
+- this is useful as a safety direction, but still not enough for default promotion.
+
+Inspect token-guard details:
+
+```bash
+jq '.summary' "$SESSION/derived/preprocess/echo/offline_aec_v2_report.json"
+
+jq -r '.rows[] | [
+  .start_sec,
+  .end_sec,
+  .remote_text,
+  .local_fir_text,
+  .candidates.remote_forbidden_token_guard.text,
+  (.candidates.remote_forbidden_token_guard.guard.removed_reason // "")
+] | @tsv' "$SESSION/derived/preprocess/echo/offline_aec_v2_asr_leak_report.json"
+```
 
 ## Stop Rules
 

@@ -383,6 +383,16 @@ Current evidence on the first six-session smoke:
   reduced remote-token leakage below `local_fir` without local-recall regression;
 - the next iteration needs a genuinely ASR-positive mechanism, not a stronger dB/proxy mask.
 
+vNext adds the first ASR-positive safety layer:
+
+- `segment_switch_remote_floor_local_fir` is a shadow audio candidate that uses `remote_floor` only in
+  `remote_only` windows and keeps `local_fir` elsewhere;
+- `remote_forbidden_token_guard` is a virtual ASR candidate that removes tokens matching the remote
+  reference only in `remote_only` audit windows;
+- on the first six-session smoke, the token guard passed ASR gates on one difficult 1x1 session:
+  lower remote-token leakage than `local_fir`, no local-recall regression;
+- this validates the remote-forbidden direction, but does not yet replace audio cleanup.
+
 ## Other Conservative Cleanup Engines
 
 Cleanup is for ASR quality, not for rewriting history.

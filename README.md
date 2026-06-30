@@ -398,9 +398,9 @@ Current focus:
 
 Near-term goals for discussion:
 
-1. Echo Guard Complete Removal vNext: use the v0 negative result to test more targeted approaches:
-   better speaker-state segmentation, segment-local candidate switching, target-speaker extraction
-   or token-level remote-forbidden decoding.
+1. Echo Guard Complete Removal vNext: extend the first ASR-positive safety layer. Segment switching
+   plus `remote_forbidden_token_guard` now beats `local_fir` on one difficult ASR-audit case without
+   local-recall regression; the next step is to make this less clip-specific and keep it auditable.
 2. Suggested review closure maintenance: keep the preview/apply path visible in session and corpus
    reports, distinguish generated/actionable/needs-review suggestions and avoid closing unmatched
    risky rows.

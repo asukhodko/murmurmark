@@ -593,16 +593,16 @@ nodes:
     deps: [quality-offline-aec-v2-nonlinear-mask]
     status: done
     effort: 4
-    notes: "Implemented for v0. Four-session smoke found `asr_candidate_gate_passed: 0`: no candidate reduced remote-token leakage below `local_fir` without local-recall regression."
+    notes: "Implemented for v0 and rerun on the six-session smoke. Audio-only candidates did not beat `local_fir` on ASR-token leakage; this became the baseline for vNext."
 
   quality-echo-vnext-asr-positive:
     title: "ASR-positive echo removal vNext"
     kind: task
     parent: quality-hardening
     deps: [quality-offline-aec-v2-corpus-ranking]
-    status: next
+    status: current
     effort: 8
-    notes: "Use the v0 negative result to test mechanisms that target ASR-visible remote words directly: better speaker-state segmentation, segment-local candidate switching, target-speaker extraction, or token-level remote-forbidden decoding. Do not spend another cycle on dB-only tuning."
+    notes: "First spike implemented: `segment_switch_remote_floor_local_fir` produces a shadow audio candidate, and `remote_forbidden_token_guard` is a virtual ASR safety candidate for remote-only windows. Six-session smoke: `asr_candidate_gate_passed: 1/6`, no local-word recall regressions. Next: harden the guard beyond clip-level audit and keep uncertainty visible."
 
   quality-neural-residual-echo-spike:
     title: "Neural residual echo suppression spike"
@@ -1037,8 +1037,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Echo Guard Complete Removal vNext: после v0 выбрать механизм, который снижает именно ASR-видимую remote-речь, а не только waveform/proxy энергию."
-      success_by_next_sync: "Есть план и первый spike для ASR-positive echo removal: v0 остаётся shadow baseline, local_fir остаётся default, новый кандидат должен снижать remote-token leakage ниже local_fir без local-recall регрессии."
+      nearest_goal: "Echo Guard Complete Removal vNext: довести первый ASR-positive safety layer от клипового spike к надёжному shadow-кандидату с явными evidence gates."
+      success_by_next_sync: "remote_forbidden_token_guard уже снижает remote-token leakage ниже local_fir на одном сложном кейсе без local-recall регрессии; следующий шаг — расширить проверку и не скрывать спорные места."
     defaults:
       status_progress:
         done: 1.0
@@ -1072,8 +1072,8 @@ x:
         kind: main
         mgmt:
           health: green
-          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до рабочей основы. offline_aec_v2_v0 теперь даёт repeatable shadow baseline: proxy улучшается, ASR-gate не проходит."
-          next_sync_goal: "Проверить ASR-positive echo removal vNext: segment-local switching, target-speaker extraction или token-level remote-forbidden decoding."
+          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до рабочей основы. offline_aec_v2_v0 даёт baseline; vNext добавил segment switch и token-level remote-forbidden guard."
+          next_sync_goal: "Расширить ASR-positive safety layer: больше audit windows, интеграция с transcript/review evidence, строгие gates против потери Me."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

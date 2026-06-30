@@ -3681,6 +3681,7 @@ derived/preprocess/audio/echo_hat_offline_aec_v2_<candidate>.wav
 derived/preprocess/echo/offline_aec_v2_report.json
 derived/preprocess/echo/offline_aec_v2_candidates.jsonl
 derived/preprocess/echo/offline_aec_v2_segments.jsonl
+derived/preprocess/echo/offline_aec_v2_segment_switch_plan.jsonl
 derived/preprocess/echo/offline_aec_v2_delay_curve.jsonl
 derived/preprocess/echo/offline_aec_v2_window_metrics.jsonl
 derived/preprocess/echo/offline_aec_v2_asr_leak_report.json
@@ -3701,9 +3702,9 @@ Report schema:
     "candidate_gate_reason": "shadow_candidate_passed_gates",
     "local_fir_remains_default": true,
     "asr_audit_mode": "faster_whisper_clip_audit",
-    "asr_selected_candidate": null,
-    "asr_candidate_gate_passed": false,
-    "asr_candidate_gate_reason": "no_candidate_reduced_remote_tokens_without_local_recall_regression"
+    "asr_selected_candidate": "remote_forbidden_token_guard",
+    "asr_candidate_gate_passed": true,
+    "asr_candidate_gate_reason": "remote_token_leak_reduced_without_local_recall_regression"
   },
   "baseline": {
     "local_fir": {
@@ -3736,6 +3737,8 @@ Required invariants:
 - ASR token leakage fields may be null when `--asr-audit` is not run;
 - if ASR audit is run, `asr_candidate_gate_reason` must be explicit even when proxy gates pass;
 - a proxy pass never means default promotion.
+- `remote_forbidden_token_guard` is a virtual token-level candidate. It has no standalone WAV output
+  and must declare `candidate_kind: "token_guard"` and `base_candidate`.
 
 `offline_aec_v2_segments.jsonl` contains one row per candidate per speaker-state window. Each row
 must include:
@@ -3755,6 +3758,28 @@ must include:
 
 The segment rank is diagnostic. It is meant for future segment-local switching experiments and must
 not be used to rewrite `mic_for_asr.wav` in v0.
+
+`offline_aec_v2_segment_switch_plan.jsonl` explains the shadow switched audio candidate:
+
+```jsonl
+{"index":42,"start_sec":84.0,"end_sec":86.0,"state":"remote_only","selected_source":"nonlinear_tail160_remote_floor","reason":"remote_only_use_remote_floor"}
+{"index":43,"start_sec":86.0,"end_sec":88.0,"state":"local_only","selected_source":"local_fir","reason":"preserve_local_or_uncertain"}
+```
+
+Token-guard rows inside `offline_aec_v2_asr_leak_report.json` must preserve the base text and the
+removed-token evidence:
+
+```json
+{
+  "candidate_kind": "token_guard",
+  "base_candidate": "segment_switch_remote_floor_local_fir",
+  "text": "",
+  "guard": {
+    "removed_reason": "remote_forbidden_overlap",
+    "removed_tokens": ["Да", "реально"]
+  }
+}
+```
 
 For sanitized external synthesis:
 

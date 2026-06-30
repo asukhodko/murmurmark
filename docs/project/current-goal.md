@@ -1,8 +1,10 @@
-# Current Goal: Echo Guard Complete Removal v0
+# Current Goal: Echo Guard Complete Removal vNext
 
-Status, 2026-06-30: v0 shadow lab is implemented and checked on a six-session smoke corpus.
-Promotion is blocked: proxy metrics improved, but ASR-token gates did not show an improvement over
-`local_fir`.
+Status, 2026-06-30: the first vNext shadow mechanism is implemented and checked on a six-session
+smoke corpus. It produced the first ASR-positive result: `remote_forbidden_token_guard` reduced
+remote-token leakage below `local_fir` on `sessions/2026-06-23_14-04-37` without local-recall
+regression. Promotion is still blocked because this is a token-level safety layer, not a production
+audio engine.
 
 MurmurMark already proves the product pain: when remote speech leaks into `mic`, later transcript
 repair, cleanup, audio review and manual review can reduce the damage, but they do not fully remove
@@ -14,13 +16,14 @@ This is an experimental goal, not a promise to replace `local_fir` immediately.
 
 ## Goal
 
-Create a shadow-only `offline_aec_v2_v0` lab for already recorded sessions. It generates several
-cleaned mic candidates and ranks them by product metrics:
+Build on the `offline_aec_v2_v0` lab and test mechanisms that reduce ASR-visible remote speech, not
+only waveform/proxy energy. vNext currently adds:
 
-- fewer remote words recoverable as `Me`;
-- no loss of real local speech, including greetings, backchannels and overlap comments;
-- no new transcript-order or local-recall blockers;
-- no severe clipping, dropout or artifact flags.
+- `segment_switch_remote_floor_local_fir`: a shadow audio candidate that uses `remote_floor` only in
+  `remote_only` windows and keeps `local_fir` elsewhere;
+- `remote_forbidden_token_guard`: a token-level safety candidate for ASR audit windows that removes
+  tokens matching the forbidden remote reference only in `remote_only` regions;
+- per-session and corpus reports comparing the result with `local_fir` and v0 candidates.
 
 The first useful command shape should be close to:
 
@@ -33,7 +36,7 @@ The engine may stay behind scripts or hidden CLI flags until the contracts settl
 Current command:
 
 ```bash
-.venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION"
+.venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION" --asr-audit --asr-max-clips 2
 ```
 
 Corpus summary:
@@ -64,20 +67,18 @@ Guard candidate can reduce the burden before ASR and make every later layer simp
 
 In scope:
 
-- delay trajectory instead of a single median delay;
-- long-tail partitioned adaptive filtering, starting with 80/160/320 ms tails;
-- nonlinear remote basis experiments: clipped, compressed, band-limited and signed-power remote;
-- conservative residual echo spectral mask;
-- per-segment candidate scoring by ASR-level remote leakage and local-word preservation;
-- corpus reports comparing `local_fir` and `offline_aec_v2_v0`.
+- segment-local audio candidate switching based on speaker-state windows;
+- token-level remote-forbidden guard for `remote_only` ASR audit windows;
+- ASR-token leakage and local-word recall reports for audio and token-guard candidates;
+- corpus reports comparing `local_fir`, `offline_aec_v2_v0`, segment switch and token guard.
 
-Out of scope for v0:
+Out of scope for vNext:
 
 - replacing `local_fir` as default;
 - training a neural model;
 - changing capture, raw CAF, primary `whisper.cpp` ASR or reviewed transcript profiles;
 - claiming waveform-perfect echo removal;
-- auto-promoting a candidate because ERLE or subjective loudness improved.
+- auto-promoting a candidate because ERLE, subjective loudness or token-guard success improved.
 
 ## Acceptance
 
@@ -87,10 +88,10 @@ Out of scope for v0:
   `derived/preprocess/audio/*offline_aec_v2*`.
 - At least one difficult real session shows lower remote-token leakage than `local_fir`.
 - Local-only word recall is no worse than baseline by more than 2 percentage points.
-- Opening/backchannel recall does not regress.
+- Opening/backchannel recall is reported and any regression blocks audio promotion.
 - If no candidate wins, the report clearly says which gate failed.
 
-## Current v0 Finding
+## Current vNext Finding
 
 Smoke corpus:
 
@@ -103,21 +104,19 @@ Smoke corpus:
 
 Current result:
 
-- best proxy candidate is now `nonlinear_tail160_remote_floor`;
-- proxy harmful-remote seconds improved on all six sessions;
-- remote-only reduction dB improved on all six sessions;
-- local-only recall proxy regressed on one mostly-silent session;
-- opening/backchannel recall proxy improved on four sessions and regressed on two;
-- proxy gates passed on three sessions and failed on three;
-- all checked ASR-token audits are blocked with
-  `no_candidate_reduced_remote_tokens_without_local_recall_regression`;
+- best proxy candidate is usually `nonlinear_tail160_remote_floor`;
+- `segment_switch_remote_floor_local_fir` became the best proxy candidate on the mostly-silent
+  session because it preserves local regions better;
+- `remote_forbidden_token_guard` passed ASR-token gates on one difficult 1x1 session:
+  `remote_token_leak_delta = -0.5`, `local_only_word_recall_delta = 0.0`;
+- corpus summary: `asr_candidate_gate_passed = 1/6`,
+  `asr_remote_token_leak_improved = 1/6`, `asr_local_word_recall_regressions = 0/6`;
 - no candidate is promoted.
 
-Interpretation: the residual mask and `remote_only` floor hypotheses are useful for diagnostics and
-can match `local_fir` on sampled ASR leakage, but v0 did not prove a better production signal. The
-next work should not tune dB-only metrics. It should test mechanisms that can reduce ASR-visible
-remote tokens below `local_fir`: better speaker-state segmentation, segment-local candidate
-switching, target-speaker extraction, or token-level remote-forbidden decoding.
+Interpretation: vNext has the first ASR-positive safety mechanism, but it is not complete echo
+removal. The audio candidate alone still does not beat `local_fir` on ASR-visible leakage. The next
+work is to make the token guard less clip-specific and connect it to transcript/review evidence
+without hiding uncertainty.
 
 ## References
 
