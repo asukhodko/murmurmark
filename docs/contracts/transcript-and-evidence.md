@@ -3822,6 +3822,9 @@ Evidence row schema:
     "guarded_candidate": ""
   },
   "tokens": {
+    "remote": ["Да", "реально", "вот", "он", "пришел"],
+    "mic_candidate": ["Да", "реально", "вот", "пришел"],
+    "mic_guarded_candidate": [],
     "removed": ["Да", "реально", "вот", "пришел"],
     "kept": []
   },

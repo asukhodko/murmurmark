@@ -351,6 +351,8 @@ def remote_evidence_row(
         },
         "tokens": {
             "remote": tokens(remote_text),
+            "mic_candidate": tokens(base_text),
+            "mic_guarded_candidate": tokens(guarded_text),
             "local_fir": tokens(local_text),
             "base_candidate": tokens(base_text),
             "guarded_candidate": tokens(guarded_text),
@@ -404,6 +406,8 @@ def local_gate_row(
         },
         "tokens": {
             "raw_mic": tokens(raw_text),
+            "mic_raw": tokens(raw_text),
+            "mic_guarded_candidate": tokens(candidate_text),
             "local_fir": tokens(local_fir_text),
             "guarded_candidate": tokens(candidate_text),
         },
