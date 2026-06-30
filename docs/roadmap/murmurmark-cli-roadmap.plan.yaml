@@ -460,7 +460,7 @@ nodes:
       остаются прежними, меняются repair/cleanup/audit и проверочные контуры. `audit_cleanup_v7`
       уже чинит частичные remote-дубли внутри длинных `Me` реплик без whole-utterance drop.
       Текущий quality-фокус — удерживать corpus gates и не расширять cleanup без доказанного
-      выигрыша. Следующий продуктовый фокус смещён в Recording Reliability.
+      выигрыша. Следующий продуктовый фокус — suggested review closure и corpus gates.
 
   quality-local-recall-repair:
     title: "Better local recall repair"
@@ -971,7 +971,7 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP закрыт, readiness reconciliation и Recording Reliability завершены; status/next/process теперь честно ведут partial capture в inspect."
+          sync_note: "CLI MVP закрыт; readiness reconciliation, Recording Reliability и Export Bundle Quality v1 завершены. status/next/process честно ведут partial capture в inspect, finish даёт читаемый handoff."
           next_sync_goal: "Поддержать suggested review closure в CLI handoff: preview, apply, refresh readiness, exact remaining queue."
       quality-loop:
         title: "Контур качества"

@@ -41,9 +41,9 @@ This does not mean "zero review". It means MurmurMark is already useful when the
 remaining explicit risk. Full transcript/export can still be blocked while evidence-backed notes are
 usable.
 
-Latest completed project goal: [Recording Reliability](docs/project/current-goal.md). `record` now
-keeps capturing until explicit user stop, or writes a durable partial session with an honest next
-command.
+Latest completed project goal: [Export Bundle Quality v1](docs/project/current-goal.md). `finish`
+now writes a readable local handoff bundle whose `index.md` answers whether the result can be used,
+what still needs review and what retention/privacy step comes next.
 
 ## What Works Now
 

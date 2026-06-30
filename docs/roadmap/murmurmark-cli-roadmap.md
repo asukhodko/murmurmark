@@ -171,32 +171,33 @@ flowchart LR
 
 ## Latest Completed Goal
 
-Recording is now reliable enough to trust as a CLI workflow for everyday meetings.
+Export Bundle Quality v1 is complete. MurmurMark can now end a successful pipeline with a readable
+local handoff instead of a pile of derived artifacts.
 
-In practical terms:
+In practical terms, `murmurmark finish SESSION` now produces a Markdown or Obsidian bundle where:
 
-- `murmurmark record` continues until the user stops it explicitly or a requested duration ends;
-- if capture ends unexpectedly, the session package records why, when and which stream failed;
-- `inspect`, `status`, `next` and `process` treat interrupted recordings as partial unless
-  the user explicitly allows processing;
-- the CLI prints a clear next command after a stop, failure or partial capture;
-- diagnostics preserve raw CAF tracks and never silently rewrite or discard captured audio;
-- capture, Echo Guard and the main ASR path stay reproducible.
+- `index.md` answers "Can I use this?", shows selected profile, verdict, review burden, review
+  blockers, retention/privacy summary and the next command;
+- `quality_verdict.md` explains the verdict in human terms;
+- `notes.md` is an evidence-backed extractive working summary;
+- `transcript.md` keeps the full selected transcript with utterance IDs and review flags;
+- forced/debug exports with blockers clearly say "Do not use yet";
+- raw audio is not copied into the export bundle.
 
-Success is not perfect audio. Success is that the user can trust whether a meeting was fully
-recorded, and if not, immediately knows what was captured and what to do next.
+Success is not a zero-review transcript. Success is that the final artifact is usable as a working
+handoff and keeps uncertainty visible.
 
 Recently completed:
 
+- **Export Bundle Quality v1.** `finish` now produces a user-facing Markdown/Obsidian handoff:
+  "Can I use this?", selected profile, review burden, evidence-backed notes, transcript utterance IDs
+  and retention/privacy next steps.
 - **Recording reliability.** Duration and `SIGINT` stops complete normally; `SIGTERM`, `SIGHUP` and
   unrecovered capture interruptions write `status: partial`, show `inspect` as the safe next command
   and block normal processing unless `--allow-partial` is explicit.
 - **Readiness reconciliation.** A zero-action review queue no longer turns into an empty
   `first-lane` handoff. MurmurMark now points to `ready_for_notes`, a non-empty actionable review
   pack, or a documented non-actionable blocker.
-- **Export Bundle Quality v1.** `finish` now produces a user-facing Markdown/Obsidian handoff:
-  "Can I use this?", selected profile, review burden, evidence-backed notes, transcript utterance IDs
-  and retention/privacy next steps.
 
 ## Candidate Next Goals
 
