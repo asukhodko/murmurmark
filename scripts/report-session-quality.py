@@ -90,6 +90,13 @@ def round_or_none(value: Any, digits: int = 3) -> float | None:
     return round(number, digits)
 
 
+def cleanup_report_has_material_change(summary: dict[str, Any]) -> bool:
+    return (
+        (safe_int(summary.get("applied_patches")) or 0) > 0
+        or (safe_float(summary.get("segment_repaired_remote_duplicate_seconds")) or 0.0) > 0.0
+    )
+
+
 def suffix(profile: str) -> str:
     return "" if profile == "current" else f".{profile}"
 
@@ -216,6 +223,20 @@ def selected_profile(session: Path) -> str:
             and local_recall_repair_v1.get("input_profile") == profile
         )
 
+    cleanup_v7 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v7.json")
+    cleanup_v7_summary = cleanup_v7.get("summary") if isinstance(cleanup_v7, dict) else {}
+    cleanup_v7_gates = cleanup_v7.get("gates") if isinstance(cleanup_v7, dict) else {}
+    if (
+        (resolved / "quality_report.audit_cleanup_v7.json").exists()
+        and (resolved / "clean_dialogue.audit_cleanup_v7.json").exists()
+        and isinstance(cleanup_v7_gates, dict)
+        and cleanup_v7_gates.get("passed") is True
+        and isinstance(cleanup_v7_summary, dict)
+        and cleanup_report_has_material_change(cleanup_v7_summary)
+    ):
+        if order_repair_usable_for("audit_cleanup_v7"):
+            return "order_repair_v1"
+        return "audit_cleanup_v7"
     reviewed = read_json(review_decisions / "review_decisions_report.reviewed_v1.json")
     reviewed_gates = reviewed.get("gates") if isinstance(reviewed, dict) else {}
     if (
@@ -227,20 +248,6 @@ def selected_profile(session: Path) -> str:
         if order_repair_usable_for("reviewed_v1"):
             return "order_repair_v1"
         return "reviewed_v1"
-    cleanup_v7 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v7.json")
-    cleanup_v7_summary = cleanup_v7.get("summary") if isinstance(cleanup_v7, dict) else {}
-    cleanup_v7_gates = cleanup_v7.get("gates") if isinstance(cleanup_v7, dict) else {}
-    cleanup_v7_applied = safe_int(cleanup_v7_summary.get("applied_patches") if isinstance(cleanup_v7_summary, dict) else None) or 0
-    if (
-        (resolved / "quality_report.audit_cleanup_v7.json").exists()
-        and (resolved / "clean_dialogue.audit_cleanup_v7.json").exists()
-        and isinstance(cleanup_v7_gates, dict)
-        and cleanup_v7_gates.get("passed") is True
-        and cleanup_v7_applied > 0
-    ):
-        if order_repair_usable_for("audit_cleanup_v7"):
-            return "order_repair_v1"
-        return "audit_cleanup_v7"
     agent = read_json(review_decisions / "review_decisions_report.agent_reviewed_v1.json")
     agent_gates = agent.get("gates") if isinstance(agent, dict) else {}
     if (
@@ -255,13 +262,13 @@ def selected_profile(session: Path) -> str:
     cleanup_v6 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v6.json")
     cleanup_v6_summary = cleanup_v6.get("summary") if isinstance(cleanup_v6, dict) else {}
     cleanup_v6_gates = cleanup_v6.get("gates") if isinstance(cleanup_v6, dict) else {}
-    cleanup_v6_applied = safe_int(cleanup_v6_summary.get("applied_patches") if isinstance(cleanup_v6_summary, dict) else None) or 0
     if (
         (resolved / "quality_report.audit_cleanup_v6.json").exists()
         and (resolved / "clean_dialogue.audit_cleanup_v6.json").exists()
         and isinstance(cleanup_v6_gates, dict)
         and cleanup_v6_gates.get("passed") is True
-        and cleanup_v6_applied > 0
+        and isinstance(cleanup_v6_summary, dict)
+        and cleanup_report_has_material_change(cleanup_v6_summary)
     ):
         if order_repair_usable_for("audit_cleanup_v6"):
             return "order_repair_v1"
@@ -269,13 +276,13 @@ def selected_profile(session: Path) -> str:
     cleanup_v5 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v5.json")
     cleanup_v5_summary = cleanup_v5.get("summary") if isinstance(cleanup_v5, dict) else {}
     cleanup_v5_gates = cleanup_v5.get("gates") if isinstance(cleanup_v5, dict) else {}
-    cleanup_v5_applied = safe_int(cleanup_v5_summary.get("applied_patches") if isinstance(cleanup_v5_summary, dict) else None) or 0
     if (
         (resolved / "quality_report.audit_cleanup_v5.json").exists()
         and (resolved / "clean_dialogue.audit_cleanup_v5.json").exists()
         and isinstance(cleanup_v5_gates, dict)
         and cleanup_v5_gates.get("passed") is True
-        and cleanup_v5_applied > 0
+        and isinstance(cleanup_v5_summary, dict)
+        and cleanup_report_has_material_change(cleanup_v5_summary)
     ):
         if order_repair_usable_for("audit_cleanup_v5"):
             return "order_repair_v1"
@@ -283,13 +290,13 @@ def selected_profile(session: Path) -> str:
     cleanup_v4 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v4.json")
     cleanup_v4_summary = cleanup_v4.get("summary") if isinstance(cleanup_v4, dict) else {}
     cleanup_v4_gates = cleanup_v4.get("gates") if isinstance(cleanup_v4, dict) else {}
-    cleanup_v4_applied = safe_int(cleanup_v4_summary.get("applied_patches") if isinstance(cleanup_v4_summary, dict) else None) or 0
     if (
         (resolved / "quality_report.audit_cleanup_v4.json").exists()
         and (resolved / "clean_dialogue.audit_cleanup_v4.json").exists()
         and isinstance(cleanup_v4_gates, dict)
         and cleanup_v4_gates.get("passed") is True
-        and cleanup_v4_applied > 0
+        and isinstance(cleanup_v4_summary, dict)
+        and cleanup_report_has_material_change(cleanup_v4_summary)
     ):
         if order_repair_usable_for("audit_cleanup_v4"):
             return "order_repair_v1"
@@ -297,13 +304,13 @@ def selected_profile(session: Path) -> str:
     cleanup_v3 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v3.json")
     cleanup_v3_summary = cleanup_v3.get("summary") if isinstance(cleanup_v3, dict) else {}
     cleanup_v3_gates = cleanup_v3.get("gates") if isinstance(cleanup_v3, dict) else {}
-    cleanup_v3_applied = safe_int(cleanup_v3_summary.get("applied_patches") if isinstance(cleanup_v3_summary, dict) else None) or 0
     if (
         (resolved / "quality_report.audit_cleanup_v3.json").exists()
         and (resolved / "clean_dialogue.audit_cleanup_v3.json").exists()
         and isinstance(cleanup_v3_gates, dict)
         and cleanup_v3_gates.get("passed") is True
-        and cleanup_v3_applied > 0
+        and isinstance(cleanup_v3_summary, dict)
+        and cleanup_report_has_material_change(cleanup_v3_summary)
     ):
         if order_repair_usable_for("audit_cleanup_v3"):
             return "order_repair_v1"

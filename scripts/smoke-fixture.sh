@@ -792,6 +792,28 @@ assert remote_leak_ids[0] == "inspect_remote_leak_segment_plan", remote_leak_ids
 assert "remote_leak_segment_repair.md" in remote_leak_commands[0]["command"], remote_leak_commands[0]
 
 with tempfile.TemporaryDirectory() as tmp:
+    session = Path(tmp) / "profile-session"
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    cleanup = session / "derived/transcript-simple/whisper-cpp/audit-cleanup"
+    review = session / "derived/transcript-simple/whisper-cpp/review-decisions"
+    resolved.mkdir(parents=True)
+    cleanup.mkdir(parents=True)
+    review.mkdir(parents=True)
+    (resolved / "quality_report.audit_cleanup_v7.json").write_text("{}", encoding="utf-8")
+    (resolved / "clean_dialogue.audit_cleanup_v7.json").write_text("{}", encoding="utf-8")
+    (cleanup / "audit_cleanup_report.audit_cleanup_v7.json").write_text(
+        json.dumps({"gates": {"passed": True}, "summary": {"applied_patches": 0, "segment_repaired_remote_duplicate_seconds": 12.5}}),
+        encoding="utf-8",
+    )
+    (resolved / "quality_report.reviewed_v1.json").write_text("{}", encoding="utf-8")
+    (resolved / "clean_dialogue.reviewed_v1.json").write_text("{}", encoding="utf-8")
+    (review / "review_decisions_report.reviewed_v1.json").write_text(
+        json.dumps({"gates": {"passed": True}, "summary": {"applied_decision_rows": 1}}),
+        encoding="utf-8",
+    )
+    assert module.selected_profile(session) == "audit_cleanup_v7"
+
+with tempfile.TemporaryDirectory() as tmp:
     session = Path(tmp) / "session"
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     audit = session / "derived/audit/audio-review-pack"
@@ -876,6 +898,41 @@ with tempfile.TemporaryDirectory() as tmp:
     )
     resolved = module.review_resolved_audio_ids(session, "audit_cleanup_v7")
     assert resolved == {"arp_cleanup_profile_drop"}, resolved
+PY
+python3 - "$repo_root" <<'PY'
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import sys
+
+repo_root = Path(sys.argv[1])
+module_path = repo_root / "scripts/synthesize-simple-extractive.py"
+spec = importlib.util.spec_from_file_location("synthesize_simple_extractive", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+spec.loader.exec_module(module)
+with tempfile.TemporaryDirectory() as tmp:
+    session = Path(tmp) / "session"
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    cleanup = session / "derived/transcript-simple/whisper-cpp/audit-cleanup"
+    review = session / "derived/transcript-simple/whisper-cpp/review-decisions"
+    resolved.mkdir(parents=True)
+    cleanup.mkdir(parents=True)
+    review.mkdir(parents=True)
+    for profile in ("audit_cleanup_v7", "reviewed_v1"):
+        (resolved / f"clean_dialogue.{profile}.json").write_text("{}", encoding="utf-8")
+        (resolved / f"quality_report.{profile}.json").write_text("{}", encoding="utf-8")
+    (cleanup / "audit_cleanup_report.audit_cleanup_v7.json").write_text(
+        json.dumps({"gates": {"passed": True}, "summary": {"applied_patches": 0, "segment_repaired_remote_duplicate_seconds": 12.5}}),
+        encoding="utf-8",
+    )
+    (review / "review_decisions_report.reviewed_v1.json").write_text(
+        json.dumps({"gates": {"passed": True}, "summary": {"applied_decision_rows": 1}}),
+        encoding="utf-8",
+    )
+    selected, _, _, _ = module.choose_profile(resolved, "auto")
+    assert selected == "audit_cleanup_v7", selected
 PY
 python3 - "$repo_root" <<'PY'
 import importlib.util
