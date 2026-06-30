@@ -185,8 +185,13 @@ murmurmark finish "$SESSION"
 
 It refreshes readiness, attempts the guarded export with JSON evidence, writes retention plan and
 provider payload manifest after a successful export, and ends with a read-only `less ...` command for
-the bundle. If export is still blocked, it writes the blocked export report and points back to the
-next review or processing command.
+the bundle. Open `index.md` first. It is the user-facing start page: verdict, selected profile,
+review burden, links to notes/transcript/evidence, retention/privacy summary and the next command.
+`quality_verdict.md` explains trust, `notes.md` contains evidence-backed extractive notes, and
+`transcript.md` keeps the full selected transcript with utterance IDs and review flags.
+
+If export is still blocked, `finish` writes the blocked export report and points back to the next
+review or processing command. A blocked session should not be treated as a successful final handoff.
 
 For low-level inspection, the individual commands remain available:
 

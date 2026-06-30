@@ -1590,17 +1590,40 @@ transcript.md
 export_manifest.json
 ```
 
+Export Bundle Quality v1 makes those Markdown files user-facing, not raw copies of derived
+debugging artifacts:
+
+- `index.md` is the start page. It answers "Can I use this?", shows selected transcript profile,
+  verdict, review burden, links to notes/transcript/evidence, review-needed regions, retention and
+  privacy summary, and the next command.
+- `quality_verdict.md` is a human trust report. It explains the verdict, review burden, main risk
+  reasons and source-file presence.
+- `notes.md` is an extractive working summary. Conversation outline, potential decisions, actions,
+  risks and open questions are shown only with utterance IDs; review candidates remain marked
+  `needs_review`.
+- `transcript.md` is the full selected transcript rendered from `clean_dialogue*.json` when
+  available. It keeps every utterance, role, timestamp, utterance ID, source track and review flag.
+- `export_manifest.json` stays the machine-readable source for selected profile, files, warnings,
+  blockers and next commands.
+
+If `clean_dialogue*.json` or `evidence_notes*.json` is missing, export falls back to the existing
+Markdown artifacts, but the manifest still records which source files were missing. Raw audio is
+never copied.
+
 With `--include-json`, the bundle also includes evidence/source JSON such as
 `evidence_notes.<profile>.json`, `clean_dialogue.<profile>.json`, `quality_report.<profile>.json`
 and `transcript.simple.<profile>.json`.
 
-Obsidian format writes one frontmatter Markdown note plus `export_manifest.json`.
+Obsidian format writes one self-contained frontmatter Markdown note plus `export_manifest.json`.
+The note includes verdict, notes, review items and transcript content. It must not contain absolute
+private paths or raw audio references.
 
 `export_manifest.json` uses `murmurmark.export_manifest/v1`:
 
 ```json
 {
   "schema": "murmurmark.export_manifest/v1",
+  "bundle_quality": "v1",
   "status": "exported_with_warnings",
   "session_id": "2026-06-23T11-04-37Z_87bac5",
   "requested_profile": "auto",

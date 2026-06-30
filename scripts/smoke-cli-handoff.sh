@@ -418,6 +418,11 @@ tail -1 <<<"$export_output" | grep -q '^next: murmurmark retention plan '
 
 manifest="$workdir/exports/private/cli-handoff/export_manifest.json"
 [[ -s "$manifest" ]]
+jq -e '.bundle_quality == "v1"' "$manifest" >/dev/null
+grep -Fq '## Can I Use This?' "$workdir/exports/private/cli-handoff/index.md"
+grep -q '^## Retention And Privacy$' "$workdir/exports/private/cli-handoff/index.md"
+grep -q '`utt_cli_001`' "$workdir/exports/private/cli-handoff/transcript.md"
+grep -q '^## Review Queue$' "$workdir/exports/private/cli-handoff/notes.md"
 
 retention_output="$("$bin" retention plan "$session" --export-manifest "$manifest")"
 echo "$retention_output" | grep -q '^retention:$'
@@ -443,6 +448,7 @@ echo "$finish_output" | grep -q '^finish:$'
 echo "$finish_output" | grep -q '^  status: ready$'
 tail -1 <<<"$finish_output" | grep -q '^next: less '
 [[ -s "$workdir/finish/private/cli-handoff/export_manifest.json" ]]
+grep -Fq '## Can I Use This?' "$workdir/finish/private/cli-handoff/index.md"
 [[ -s "$session/derived/retention/retention_plan.json" ]]
 [[ -s "$session/derived/retention/provider_payload_manifest.json" ]]
 

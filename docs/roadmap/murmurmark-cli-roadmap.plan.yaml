@@ -598,7 +598,9 @@ nodes:
     effort: 19
     notes: |
       Базовый локальный Markdown/Obsidian bundle и murmurmark finish handoff уже есть.
-      Следующий слой — более читаемый bundle, Obsidian vault handoff и docs/Jira proposals.
+      Export Bundle Quality v1 сделал index.md, quality_verdict.md, notes.md, transcript.md и
+      Obsidian note пользовательскими handoff-артефактами. Следующий слой — Obsidian vault handoff
+      и docs/Jira proposals.
 
   export-markdown-bundle:
     title: "Markdown bundle"
@@ -615,6 +617,17 @@ nodes:
     status: done
     effort: 4
     notes: "Локальная frontmatter Markdown note без записи в vault и без raw audio."
+
+  export-bundle-quality-v1:
+    title: "Export Bundle Quality v1"
+    kind: task
+    parent: export-workflows
+    status: done
+    effort: 5
+    notes: |
+      murmurmark finish/export writes a user-facing bundle: "Can I use this?", selected profile,
+      review burden, evidence-backed notes, full transcript with utterance IDs and retention/privacy
+      next steps. Raw audio is not copied.
 
   export-docs-patch-plan:
     title: "Docs patch plan"

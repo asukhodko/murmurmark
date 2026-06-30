@@ -11,8 +11,9 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.1"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA_MANIFEST = "murmurmark.export_manifest/v1"
+EXPORT_BUNDLE_QUALITY = "v1"
 
 
 def parse_args() -> argparse.Namespace:
@@ -34,6 +35,27 @@ def read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if not path.exists():
+        return rows
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return rows
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            rows.append(value)
+    return rows
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -355,6 +377,465 @@ def strip_heading(text: str) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
+def format_seconds(value: Any) -> str:
+    try:
+        seconds = max(0.0, float(value))
+    except (TypeError, ValueError):
+        return "unknown"
+    total = int(round(seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def format_range(start: Any, end: Any) -> str:
+    return f"{format_seconds(start)}-{format_seconds(end)}"
+
+
+def metric(verdict: dict[str, Any] | None, key: str, default: Any = 0) -> Any:
+    metrics = verdict.get("metrics") if isinstance(verdict, dict) else None
+    if isinstance(metrics, dict):
+        return metrics.get(key, default)
+    return default
+
+
+def review_summary(verdict: dict[str, Any] | None, evidence: dict[str, Any] | None, review_items: list[dict[str, Any]]) -> dict[str, Any]:
+    computed: dict[str, Any] | None = None
+
+    def compute() -> dict[str, Any]:
+        nonlocal computed
+        if computed is not None:
+            return computed
+        seconds = 0.0
+        by_type: dict[str, dict[str, Any]] = {}
+        for item in review_items:
+            try:
+                start = float(item.get("start", 0))
+                end = float(item.get("end", start))
+            except (TypeError, ValueError):
+                start = end = 0.0
+            item_type = str(item.get("type") or "review")
+            bucket = by_type.setdefault(item_type, {"count": 0, "seconds": 0.0})
+            duration = max(0.0, end - start)
+            seconds += duration
+            bucket["count"] += 1
+            bucket["seconds"] = round(float(bucket["seconds"]) + duration, 3)
+        computed = {"review_item_count": len(review_items), "review_item_seconds": round(seconds, 3), "by_type": by_type}
+        return computed
+
+    def normalize(summary: dict[str, Any]) -> dict[str, Any]:
+        if not review_items:
+            return summary
+        count = summary.get("review_item_count")
+        seconds = summary.get("review_item_seconds")
+        try:
+            seconds_value = float(seconds)
+        except (TypeError, ValueError):
+            seconds_value = 0.0
+        if count is None or seconds is None or seconds_value <= 0.0:
+            fixed = {**summary}
+            calculated = compute()
+            fixed.setdefault("review_item_count", calculated["review_item_count"])
+            fixed["review_item_seconds"] = calculated["review_item_seconds"]
+            fixed.setdefault("by_type", calculated["by_type"])
+            return fixed
+        return summary
+
+    if isinstance(verdict, dict) and isinstance(verdict.get("review_summary"), dict):
+        return normalize(verdict["review_summary"])
+    if isinstance(evidence, dict):
+        review = evidence.get("review")
+        if isinstance(review, dict) and isinstance(review.get("summary"), dict):
+            return normalize(review["summary"])
+    return compute()
+
+
+def verdict_explanation(verdict_value: str, blockers: list[str] | None = None) -> tuple[str, str]:
+    if blockers:
+        return (
+            "Do not use yet.",
+            "The session still has export blockers. Run the next review or processing command first.",
+        )
+    if verdict_value == "good":
+        return (
+            "Usable.",
+            "No mandatory review regions were reported. Use the notes normally, keeping the transcript available for context.",
+        )
+    if verdict_value == "usable_with_review":
+        return (
+            "Usable after targeted review.",
+            "The notes are useful, but flagged intervals should be checked before sharing or acting on sensitive details.",
+        )
+    if verdict_value == "risky":
+        return (
+            "Review first.",
+            "The transcript has quality risks that can change meaning. Treat notes as a draft until the review queue is closed.",
+        )
+    if verdict_value == "failed":
+        return (
+            "Do not use.",
+            "The pipeline could not produce a trustworthy working transcript.",
+        )
+    return (
+        "Unknown.",
+        "The export could not determine a clear quality verdict. Inspect the transcript and source reports before using it.",
+    )
+
+
+def evidence_ids(item: dict[str, Any]) -> str:
+    ids = item.get("evidence_utterance_ids")
+    if not isinstance(ids, list) or not ids:
+        ids = item.get("utterance_ids")
+    if not isinstance(ids, list) or not ids:
+        return "`needs_review:no_evidence_id`"
+    return ", ".join(f"`{str(value)}`" for value in ids[:8])
+
+
+def item_text(item: dict[str, Any]) -> str:
+    return str(item.get("display_text") or item.get("text") or "").strip()
+
+
+def render_candidate_item(item: dict[str, Any]) -> str:
+    score = item.get("score")
+    score_text = f", score `{score}`" if score is not None else ""
+    status = "needs_review" if item.get("needs_review", True) else "evidence"
+    subtype = str(item.get("subtype") or item.get("type") or "item")
+    time = item.get("time") if isinstance(item.get("time"), dict) else item
+    roles = ", ".join(str(value) for value in item.get("roles", []) if value)
+    role_text = f", {roles}" if roles else ""
+    reasons = item.get("reasons") if isinstance(item.get("reasons"), list) else []
+    reason_text = f"\n  - Why: {'; '.join(str(value) for value in reasons[:2])}" if reasons else ""
+    return (
+        f"- `{status}` `{subtype}`{score_text}, {format_range(time.get('start'), time.get('end'))}"
+        f"{role_text}, evidence {evidence_ids(item)}: {item_text(item)}"
+        + reason_text
+    )
+
+
+def render_review_item(item: dict[str, Any]) -> str:
+    reason = str(item.get("reason") or item.get("type") or "needs review")
+    severity = str(item.get("severity") or "medium")
+    text = item_text(item)
+    text_part = f": {text}" if text else ""
+    return f"- `{severity}` {format_range(item.get('start'), item.get('end'))}, {evidence_ids(item)}: {reason}{text_part}"
+
+
+def top_review_items(review_items: list[dict[str, Any]], limit: int = 8) -> list[dict[str, Any]]:
+    def sort_key(item: dict[str, Any]) -> tuple[float, float]:
+        severity_rank = {"high": 0.0, "medium": 1.0, "low": 2.0}.get(str(item.get("severity")), 1.5)
+        try:
+            duration = float(item.get("end", 0)) - float(item.get("start", 0))
+        except (TypeError, ValueError):
+            duration = 0.0
+        return severity_rank, -duration
+
+    return sorted(review_items, key=sort_key)[:limit]
+
+
+def render_selected_notes_section(title: str, rows: list[Any]) -> list[str]:
+    lines = ["", f"## {title}", ""]
+    clean_rows = [row for row in rows if isinstance(row, dict)]
+    if not clean_rows:
+        lines.append("- none detected")
+        return lines
+    lines.extend(render_candidate_item(row) for row in clean_rows)
+    return lines
+
+
+def source_file_status(paths: dict[str, Path]) -> list[str]:
+    rows = []
+    for label, key in (
+        ("quality verdict JSON", "quality_verdict_json"),
+        ("evidence notes JSON", "evidence_notes_json"),
+        ("clean dialogue JSON", "clean_dialogue_json"),
+        ("review items JSONL", "review_items_jsonl"),
+        ("readiness JSON", "session_readiness_json"),
+    ):
+        rows.append(f"- {label}: `{'present' if paths[key].exists() else 'missing'}`")
+    return rows
+
+
+def render_quality_verdict_markdown(
+    *,
+    sid: str,
+    profile: str,
+    verdict: dict[str, Any] | None,
+    quality: dict[str, Any] | None,
+    evidence: dict[str, Any] | None,
+    review_items: list[dict[str, Any]],
+    blockers: list[str],
+    warnings: list[str],
+    paths: dict[str, Path],
+) -> str:
+    verdict_value = str((verdict or {}).get("verdict") or "unknown")
+    headline, recommendation = verdict_explanation(verdict_value, blockers)
+    summary = review_summary(verdict, evidence, review_items)
+    risk_items = verdict.get("risk_items") if isinstance(verdict, dict) and isinstance(verdict.get("risk_items"), list) else []
+    metrics = verdict.get("metrics") if isinstance(verdict, dict) and isinstance(verdict.get("metrics"), dict) else {}
+    lines = [
+        "# Quality Verdict",
+        "",
+        f"Session: `{sid}`",
+        f"Transcript profile: `{profile}`",
+        f"Verdict: `{verdict_value}`",
+        f"Use gate: `{(quality or {}).get('use_gate', 'unknown')}`",
+        "",
+        "## Can I Use This?",
+        "",
+        f"**{headline}** {recommendation}",
+        "",
+        "## Review Burden",
+        "",
+        f"- Review items: `{summary.get('review_item_count', 0)}`",
+        f"- Review seconds: `{summary.get('review_item_seconds', 0)}`",
+        f"- Utterances needing review: `{metrics.get('needs_review_count', metric(verdict, 'needs_review_count', 0))}`",
+        f"- Cross-role overlap over 2s: `{metrics.get('cross_role_overlap_gt2_count', metric(verdict, 'cross_role_overlap_gt2_count', 0))}`",
+        f"- Remote duplicate in Me seconds: `{metrics.get('remote_duplicate_in_me_seconds', metric(verdict, 'remote_duplicate_in_me_seconds', 0))}`",
+        "",
+        "## Main Reasons",
+        "",
+    ]
+    if blockers:
+        lines.extend(f"- blocker: `{item}`" for item in blockers)
+    elif risk_items:
+        for item in risk_items[:10]:
+            lines.append(f"- `{item.get('severity', 'medium')}` `{item.get('type', 'risk')}`: {item.get('reason', '')}")
+    else:
+        lines.append("- No hard risk item was reported by the current verdict.")
+    if warnings:
+        lines.extend(["", "## Warnings", ""])
+        lines.extend(f"- `{item}`" for item in warnings[:20])
+    if review_items:
+        lines.extend(["", "## What Needs Review First", ""])
+        lines.extend(render_review_item(item) for item in top_review_items(review_items, 8))
+    lines.extend(
+        [
+            "",
+            "## Source Checks",
+            "",
+            *source_file_status(paths),
+            "",
+            "This report is local and evidence-backed. It does not inspect raw audio directly and does not send data anywhere.",
+        ]
+    )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_notes_markdown(
+    *,
+    sid: str,
+    profile: str,
+    verdict: dict[str, Any] | None,
+    evidence: dict[str, Any] | None,
+    review_items: list[dict[str, Any]],
+    fallback_notes: str,
+) -> str:
+    if not evidence:
+        fallback = strip_heading(fallback_notes).strip()
+        lines = [
+            "# Meeting Notes",
+            "",
+            f"Session: `{sid}`",
+            f"Transcript profile: `{profile}`",
+            f"Verdict: `{(verdict or {}).get('verdict', 'unknown')}`",
+            "",
+            "`needs_review` Evidence notes JSON is missing; this export is using the existing notes Markdown as a fallback.",
+            "",
+        ]
+        lines.append(fallback if fallback else "- no notes available")
+        return "\n".join(lines).rstrip() + "\n"
+
+    selected = evidence.get("selected") if isinstance(evidence.get("selected"), dict) else {}
+    summary = review_summary(verdict, evidence, review_items)
+    lines = [
+        "# Meeting Notes",
+        "",
+        f"Session: `{sid}`",
+        f"Transcript profile: `{profile}`",
+        f"Verdict: `{(verdict or {}).get('verdict', 'unknown')}`",
+        f"Review items: `{summary.get('review_item_count', 0)}`",
+        "",
+        "These notes are extractive. Decisions, actions, risks and questions are shown only when they have utterance evidence IDs. Items marked `needs_review` should be checked before use.",
+        "",
+        "## Conversation Outline",
+        "",
+    ]
+    blocks = selected.get("outline_blocks") if isinstance(selected.get("outline_blocks"), list) else []
+    if not blocks:
+        lines.append("- no outline blocks detected")
+    for block in blocks:
+        if not isinstance(block, dict):
+            continue
+        keywords = [str(value) for value in block.get("keywords", []) if value]
+        title = ", ".join(keywords[:4]) or "discussion block"
+        ids = [str(value) for value in block.get("utterance_ids", []) if value]
+        id_span = f"`{ids[0]}`..`{ids[-1]}`" if ids else "`unknown`"
+        lines.append(f"### {format_range(block.get('start'), block.get('end'))}: {title}")
+        lines.append(f"- Utterances: {id_span}; turns: `{block.get('utterance_count', len(ids))}`")
+        representatives = block.get("representatives") if isinstance(block.get("representatives"), list) else []
+        for sample in representatives[:5]:
+            if not isinstance(sample, dict):
+                continue
+            lines.append(
+                f"  - `{sample.get('utterance_id', 'unknown')}` {sample.get('role', 'Unknown')}: "
+                f"{str(sample.get('text') or '').strip()}"
+            )
+        lines.append("")
+
+    lines.extend(render_selected_notes_section("Potential Decisions", selected.get("decisions", [])))
+    lines.extend(render_selected_notes_section("Potential Actions", selected.get("actions", [])))
+    lines.extend(render_selected_notes_section("Risks", selected.get("risks", [])))
+    lines.extend(render_selected_notes_section("Open Questions", selected.get("open_questions", [])))
+    lines.extend(["", "## Review Queue", ""])
+    if not review_items:
+        lines.append("- No mandatory review items were reported.")
+    else:
+        lines.append("Check these before using the notes for high-stakes decisions:")
+        lines.extend(render_review_item(item) for item in top_review_items(review_items, 10))
+    lines.extend(["", "## Evidence Audit", "", "Full scored candidates and hidden weak/process items are in `evidence_notes*.json` when JSON evidence is included in the export."])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_transcript_markdown(
+    *,
+    sid: str,
+    profile: str,
+    clean_dialogue: dict[str, Any] | None,
+    fallback_transcript: str,
+) -> str:
+    utterances = clean_dialogue.get("utterances") if isinstance(clean_dialogue, dict) else None
+    if not isinstance(utterances, list) or not utterances:
+        fallback = strip_heading(fallback_transcript).strip()
+        lines = [
+            "# Transcript",
+            "",
+            f"Session: `{sid}`",
+            f"Transcript profile: `{profile}`",
+            "",
+            "`needs_review` Clean dialogue JSON is missing; this export is using the existing transcript Markdown as a fallback.",
+            "",
+        ]
+        lines.append(fallback if fallback else "- transcript is missing")
+        return "\n".join(lines).rstrip() + "\n"
+
+    lines = [
+        "# Transcript",
+        "",
+        f"Session: `{sid}`",
+        f"Transcript profile: `{profile}`",
+        "",
+        "Legend: `ok` means no mandatory review flag on the utterance; `needs_review` means the line should be checked before relying on wording or role.",
+        "",
+    ]
+    for row in utterances:
+        if not isinstance(row, dict):
+            continue
+        quality_row = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+        flag = "needs_review" if quality_row.get("needs_review") else "ok"
+        reason = str(quality_row.get("decision_reason") or quality_row.get("review_reason") or "").strip()
+        reason_text = f" · {reason}" if reason else ""
+        role = str(row.get("speaker_label") or row.get("role") or "Unknown")
+        utterance_id = str(row.get("id") or "unknown")
+        track = str(row.get("source_track") or "unknown")
+        lines.extend(
+            [
+                f"## {format_range(row.get('start'), row.get('end'))} {role} · `{utterance_id}` · `{flag}`",
+                "",
+                f"- Source: `{track}`{reason_text}",
+                "",
+                str(row.get("text") or "").strip() or "_empty_",
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_index_markdown(
+    *,
+    sid: str,
+    profile: str,
+    verdict: dict[str, Any] | None,
+    quality: dict[str, Any] | None,
+    evidence: dict[str, Any] | None,
+    review_items: list[dict[str, Any]],
+    blockers: list[str],
+    warnings: list[str],
+    include_json: bool,
+    next_commands: list[dict[str, str]] | None = None,
+    single_note: bool = False,
+) -> str:
+    verdict_value = str((verdict or {}).get("verdict") or "unknown")
+    headline, recommendation = verdict_explanation(verdict_value, blockers)
+    summary = review_summary(verdict, evidence, review_items)
+    next_command = ""
+    for item in next_commands or []:
+        if item.get("command"):
+            next_command = item["command"]
+            break
+    lines = [
+        f"# MurmurMark Export: {sid}",
+        "",
+        "## Can I Use This?",
+        "",
+        f"**{headline}** {recommendation}",
+        "",
+        f"- Transcript profile: `{profile}`",
+        f"- Verdict: `{verdict_value}`",
+        f"- Use gate: `{(quality or {}).get('use_gate', 'unknown')}`",
+        f"- Review items: `{summary.get('review_item_count', 0)}`",
+        f"- Review seconds: `{summary.get('review_item_seconds', 0)}`",
+        f"- Exported at: `{datetime.now(timezone.utc).isoformat()}`",
+        "",
+        "## Start Here",
+        "",
+    ]
+    if single_note:
+        lines.extend(
+            [
+                "- Read `Quality Verdict` below to decide how much to trust the result.",
+                "- Read `Notes` for the extractive outline, decisions, actions, risks and questions.",
+                "- Use `Review Items` and `Transcript` below to check flagged places by utterance ID.",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "- [Quality verdict](quality_verdict.md) tells whether the result is safe to use.",
+                "- [Notes](notes.md) contains extractive outline, decisions, actions, risks and questions.",
+                "- [Transcript](transcript.md) contains the full text with utterance IDs and review flags.",
+                "- [Manifest](export_manifest.json) records exact files, profile, warnings and next commands.",
+            ]
+        )
+    if include_json:
+        lines.append("- JSON evidence files are included for audit and future tooling.")
+    lines.extend(["", "## What Needs Review", ""])
+    if blockers:
+        lines.append("This export still has blockers:")
+        lines.extend(f"- `{item}`" for item in blockers)
+    elif not review_items:
+        lines.append("- No mandatory review items were reported.")
+    else:
+        lines.extend(render_review_item(item) for item in top_review_items(review_items, 8))
+    if warnings:
+        lines.extend(["", "## Warnings", ""])
+        lines.extend(f"- `{item}`" for item in warnings[:20])
+    lines.extend(
+        [
+            "",
+            "## Retention And Privacy",
+            "",
+            "- Raw audio is not copied into this export bundle.",
+            "- Retention planning is local and explicit; raw deletion requires a separate `retention apply` command.",
+            "- Provider payload manifests are inventories only; MurmurMark does not upload anything from this step.",
+        ]
+    )
+    if next_command:
+        lines.extend(["", "## Next Action", "", f"```bash\n{next_command}\n```"])
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def write_markdown_index(
     path: Path,
     *,
@@ -362,28 +843,29 @@ def write_markdown_index(
     profile: str,
     verdict: dict[str, Any] | None,
     quality: dict[str, Any] | None,
+    evidence: dict[str, Any] | None,
+    review_items: list[dict[str, Any]],
+    blockers: list[str],
     warnings: list[str],
+    include_json: bool,
+    next_commands: list[dict[str, str]] | None = None,
 ) -> None:
-    lines = [
-        f"# MurmurMark Export: {sid}",
-        "",
-        f"- Transcript profile: `{profile}`",
-        f"- Verdict: `{(verdict or {}).get('verdict', 'unknown')}`",
-        f"- Use gate: `{(quality or {}).get('use_gate', 'unknown')}`",
-        f"- Exported at: `{datetime.now(timezone.utc).isoformat()}`",
-        "",
-        "## Files",
-        "",
-        "- [Quality verdict](quality_verdict.md)",
-        "- [Notes](notes.md)",
-        "- [Transcript](transcript.md)",
-        "- [Manifest](export_manifest.json)",
-    ]
-    if warnings:
-        lines.extend(["", "## Warnings", ""])
-        lines.extend(f"- `{item}`" for item in warnings)
-    lines.append("")
-    path.write_text("\n".join(lines), encoding="utf-8")
+    path.write_text(
+        render_index_markdown(
+            sid=sid,
+            profile=profile,
+            verdict=verdict,
+            quality=quality,
+            evidence=evidence,
+            review_items=review_items,
+            blockers=blockers,
+            warnings=warnings,
+            include_json=include_json,
+            next_commands=next_commands,
+            single_note=False,
+        ),
+        encoding="utf-8",
+    )
 
 
 def write_obsidian_note(
@@ -393,6 +875,9 @@ def write_obsidian_note(
     profile: str,
     verdict: dict[str, Any] | None,
     quality: dict[str, Any] | None,
+    evidence: dict[str, Any] | None,
+    review_items: list[dict[str, Any]],
+    blockers: list[str],
     warnings: list[str],
     notes: str,
     transcript: str,
@@ -409,12 +894,36 @@ def write_obsidian_note(
         "---",
         "",
     ]
-    body = [f"# {sid}", ""]
-    if warnings:
-        body.extend(["## Export Warnings", ""])
-        body.extend(f"- `{item}`" for item in warnings)
-        body.append("")
-    body.extend(["## Quality Verdict", "", strip_heading(quality_text), "## Notes", "", strip_heading(notes), "## Transcript", "", strip_heading(transcript)])
+    body = [
+        f"# {sid}",
+        "",
+        strip_heading(render_index_markdown(
+            sid=sid,
+            profile=profile,
+            verdict=verdict,
+            quality=quality,
+            evidence=evidence,
+            review_items=review_items,
+            blockers=blockers,
+            warnings=warnings,
+            include_json=False,
+            next_commands=None,
+            single_note=True,
+        )),
+        "## Quality Verdict",
+        "",
+        strip_heading(quality_text),
+        "## Notes",
+        "",
+        strip_heading(notes),
+        "## Review Items",
+        "",
+    ]
+    if review_items:
+        body.extend(render_review_item(item) for item in top_review_items(review_items, 20))
+    else:
+        body.append("- No mandatory review items were reported.")
+    body.extend(["", "## Transcript", "", strip_heading(transcript)])
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(frontmatter + body), encoding="utf-8")
 
@@ -427,6 +936,9 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
     profile, quality, verdict = resolve_profile(session, args.profile)
     paths = source_paths(session, profile)
     readiness = read_json(paths["session_readiness_json"])
+    evidence = read_json(paths["evidence_notes_json"])
+    clean_dialogue = read_json(paths["clean_dialogue_json"])
+    review_items = read_jsonl(paths["review_items_jsonl"])
     blockers, warnings = readiness_blockers(paths, quality, verdict, readiness)
     if blockers and not args.force:
         next_commands = blocked_export_next_commands(session, readiness, blockers)
@@ -434,6 +946,7 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
         manifest = {
             "schema": SCHEMA_MANIFEST,
             "generator": {"name": "export-session-bundle", "version": SCRIPT_VERSION},
+            "bundle_quality": EXPORT_BUNDLE_QUALITY,
             "status": "blocked",
             "session_id": sid,
             "requested_profile": args.profile,
@@ -455,13 +968,72 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
     out_dir = args.out_dir / session.name
     out_dir.mkdir(parents=True, exist_ok=True)
     files: dict[str, Any] = {}
+    next_commands_for_index = ready_export_next_commands(session, out_dir / "export_manifest.json") if not blockers else blocked_export_next_commands(session, readiness, blockers)
+    quality_text = render_quality_verdict_markdown(
+        sid=sid,
+        profile=profile,
+        verdict=verdict,
+        quality=quality,
+        evidence=evidence,
+        review_items=review_items,
+        blockers=blockers,
+        warnings=warnings,
+        paths=paths,
+    )
+    notes_text = render_notes_markdown(
+        sid=sid,
+        profile=profile,
+        verdict=verdict,
+        evidence=evidence,
+        review_items=review_items,
+        fallback_notes=read_text(paths["notes_md"]),
+    )
+    transcript_text = render_transcript_markdown(
+        sid=sid,
+        profile=profile,
+        clean_dialogue=clean_dialogue,
+        fallback_transcript=read_text(paths["transcript_md"]),
+    )
     if args.format == "markdown":
         index = out_dir / "index.md"
-        write_markdown_index(index, sid=sid, profile=profile, verdict=verdict, quality=quality, warnings=warnings)
+        write_markdown_index(
+            index,
+            sid=sid,
+            profile=profile,
+            verdict=verdict,
+            quality=quality,
+            evidence=evidence,
+            review_items=review_items,
+            blockers=blockers,
+            warnings=warnings,
+            include_json=args.include_json,
+            next_commands=next_commands_for_index,
+        )
         files["index"] = {"path": str(index), "bytes": index.stat().st_size}
-        files["quality_verdict_md"] = copy_file(paths["quality_verdict_md"], out_dir / "quality_verdict.md")
-        files["notes_md"] = copy_file(paths["notes_md"], out_dir / "notes.md")
-        files["transcript_md"] = copy_file(paths["transcript_md"], out_dir / "transcript.md")
+        quality_out = out_dir / "quality_verdict.md"
+        quality_out.write_text(quality_text, encoding="utf-8")
+        files["quality_verdict_md"] = {
+            "source": str(paths["quality_verdict_json"]),
+            "path": str(quality_out),
+            "bytes": quality_out.stat().st_size,
+            "rendered": True,
+        }
+        notes_out = out_dir / "notes.md"
+        notes_out.write_text(notes_text, encoding="utf-8")
+        files["notes_md"] = {
+            "source": str(paths["evidence_notes_json"]),
+            "path": str(notes_out),
+            "bytes": notes_out.stat().st_size,
+            "rendered": True,
+        }
+        transcript_out = out_dir / "transcript.md"
+        transcript_out.write_text(transcript_text, encoding="utf-8")
+        files["transcript_md"] = {
+            "source": str(paths["clean_dialogue_json"]),
+            "path": str(transcript_out),
+            "bytes": transcript_out.stat().st_size,
+            "rendered": True,
+        }
     else:
         obsidian = out_dir / f"{sid}.md"
         write_obsidian_note(
@@ -470,10 +1042,13 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
             profile=profile,
             verdict=verdict,
             quality=quality,
+            evidence=evidence,
+            review_items=review_items,
+            blockers=blockers,
             warnings=warnings,
-            notes=read_text(paths["notes_md"]),
-            transcript=read_text(paths["transcript_md"]),
-            quality_text=read_text(paths["quality_verdict_md"]),
+            notes=notes_text,
+            transcript=transcript_text,
+            quality_text=quality_text,
         )
         files["obsidian_note"] = {"path": str(obsidian), "bytes": obsidian.stat().st_size}
 
@@ -504,6 +1079,7 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
     manifest = {
         "schema": SCHEMA_MANIFEST,
         "generator": {"name": "export-session-bundle", "version": SCRIPT_VERSION},
+        "bundle_quality": EXPORT_BUNDLE_QUALITY,
         "status": "exported_forced_with_blockers" if blockers else ("exported_with_warnings" if warnings else "exported"),
         "session_id": sid,
         "session": str(session),

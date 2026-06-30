@@ -1256,6 +1256,9 @@ grep -q '^  debug_retention:$' "$export_stdout"
 tail -1 "$export_stdout" | grep -q '^next: murmurmark process '
 jq -e '.schema == "murmurmark.export_manifest/v1" and (.status | startswith("exported")) and (.files.transcript_md.path | type == "string")' \
   "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
+jq -e '.bundle_quality == "v1"' "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
+grep -Fq '## Can I Use This?' "$export_force_dir/$(basename "$session")/index.md"
+grep -q '^## Retention And Privacy$' "$export_force_dir/$(basename "$session")/index.md"
 jq -e '(.next | startswith("murmurmark process ")) and (.next_commands | map(.command | startswith("murmurmark process ")) | any) and (.open_commands | map(.command | startswith("less ")) | any) and (.debug_retention_commands | map(.command | contains("murmurmark retention plan ")) | any) and (.export_commands.rerun | startswith("murmurmark export "))' \
   "$export_force_dir/$(basename "$session")/export_manifest.json" >/dev/null
 retention_forced_output="$("$bin" retention plan "$session" --export-manifest "$export_force_dir/$(basename "$session")/export_manifest.json")"
@@ -1327,6 +1330,12 @@ ready_export_dir="$workdir/export-ready"
 grep -q '^recommended_next: murmurmark retention plan ' "$workdir/export_ready_stdout.txt"
 jq -e '.status == "exported" and (.blockers | length == 0) and (.next | startswith("murmurmark retention plan ")) and (.next_commands | map(.id) == ["retention_plan", "retention_payload"]) and (.open_commands | map(.id) | index("open_manifest")) and (.debug_retention_commands | length == 0)' \
   "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json" >/dev/null
+jq -e '.bundle_quality == "v1"' "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json" >/dev/null
+grep -Fq '## Can I Use This?' "$ready_export_dir/$(basename "$ready_export_session")/index.md"
+grep -q '^## Retention And Privacy$' "$ready_export_dir/$(basename "$ready_export_session")/index.md"
+grep -q '^# Quality Verdict$' "$ready_export_dir/$(basename "$ready_export_session")/quality_verdict.md"
+grep -q '^# Meeting Notes$' "$ready_export_dir/$(basename "$ready_export_session")/notes.md"
+grep -q '^# Transcript$' "$ready_export_dir/$(basename "$ready_export_session")/transcript.md"
 ready_next_output="$("$bin" next "$ready_export_session" --export-manifest "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json")"
 assert_no_helper_prefix "$ready_next_output"
 echo "$ready_next_output" | grep -q '^next:$'

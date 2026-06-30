@@ -59,6 +59,8 @@ command.
 - Deterministic extractive notes with quality verdicts and evidence IDs.
 - Review lane packs, suggested answers, review apply flow and corpus readiness reports.
 - Markdown/Obsidian-style export bundles and retention planning.
+- Export Bundle Quality v1: `finish` writes a readable handoff with "Can I use this?", review
+  burden, evidence-backed notes, transcript IDs and retention/privacy next steps.
 - Local release bundle, self-test, acceptance gate and open-source readiness check.
 - Recording reliability: duration/SIGINT complete normally, SIGTERM/SIGHUP/unrecovered capture stops
   become explicit partial sessions, and `doctor` catches missing shareable displays before recording.
@@ -240,6 +242,14 @@ unresolved risk.
 includes JSON evidence by default, and then writes retention and provider-payload recommendations when
 export succeeds. It never deletes raw audio.
 
+For Markdown exports, start with `index.md`. It answers "Can I use this?", shows the selected
+transcript profile, verdict and review burden, links to notes/transcript/evidence, and prints the
+next retention command. `quality_verdict.md` is the human trust report, `notes.md` is the extractive
+working summary, and `transcript.md` is the full text with utterance IDs and review flags.
+
+Obsidian format writes one self-contained frontmatter note with the same sections. It is safe to
+archive locally: raw audio is not copied into the export bundle.
+
 ```bash
 murmurmark finish latest
 murmurmark finish "$SESSION" --format obsidian
@@ -382,8 +392,8 @@ Near-term goals for discussion:
    reports, and keep measuring how much manual review it removes.
 2. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
-3. Export readiness: make Markdown/Obsidian bundles the normal output for usable meetings, with
-   explicit blockers and retention guidance.
+3. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
+   especially Obsidian-vault placement and reviewed proposal exports.
 4. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
    regressions before new heuristics ship.
 5. Evidence notes vNext: improve extractive notes quality while preserving citations and review

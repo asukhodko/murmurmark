@@ -32,7 +32,8 @@ The CLI MVP is already real:
 - `murmurmark review suggested` previews and applies safe generated suggestions before manual listening;
 - `murmurmark corpus` runs the regression/readiness loop;
 - `murmurmark finish` turns readiness, export and retention/payload manifests into one final handoff;
-- `murmurmark export` builds Markdown/Obsidian bundles;
+- `murmurmark export` builds Export Bundle Quality v1 Markdown/Obsidian bundles with "Can I use
+  this?", review burden, evidence-backed notes, transcript IDs and retention/privacy next steps;
 - `murmurmark retention` plans payloads and raw deletion;
 - `murmurmark doctor`, `self-test`, `acceptance`, release bundle and open-source checks exist.
 
@@ -120,6 +121,8 @@ flowchart LR
   The 2026-06-30 daily sync showed the important pattern: the session was marked `risky`, but
   stronger audio judge confirmed most `check_transcript_order` rows as timing/double-talk, leaving
   only a few real manual checks.
+- Keep the final handoff readable: `finish` now opens a bundle whose `index.md` is the first working
+  artifact, not a derived-file directory listing.
 - Make the everyday path boring:
 
   ```bash
@@ -146,7 +149,8 @@ flowchart LR
   - no-regression gates for order, local recall, duplicates and selected notes.
 - Export workflow:
   - keep `murmurmark finish` as the normal final handoff;
-  - improve Markdown/Obsidian bundle readability;
+  - maintain Export Bundle Quality v1 and test it against real 1x1, group and review-blocked
+    sessions;
   - add Obsidian-vault export only after the bundle is stable.
 
 ### Later
@@ -190,6 +194,9 @@ Recently completed:
 - **Readiness reconciliation.** A zero-action review queue no longer turns into an empty
   `first-lane` handoff. MurmurMark now points to `ready_for_notes`, a non-empty actionable review
   pack, or a documented non-actionable blocker.
+- **Export Bundle Quality v1.** `finish` now produces a user-facing Markdown/Obsidian handoff:
+  "Can I use this?", selected profile, review burden, evidence-backed notes, transcript utterance IDs
+  and retention/privacy next steps.
 
 ## Candidate Next Goals
 
@@ -197,8 +204,8 @@ Recently completed:
    path: preview, apply, refresh readiness and show the exact remaining manual queue. The daily sync
    example should move from `risky` to either `usable_with_review` or a much smaller explicit queue
    without changing capture, Echo Guard or primary ASR.
-2. **Polish export bundles.** `murmurmark finish` now gives one final handoff; the next export work is
-   making the Markdown/Obsidian content itself more comfortable to read and archive.
+2. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
+   reviewed docs/ticket proposal exports.
 3. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
    changes to beat or preserve it.
 4. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
