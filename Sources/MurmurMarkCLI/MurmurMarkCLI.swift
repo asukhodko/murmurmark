@@ -3205,6 +3205,27 @@ enum AuditCommands {
             }
             try Tooling.runPath(python, auditArgs)
             try AuditPrinter.printStrongerAudioJudge(session: session, args: auditArgs)
+        case "remote-forbidden", "remote_forbidden":
+            var forwarded = remaining
+            let skipLab = ArgumentEditing.takeFlag("skip-lab", from: &forwarded)
+            let profile = ArgumentEditing.takeOption("profile", from: &forwarded) ?? "auto"
+            let outDir = ArgumentEditing.takeOption("out-dir", from: &forwarded)
+            if !skipLab {
+                var labArgs = [try script("echo-guard-offline-aec-v2-lab.py").path, session.path] + forwarded
+                if !ArgumentEditing.hasOption("asr-audit", in: labArgs) {
+                    labArgs.append("--asr-audit")
+                }
+                if !ArgumentEditing.hasOption("asr-max-clips", in: labArgs) {
+                    labArgs += ["--asr-max-clips", "6"]
+                }
+                try Tooling.runPath(python, labArgs)
+            }
+            var evidenceArgs = [try script("harden-remote-forbidden-evidence.py").path, session.path, "--profile", profile]
+            if let outDir {
+                evidenceArgs += ["--out-dir", outDir]
+            }
+            try Tooling.runPath(python, evidenceArgs)
+            try AuditPrinter.printRemoteForbidden(session: session, args: evidenceArgs)
         default:
             throw CLIError("unknown audit command: \(subcommand)")
         }
@@ -3284,6 +3305,7 @@ enum AuditCommands {
           murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80]
                                              [--quick] [--max-computed-items N] [--sessions-root ./sessions]
+          murmurmark audit remote-forbidden ./session|latest [--profile auto] [--asr-max-clips 6] [--skip-lab]
 
         Audit commands are local-only wrappers over existing Python scripts:
           local-recall    runs audit-local-recall.py
@@ -3293,6 +3315,9 @@ enum AuditCommands {
           stronger-audio-judge
                           runs build-audio-review-pack.py, then audit-stronger-audio-judge.py
                           with --review-lane-pack or --pack-item-id, reuses the existing audio-review pack
+          remote-forbidden
+                          runs offline_aec_v2 ASR audit, then materializes remote-forbidden
+                          evidence rows and a review report
 
         Use --sessions-root when resolving latest from a non-default sessions directory.
         Extra options are forwarded to the underlying audit script; for audio-review they are
@@ -3492,6 +3517,39 @@ enum AuditPrinter {
             session: session,
             report: outDir.appendingPathComponent("faster_whisper_judge_report.md"),
             needsReview: needsReview
+        )
+    }
+
+    static func printRemoteForbidden(session: URL, args: [String]) throws {
+        let defaultURL = session.appendingPathComponent("derived/audit/remote-forbidden")
+        let outDir = PathURLs.fileURL(ArgumentEditing.peekOption("out-dir", in: args) ?? defaultURL.path)
+        let summaryURL = outDir.appendingPathComponent("remote_forbidden_summary.json")
+        guard FileManager.default.fileExists(atPath: summaryURL.path) else {
+            printMissing(kind: "remote_forbidden", expected: summaryURL)
+            return
+        }
+        let payload = try JSONFiles.object(summaryURL)
+        let metrics = dict(payload["metrics"])
+        let gates = dict(payload["gates"])
+
+        print("")
+        print("audit:")
+        print("  kind: remote_forbidden")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("remote_forbidden_review.md")))")
+        print("  status: \(string(payload["status"]) ?? "unknown")")
+        print("  gate: \((gates["passed"] as? Bool) == true ? "passed" : "not_passed")")
+        print("  gate_reason: \(string(gates["reason"]) ?? "unknown")")
+        print("  remote_rows: \(int(metrics["remote_forbidden_rows"]))")
+        print("  local_gate_rows: \(int(metrics["local_speech_gate_rows"]))")
+        print(String(format: "  remote_token_leak_delta: %.6f", double(metrics["remote_token_leak_delta"])))
+        print(String(format: "  local_word_recall_delta: %.6f", double(metrics["local_word_recall_delta"])))
+        print(String(format: "  suggest_drop_seconds: %.2fs", double(metrics["suggest_drop_seconds"])))
+        print(String(format: "  quarantine_seconds: %.2fs", double(metrics["quarantine_seconds"])))
+        print(String(format: "  needs_review_seconds: %.2fs", double(metrics["needs_review_seconds"])))
+        printAuditHandoff(
+            session: session,
+            report: outDir.appendingPathComponent("remote_forbidden_review.md"),
+            needsReview: false
         )
     }
 

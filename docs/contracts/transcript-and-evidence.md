@@ -3781,6 +3781,109 @@ removed-token evidence:
 }
 ```
 
+## `remote_forbidden_evidence.jsonl`
+
+`remote_forbidden` is the hardened evidence layer built on top of the `offline_aec_v2` ASR clip
+audit. It is review/status evidence only. It does not edit `clean_dialogue*.json`, does not replace
+`mic_for_asr.wav`, and does not promote any Echo Guard candidate.
+
+Files:
+
+```text
+derived/audit/remote-forbidden/remote_forbidden_evidence.jsonl
+derived/audit/remote-forbidden/remote_forbidden_summary.json
+derived/audit/remote-forbidden/remote_forbidden_review.md
+sessions/_reports/remote-forbidden/remote_forbidden_corpus_report.json
+sessions/_reports/remote-forbidden/remote_forbidden_corpus_report.md
+```
+
+Evidence row schema:
+
+```json
+{
+  "schema": "murmurmark.echo.remote_forbidden_evidence/v1",
+  "id": "rfg_remote_0002",
+  "kind": "remote_forbidden_token",
+  "source": "offline_aec_v2_asr_clip_audit",
+  "interval": {"start": 938.0, "end": 940.0, "duration_sec": 2.0},
+  "transcript_links": {
+    "me_utterance_ids": [],
+    "remote_utterance_ids": ["utt_000153"]
+  },
+  "speaker_state": {
+    "dominant_state": "remote_only",
+    "remote_active_ratio": 1.0,
+    "local_active_ratio": 0.0
+  },
+  "texts": {
+    "remote_reference": "Да, реально, вот он пришел, такой господин.",
+    "local_fir": "Да, реально, он пришел, такой господин.",
+    "base_candidate": "Да, реально, вот пришел...",
+    "guarded_candidate": ""
+  },
+  "tokens": {
+    "removed": ["Да", "реально", "вот", "пришел"],
+    "kept": []
+  },
+  "metrics": {
+    "local_fir_remote_token_overlap": 1.0,
+    "base_candidate_remote_token_overlap": 1.0,
+    "guarded_remote_token_overlap": 0.0,
+    "leak_delta_vs_local_fir": -1.0
+  },
+  "decision": {
+    "action": "suggest_drop",
+    "confidence": 0.93,
+    "reason": "remote_only_window_all_candidate_tokens_are_remote_explainable",
+    "safe_to_apply": false
+  }
+}
+```
+
+Allowed `decision.action` values:
+
+- `keep`: no remote-token action is needed for this row;
+- `quarantine`: evidence is useful but not safe enough for a direct suggestion;
+- `suggest_drop`: all candidate tokens in a remote-only ASR window are remote-explainable;
+- `needs_review`: the guard found risk or insufficient evidence.
+
+`suggest_drop` is still review-only. A later repair layer may consume it only with separate safety
+gates and must preserve real local speech.
+
+Summary schema:
+
+```json
+{
+  "schema": "murmurmark.echo.remote_forbidden_summary/v1",
+  "mode": "shadow_review_only",
+  "status": "ok",
+  "metrics": {
+    "remote_token_leak_rate_before": 0.5,
+    "remote_token_leak_rate_after": 0.0,
+    "remote_token_leak_delta": -0.5,
+    "local_word_recall_before": 0.916667,
+    "local_word_recall_after": 0.916667,
+    "local_word_recall_delta": 0.0,
+    "actions": {"suggest_drop": 1, "quarantine": 2, "keep": 1}
+  },
+  "gates": {
+    "passed": true,
+    "reason": "remote_tokens_reduced_without_local_recall_regression",
+    "remote_token_leak_improved": true,
+    "local_recall_gate_passed": true,
+    "no_default_promotion": true
+  }
+}
+```
+
+Invariants:
+
+- raw `audio/*.caf` files are never read as writable outputs;
+- `mic_for_asr.wav` is not changed;
+- `local_fir` remains the selected production Echo Guard path;
+- corpus reports must count local-recall regressions separately from remote-token improvements;
+- a corpus target of one safe improved session is not enough for default promotion.
+
 For sanitized external synthesis:
 
 ```yaml

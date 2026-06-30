@@ -612,7 +612,7 @@ nodes:
     deps: [quality-echo-vnext-asr-positive, corpus-regression]
     status: current
     effort: 6
-    notes: "Nearest goal: make `remote_forbidden_token_guard` less clip-specific, persist evidence rows, connect them to transcript/review/status artifacts, enforce local-speech gates, and report where the guard is safe, unsafe or still needs human review."
+    notes: "Current goal. First implementation writes `remote_forbidden_evidence.jsonl`, `remote_forbidden_summary.json`, session readiness metrics and `remote_forbidden_corpus_report`. Six-session smoke currently has one safe improved session and zero local-recall regressions; next work is broader coverage and stronger gates before any transcript/audio promotion."
 
   quality-neural-residual-echo-spike:
     title: "Neural residual echo suppression spike"

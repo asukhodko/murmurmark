@@ -381,6 +381,48 @@ jq -r '.rows[] | [
 ] | @tsv' "$SESSION/derived/preprocess/echo/offline_aec_v2_asr_leak_report.json"
 ```
 
+Materialize the token guard as persistent review evidence:
+
+```bash
+murmurmark audit remote-forbidden "$SESSION" --profile auto --asr-max-clips 6
+```
+
+If the ASR audit has already been run and only the evidence files need to be refreshed:
+
+```bash
+murmurmark audit remote-forbidden "$SESSION" --skip-lab --profile auto
+```
+
+This writes:
+
+```text
+derived/audit/remote-forbidden/remote_forbidden_evidence.jsonl
+derived/audit/remote-forbidden/remote_forbidden_summary.json
+derived/audit/remote-forbidden/remote_forbidden_review.md
+```
+
+Compare the current smoke corpus:
+
+```bash
+.venv/bin/python scripts/report-remote-forbidden-corpus.py \
+  sessions/2026-06-23_14-04-37 \
+  sessions/2026-06-26_15-32-02 \
+  sessions/2026-06-29_15-46-17 \
+  sessions/2026-06-29_16-31-02 \
+  sessions/2026-06-30_11-15-56 \
+  sessions/2026-06-30_17-17-20
+
+less sessions/_reports/remote-forbidden/remote_forbidden_corpus_report.md
+```
+
+Current reading:
+
+- evidence exists for all six smoke sessions after the lab has run;
+- one difficult 1x1 session is safely improved at ASR-token level;
+- local-word recall regressions are zero;
+- target status is still `target_not_met_only_one_safe_session`, so this is not a default Echo Guard
+  promotion path.
+
 ## Stop Rules
 
 Stop audio cleanup work and prefer transcript-level suppression when:

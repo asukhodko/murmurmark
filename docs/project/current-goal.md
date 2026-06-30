@@ -1,7 +1,8 @@
 # Current Goal: Remote-Forbidden Evidence Hardening v1
 
-Status, 2026-06-30: selected as the next major goal after the first ASR-positive Echo Guard vNext
-spike.
+Status, 2026-06-30: implementation started. The first shadow evidence layer now materializes
+`remote_forbidden_token_guard` results into persistent evidence rows, session readiness metrics and
+a corpus report. It is not promoted and does not edit transcripts.
 
 MurmurMark has enough evidence that remote speech leaking into the mic track is a root cause of
 false `Me` utterances, wrong order, extra cleanup work and remaining review burden. The previous
@@ -79,10 +80,23 @@ Current lab command:
 .venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION" --asr-audit --asr-max-clips 2
 ```
 
+Current evidence command:
+
+```bash
+murmurmark audit remote-forbidden "$SESSION" --profile auto --asr-max-clips 6
+```
+
+Refresh evidence only:
+
+```bash
+murmurmark audit remote-forbidden "$SESSION" --skip-lab --profile auto
+```
+
 Corpus summary:
 
 ```bash
 .venv/bin/python scripts/report-offline-aec-v2-corpus.py SESSION...
+.venv/bin/python scripts/report-remote-forbidden-corpus.py SESSION...
 ```
 
 Target user-facing shape after hardening:
@@ -95,6 +109,21 @@ murmurmark review suggested "$SESSION"
 
 The hardened layer should appear as evidence and review decisions in the normal pipeline before it
 is considered for any default audio change.
+
+## Current Finding
+
+Six-session smoke after materializing evidence:
+
+- `reports_found = 6/6`;
+- `safe_improved_sessions = 1`;
+- `local_recall_regressions = 0`;
+- `suggest_drop_count = 1`;
+- `quarantine_count = 8`;
+- `target_status = target_not_met_only_one_safe_session`.
+
+Interpretation: the first hardening layer satisfies persistence and visibility, but not the full
+two-session acceptance target. The next step is broader audit-window coverage or a better candidate
+source that can produce at least one more safe ASR-visible improvement.
 
 ## Larger Goals After This
 

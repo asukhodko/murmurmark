@@ -362,6 +362,7 @@ def stage_status(session: Path) -> dict[str, bool]:
     order_repair = session / "derived/transcript-simple/whisper-cpp/order-repair"
     local_recall_repair = session / "derived/transcript-simple/whisper-cpp/local-recall-repair"
     remote_leak_repair = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair"
+    remote_forbidden = session / "derived/audit/remote-forbidden"
     return {
         "capture": (session / "session.json").exists()
         and (session / "audio/mic/000001.caf").exists()
@@ -376,6 +377,8 @@ def stage_status(session: Path) -> dict[str, bool]:
         and (order_audit / "transcript_order_items.jsonl").exists(),
         "remote_leak_segment_plan": (remote_leak_repair / "remote_leak_segment_repair_plan.json").exists()
         and (remote_leak_repair / "remote_leak_segment_repair_items.jsonl").exists(),
+        "remote_forbidden_evidence": (remote_forbidden / "remote_forbidden_summary.json").exists()
+        and (remote_forbidden / "remote_forbidden_evidence.jsonl").exists(),
         "audit_cleanup_v1": (resolved / "quality_report.audit_cleanup_v1.json").exists()
         and (resolved / "clean_dialogue.audit_cleanup_v1.json").exists()
         and (cleanup / "audit_cleanup_report.audit_cleanup_v1.json").exists(),
@@ -1153,6 +1156,43 @@ def remote_leak_segment_plan_metrics(plan: dict[str, Any] | None) -> dict[str, A
     }
 
 
+def remote_forbidden_metrics(summary: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(summary, dict):
+        return {
+            "remote_forbidden_status": "missing",
+            "remote_forbidden_gate_passed": None,
+            "remote_forbidden_gate_reason": None,
+            "remote_forbidden_rows": None,
+            "remote_forbidden_local_gate_rows": None,
+            "remote_forbidden_suggest_drop_count": None,
+            "remote_forbidden_quarantine_count": None,
+            "remote_forbidden_needs_review_count": None,
+            "remote_forbidden_suggest_drop_seconds": None,
+            "remote_forbidden_quarantine_seconds": None,
+            "remote_forbidden_needs_review_seconds": None,
+            "remote_forbidden_token_leak_delta": None,
+            "remote_forbidden_local_word_recall_delta": None,
+        }
+    metrics = summary.get("metrics") if isinstance(summary.get("metrics"), dict) else {}
+    gates = summary.get("gates") if isinstance(summary.get("gates"), dict) else {}
+    actions = metrics.get("actions") if isinstance(metrics.get("actions"), dict) else {}
+    return {
+        "remote_forbidden_status": summary.get("status"),
+        "remote_forbidden_gate_passed": gates.get("passed"),
+        "remote_forbidden_gate_reason": gates.get("reason"),
+        "remote_forbidden_rows": safe_int(metrics.get("remote_forbidden_rows")) or 0,
+        "remote_forbidden_local_gate_rows": safe_int(metrics.get("local_speech_gate_rows")) or 0,
+        "remote_forbidden_suggest_drop_count": safe_int(actions.get("suggest_drop")) or 0,
+        "remote_forbidden_quarantine_count": safe_int(actions.get("quarantine")) or 0,
+        "remote_forbidden_needs_review_count": safe_int(actions.get("needs_review")) or 0,
+        "remote_forbidden_suggest_drop_seconds": round_or_none(metrics.get("suggest_drop_seconds")),
+        "remote_forbidden_quarantine_seconds": round_or_none(metrics.get("quarantine_seconds")),
+        "remote_forbidden_needs_review_seconds": round_or_none(metrics.get("needs_review_seconds")),
+        "remote_forbidden_token_leak_delta": round_or_none(metrics.get("remote_token_leak_delta"), 6),
+        "remote_forbidden_local_word_recall_delta": round_or_none(metrics.get("local_word_recall_delta"), 6),
+    }
+
+
 def local_recall_metrics(local_recall: dict[str, Any] | None, review_report: dict[str, Any] | None = None) -> dict[str, Any]:
     if not isinstance(local_recall, dict):
         return {
@@ -1443,6 +1483,23 @@ def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
                 "value": flag,
             }
         )
+    if row.get("remote_forbidden_status") == "ok":
+        guarded_seconds = (
+            (safe_float(row.get("remote_forbidden_suggest_drop_seconds")) or 0.0)
+            + (safe_float(row.get("remote_forbidden_quarantine_seconds")) or 0.0)
+            + (safe_float(row.get("remote_forbidden_needs_review_seconds")) or 0.0)
+        )
+        if guarded_seconds > 0.0:
+            reasons.append(
+                {
+                    "id": "remote_forbidden_shadow_evidence",
+                    "severity": "warning",
+                    "message": (
+                        "Remote-forbidden ASR evidence exists. It is shadow/review-only and does not change the transcript."
+                    ),
+                    "value": round(guarded_seconds, 3),
+                }
+            )
     return reasons
 
 
@@ -1530,6 +1587,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     remote_leak_plan = read_json(
         session / "derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json"
     )
+    remote_forbidden = read_json(session / "derived/audit/remote-forbidden/remote_forbidden_summary.json")
     local_recall = read_json(session / "derived/audit/local-recall/local_recall_audit.json")
     order_audit = read_json(session / "derived/audit/order/transcript_order_audit.json")
     local_fir = read_json(session / "derived/preprocess/echo/local_fir_report.json")
@@ -1664,6 +1722,7 @@ def collect_session(session: Path, labels: dict[str, str]) -> dict[str, Any]:
     row.update(notes_needs_review_metrics(session, profile, evidence))
     row.update(audio_review_metrics(audio_summary, session, profile, evidence))
     row.update(remote_leak_segment_plan_metrics(remote_leak_plan))
+    row.update(remote_forbidden_metrics(remote_forbidden))
     row.update(local_recall_metrics(local_recall, review_report))
     row.update(transcript_order_metrics(order_audit, review_report, order_repair_report))
     row["risk_flags"] = risk_flags(row)
@@ -1723,6 +1782,14 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
             safe_int(row.get("suggested_closure_manual_remaining_rows")) or 0 for row in rows
         ),
         "suggested_closure_manual_remaining_seconds": round(suggested_remaining_seconds, 3),
+        "remote_forbidden_sessions": sum(1 for row in rows if row.get("remote_forbidden_status") == "ok"),
+        "remote_forbidden_gate_passed_sessions": sum(1 for row in rows if row.get("remote_forbidden_gate_passed") is True),
+        "remote_forbidden_suggest_drop_count": sum_rows("remote_forbidden_suggest_drop_count"),
+        "remote_forbidden_quarantine_count": sum_rows("remote_forbidden_quarantine_count"),
+        "remote_forbidden_needs_review_count": sum_rows("remote_forbidden_needs_review_count"),
+        "remote_forbidden_suggest_drop_seconds": sum_seconds("remote_forbidden_suggest_drop_seconds"),
+        "remote_forbidden_quarantine_seconds": sum_seconds("remote_forbidden_quarantine_seconds"),
+        "remote_forbidden_needs_review_seconds": sum_seconds("remote_forbidden_needs_review_seconds"),
         "total_synthesis_review_items": sum(safe_int(row.get("synthesis_review_item_count")) or 0 for row in rows),
         "total_synthesis_review_seconds": round(synthesis_review_seconds, 3),
         "sessions_with_risk_flags": len(risk_rows),
@@ -1830,6 +1897,16 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "remote_leak_segment_plan_items",
         "remote_leak_segment_plan_protect_local_content_items",
         "remote_leak_segment_plan_next_work",
+        "remote_forbidden_status",
+        "remote_forbidden_gate_passed",
+        "remote_forbidden_token_leak_delta",
+        "remote_forbidden_local_word_recall_delta",
+        "remote_forbidden_suggest_drop_count",
+        "remote_forbidden_quarantine_count",
+        "remote_forbidden_needs_review_count",
+        "remote_forbidden_suggest_drop_seconds",
+        "remote_forbidden_quarantine_seconds",
+        "remote_forbidden_needs_review_seconds",
         "risk_flags",
         "review_blockers",
         "export_blockers",
@@ -1880,13 +1957,21 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         f"`{payload['summary'].get('suggested_closure_todo_rows', 0)}` todo); "
         f"auto `{payload['summary'].get('suggested_closure_auto_rows', 0)}` rows / `{payload['summary'].get('suggested_closure_auto_seconds', 0.0)}` sec, "
         f"manual `{payload['summary'].get('suggested_closure_manual_remaining_rows', 0)}` rows / `{payload['summary'].get('suggested_closure_manual_remaining_seconds', 0.0)}` sec",
+        f"- Remote-forbidden evidence: `{payload['summary'].get('remote_forbidden_sessions', 0)}` sessions, "
+        f"`{payload['summary'].get('remote_forbidden_gate_passed_sessions', 0)}` gate-passed; "
+        f"suggest_drop `{payload['summary'].get('remote_forbidden_suggest_drop_count', 0)}` / "
+        f"`{payload['summary'].get('remote_forbidden_suggest_drop_seconds', 0.0)}` sec, "
+        f"quarantine `{payload['summary'].get('remote_forbidden_quarantine_count', 0)}` / "
+        f"`{payload['summary'].get('remote_forbidden_quarantine_seconds', 0.0)}` sec, "
+        f"needs_review `{payload['summary'].get('remote_forbidden_needs_review_count', 0)}` / "
+        f"`{payload['summary'].get('remote_forbidden_needs_review_seconds', 0.0)}` sec",
         f"- Synthesis review items: `{payload['summary'].get('total_synthesis_review_items', 0)}` / `{payload['summary'].get('total_synthesis_review_seconds', 0.0)}` sec",
         f"- Sessions with risk flags: `{payload['summary']['sessions_with_risk_flags']}`",
         "",
         "## Sessions",
         "",
-        "| Session | Label | Gate | Status | Profile | Verdict | Min | Notes Review % | Synthesis Review | Suggested Closure | Utterances | Needs Review | Notes Needs Review | Local Recall | Local Audit | Order Audit | Harmful s | Review s | Audio Review | Actions/Decisions | Flags | Missing |",
-        "|---|---|---|---|---|---:|---:|---:|---|---|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---|---|",
+        "| Session | Label | Gate | Status | Profile | Verdict | Min | Notes Review % | Synthesis Review | Suggested Closure | Utterances | Needs Review | Notes Needs Review | Local Recall | Local Audit | Order Audit | Harmful s | Review s | Audio Review | Remote Forbidden | Actions/Decisions | Flags | Missing |",
+        "|---|---|---|---|---|---:|---:|---:|---|---|---:|---:|---:|---:|---|---|---:|---:|---:|---|---:|---|---|",
     ]
     for row in rows:
         duration = safe_float(row.get("meeting_duration_sec"))
@@ -1896,6 +1981,13 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
             f"{fmt(row.get('audio_review_reliable_count'), '0')}/"
             f"{fmt(row.get('audio_review_probable_error_count'), '0')}/"
             f"{fmt(row.get('audio_review_stronger_judge_count'), '0')}"
+        )
+        remote_forbidden = (
+            f"{fmt(row.get('remote_forbidden_status'))}; "
+            f"Δleak {fmt(row.get('remote_forbidden_token_leak_delta'))}; "
+            f"s/q/r {fmt(row.get('remote_forbidden_suggest_drop_count'), '0')}/"
+            f"{fmt(row.get('remote_forbidden_quarantine_count'), '0')}/"
+            f"{fmt(row.get('remote_forbidden_needs_review_count'), '0')}"
         )
         suggested_closure = (
             f"{fmt(row.get('suggested_closure_auto_rows'), '0')}/"
@@ -1936,6 +2028,7 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
                     fmt(row.get("audit_harmful_seconds_after")),
                     fmt(row.get("audit_review_seconds")),
                     audio_review,
+                    remote_forbidden,
                     actions_decisions,
                     ", ".join(row.get("risk_flags") or []),
                     ", ".join(row.get("missing_artifacts") or []),
@@ -1985,6 +2078,8 @@ def readiness_outputs(session: Path, profile: str) -> dict[str, Any]:
         / "derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair.md",
         "remote_leak_segment_plan": session
         / "derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json",
+        "remote_forbidden_review": session / "derived/audit/remote-forbidden/remote_forbidden_review.md",
+        "remote_forbidden_summary": session / "derived/audit/remote-forbidden/remote_forbidden_summary.json",
         "local_recall_review": session / "derived/audit/local-recall/local_recall_review.md",
         "transcript_order_review": session / "derived/audit/order/transcript_order_review.md",
         "pipeline_run_report": session / "derived/pipeline-run/pipeline_run_report.json",
@@ -2298,6 +2393,7 @@ def readiness_open_commands(session: Path, outputs: dict[str, Any]) -> list[dict
         "transcript": "Read the selected transcript.",
         "audio_review_report": "Inspect audio-review risks.",
         "remote_leak_segment_report": "Inspect remote-leak segment plan.",
+        "remote_forbidden_review": "Inspect shadow remote-forbidden token evidence.",
         "local_recall_review": "Inspect possible lost-Me regions.",
         "transcript_order_review": "Inspect chronology-risk regions.",
         "pipeline_run_report": "Inspect the latest pipeline run report.",
@@ -2399,6 +2495,19 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "remote_leak_segment_plan_protect_local_content_items": row.get("remote_leak_segment_plan_protect_local_content_items"),
             "remote_leak_segment_plan_protect_local_content_seconds": row.get("remote_leak_segment_plan_protect_local_content_seconds"),
             "remote_leak_segment_plan_next_work": row.get("remote_leak_segment_plan_next_work"),
+            "remote_forbidden_status": row.get("remote_forbidden_status"),
+            "remote_forbidden_gate_passed": row.get("remote_forbidden_gate_passed"),
+            "remote_forbidden_gate_reason": row.get("remote_forbidden_gate_reason"),
+            "remote_forbidden_rows": row.get("remote_forbidden_rows"),
+            "remote_forbidden_local_gate_rows": row.get("remote_forbidden_local_gate_rows"),
+            "remote_forbidden_suggest_drop_count": row.get("remote_forbidden_suggest_drop_count"),
+            "remote_forbidden_quarantine_count": row.get("remote_forbidden_quarantine_count"),
+            "remote_forbidden_needs_review_count": row.get("remote_forbidden_needs_review_count"),
+            "remote_forbidden_suggest_drop_seconds": row.get("remote_forbidden_suggest_drop_seconds"),
+            "remote_forbidden_quarantine_seconds": row.get("remote_forbidden_quarantine_seconds"),
+            "remote_forbidden_needs_review_seconds": row.get("remote_forbidden_needs_review_seconds"),
+            "remote_forbidden_token_leak_delta": row.get("remote_forbidden_token_leak_delta"),
+            "remote_forbidden_local_word_recall_delta": row.get("remote_forbidden_local_word_recall_delta"),
             "needs_review_count": row.get("needs_review_count"),
             "needs_review_ratio": row.get("needs_review_ratio"),
             "notes_evidence_utterance_count": row.get("notes_evidence_utterance_count"),
@@ -2435,7 +2544,15 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         "## Open First",
         "",
     ]
-    for key in ("quality_verdict", "notes", "transcript", "audio_review_report", "remote_leak_segment_report", "local_recall_review"):
+    for key in (
+        "quality_verdict",
+        "notes",
+        "transcript",
+        "audio_review_report",
+        "remote_leak_segment_report",
+        "remote_forbidden_review",
+        "local_recall_review",
+    ):
         item = payload["outputs"].get(key) or {}
         if item.get("exists"):
             lines.append(f"- `{key}`: `{item['path']}`")

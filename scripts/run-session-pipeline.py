@@ -58,6 +58,10 @@ STEP_COST_HINTS: dict[str, dict[str, str]] = {
         "cost": "medium",
         "reason": "plans segment-level remote leak repair candidates",
     },
+    "remote_forbidden_evidence": {
+        "cost": "light",
+        "reason": "materializes remote-forbidden evidence rows when offline_aec_v2 ASR audit exists",
+    },
 }
 
 
@@ -429,6 +433,12 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
         step(
             "plan_remote_leak_segment_repair",
             [py, str(repo_root / "scripts/plan-remote-leak-segment-repair.py"), str(session)],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+        ),
+        step(
+            "remote_forbidden_evidence",
+            [py, str(repo_root / "scripts/harden-remote-forbidden-evidence.py"), str(session), "--profile", "auto"],
             enabled=not args.skip_audits,
             reason="--skip-audits",
         ),

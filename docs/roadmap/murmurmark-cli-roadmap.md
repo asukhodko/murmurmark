@@ -143,7 +143,9 @@ flowchart LR
   - use the shadow `offline_aec_v2_v0` lab as a repeatable diagnostic baseline;
   - treat `remote_floor` and segment switching as useful proxy/control candidates, not as production
     replacements;
-  - harden `remote_forbidden_token_guard` into persistent evidence and review decisions;
+  - harden `remote_forbidden_token_guard` into persistent evidence and review decisions. The first
+    implementation now writes `remote_forbidden_evidence.jsonl`, session readiness metrics and a
+    corpus report;
   - keep target-speaker extraction and neural residual suppression as later spikes behind corpus
     gates.
 - Keep the final handoff readable: `finish` now opens a bundle whose `index.md` is the first working
@@ -239,7 +241,9 @@ Recently completed:
 
 1. **Remote-Forbidden Evidence Hardening v1.** The nearest meaningful goal: make the first
    ASR-positive safety layer less clip-specific, persist evidence rows, connect them to
-   transcript/review artifacts and enforce local-speech gates before any cleanup action.
+   transcript/review artifacts and enforce local-speech gates before any cleanup action. First
+   persistence/reporting is implemented; the remaining target is broader coverage, because the
+   current six-session smoke has only one safe improved session.
 2. **ASR-positive audio candidate v2.** Find an actual audio candidate that beats `local_fir` on
    remote-token leakage without local-recall loss. This depends on the evidence gates from goal 1.
 3. **Target-Me extraction spike.** Use high-confidence local-only speech as enrollment material for

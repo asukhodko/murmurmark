@@ -371,6 +371,32 @@ Important user-facing files:
 Prefer the CLI commands (`murmurmark transcript`, `murmurmark notes`, `murmurmark open`) over guessing
 the selected profile by filename.
 
+## Remote-Forbidden Evidence Audit
+
+This is the current Echo Guard hardening path. It is shadow/review-only: it does not change
+`mic_for_asr.wav`, selected transcript profiles or raw CAF files.
+
+```bash
+SESSION=./sessions/<session-id>
+
+murmurmark audit remote-forbidden "$SESSION" --profile auto --asr-max-clips 6
+murmurmark report "$SESSION"
+less "$SESSION/derived/audit/remote-forbidden/remote_forbidden_review.md"
+```
+
+If `offline_aec_v2` ASR audit already exists and only evidence files need to be rebuilt:
+
+```bash
+murmurmark audit remote-forbidden "$SESSION" --skip-lab --profile auto
+```
+
+Corpus view:
+
+```bash
+.venv/bin/python scripts/report-remote-forbidden-corpus.py sessions/<session-a> sessions/<session-b>
+less sessions/_reports/remote-forbidden/remote_forbidden_corpus_report.md
+```
+
 ## Documentation Map
 
 - [Mission and vision](docs/product/vision.md)
