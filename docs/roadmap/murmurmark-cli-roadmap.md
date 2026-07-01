@@ -206,6 +206,8 @@ flowchart LR
     must be upgraded before it can compete with batch Echo Guard;
   - post-stop final reconcile exists, but currently reports `fallback_batch_asr` because live-ASR
     cache is not yet compatible with the batch transcript builder;
+  - corpus-level live report exists as `murmurmark corpus live`; it keeps promotion blocked while
+    order/local-recall/remote-leak/review-burden gates are not evaluated by live outputs;
   - delayed transcript commit: do not finalize the last few seconds until the next segment arrives;
   - live status: captured/preprocessed/ASR seconds, current lag and current worker;
   - final reconcile after stop: batch-grade transcript remains authoritative until gates promote the

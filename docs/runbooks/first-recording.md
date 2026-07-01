@@ -118,6 +118,16 @@ the final transcript. If the worker crashes or falls behind, raw capture should 
 normal session and can be processed by the batch pipeline. Use `--live-no-finalize` when you only
 want to test the live draft and run `murmurmark process` manually.
 
+For a corpus-level live promotion check:
+
+```bash
+murmurmark corpus live all
+less sessions/_reports/live-pipeline/live_corpus_gates_report.md
+```
+
+The correct v1 outcome is normally `shadow_only_not_promotable`; promotion requires future gates for
+order risk, local recall, remote leakage, review burden and boundary speech.
+
 Without `--duration`, recording continues until `Ctrl-C`. MurmurMark catches that explicit stop,
 stops capture, closes audio files and writes `session.json`.
 If ScreenCaptureKit stops before `Ctrl-C`, MurmurMark tries to restart the capture stream and keep

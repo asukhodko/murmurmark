@@ -176,6 +176,7 @@ struct MurmurMark {
           murmurmark corpus local-recall [all|latest|./session...] [--audit] [--sessions-root ./sessions]
           murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
+          murmurmark corpus live [all|latest|./session...] [--sessions-root ./sessions]
           murmurmark corpus report
 
         Setup and diagnostics:
@@ -589,6 +590,7 @@ enum DoctorChecks {
             "scripts/run-session-pipeline.py",
             "scripts/live-pipeline-shadow.py",
             "scripts/compare-live-batch.py",
+            "scripts/report-live-corpus-gates.py",
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/synthesize-simple-extractive.py",
             "scripts/audit-local-recall.py",
@@ -4903,6 +4905,15 @@ enum CorpusCommands {
             try CorpusLocalRecallRepairCommands.run(args: forwarded, sessionsRoot: sessionsRoot)
         case "remote-leak":
             try CorpusRemoteLeakCommands.run(args: forwarded, sessionsRoot: sessionsRoot)
+        case "live":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-live-corpus-gates.py").path] + forwarded)
+                return
+            }
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [try script("report-live-corpus-gates.py").path] + forwarded + ["--sessions-root", sessionsRoot.path]
+            )
         case "report":
             guard forwarded.isEmpty else { throw CLIError("corpus report does not support extra arguments") }
             try CorpusPrinter.printSessionQuality()
@@ -5032,6 +5043,7 @@ enum CorpusHelp {
           murmurmark corpus local-recall [all|latest|./session...] [--audit] [--sessions-root ./sessions]
           murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
+          murmurmark corpus live [all|latest|./session...] [--sessions-root ./sessions]
           murmurmark corpus report
 
         Corpus commands operate on a local regression set and write reports under sessions/_reports/.

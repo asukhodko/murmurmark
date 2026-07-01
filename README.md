@@ -180,6 +180,16 @@ corpus gates prove that the live branch matches it. If the live worker fails, re
 produce a normal raw session package. If you need only the draft and want to run batch processing
 manually later, use `--live-no-finalize`.
 
+To inspect live parity over a local corpus:
+
+```bash
+murmurmark corpus live all
+less sessions/_reports/live-pipeline/live_corpus_gates_report.md
+```
+
+The expected v1 result is still `shadow_only_do_not_promote`: the report should explain which gates
+are evaluated and which remain blockers.
+
 ## Process An Existing Session
 
 Use this when the raw recording already exists:
@@ -540,6 +550,8 @@ Current focus:
 - keep near-realtime processing as a shadow CLI branch: `record --live-pipeline` now writes durable
   live segments, a draft transcript and advisory live-vs-batch comparison artifacts, but the batch
   pipeline is still authoritative;
+- use `murmurmark corpus live` to keep live promotion blocked until parity gates cover order, local
+  recall, remote leakage, review burden and chunk-boundary risks;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 

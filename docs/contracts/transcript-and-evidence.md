@@ -4310,6 +4310,40 @@ This comparison is advisory. Missing live or batch artifacts are written as `blo
 not fail the normal batch pipeline. `not_evaluated` gates are promotion blockers, not failures of the
 recording.
 
+### Live Corpus Gates
+
+`scripts/report-live-corpus-gates.py` aggregates live comparisons:
+
+```text
+sessions/_reports/live-pipeline/live_corpus_gates_report.json
+sessions/_reports/live-pipeline/live_corpus_gates_report.md
+```
+
+Schema:
+
+```json
+{
+  "schema": "murmurmark.live_corpus_gates_report/v1",
+  "summary": {
+    "sessions_total": 10,
+    "live_sessions": 3,
+    "compared_sessions": 2,
+    "blocked_sessions": 1,
+    "promotion_allowed_sessions": 0,
+    "target_status": "shadow_only_not_promotable",
+    "promotion_decision": "shadow_only_do_not_promote",
+    "speedup_supported_sessions": 0
+  },
+  "gate_counts": {
+    "duplicate_chunks": {"passed": 2},
+    "local_recall": {"not_evaluated": 2}
+  }
+}
+```
+
+The corpus gate is deliberately conservative. Any `not_evaluated`, `blocked`, `failed` or `warning`
+gate prevents promotion. v1 is expected to remain `shadow_only_do_not_promote`.
+
 For sanitized external synthesis:
 
 ```yaml

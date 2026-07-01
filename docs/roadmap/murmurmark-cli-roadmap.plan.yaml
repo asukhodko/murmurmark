@@ -356,13 +356,13 @@ nodes:
     status: next
     effort: 4
     notes: |
-      Первый `live_batch_comparison.json` уже пишет advisory parity gates и явно помечает
-      order/local-recall/remote-duplicate/review-burden как `not_evaluated`, пока live branch не
-      производит batch-grade profile metrics. Следующий gap: сравнить live draft/finalized output с
-      batch baseline по order risk, local recall, remote duplicate/leak, review burden, transcript
-      chunk duplicates и missing boundary speech. Promotion rule: live branch can shorten waiting
-      time, but cannot become default if it grows mandatory review queue or worsens selected
-      notes/readiness.
+      Первый `live_batch_comparison.json` уже пишет advisory parity gates, а `murmurmark corpus live`
+      агрегирует их в corpus-level report. Сейчас order/local-recall/remote-duplicate/review-burden
+      помечаются как `not_evaluated`, пока live branch не производит batch-grade profile metrics.
+      Следующий gap: сравнить live draft/finalized output с batch baseline по order risk, local
+      recall, remote duplicate/leak, review burden, transcript chunk duplicates и missing boundary
+      speech. Promotion rule: live branch can shorten waiting time, but cannot become default if it
+      grows mandatory review queue or worsens selected notes/readiness.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
