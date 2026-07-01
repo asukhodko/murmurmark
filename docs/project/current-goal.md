@@ -1,81 +1,99 @@
-# Latest Completed Goal: Remote-Forbidden Evidence Coverage v2
+# Latest Completed Goal: ASR-Positive Audio Candidate v2
 
-Status, 2026-07-01: completed as a shadow/review evidence coverage layer. Not promoted.
+Status, 2026-07-01: completed as a shadow-only Echo Guard candidate. Not promoted.
 
-Remote-Forbidden Evidence Hardening v1 is complete: MurmurMark now persists
-`remote_forbidden_token_guard` evidence rows, exposes them through session readiness/status, and
-writes a corpus report. The first six-session corpus has one safe ASR-visible improvement and zero
-local-recall regressions.
+Remote-Forbidden Evidence Coverage v2 made the audit layer wide enough to judge real suspicious
+windows instead of only a few early `remote_only` clips. ASR-positive audio candidate v2 uses that
+judge and adds a real audio candidate: `coverage_v2_remote_gate_local_fir`.
 
-Coverage v2 fixed the main v1 blocker. Instead of auditing only the first small set of
-speaker-state clips, it selects risky ASR windows from speaker state, audio-review rows, stronger
-audio judge rows, group overlaps, transcript overlaps and local/order risk artifacts.
+The candidate remains shadow-only. `local_fir` is still the production default.
 
 ## Goal
 
-Increase the number of real sessions where MurmurMark can measure ASR-visible remote leakage in
-`Me`, or explicitly prove that the sampled session has no safe remote-forbidden correction to make.
+Build a shadow Echo Guard candidate that reduces recognizable remote words in the `Me` path better
+than current `local_fir`, without losing local-only words.
 
-In plain words: v1 can write evidence once a suspicious window is found. v2 should find better
-windows from existing artifacts: audio-review rows, transcript overlaps, group-overlap audit,
-speaker state, local-recall risk, order risk and remote-only ASR candidates.
+In plain words: use the Coverage v2 ASR windows as a judge, run audio-side cleanup candidates
+through the same token-level remote-forbidden audit, and keep only candidates that improve remote
+leakage without making the user's real speech worse.
 
 ## Why This Goal Now
 
-Post-processing already helps, but the cost remains high when remote speech reaches the `Me`
-transcript. The current v1 evidence layer proved the right contract, but its own corpus report says
-why it cannot yet converge:
+Post-ASR cleanup, review lanes and remote-forbidden transcript guards are useful, but they are
+compensation layers. The root problem remains that remote speech can enter the mic track and become
+recognizable as `Me`.
 
-- `safe_improved_sessions = 1/6`;
-- `local_recall_regressions = 0/6`;
-- the other five sessions were not negative proof against the idea; they were mostly missed-window
-  cases where the selected clip did not contain baseline ASR-visible remote leakage.
+Coverage v2 changed the situation:
 
-The implemented v2 selector makes that evidence gate useful enough for the next step: judging
-actual audio candidates by ASR-visible remote-token leakage instead of proxy loudness.
+- it selects suspicious ASR windows from speaker state, audio-review, stronger audio judge,
+  group-overlap, transcript-overlap and local/order risk artifacts;
+- the six-session smoke improved from `1/6` to `4/6` safe ASR-visible cases;
+- local-only word recall did not regress;
+- every selected window has an explainable `selection_reason`.
+
+That measurement was enough to run a real candidate search without relying on loudness or ERLE
+proxies.
 
 ## Scope
 
 In scope:
 
-- build a broader remote-forbidden audit-window selector from existing derived artifacts;
-- include windows around active `Me` rows with remote text similarity, audio-review `remote_leak` /
-  `remote_duplicate`, group-overlap risky intervals, order-repair crossings and local-recall risk;
-- cap the number of ASR windows per session so the audit remains usable;
-- keep the same evidence row contract from v1;
-- report why each candidate window was selected and whether it was evaluable;
-- update corpus reports so `no_baseline_asr_visible_leak` is separated from `window_not_selected`,
-  `local_recall_risk`, `quarantine_only` and `safe_improved`;
-- keep everything shadow/review-only.
+- add one or more shadow audio candidates under `derived/preprocess/audio/`;
+- evaluate every candidate with Coverage v2 ASR windows;
+- compare candidates against `local_fir`, not against raw mic only;
+- report remote-token leakage before/after, local-word recall, guarded seconds and review burden;
+- keep candidate artifacts separate from `mic_for_asr.wav`;
+- explain why each candidate wins, loses or remains inconclusive.
+
+Candidate families worth trying first:
+
+- smarter segment switching between `local_fir`, `remote_floor` and raw mic;
+- stricter remote-only masking only where speaker state and ASR evidence agree;
+- adaptive residual masking driven by `echo_hat`, remote energy and token guard outcome;
+- per-window candidate selection: different cleanup strength for remote-only, boundary and
+  double-talk windows.
+
+Implemented v2 candidate:
+
+- starts from the safer local-fir/segment-switch path;
+- reads Coverage v2 ASR windows and their `selection_reason`;
+- applies `remote_floor` cleanup only where the window is remote-risky and speaker-state does not
+  show strong local speech;
+- writes `offline_aec_v2_coverage_gate_plan.jsonl`;
+- appears in ASR audit/report fields as `coverage_v2_remote_gate_local_fir`.
 
 Out of scope:
 
 - replacing `local_fir` as default;
-- writing a new neural echo canceller;
-- changing capture, raw CAF tracks, primary `whisper.cpp` ASR or reviewed transcript profiles;
+- changing capture, raw CAF tracks, main `whisper.cpp` ASR or selected transcript profiles;
+- adding cloud models;
 - silently deleting uncertain `Me` text;
-- automatically applying `suggest_drop`;
-- claiming waveform-perfect echo removal.
+- claiming waveform-perfect echo removal;
+- training a neural suppressor before the deterministic candidate search is exhausted.
 
 ## Acceptance
 
-- Raw `audio/mic/*.caf` and `audio/remote/*.caf` are unchanged.
-- `local_fir` remains the selected production Echo Guard path.
-- V1 evidence row contract remains intact: remote/mic tokens, timestamps, speaker state, confidence
-  and decision reason.
-- Every ASR audit window has a `selection_reason` and a link to source artifacts when available.
-- The six-session smoke corpus is rerun and no session loses local-only word recall by more than
-  2 percentage points.
-- At least two sessions either become `safe_improved` or get a stronger explicit explanation:
-  `no_suspicious_windows`, `no_baseline_asr_visible_leak`, `local_recall_risk` or
-  `quarantine_only`.
-- `murmurmark status/report` and corpus reports expose the residual risk and window-selection
-  coverage.
-- No audio or transcript candidate is promoted to default.
+- Raw `audio/mic/*.caf` and `audio/remote/*.caf` are unchanged: passed.
+- `local_fir` remains default: passed.
+- At least one shadow candidate reduces ASR-visible remote-token leakage versus `local_fir` on the
+  six-session smoke corpus: passed.
+- Local-only word recall does not degrade by more than 2 percentage points on any evaluated
+  session: passed.
+- Corpus report explains every non-improved session as one of:
+  `no_baseline_asr_visible_leak`, `candidate_not_better`, `local_recall_risk`,
+  `asr_audit_inconclusive` or `not_enough_evidence`: passed.
+- `murmurmark audit remote-forbidden` and corpus reports show candidate comparison clearly: passed.
+- No audio or transcript candidate is promoted to default: passed.
 
 ## Working Commands
 
-Existing v1 command:
+Baseline evidence audit:
+
+```bash
+murmurmark audit remote-forbidden "$SESSION" --profile auto
+```
+
+Current lab command for candidate evaluation:
 
 ```bash
 .venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION" \
@@ -84,19 +102,7 @@ Existing v1 command:
   --asr-max-clips 2 \
   --asr-max-risk-clips 2 \
   --asr-max-local-clips 1 \
-  --asr-candidate-keys segment_switch_remote_floor_local_fir
-```
-
-Evidence materialization:
-
-```bash
-murmurmark audit remote-forbidden "$SESSION" --profile auto
-```
-
-Refresh evidence only:
-
-```bash
-murmurmark audit remote-forbidden "$SESSION" --skip-lab --profile auto
+  --asr-candidate-keys coverage_v2_remote_gate_local_fir
 ```
 
 Corpus summary:
@@ -106,18 +112,51 @@ Corpus summary:
 .venv/bin/python scripts/report-remote-forbidden-corpus.py SESSION...
 ```
 
-Target user-facing shape after coverage:
+Expected user-facing shape after this goal:
 
 ```bash
-murmurmark process "$SESSION"
-murmurmark status "$SESSION"
-murmurmark review suggested "$SESSION"
+murmurmark audit remote-forbidden "$SESSION" --profile auto
+murmurmark report "$SESSION"
+less "$SESSION/derived/audit/remote-forbidden/remote_forbidden_review.md"
 ```
 
-The coverage layer should stay evidence-only, but it should make the corpus report more decisive:
-either more safe improvements, or a clear reason why a session has no safe remote-forbidden action.
+The result is shadow-only, but the report now says whether an audio candidate is actually better
+than `local_fir`.
 
 ## Current Finding
+
+Six-session smoke after ASR-positive audio candidate v2:
+
+- `reports_found = 6/6`;
+- `asr_audio_candidate_gate_passed = 4`;
+- `asr_audio_candidate_safe_improved = 4`;
+- `asr_local_word_recall_regressions = 0`;
+- assessment classes:
+  - `safe_improved = 4`;
+  - `no_baseline_asr_visible_leak = 2`;
+- `promotion_decision = do_not_promote_from_v0_corpus_report`.
+
+Interpretation: the goal is achieved as a shadow candidate. The candidate is useful evidence and a
+stronger research baseline, but it is not yet a production replacement for `local_fir`.
+
+## Larger Goals After This
+
+Recommended next goal:
+
+1. Target-Me extraction spike: use high-confidence local speech to separate the user's voice in
+   difficult double-talk and open-space noise.
+2. Neural residual echo suppression spike: test a narrow local model only after deterministic
+   candidate reports prove where it is needed.
+3. Token-level remote-forbidden transcript reconciliation: keep a final safety net even when audio
+   cleanup improves.
+
+## Latest Completed Goal: Remote-Forbidden Evidence Coverage v2
+
+Status, 2026-07-01: completed as a shadow/review evidence coverage layer. Not promoted.
+
+Coverage v2 fixed the main v1 blocker. Instead of auditing only the first small set of
+speaker-state clips, it selects risky ASR windows from speaker state, audio-review rows, stronger
+audio judge rows, group overlaps, transcript overlaps and local/order risk artifacts.
 
 Six-session smoke after Coverage v2:
 
@@ -132,22 +171,7 @@ Six-session smoke after Coverage v2:
 - `target_status = target_met_two_sessions`.
 
 Interpretation: Coverage v2 meets the evidence target. It does not promote audio or transcript
-candidates. The next step can now use this stronger evidence gate to search for a real audio
-candidate that beats `local_fir`.
-
-## Recommended Next Goal
-
-ASR-positive audio candidate v2: make an actual audio candidate beat `local_fir` on remote-token
-leakage without local recall loss, using the Coverage v2 audit windows as the judge.
-
-## Larger Goals After This
-
-1. Target-Me extraction spike: use high-confidence local speech to separate the user's voice in
-   difficult double-talk and open-space noise.
-2. Neural residual echo suppression spike: test a narrow local model only after the evidence gates
-   are stable.
-3. Transcript-level remote-forbidden reconciliation: keep a final safety net even when audio cleanup
-   improves.
+candidates. Its main value is that the next audio-candidate search now has a real ASR-visible judge.
 
 ## References
 

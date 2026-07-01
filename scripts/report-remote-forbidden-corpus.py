@@ -83,6 +83,11 @@ def row_for_session(session: Path) -> dict[str, Any]:
         "asr_windows_selected": safe_int(metrics.get("asr_windows_selected")),
         "asr_windows_evaluable": safe_int(metrics.get("asr_windows_evaluable")),
         "asr_windows_skipped": safe_int(metrics.get("asr_windows_skipped")),
+        "asr_selected_audio_candidate": metrics.get("asr_selected_audio_candidate"),
+        "asr_audio_candidate_gate_passed": metrics.get("asr_audio_candidate_gate_passed"),
+        "asr_audio_candidate_gate_reason": metrics.get("asr_audio_candidate_gate_reason"),
+        "audio_candidate_remote_token_leak_delta": metrics.get("audio_candidate_remote_token_leak_delta"),
+        "audio_candidate_local_word_recall_delta": metrics.get("audio_candidate_local_word_recall_delta"),
         "asr_windows_selected_by_reason": metrics.get("asr_windows_selected_by_reason") or {},
         "asr_windows_skipped_by_reason": metrics.get("asr_windows_skipped_by_reason") or {},
         "suggest_drop_seconds": safe_float(metrics.get("suggest_drop_seconds")),
@@ -265,19 +270,22 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "",
             "## Sessions",
             "",
-            "| Session | Status | Assessment | Gate | Windows | Leak delta | Local recall delta | Guarded sec | Suggested drops | Quarantine | Needs review |",
-            "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
+            "| Session | Status | Assessment | Gate | Windows | Audio candidate | Audio leak delta | Audio recall delta | Leak delta | Local recall delta | Guarded sec | Suggested drops | Quarantine | Needs review |",
+            "|---|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for row in payload["sessions"]:
         assessment = row.get("assessment") if isinstance(row.get("assessment"), dict) else {}
         lines.append(
-            "| `{session}` | `{status}` | `{assessment}` | `{gate}` | {windows} | {leak_delta} | {recall_delta} | {guarded} | {drop} | {quarantine} | {review} |".format(
+            "| `{session}` | `{status}` | `{assessment}` | `{gate}` | {windows} | `{audio_candidate}` | {audio_leak_delta} | {audio_recall_delta} | {leak_delta} | {recall_delta} | {guarded} | {drop} | {quarantine} | {review} |".format(
                 session=row.get("session"),
                 status=row.get("status"),
                 assessment=assessment.get("class"),
                 gate=row.get("gate_reason"),
                 windows=f"{row.get('asr_windows_evaluable') or 0}/{row.get('asr_windows_skipped') or 0}",
+                audio_candidate=row.get("asr_selected_audio_candidate"),
+                audio_leak_delta=fmt(row.get("audio_candidate_remote_token_leak_delta")),
+                audio_recall_delta=fmt(row.get("audio_candidate_local_word_recall_delta")),
                 leak_delta=fmt(row.get("remote_token_leak_delta")),
                 recall_delta=fmt(row.get("local_word_recall_delta")),
                 guarded=fmt(row.get("guarded_seconds")),
@@ -362,6 +370,10 @@ def main() -> int:
         "asr_windows_selected": sum(safe_int(row.get("asr_windows_selected")) for row in ok_rows),
         "asr_windows_evaluable": sum(safe_int(row.get("asr_windows_evaluable")) for row in ok_rows),
         "asr_windows_skipped": sum(safe_int(row.get("asr_windows_skipped")) for row in ok_rows),
+        "asr_audio_candidate_gate_passed_sessions": sum(
+            1 for row in ok_rows
+            if row.get("asr_audio_candidate_gate_passed") is True
+        ),
         "asr_windows_selected_by_reason": sum_reason_maps(ok_rows, "asr_windows_selected_by_reason"),
         "asr_windows_skipped_by_reason": sum_reason_maps(ok_rows, "asr_windows_skipped_by_reason"),
         "suggest_drop_count": sum(safe_int(row.get("suggest_drop_count")) for row in ok_rows),

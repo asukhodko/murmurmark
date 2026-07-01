@@ -3225,7 +3225,11 @@ enum AuditCommands {
                     labArgs += ["--asr-max-risk-clips", "2"]
                 }
                 if !ArgumentEditing.hasOption("asr-candidate-keys", in: labArgs) {
-                    labArgs += ["--asr-candidate-keys", "segment_switch_remote_floor_local_fir"]
+                    labArgs += [
+                        "--asr-candidate-keys",
+                        "segment_switch_remote_floor_local_fir",
+                        "coverage_v2_remote_gate_local_fir"
+                    ]
                 }
                 try Tooling.runPath(python, labArgs)
             }
@@ -3317,7 +3321,8 @@ enum AuditCommands {
           murmurmark audit remote-forbidden ./session|latest [--profile auto]
                                              [--asr-window-profile coverage_v2] [--asr-max-clips 2]
                                              [--asr-max-risk-clips 2] [--asr-max-local-clips 1]
-                                             [--asr-candidate-keys segment_switch_remote_floor_local_fir]
+                                             [--asr-candidate-keys segment_switch_remote_floor_local_fir
+                                              coverage_v2_remote_gate_local_fir]
                                              [--skip-lab]
 
         Audit commands are local-only wrappers over existing Python scripts:
@@ -3561,6 +3566,22 @@ enum AuditPrinter {
         )
         print(String(format: "  remote_token_leak_delta: %.6f", double(metrics["remote_token_leak_delta"])))
         print(String(format: "  local_word_recall_delta: %.6f", double(metrics["local_word_recall_delta"])))
+        if let candidate = string(metrics["asr_selected_audio_candidate"]) {
+            print("  asr_audio_candidate: \(candidate)")
+            print("  asr_audio_candidate_gate: \(string(metrics["asr_audio_candidate_gate_reason"]) ?? "unknown")")
+            print(
+                String(
+                    format: "  asr_audio_candidate_remote_token_leak_delta: %.6f",
+                    double(metrics["audio_candidate_remote_token_leak_delta"])
+                )
+            )
+            print(
+                String(
+                    format: "  asr_audio_candidate_local_word_recall_delta: %.6f",
+                    double(metrics["audio_candidate_local_word_recall_delta"])
+                )
+            )
+        }
         print(String(format: "  suggest_drop_seconds: %.2fs", double(metrics["suggest_drop_seconds"])))
         print(String(format: "  quarantine_seconds: %.2fs", double(metrics["quarantine_seconds"])))
         print(String(format: "  needs_review_seconds: %.2fs", double(metrics["needs_review_seconds"])))

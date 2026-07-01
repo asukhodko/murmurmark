@@ -1172,6 +1172,11 @@ def remote_forbidden_metrics(summary: dict[str, Any] | None) -> dict[str, Any]:
             "remote_forbidden_asr_windows_selected": None,
             "remote_forbidden_asr_windows_evaluable": None,
             "remote_forbidden_asr_windows_skipped": None,
+            "remote_forbidden_asr_selected_audio_candidate": None,
+            "remote_forbidden_asr_audio_candidate_gate_passed": None,
+            "remote_forbidden_asr_audio_candidate_gate_reason": None,
+            "remote_forbidden_asr_audio_candidate_token_leak_delta": None,
+            "remote_forbidden_asr_audio_candidate_local_recall_delta": None,
             "remote_forbidden_suggest_drop_seconds": None,
             "remote_forbidden_quarantine_seconds": None,
             "remote_forbidden_needs_review_seconds": None,
@@ -1195,6 +1200,17 @@ def remote_forbidden_metrics(summary: dict[str, Any] | None) -> dict[str, Any]:
         "remote_forbidden_asr_windows_selected": safe_int(metrics.get("asr_windows_selected")) or 0,
         "remote_forbidden_asr_windows_evaluable": safe_int(metrics.get("asr_windows_evaluable")) or 0,
         "remote_forbidden_asr_windows_skipped": safe_int(metrics.get("asr_windows_skipped")) or 0,
+        "remote_forbidden_asr_selected_audio_candidate": metrics.get("asr_selected_audio_candidate"),
+        "remote_forbidden_asr_audio_candidate_gate_passed": metrics.get("asr_audio_candidate_gate_passed"),
+        "remote_forbidden_asr_audio_candidate_gate_reason": metrics.get("asr_audio_candidate_gate_reason"),
+        "remote_forbidden_asr_audio_candidate_token_leak_delta": round_or_none(
+            metrics.get("audio_candidate_remote_token_leak_delta"),
+            6,
+        ),
+        "remote_forbidden_asr_audio_candidate_local_recall_delta": round_or_none(
+            metrics.get("audio_candidate_local_word_recall_delta"),
+            6,
+        ),
         "remote_forbidden_suggest_drop_seconds": round_or_none(metrics.get("suggest_drop_seconds")),
         "remote_forbidden_quarantine_seconds": round_or_none(metrics.get("quarantine_seconds")),
         "remote_forbidden_needs_review_seconds": round_or_none(metrics.get("needs_review_seconds")),
@@ -1798,6 +1814,10 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "remote_forbidden_asr_windows_selected": sum_rows("remote_forbidden_asr_windows_selected"),
         "remote_forbidden_asr_windows_evaluable": sum_rows("remote_forbidden_asr_windows_evaluable"),
         "remote_forbidden_asr_windows_skipped": sum_rows("remote_forbidden_asr_windows_skipped"),
+        "remote_forbidden_asr_audio_candidate_gate_passed_sessions": sum(
+            1 for row in rows
+            if row.get("remote_forbidden_asr_audio_candidate_gate_passed") is True
+        ),
         "remote_forbidden_suggest_drop_seconds": sum_seconds("remote_forbidden_suggest_drop_seconds"),
         "remote_forbidden_quarantine_seconds": sum_seconds("remote_forbidden_quarantine_seconds"),
         "remote_forbidden_needs_review_seconds": sum_seconds("remote_forbidden_needs_review_seconds"),
@@ -1920,6 +1940,11 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "remote_forbidden_asr_windows_selected",
         "remote_forbidden_asr_windows_evaluable",
         "remote_forbidden_asr_windows_skipped",
+        "remote_forbidden_asr_selected_audio_candidate",
+        "remote_forbidden_asr_audio_candidate_gate_passed",
+        "remote_forbidden_asr_audio_candidate_gate_reason",
+        "remote_forbidden_asr_audio_candidate_token_leak_delta",
+        "remote_forbidden_asr_audio_candidate_local_recall_delta",
         "remote_forbidden_suggest_drop_seconds",
         "remote_forbidden_quarantine_seconds",
         "remote_forbidden_needs_review_seconds",
@@ -1975,6 +2000,7 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         f"manual `{payload['summary'].get('suggested_closure_manual_remaining_rows', 0)}` rows / `{payload['summary'].get('suggested_closure_manual_remaining_seconds', 0.0)}` sec",
         f"- Remote-forbidden evidence: `{payload['summary'].get('remote_forbidden_sessions', 0)}` sessions, "
         f"`{payload['summary'].get('remote_forbidden_gate_passed_sessions', 0)}` gate-passed; "
+        f"audio candidate gates `{payload['summary'].get('remote_forbidden_asr_audio_candidate_gate_passed_sessions', 0)}`; "
         f"windows `{payload['summary'].get('remote_forbidden_asr_windows_evaluable', 0)}` evaluable / "
         f"`{payload['summary'].get('remote_forbidden_asr_windows_skipped', 0)}` skipped, "
         f"guarded `{payload['summary'].get('remote_forbidden_guarded_seconds', 0.0)}` sec, "
@@ -2531,6 +2557,19 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
             "remote_forbidden_asr_windows_selected": row.get("remote_forbidden_asr_windows_selected"),
             "remote_forbidden_asr_windows_evaluable": row.get("remote_forbidden_asr_windows_evaluable"),
             "remote_forbidden_asr_windows_skipped": row.get("remote_forbidden_asr_windows_skipped"),
+            "remote_forbidden_asr_selected_audio_candidate": row.get("remote_forbidden_asr_selected_audio_candidate"),
+            "remote_forbidden_asr_audio_candidate_gate_passed": row.get(
+                "remote_forbidden_asr_audio_candidate_gate_passed"
+            ),
+            "remote_forbidden_asr_audio_candidate_gate_reason": row.get(
+                "remote_forbidden_asr_audio_candidate_gate_reason"
+            ),
+            "remote_forbidden_asr_audio_candidate_token_leak_delta": row.get(
+                "remote_forbidden_asr_audio_candidate_token_leak_delta"
+            ),
+            "remote_forbidden_asr_audio_candidate_local_recall_delta": row.get(
+                "remote_forbidden_asr_audio_candidate_local_recall_delta"
+            ),
             "remote_forbidden_suggest_drop_seconds": row.get("remote_forbidden_suggest_drop_seconds"),
             "remote_forbidden_quarantine_seconds": row.get("remote_forbidden_quarantine_seconds"),
             "remote_forbidden_needs_review_seconds": row.get("remote_forbidden_needs_review_seconds"),

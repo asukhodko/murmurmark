@@ -3682,6 +3682,7 @@ derived/preprocess/echo/offline_aec_v2_report.json
 derived/preprocess/echo/offline_aec_v2_candidates.jsonl
 derived/preprocess/echo/offline_aec_v2_segments.jsonl
 derived/preprocess/echo/offline_aec_v2_segment_switch_plan.jsonl
+derived/preprocess/echo/offline_aec_v2_coverage_gate_plan.jsonl
 derived/preprocess/echo/offline_aec_v2_delay_curve.jsonl
 derived/preprocess/echo/offline_aec_v2_window_metrics.jsonl
 derived/preprocess/echo/offline_aec_v2_asr_leak_report.json
@@ -3702,9 +3703,12 @@ Report schema:
     "candidate_gate_reason": "shadow_candidate_passed_gates",
     "local_fir_remains_default": true,
     "asr_audit_mode": "faster_whisper_clip_audit",
-    "asr_selected_candidate": "remote_forbidden_token_guard",
+    "asr_selected_candidate": "coverage_v2_remote_gate_local_fir",
     "asr_candidate_gate_passed": true,
-    "asr_candidate_gate_reason": "remote_token_leak_reduced_without_local_recall_regression"
+    "asr_candidate_gate_reason": "remote_token_leak_reduced_without_local_recall_regression",
+    "asr_selected_audio_candidate": "coverage_v2_remote_gate_local_fir",
+    "asr_audio_candidate_gate_passed": true,
+    "asr_audio_candidate_gate_reason": "remote_token_leak_reduced_without_local_recall_regression"
   },
   "baseline": {
     "local_fir": {
@@ -3765,6 +3769,16 @@ not be used to rewrite `mic_for_asr.wav` in v0.
 {"index":42,"start_sec":84.0,"end_sec":86.0,"state":"remote_only","selected_source":"nonlinear_tail160_remote_floor","reason":"remote_only_use_remote_floor"}
 {"index":43,"start_sec":86.0,"end_sec":88.0,"state":"local_only","selected_source":"local_fir","reason":"preserve_local_or_uncertain"}
 ```
+
+`offline_aec_v2_coverage_gate_plan.jsonl` explains the Coverage v2 audio candidate:
+
+```jsonl
+{"index":1,"start_sec":938.0,"end_sec":940.0,"selection_reason":"audio_review:remote_duplicate","expected_risk_type":"remote_duplicate","selected_source":"nonlinear_tail160_remote_floor","applied":true,"decision_reason":"coverage_risk_gate:remote_duplicate","state_mix":{"local_speech_ratio":0.0,"remote_only_ratio":1.0}}
+{"index":2,"start_sec":120.0,"end_sec":124.0,"selection_reason":"local_recall:risk_item","expected_risk_type":"local_recall_risk","selected_source":"segment_switch_or_local_fir","applied":false,"decision_reason":"protected_local_or_order_risk","state_mix":{"local_speech_ratio":0.75,"remote_only_ratio":0.25}}
+```
+
+The Coverage gate candidate must stay shadow-only. It may use Coverage v2 audit windows and
+speaker-state evidence to build a WAV, but it must not write `mic_for_asr.wav`.
 
 Token-guard rows inside `offline_aec_v2_asr_leak_report.json` must preserve the base text and the
 removed-token evidence:
@@ -3880,6 +3894,11 @@ Summary schema:
     "asr_windows_selected": 4,
     "asr_windows_evaluable": 4,
     "asr_windows_skipped": 78,
+    "asr_selected_audio_candidate": "coverage_v2_remote_gate_local_fir",
+    "asr_audio_candidate_gate_passed": true,
+    "asr_audio_candidate_gate_reason": "remote_token_leak_reduced_without_local_recall_regression",
+    "audio_candidate_remote_token_leak_delta": -0.15,
+    "audio_candidate_local_word_recall_delta": 0.0,
     "asr_windows_selected_by_reason": {
       "audio_review:remote_duplicate": 2,
       "speaker_state_remote_only_top_remote_db": 2
@@ -3902,6 +3921,8 @@ Invariants:
 - `mic_for_asr.wav` is not changed;
 - `local_fir` remains the selected production Echo Guard path;
 - corpus reports must count local-recall regressions separately from remote-token improvements;
+- `asr_audio_candidate_gate_passed` means a shadow audio candidate beat `local_fir` on selected ASR
+  windows; it is not a default-promotion decision;
 - every selected ASR audit window must carry `selection.selection_reason`; rows from derived
   artifacts should also carry `selection.source_artifacts` and `selection.source_row_ids`;
 - corpus reports must include selected/evaluable/skipped ASR window counts and reason buckets;

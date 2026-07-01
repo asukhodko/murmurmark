@@ -379,9 +379,8 @@ Current evidence on the first six-session smoke:
   checked sessions;
 - this is a `remote_only` speech-aware floor, not waveform-perfect echo cancellation;
 - one mostly-silent session regressed local-only recall proxy, which keeps the candidate blocked;
-- faster-whisper ASR clip audit across all candidates found no session where `offline_aec_v2_v0`
-  reduced remote-token leakage below `local_fir` without local-recall regression;
-- the next iteration needs a genuinely ASR-positive mechanism, not a stronger dB/proxy mask.
+- faster-whisper ASR clip audit showed that v0 proxy gains alone were not enough; later
+  Coverage-v2-gated candidates are judged by ASR-visible remote tokens, not by dB/proxy metrics.
 
 vNext adds the first ASR-positive safety layer:
 
@@ -392,6 +391,15 @@ vNext adds the first ASR-positive safety layer:
 - on the first six-session smoke, the token guard passed ASR gates on one difficult 1x1 session:
   lower remote-token leakage than `local_fir`, no local-recall regression;
 - this validates the remote-forbidden direction, but does not yet replace audio cleanup.
+
+ASR-positive audio candidate v2 adds `coverage_v2_remote_gate_local_fir`:
+
+- it is a real shadow WAV candidate, not only a token guard;
+- it starts from local-fir/segment-switch and applies `remote_floor` only in Coverage v2 risk windows
+  without strong local-speech evidence;
+- six-session smoke: `4/6` ASR audio candidate gate-passed sessions, `0/6` local-recall regressions,
+  `2/6` explained as `no_baseline_asr_visible_leak`;
+- it remains shadow-only and does not replace `local_fir`.
 
 ## Other Conservative Cleanup Engines
 

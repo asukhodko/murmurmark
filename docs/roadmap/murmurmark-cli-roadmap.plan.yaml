@@ -50,10 +50,12 @@ nodes:
       подтвердили более глубокую причину review burden: remote speech всё ещё просачивается в
       mic и потом требует transcript repair, cleanup и ручной проверки. Echo Guard v0/vNext уже
       дал repeatable shadow baseline и первый ASR-positive safety result. Remote-Forbidden Evidence
-      Hardening v1 уже превратил этот результат в доказательный review/status слой, а Coverage v2
-      расширил выбор ASR-аудит окон до `4/6` safe improved sessions. Следующая крупная цель —
-      ASR-positive audio candidate v2: найти реальный audio candidate, который бьёт `local_fir` по
-      ASR-visible remote leakage без потери Me.
+      Hardening v1 уже превратил этот результат в доказательный review/status слой, Coverage v2
+      расширил выбор ASR-аудит окон до `4/6` safe improved sessions, а ASR-positive audio
+      candidate v2 добавил `coverage_v2_remote_gate_local_fir`: реальный shadow audio candidate,
+      который проходит ASR audio-candidate gate на `4/6` smoke sessions без local-recall
+      регрессий. Ближайшая крупная цель — Target-Me extraction spike для double-talk и open-space
+      шума.
 
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
@@ -425,10 +427,10 @@ nodes:
     kind: task
     parent: review-loop
     deps: [review-agent-command, review-export-closure-v1, quality-audio-judge-labels]
-    status: current
+    status: done
     effort: 5
     notes: |
-      Текущий слой после анализа daily sync `2026-06-30_11-15-56`.
+      Завершённый инструмент после анализа daily sync `2026-06-30_11-15-56`.
       Сессия прошла capture/Echo Guard/ASR, но получила `risky` из-за transcript order и local recall.
       При этом faster-whisper stronger judge подтвердил ряд overlap-фрагментов как real Me +
       real remote timing/double-talk, но текущая очередь daily sync состоит из unmatched order/local-recall
@@ -437,8 +439,9 @@ nodes:
       безопасных suggestions, reason/evidence в applied rows, `suggested_closure` в workspace report,
       status/readiness/corpus metrics. Guardrail текущего шага: если безопасных suggested rows нет,
       CLI честно печатает `auto_closable: 0` и ведёт в первую ручную lane, а не скрывает риск.
-      Текущий corpus report: `8` generated suggestions, `0` actionable rows, `8` needs-review rows,
-      `61` manual rows remaining.
+      Corpus report на момент внедрения: `8` generated suggestions, `0` actionable rows,
+      `8` needs-review rows, `61` manual rows remaining. Дальше review closure остаётся
+      операционной дисциплиной и поддерживает качество, но не является ближайшей крупной целью.
 
   review-burden-report:
     title: "Review burden report"
@@ -471,8 +474,9 @@ nodes:
       `audit_cleanup_v7` и review loop уже умеют компенсировать часть remote leak после ASR, но
       это дорогая защита. offline AEC v2 и первый vNext spike дали baseline: proxy audio cleanup
       недостаточен, а ASR-visible remote tokens надо ловить явными evidence gates. Coverage v2
-      сделал этот gate достаточно широким для следующего шага. Текущий фокус — ASR-positive audio
-      candidate v2.
+      сделал этот gate достаточно широким для следующего шага. ASR-positive audio candidate v2
+      добавил `coverage_v2_remote_gate_local_fir` как текущий shadow audio baseline. Текущий фокус —
+      Target-Me extraction spike.
 
   quality-local-recall-repair:
     title: "Better local recall repair"
@@ -631,9 +635,13 @@ nodes:
     kind: task
     parent: quality-hardening
     deps: [quality-remote-forbidden-coverage-v2]
-    status: current
+    status: done
     effort: 6
-    notes: "Use Coverage v2 windows as the judge to search for an actual audio candidate that beats `local_fir` on ASR-visible remote-token leakage while preserving local-word recall. Still shadow-only until corpus gates pass."
+    notes: |
+      Completed as a shadow-only audio candidate. `coverage_v2_remote_gate_local_fir` starts from
+      local-fir/segment-switch and applies remote-floor cleanup only in Coverage v2 risk windows
+      without strong local-speech evidence. Six-session smoke: 4/6 ASR audio candidate gate-passed,
+      0/6 local-recall regressions, 2/6 `no_baseline_asr_visible_leak`, no default promotion.
 
   quality-neural-residual-echo-spike:
     title: "Neural residual echo suppression spike"
@@ -649,9 +657,9 @@ nodes:
     kind: task
     parent: quality-hardening
     deps: [quality-asr-positive-audio-candidate-v2]
-    status: idea
+    status: current
     effort: 6
-    notes: "Use high-confidence local-only islands to enroll Me, then test target-speaker extraction on overlap-heavy clips. Useful for double-talk where pure subtraction is underdetermined."
+    notes: "Recommended next quality goal. Use high-confidence local-only islands to enroll Me, then test target-speaker extraction on overlap-heavy clips. Useful for double-talk and open-space noise where pure subtraction is underdetermined."
 
   quality-token-remote-forbidden:
     title: "Token-level remote-forbidden transcript"
@@ -1068,8 +1076,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "ASR-positive audio candidate v2: использовать Coverage v2 windows как judge и найти audio candidate, который бьёт `local_fir` по ASR-visible remote leakage без потери Me."
-      success_by_next_sync: "Есть shadow audio candidate report против Coverage v2 окон: remote-token leakage ниже `local_fir`, local recall gate сохранён, default всё ещё не меняется."
+      nearest_goal: "Target-Me extraction spike: использовать high-confidence local-only речь как enrollment material и проверить target-speaker extraction на double-talk/open-space clips."
+      success_by_next_sync: "Есть shadow target-Me report: test clips, локальные evidence gates, эффект на overlap/open-space cases и clear no-promotion decision."
     defaults:
       status_progress:
         done: 1.0
@@ -1103,8 +1111,8 @@ x:
         kind: main
         mgmt:
           health: green
-          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до рабочей основы. Remote-Forbidden Evidence Coverage v2 расширил ASR audit windows и поднял smoke до 4/6 safe improved без local-recall регрессий."
-          next_sync_goal: "Use Coverage v2 as the ASR judge for audio candidates: искать реальное подавление remote leakage, не меняя default `local_fir` до corpus gates."
+          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до рабочей основы. ASR-positive audio candidate v2 добавил coverage_v2_remote_gate_local_fir: 4/6 ASR audio candidate gate-passed, 0 local-recall regressions, no default promotion."
+          next_sync_goal: "Target-Me extraction spike: искать дополнительный сигнал для double-talk/open-space cases, не меняя default `local_fir` до corpus gates."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

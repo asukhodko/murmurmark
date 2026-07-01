@@ -70,9 +70,11 @@ segment switching and `remote_forbidden_token_guard`; it produced the first ASR-
 on one difficult session without local-recall regression. That is enough to choose the next quality
 direction. Remote-Forbidden Evidence Hardening v1 materialized that spike as normal evidence/status
 artifacts. Coverage v2 then broadened ASR audit-window selection from speaker state and review
-artifacts; the six-session smoke now has `4/6` safe improved sessions and zero local-recall
-regressions. The next gap is an actual audio candidate that beats `local_fir` under this stricter
-ASR-visible judge.
+artifacts; the six-session smoke reached `4/6` safe improved sessions and zero local-recall
+regressions. ASR-positive audio candidate v2 then added `coverage_v2_remote_gate_local_fir`, a real
+shadow audio candidate that passes the ASR audio-candidate gate on `4/6` smoke sessions with zero
+local-recall regressions. The next quality gap is harder double-talk and open-space noise, where
+subtraction alone may be underdetermined.
 
 ## Roadmap Tree
 
@@ -148,6 +150,8 @@ flowchart LR
     replacements;
   - use Coverage v2 windows as the ASR judge for audio candidates: v2 writes selection reasons,
     evidence rows, readiness metrics and corpus report; current smoke is `4/6` safe improved;
+  - keep `coverage_v2_remote_gate_local_fir` as the current shadow audio candidate baseline;
+  - make Target-Me extraction the nearest large quality goal;
   - keep target-speaker extraction and neural residual suppression as later spikes behind corpus
     gates.
 - Keep the final handoff readable: `finish` now opens a bundle whose `index.md` is the first working
@@ -205,10 +209,17 @@ flowchart LR
 - Local or controlled LLM synthesis with strict evidence guard.
 - Optional menu bar or desktop UI after the CLI is mature.
 
-## Latest Completed Goal
+## Latest Completed Goals
 
-Export Bundle Quality v1 is complete. MurmurMark can now end a successful pipeline with a readable
-local handoff instead of a pile of derived artifacts.
+ASR-positive audio candidate v2 is the latest completed quality goal. It adds
+`coverage_v2_remote_gate_local_fir`, a real shadow audio candidate judged against Coverage v2 ASR
+windows.
+
+Remote-Forbidden Evidence Coverage v2 broadened ASR audit window selection and made that
+audio-candidate search measurable.
+
+Export Bundle Quality v1 is the latest completed product-handoff goal. MurmurMark can now end a
+successful pipeline with a readable local handoff instead of a pile of derived artifacts.
 
 In practical terms, `murmurmark finish SESSION` now produces a Markdown or Obsidian bundle where:
 
@@ -225,6 +236,11 @@ handoff and keeps uncertainty visible.
 
 Recently completed:
 
+- **ASR-positive audio candidate v2.** `coverage_v2_remote_gate_local_fir` starts from the safer
+  local-fir/segment-switch path and applies remote-floor cleanup only in Coverage v2 risk windows
+  without strong local-speech evidence. Six-session smoke: `4/6` ASR audio candidate gate-passed
+  sessions, `0/6` local-recall regressions, `2/6` explained as `no_baseline_asr_visible_leak`, no
+  default promotion.
 - **Remote-Forbidden Evidence Coverage v2.** ASR audit-window selection now reads speaker state,
   audio-review, stronger-audio-judge, group-overlap, transcript-overlap and local/order risk
   artifacts. Six-session smoke: `4/6` safe improved sessions, `0/6` local-recall regressions, `24`
@@ -249,14 +265,16 @@ Recently completed:
 
 ## Candidate Next Goals
 
-1. **ASR-positive audio candidate v2.** Find an actual audio candidate that beats `local_fir` on
-   remote-token leakage without local-recall loss. This now depends on the completed Coverage v2
-   evidence gates.
-2. **Target-Me extraction spike.** Use high-confidence local-only speech as enrollment material for
+Recommended nearest goal: **Target-Me extraction spike**. The audio-candidate path now has a useful
+shadow baseline. The remaining hard cases are more likely to involve double-talk, open-space noise
+and local/remote speech mixed in ways that subtraction alone cannot fully determine.
+
+1. **Target-Me extraction spike.** Use high-confidence local-only speech as enrollment material for
    difficult double-talk and open-space-noise cases.
-3. **Suggested review closure maintenance.** Keep stronger-audio-judge suggestions first-class:
-   preview, apply, refresh readiness and show the exact remaining manual queue. This remains
-   operationally important, but it now supports the larger echo-removal direction.
+2. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
+   close safe suggested review rows, preserve manual rows and keep status/report aligned.
+3. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only
+   until broader corpus gates prove it is safe beyond selected audit windows.
 4. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
    reviewed docs/ticket proposal exports.
 5. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline

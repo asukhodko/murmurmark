@@ -467,9 +467,14 @@ def build_summary(
     )
     candidate = {}
     window_selection = {}
+    audio_candidate = {}
+    audio_candidate_name = None
     if isinstance(leak_report, dict):
         candidates = leak_report.get("candidates") if isinstance(leak_report.get("candidates"), dict) else {}
         candidate = candidates.get(REMOTE_FORBIDDEN_KEY) if isinstance(candidates.get(REMOTE_FORBIDDEN_KEY), dict) else {}
+        audio_candidate_name = leak_report.get("asr_selected_audio_candidate")
+        if audio_candidate_name:
+            audio_candidate = candidates.get(str(audio_candidate_name)) if isinstance(candidates.get(str(audio_candidate_name)), dict) else {}
         window_selection = leak_report.get("window_selection") if isinstance(leak_report.get("window_selection"), dict) else {}
     local_recall_delta = candidate.get("local_only_word_recall_delta")
     leak_delta = candidate.get("remote_token_leak_delta")
@@ -531,6 +536,17 @@ def build_summary(
             "remote_token_leak_rate_before": candidate.get("local_fir_remote_token_leak_rate"),
             "remote_token_leak_rate_after": candidate.get("remote_token_leak_rate"),
             "remote_token_leak_delta": leak_delta,
+            "asr_selected_audio_candidate": audio_candidate_name,
+            "asr_audio_candidate_gate_passed": leak_report.get("asr_audio_candidate_gate_passed")
+            if isinstance(leak_report, dict)
+            else None,
+            "asr_audio_candidate_gate_reason": leak_report.get("asr_audio_candidate_gate_reason")
+            if isinstance(leak_report, dict)
+            else None,
+            "audio_candidate_remote_token_leak_rate_after": audio_candidate.get("remote_token_leak_rate"),
+            "audio_candidate_remote_token_leak_delta": audio_candidate.get("remote_token_leak_delta"),
+            "audio_candidate_local_word_recall_after": audio_candidate.get("local_only_word_recall"),
+            "audio_candidate_local_word_recall_delta": audio_candidate.get("local_only_word_recall_delta"),
             "local_word_recall_before": candidate.get("local_fir_local_only_word_recall"),
             "local_word_recall_after": candidate.get("local_only_word_recall"),
             "local_word_recall_delta": local_recall_delta,
@@ -561,6 +577,10 @@ def render_markdown(summary: dict[str, Any], rows: list[dict[str, Any]]) -> str:
         f"- Gate: `{gates.get('passed')}` / `{gates.get('reason')}`",
         f"- Remote-token leak delta: `{metrics.get('remote_token_leak_delta')}`",
         f"- Local-word recall delta: `{metrics.get('local_word_recall_delta')}`",
+        f"- ASR audio candidate: `{metrics.get('asr_selected_audio_candidate')}` "
+        f"gate `{metrics.get('asr_audio_candidate_gate_reason')}`",
+        f"- ASR audio candidate leak delta: `{metrics.get('audio_candidate_remote_token_leak_delta')}`",
+        f"- ASR audio candidate local recall delta: `{metrics.get('audio_candidate_local_word_recall_delta')}`",
         f"- Guarded seconds: `{metrics.get('guarded_seconds')}`",
         f"- Review-burden seconds: `{metrics.get('review_burden_seconds')}`",
         f"- ASR windows: selected `{metrics.get('asr_windows_selected')}`, "

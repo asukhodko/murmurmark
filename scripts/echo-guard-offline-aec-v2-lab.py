@@ -27,6 +27,7 @@ EPSILON = 1.0e-12
 SCRIPT_VERSION = "0.1.0"
 REMOTE_FLOOR_KEY = "nonlinear_tail160_remote_floor"
 SEGMENT_SWITCH_KEY = "segment_switch_remote_floor_local_fir"
+COVERAGE_GATE_KEY = "coverage_v2_remote_gate_local_fir"
 REMOTE_FORBIDDEN_KEY = "remote_forbidden_token_guard"
 KNOWN_ASR_HALLUCINATION_PATTERNS = (
     re.compile(r"^\s*продолжение следует\s*[.!?…-]*\s*$", re.IGNORECASE),
@@ -797,6 +798,157 @@ def build_segment_switch_candidate(
     return switched, plan
 
 
+def interval_state_mix(rows: list[dict[str, Any]], start_sec: float, end_sec: float) -> dict[str, Any]:
+    duration = max(0.001, end_sec - start_sec)
+    state_seconds: dict[str, float] = {}
+    remote_db_weighted = 0.0
+    mic_db_weighted = 0.0
+    weighted = 0.0
+    for row in rows:
+        row_start, row_end = interval_from_row(row)
+        if row_start is None or row_end is None:
+            continue
+        overlap = max(0.0, min(end_sec, row_end) - max(start_sec, row_start))
+        if overlap <= 0:
+            continue
+        state = str(row.get("state") or "unknown")
+        state_seconds[state] = state_seconds.get(state, 0.0) + overlap
+        remote_db_weighted += safe_float(row.get("remote_db"), -120.0) * overlap
+        mic_db_weighted += safe_float(row.get("mic_db"), -120.0) * overlap
+        weighted += overlap
+    remote_only = sum(value for key, value in state_seconds.items() if key.startswith("remote_only"))
+    local_only = sum(value for key, value in state_seconds.items() if key.startswith("local_only"))
+    double_talk = sum(value for key, value in state_seconds.items() if key.startswith("double_talk"))
+    silence = sum(value for key, value in state_seconds.items() if key.startswith("silence"))
+    return {
+        "remote_only_ratio": round(remote_only / duration, 6),
+        "local_only_ratio": round(local_only / duration, 6),
+        "double_talk_ratio": round(double_talk / duration, 6),
+        "silence_ratio": round(silence / duration, 6),
+        "local_speech_ratio": round((local_only + double_talk) / duration, 6),
+        "covered_ratio": round(weighted / duration, 6),
+        "remote_db_mean": None if weighted <= 0 else round(remote_db_weighted / weighted, 3),
+        "mic_db_mean": None if weighted <= 0 else round(mic_db_weighted / weighted, 3),
+        "state_seconds": {key: round(value, 3) for key, value in sorted(state_seconds.items())},
+    }
+
+
+def coverage_gate_decision(selection: dict[str, Any], mix: dict[str, Any]) -> tuple[bool, str]:
+    reason = str(selection.get("selection_reason") or "")
+    expected = str(selection.get("expected_risk_type") or "")
+    local_ratio = safe_float(mix.get("local_speech_ratio"), 1.0)
+    remote_ratio = safe_float(mix.get("remote_only_ratio"), 0.0)
+    covered_ratio = safe_float(mix.get("covered_ratio"), 0.0)
+    strong_remote_labels = {
+        "remote_duplicate",
+        "remote_leak",
+        "asr_noise",
+        "confirm_remote_duplicate",
+        "confirm_asr_noise",
+        "probable_duplicate",
+        "probable_remote_leak",
+        "probable_asr_noise",
+        "remote_forbidden_v1_followup",
+    }
+    protected_labels = {
+        "local_recall_risk",
+        "transcript_order_risk",
+    }
+    if expected in protected_labels or reason.startswith("local_recall:") or reason.startswith("transcript_order:"):
+        return False, "protected_local_or_order_risk"
+    if local_ratio > 0.25:
+        return False, "local_speech_ratio_too_high"
+    if expected == "remote_only_leak" and remote_ratio >= 0.35:
+        return True, "remote_only_gate"
+    if expected in strong_remote_labels and (remote_ratio >= 0.20 or local_ratio <= 0.10):
+        return True, f"coverage_risk_gate:{expected}"
+    if reason.startswith("audio_review:remote_duplicate") and local_ratio <= 0.20:
+        return True, "audio_review_remote_duplicate_gate"
+    if reason.startswith("audio_review:remote_leak") and remote_ratio >= 0.20:
+        return True, "audio_review_remote_leak_gate"
+    if reason.startswith("stronger_audio_judge:confirm_remote_duplicate") and local_ratio <= 0.20:
+        return True, "stronger_judge_remote_duplicate_gate"
+    if covered_ratio <= 0.0:
+        return False, "no_speaker_state_coverage"
+    return False, "not_enough_remote_evidence"
+
+
+def replace_with_crossfade(
+    target: np.ndarray,
+    replacement: np.ndarray,
+    start: int,
+    end: int,
+    sample_rate: int,
+    fade_ms: float = 30.0,
+) -> None:
+    if end <= start:
+        return
+    count = min(target.size, replacement.size)
+    start = max(0, min(start, count))
+    end = max(start, min(end, count))
+    if end <= start:
+        return
+    fade = min(max(1, int(round(sample_rate * fade_ms / 1000.0))), max(1, (end - start) // 2))
+    if fade <= 1:
+        target[start:end] = replacement[start:end]
+        return
+    middle_start = start + fade
+    middle_end = end - fade
+    ramp_in = np.linspace(0.0, 1.0, fade, endpoint=False, dtype=np.float32)
+    ramp_out = np.linspace(1.0, 0.0, fade, endpoint=False, dtype=np.float32)
+    target[start:middle_start] = (
+        target[start:middle_start] * (1.0 - ramp_in) + replacement[start:middle_start] * ramp_in
+    )
+    if middle_end > middle_start:
+        target[middle_start:middle_end] = replacement[middle_start:middle_end]
+    target[middle_end:end] = (
+        target[middle_end:end] * (1.0 - ramp_out) + replacement[middle_end:end] * ramp_out
+    )
+
+
+def build_coverage_gate_candidate(
+    base_clean: np.ndarray | None,
+    remote_floor_clean: np.ndarray | None,
+    speaker_rows: list[dict[str, Any]],
+    coverage_rows: list[dict[str, Any]],
+    sample_rate: int,
+) -> tuple[np.ndarray | None, list[dict[str, Any]]]:
+    if base_clean is None or remote_floor_clean is None:
+        return None, []
+    count = min(base_clean.size, remote_floor_clean.size)
+    gated = base_clean[:count].astype(np.float32).copy()
+    plan: list[dict[str, Any]] = []
+    for index, row in enumerate(coverage_rows, start=1):
+        start_sec, end_sec = interval_from_row(row)
+        if start_sec is None or end_sec is None:
+            continue
+        start = max(0, min(count, int(round(start_sec * sample_rate))))
+        end = max(start, min(count, int(round(end_sec * sample_rate))))
+        if end <= start:
+            continue
+        selection = row.get("selection") if isinstance(row.get("selection"), dict) else {}
+        mix = interval_state_mix(speaker_rows, start / sample_rate, end / sample_rate)
+        should_gate, decision_reason = coverage_gate_decision(selection, mix)
+        if should_gate:
+            replace_with_crossfade(gated, remote_floor_clean, start, end, sample_rate)
+        plan.append(
+            {
+                "index": index,
+                "start_sec": round(start / sample_rate, 3),
+                "end_sec": round(end / sample_rate, 3),
+                "selection_reason": selection.get("selection_reason") or row.get("selection_reason"),
+                "expected_risk_type": selection.get("expected_risk_type"),
+                "selected_source": REMOTE_FLOOR_KEY if should_gate else "segment_switch_or_local_fir",
+                "applied": should_gate,
+                "decision_reason": decision_reason,
+                "state_mix": mix,
+                "source_artifacts": selection.get("source_artifacts") or [],
+                "source_row_ids": selection.get("source_row_ids") or [],
+            }
+        )
+    return gated, plan
+
+
 def token_counts(text: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for token in re.findall(r"[\wёЁ]+", text.lower()):
@@ -1422,7 +1574,14 @@ def run_asr_clip_audit(
         }
         for key in sorted(candidate_audio)
     }
-    token_guard_base_key = SEGMENT_SWITCH_KEY if SEGMENT_SWITCH_KEY in candidate_audio else proxy_selected_candidate
+    if COVERAGE_GATE_KEY in candidate_audio:
+        token_guard_base_key = COVERAGE_GATE_KEY
+    elif SEGMENT_SWITCH_KEY in candidate_audio:
+        token_guard_base_key = SEGMENT_SWITCH_KEY
+    elif proxy_selected_candidate in candidate_audio:
+        token_guard_base_key = proxy_selected_candidate
+    else:
+        token_guard_base_key = sorted(candidate_audio)[0] if candidate_audio else proxy_selected_candidate
     if token_guard_base_key in candidate_audio:
         candidate_stats[REMOTE_FORBIDDEN_KEY] = {
             "candidate_kind": "token_guard",
@@ -1621,6 +1780,9 @@ def run_asr_clip_audit(
             else round(local_recall - baseline_local_recall, 6)
         )
     choice = choose_asr_candidate(candidate_stats)
+    audio_choice = choose_asr_candidate(
+        {key: stats for key, stats in candidate_stats.items() if stats.get("candidate_kind") == "audio"}
+    )
     top_key = choice.get("asr_selected_candidate") or proxy_selected_candidate
     top_stats = candidate_stats.get(str(top_key), {})
     leak_report = {
@@ -1631,6 +1793,10 @@ def run_asr_clip_audit(
         "asr_selected_candidate": choice.get("asr_selected_candidate"),
         "asr_candidate_gate_passed": choice.get("asr_candidate_gate_passed"),
         "asr_candidate_gate_reason": choice.get("asr_candidate_gate_reason"),
+        "asr_selected_audio_candidate": audio_choice.get("asr_selected_candidate"),
+        "asr_audio_candidate_gate_passed": audio_choice.get("asr_candidate_gate_passed"),
+        "asr_audio_candidate_gate_reason": audio_choice.get("asr_candidate_gate_reason"),
+        "asr_selected_audio_candidate_metrics": audio_choice.get("asr_selected_candidate_metrics"),
         "window_selection": window_selection,
         "remote_only_clips": len(remote_rows),
         "remote_audit_clips": len(remote_rows),
@@ -1648,6 +1814,9 @@ def run_asr_clip_audit(
         "asr_selected_candidate": choice.get("asr_selected_candidate"),
         "asr_candidate_gate_passed": choice.get("asr_candidate_gate_passed"),
         "asr_candidate_gate_reason": choice.get("asr_candidate_gate_reason"),
+        "asr_selected_audio_candidate": audio_choice.get("asr_selected_candidate"),
+        "asr_audio_candidate_gate_passed": audio_choice.get("asr_candidate_gate_passed"),
+        "asr_audio_candidate_gate_reason": audio_choice.get("asr_candidate_gate_reason"),
         "local_only_clips": len(local_rows),
         "local_only_word_recall": top_stats.get("local_only_word_recall"),
         "local_fir_local_only_word_recall": baseline_local_recall,
@@ -1900,6 +2069,64 @@ def main() -> int:
             best_clean = switch_clean
             best_echo_hat = switch_echo_hat
 
+    coverage_gate_plan: list[dict[str, Any]] = []
+    coverage_rows, coverage_selection_plan = selected_asr_remote_rows(session, speaker_rows, args)
+    coverage_base_clean = switch_clean if switch_clean is not None else local_fir_clean
+    coverage_clean, coverage_gate_plan = build_coverage_gate_candidate(
+        coverage_base_clean,
+        candidate_audio.get(REMOTE_FLOOR_KEY),
+        speaker_rows,
+        coverage_rows,
+        args.sample_rate,
+    )
+    if coverage_clean is not None:
+        coverage_echo_hat = mic[: coverage_clean.size].astype(np.float64) - coverage_clean.astype(np.float64)
+        metrics, segment_rows, leak_report, preservation_report = candidate_metrics(
+            COVERAGE_GATE_KEY,
+            mic[: coverage_clean.size],
+            coverage_clean,
+            coverage_echo_hat,
+            remote_aligned[: coverage_clean.size],
+            speaker_rows,
+            args.sample_rate,
+        )
+        score, reasons, promotion_decision = score_candidate(metrics, baseline)
+        applied_windows = sum(1 for row in coverage_gate_plan if row.get("applied") is True)
+        candidate_rows.append(
+            {
+                "schema": "murmurmark.echo.offline_aec_v2_candidate/v1",
+                "candidate": COVERAGE_GATE_KEY,
+                "tail_ms": None,
+                "bases": [REMOTE_FLOOR_KEY, SEGMENT_SWITCH_KEY, "local_fir"],
+                "residual_mask": False,
+                "score": score,
+                "promotion_decision": promotion_decision,
+                "reasons": reasons + ["coverage_v2_window_gated_audio_candidate"],
+                "metrics": metrics,
+                "fit": {
+                    "type": "coverage_v2_remote_gate",
+                    "plan": "derived/preprocess/echo/offline_aec_v2_coverage_gate_plan.jsonl",
+                    "window_selection": coverage_selection_plan,
+                },
+                "mask_segments": applied_windows,
+                "outputs": {
+                    "clean_mic": f"derived/preprocess/audio/mic_clean_offline_aec_v2_{COVERAGE_GATE_KEY}.wav",
+                    "echo_hat": f"derived/preprocess/audio/echo_hat_offline_aec_v2_{COVERAGE_GATE_KEY}.wav",
+                },
+            }
+        )
+        all_segment_rows.extend(segment_rows)
+        leak_reports[COVERAGE_GATE_KEY] = leak_report
+        preservation_reports[COVERAGE_GATE_KEY] = preservation_report
+        candidate_audio[COVERAGE_GATE_KEY] = coverage_clean.astype(np.float32)
+        write_wav_float(audio_dir / f"mic_clean_offline_aec_v2_{COVERAGE_GATE_KEY}.wav", args.sample_rate, coverage_clean)
+        write_wav_float(audio_dir / f"echo_hat_offline_aec_v2_{COVERAGE_GATE_KEY}.wav", args.sample_rate, coverage_echo_hat)
+        if score > best_score:
+            best_score = score
+            best_key = COVERAGE_GATE_KEY
+            best_clean = coverage_clean
+            best_echo_hat = coverage_echo_hat
+
     assert best_key is not None and best_clean is not None and best_echo_hat is not None
     write_wav_float(audio_dir / "mic_clean_offline_aec_v2.wav", args.sample_rate, best_clean)
     write_wav_float(audio_dir / "echo_hat_offline_aec_v2.wav", args.sample_rate, best_echo_hat)
@@ -1985,6 +2212,7 @@ def main() -> int:
             "asr_leak_report": "derived/preprocess/echo/offline_aec_v2_asr_leak_report.json",
             "near_end_preservation_report": "derived/preprocess/echo/offline_aec_v2_near_end_preservation_report.json",
             "segment_switch_plan": "derived/preprocess/echo/offline_aec_v2_segment_switch_plan.jsonl",
+            "coverage_gate_plan": "derived/preprocess/echo/offline_aec_v2_coverage_gate_plan.jsonl",
         },
         "parameters": {
             "sample_rate": args.sample_rate,
@@ -2008,6 +2236,9 @@ def main() -> int:
             "asr_selected_candidate": asr_choice.get("asr_selected_candidate"),
             "asr_candidate_gate_passed": asr_choice.get("asr_candidate_gate_passed"),
             "asr_candidate_gate_reason": asr_choice.get("asr_candidate_gate_reason"),
+            "asr_selected_audio_candidate": leak_reports[best_key].get("asr_selected_audio_candidate"),
+            "asr_audio_candidate_gate_passed": leak_reports[best_key].get("asr_audio_candidate_gate_passed"),
+            "asr_audio_candidate_gate_reason": leak_reports[best_key].get("asr_audio_candidate_gate_reason"),
         },
         "selected_candidate": selected_candidate,
     }
@@ -2018,6 +2249,7 @@ def main() -> int:
     write_jsonl(out_dir / "offline_aec_v2_segments.jsonl", ranked_segment_rows)
     write_jsonl(out_dir / "offline_aec_v2_candidates.jsonl", candidate_rows)
     write_jsonl(out_dir / "offline_aec_v2_segment_switch_plan.jsonl", switch_plan)
+    write_jsonl(out_dir / "offline_aec_v2_coverage_gate_plan.jsonl", coverage_gate_plan)
     write_jsonl(out_dir / "offline_aec_v2_window_metrics.jsonl", ranked_segment_rows)
     write_json(out_dir / "offline_aec_v2_asr_leak_report.json", leak_reports[best_key])
     write_json(out_dir / "offline_aec_v2_near_end_preservation_report.json", preservation_reports[best_key])

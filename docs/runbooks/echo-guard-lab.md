@@ -321,6 +321,7 @@ derived/preprocess/echo/offline_aec_v2_segments.jsonl
 derived/preprocess/echo/offline_aec_v2_candidates.jsonl
 derived/preprocess/echo/offline_aec_v2_delay_curve.jsonl
 derived/preprocess/echo/offline_aec_v2_window_metrics.jsonl
+derived/preprocess/echo/offline_aec_v2_coverage_gate_plan.jsonl
 derived/preprocess/echo/offline_aec_v2_asr_leak_report.json
 derived/preprocess/echo/offline_aec_v2_near_end_preservation_report.json
 ```
@@ -348,7 +349,7 @@ Current v0 reading:
 - three sessions passed proxy gates, and three remained blocked by opening/backchannel or other quality
   gates;
 - local-only proxy recall regressed in one mostly-silent session;
-- faster-whisper ASR clip audit on all candidates found no session where `offline_aec_v2_v0`
+- faster-whisper ASR clip audit on the original v0 candidates found no session where `offline_aec_v2_v0`
   reduced remote-token leakage below `local_fir` without local-recall regression;
 - this means v0 is useful as a diagnostic lab, but not as a production replacement.
 
@@ -366,6 +367,18 @@ Current vNext reading:
   `asr_local_word_recall_regressions = 0/6`;
 - this is useful as a safety direction, but still not enough for default promotion.
 
+Current ASR-positive audio candidate reading:
+
+- `coverage_v2_remote_gate_local_fir` is a real shadow audio candidate;
+- it starts from the safer local-fir/segment-switch path and applies `remote_floor` only in Coverage
+  v2 risk windows where speaker-state does not show strong local speech;
+- `offline_aec_v2_coverage_gate_plan.jsonl` explains every applied/skipped risk window with
+  `selection_reason`, state mix and decision reason;
+- six-session smoke: `asr_audio_candidate_gate_passed = 4/6`,
+  `asr_audio_candidate_safe_improved = 4/6`, `asr_local_word_recall_regressions = 0/6`;
+- the two non-improved sessions are explained as `no_baseline_asr_visible_leak`;
+- this is still a shadow candidate and does not replace `local_fir`.
+
 Inspect token-guard details:
 
 ```bash
@@ -376,6 +389,7 @@ jq -r '.rows[] | [
   .end_sec,
   .remote_text,
   .local_fir_text,
+  (.candidates.coverage_v2_remote_gate_local_fir.text // ""),
   .candidates.remote_forbidden_token_guard.text,
   (.candidates.remote_forbidden_token_guard.guard.removed_reason // "")
 ] | @tsv' "$SESSION/derived/preprocess/echo/offline_aec_v2_asr_leak_report.json"
@@ -424,8 +438,11 @@ Current reading:
 - local-word recall regressions are zero;
 - target status is `target_met_two_sessions`, but this is still not a default Echo Guard
   promotion path.
-- The next Echo Guard work is ASR-positive audio candidate v2: use Coverage v2 windows as the judge
-  for actual audio candidates.
+- ASR-positive audio candidate v2 is complete as a shadow baseline:
+  `coverage_v2_remote_gate_local_fir` passes the ASR audio-candidate gate on four smoke sessions
+  without local-recall regression.
+- The next Echo Guard work should target hard double-talk/open-space cases, likely through Target-Me
+  extraction before neural residual suppression.
 
 ## Stop Rules
 

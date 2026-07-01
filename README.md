@@ -43,12 +43,14 @@ manual review queue instead of pretending to be green. Most sessions are still u
 evidence-backed notes when their own `status` says so; full transcript/export can remain blocked
 until the explicit review items are closed.
 
-Latest completed project goal: [Remote-Forbidden Evidence Coverage v2](docs/project/current-goal.md).
-Recommended next goal: ASR-positive audio candidate v2. Coverage v2 broadens ASR audit-window
-selection and raises the six-session smoke from `1/6` to `4/6` safe ASR-visible improvements without
-local-recall regressions. It remains shadow/review-only. Latest product milestone: Export Bundle
-Quality v1; `finish` now writes a readable local handoff bundle whose `index.md` answers whether the
-result can be used, what still needs review and what retention/privacy step comes next.
+Latest completed quality goal: [ASR-positive audio candidate v2](docs/project/current-goal.md).
+Recommended next quality goal: Target-Me extraction spike. ASR-positive audio candidate v2 adds the
+shadow `coverage_v2_remote_gate_local_fir` candidate and uses Coverage v2 windows as the judge:
+six-session smoke shows `4/6` audio-candidate gate-passed sessions, `0` local-recall regressions and
+two sessions with `no_baseline_asr_visible_leak`. It remains shadow/review-only. Latest product
+milestone: Export Bundle Quality v1; `finish` now writes a readable local handoff bundle whose
+`index.md` answers whether the result can be used, what still needs review and what retention/privacy
+step comes next.
 
 ## What Works Now
 
@@ -388,7 +390,8 @@ less "$SESSION/derived/audit/remote-forbidden/remote_forbidden_review.md"
 
 The default audit uses Coverage v2: it keeps `local_fir` as production baseline, selects a small set
 of ASR windows from speaker state and risky review artifacts, writes `selection_reason` for every
-window, and stays shadow-only.
+window, evaluates `coverage_v2_remote_gate_local_fir` as a shadow audio candidate, and stays
+shadow-only.
 
 If `offline_aec_v2` ASR audit already exists and only evidence files need to be rebuilt:
 
@@ -419,17 +422,18 @@ local-recall risk or weak quarantine-only evidence.
 - [Transcript and evidence contracts](docs/contracts/transcript-and-evidence.md)
 - [Evidence synthesis architecture](docs/architecture/evidence-synthesis.md)
 - [Open-source readiness](docs/project/open-source-readiness.md)
-- [Current goal](docs/project/current-goal.md)
+- [Latest completed quality goal](docs/project/current-goal.md)
 
 ## Roadmap Summary
 
 Current focus:
 
-- use Remote-Forbidden Evidence Coverage v2 as the judge for the next audio-candidate search;
+- use the completed ASR-positive audio candidate v2 as the current shadow baseline;
 - keep `local_fir` as the default: the current audio candidates are useful diagnostics, not a
   production replacement;
-- use the broader Coverage v2 evidence gate to judge the next audio candidate before trying any
-  promotion;
+- keep comparing shadow candidates by ASR-visible remote-token leakage, local-word recall and review
+  burden before any promotion;
+- prepare the next quality step around Target-Me extraction for double-talk and open-space noise;
 - rank echo-removal work by ASR-visible remote-token leakage, local-word recall and review burden,
   not by loudness or ERLE alone;
 - keep `next`/`status`/`review` honest about residual risk while this layer is shadow-only;
@@ -438,14 +442,12 @@ Current focus:
 
 Near-term goals for discussion:
 
-1. ASR-positive audio candidate v2: find an actual audio candidate that beats `local_fir` on
-   remote-token leakage without local-recall loss. This is the next logical step after Coverage v2,
-   because the evidence gate now finds enough ASR-visible cases to judge candidates.
-2. Target-Me extraction spike: use high-confidence local-only speech as enrollment material for
+1. Target-Me extraction spike: use high-confidence local-only speech as enrollment material for
    harder double-talk and open-space noise cases.
-3. Suggested review closure maintenance: keep the preview/apply path visible in session and corpus
-   reports, distinguish generated/actionable/needs-review suggestions and avoid closing unmatched
-   risky rows.
+2. Corpus and review-loop closure: keep the operational corpus usable while echo work continues;
+   close safe suggested review rows, keep manual rows explicit and prevent status drift.
+3. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only until
+   broader corpus gates prove it is safe beyond selected audit windows.
 4. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
 5. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
@@ -459,6 +461,11 @@ Near-term goals for discussion:
 
 Recently completed:
 
+- ASR-positive audio candidate v2: `coverage_v2_remote_gate_local_fir` is a real shadow audio
+  candidate, not just a transcript token guard. It starts from the safe local-fir/segment-switch path
+  and applies remote-floor cleanup only in Coverage v2 risk windows without strong local-speech
+  evidence. Six-session smoke: `4/6` ASR audio candidate gate-passed sessions, `0/6` local-recall
+  regressions, `2/6` explained as `no_baseline_asr_visible_leak`, no default promotion.
 - Remote-Forbidden Evidence Coverage v2: ASR audit-window selection now reads speaker state,
   audio-review, stronger-audio-judge, group-overlap, transcript-overlap and local/order risk
   artifacts. Six-session smoke: `4/6` safe improved sessions, `0/6` local-recall regressions,

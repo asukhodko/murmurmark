@@ -40,6 +40,48 @@ def number(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def assess_audio_candidate(row: dict[str, Any]) -> dict[str, str]:
+    if row.get("status") != "ok":
+        return {"class": "missing_report", "reason": str(row.get("status") or "missing_report")}
+    if row.get("asr_audit_mode") != "faster_whisper_clip_audit":
+        return {
+            "class": "asr_audit_inconclusive",
+            "reason": "asr_audit_not_available",
+        }
+    baseline_leak = row.get("asr_remote_token_leak_rate_local_fir")
+    leak_delta = row.get("asr_audio_candidate_remote_token_leak_delta")
+    recall_delta = row.get("asr_audio_candidate_local_word_recall_delta")
+    if baseline_leak is None:
+        return {
+            "class": "asr_audit_inconclusive",
+            "reason": "baseline_metrics_missing",
+        }
+    if number(baseline_leak) <= 0.0:
+        return {
+            "class": "no_baseline_asr_visible_leak",
+            "reason": "local_fir_leak_rate_before_is_zero",
+        }
+    if leak_delta is None or recall_delta is None:
+        return {
+            "class": "asr_audit_inconclusive",
+            "reason": "candidate_metrics_missing",
+        }
+    if number(recall_delta) < -0.02:
+        return {
+            "class": "local_recall_risk",
+            "reason": "audio_candidate_loses_local_words_vs_local_fir",
+        }
+    if number(leak_delta) < -0.02:
+        return {
+            "class": "safe_improved",
+            "reason": "audio_candidate_reduced_remote_tokens_without_local_recall_regression",
+        }
+    return {
+        "class": "candidate_not_better",
+        "reason": "audio_candidate_remote_token_leak_not_reduced",
+    }
+
+
 def row_for_session(session: Path) -> dict[str, Any]:
     report_path = session / "derived" / "preprocess" / "echo" / "offline_aec_v2_report.json"
     report = read_json(report_path)
@@ -67,7 +109,12 @@ def row_for_session(session: Path) -> dict[str, Any]:
         read_json(session / "derived" / "preprocess" / "echo" / "offline_aec_v2_near_end_preservation_report.json")
         or {}
     )
-    return {
+    candidates = asr_leak.get("candidates") if isinstance(asr_leak.get("candidates"), dict) else {}
+    audio_candidate_key = asr_leak.get("asr_selected_audio_candidate")
+    audio_candidate = candidates.get(str(audio_candidate_key)) if audio_candidate_key else {}
+    if not isinstance(audio_candidate, dict):
+        audio_candidate = {}
+    row = {
         "session": str(session),
         "status": "ok",
         "report": str(report_path),
@@ -77,6 +124,12 @@ def row_for_session(session: Path) -> dict[str, Any]:
         "asr_selected_candidate": summary.get("asr_selected_candidate") or asr_leak.get("asr_selected_candidate"),
         "asr_candidate_gate_passed": summary.get("asr_candidate_gate_passed") or asr_leak.get("asr_candidate_gate_passed"),
         "asr_candidate_gate_reason": summary.get("asr_candidate_gate_reason") or asr_leak.get("asr_candidate_gate_reason"),
+        "asr_selected_audio_candidate": summary.get("asr_selected_audio_candidate")
+        or asr_leak.get("asr_selected_audio_candidate"),
+        "asr_audio_candidate_gate_passed": summary.get("asr_audio_candidate_gate_passed")
+        or asr_leak.get("asr_audio_candidate_gate_passed"),
+        "asr_audio_candidate_gate_reason": summary.get("asr_audio_candidate_gate_reason")
+        or asr_leak.get("asr_audio_candidate_gate_reason"),
         "promotion_decision": summary.get("promotion_decision"),
         "remote_only_median_reduction_db_local_fir": baseline_remote,
         "remote_only_median_reduction_db_offline_aec_v2": selected_remote,
@@ -97,7 +150,15 @@ def row_for_session(session: Path) -> dict[str, Any]:
         "asr_local_word_recall_local_fir": asr_preservation.get("local_fir_local_only_word_recall"),
         "asr_local_word_recall_offline_aec_v2": asr_preservation.get("local_only_word_recall"),
         "asr_local_word_recall_delta": asr_preservation.get("local_only_word_recall_delta"),
+        "asr_audio_candidate_remote_token_leak_rate": audio_candidate.get("remote_token_leak_rate"),
+        "asr_audio_candidate_remote_token_leak_delta": audio_candidate.get("remote_token_leak_delta"),
+        "asr_audio_candidate_local_word_recall": audio_candidate.get("local_only_word_recall"),
+        "asr_audio_candidate_local_word_recall_delta": audio_candidate.get("local_only_word_recall_delta"),
     }
+    assessment = assess_audio_candidate(row)
+    row["audio_candidate_assessment"] = assessment["class"]
+    row["audio_candidate_assessment_reason"] = assessment["reason"]
+    return row
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -147,23 +208,41 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "",
             "## ASR Clip Audit",
             "",
-            "| Session | Mode | ASR candidate | ASR gate | Remote token leak delta | Local word recall delta |",
-            "|---|---|---|---|---:|---:|",
+            "| Session | Mode | ASR candidate | ASR gate | Remote token leak delta | Local word recall delta | Audio candidate | Audio assessment | Audio leak delta | Audio recall delta |",
+            "|---|---|---|---|---:|---:|---|---|---:|---:|",
         ]
     )
     for row in rows:
         if row.get("status") != "ok":
             continue
         lines.append(
-            "| `{session}` | `{mode}` | `{candidate}` | `{gate}` | {leak_delta} | {recall_delta} |".format(
+            "| `{session}` | `{mode}` | `{candidate}` | `{gate}` | {leak_delta} | {recall_delta} | `{audio_candidate}` | `{audio_assessment}` | {audio_leak_delta} | {audio_recall_delta} |".format(
                 session=row["session"],
                 mode=row.get("asr_audit_mode"),
                 candidate=row.get("asr_selected_candidate"),
                 gate=row.get("asr_candidate_gate_reason"),
                 leak_delta=fmt_optional(row.get("asr_remote_token_leak_delta")),
                 recall_delta=fmt_optional(row.get("asr_local_word_recall_delta")),
+                audio_candidate=row.get("asr_selected_audio_candidate"),
+                audio_assessment=row.get("audio_candidate_assessment"),
+                audio_leak_delta=fmt_optional(row.get("asr_audio_candidate_remote_token_leak_delta")),
+                audio_recall_delta=fmt_optional(row.get("asr_audio_candidate_local_word_recall_delta")),
             )
         )
+    not_improved = [
+        row for row in rows
+        if row.get("status") == "ok" and row.get("audio_candidate_assessment") != "safe_improved"
+    ]
+    if not_improved:
+        lines.extend(["", "## Why Audio Candidate Did Not Improve More", ""])
+        for row in not_improved:
+            lines.append(
+                "- `{session}`: `{klass}` / `{reason}`".format(
+                    session=row.get("session"),
+                    klass=row.get("audio_candidate_assessment"),
+                    reason=row.get("audio_candidate_assessment_reason"),
+                )
+            )
     lines.extend(
         [
             "",
@@ -207,6 +286,18 @@ def main() -> int:
             if row.get("asr_remote_token_leak_delta") is not None
             and number(row.get("asr_remote_token_leak_delta")) < 0
         ),
+        "asr_audio_candidate_gate_passed": sum(
+            1 for row in ok_rows
+            if row.get("asr_audio_candidate_gate_passed") is True
+        ),
+        "asr_audio_candidate_safe_improved": sum(
+            1 for row in ok_rows
+            if row.get("audio_candidate_assessment") == "safe_improved"
+        ),
+        "asr_audio_candidate_assessment_classes": {
+            klass: sum(1 for row in ok_rows if row.get("audio_candidate_assessment") == klass)
+            for klass in sorted({str(row.get("audio_candidate_assessment")) for row in ok_rows})
+        },
         "asr_local_word_recall_regressions": sum(
             1 for row in ok_rows
             if row.get("asr_local_word_recall_delta") is not None
