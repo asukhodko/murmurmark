@@ -43,12 +43,12 @@ manual review queue instead of pretending to be green. Most sessions are still u
 evidence-backed notes when their own `status` says so; full transcript/export can remain blocked
 until the explicit review items are closed.
 
-Current project goal: [Remote-Forbidden Evidence Hardening v1](docs/project/current-goal.md). Latest
-completed Echo Guard milestone: the first ASR-positive vNext spike reduced remote-token leakage on
-one difficult session without local-recall regression, but stayed shadow-only. Latest product
-milestone: Export Bundle Quality v1; `finish` now writes a readable local handoff bundle whose
-`index.md` answers whether the result can be used, what still needs review and what
-retention/privacy step comes next.
+Current project goal: [Remote-Forbidden Evidence Coverage v2](docs/project/current-goal.md). Latest
+completed Echo Guard milestone: Remote-Forbidden Evidence Hardening v1 now persists ASR-visible
+remote-leak evidence, exposes it through status/review artifacts and explains why only one six-session
+smoke case is safely fixable so far. Latest product milestone: Export Bundle Quality v1; `finish`
+now writes a readable local handoff bundle whose `index.md` answers whether the result can be used,
+what still needs review and what retention/privacy step comes next.
 
 ## What Works Now
 
@@ -59,6 +59,8 @@ retention/privacy step comes next.
   start-of-call repair.
 - Audit layers for order, local recall, group overlaps, audio review and optional stronger local
   audio judge.
+- Remote-forbidden evidence audit: shadow rows with remote/mic tokens, speaker state, transcript
+  links, confidence, guarded seconds and corpus-level explanation.
 - Conservative cleanup and repair profiles that write separate transcript candidates instead of
   mutating raw capture or baseline output.
 - Deterministic extractive notes with quality verdicts and evidence IDs.
@@ -419,12 +421,12 @@ local-recall risk or weak quarantine-only evidence.
 
 Current focus:
 
-- harden the first ASR-positive Echo Guard result: `remote_forbidden_token_guard` lowered
-  remote-token leakage on one difficult 1x1 session without local-recall loss;
+- expand Remote-Forbidden Evidence Coverage v2: v1 now persists evidence, but the current ASR clip
+  selection finds only one safe improved case in the six-session smoke corpus;
 - keep `local_fir` as the default: the current audio candidates are useful diagnostics, not a
   production replacement;
-- turn remote-forbidden token evidence into normal review/status artifacts instead of keeping it
-  only in lab reports;
+- select better risky windows from audio-review rows, transcript overlaps, group-overlap audit,
+  local-recall/order risk and speaker state before trying any promotion;
 - rank echo-removal work by ASR-visible remote-token leakage, local-word recall and review burden,
   not by loudness or ERLE alone;
 - keep `next`/`status`/`review` honest about residual risk while this layer is shadow-only;
@@ -433,9 +435,9 @@ Current focus:
 
 Near-term goals for discussion:
 
-1. Remote-Forbidden Evidence Hardening v1: make the token-level guard less clip-specific, persist
-   evidence rows, connect them to transcript/review artifacts and enforce gates against lost `Me`
-   speech.
+1. Remote-Forbidden Evidence Coverage v2: broaden ASR audit-window selection so the existing v1
+   evidence layer can find more real remote-in-`Me` cases, or explain why a session has no safe
+   correction.
 2. ASR-positive audio candidate v2: find an actual audio candidate that beats `local_fir` on
    remote-token leakage without local-recall loss.
 3. Target-Me extraction spike: use high-confidence local-only speech as enrollment material for
@@ -456,6 +458,10 @@ Near-term goals for discussion:
 
 Recently completed:
 
+- Remote-Forbidden Evidence Hardening v1: `remote_forbidden_evidence.jsonl`,
+  `remote_forbidden_summary.json`, `remote_forbidden_review.md`, session readiness metrics and
+  corpus explanation are now normal artifacts. Six-session smoke: one safe improved session, zero
+  local-recall regressions, no default promotion.
 - Echo Guard Complete Removal vNext: segment switching plus `remote_forbidden_token_guard` produced
   the first ASR-positive remote-leakage improvement on a real difficult session, with no local-word
   recall regression in the six-session smoke corpus. It remains shadow-only.

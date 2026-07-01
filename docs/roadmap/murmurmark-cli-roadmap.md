@@ -68,8 +68,10 @@ right default because it protects local speech, but it is not a complete-removal
 harmful seconds, but ASR-token gates still do not beat `local_fir`. The follow-up vNext spike added
 segment switching and `remote_forbidden_token_guard`; it produced the first ASR-positive improvement
 on one difficult session without local-recall regression. That is enough to choose the next quality
-direction: harden remote-forbidden evidence and connect it to review/status before trying to promote
-any audio candidate.
+direction. Remote-Forbidden Evidence Hardening v1 has now materialized that spike as normal
+evidence/status artifacts. The next gap is coverage: the six-session smoke found only one safe
+improved case because the current ASR clip audit often misses windows where baseline `local_fir`
+contains recognizable remote words.
 
 ## Roadmap Tree
 
@@ -138,14 +140,13 @@ flowchart LR
   The 2026-06-30 daily sync showed the important pattern: the session was marked `risky`, but
   stronger audio judge confirmed most `check_transcript_order` rows as timing/double-talk, leaving
   only a few real manual checks.
-- Continue **Echo Guard Complete Removal** after the first vNext spike:
+- Continue **Echo Guard Complete Removal** after Remote-Forbidden Evidence Hardening v1:
   - keep `local_fir` as the production default;
   - use the shadow `offline_aec_v2_v0` lab as a repeatable diagnostic baseline;
   - treat `remote_floor` and segment switching as useful proxy/control candidates, not as production
     replacements;
-  - harden `remote_forbidden_token_guard` into persistent evidence and review decisions. The first
-    implementation now writes `remote_forbidden_evidence.jsonl`, session readiness metrics and a
-    corpus report;
+  - broaden remote-forbidden coverage: v1 writes `remote_forbidden_evidence.jsonl`, session
+    readiness metrics and a corpus report, but only one six-session smoke case is safely improved;
   - keep target-speaker extraction and neural residual suppression as later spikes behind corpus
     gates.
 - Keep the final handoff readable: `finish` now opens a bundle whose `index.md` is the first working
@@ -177,7 +178,8 @@ flowchart LR
   - no-regression gates for order, local recall, duplicates and selected notes.
 - Echo Guard evidence and promotion path:
   - keep candidate artifacts separate from `mic_for_asr.wav`;
-  - first persist remote-forbidden evidence rows and expose them through review/status;
+  - broaden ASR audit-window selection before promotion: audio-review rows, transcript overlaps,
+    group-overlap risk, local-recall/order risk and speaker state should all be candidate sources;
   - promote audio only after corpus gates prove lower remote-token leakage without worse local
     recall;
   - keep transcript-level remote-forbidden reconciliation as the final safety net.
@@ -223,6 +225,10 @@ handoff and keeps uncertainty visible.
 
 Recently completed:
 
+- **Remote-Forbidden Evidence Hardening v1.** The first ASR-positive guard is now a normal evidence
+  layer: persistent remote/mic token rows, per-session review, readiness metrics and corpus
+  explanation. Six-session smoke: one safe improved session, zero local-recall regressions, no
+  default promotion. The next weakness is coverage.
 - **Echo Guard Complete Removal vNext.** Segment switching plus `remote_forbidden_token_guard`
   produced the first ASR-positive remote-leakage improvement on a difficult real session:
   `asr_candidate_gate_passed: 1/6`, with no local-word recall regressions in the six-session smoke
@@ -239,11 +245,10 @@ Recently completed:
 
 ## Candidate Next Goals
 
-1. **Remote-Forbidden Evidence Hardening v1.** The nearest meaningful goal: make the first
-   ASR-positive safety layer less clip-specific, persist evidence rows, connect them to
-   transcript/review artifacts and enforce local-speech gates before any cleanup action. First
-   persistence/reporting is implemented; the remaining target is broader coverage, because the
-   current six-session smoke has only one safe improved session.
+1. **Remote-Forbidden Evidence Coverage v2.** The nearest meaningful goal: broaden ASR audit-window
+   selection so the existing evidence layer can find more real remote-in-`Me` cases, or explain why a
+   session has no safe correction. This is the smallest step that can turn v1 from a useful proof into
+   a stronger corpus signal.
 2. **ASR-positive audio candidate v2.** Find an actual audio candidate that beats `local_fir` on
    remote-token leakage without local-recall loss. This depends on the evidence gates from goal 1.
 3. **Target-Me extraction spike.** Use high-confidence local-only speech as enrollment material for

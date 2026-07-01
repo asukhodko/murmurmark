@@ -1,55 +1,54 @@
-# Current Goal: Remote-Forbidden Evidence Hardening v1
+# Current Goal: Remote-Forbidden Evidence Coverage v2
 
-Status, 2026-06-30: implementation started. The first shadow evidence layer now materializes
-`remote_forbidden_token_guard` results into persistent evidence rows, session readiness metrics and
-a corpus report. It is not promoted and does not edit transcripts.
+Status, 2026-07-01: selected as the recommended next goal.
 
-MurmurMark has enough evidence that remote speech leaking into the mic track is a root cause of
-false `Me` utterances, wrong order, extra cleanup work and remaining review burden. The previous
-Echo Guard vNext spike produced the first positive result at the ASR level:
-`remote_forbidden_token_guard` reduced remote-token leakage below `local_fir` on one difficult 1x1
-session without local-recall regression.
+Remote-Forbidden Evidence Hardening v1 is complete: MurmurMark now persists
+`remote_forbidden_token_guard` evidence rows, exposes them through session readiness/status, and
+writes a corpus report. The first six-session corpus has one safe ASR-visible improvement and zero
+local-recall regressions.
 
-That is not complete echo removal yet. It is a useful proof that MurmurMark can judge echo cleanup
-by recognized words, not only by loudness, ERLE or waveform similarity. The next goal is to harden
-that mechanism into an auditable safety layer.
+The blocker is coverage. For five sampled sessions the report says
+`no_baseline_asr_visible_leak`: the current ASR clip audit did not pick windows where `local_fir`
+already contains recognizable remote words. That means the evidence layer is structurally sound, but
+too narrow. The next goal is to make it search the right risky windows before any attempt to promote
+audio or transcript changes.
 
 ## Goal
 
-Make ASR-visible remote leakage measurable, reviewable and safely reducible across real sessions
-without changing capture, raw CAF files, the default `local_fir` engine or the primary ASR topology.
+Increase the number of real sessions where MurmurMark can measure ASR-visible remote leakage in
+`Me`, or explicitly prove that the sampled session has no safe remote-forbidden correction to make.
 
-In plain words: when a phrase from `remote` appears in the `Me` transcript, MurmurMark should be able
-to prove it, mark it, and safely remove or quarantine it only when local speech is protected.
+In plain words: v1 can write evidence once a suspicious window is found. v2 should find better
+windows from existing artifacts: audio-review rows, transcript overlaps, group-overlap audit,
+speaker state, local-recall risk, order risk and remote-only ASR candidates.
 
 ## Why This Goal Now
 
-Post-processing already helps, but it is compensating for a bad input signal. The latest research
-showed three important facts:
+Post-processing already helps, but the cost remains high when remote speech reaches the `Me`
+transcript. The current v1 evidence layer proved the right contract, but its own corpus report says
+why it cannot yet converge:
 
-- waveform/proxy echo reduction can look good while ASR still recognizes remote words in `Me`;
-- audio-only candidates are not ready to replace `local_fir`;
-- a token-level remote-forbidden guard can improve a difficult case without losing local words.
+- `safe_improved_sessions = 1/6`;
+- `local_recall_regressions = 0/6`;
+- the other five sessions were not negative proof against the idea; they were mostly missed-window
+  cases where the selected clip did not contain baseline ASR-visible remote leakage.
 
-The shortest useful path is therefore not another broad cleanup layer. It is a stricter evidence
-loop around remote-derived words:
-
-1. find ASR-visible remote leakage;
-2. compare against local speech evidence;
-3. choose `keep`, `quarantine`, `suggest_drop`, or `needs_review`;
-4. report the decision with audio, transcript and speaker-state evidence.
+So the shortest useful path is not a new neural model yet. It is a better deterministic window
+selector and corpus gate around the evidence layer that already exists.
 
 ## Scope
 
 In scope:
 
-- expand ASR audit windows beyond the first clip-level spike;
-- persist remote-forbidden evidence rows with timestamps, source tokens and confidence;
-- link guard decisions to transcript/review artifacts instead of keeping them only in lab reports;
-- enforce local-speech gates using speaker state, local recall and available audio-judge evidence;
-- produce per-session and corpus summaries: remote-token leakage before/after, local-word recall,
-  guarded seconds and review burden;
-- keep all candidate outputs shadow-only until corpus gates pass.
+- build a broader remote-forbidden audit-window selector from existing derived artifacts;
+- include windows around active `Me` rows with remote text similarity, audio-review `remote_leak` /
+  `remote_duplicate`, group-overlap risky intervals, order-repair crossings and local-recall risk;
+- cap the number of ASR windows per session so the audit remains usable;
+- keep the same evidence row contract from v1;
+- report why each candidate window was selected and whether it was evaluable;
+- update corpus reports so `no_baseline_asr_visible_leak` is separated from `window_not_selected`,
+  `local_recall_risk`, `quarantine_only` and `safe_improved`;
+- keep everything shadow/review-only.
 
 Out of scope:
 
@@ -57,30 +56,34 @@ Out of scope:
 - writing a new neural echo canceller;
 - changing capture, raw CAF tracks, primary `whisper.cpp` ASR or reviewed transcript profiles;
 - silently deleting uncertain `Me` text;
+- automatically applying `suggest_drop`;
 - claiming waveform-perfect echo removal.
 
 ## Acceptance
 
 - Raw `audio/mic/*.caf` and `audio/remote/*.caf` are unchanged.
 - `local_fir` remains the selected production Echo Guard path.
-- Every remote-forbidden action has evidence: remote tokens, mic tokens, timestamps, speaker state and
-  review classification.
-- Local-only word recall is no worse than baseline by more than 2 percentage points.
-- At least two difficult real sessions show lower ASR-visible remote leakage, or the report explains
-  why only one case is currently safely fixable.
-- No candidate is promoted to default from proxy metrics alone.
-- `murmurmark status`, corpus reports or review artifacts expose the remaining risk instead of hiding
-  it inside a cleaned transcript.
+- V1 evidence row contract remains intact: remote/mic tokens, timestamps, speaker state, confidence
+  and decision reason.
+- Every ASR audit window has a `selection_reason` and a link to source artifacts when available.
+- The six-session smoke corpus is rerun and no session loses local-only word recall by more than
+  2 percentage points.
+- At least two sessions either become `safe_improved` or get a stronger explicit explanation:
+  `no_suspicious_windows`, `no_baseline_asr_visible_leak`, `local_recall_risk` or
+  `quarantine_only`.
+- `murmurmark status/report` and corpus reports expose the residual risk and window-selection
+  coverage.
+- No audio or transcript candidate is promoted to default.
 
 ## Working Commands
 
-Current lab command:
+Existing v1 command:
 
 ```bash
-.venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION" --asr-audit --asr-max-clips 2
+.venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION" --asr-audit --asr-max-clips 6
 ```
 
-Current evidence command:
+Evidence materialization:
 
 ```bash
 murmurmark audit remote-forbidden "$SESSION" --profile auto --asr-max-clips 6
@@ -99,7 +102,7 @@ Corpus summary:
 .venv/bin/python scripts/report-remote-forbidden-corpus.py SESSION...
 ```
 
-Target user-facing shape after hardening:
+Target user-facing shape after coverage:
 
 ```bash
 murmurmark process "$SESSION"
@@ -107,12 +110,12 @@ murmurmark status "$SESSION"
 murmurmark review suggested "$SESSION"
 ```
 
-The hardened layer should appear as evidence and review decisions in the normal pipeline before it
-is considered for any default audio change.
+The coverage layer should stay evidence-only, but it should make the corpus report more decisive:
+either more safe improvements, or a clear reason why a session has no safe remote-forbidden action.
 
 ## Current Finding
 
-Six-session smoke after materializing evidence:
+Six-session smoke after v1:
 
 - `reports_found = 6/6`;
 - `safe_improved_sessions = 1`;
@@ -121,9 +124,8 @@ Six-session smoke after materializing evidence:
 - `quarantine_count = 8`;
 - `target_status = target_not_met_only_one_safe_session`.
 
-Interpretation: the first hardening layer satisfies persistence and visibility, but not the full
-two-session acceptance target. The next step is broader audit-window coverage or a better candidate
-source that can produce at least one more safe ASR-visible improvement.
+Interpretation: v1 satisfies persistence and visibility. v2 should improve coverage by looking at
+more suspicious windows, not by relaxing local-speech safety gates.
 
 ## Larger Goals After This
 
@@ -145,7 +147,39 @@ source that can produce at least one more safe ASR-visible improvement.
 
 ---
 
-# Latest Completed Goal: Echo Guard Complete Removal vNext
+# Latest Completed Goal: Remote-Forbidden Evidence Hardening v1
+
+Status, 2026-06-30: completed as a shadow/review evidence layer. Not promoted.
+
+## Result
+
+The v1 hardening layer turned the first ASR-positive Echo Guard vNext result into normal pipeline
+evidence:
+
+- `remote_forbidden_evidence.jsonl` stores persistent rows with timestamps, remote/mic tokens,
+  speaker state, transcript links, confidence and decision reason;
+- `remote_forbidden_summary.json` stores per-session leakage before/after, local recall, guarded
+  seconds, review-burden seconds and gate state;
+- `remote_forbidden_review.md` gives a readable review artifact;
+- `murmurmark audit remote-forbidden` materializes the layer from the CLI;
+- `murmurmark status/report` exposes the remaining risk and links the review artifact;
+- `report-remote-forbidden-corpus.py` writes the corpus summary and explicitly explains why fewer
+  than two sessions are safely improved.
+
+Six-session corpus:
+
+- `reports_found = 6/6`;
+- `safe_improved_sessions = 1/6`;
+- `local_recall_regressions = 0/6`;
+- `guarded_seconds = 28.0`;
+- `review_burden_seconds = 18.0`;
+- `promotion_decision = shadow_review_only_do_not_promote`.
+
+Interpretation: the evidence contract is now real. The next weakness is coverage, not persistence.
+
+---
+
+# Previous Completed Goal: Echo Guard Complete Removal vNext
 
 Status, 2026-06-30: completed as a shadow research spike. Not promoted.
 

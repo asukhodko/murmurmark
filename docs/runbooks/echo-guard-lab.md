@@ -422,6 +422,9 @@ Current reading:
 - local-word recall regressions are zero;
 - target status is still `target_not_met_only_one_safe_session`, so this is not a default Echo Guard
   promotion path.
+- Remote-Forbidden Evidence Hardening v1 is complete as a shadow evidence layer. The next Echo Guard
+  work is Coverage v2: select more suspicious ASR audit windows from audio-review rows, transcript
+  overlaps, group-overlap risk, local-recall/order risk and `speaker_state`.
 
 ## Stop Rules
 
