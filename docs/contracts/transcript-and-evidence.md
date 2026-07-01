@@ -4254,6 +4254,49 @@ same batch-grade timeline repair, cleanup, review/readiness and synthesis layers
 `live_cache_reuse: not_supported_yet` only after live chunks can be reused without worsening corpus
 gates.
 
+### Live ASR Cache Report
+
+Before expensive batch ASR, `scripts/materialize-live-asr-cache.py` may try to turn live chunk ASR
+into the normal whisper.cpp raw cache:
+
+```text
+derived/live/live_asr_cache_report.json
+```
+
+Schema:
+
+```json
+{
+  "schema": "murmurmark.live_asr_cache_report/v1",
+  "status": "not_eligible",
+  "materialized": false,
+  "reasons": [
+    "live_chunks_have_no_batch_overlap_context"
+  ],
+  "parameters": {
+    "language": "ru",
+    "asr_mode": "windowed",
+    "asr_window_sec": 60,
+    "asr_overlap_sec": 5,
+    "mic_audio_prep": "speech",
+    "remote_audio_prep": "loudnorm"
+  }
+}
+```
+
+When `materialized: true`, the script writes:
+
+```text
+derived/transcript-simple/whisper-cpp/raw/mic.json
+derived/transcript-simple/whisper-cpp/raw/mic.meta.json
+derived/transcript-simple/whisper-cpp/raw/remote.json
+derived/transcript-simple/whisper-cpp/raw/remote.meta.json
+```
+
+The generated `.meta.json` must match `transcribe-simple-whispercpp.py` cache metadata exactly.
+Otherwise `transcribe_current` reruns whisper.cpp. A `not_eligible` report is an expected safe
+fallback, not an error.
+
 ### Live-vs-Batch Comparison
 
 After the normal batch pipeline runs, `scripts/compare-live-batch.py` writes:

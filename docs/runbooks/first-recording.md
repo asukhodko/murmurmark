@@ -118,6 +118,16 @@ the final transcript. If the worker crashes or falls behind, raw capture should 
 normal session and can be processed by the batch pipeline. Use `--live-no-finalize` when you only
 want to test the live draft and run `murmurmark process` manually.
 
+The final reconcile also writes `derived/live/live_asr_cache_report.json`. Check it when live mode
+does not speed up post-meeting processing:
+
+```bash
+jq '.status, .reasons' "$SESSION/derived/live/live_asr_cache_report.json"
+```
+
+Common v1 reason: `live_chunks_have_no_batch_overlap_context`. It means the live draft worked, but
+its ASR chunks cannot yet be reused as the authoritative batch cache.
+
 For a corpus-level live promotion check:
 
 ```bash

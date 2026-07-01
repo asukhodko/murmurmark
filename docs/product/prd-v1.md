@@ -23,6 +23,8 @@ Working now:
 - first near-realtime shadow branch: `record --live-pipeline` writes closed mic/remote segment
   copies, live worker state, a draft transcript, final-reconcile report and live-vs-batch comparison
   artifacts under `derived/live/`.
+- live-ASR cache bridge: final reconcile attempts strict cache materialization and writes
+  `live_asr_cache_report.json`; incompatible chunks fall back to batch ASR.
 
 Current operating point, measured by `murmurmark report corpus` on 2026-07-01:
 

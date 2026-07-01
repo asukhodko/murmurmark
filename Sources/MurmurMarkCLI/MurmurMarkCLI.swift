@@ -590,6 +590,7 @@ enum DoctorChecks {
             "scripts/run-session-pipeline.py",
             "scripts/live-pipeline-shadow.py",
             "scripts/compare-live-batch.py",
+            "scripts/materialize-live-asr-cache.py",
             "scripts/report-live-corpus-gates.py",
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/synthesize-simple-extractive.py",
@@ -7285,6 +7286,12 @@ extension SessionRecorder {
         let pipelineReport = outputDirectory.appendingPathComponent("derived/pipeline-run/pipeline_run_report.json")
         let readiness = outputDirectory.appendingPathComponent("derived/readiness/session_readiness.json")
         let liveComparison = outputDirectory.appendingPathComponent("derived/live/live_batch_comparison.json")
+        let liveASRCache = outputDirectory.appendingPathComponent("derived/live/live_asr_cache_report.json")
+        let cacheReport = try? JSONObject.readDictionary(from: liveASRCache)
+        let cacheStatus = cacheReport?["status"] as? String
+        let cacheMaterialized = cacheReport?["materialized"] as? Bool ?? false
+        let speedupStatus = cacheMaterialized ? "live_asr_cache_reused" : "fallback_batch_asr"
+        let fallbackReason = cacheMaterialized ? NSNull() : (cacheReport?["reasons"] ?? ["live_asr_cache_report_missing"])
         func relIfExists(_ url: URL) -> Any {
             fileManager.fileExists(atPath: url.path)
                 ? RelativePaths.path(outputURL: url, relativeTo: outputDirectory)
@@ -7299,12 +7306,14 @@ extension SessionRecorder {
             "started_at": DateStrings.iso8601(snapshot.startedAt),
             "command": snapshot.command,
             "source_of_truth": "batch_pipeline",
-            "live_cache_reuse": "not_supported_yet",
-            "speedup_status": "fallback_batch_asr",
-            "fallback_reason": "live_asr_cache_is_not_batch_compatible_yet",
+            "live_cache_reuse": cacheMaterialized ? "materialized_raw_whisper_cache" : "not_used",
+            "live_asr_cache_status": cacheStatus ?? "missing",
+            "speedup_status": speedupStatus,
+            "fallback_reason": fallbackReason,
             "outputs": [
                 "pipeline_run_report": relIfExists(pipelineReport),
                 "session_readiness": relIfExists(readiness),
+                "live_asr_cache_report": relIfExists(liveASRCache),
                 "live_batch_comparison": relIfExists(liveComparison),
             ],
         ]
@@ -10064,6 +10073,8 @@ enum ReadinessPrinter {
             print("      speedup_status: \(string(final["speedup_status"]) ?? "unknown")")
             if let reason = string(final["fallback_reason"]) {
                 print("      fallback_reason: \(reason)")
+            } else if let reasons = final["fallback_reason"] as? [String], !reasons.isEmpty {
+                print("      fallback_reason: \(reasons.joined(separator: ", "))")
             }
             if let elapsed = double(final["elapsed_sec"]) {
                 print(String(format: "      elapsed: %.1fs", elapsed))

@@ -95,8 +95,15 @@ def run(command: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
 
 
-def convert_to_wav(source: Path, destination: Path) -> bool:
+def audio_filter(source_name: str) -> tuple[str, str]:
+    if source_name == "mic":
+        return "speech", "highpass=f=100,lowpass=f=7600,alimiter=limit=0.98"
+    return "loudnorm", "highpass=f=80,lowpass=f=7800,loudnorm=I=-20:LRA=9:TP=-2,alimiter=limit=0.98"
+
+
+def convert_to_wav(source: Path, destination: Path, source_name: str) -> tuple[bool, str]:
     destination.parent.mkdir(parents=True, exist_ok=True)
+    prep_name, filters = audio_filter(source_name)
     command = [
         "ffmpeg",
         "-hide_banner",
@@ -106,7 +113,7 @@ def convert_to_wav(source: Path, destination: Path) -> bool:
         "-i",
         str(source),
         "-af",
-        "highpass=f=80,lowpass=f=7800",
+        filters,
         "-ar",
         "16000",
         "-ac",
@@ -114,7 +121,7 @@ def convert_to_wav(source: Path, destination: Path) -> bool:
         str(destination),
     ]
     result = run(command)
-    return result.returncode == 0 and destination.exists() and destination.stat().st_size > 44
+    return result.returncode == 0 and destination.exists() and destination.stat().st_size > 44, prep_name
 
 
 def transcribe(wav: Path, output_base: Path, args: argparse.Namespace) -> dict[str, Any]:
@@ -234,10 +241,11 @@ def process_segment(session: Path, index: int, pair: dict[str, dict[str, Any]], 
     for source in ("mic", "remote"):
         source_path = session / str(pair[source].get("path"))
         wav_path = chunk_dir / f"{source}.wav"
-        ok = convert_to_wav(source_path, wav_path)
+        ok, prep_name = convert_to_wav(source_path, wav_path, source)
         source_record: dict[str, Any] = {
             "input": rel(source_path, session),
             "wav": rel(wav_path, session) if ok else None,
+            "audio_prep": prep_name,
             "preprocess_status": "passed" if ok else "failed",
         }
         if ok:

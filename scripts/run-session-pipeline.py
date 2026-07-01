@@ -38,6 +38,10 @@ STEP_COST_HINTS: dict[str, dict[str, str]] = {
         "cost": "heavy",
         "reason": "runs whisper.cpp ASR unless cached raw ASR is reused",
     },
+    "materialize_live_asr_cache": {
+        "cost": "light",
+        "reason": "uses live ASR chunks only when they are batch-cache compatible",
+    },
     "audit_group_overlaps": {
         "cost": "medium",
         "reason": "reads audio and creates overlap audit features/clips",
@@ -354,6 +358,16 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
         current_transcribe += ["--skip-export", "--skip-transcribe"]
 
     shadow_transcribe = list(transcribe_base) + ["--skip-export", "--skip-transcribe", "--repair-profile", "shadow_v2"]
+    live_cache_materialize = [
+        py,
+        str(repo_root / "scripts/materialize-live-asr-cache.py"),
+        str(session),
+        "--model",
+        str(args.model),
+        "--language",
+        args.language,
+    ]
+    live_cache_materialize = add_prompt(live_cache_materialize, prompt)
 
     audio_judge_exists = args.audio_judge_queue.exists()
     live_report_exists = (session / "derived/live/live_pipeline_report.json").exists()
@@ -367,6 +381,12 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             reason="--skip-preprocess",
         ),
         step("inspect_echo", [str(args.murmurmark_bin), "inspect", str(session), "--echo"], enabled=not args.skip_preprocess, reason="--skip-preprocess"),
+        step(
+            "materialize_live_asr_cache",
+            live_cache_materialize,
+            enabled=live_report_exists and not args.skip_transcription and not args.force_asr,
+            reason="missing live report/--skip-transcription/--force-asr",
+        ),
         step("transcribe_current", current_transcribe, enabled=not args.skip_transcription, reason="--skip-transcription"),
         step("transcribe_shadow_v2", shadow_transcribe, enabled=not args.skip_transcription, reason="--skip-transcription"),
         step(
@@ -922,6 +942,7 @@ def main() -> int:
     readiness_path = session / "derived/readiness/session_readiness.json"
     remote_leak_plan_path = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json"
     live_comparison_path = session / "derived/live/live_batch_comparison.json"
+    live_asr_cache_path = session / "derived/live/live_asr_cache_report.json"
     quality = read_json(quality_path)
     readiness = read_json(readiness_path)
     synthesis_profile = quality.get("selected_transcript_profile") if isinstance(quality, dict) else None
@@ -956,6 +977,7 @@ def main() -> int:
             "quality_verdict": rel(quality_path, session) if quality_path.exists() else None,
             "session_readiness": rel(readiness_path, session) if readiness_path.exists() else None,
             "remote_leak_segment_repair_plan": rel(remote_leak_plan_path, session) if remote_leak_plan_path.exists() else None,
+            "live_asr_cache_report": rel(live_asr_cache_path, session) if live_asr_cache_path.exists() else None,
             "live_batch_comparison": rel(live_comparison_path, session) if live_comparison_path.exists() else None,
             "selected_transcript_profile": selected_profile,
             "synthesis_selected_transcript_profile": synthesis_profile,

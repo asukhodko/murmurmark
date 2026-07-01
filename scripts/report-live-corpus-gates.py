@@ -166,7 +166,7 @@ def build_report(sessions: list[Path], root: Path) -> dict[str, Any]:
             "target_status": target_status,
             "promotion_decision": "shadow_only_do_not_promote",
             "speedup_supported_sessions": sum(
-                1 for row in rows if (row.get("final_reconcile") or {}).get("speedup_status") != "fallback_batch_asr"
+                1 for row in rows if (row.get("final_reconcile") or {}).get("speedup_status") == "live_asr_cache_reused"
             ),
         },
         "blockers": dict(blockers),

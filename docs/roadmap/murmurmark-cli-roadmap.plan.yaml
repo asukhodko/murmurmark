@@ -343,10 +343,12 @@ nodes:
     effort: 5
     notes: |
       После stop уже запускается batch-grade reconcile через `murmurmark process --skip-build` и
-      пишется `derived/live/final_reconcile_report.json`. Пока это честный fallback
-      `fallback_batch_asr`, потому что live-ASR cache не совместим с batch transcript builder.
-      Следующий gap: reuse live chunks/tail так, чтобы после встречи оставался только короткий хвост,
-      а итоговый transcript проходил те же проверки, что `murmurmark process`.
+      пишется `derived/live/final_reconcile_report.json`. Live-ASR cache bridge уже пытается строго
+      материализовать `raw/mic.json` и `raw/remote.json`, если live chunks совместимы с batch ASR
+      metadata; иначе пишет `live_asr_cache_report.json` со статусом `not_eligible` и process честно
+      уходит в `fallback_batch_asr`. Следующий gap: overlap-aware live chunks/tail так, чтобы после
+      встречи оставался только короткий хвост, а итоговый transcript проходил те же проверки, что
+      `murmurmark process`.
 
   realtime-corpus-gates:
     title: "Realtime vs batch corpus gates"

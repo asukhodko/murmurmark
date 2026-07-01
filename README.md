@@ -180,6 +180,16 @@ corpus gates prove that the live branch matches it. If the live worker fails, re
 produce a normal raw session package. If you need only the draft and want to run batch processing
 manually later, use `--live-no-finalize`.
 
+During final reconcile, `process` also runs a live-ASR cache bridge:
+
+```text
+derived/live/live_asr_cache_report.json
+```
+
+In v1 this bridge is strict. It reuses live chunks only when model, language, audio prep and chunk
+geometry are batch-compatible. Otherwise it writes `status: not_eligible` and the pipeline falls back
+to normal batch ASR.
+
 To inspect live parity over a local corpus:
 
 ```bash
@@ -550,6 +560,8 @@ Current focus:
 - keep near-realtime processing as a shadow CLI branch: `record --live-pipeline` now writes durable
   live segments, a draft transcript and advisory live-vs-batch comparison artifacts, but the batch
   pipeline is still authoritative;
+- keep live-ASR cache reuse behind strict eligibility gates; `not_eligible` is expected until
+  overlap-aware live chunks match batch ASR geometry;
 - use `murmurmark corpus live` to keep live promotion blocked until parity gates cover order, local
   recall, remote leakage, review burden and chunk-boundary risks;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
