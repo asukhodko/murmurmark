@@ -7316,7 +7316,7 @@ extension SessionRecorder {
         let cacheStatus = cacheReport?["status"] as? String
         let cacheMaterialized = cacheReport?["materialized"] as? Bool ?? false
         let speedupStatus = cacheMaterialized ? "live_asr_cache_reused" : "fallback_batch_asr"
-        let fallbackReason = cacheMaterialized ? NSNull() : (cacheReport?["reasons"] ?? ["live_asr_cache_report_missing"])
+        let fallbackReason = cacheMaterialized ? [] : (cacheReport?["reasons"] ?? ["live_asr_cache_report_missing"])
         func relIfExists(_ url: URL) -> Any {
             fileManager.fileExists(atPath: url.path)
                 ? RelativePaths.path(outputURL: url, relativeTo: outputDirectory)
@@ -10277,7 +10277,19 @@ enum ReadinessPrinter {
         print("    mode: \(string(payload["mode"]) ?? "shadow")")
         print("    status: \(string(payload["status"]) ?? "unknown")")
         print("    batch_authoritative: \(bool(payload["batch_authoritative"]) ?? true)")
+        if let worker = string(payload["current_worker"]) {
+            print("    worker: \(worker)")
+        }
+        if let stage = string(payload["current_stage"]) {
+            print("    stage: \(stage)")
+        }
         print(String(format: "    captured: %.1fs", double(progress["captured_sec"]) ?? 0.0))
+        if let preprocessed = double(progress["preprocessed_sec"]) {
+            print(String(format: "    preprocessed: %.1fs", preprocessed))
+        }
+        if let asr = double(progress["asr_sec"]) {
+            print(String(format: "    asr: %.1fs", asr))
+        }
         print(String(format: "    processed: %.1fs", double(progress["processed_sec"]) ?? 0.0))
         print(String(format: "    lag: %.1fs", double(progress["live_lag_sec"]) ?? 0.0))
         print("    chunks: \(int(progress["chunks_processed"]) ?? 0)")

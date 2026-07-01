@@ -4198,9 +4198,14 @@ while recording.
   "status": "completed",
   "batch_authoritative": true,
   "promotion_allowed": false,
+  "current_worker": "live-pipeline-shadow",
+  "current_stage": "completed",
   "progress": {
     "captured_sec": 600.0,
+    "preprocessed_sec": 540.0,
+    "asr_sec": 540.0,
     "processed_sec": 540.0,
+    "draft_sec": 540.0,
     "live_lag_sec": 60.0,
     "chunks_processed": 9,
     "segments_seen": 18

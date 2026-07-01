@@ -120,6 +120,9 @@ best-effort: if it fails, MurmurMark disables live segments with a warning inste
 recording. Use `--live-no-finalize` when you only want to test the live draft and run
 `murmurmark process` manually.
 
+`murmurmark status latest` prints the live worker, stage, captured/preprocessed/asr seconds, lag,
+chunk count and final-reconcile status when these artifacts exist.
+
 Each live segment has two timelines:
 
 - `start_sec..end_sec`: the non-overlapping hard window that may be published for this segment.

@@ -310,6 +310,8 @@ def write_report(session: Path, status: str, chunks: list[dict[str, Any]], rows:
         "mode": "near_realtime_shadow",
         "batch_authoritative": True,
         "promotion_allowed": False,
+        "current_worker": "live-pipeline-shadow",
+        "current_stage": status,
         "parameters": {
             "commit_delay_sec": args.commit_delay_sec,
             "language": args.language,
@@ -317,7 +319,10 @@ def write_report(session: Path, status: str, chunks: list[dict[str, Any]], rows:
         },
         "progress": {
             "captured_sec": round(captured, 3),
+            "preprocessed_sec": round(processed, 3),
+            "asr_sec": round(processed, 3),
             "processed_sec": round(processed, 3),
+            "draft_sec": round(processed, 3),
             "live_lag_sec": round(max(0.0, captured - processed), 3),
             "chunks_processed": len(chunks),
             "segments_seen": len(rows),
