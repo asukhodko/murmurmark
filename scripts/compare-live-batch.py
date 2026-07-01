@@ -11,7 +11,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 
 
@@ -110,6 +110,97 @@ def selected_transcript_path(session: Path) -> Path | None:
     return candidates[0] if candidates else None
 
 
+def selected_profile(session: Path) -> str | None:
+    readiness = read_json(session / "derived/readiness/session_readiness.json")
+    if not isinstance(readiness, dict):
+        return None
+    value = readiness.get("selected_profile") or readiness.get("selected_transcript_profile")
+    return str(value) if value else None
+
+
+def quality_report_path(session: Path, profile: str | None) -> Path | None:
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    candidates: list[Path] = []
+    if profile:
+        candidates.append(resolved / f"quality_report.{profile}.json")
+    candidates.append(resolved / "quality_report.json")
+    candidates.extend(sorted(resolved.glob("quality_report.*.json"), key=lambda item: item.stat().st_mtime, reverse=True))
+    return next((path for path in candidates if path.exists()), None)
+
+
+def metric_value(report: dict[str, Any] | None, key: str) -> Any:
+    if not isinstance(report, dict):
+        return None
+    for container in (report, report.get("metrics"), report.get("summary")):
+        if isinstance(container, dict) and key in container:
+            return container.get(key)
+    return None
+
+
+def gate(name: str, status: str, reason: str, evidence: dict[str, Any] | None = None) -> dict[str, Any]:
+    row: dict[str, Any] = {"name": name, "status": status, "reason": reason}
+    if evidence:
+        row["evidence"] = evidence
+    return row
+
+
+def parity_gates(
+    *,
+    blockers: list[str],
+    duplicate_count: int,
+    recall: float | None,
+    batch_quality: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    gates: list[dict[str, Any]] = [
+        gate(
+            "raw_batch_authoritative",
+            "passed",
+            "near-realtime remains shadow-only and batch transcript is source of truth",
+            {"batch_authoritative": True},
+        )
+    ]
+    if blockers:
+        gates.append(gate("required_artifacts", "blocked", "comparison inputs are missing", {"blockers": blockers}))
+    else:
+        gates.append(gate("required_artifacts", "passed", "live and batch artifacts are present"))
+    gates.append(
+        gate(
+            "duplicate_chunks",
+            "passed" if duplicate_count == 0 else "failed",
+            "adjacent live chunks should not repeat the same decoded text",
+            {"adjacent_duplicate_chunk_count": duplicate_count},
+        )
+    )
+    if recall is None:
+        gates.append(gate("live_token_recall", "not_evaluated", "live draft has no decoded tokens"))
+    else:
+        gates.append(
+            gate(
+                "live_token_recall",
+                "passed" if recall >= 0.60 else "warning",
+                "bag-of-words live draft tokens should mostly appear in selected batch transcript",
+                {"live_token_recall_in_batch": round(recall, 6)},
+            )
+        )
+    batch_metrics = {
+        "unrepaired_long_mic_crossings_count": metric_value(batch_quality, "unrepaired_long_mic_crossings_count"),
+        "local_only_island_recall": metric_value(batch_quality, "local_only_island_recall"),
+        "remote_duplicate_in_me_seconds": metric_value(batch_quality, "remote_duplicate_in_me_seconds"),
+        "needs_review_count": metric_value(batch_quality, "needs_review_count"),
+        "cross_role_overlap_gt2_seconds": metric_value(batch_quality, "cross_role_overlap_gt2_seconds"),
+    }
+    for name in ("order_risk", "local_recall", "remote_duplicate_leak", "review_burden", "missing_boundary_speech"):
+        gates.append(
+            gate(
+                name,
+                "not_evaluated",
+                "near-realtime shadow v1 does not yet produce batch-grade profile metrics for this gate",
+                {"batch_metrics": batch_metrics},
+            )
+        )
+    return gates
+
+
 def main() -> int:
     args = parse_args()
     session = args.session.expanduser().resolve()
@@ -119,6 +210,9 @@ def main() -> int:
     live_report = read_json(live_report_path)
     chunks = read_jsonl(chunks_path)
     transcript_path = selected_transcript_path(session)
+    profile = selected_profile(session)
+    batch_quality_path = quality_report_path(session, profile)
+    batch_quality = read_json(batch_quality_path) if batch_quality_path else None
     final_text = transcript_path.read_text(encoding="utf-8", errors="ignore") if transcript_path else ""
     live_text = "\n".join(chunk_text(row) for row in chunks)
     live_tokens = tokens(live_text)
@@ -137,6 +231,17 @@ def main() -> int:
         warnings.append("adjacent_live_chunk_duplicates_detected")
     if recall is not None and recall < 0.60:
         warnings.append("low_live_token_recall_in_batch")
+    gates = parity_gates(
+        blockers=blockers,
+        duplicate_count=duplicate_count,
+        recall=recall,
+        batch_quality=batch_quality,
+    )
+    gate_statuses = {str(row.get("status")) for row in gates}
+    promotion_blockers = [
+        "shadow_v1_never_promotes_by_default",
+        *[str(row.get("name")) for row in gates if row.get("status") in {"blocked", "failed", "warning", "not_evaluated"}],
+    ]
     payload = {
         "schema": SCHEMA,
         "generator": {"name": "compare-live-batch", "version": SCRIPT_VERSION},
@@ -145,12 +250,15 @@ def main() -> int:
         "status": "blocked" if blockers else "shadow_compared",
         "promotion_allowed": False,
         "promotion_reason": "near_realtime_shadow_v1_never_promotes_by_default",
+        "promotion_blockers": promotion_blockers,
         "blockers": blockers,
         "warnings": warnings,
         "inputs": {
             "live_report": rel(live_report_path, session) if live_report_path.exists() else None,
             "live_chunks": rel(chunks_path, session) if chunks_path.exists() else None,
             "batch_transcript": rel(transcript_path, session) if transcript_path else None,
+            "batch_quality_report": rel(batch_quality_path, session) if batch_quality_path else None,
+            "selected_batch_profile": profile,
         },
         "metrics": {
             "live_chunks": len(chunks),
@@ -159,6 +267,10 @@ def main() -> int:
             "live_token_recall_in_batch": round(recall, 6) if recall is not None else None,
             "adjacent_duplicate_chunk_count": duplicate_count,
             "batch_authoritative": True,
+        },
+        "parity_gates": {
+            "status": "not_promotable" if gate_statuses - {"passed"} else "passed_but_shadow_locked",
+            "gates": gates,
         },
         "recommended_next": "murmurmark status " + str(session),
     }

@@ -106,14 +106,17 @@ murmurmark status latest
 murmurmark latest
 SESSION="sessions/<printed-session>"
 less "$SESSION/derived/live/transcript.draft.md"
-murmurmark process latest
+murmurmark next latest
 ```
 
 `--live-pipeline` duplicates closed mic/remote capture windows into `derived/live/audio/`, starts a
 shadow worker and writes `derived/live/transcript.draft.md`,
-`derived/live/live_pipeline_report.json` and `derived/live/chunks.jsonl`. The draft is not the final
-transcript. If the worker crashes or falls behind, raw capture should still finish as a normal
-session and can be processed by the batch pipeline.
+`derived/live/live_pipeline_report.json` and `derived/live/chunks.jsonl`. After stop it runs the
+normal batch-grade reconcile and writes `derived/live/final_reconcile_report.json`; if live ASR
+cannot be safely reused yet, the report says `speedup_status: fallback_batch_asr`. The draft is not
+the final transcript. If the worker crashes or falls behind, raw capture should still finish as a
+normal session and can be processed by the batch pipeline. Use `--live-no-finalize` when you only
+want to test the live draft and run `murmurmark process` manually.
 
 Without `--duration`, recording continues until `Ctrl-C`. MurmurMark catches that explicit stop,
 stops capture, closes audio files and writes `session.json`.

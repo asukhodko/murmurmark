@@ -292,9 +292,9 @@ nodes:
     notes: |
       Потоковая ветка CLI: не ждать окончания встречи, а обрабатывать уже закрытые audio segments
       во время записи. Первый shadow-контур существует: `record --live-pipeline` пишет segment
-      copies, live draft и advisory live-vs-batch comparison. Это всё ещё не замена batch pipeline:
-      raw CAF/session package и обычный `murmurmark process` остаются source of truth, пока
-      shadow-ветка не докажет parity на корпусе.
+      copies, live draft, post-stop final reconcile report и advisory live-vs-batch comparison. Это
+      всё ещё не замена batch pipeline: raw CAF/session package и обычный `murmurmark process`
+      остаются source of truth, пока shadow-ветка не докажет parity на корпусе.
 
   realtime-segment-writer:
     title: "Segment writer during capture"
@@ -339,13 +339,14 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [realtime-live-draft, review-loop, quality-hardening]
-    status: next
+    status: current
     effort: 5
     notes: |
-      После stop обработать последний tail и прогнать batch-grade reconcile: timeline repair,
-      role decisions, cleanup/review/readiness/synthesis/export gates. Цель — после встречи
-      оставлять только короткий хвост, но итоговый transcript должен проходить те же проверки, что
-      `murmurmark process`.
+      После stop уже запускается batch-grade reconcile через `murmurmark process --skip-build` и
+      пишется `derived/live/final_reconcile_report.json`. Пока это честный fallback
+      `fallback_batch_asr`, потому что live-ASR cache не совместим с batch transcript builder.
+      Следующий gap: reuse live chunks/tail так, чтобы после встречи оставался только короткий хвост,
+      а итоговый transcript проходил те же проверки, что `murmurmark process`.
 
   realtime-corpus-gates:
     title: "Realtime vs batch corpus gates"
@@ -355,10 +356,13 @@ nodes:
     status: next
     effort: 4
     notes: |
-      Сравнить live draft/finalized output с текущим batch baseline по order risk, local recall,
-      remote duplicate/leak, review burden, transcript chunk duplicates и missing boundary speech.
-      Promotion rule: live branch can shorten waiting time, but cannot become default if it grows
-      mandatory review queue or worsens selected notes/readiness.
+      Первый `live_batch_comparison.json` уже пишет advisory parity gates и явно помечает
+      order/local-recall/remote-duplicate/review-burden как `not_evaluated`, пока live branch не
+      производит batch-grade profile metrics. Следующий gap: сравнить live draft/finalized output с
+      batch baseline по order risk, local recall, remote duplicate/leak, review burden, transcript
+      chunk duplicates и missing boundary speech. Promotion rule: live branch can shorten waiting
+      time, but cannot become default if it grows mandatory review queue or worsens selected
+      notes/readiness.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"

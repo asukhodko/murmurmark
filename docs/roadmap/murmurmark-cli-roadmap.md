@@ -177,10 +177,12 @@ flowchart LR
 - Design **Near-Realtime Pipeline Shadow v1** as a future CLI branch:
   - first shadow implementation exists: `record --live-pipeline` writes durable mic/remote segment
     copies, starts an optional worker, writes `derived/live/transcript.draft.md`,
-    `derived/live/live_pipeline_report.json` and advisory live-vs-batch comparison;
+    `derived/live/live_pipeline_report.json`, post-stop final-reconcile report and advisory
+    live-vs-batch comparison;
   - next work is overlap-aware segmenting, per-segment Echo Guard stronger than speech-band
     preprocessing, resumable queue state and corpus parity gates;
-  - after stop, the existing batch-grade repair/review/readiness layers remain authoritative;
+  - after stop, the existing batch-grade repair/review/readiness layers run as final reconcile and
+    remain authoritative;
   - keep the existing post-recording `process` path as source of truth until corpus comparison proves
     no worse order/local-recall/remote-duplicate behavior.
 - Make the everyday path boring:
@@ -202,6 +204,8 @@ flowchart LR
     recovery;
   - worker queue exists as a safe shadow worker, but its v1 preprocessing is intentionally light and
     must be upgraded before it can compete with batch Echo Guard;
+  - post-stop final reconcile exists, but currently reports `fallback_batch_asr` because live-ASR
+    cache is not yet compatible with the batch transcript builder;
   - delayed transcript commit: do not finalize the last few seconds until the next segment arrives;
   - live status: captured/preprocessed/ASR seconds, current lag and current worker;
   - final reconcile after stop: batch-grade transcript remains authoritative until gates promote the

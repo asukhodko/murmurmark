@@ -119,7 +119,7 @@ struct MurmurMark {
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
-                            [--live-pipeline] [--live-segment-sec 60] [--live-no-worker]
+                            [--live-pipeline] [--live-segment-sec 60] [--live-no-worker] [--live-no-finalize]
           murmurmark sessions [--limit 10] [--status exported|exportable|review_required|incomplete] [--path-only|--next-only|--json]
                               [--sessions-root ./sessions]
           murmurmark latest [--sessions-root ./sessions]
@@ -197,7 +197,8 @@ struct MurmurMark {
           audio-input remote capture and voice-processing mic capture are experimental comparison modes.
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C and finalizes the session.
-          --live-pipeline writes shadow live segments and a draft transcript under derived/live.
+          --live-pipeline writes shadow live segments and a draft transcript under derived/live, then runs final reconcile.
+          Use --live-no-finalize to skip the post-stop batch-grade reconcile.
           SIGTERM/SIGHUP are treated as unexpected stops and leave a partial session.
           Unexpected ScreenCaptureKit stops are restarted when possible; unrecovered stops finalize a partial session and exit with an error.
           Without --out, recording creates a unique directory under ./sessions.
@@ -437,6 +438,7 @@ enum Commands {
         let livePipelineEnabled = options.flag("live-pipeline")
         let liveSegmentSeconds = try options.optionalPositiveDouble("live-segment-sec") ?? 60
         let liveWorkerEnabled = livePipelineEnabled && !options.flag("live-no-worker")
+        let liveFinalizeEnabled = livePipelineEnabled && !options.flag("live-no-finalize")
         if livePipelineEnabled && (microphoneBackend != .screenCaptureKit || remoteBackend != .screenCaptureKit) {
             throw CLIError("--live-pipeline currently requires screencapturekit mic and remote backends")
         }
@@ -453,7 +455,8 @@ enum Commands {
             channelCount: channelCount,
             livePipelineEnabled: livePipelineEnabled,
             liveSegmentSeconds: liveSegmentSeconds,
-            liveWorkerEnabled: liveWorkerEnabled
+            liveWorkerEnabled: liveWorkerEnabled,
+            liveFinalizeEnabled: liveFinalizeEnabled
         )
         let stopReason = try await recorder.run()
         if stopReason.isUnexpectedCaptureStop {
@@ -6583,6 +6586,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     let livePipelineEnabled: Bool
     let liveSegmentSeconds: TimeInterval
     let liveWorkerEnabled: Bool
+    let liveFinalizeEnabled: Bool
 
     private let fileManager = FileManager.default
     private let queue = DispatchQueue(label: "murmurmark.capture.samples")
@@ -6621,7 +6625,8 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         channelCount: Int,
         livePipelineEnabled: Bool = false,
         liveSegmentSeconds: TimeInterval = 60,
-        liveWorkerEnabled: Bool = false
+        liveWorkerEnabled: Bool = false,
+        liveFinalizeEnabled: Bool = false
     ) {
         self.outputDirectory = outputDirectory
         self.targetBundleID = targetBundleID
@@ -6635,6 +6640,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         self.livePipelineEnabled = livePipelineEnabled
         self.liveSegmentSeconds = liveSegmentSeconds
         self.liveWorkerEnabled = liveWorkerEnabled
+        self.liveFinalizeEnabled = liveFinalizeEnabled
     }
 
     func run() async throws -> StopReason {
@@ -6670,6 +6676,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                     fields: [
                         "segment_sec": liveSegmentSeconds,
                         "worker_enabled": liveWorkerEnabled,
+                        "finalize_enabled": liveFinalizeEnabled,
                         "segments": "derived/live/segments.jsonl",
                     ]
                 )
@@ -6808,6 +6815,9 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                     appendWarning("live pipeline worker still running after 30s finalization wait")
                 }
             }
+            if liveFinalizeEnabled, !stopReason.isUnexpectedCaptureStop {
+                runLiveFinalReconcile(eventLog: eventLog)
+            }
             if stopReason.isUnexpectedCaptureStop {
                 print("partial session finalized")
                 printInterruptedHandoff()
@@ -6824,6 +6834,15 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             throw CaptureErrors.enrich(error)
         }
     }
+}
+
+struct LiveFinalReconcileSnapshot {
+    let status: String
+    let startedAt: Date
+    let finishedAt: Date?
+    let elapsed: TimeInterval?
+    let command: [String]
+    let error: String?
 }
 
 extension SessionRecorder {
@@ -7178,13 +7197,146 @@ extension SessionRecorder {
         Double(round(value * 1000) / 1000)
     }
 
+    private func runLiveFinalReconcile(eventLog: EventLog) {
+        let startedAt = Date()
+        let command = [ExecutablePath.current(), "process", outputDirectory.path, "--skip-build"]
+        print("live final reconcile -> batch-grade pipeline")
+        writeLiveFinalReconcileReport(
+            LiveFinalReconcileSnapshot(
+                status: "running",
+                startedAt: startedAt,
+                finishedAt: nil,
+                elapsed: nil,
+                command: command,
+                error: nil
+            )
+        )
+        try? eventLog.write(
+            type: "live_pipeline.final_reconcile_started",
+            fields: [
+                "report": "derived/live/final_reconcile_report.json",
+                "command": command.joined(separator: " "),
+            ]
+        )
+
+        let start = Date()
+        let executable = URL(fileURLWithPath: command[0])
+        let arguments = Array(command.dropFirst())
+        do {
+            try Tooling.runPath(executable, arguments)
+            let elapsed = Date().timeIntervalSince(start)
+            writeLiveFinalReconcileReport(
+                LiveFinalReconcileSnapshot(
+                    status: "passed",
+                    startedAt: startedAt,
+                    finishedAt: Date(),
+                    elapsed: elapsed,
+                    command: command,
+                    error: nil
+                )
+            )
+            try? eventLog.write(
+                type: "live_pipeline.final_reconcile_completed",
+                fields: [
+                    "status": "passed",
+                    "elapsed_sec": roundedSeconds(elapsed),
+                    "report": "derived/live/final_reconcile_report.json",
+                ]
+            )
+        } catch {
+            let elapsed = Date().timeIntervalSince(start)
+            let message = error.localizedDescription
+            writeLiveFinalReconcileReport(
+                LiveFinalReconcileSnapshot(
+                    status: "failed",
+                    startedAt: startedAt,
+                    finishedAt: Date(),
+                    elapsed: elapsed,
+                    command: command,
+                    error: message
+                )
+            )
+            try? eventLog.write(
+                type: "live_pipeline.final_reconcile_failed",
+                fields: [
+                    "status": "failed",
+                    "elapsed_sec": roundedSeconds(elapsed),
+                    "error": message,
+                    "report": "derived/live/final_reconcile_report.json",
+                ]
+            )
+            print("warning: live final reconcile failed: \(message)")
+        }
+    }
+
+    private func writeLiveFinalReconcileReport(_ snapshot: LiveFinalReconcileSnapshot) {
+        let pipelineReport = outputDirectory.appendingPathComponent("derived/pipeline-run/pipeline_run_report.json")
+        let readiness = outputDirectory.appendingPathComponent("derived/readiness/session_readiness.json")
+        let liveComparison = outputDirectory.appendingPathComponent("derived/live/live_batch_comparison.json")
+        func relIfExists(_ url: URL) -> Any {
+            fileManager.fileExists(atPath: url.path)
+                ? RelativePaths.path(outputURL: url, relativeTo: outputDirectory)
+                : NSNull()
+        }
+        var payload: [String: Any] = [
+            "schema": "murmurmark.live_final_reconcile_report/v1",
+            "mode": "near_realtime_shadow",
+            "status": snapshot.status,
+            "batch_authoritative": true,
+            "promotion_allowed": false,
+            "started_at": DateStrings.iso8601(snapshot.startedAt),
+            "command": snapshot.command,
+            "source_of_truth": "batch_pipeline",
+            "live_cache_reuse": "not_supported_yet",
+            "speedup_status": "fallback_batch_asr",
+            "fallback_reason": "live_asr_cache_is_not_batch_compatible_yet",
+            "outputs": [
+                "pipeline_run_report": relIfExists(pipelineReport),
+                "session_readiness": relIfExists(readiness),
+                "live_batch_comparison": relIfExists(liveComparison),
+            ],
+        ]
+        if let finishedAt = snapshot.finishedAt {
+            payload["finished_at"] = DateStrings.iso8601(finishedAt)
+        }
+        if let elapsed = snapshot.elapsed {
+            payload["elapsed_sec"] = roundedSeconds(elapsed)
+        }
+        if let error = snapshot.error {
+            payload["error"] = error
+            payload["recommended_next"] = "murmurmark process \(PathDisplay.display(outputDirectory))"
+        } else {
+            payload["recommended_next"] = snapshot.status == "passed"
+                ? "murmurmark next \(PathDisplay.display(outputDirectory))"
+                : "murmurmark status \(PathDisplay.display(outputDirectory))"
+        }
+        try? JSONObject.write(payload, to: outputDirectory.appendingPathComponent("derived/live/final_reconcile_report.json"))
+    }
+
     private func printHandoff() {
         let session = PathDisplay.display(outputDirectory)
+        let readinessExists = fileManager.fileExists(
+            atPath: outputDirectory.appendingPathComponent("derived/readiness/session_readiness.json").path
+        )
+        let finalReportExists = fileManager.fileExists(
+            atPath: outputDirectory.appendingPathComponent("derived/live/final_reconcile_report.json").path
+        )
         print("SESSION=\"\(session)\"")
         if livePipelineEnabled {
             print("live_pipeline: shadow")
             print("live_draft: \(session)/derived/live/transcript.draft.md")
             print("live_report: \(session)/derived/live/live_pipeline_report.json")
+            if finalReportExists {
+                print("live_final_reconcile: \(session)/derived/live/final_reconcile_report.json")
+            }
+        }
+        if readinessExists {
+            print("recommended_next: murmurmark next \(session)")
+            print("next:")
+            print("  murmurmark status \(session)")
+            print("  murmurmark next \(session)")
+            print("  murmurmark finish \(session)")
+            return
         }
         print("recommended_next: murmurmark process \(session)")
         print("next:")
@@ -9891,6 +10043,31 @@ enum ReadinessPrinter {
             print("    draft: \(PathDisplay.display(session.appendingPathComponent(draft)))")
         }
         print("    report: \(PathDisplay.display(reportURL))")
+        let finalURL = session.appendingPathComponent("derived/live/final_reconcile_report.json")
+        if FileManager.default.fileExists(atPath: finalURL.path),
+           let final = try? JSONFiles.object(finalURL) {
+            print("    final_reconcile:")
+            print("      status: \(string(final["status"]) ?? "unknown")")
+            print("      source_of_truth: \(string(final["source_of_truth"]) ?? "batch_pipeline")")
+            print("      speedup_status: \(string(final["speedup_status"]) ?? "unknown")")
+            if let reason = string(final["fallback_reason"]) {
+                print("      fallback_reason: \(reason)")
+            }
+            if let elapsed = double(final["elapsed_sec"]) {
+                print(String(format: "      elapsed: %.1fs", elapsed))
+            }
+            print("      report: \(PathDisplay.display(finalURL))")
+        }
+        let comparisonURL = session.appendingPathComponent("derived/live/live_batch_comparison.json")
+        if FileManager.default.fileExists(atPath: comparisonURL.path),
+           let comparison = try? JSONFiles.object(comparisonURL) {
+            let gates = comparison["parity_gates"] as? [String: Any] ?? [:]
+            print("    batch_comparison:")
+            print("      status: \(string(comparison["status"]) ?? "unknown")")
+            print("      parity: \(string(gates["status"]) ?? "unknown")")
+            print("      promotion_allowed: \(bool(comparison["promotion_allowed"]) ?? false)")
+            print("      report: \(PathDisplay.display(comparisonURL))")
+        }
     }
 
     private static func printStrongerAudioJudgeSummary(_ session: URL) {
@@ -12125,7 +12302,14 @@ final class SignalBridge: @unchecked Sendable {
         for source in activeSources {
             source.cancel()
         }
+        restoreDefaults()
         continuation.resume(returning: reason)
+    }
+
+    private func restoreDefaults() {
+        signal(SIGINT, SIG_DFL)
+        signal(SIGTERM, SIG_DFL)
+        signal(SIGHUP, SIG_DFL)
     }
 }
 

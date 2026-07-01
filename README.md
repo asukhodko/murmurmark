@@ -170,13 +170,15 @@ murmurmark status latest
 murmurmark latest
 SESSION="sessions/<printed-session>"
 less "$SESSION/derived/live/transcript.draft.md"
-murmurmark process latest
+murmurmark next latest
 ```
 
-This mode writes closed audio segments and a live draft under `derived/live/` while recording. It is
-for progress and early reading only: the normal `murmurmark process` result remains authoritative
-until corpus gates prove that the live branch matches the batch pipeline. If the live worker fails,
-recording should still produce a normal raw session package.
+This mode writes closed audio segments and a live draft under `derived/live/` while recording. After
+stop it runs the existing batch-grade reconcile through `murmurmark process --skip-build` and writes
+`derived/live/final_reconcile_report.json`. The normal batch result remains authoritative until
+corpus gates prove that the live branch matches it. If the live worker fails, recording should still
+produce a normal raw session package. If you need only the draft and want to run batch processing
+manually later, use `--live-no-finalize`.
 
 ## Process An Existing Session
 

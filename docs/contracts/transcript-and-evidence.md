@@ -4219,6 +4219,41 @@ later worker version.
 the final transcript, synthesis input or export source until a future corpus gate explicitly promotes
 the live path.
 
+### Final Reconcile Report
+
+After a live recording stops, MurmurMark may run the existing batch-grade pipeline and write:
+
+```text
+derived/live/final_reconcile_report.json
+```
+
+Schema:
+
+```json
+{
+  "schema": "murmurmark.live_final_reconcile_report/v1",
+  "mode": "near_realtime_shadow",
+  "status": "passed",
+  "batch_authoritative": true,
+  "promotion_allowed": false,
+  "source_of_truth": "batch_pipeline",
+  "live_cache_reuse": "not_supported_yet",
+  "speedup_status": "fallback_batch_asr",
+  "fallback_reason": "live_asr_cache_is_not_batch_compatible_yet",
+  "outputs": {
+    "pipeline_run_report": "derived/pipeline-run/pipeline_run_report.json",
+    "session_readiness": "derived/readiness/session_readiness.json",
+    "live_batch_comparison": "derived/live/live_batch_comparison.json"
+  }
+}
+```
+
+In v1, `fallback_batch_asr` is an acceptable outcome: it means the final transcript went through the
+same batch-grade timeline repair, cleanup, review/readiness and synthesis layers as a normal
+`murmurmark process` run. It does not claim post-meeting speedup. Future versions may replace
+`live_cache_reuse: not_supported_yet` only after live chunks can be reused without worsening corpus
+gates.
+
 ### Live-vs-Batch Comparison
 
 After the normal batch pipeline runs, `scripts/compare-live-batch.py` writes:
@@ -4235,6 +4270,14 @@ Schema:
   "status": "shadow_compared",
   "promotion_allowed": false,
   "promotion_reason": "near_realtime_shadow_v1_never_promotes_by_default",
+  "promotion_blockers": [
+    "shadow_v1_never_promotes_by_default",
+    "order_risk",
+    "local_recall",
+    "remote_duplicate_leak",
+    "review_burden",
+    "missing_boundary_speech"
+  ],
   "blockers": [],
   "warnings": [],
   "metrics": {
@@ -4244,12 +4287,28 @@ Schema:
     "live_token_recall_in_batch": 0.82,
     "adjacent_duplicate_chunk_count": 0,
     "batch_authoritative": true
+  },
+  "parity_gates": {
+    "status": "not_promotable",
+    "gates": [
+      {
+        "name": "duplicate_chunks",
+        "status": "passed",
+        "reason": "adjacent live chunks should not repeat the same decoded text"
+      },
+      {
+        "name": "local_recall",
+        "status": "not_evaluated",
+        "reason": "near-realtime shadow v1 does not yet produce batch-grade profile metrics for this gate"
+      }
+    ]
   }
 }
 ```
 
 This comparison is advisory. Missing live or batch artifacts are written as `blockers`, but they must
-not fail the normal batch pipeline.
+not fail the normal batch pipeline. `not_evaluated` gates are promotion blockers, not failures of the
+recording.
 
 For sanitized external synthesis:
 
