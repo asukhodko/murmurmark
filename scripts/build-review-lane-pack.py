@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.8.0"
+SCRIPT_VERSION = "0.8.1"
 SCHEMA = "murmurmark.review_lane_pack/v1"
 KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
 DEFAULT_ALLOWED_DECISIONS = {"drop_me", "keep_me", "needs_review", "skip"}
@@ -123,6 +123,14 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Path to faster_whisper_judge.jsonl, auto for per-session default, or off. "
             "When available, high-confidence local audio evidence can improve suggested answers."
+        ),
+    )
+    parser.add_argument(
+        "--target-me-evidence",
+        default="auto",
+        help=(
+            "Path to target_me_audit.jsonl, auto for per-session default, or off. "
+            "Only high-confidence local-speaker keep evidence is used for suggested answers."
         ),
     )
     return parser.parse_args()
@@ -574,6 +582,10 @@ def stronger_judge_path_for_session(session_path: Path) -> Path:
     return session_path / "derived/audit/audio-review-pack/faster_whisper_judge.jsonl"
 
 
+def target_me_path_for_session(session_path: Path) -> Path:
+    return session_path / "derived/audit/target-me/target_me_audit.jsonl"
+
+
 def stronger_judge_rows_by_session(rows: list[dict[str, Any]], source: str) -> dict[str, list[dict[str, Any]]]:
     if source == "off":
         return {}
@@ -590,6 +602,28 @@ def stronger_judge_rows_by_session(rows: list[dict[str, Any]], source: str) -> d
             session_path = session_path_from_row(row)
             if session_id and session_path is not None:
                 paths.setdefault(session_id, stronger_judge_path_for_session(session_path))
+    loaded: dict[str, list[dict[str, Any]]] = {}
+    for session_id, path in paths.items():
+        loaded[session_id] = read_jsonl(path)
+    return loaded
+
+
+def target_me_rows_by_session(rows: list[dict[str, Any]], source: str) -> dict[str, list[dict[str, Any]]]:
+    if source == "off":
+        return {}
+    paths: dict[str, Path] = {}
+    if source != "auto":
+        explicit = Path(source).expanduser()
+        for row in rows:
+            session_id = str(row.get("session_id") or "")
+            if session_id:
+                paths[session_id] = explicit
+    else:
+        for row in rows:
+            session_id = str(row.get("session_id") or "")
+            session_path = session_path_from_row(row)
+            if session_id and session_path is not None:
+                paths.setdefault(session_id, target_me_path_for_session(session_path))
     loaded: dict[str, list[dict[str, Any]]] = {}
     for session_id, path in paths.items():
         loaded[session_id] = read_jsonl(path)
@@ -630,6 +664,31 @@ def stronger_matches_for_row(row: dict[str, Any], by_session: dict[str, list[dic
     return matches
 
 
+def target_me_matches_for_row(row: dict[str, Any], by_session: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    session_id = str(row.get("session_id") or "")
+    candidates = by_session.get(session_id) or []
+    if not candidates:
+        return []
+    row_ids = set(list_values(row, "utterance_ids"))
+    me_ids = set(list_values(row, "me_utterance_ids"))
+    matches: list[dict[str, Any]] = []
+    for candidate in candidates:
+        candidate_ids = {str(value) for value in candidate.get("utterance_ids") or [] if value}
+        if not candidate_ids:
+            continue
+        source_match = (
+            row.get("source_audit_id")
+            and str(row.get("source_audit_id")) == str(candidate.get("source_pack_item_id") or "")
+            and bool(row_ids & candidate_ids)
+        )
+        me_match = bool(me_ids and me_ids <= candidate_ids)
+        exactish = bool(row_ids and (row_ids <= candidate_ids or candidate_ids <= row_ids))
+        time_match = interval_overlap_seconds(row, candidate) > 0.05
+        if source_match or ((exactish or me_match) and time_match):
+            matches.append(candidate)
+    return matches
+
+
 def stronger_summary_for_group(rows: list[dict[str, Any]], by_session: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
     matches: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -645,6 +704,28 @@ def stronger_summary_for_group(rows: list[dict[str, Any]], by_session: dict[str,
     return {
         "matches": matches,
         "labels": labels,
+        "max_confidence": round(max(confidences), 3) if confidences else None,
+        "count": len(matches),
+    }
+
+
+def target_me_summary_for_group(rows: list[dict[str, Any]], by_session: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    matches: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        for match in target_me_matches_for_row(row, by_session):
+            key = str(match.get("id") or match.get("source_pack_item_id") or len(seen))
+            if key in seen:
+                continue
+            seen.add(key)
+            matches.append(match)
+    labels = [str((match.get("classification") or {}).get("label") or "") for match in matches]
+    impacts = [str((match.get("impact") or {}).get("category") or "") for match in matches]
+    confidences = [float((match.get("classification") or {}).get("confidence") or 0.0) for match in matches]
+    return {
+        "matches": matches,
+        "labels": labels,
+        "impacts": impacts,
         "max_confidence": round(max(confidences), 3) if confidences else None,
         "count": len(matches),
     }
@@ -701,6 +782,51 @@ def stronger_suggested_decision(
             )
             return "keep_me", round(confidence, 3), reason, summary
     return None, None, None, summary
+
+
+def target_me_suggested_decision(
+    rows: list[dict[str, Any]],
+    by_session: dict[str, list[dict[str, Any]]],
+    stronger_summary: dict[str, Any] | None,
+) -> tuple[str | None, Any, str | None, dict[str, Any] | None]:
+    summary = target_me_summary_for_group(rows, by_session)
+    matches = summary["matches"]
+    if not matches:
+        return None, None, None, None
+    allowed = set(common_allowed_decisions(rows))
+    if "keep_me" not in allowed:
+        return None, None, None, summary
+    high_confirmed = [
+        match
+        for match in matches
+        if str((match.get("classification") or {}).get("label") or "") == "target_me_confirmed"
+        and float((match.get("classification") or {}).get("confidence") or 0.0) >= 0.88
+    ]
+    high_absent = [
+        match
+        for match in matches
+        if str((match.get("classification") or {}).get("label") or "") in {"target_me_absent", "target_me_absent_remote_like"}
+        and float((match.get("classification") or {}).get("confidence") or 0.0) >= 0.88
+    ]
+    if not high_confirmed or high_absent:
+        return None, None, None, summary
+    if stronger_has_high_confidence_drop(stronger_summary):
+        return (
+            "needs_review",
+            "low",
+            "target_me: confirmed local speaker conflicts with stronger-audio-judge drop evidence",
+            summary,
+        )
+    useful = [
+        match
+        for match in high_confirmed
+        if str((match.get("impact") or {}).get("category") or "")
+        in {"new_keep_evidence", "corroborates_existing_evidence"}
+    ]
+    if not useful:
+        return None, None, None, summary
+    confidence = max(float((match.get("classification") or {}).get("confidence") or 0.0) for match in useful)
+    return "keep_me", round(confidence, 3), "target_me: confirmed local speaker", summary
 
 
 def stronger_has_high_confidence_drop(summary: dict[str, Any] | None) -> bool:
@@ -822,20 +948,42 @@ def text_guard_drop_duplicate_decision(rows: list[dict[str, Any]], summary: dict
 def suggested_decision_for_group(
     rows: list[dict[str, Any]],
     stronger_by_session: dict[str, list[dict[str, Any]]],
-) -> tuple[str, Any, str, dict[str, Any] | None]:
+    target_me_by_session: dict[str, list[dict[str, Any]]],
+) -> tuple[str, Any, str, dict[str, Any] | None, dict[str, Any] | None]:
     stronger_decision, confidence, reason, summary = stronger_suggested_decision(rows, stronger_by_session)
+    target_decision, target_confidence, target_reason, target_summary = target_me_suggested_decision(
+        rows,
+        target_me_by_session,
+        summary,
+    )
+    if stronger_decision == "drop_me" and target_decision == "keep_me":
+        return (
+            "needs_review",
+            "low",
+            "target_me: confirmed local speaker conflicts with stronger-audio-judge drop evidence",
+            summary,
+            target_summary,
+        )
     if stronger_decision:
-        return stronger_decision, confidence, reason or "", summary
+        return stronger_decision, confidence, reason or "", summary, target_summary
+    if target_decision:
+        return target_decision, target_confidence, target_reason or "", summary, target_summary
     text_guard_decision, text_guard_confidence, text_guard_reason = text_guard_keep_decision(rows, summary)
     if text_guard_decision:
-        return text_guard_decision, text_guard_confidence, text_guard_reason or "", summary
+        return text_guard_decision, text_guard_confidence, text_guard_reason or "", summary, target_summary
     text_guard_decision, text_guard_confidence, text_guard_reason = text_guard_drop_duplicate_decision(rows, summary)
     if text_guard_decision:
-        return text_guard_decision, text_guard_confidence, text_guard_reason or "", summary
+        return text_guard_decision, text_guard_confidence, text_guard_reason or "", summary, target_summary
     fallback_decision = group_suggested_decision(rows)
     if fallback_decision == "drop_me" and stronger_has_inconclusive_evidence(summary):
-        return "needs_review", "low", "stronger_audio_judge: inconclusive; suppressing automatic drop", summary
-    return fallback_decision, common_value(rows, "suggested_decision_confidence", "mixed"), group_suggested_reason(rows), summary
+        return "needs_review", "low", "stronger_audio_judge: inconclusive; suppressing automatic drop", summary, target_summary
+    return (
+        fallback_decision,
+        common_value(rows, "suggested_decision_confidence", "mixed"),
+        group_suggested_reason(rows),
+        summary,
+        target_summary,
+    )
 
 
 def group_clip_text(rows: list[dict[str, Any]]) -> str:
@@ -1425,6 +1573,7 @@ def main() -> int:
     session_arg = next(iter(session_filters)) if len(session_filters) == 1 else ""
     selected = select_lane_rows(rows, args, session_filters)
     stronger_by_session = stronger_judge_rows_by_session(selected, str(args.stronger_audio_judge or "auto"))
+    target_me_by_session = target_me_rows_by_session(selected, str(args.target_me_evidence or "auto"))
 
     out_dir = args.out_dir.expanduser()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1466,9 +1615,10 @@ def main() -> int:
             ]
             if len(group_commands) > 1:
                 command_key = f"grouped:{command_key}"
-            suggested_decision, suggested_confidence, suggested_reason, stronger_summary = suggested_decision_for_group(
+            suggested_decision, suggested_confidence, suggested_reason, stronger_summary, target_me_summary = suggested_decision_for_group(
                 group_rows,
                 stronger_by_session,
+                target_me_by_session,
             )
             tmp_wav = tmp_dir / f"clip_{index:04d}.wav"
             rendered, render_error = render_group_clip(command_entries, tmp_dir, index, tmp_wav)
@@ -1522,6 +1672,7 @@ def main() -> int:
                     "suggested_decision_confidence": suggested_confidence,
                     "suggested_decision_reason": suggested_reason,
                     "stronger_audio_judge": stronger_summary,
+                    "target_me": target_me_summary,
                     "allowed_decisions": common_allowed_decisions(group_rows),
                     "command_key": command_key,
                     "command": command,
@@ -1563,6 +1714,7 @@ def main() -> int:
             "group_related": args.group_related,
             "include_related_lanes": args.include_related_lanes,
             "stronger_audio_judge": args.stronger_audio_judge,
+            "target_me_evidence": args.target_me_evidence,
         },
         "outputs": {
             "audio": str(audio_path),

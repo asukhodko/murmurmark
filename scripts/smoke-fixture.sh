@@ -1796,9 +1796,9 @@ uncertain_candidate = dict(
         "confidence": 0.69,
     },
 )
-decision, confidence, reason, summary = module.suggested_decision_for_group([old_drop_row], {"fixture": [uncertain_candidate]})
+decision, confidence, reason, summary, target_summary = module.suggested_decision_for_group([old_drop_row], {"fixture": [uncertain_candidate]}, {})
 assert decision == "needs_review" and "suppressing automatic drop" in reason, (decision, confidence, reason, summary)
-decision, confidence, reason, summary = module.suggested_decision_for_group([old_drop_row], {"fixture": []})
+decision, confidence, reason, summary, target_summary = module.suggested_decision_for_group([old_drop_row], {"fixture": []}, {})
 assert decision == "drop_me", (decision, confidence, reason, summary)
 
 source_match_candidate = dict(
@@ -1884,7 +1884,7 @@ text_guard_row = dict(
         {"id": "utt_me", "role": "me", "source_track": "mic", "text": "Команда проверит деплой, а я посмотрю алерты завтра."},
     ],
 )
-decision, confidence, reason, summary = module.suggested_decision_for_group([text_guard_row], {"fixture": []})
+decision, confidence, reason, summary, target_summary = module.suggested_decision_for_group([text_guard_row], {"fixture": []}, {})
 assert decision == "keep_me" and confidence == 0.74 and "text_guard_unique_me_content" in reason, (
     decision,
     confidence,
@@ -1898,7 +1898,7 @@ text_guard_duplicate = dict(
         {"id": "utt_me", "role": "me", "source_track": "mic", "text": "Команда проверит деплой."},
     ],
 )
-decision, confidence, reason, summary = module.suggested_decision_for_group([text_guard_duplicate], {"fixture": []})
+decision, confidence, reason, summary, target_summary = module.suggested_decision_for_group([text_guard_duplicate], {"fixture": []}, {})
 assert decision != "keep_me", (decision, confidence, reason, summary)
 text_guard_contained_duplicate = dict(
     text_guard_row,
@@ -1914,7 +1914,7 @@ text_guard_contained_duplicate = dict(
         {"id": "utt_me", "role": "me", "source_track": "mic", "text": "Нужно проверить P50 графики"},
     ],
 )
-decision, confidence, reason, summary = module.suggested_decision_for_group([text_guard_contained_duplicate], {"fixture": []})
+decision, confidence, reason, summary, target_summary = module.suggested_decision_for_group([text_guard_contained_duplicate], {"fixture": []}, {})
 assert decision == "drop_me" and confidence == 0.82 and "text_guard_remote_contains_me" in reason, (
     decision,
     confidence,
@@ -1922,7 +1922,7 @@ assert decision == "drop_me" and confidence == 0.82 and "text_guard_remote_conta
     summary,
 )
 text_guard_low_confidence_duplicate = dict(text_guard_contained_duplicate, confidence=0.82)
-decision, confidence, reason, summary = module.suggested_decision_for_group([text_guard_low_confidence_duplicate], {"fixture": []})
+decision, confidence, reason, summary, target_summary = module.suggested_decision_for_group([text_guard_low_confidence_duplicate], {"fixture": []}, {})
 assert decision != "drop_me", (decision, confidence, reason, summary)
 text_guard_action_tail = dict(
     text_guard_row,
@@ -1931,7 +1931,7 @@ text_guard_action_tail = dict(
         {"id": "utt_me", "role": "me", "source_track": "mic", "text": "Ответить на вопрос про ретро проверю завтра."},
     ],
 )
-decision, confidence, reason, summary = module.suggested_decision_for_group([text_guard_action_tail], {"fixture": []})
+decision, confidence, reason, summary, target_summary = module.suggested_decision_for_group([text_guard_action_tail], {"fixture": []}, {})
 assert decision == "keep_me" and "проверю" in reason, (decision, confidence, reason, summary)
 PY
 
@@ -3086,9 +3086,30 @@ EOF
     --template "$preserve_template" \
     --out "$preserve_out" \
     --answers-file "$preserve_answers" >/dev/null
-  jq -s 'length == 2 and any(.[]; .source_audit_id == "preserve_existing" and .decision == "keep_me") and any(.[]; .source_audit_id == "preserve_current" and .decision == "keep_me")' "$preserve_out" >/dev/null
-  preserve_progress="$workdir/review_decisions_preserve_progress.json"
-  "$repo_root/scripts/report-review-decisions-progress.py" \
+	  jq -s 'length == 2 and any(.[]; .source_audit_id == "preserve_existing" and .decision == "keep_me") and any(.[]; .source_audit_id == "preserve_current" and .decision == "keep_me")' "$preserve_out" >/dev/null
+	  preserve_workspace="$workdir/review_workspace_preserve.json"
+	  preserve_workspace_out="$workdir/review_decisions_workspace_preserve.jsonl"
+	  preserve_workspace_report="$workdir/review_workspace_preserve_apply_report.json"
+	  preserve_workspace_suggested="$workdir/review_lane_answers_preserve.suggested.txt"
+	  cat >"$preserve_workspace_out" <<EOF
+{"schema":"murmurmark.review_decision/v1","status":"reviewed","decision":"keep_me","session_id":"group-session","session":"$group_session","input_profile":"reviewed_v1","source_audit_id":"preserve_existing","label":"uncertain","verdict":"needs_stronger_audio_judge","review_lane":"check_unique_me_content","review_action":"check_unique_me_content","utterance_ids":["utt_preserve_existing"],"interval":{"start":0.0,"end":1.0,"duration_sec":1.0},"text":[{"id":"utt_preserve_existing","role":"me","source_track":"mic","text":"Existing reviewed lane."}]}
+EOF
+	  echo 'answers=k' >"$preserve_workspace_suggested"
+	  cat >"$preserve_workspace" <<EOF
+{"schema":"murmurmark.review_workspace/v1","lanes":[{"status":"ok","lane":"classify_audio","manifest":"$preserve_manifest","answer_sheet":"$preserve_answers","suggested_answer_sheet":"$preserve_workspace_suggested"}]}
+EOF
+	  "$repo_root/scripts/apply-review-workspace-decisions.py" \
+	    --workspace "$preserve_workspace" \
+	    --template "$preserve_template" \
+	    --out "$preserve_workspace_out" \
+	    --report "$preserve_workspace_report" \
+	    --answers-source suggested \
+	    --allow-partial \
+	    --quiet
+	  jq -s 'length == 2 and any(.[]; .source_audit_id == "preserve_existing" and .decision == "keep_me") and any(.[]; .source_audit_id == "preserve_current" and .decision == "keep_me" and .review_source == "workspace_suggested_answer_sheet")' "$preserve_workspace_out" >/dev/null
+	  jq -e '.summary.total_rows == 2 and .summary.remaining_rows == 0 and .suggested_closure.closed_by_suggestions.rows == 1' "$preserve_workspace_report" >/dev/null
+	  preserve_progress="$workdir/review_decisions_preserve_progress.json"
+	  "$repo_root/scripts/report-review-decisions-progress.py" \
     --template "$preserve_template" \
     --decisions "$preserve_out" \
     --out "$preserve_progress" \

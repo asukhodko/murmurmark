@@ -37,29 +37,28 @@ The CLI MVP is already real:
 - `murmurmark retention` plans payloads and raw deletion;
 - `murmurmark doctor`, `self-test`, `acceptance`, release bundle and open-source checks exist.
 
-Operational corpus snapshot from 2026-06-30:
+Operational corpus snapshot from 2026-07-01:
 
-- status: `not_ready`;
-- usable for medium-risk notes: no at corpus level; yes session-by-session when `status` says so;
-- working sessions: `16`;
-- excluded diagnostic sessions: `26`;
-- readiness: `14/16 ready_for_notes`, `1/16 review_first`, one risky daily-sync blocker;
-- selected notes review burden: `0.69 min`;
-- full transcript/export review surface: `3.19 min`;
-- remaining actionable review queue: `5` actions in `sessions/2026-06-30_11-15-56`;
-- suggested closure: `8` generated suggestions across `5` reports, all `needs_review`, `0`
-  actionable keep/drop rows.
+- the 2026-06-30 corpus snapshot was `not_ready` because a small explicit review queue remained;
+- two fresh 2026-07-01 sessions verified the stabilized local review loop;
+- `review suggested apply` is now cumulative: already reviewed rows are preserved even when the
+  regenerated template changes;
+- `review progress`, workspace `suggested_closure`, `status` and session-quality now agree on the
+  same remaining queue;
+- verified examples:
+  - `sessions/2026-07-01_11-17-22`: `2` rows / `2.72s` remaining;
+  - `sessions/2026-07-01_14-01-09`: `7` rows / `17.3s` remaining.
 
 This is enough to use many individual MurmurMark sessions with caution. It is not enough to call the
 current operational corpus green.
 
-The 2026-06-30 daily sync showed the current review-loop gap: a meeting can have healthy capture and
-no harmful duplicate seconds, but still be marked `risky` because several order/local-recall rows are
-not formally closed. The immediate path is now `murmurmark review suggested SESSION`, then
+The 2026-06-30 daily sync showed the review-loop gap: a meeting can have healthy capture and no
+harmful duplicate seconds, but still be marked `risky` because order/local-recall rows are not
+formally closed. The immediate path is now `murmurmark review suggested SESSION`, then
 `murmurmark review suggested apply SESSION`; this closes only high-confidence local-audio suggestions
-when they match the current review queue. If nothing is safe to close, it says so explicitly and
-prints the exact remaining manual queue instead of implying that the user should trust unrelated
-audio-judge seconds.
+when they match the current review queue, preserves earlier decisions, and prints the exact remaining
+manual queue. Targeted stronger-audio-judge is cached-first by default; deliberate new decode is
+opt-in through `MURMURMARK_TARGETED_JUDGE_COMPUTE=1`.
 
 The same corpus also shows a deeper quality limit: much of the later cleanup work exists because
 remote speech is still audible and sometimes recognizable in the mic track. `local_fir` remains the
@@ -73,8 +72,11 @@ artifacts. Coverage v2 then broadened ASR audit-window selection from speaker st
 artifacts; the six-session smoke reached `4/6` safe improved sessions and zero local-recall
 regressions. ASR-positive audio candidate v2 then added `coverage_v2_remote_gate_local_fir`, a real
 shadow audio candidate that passes the ASR audio-candidate gate on `4/6` smoke sessions with zero
-local-recall regressions. The next quality gap is harder double-talk and open-space noise, where
-subtraction alone may be underdetermined.
+local-recall regressions. Target-Me extraction has now tested `mfcc_voiceprint_v0`,
+`mfcc_contrastive_v0` and `resemblyzer_dvector_v0`. The MFCC baselines are useful only for
+instrumentation. `resemblyzer_dvector_v0` is the first promising speaker-embedding layer: six-session
+smoke found `13` new keep-evidence rows / `48.82s` and `54` corroborating rows / `306.95s`. The next
+quality gap is hardening that signal into safe review suggestions without automatic transcript edits.
 
 ## Roadmap Tree
 
@@ -151,9 +153,10 @@ flowchart LR
   - use Coverage v2 windows as the ASR judge for audio candidates: v2 writes selection reasons,
     evidence rows, readiness metrics and corpus report; current smoke is `4/6` safe improved;
   - keep `coverage_v2_remote_gate_local_fir` as the current shadow audio candidate baseline;
-  - make Target-Me extraction the nearest large quality goal;
-  - keep target-speaker extraction and neural residual suppression as later spikes behind corpus
-    gates.
+  - keep `mfcc_voiceprint_v0` and `mfcc_contrastive_v0` as Target-Me baselines: useful for
+    measurement, not enough for review-burden reduction;
+  - harden `resemblyzer_dvector_v0` as the next Target-Me review/evidence layer;
+  - keep neural residual suppression as a later spike behind corpus gates.
 - Keep the final handoff readable: `finish` now opens a bundle whose `index.md` is the first working
   artifact, not a derived-file directory listing.
 - Make the everyday path boring:
@@ -236,6 +239,10 @@ handoff and keeps uncertainty visible.
 
 Recently completed:
 
+- **Review-loop stabilization v1.** `review suggested apply` is cumulative, key-based and
+  report-consistent. It consumes cached stronger-audio-judge and Target-Me evidence in lane
+  suggestions, preserves closed rows across regenerated templates, and makes progress/status/report
+  agree on the same remaining rows and seconds.
 - **ASR-positive audio candidate v2.** `coverage_v2_remote_gate_local_fir` starts from the safer
   local-fir/segment-switch path and applies remote-floor cleanup only in Coverage v2 risk windows
   without strong local-speech evidence. Six-session smoke: `4/6` ASR audio candidate gate-passed
@@ -265,21 +272,27 @@ Recently completed:
 
 ## Candidate Next Goals
 
-Recommended nearest goal: **Target-Me extraction spike**. The audio-candidate path now has a useful
-shadow baseline. The remaining hard cases are more likely to involve double-talk, open-space noise
-and local/remote speech mixed in ways that subtraction alone cannot fully determine.
+Recommended nearest goal: **finish Review-loop Stabilization v1**: keep suggested decisions
+cumulative, report-consistent and fast enough for the normal CLI path. After that, the next quality
+goal is Target-Me Evidence Hardening v1: turn the `resemblyzer_dvector_v0` signal into safe review
+suggestions and corpus gates, while keeping transcript edits manual or guarded by existing safety
+checks.
 
-1. **Target-Me extraction spike.** Use high-confidence local-only speech as enrollment material for
-   difficult double-talk and open-space-noise cases.
-2. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
+1. **Finish Review-loop Stabilization v1.** Preserve closed rows across regenerated templates, keep
+   `review progress`, `status`, `report` and `suggested_closure` aligned, and make targeted model work
+   explicit when it would be slow.
+2. **Target-Me Evidence Hardening v1.** Integrate `resemblyzer_dvector_v0` with review-lane
+   suggestions and corpus reports: keep true `Me` rows that old remote-duplicate heuristics would
+   over-delete, but do not auto-edit transcripts.
+3. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
    close safe suggested review rows, preserve manual rows and keep status/report aligned.
-3. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only
+4. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only
    until broader corpus gates prove it is safe beyond selected audit windows.
-4. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
+5. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
    reviewed docs/ticket proposal exports.
-5. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
+6. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
    changes to beat or preserve it.
-6. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
+7. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
    to utterance IDs and review flags.
 7. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
    artifacts and add security/contact guidance.

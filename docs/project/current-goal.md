@@ -1,3 +1,166 @@
+# Current Goal: Review-Loop Stabilization v1
+
+Status, 2026-07-01: in progress. The main review-queue drift is fixed and verified on two fresh
+sessions; full goal completion still requires the final check run, documentation pass, commit and
+push.
+
+The goal is to make the CLI path boring and reproducible after a session has been recorded:
+
+```text
+record -> process -> review suggested apply -> status/report
+```
+
+The important promise is not “zero review”. The promise is that every layer reports the same
+remaining review queue, automatic decisions are cumulative, and unresolved seconds stay explicit.
+
+Current implementation:
+
+- `apply-review-workspace-decisions.py` preserves already reviewed rows even when the current
+  generated template no longer contains them.
+- `suggested_closure` now computes newly closed rows by stable review-row keys, not by list position.
+- `report-session-quality.py` uses `review_decisions_progress.remaining_seconds` directly instead of
+  reconstructing seconds from rounded minutes.
+- `murmurmark review suggested` rebuilds lane packs, refreshes suggestions from cached
+  stronger-audio-judge and Target-Me evidence, applies only safe generated answers, and then refreshes
+  `reviewed_v1` readiness when anything was closed.
+- Targeted stronger-audio-judge is cached-first in the normal suggested path. It does not start a
+  long new faster-whisper decode unless explicitly enabled:
+
+```bash
+MURMURMARK_TARGETED_JUDGE_COMPUTE=1 \
+MURMURMARK_TARGETED_JUDGE_MAX_COMPUTED=4 \
+murmurmark review suggested apply "$SESSION"
+```
+
+- Target-Me evidence is consumed by lane suggestions as high-confidence `keep_me` support when rows
+  already exist. Refreshing Target-Me inside suggested review is explicit because it can be slower
+  than the handoff itself:
+
+```bash
+MURMURMARK_REVIEW_TARGET_ME_REFRESH=1 murmurmark review suggested apply "$SESSION"
+```
+
+Verification snapshot:
+
+- `sessions/2026-07-01_11-17-22`:
+  - `review progress`: `2` remaining rows / `2.72s`;
+  - workspace `suggested_closure`: `2` remaining rows / `2.72s`;
+  - session-quality `review_scope_remaining_seconds`: `2.72s`.
+- `sessions/2026-07-01_14-01-09`:
+  - `review progress`: `7` remaining rows / `17.3s`;
+  - workspace `suggested_closure`: `7` remaining rows / `17.3s`;
+  - session-quality `review_scope_remaining_seconds`: `17.3s`.
+
+Remaining work before closing this goal:
+
+- run the full project checks;
+- update README/runbook/roadmap;
+- commit and push the stabilized state.
+
+# Recent Quality Goal: Target-Me Extraction Spike v1
+
+Status, 2026-07-01: in progress as a shadow-only evidence spike. Not promoted.
+
+The goal is to test whether MurmurMark can distinguish the user's real microphone speech from
+remote leakage, double-talk and open-space background speech without changing capture, `local_fir`,
+the main `whisper.cpp` ASR path or selected production profiles.
+
+The implemented local baseline layer now has two MFCC variants:
+
+- collect enrollment material from high-confidence local-only `Me` utterances;
+- `mfcc_voiceprint_v0`: compute a simple local acoustic voiceprint with MFCC/spectral/pitch
+  features;
+- `mfcc_contrastive_v0`: add clean remote speech as a negative class and score risky clips against
+  both `Me` and remote centroids;
+- write `derived/audit/target-me/target_me_enrollment.json`;
+- write `derived/audit/target-me/target_me_audit.jsonl`;
+- write `derived/audit/target-me/target_me_summary.json`;
+- write `derived/audit/target-me/target_me_report.md`;
+- write corpus output under `sessions/_reports/target-me/`.
+
+`--method auto` uses local WavLM if model files are present, otherwise `resemblyzer_dvector_v0` if
+the package is installed, otherwise `mfcc_contrastive_v0`.
+
+The first real local speaker-embedding backend has also been tested:
+
+- `resemblyzer_dvector_v0` uses local `resemblyzer.VoiceEncoder`;
+- install command: `.venv/bin/pip install resemblyzer`;
+- explicit command: `murmurmark audit target-me "$SESSION" --method resemblyzer_dvector`;
+- it writes the same shadow artifacts and does not edit transcripts or cleanup profiles.
+
+The WavLM speaker-embedding backend is wired but not evaluated yet:
+
+- `wavlm_xvector_v0` uses local `transformers` `AutoModelForAudioXVector`;
+- default model path: `~/.local/share/murmurmark/models/target-me/wavlm-base-plus-sv`;
+- explicit command: `murmurmark audit target-me "$SESSION" --method wavlm_xvector`;
+- when model files are missing, the audit writes `status: missing_embedding_model`.
+
+Current local backend probe:
+
+- `torch`: available;
+- `transformers`: available;
+- `faster_whisper`: available, but it is an ASR judge, not speaker identity;
+- `resemblyzer`: available after local `.venv` install;
+- `speechbrain`, `pyannote`, `asteroid`, `wespeaker`: not installed;
+- local WavLM model files: missing;
+- ready source-separation candidate: none.
+
+This keeps the spike local-only and reproducible. No audio is sent to an external service.
+
+Current six-session smoke:
+
+- ready enrollment sessions: `6/6`;
+- audited clips: `102`;
+- audited seconds: `479.4`;
+- method: `mfcc_contrastive_v0`;
+- `target_me_possible`: `89` clips / `441.89s`;
+- `target_me_ambiguous`: `13` clips / `37.51s`;
+- new review-burden reduction: `0` clips / `0.0s`;
+- corroborating existing reliable evidence: `0` clips / `0.0s`;
+- research decision: `no_clear_gain_yet_keep_as_evidence`;
+- promotion decision: `shadow_only_do_not_promote`.
+
+Current six-session d-vector smoke:
+
+- method: `resemblyzer_dvector_v0`;
+- ready enrollment sessions: `6/6`;
+- audited clips: `102`;
+- `target_me_confirmed`: `67` clips / `355.77s`;
+- `target_me_possible`: `31` clips / `103.67s`;
+- `target_me_ambiguous`: `4` clips / `19.96s`;
+- new keep-evidence rows: `13` clips / `48.82s`;
+- corroborating existing evidence: `54` clips / `306.95s`;
+- readiness impact: `shadow_only_not_applied`; actual `ready_for_notes` / `review_first` / `risky`
+  counts do not change until this evidence is integrated into review decisions;
+- research decision: `promising_shadow_evidence_continue`;
+- promotion decision: `shadow_only_do_not_promote`.
+
+Interpretation: cheap acoustic voiceprints are useful for instrumentation, but they are not strong
+enough to solve Target-Me extraction. Local d-vector embeddings are promising as a review/evidence
+layer: they can protect real `Me` utterances that older audits marked as `remote_duplicate` or
+`uncertain`. The current environment still has no ready source-separation package, and d-vector
+evidence must stay behind corpus gates before it can drive automatic review decisions.
+
+Working commands:
+
+```bash
+.venv/bin/pip install resemblyzer
+murmurmark audit target-me "$SESSION" --profile auto --max-items 80
+less "$SESSION/derived/audit/target-me/target_me_report.md"
+```
+
+```bash
+.venv/bin/python scripts/audit-target-me.py \
+  sessions/2026-06-23_14-04-37 \
+  sessions/2026-06-25_11-14-27 \
+  sessions/2026-06-26_11-15-50 \
+  sessions/2026-06-26_12-04-04 \
+  sessions/2026-06-29_16-31-02 \
+  sessions/2026-06-30_17-17-20 \
+  --profile auto \
+  --max-items 20
+```
+
 # Latest Completed Goal: ASR-Positive Audio Candidate v2
 
 Status, 2026-07-01: completed as a shadow-only Echo Guard candidate. Not promoted.
@@ -143,8 +306,8 @@ stronger research baseline, but it is not yet a production replacement for `loca
 
 Recommended next goal:
 
-1. Target-Me extraction spike: use high-confidence local speech to separate the user's voice in
-   difficult double-talk and open-space noise.
+1. Target-Me Evidence Hardening v1: integrate `resemblyzer_dvector_v0` into review suggestions
+   behind corpus gates, without automatic transcript edits.
 2. Neural residual echo suppression spike: test a narrow local model only after deterministic
    candidate reports prove where it is needed.
 3. Token-level remote-forbidden transcript reconciliation: keep a final safety net even when audio

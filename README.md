@@ -43,14 +43,12 @@ manual review queue instead of pretending to be green. Most sessions are still u
 evidence-backed notes when their own `status` says so; full transcript/export can remain blocked
 until the explicit review items are closed.
 
-Latest completed quality goal: [ASR-positive audio candidate v2](docs/project/current-goal.md).
-Recommended next quality goal: Target-Me extraction spike. ASR-positive audio candidate v2 adds the
-shadow `coverage_v2_remote_gate_local_fir` candidate and uses Coverage v2 windows as the judge:
-six-session smoke shows `4/6` audio-candidate gate-passed sessions, `0` local-recall regressions and
-two sessions with `no_baseline_asr_visible_leak`. It remains shadow/review-only. Latest product
-milestone: Export Bundle Quality v1; `finish` now writes a readable local handoff bundle whose
-`index.md` answers whether the result can be used, what still needs review and what retention/privacy
-step comes next.
+Current stabilization goal: [review-loop stabilization](docs/project/current-goal.md). `review
+suggested apply` is now cumulative, keeps already closed rows, consumes cached stronger-audio-judge
+and Target-Me evidence in lane suggestions, and makes `review progress`, `status`, `report` and
+`suggested_closure` agree on the same remaining queue. Latest product milestone: Export Bundle
+Quality v1; `finish` writes a readable local handoff bundle whose `index.md` answers whether the
+result can be used, what still needs review and what retention/privacy step comes next.
 
 ## What Works Now
 
@@ -240,15 +238,26 @@ murmurmark status sessions/<session-id>
 murmurmark report sessions/<session-id>
 ```
 
-`review suggested` builds all lane packs, dry-runs generated suggested answers and prints a
-`suggested_closure` block: before/after manual rows, generated/actionable/needs-review counts, a
-conservative readiness projection, rows that can be closed without listening and the exact remaining
-manual queue by lane. `review suggested apply` writes only those safe reviewed rows, keeps dots as
-the manual queue, refreshes `reviewed_v1` readiness when anything was closed and still blocks export
-when risk remains. If nothing is safe to close, it writes no decisions and points to the first
-remaining manual lane. Run `murmurmark report corpus` after that when you want the corpus readiness
-delta. The review loop writes decisions into separate reviewed profiles. It should
-not rewrite raw audio or hide unresolved risk.
+`review suggested` builds all lane packs, refreshes lane suggestions from cached local evidence,
+dry-runs generated suggested answers and prints a `suggested_closure` block: before/after manual
+rows, generated/actionable/needs-review counts, a conservative readiness projection, rows that can be
+closed without listening and the exact remaining manual queue by lane. `review suggested apply`
+writes only those safe reviewed rows, preserves previously closed rows, keeps dots as the manual
+queue, refreshes `reviewed_v1` readiness when anything was closed and still blocks export when risk
+remains. If nothing is safe to close, it writes no new decisions and points to the first remaining
+manual lane. Run `murmurmark report corpus` after that when you want the corpus readiness delta. The
+review loop writes decisions into separate reviewed profiles. It should not rewrite raw audio or hide
+unresolved risk.
+
+By default `review suggested` does not start a long new faster-whisper decode. It uses existing
+`faster_whisper_judge.jsonl` rows and current lane packs. To deliberately compute a small targeted
+batch during suggested review:
+
+```bash
+MURMURMARK_TARGETED_JUDGE_COMPUTE=1 \
+MURMURMARK_TARGETED_JUDGE_MAX_COMPUTED=4 \
+murmurmark review suggested apply latest
+```
 
 ## Export And Retention
 
@@ -411,6 +420,81 @@ The corpus report includes guarded seconds, review-burden seconds and an explici
 stays shadow-only and the report should say whether the blocker is missing ASR-visible baseline leak,
 local-recall risk or weak quarantine-only evidence.
 
+## Target-Me Evidence Audit
+
+Target-Me evidence is the current research path for hard double-talk and open-space cases. It is
+shadow-only: it does not change capture, `local_fir`, `mic_for_asr.wav`, selected transcript
+profiles or raw CAF files.
+
+```bash
+SESSION=./sessions/<session-id>
+
+murmurmark audit target-me "$SESSION" --profile auto --max-items 80
+less "$SESSION/derived/audit/target-me/target_me_report.md"
+```
+
+`--method auto` uses the strongest available local backend: WavLM if model files are present,
+otherwise `resemblyzer_dvector_v0` if the package is installed, otherwise `mfcc_contrastive_v0`.
+The MFCC methods enroll `Me` from high-confidence local-only transcript regions; the contrastive
+variant also enrolls clean remote speech as a negative class. They are measurement layers, not
+production identity models.
+
+For the recommended local speaker-embedding audit, install `resemblyzer`:
+
+```bash
+.venv/bin/pip install resemblyzer
+
+murmurmark audit target-me "$SESSION" --profile auto --max-items 80
+```
+
+This uses local d-vector embeddings from `resemblyzer.VoiceEncoder`. It is still an evidence layer:
+it can suggest that a risky `Me` row is probably real local speech, but it does not edit transcripts
+or cleanup profiles by itself.
+
+Review lane suggestions consume existing Target-Me rows as high-confidence keep evidence. A normal
+`review suggested` run does not refresh Target-Me by default because it can be slower than the review
+handoff itself. To refresh it inside the suggested flow deliberately:
+
+```bash
+MURMURMARK_REVIEW_TARGET_ME_REFRESH=1 murmurmark review suggested apply "$SESSION"
+```
+
+An optional WavLM speaker-verification backend is wired but requires local model files:
+
+```bash
+mkdir -p "$HOME/.local/share/murmurmark/models/target-me/wavlm-base-plus-sv"
+# Put config.json, preprocessor_config.json and pytorch_model.bin from:
+# https://huggingface.co/microsoft/wavlm-base-plus-sv
+
+murmurmark audit target-me "$SESSION" \
+  --profile auto \
+  --method wavlm_xvector \
+  --out-dir-name target-me-wavlm \
+  --max-items 80
+```
+
+If those files are missing, the WavLM audit writes `status: missing_embedding_model` instead of
+falling back silently when `--method wavlm_xvector` is explicit.
+
+Current six-session reading:
+
+- enrollment is available in all six smoke sessions;
+- `102` risky clips were audited;
+- `mfcc_contrastive_v0`: `0` helpful rows, `0` corroborating rows, `0` review-burden reductions;
+- `resemblyzer_dvector_v0`: `13` new keep-evidence rows / `48.82s`, plus `54` corroborating rows /
+  `306.95s`;
+- local probe: `torch`, `transformers`, `faster_whisper` and `resemblyzer` are installed, but no
+  source-separation package is ready;
+- readiness impact: `shadow_only_not_applied`; actual `ready_for_notes` / `review_first` / `risky`
+  counts are unchanged until review-loop integration;
+- research decision for d-vector: `promising_shadow_evidence_continue`;
+- promotion decision: `shadow_only_do_not_promote`.
+
+Interpretation: simple acoustic voiceprints are useful as a sanity check but not strong enough.
+Local d-vector speaker embeddings are promising as a review/evidence layer, especially to protect
+real `Me` utterances from being treated as remote duplicates. They are not yet a production cleanup
+rule and need corpus gates before any automatic review decision.
+
 ## Documentation Map
 
 - [Mission and vision](docs/product/vision.md)
@@ -428,6 +512,8 @@ local-recall risk or weak quarantine-only evidence.
 
 Current focus:
 
+- keep the review-loop stable: suggested decisions are cumulative, status/report/progress agree on
+  the remaining queue, and unresolved rows stay explicit;
 - use the completed ASR-positive audio candidate v2 as the current shadow baseline;
 - keep `local_fir` as the default: the current audio candidates are useful diagnostics, not a
   production replacement;
@@ -442,10 +528,10 @@ Current focus:
 
 Near-term goals for discussion:
 
-1. Target-Me extraction spike: use high-confidence local-only speech as enrollment material for
-   harder double-talk and open-space noise cases.
-2. Corpus and review-loop closure: keep the operational corpus usable while echo work continues;
-   close safe suggested review rows, keep manual rows explicit and prevent status drift.
+1. Review-loop closure on the operational corpus: keep applying safe suggestions, preserve the exact
+   remaining queue, and prevent status drift while echo-removal work continues.
+2. Target-Me evidence hardening: turn the promising `resemblyzer_dvector_v0` shadow signal into safe
+   review suggestions behind corpus gates, without automatic transcript edits.
 3. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only until
    broader corpus gates prove it is safe beyond selected audit windows.
 4. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session

@@ -940,9 +940,13 @@ def suggested_closure_metrics(
         current_remaining = safe_int(review_progress.get("remaining"))
         if reviewed > 0 and current_remaining is not None:
             manual_remaining_rows = current_remaining
-            remaining_minutes = safe_float(review_progress.get("remaining_minutes"))
-            if remaining_minutes is not None:
-                manual_remaining_seconds = round(remaining_minutes * 60.0, 3)
+            remaining_seconds = safe_float(review_progress.get("remaining_seconds"))
+            if remaining_seconds is not None:
+                manual_remaining_seconds = round(remaining_seconds, 3)
+            else:
+                remaining_minutes = safe_float(review_progress.get("remaining_minutes"))
+                if remaining_minutes is not None:
+                    manual_remaining_seconds = round(remaining_minutes * 60.0, 3)
 
     return {
         "suggested_closure_status": closure.get("status"),

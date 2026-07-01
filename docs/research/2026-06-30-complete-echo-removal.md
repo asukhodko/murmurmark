@@ -123,6 +123,22 @@ the first default path, but it is the most plausible rescue path for group calls
 where the product question becomes "is this the local speaker?" rather than "can remote be perfectly
 subtracted?".
 
+Status update, 2026-07-01: the first Target-Me evidence baselines exist as `mfcc_voiceprint_v0`
+and `mfcc_contrastive_v0`. They enroll the user's voice from high-confidence local-only `Me`
+regions; the contrastive variant also enrolls clean remote speech as a negative class. Current
+six-session smoke with `mfcc_contrastive_v0`: `102` clips, `0` helpful rows, `0` corroborating rows,
+`0` new review-burden reductions. Interpretation: simple acoustic MFCC/spectral/pitch features are
+not enough for this branch.
+
+Status update, 2026-07-01: `resemblyzer_dvector_v0` is the first promising local speaker-embedding
+backend. Six-session smoke: `102` clips, `13` new keep-evidence rows / `48.82s`, `54` corroborating
+rows / `306.95s`, research decision `promising_shadow_evidence_continue`, still
+`shadow_only_do_not_promote`. This supports Target-Me as a review/evidence layer, especially for
+protecting true `Me` utterances from remote-duplicate heuristics. It does not yet justify automatic
+cleanup. `wavlm_xvector_v0` is already wired as an optional local backend, but it still needs the
+`microsoft/wavlm-base-plus-sv` files to be downloaded locally before it can be evaluated. The local
+probe also shows no ready source-separation package in the current environment.
+
 Working rule:
 
 ```text

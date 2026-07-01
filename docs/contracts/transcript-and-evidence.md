@@ -1155,6 +1155,132 @@ outputs or raw capture.
 local reliability are the strongest classes and all error classes stay below `60`. This avoids
 escalating expected group-call timing overlap to a stronger judge.
 
+`murmurmark.target_me_*` is the shadow Target-Me evidence layer. It reads the selected transcript
+profile, `speaker_state.jsonl` and the existing audio review pack. It does not edit audio,
+transcripts, cleanup profiles or raw capture.
+
+Current outputs:
+
+```text
+derived/audit/target-me/
+  target_me_enrollment.json
+  target_me_audit.jsonl
+  target_me_summary.json
+  target_me_report.md
+
+sessions/_reports/target-me/
+  target_me_corpus_report.json
+  target_me_corpus_report.md
+```
+
+`target_me_enrollment.json` v1 records how the local `Me` evidence model was built:
+
+```json
+{
+  "schema": "murmurmark.target_me_enrollment/v1",
+  "method": "mfcc_contrastive_v0",
+  "profile": "reviewed_v1",
+  "status": "ready",
+  "accepted_count": 12,
+  "accepted_total_sec": 63.75,
+  "negative_accepted_count": 40,
+  "negative_accepted_total_sec": 374.63,
+  "calibration": {
+    "target_threshold": 0.001032,
+    "weak_target_threshold": -0.000595
+  },
+  "segments": [
+    {
+      "utterance_id": "utt_000064",
+      "start": 556.32,
+      "end": 565.46,
+      "state": {"local_only_ratio": 1.0, "remote_active_ratio": 0.0}
+    }
+  ]
+}
+```
+
+`target_me_audit.jsonl` v1 contains one row per risky review clip:
+
+```json
+{
+  "schema": "murmurmark.target_me_audit/v1",
+  "id": "tme_000004",
+  "source_pack_item_id": "arp_000004",
+  "utterance_ids": ["utt_000026", "utt_000027"],
+  "state": {"local_only_ratio": 1.0, "remote_active_ratio": 0.0},
+  "source_scores": {
+    "mic_clean": {"target_similarity": 0.91},
+    "remote": {"target_similarity": 0.42}
+  },
+  "classification": {
+    "label": "target_me_confirmed",
+    "suggested_decision": "keep_me",
+    "confidence": 0.84,
+    "reason": "mic_clean matches Target-Me voiceprint"
+  }
+}
+```
+
+Valid labels are:
+
+- `target_me_confirmed`;
+- `target_me_possible`;
+- `target_me_absent_remote_like`;
+- `target_me_absent`;
+- `target_me_ambiguous`.
+
+`target_me_confirmed` and `target_me_absent_remote_like` are evidence labels, not automatic edits.
+They may become review suggestions only after the normal safety gates also agree. `mfcc_voiceprint_v0`
+is the first baseline method. `mfcc_contrastive_v0` is the deterministic fallback when WavLM and
+`resemblyzer` are not available: it uses clean remote speech as a negative centroid. The current
+six-session contrastive
+smoke produced ready enrollment on all six sessions, `102` audited clips, `0` helpful rows, `0`
+corroborating rows and `0` review-burden reductions. That is a useful negative baseline: future
+Target-Me work should compare against it with a real local speaker-embedding or target-speaker
+separation model.
+
+`resemblyzer_dvector_v0` is the first tested local speaker-embedding backend. It uses
+`resemblyzer.VoiceEncoder` and writes the same v1 artifacts. Six-session smoke:
+
+- `102` audited clips;
+- `67` `target_me_confirmed` rows / `355.77s`;
+- `13` `new_keep_evidence` rows / `48.82s`;
+- `54` `corroborates_existing_evidence` rows / `306.95s`;
+- readiness impact: `shadow_only_not_applied`, so actual session readiness counts are unchanged;
+- research decision: `promising_shadow_evidence_continue`;
+- promotion decision: `shadow_only_do_not_promote`.
+
+This makes d-vector evidence promising as a review layer, especially for protecting true `Me`
+utterances from older remote-duplicate heuristics. It is not an automatic transcript edit.
+
+The first optional speaker-embedding backend is `wavlm_xvector_v0`. It uses a local
+`microsoft/wavlm-base-plus-sv` directory through `transformers` `AutoModelForAudioXVector`.
+Model files are never downloaded by the normal pipeline. If the local directory is missing,
+`target_me_summary.json.status` is `missing_embedding_model` and no fallback is hidden when
+`--method wavlm_xvector` was requested.
+
+`target_me_summary.json.local_backend_probe` records which optional local backends were available
+when the audit ran. The current probe distinguishes installed ASR utilities from actual speaker or
+separation capability:
+
+```json
+{
+  "speaker_embedding_ready": true,
+  "wavlm_ready": false,
+  "resemblyzer_ready": true,
+  "separation_candidate_available": false,
+  "modules": {
+    "torch": {"available": true},
+    "transformers": {"available": true},
+    "faster_whisper": {"available": true},
+    "resemblyzer": {"available": true},
+    "speechbrain": {"available": false},
+    "asteroid": {"available": false}
+  }
+}
+```
+
 Cross-session regression corpus is generated from audio review audits:
 
 ```text
@@ -2682,7 +2808,18 @@ answers that are already actionable `keep_me`/`drop_me`, keeps dotted rows as ma
 was closed. If generated suggested sheets contain only dots, no decisions are written and the next
 command points to the first remaining manual lane. The Swift workspace handoff prints
 `suggested_dry_run` and `suggested_apply` commands whenever the workspace has suggested sheets. It
-writes:
+writes decisions cumulatively: already reviewed rows that are no longer present in a regenerated
+template remain in `review_decisions.jsonl`, and `suggested_closure.closed_by_suggestions` is computed
+by stable review-row keys rather than list positions. This keeps `review progress`, `status`,
+`report`, session-quality and `suggested_closure.remaining_manual_queue` aligned on the same
+remaining rows and seconds.
+
+`review suggested` is cached-first for expensive local model evidence. It consumes existing
+`faster_whisper_judge.jsonl` and Target-Me rows when building lane suggestions. New faster-whisper
+decodes during suggested review are opt-in through `MURMURMARK_TARGETED_JUDGE_COMPUTE=1`; Target-Me
+refresh during suggested review is opt-in through `MURMURMARK_REVIEW_TARGET_ME_REFRESH=1`.
+
+The workspace apply report is written to:
 
 ```text
 sessions/_reports/review-plan/

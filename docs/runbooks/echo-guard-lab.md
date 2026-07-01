@@ -441,8 +441,87 @@ Current reading:
 - ASR-positive audio candidate v2 is complete as a shadow baseline:
   `coverage_v2_remote_gate_local_fir` passes the ASR audio-candidate gate on four smoke sessions
   without local-recall regression.
-- The next Echo Guard work should target hard double-talk/open-space cases, likely through Target-Me
-  extraction before neural residual suppression.
+- Target-Me evidence has two MFCC baselines: `mfcc_voiceprint_v0` and current default
+  `mfcc_contrastive_v0`. Both use high-confidence local-only `Me` speech as enrollment material.
+- The current six-session Target-Me smoke audited `102` risky clips and produced `0` new
+  review-burden reductions. `mfcc_contrastive_v0` classified the corpus as mostly
+  `target_me_possible`, which is not actionable enough for safe cleanup.
+- `resemblyzer_dvector_v0` is the first useful local speaker-embedding backend: on the same six
+  sessions it found `13` new keep-evidence rows / `48.82s` and `54` corroborating rows / `306.95s`.
+- The local probe still shows no ready source-separation package. Target-Me d-vector evidence should
+  be hardened as a review/evidence layer before neural residual suppression is considered for
+  promotion.
+
+Run a single-session Target-Me audit:
+
+```bash
+murmurmark audit target-me "$SESSION" --profile auto --max-items 80
+less "$SESSION/derived/audit/target-me/target_me_report.md"
+```
+
+Run the local d-vector speaker backend:
+
+```bash
+.venv/bin/pip install resemblyzer
+
+murmurmark audit target-me "$SESSION" \
+  --profile auto \
+  --method resemblyzer_dvector \
+  --out-dir-name target-me-resemblyzer \
+  --max-items 80
+```
+
+Run the optional WavLM speaker-embedding backend after the model has been downloaded locally:
+
+```bash
+mkdir -p "$HOME/.local/share/murmurmark/models/target-me/wavlm-base-plus-sv"
+# Download config.json, preprocessor_config.json and pytorch_model.bin from:
+# https://huggingface.co/microsoft/wavlm-base-plus-sv
+
+murmurmark audit target-me "$SESSION" \
+  --profile auto \
+  --method wavlm_xvector \
+  --out-dir-name target-me-wavlm \
+  --max-items 80
+```
+
+If the model is missing, this command writes a `missing_embedding_model` report instead of changing
+the default target-me output.
+
+Run the current six-session research smoke:
+
+```bash
+.venv/bin/python scripts/audit-target-me.py \
+  sessions/2026-06-23_14-04-37 \
+  sessions/2026-06-25_11-14-27 \
+  sessions/2026-06-26_11-15-50 \
+  sessions/2026-06-26_12-04-04 \
+  sessions/2026-06-29_16-31-02 \
+  sessions/2026-06-30_17-17-20 \
+  --profile auto \
+  --max-items 20
+
+less sessions/_reports/target-me/target_me_corpus_report.md
+```
+
+Run the d-vector smoke:
+
+```bash
+.venv/bin/python scripts/audit-target-me.py \
+  sessions/2026-06-23_14-04-37 \
+  sessions/2026-06-25_11-14-27 \
+  sessions/2026-06-26_11-15-50 \
+  sessions/2026-06-26_12-04-04 \
+  sessions/2026-06-29_16-31-02 \
+  sessions/2026-06-30_17-17-20 \
+  --profile auto \
+  --method resemblyzer_dvector \
+  --out-dir-name target-me-resemblyzer \
+  --corpus-out-dir sessions/_reports/target-me-resemblyzer \
+  --max-items 20
+
+less sessions/_reports/target-me-resemblyzer/target_me_corpus_report.md
+```
 
 ## Stop Rules
 

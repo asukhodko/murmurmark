@@ -580,8 +580,9 @@ audio-judge demand, `read: less ...` for the Markdown report and `recommended_ne
 uncertain transcript errors point back into `murmurmark review next SESSION`.
 
 If the local `faster-whisper` judge is installed, run it over the same pack before building review
-lane packs. For a concrete blocker, prefer the targeted lane-pack mode after `review first-lane`.
-It resolves current audio-review items by stable utterance ids instead of fragile `arp_*` numbers:
+lane packs when you deliberately want a heavier audio check. For a concrete blocker, prefer the
+targeted lane-pack mode after `review first-lane`. It resolves current audio-review items by stable
+utterance ids instead of fragile `arp_*` numbers:
 
 ```bash
 murmurmark review first-lane --session "$SESSION"
@@ -1239,15 +1240,31 @@ To accept only those generated suggestions and leave all dots as manual review:
 murmurmark review suggested apply "$SESSION"
 ```
 
-This is the normal safe shortcut when the local stronger-audio judge has already produced confident
-`keep_me` or `drop_me` hints for the current review rows. It builds the workspace and prints a
-`suggested_closure` block with before/after manual rows, generated/actionable/needs-review counts,
-a conservative readiness projection, auto-closable rows and the exact remaining manual queue by
-lane. If at least one row is safe, apply writes only those reviewed suggested rows with partial
-apply enabled, materializes `reviewed_v1` with `--allow-partial-review`, refreshes readiness and
-keeps unresolved rows visible. It does not change capture, Echo Guard, ASR cache or raw CAF tracks.
-If all generated suggested sheets contain only dots or `needs_review`, it writes no decisions and
-points to the first manual lane.
+This is the normal safe shortcut. It builds the workspace, refreshes lane suggestions from cached
+local evidence and prints a `suggested_closure` block with before/after manual rows,
+generated/actionable/needs-review counts, a conservative readiness projection, auto-closable rows and
+the exact remaining manual queue by lane. If at least one row is safe, apply writes only those
+reviewed suggested rows with partial apply enabled, preserves already closed rows that are no longer
+in the new template, materializes `reviewed_v1` with `--allow-partial-review`, refreshes readiness
+and keeps unresolved rows visible. It does not change capture, Echo Guard, ASR cache or raw CAF
+tracks. If all generated suggested sheets contain only dots or `needs_review`, it writes no new
+decisions and points to the first manual lane.
+
+By default `review suggested` is cached-first: it reads existing `faster_whisper_judge.jsonl` and
+Target-Me rows but does not start a long new faster-whisper decode. To compute a small targeted batch
+inside the suggested flow intentionally:
+
+```bash
+MURMURMARK_TARGETED_JUDGE_COMPUTE=1 \
+MURMURMARK_TARGETED_JUDGE_MAX_COMPUTED=4 \
+murmurmark review suggested apply "$SESSION"
+```
+
+To refresh Target-Me evidence during suggested review intentionally:
+
+```bash
+MURMURMARK_REVIEW_TARGET_ME_REFRESH=1 murmurmark review suggested apply "$SESSION"
+```
 
 The lower-level equivalent is:
 

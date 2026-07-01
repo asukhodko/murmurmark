@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.6.0"
+SCRIPT_VERSION = "0.6.1"
 SCHEMA = "murmurmark.review_workspace_apply_report/v1"
 VALID_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip", "todo", ""}
 KNOWN_REVIEW_DECISIONS = {"drop_me", "drop_remote", "keep_me", "needs_review", "skip"}
@@ -164,7 +164,14 @@ def review_row_key(row: dict[str, Any]) -> str:
 
 def merge_existing(template_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     existing_by_key = {review_row_key(row): row for row in existing_rows}
-    return [{**row, **existing_by_key.get(review_row_key(row), {})} for row in template_rows]
+    template_keys = {review_row_key(row) for row in template_rows}
+    merged = [{**row, **existing_by_key.get(review_row_key(row), {})} for row in template_rows]
+    merged.extend(
+        row
+        for row in existing_rows
+        if review_row_key(row) not in template_keys and str(row.get("decision") or "todo") not in {"", "todo"}
+    )
+    return merged
 
 
 def allowed_decisions(row: dict[str, Any]) -> set[str]:
@@ -544,10 +551,12 @@ def suggested_closure_summary(
 ) -> dict[str, Any]:
     before_remaining = [row for row in before_rows if not is_reviewed(row)]
     after_remaining = [row for row in after_rows if not is_reviewed(row)]
+    before_by_key = {review_row_key(row): row for row in before_rows}
     closed_rows = [
         after
-        for before, after in zip(before_rows, after_rows)
-        if reviewed_transition(before, after)
+        for after in after_rows
+        if (before := before_by_key.get(review_row_key(after))) is not None
+        and reviewed_transition(before, after)
     ]
     suggested_closed = [
         row for row in closed_rows if str(row.get("review_source") or "") == "workspace_suggested_answer_sheet"
@@ -789,6 +798,7 @@ def apply_lane(
                     row["status"] = "todo"
             else:
                 stronger_summary = item.get("stronger_audio_judge") if isinstance(item.get("stronger_audio_judge"), dict) else {}
+                target_me_summary = item.get("target_me") if isinstance(item.get("target_me"), dict) else {}
                 row["decision"] = decision
                 row["status"] = "reviewed"
                 row["reviewed_at"] = now
@@ -813,6 +823,12 @@ def apply_lane(
                         "count": stronger_summary.get("count"),
                         "labels": stronger_summary.get("labels"),
                         "max_confidence": stronger_summary.get("max_confidence"),
+                    },
+                    "target_me": {
+                        "count": target_me_summary.get("count"),
+                        "labels": target_me_summary.get("labels"),
+                        "impacts": target_me_summary.get("impacts"),
+                        "max_confidence": target_me_summary.get("max_confidence"),
                     },
                 }
                 if answers_source == "suggested":

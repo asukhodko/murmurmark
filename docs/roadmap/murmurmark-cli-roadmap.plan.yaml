@@ -41,21 +41,20 @@ nodes:
       export bundle и retention plan уже доказали, что pipeline можно использовать как
       локальный инструмент, а не как набор лабораторных скриптов.
 
-      Текущий корпус находится в состоянии `not_ready`: в рабочем наборе 16 сессий, из них
-      14 `ready_for_notes`, одна `review_first`, и одна risky daily sync блокирует operational-срез.
-      Снимок на 2026-06-30: selected evidence-backed notes несут около `0.69 min`
-      документированного остаточного review burden, отдельная поверхность transcript/export review
-      остаётся около `3.19 min`, а обязательная actionable review-очередь равна `5` действиям.
-      Suggested closure уже показывает generated/actionable/manual остаток, но свежие сессии
-      подтвердили более глубокую причину review burden: remote speech всё ещё просачивается в
+      Текущий операционный корпус на 2026-06-30 был `not_ready`, но свежие сессии 2026-07-01
+      зафиксировали следующий практический шаг: стабилизировать review-loop так, чтобы
+      `review_decisions.jsonl`, `review progress`, `status`, `report` и `suggested_closure`
+      показывали одну и ту же оставшуюся очередь. Для `2026-07-01_11-17-22` проверенный остаток
+      равен `2` rows / `2.72s`; для `2026-07-01_14-01-09` — `7` rows / `17.3s`.
+      Это не отменяет более глубокую причину review burden: remote speech всё ещё просачивается в
       mic и потом требует transcript repair, cleanup и ручной проверки. Echo Guard v0/vNext уже
       дал repeatable shadow baseline и первый ASR-positive safety result. Remote-Forbidden Evidence
       Hardening v1 уже превратил этот результат в доказательный review/status слой, Coverage v2
       расширил выбор ASR-аудит окон до `4/6` safe improved sessions, а ASR-positive audio
       candidate v2 добавил `coverage_v2_remote_gate_local_fir`: реальный shadow audio candidate,
       который проходит ASR audio-candidate gate на `4/6` smoke sessions без local-recall
-      регрессий. Ближайшая крупная цель — Target-Me extraction spike для double-talk и open-space
-      шума.
+      регрессий. Target-Me extraction spike уже дал promising d-vector evidence, но сейчас ближайший
+      долг — честный и воспроизводимый review handoff.
 
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
@@ -363,8 +362,9 @@ nodes:
       Удобный review CLI для спорных мест. Базовые plan/progress/apply и интерактивный
       review SESSION/latest уже доступны. Workspace review и агентный review agent доступны
       через CLI, readiness и blocked export ведут к workspace next commands. Текущий слой —
-      suggested review closure: безопасно принимать строки, которые stronger local audio judge уже
-      подтвердил как timing/double-talk или keep_me, и явно показывать остаток ручной проверки.
+      review-loop stabilization: suggested decisions применяются накопительно, уже закрытые строки
+      не теряются при пересборке template, а progress/status/report показывают один и тот же ручной
+      остаток.
 
   cli-review-command:
     title: "murmurmark review SESSION"
@@ -442,6 +442,21 @@ nodes:
       Corpus report на момент внедрения: `8` generated suggestions, `0` actionable rows,
       `8` needs-review rows, `61` manual rows remaining. Дальше review closure остаётся
       операционной дисциплиной и поддерживает качество, но не является ближайшей крупной целью.
+
+  review-loop-stabilization-v1:
+    title: "Review-loop stabilization v1"
+    kind: task
+    parent: review-loop
+    deps: [review-suggested-closure-v2]
+    status: current
+    effort: 3
+    notes: |
+      Текущая цель. Исправляет рассинхрон между `review_decisions.jsonl`, `review progress`,
+      workspace `suggested_closure`, `status` и session-quality. `review suggested apply` стал
+      cumulative/key-based: безопасные новые решения не затирают уже закрытые строки. Lane suggestions
+      используют cached stronger-audio-judge и Target-Me evidence; новый faster-whisper decode внутри
+      suggested flow теперь opt-in через `MURMURMARK_TARGETED_JUDGE_COMPUTE=1`. Проверено на
+      `2026-07-01_11-17-22` и `2026-07-01_14-01-09`.
 
   review-burden-report:
     title: "Review burden report"
@@ -659,7 +674,7 @@ nodes:
     deps: [quality-asr-positive-audio-candidate-v2]
     status: current
     effort: 6
-    notes: "Recommended next quality goal. Use high-confidence local-only islands to enroll Me, then test target-speaker extraction on overlap-heavy clips. Useful for double-talk and open-space noise where pure subtraction is underdetermined."
+    notes: "Current quality goal. `mfcc_voiceprint_v0` and `mfcc_contrastive_v0` are negative baselines: 102 clips, 0 helpful rows, 0 review-burden reductions. `resemblyzer_dvector_v0` is the first promising local speaker-embedding backend: 13 new keep-evidence rows / 48.82s and 54 corroborating rows / 306.95s on the six-session smoke corpus. Still shadow-only and no transcript edits. `wavlm_xvector_v0` remains wired but not evaluated because local model files are missing; no source-separation package is ready."
 
   quality-token-remote-forbidden:
     title: "Token-level remote-forbidden transcript"
@@ -1076,8 +1091,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Target-Me extraction spike: использовать high-confidence local-only речь как enrollment material и проверить target-speaker extraction на double-talk/open-space clips."
-      success_by_next_sync: "Есть shadow target-Me report: test clips, локальные evidence gates, эффект на overlap/open-space cases и clear no-promotion decision."
+      nearest_goal: "Review-loop Stabilization v1: сделать `record -> process -> review suggested apply -> status` честным, накопительным и report-consistent."
+      success_by_next_sync: "На свежих сессиях review progress, status, report и suggested_closure показывают одну очередь; safe suggested rows применяются накопительно; docs/README обновлены."
     defaults:
       status_progress:
         done: 1.0
@@ -1111,8 +1126,8 @@ x:
         kind: main
         mgmt:
           health: green
-          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до рабочей основы. ASR-positive audio candidate v2 добавил coverage_v2_remote_gate_local_fir: 4/6 ASR audio candidate gate-passed, 0 local-recall regressions, no default promotion."
-          next_sync_goal: "Target-Me extraction spike: искать дополнительный сигнал для double-talk/open-space cases, не меняя default `local_fir` до corpus gates."
+          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до рабочей основы. ASR-positive audio candidate v2 добавил coverage_v2_remote_gate_local_fir: 4/6 ASR audio candidate gate-passed, 0 local-recall regressions, no default promotion. Target-Me d-vector evidence promising, но текущий долг — стабильная review очередь."
+          next_sync_goal: "Закрыть Review-loop Stabilization v1, затем вернуться к Target-Me Evidence Hardening v1 как следующему quality шагу."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

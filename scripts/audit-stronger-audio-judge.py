@@ -100,6 +100,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--allow-download", action="store_true", help="Allow Hugging Face network access.")
     parser.add_argument("--no-cache", action="store_true", help="Recompute selected clips even when cached judge rows exist.")
     parser.add_argument(
+        "--cached-only",
+        action="store_true",
+        help="Do not decode missing clips; only rewrite reports from cached rows matching selected items.",
+    )
+    parser.add_argument(
         "--pack-item-id",
         action="append",
         default=[],
@@ -1284,7 +1289,9 @@ def main() -> int:
     missing_target_ids = [item_id for item_id in requested_target_ids if item_id not in {str(item.get("id") or "") for item in items}]
     cached_rows, missing_items, cached_count = cached_rows_for_items(out_dir, selected, disabled=args.no_cache)
     pending_selected_count = len(missing_items)
-    if args.max_computed_items > 0 and len(missing_items) > args.max_computed_items:
+    if args.cached_only:
+        missing_items = []
+    elif args.max_computed_items > 0 and len(missing_items) > args.max_computed_items:
         missing_items = missing_items[: args.max_computed_items]
     cached_by_pack_id = {str(row.get("source_pack_item_id") or ""): row for row in cached_rows}
     if missing_items:
@@ -1336,6 +1343,7 @@ def main() -> int:
     summary["pending_selected_items_after_cap"] = max(0, pending_selected_count - len(missing_items))
     summary["sources"] = list(selected_sources(args))
     summary["quick"] = bool(args.quick)
+    summary["cached_only"] = bool(args.cached_only)
     summary["max_computed_items"] = args.max_computed_items
     summary["target_item_ids"] = requested_target_ids
     summary["missing_target_item_ids"] = missing_target_ids

@@ -157,6 +157,7 @@ struct MurmurMark {
           murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80]
                                                         [--quick] [--max-computed-items N]
                                                         [--review-lane-pack PATH] [--sessions-root ./sessions]
+          murmurmark audit target-me ./session|latest [--profile auto] [--max-items 80] [--sessions-root ./sessions]
           murmurmark cleanup ./session|latest [--input-profile shadow_v2] [--output-profile audit_cleanup_v1]
                              [--mode conservative] [--sessions-root ./sessions]
           murmurmark repair order ./session|latest [--input-profile auto] [--output-profile order_repair_v1]
@@ -206,7 +207,7 @@ struct MurmurMark {
           open prints or streams the selected local output artifact from readiness.
           report refreshes and prints the readiness summary without rerunning ASR/audio processing.
           review next prints the next review command; review --help shows lane/workspace/apply commands.
-          audit wraps order, local recall, group overlap, audio-review and stronger-audio-judge scripts through the project Python runtime.
+          audit wraps order, local recall, group overlap, audio-review, stronger-audio-judge and target-me scripts through the project Python runtime.
           cleanup wraps conservative audit cleanup profiles.
           repair wraps explicit structural transcript repairs into separate profiles.
           synthesize refreshes deterministic extractive notes and quality verdict.
@@ -253,6 +254,7 @@ enum Commands {
         DoctorChecks.checkPython(&report)
         DoctorChecks.checkWhisperModel(&report)
         DoctorChecks.checkStrongerAudioJudge(&report)
+        DoctorChecks.checkTargetMeSpeakerBackend(&report)
 
         do {
             let content = try await SCShareableContent.current
@@ -579,6 +581,7 @@ enum DoctorChecks {
             "scripts/build-audio-review-pack.py",
             "scripts/audit-audio-review-pack.py",
             "scripts/audit-stronger-audio-judge.py",
+            "scripts/audit-target-me.py",
             "scripts/probe-review-lane-pack-audio.py",
             "scripts/report-session-quality.py",
             "scripts/apply-retention-policy.py",
@@ -669,6 +672,29 @@ enum DoctorChecks {
                 "not found: \(url.path)",
                 hint: "download Systran/faster-whisper-large-v3 into ~/.local/share/murmurmark/models/faster-whisper/large-v3"
             )
+        }
+    }
+
+    static func checkTargetMeSpeakerBackend(_ report: inout DoctorReport) {
+        do {
+            let python = try PythonRuntime.resolve()
+            let moduleCode = """
+            import importlib.util
+            print("ok" if importlib.util.find_spec("resemblyzer") else "missing")
+            """
+            let moduleStatus = (try Tooling.runPathCapturing(python, ["-c", moduleCode])).trimmedSingleLine()
+            if moduleStatus == "ok" {
+                report.check(.passed, "resemblyzer", "python module found")
+            } else {
+                report.check(
+                    .warn,
+                    "resemblyzer",
+                    "python module not found",
+                    hint: "install optional Target-Me speaker backend: .venv/bin/pip install resemblyzer"
+                )
+            }
+        } catch {
+            report.check(.warn, "resemblyzer", "not checked: \(error.localizedDescription)")
         }
     }
 
@@ -2305,6 +2331,8 @@ enum ReviewSuggestedCommand {
             mode = "preview"
         }
         let noMaterialize = ArgumentEditing.takeFlag("no-materialize", from: &forwarded)
+        let skipTargetedJudge = ArgumentEditing.takeFlag("skip-targeted-judge", from: &forwarded)
+        let skipTargetMe = ArgumentEditing.takeFlag("skip-target-me", from: &forwarded)
         let explicitSession = ReviewSessionLocalPlan.takeSessionOption(from: &forwarded, sessionsRoot: sessionsRoot)
         let target: String
         if let first = forwarded.first, !first.hasPrefix("-") {
@@ -2314,7 +2342,10 @@ enum ReviewSuggestedCommand {
             target = "latest"
         }
         guard forwarded.isEmpty else {
-            throw CLIError("review suggested accepts only preview|apply, SESSION|latest, --session and --no-materialize")
+            throw CLIError(
+                "review suggested accepts only preview|apply, SESSION|latest, --session, "
+                + "--no-materialize, --skip-targeted-judge and --skip-target-me"
+            )
         }
         let session: URL
         if let explicitSession {
@@ -2325,10 +2356,16 @@ enum ReviewSuggestedCommand {
         try ReviewSessionLocalPlan.prepareIfNeeded(session: session)
 
         let python = try PythonRuntime.resolve()
-        var workspaceArgs: [String] = []
-        ReviewSessionLocalPlan.addBuildDefaults(for: session, to: &workspaceArgs)
-        workspaceArgs += ["--session", session.lastPathComponent]
-        try Tooling.runPathQuiet(python, [try script("build-review-workspace.py").path] + workspaceArgs)
+        try buildReviewWorkspace(session: session, python: python)
+        if !skipTargetedJudge || !skipTargetMe {
+            try refreshTargetedEvidence(
+                session: session,
+                python: python,
+                runStrongerAudioJudge: !skipTargetedJudge,
+                runTargetMe: !skipTargetMe
+            )
+            try buildReviewWorkspace(session: session, python: python)
+        }
 
         var workspaceApplyArgs = ["--answers-source", "suggested", "--allow-partial", "--quiet"]
         ReviewSessionLocalPlan.addWorkspaceApplyDefaults(for: session, to: &workspaceApplyArgs)
@@ -2376,11 +2413,13 @@ enum ReviewSuggestedCommand {
         print("""
         usage: murmurmark review suggested [preview|apply] [SESSION|latest]
                                          [--session SESSION] [--no-materialize]
+                                         [--skip-targeted-judge] [--skip-target-me]
 
         Builds all session-local review lanes, applies generated suggested answers in preview
-        mode and shows the exact manual remainder. `apply` writes only reviewed suggested
-        rows, keeps dots/todo as manual review, then refreshes reviewed_v1 readiness unless
-        --no-materialize is passed.
+        mode and shows the exact manual remainder. It refreshes lane suggestions from cached
+        stronger-audio-judge and Target-Me evidence. New faster-whisper decode is opt-in via
+        MURMURMARK_TARGETED_JUDGE_COMPUTE=1. `apply` writes only reviewed suggested rows, keeps
+        dots/todo as manual review, then refreshes reviewed_v1 readiness unless --no-materialize is passed.
 
         Common:
           murmurmark review suggested latest
@@ -2395,6 +2434,115 @@ enum ReviewSuggestedCommand {
             throw CLIError("review script not found: \(url.path)")
         }
         return url
+    }
+
+    private static func buildReviewWorkspace(session: URL, python: URL) throws {
+        var workspaceArgs: [String] = []
+        ReviewSessionLocalPlan.addBuildDefaults(for: session, to: &workspaceArgs)
+        workspaceArgs += ["--session", session.lastPathComponent]
+        try Tooling.runPathQuiet(python, [try script("build-review-workspace.py").path] + workspaceArgs)
+    }
+
+    private static func refreshTargetedEvidence(
+        session: URL,
+        python: URL,
+        runStrongerAudioJudge: Bool,
+        runTargetMe: Bool
+    ) throws {
+        let lanePacks = reviewLanePacks(for: session)
+        guard !lanePacks.isEmpty else {
+            return
+        }
+        if runStrongerAudioJudge {
+            var judgeArgs = [
+                try script("audit-stronger-audio-judge.py").path,
+                session.path,
+                "--profile", "auto",
+                "--max-items", envValue("MURMURMARK_TARGETED_JUDGE_MAX_ITEMS", defaultValue: "80"),
+                "--quick",
+                "--no-progress",
+            ]
+            if envBool("MURMURMARK_TARGETED_JUDGE_COMPUTE", defaultValue: false) {
+                judgeArgs += [
+                    "--max-computed-items",
+                    envValue("MURMURMARK_TARGETED_JUDGE_MAX_COMPUTED", defaultValue: "4"),
+                ]
+            } else {
+                judgeArgs.append("--cached-only")
+            }
+            for lanePack in lanePacks {
+                judgeArgs += ["--review-lane-pack", lanePack.path]
+            }
+            do {
+                try Tooling.runPathQuiet(python, judgeArgs)
+            } catch {
+                print("targeted_stronger_audio_judge: skipped (\(error.localizedDescription))")
+            }
+        }
+        if runTargetMe && targetMeNeedsRefresh(session: session) {
+            do {
+                try Tooling.runPathQuiet(python, [
+                    try script("audit-target-me.py").path,
+                    session.path,
+                    "--profile", "auto",
+                    "--max-items", envValue("MURMURMARK_TARGET_ME_REVIEW_MAX_ITEMS", defaultValue: "20"),
+                    "--no-progress",
+                ])
+            } catch {
+                print("target_me: skipped (\(error.localizedDescription))")
+            }
+        }
+    }
+
+    private static func reviewLanePacks(for session: URL) -> [URL] {
+        let directory = session.appendingPathComponent("derived/readiness/review-plan/lane-packs")
+        let urls = (try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        return urls
+            .filter { $0.lastPathComponent.hasPrefix("review_lane_pack.") && $0.pathExtension == "json" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    private static func targetMeNeedsRefresh(session: URL) -> Bool {
+        let targetSummary = session.appendingPathComponent("derived/audit/target-me/target_me_summary.json")
+        let strongerSummary = session.appendingPathComponent("derived/audit/audio-review-pack/faster_whisper_judge_summary.json")
+        if !envBool("MURMURMARK_REVIEW_TARGET_ME_REFRESH", defaultValue: false) {
+            return false
+        }
+        guard FileManager.default.fileExists(atPath: strongerSummary.path) else {
+            return !FileManager.default.fileExists(atPath: targetSummary.path)
+        }
+        guard let targetDate = modificationDate(targetSummary) else {
+            return true
+        }
+        guard let strongerDate = modificationDate(strongerSummary) else {
+            return false
+        }
+        return targetDate < strongerDate
+    }
+
+    private static func envValue(_ key: String, defaultValue: String) -> String {
+        let value = ProcessInfo.processInfo.environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value?.isEmpty == false ? value! : defaultValue
+    }
+
+    private static func envBool(_ key: String, defaultValue: Bool) -> Bool {
+        guard let value = ProcessInfo.processInfo.environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !value.isEmpty
+        else {
+            return defaultValue
+        }
+        return ["1", "true", "yes", "on"].contains(value)
+    }
+
+    private static func modificationDate(_ url: URL) -> Date? {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+            return nil
+        }
+        return attrs[.modificationDate] as? Date
     }
 }
 
@@ -3205,6 +3353,13 @@ enum AuditCommands {
             }
             try Tooling.runPath(python, auditArgs)
             try AuditPrinter.printStrongerAudioJudge(session: session, args: auditArgs)
+        case "target-me", "target_me":
+            var auditArgs = [try script("audit-target-me.py").path, session.path] + remaining
+            if !ArgumentEditing.hasOption("profile", in: auditArgs) {
+                auditArgs += ["--profile", "auto"]
+            }
+            try Tooling.runPath(python, auditArgs)
+            try AuditPrinter.printTargetMe(session: session, args: auditArgs)
         case "remote-forbidden", "remote_forbidden":
             var forwarded = remaining
             let skipLab = ArgumentEditing.takeFlag("skip-lab", from: &forwarded)
@@ -3318,6 +3473,7 @@ enum AuditCommands {
           murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80]
                                              [--quick] [--max-computed-items N] [--sessions-root ./sessions]
+          murmurmark audit target-me ./session|latest [--profile auto] [--max-items 80] [--sessions-root ./sessions]
           murmurmark audit remote-forbidden ./session|latest [--profile auto]
                                              [--asr-window-profile coverage_v2] [--asr-max-clips 2]
                                              [--asr-max-risk-clips 2] [--asr-max-local-clips 1]
@@ -3333,6 +3489,7 @@ enum AuditCommands {
           stronger-audio-judge
                           runs build-audio-review-pack.py, then audit-stronger-audio-judge.py
                           with --review-lane-pack or --pack-item-id, reuses the existing audio-review pack
+          target-me       runs audit-target-me.py as a shadow voice-evidence layer
           remote-forbidden
                           runs offline_aec_v2 ASR audit, then materializes remote-forbidden
                           evidence rows and a review report
@@ -3535,6 +3692,37 @@ enum AuditPrinter {
             session: session,
             report: outDir.appendingPathComponent("faster_whisper_judge_report.md"),
             needsReview: needsReview
+        )
+    }
+
+    static func printTargetMe(session: URL, args: [String]) throws {
+        let outDirName = ArgumentEditing.peekOption("out-dir-name", in: args) ?? "target-me"
+        let outDir = session.appendingPathComponent("derived/audit/\(outDirName)")
+        let summaryURL = outDir.appendingPathComponent("target_me_summary.json")
+        guard FileManager.default.fileExists(atPath: summaryURL.path) else {
+            printMissing(kind: "target_me", expected: summaryURL)
+            return
+        }
+        let payload = try JSONFiles.object(summaryURL)
+        let enrollment = dict(payload["enrollment"])
+
+        print("")
+        print("audit:")
+        print("  kind: target_me")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("target_me_report.md")))")
+        print("  status: \(string(payload["status"]) ?? "unknown")")
+        print("  profile: \(string(payload["profile"]) ?? "unknown")")
+        print("  method: \(string(payload["method"]) ?? "unknown")")
+        print("  enrollment_segments: \(int(enrollment["accepted_count"]))")
+        print(String(format: "  enrollment_seconds: %.2fs", double(enrollment["accepted_total_sec"])))
+        print("  items: \(int(payload["items"]))")
+        print(String(format: "  helpful_seconds: %.2fs", double(payload["target_me_helpful_seconds"])))
+        print(String(format: "  corroborating_seconds: %.2fs", double(payload["target_me_corroborating_seconds"])))
+        print("  promotion: \(string(payload["promotion_decision"]) ?? "shadow_only_do_not_promote")")
+        printAuditHandoff(
+            session: session,
+            report: outDir.appendingPathComponent("target_me_report.md"),
+            needsReview: false
         )
     }
 
