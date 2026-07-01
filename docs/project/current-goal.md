@@ -1,8 +1,64 @@
-# Current Goal: Review-Loop Stabilization v1
+# Current Goal: Operational Corpus Green v1
 
-Status, 2026-07-01: in progress. The main review-queue drift is fixed and verified on two fresh
-sessions; full goal completion still requires the final check run, documentation pass, commit and
-push.
+Status, 2026-07-01: active. The first pass turned the operational corpus from `not_ready` into
+`pilot_ready_with_review` without changing capture, Echo Guard, the main ASR or transcript text.
+
+The goal is to keep the real working corpus honest and usable:
+
+```text
+recorded sessions -> process/review evidence -> report corpus -> explicit readiness
+```
+
+The important promise is not “all meetings need zero review”. The promise is that every working
+session is either ready for notes/export, or has a short review queue that is explicit, measurable
+and not safely closable by the current local evidence.
+
+Current corpus snapshot after the first pass:
+
+- working sessions in scope: `19`;
+- diagnostic sessions excluded from readiness: `26`;
+- operational verdict: `pilot_ready_with_review`;
+- `ready_for_notes`: `14`;
+- `review_first`: `4`;
+- manual-review-required session: `1`;
+- notes review burden: `0.86 min`;
+- transcript/export review burden: `3.52 min`;
+- mandatory review queue: `7` actions / `10.85s` raw audio;
+- irreducible review gate: `pilot_ready_with_irreducible_review`;
+- pending safe suggestions: `0`.
+
+What changed in this goal so far:
+
+- safe suggested decisions were applied across the current blocker sessions;
+- Target-Me evidence was generated for sessions that did not yet have it;
+- targeted stronger-audio-judge was run on the remaining lane packs;
+- order-risk rows were reduced from a blocker to closed `keep_me` decisions where evidence allowed;
+- remaining rows are local-recall / lost-Me / uncertain audio checks that did not receive a safe
+  automatic answer;
+- `report-operational-readiness.py` now distinguishes a short irreducible review queue from a broken
+  corpus and reports `pilot_ready_with_review` instead of `not_ready`.
+
+Remaining review queue:
+
+- `sessions/2026-06-30_11-15-56`: two local-recall checks, `2.49s`;
+- `sessions/2026-07-01_14-01-09`: two local-recall checks, `1.58s`;
+- `sessions/2026-07-01_11-17-22`: two lost-Me checks, `2.72s`;
+- `sessions/2026-06-30_17-17-20`: one uncertain audio check, `4.06s`.
+
+This queue is intentionally not auto-closed. It is the current irreducible manual review list for
+medium-risk use.
+
+Next work before closing this goal:
+
+- document the new irreducible review gate in contracts/runbooks;
+- keep `murmurmark report corpus` stable as the source of truth;
+- run static checks and smoke checks;
+- update roadmap/opskarta;
+- commit and push.
+
+# Recently Completed Goal: Review-Loop Stabilization v1
+
+Status, 2026-07-01: completed and pushed in `bb8317b`.
 
 The goal is to make the CLI path boring and reproducible after a session has been recorded:
 
@@ -50,12 +106,6 @@ Verification snapshot:
   - `review progress`: `7` remaining rows / `17.3s`;
   - workspace `suggested_closure`: `7` remaining rows / `17.3s`;
   - session-quality `review_scope_remaining_seconds`: `17.3s`.
-
-Remaining work before closing this goal:
-
-- run the full project checks;
-- update README/runbook/roadmap;
-- commit and push the stabilized state.
 
 # Recent Quality Goal: Target-Me Extraction Spike v1
 

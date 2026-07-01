@@ -24,31 +24,28 @@ evidence.
 The CLI pipeline is usable for regular medium-risk working meetings with a short explicit review
 queue.
 
-Current corpus snapshot from `murmurmark report corpus` on 2026-06-30:
+Current corpus snapshot from `murmurmark report corpus` on 2026-07-01:
 
-- operational status: `not_ready`;
-- use gate: `can_use_medium_risk: false`;
-- working sessions in scope: `16`;
+- operational status: `pilot_ready_with_review`;
+- working sessions in scope: `19`;
 - diagnostic sessions excluded from readiness: `26`;
-- session readiness: `14/16 ready_for_notes`, `1/16 review_first`, one risky session blocking the
-  operational corpus;
-- selected notes review burden: `0.69 min`;
-- full transcript/export review surface: `3.19 min`;
-- remaining actionable review queue: `5` actions, all in `sessions/2026-06-30_11-15-56`;
-- suggested closure reports exist for `5` sessions: `8` generated suggestions, `0` actionable
-  keep/drop rows, `8` needs-review rows, `61` manual rows remaining.
+- session readiness: `14/19 ready_for_notes`, `4/19 review_first`, `1/19` with manual review required;
+- selected notes review burden: `0.86 min`;
+- full transcript/export review surface: `3.52 min`;
+- mandatory review queue: `7` actions / `10.85s` raw audio;
+- irreducible review gate: `pilot_ready_with_irreducible_review`;
+- safe suggested rows still pending: `0`.
 
-This does not mean the CLI is unusable. It means the current corpus is honestly blocked by a small
-manual review queue instead of pretending to be green. Most sessions are still usable for
-evidence-backed notes when their own `status` says so; full transcript/export can remain blocked
-until the explicit review items are closed.
+This does not mean “zero review”. It means the current operational corpus has no hidden blocker:
+safe local evidence has been applied where available, and the remaining queue is short, explicit and
+not safely closable by the current local agents.
 
-Current stabilization goal: [review-loop stabilization](docs/project/current-goal.md). `review
-suggested apply` is now cumulative, keeps already closed rows, consumes cached stronger-audio-judge
-and Target-Me evidence in lane suggestions, and makes `review progress`, `status`, `report` and
-`suggested_closure` agree on the same remaining queue. Latest product milestone: Export Bundle
-Quality v1; `finish` writes a readable local handoff bundle whose `index.md` answers whether the
-result can be used, what still needs review and what retention/privacy step comes next.
+Current quality goal: [Operational Corpus Green v1](docs/project/current-goal.md). `review suggested
+apply` is cumulative, keeps already closed rows, consumes cached stronger-audio-judge and Target-Me
+evidence in lane suggestions, and makes `review progress`, `status`, `report` and `suggested_closure`
+agree on the same remaining queue. Latest product milestone: Export Bundle Quality v1; `finish`
+writes a readable local handoff bundle whose `index.md` answers whether the result can be used, what
+still needs review and what retention/privacy step comes next.
 
 ## What Works Now
 
@@ -512,24 +509,23 @@ rule and need corpus gates before any automatic review decision.
 
 Current focus:
 
+- keep the operational corpus at `pilot_ready_with_review` or better;
+- treat `murmurmark report corpus` as the source of truth for corpus readiness;
+- keep the remaining manual queue short, explicit and explainable;
 - keep the review-loop stable: suggested decisions are cumulative, status/report/progress agree on
   the remaining queue, and unresolved rows stay explicit;
-- use the completed ASR-positive audio candidate v2 as the current shadow baseline;
-- keep `local_fir` as the default: the current audio candidates are useful diagnostics, not a
-  production replacement;
-- keep comparing shadow candidates by ASR-visible remote-token leakage, local-word recall and review
-  burden before any promotion;
-- prepare the next quality step around Target-Me extraction for double-talk and open-space noise;
-- rank echo-removal work by ASR-visible remote-token leakage, local-word recall and review burden,
-  not by loudness or ERLE alone;
-- keep `next`/`status`/`review` honest about residual risk while this layer is shadow-only;
+- use cached stronger-audio-judge, Target-Me and remote-forbidden evidence before asking for manual
+  review;
+- keep `local_fir` as the default Echo Guard path while shadow audio candidates are compared by
+  ASR-visible remote-token leakage, local-word recall and review burden;
+- keep `next`/`status`/`review` honest about residual risk;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 
 Near-term goals for discussion:
 
-1. Review-loop closure on the operational corpus: keep applying safe suggestions, preserve the exact
-   remaining queue, and prevent status drift while echo-removal work continues.
+1. Operational Corpus Green follow-up: keep `pilot_ready_with_review` stable, reduce the remaining
+   irreducible queue when new local evidence appears, and prevent status drift.
 2. Target-Me evidence hardening: turn the promising `resemblyzer_dvector_v0` shadow signal into safe
    review suggestions behind corpus gates, without automatic transcript edits.
 3. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only until

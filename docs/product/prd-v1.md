@@ -21,19 +21,19 @@ Working now:
 - local extractive synthesis with quality verdicts, review items and evidence-backed notes;
 - Markdown/Obsidian-style export bundles, JSON/audit artifacts for review, and raw retention plans.
 
-Current operating point, measured by `murmurmark report corpus` on 2026-06-30:
+Current operating point, measured by `murmurmark report corpus` on 2026-07-01:
 
-- the current working corpus is `not_ready` because one risky daily-sync session still has a small
-  mandatory review queue;
-- `16` working sessions are in scope and `26` diagnostic sessions are excluded from operational
+- the current working corpus is `pilot_ready_with_review`: usable for pilot notes with explicit
+  review, but not yet `medium_risk_ready`;
+- `19` working sessions are in scope and `26` diagnostic sessions are excluded from operational
   readiness;
-- `14/16` working sessions are `ready_for_notes`, `1/16` is `review_first`, and one risky session
-  blocks the corpus;
-- selected evidence-backed notes carry about `0.69 min` of documented residual review burden;
-- full transcript/export still has about `3.19 min` of explicit review surface;
-- the remaining actionable review queue is `5` actions;
-- suggested review closure currently reports `8` generated suggestions, all `needs_review`, and no
-  safe automatic keep/drop rows;
+- `14/19` working sessions are `ready_for_notes`, four are `review_first`, and one still requires a
+  manual check before use;
+- selected evidence-backed notes carry about `0.86 min` of documented residual review burden;
+- full transcript/export still has about `3.52 min` of explicit review surface;
+- the remaining mandatory review queue is `7` actions / `10.85s` of raw audio;
+- suggested review closure has no safe automatic keep/drop rows left; the remaining queue is treated
+  as irreducible for the current local agents;
 - readiness reconciliation is complete: MurmurMark no longer sends the user to empty review packs,
   and it keeps the remaining manual queue explicit.
 

@@ -890,11 +890,11 @@ counts, notes review burden and the minimum next command. Full transcript/export
 as `full_transcript_review_required`. In that state notes can be used with normal caution, while a
 default export remains blocked until transcript-only review is closed or `--force` is used
 deliberately.
-The 2026-06-30 corpus snapshot is the current convergence baseline: `murmurmark report corpus`
-reports `not_ready`, `16` working sessions in scope and `26` diagnostic sessions excluded.
-`14/16` sessions are `ready_for_notes`, one is `review_first`, and one risky daily-sync session
-blocks the operational corpus. Selected notes carry about `0.69 min` of documented residual review
-burden; the remaining full transcript/export surface is about `3.19 min`.
+The 2026-07-01 corpus snapshot is the current convergence baseline: `murmurmark report corpus`
+reports `pilot_ready_with_review`, `19` working sessions in scope and `26` diagnostic sessions
+excluded. `14/19` sessions are `ready_for_notes`, four are `review_first`, and one session still
+requires a manual check. Selected notes carry about `0.86 min` of documented residual review burden;
+the remaining full transcript/export surface is about `3.52 min`.
 
 Session-quality reports de-duplicate transcript-only `uncertain` rows when the same selected `Me`
 interval is already covered by high-confidence `likely_reliable` audio-review evidence. The
@@ -903,11 +903,12 @@ evidence support `Me`, and cleanup profiles can remove only tightly gated duplic
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
 
-The same snapshot exposes a small mandatory review queue: `review_actions` is `5`, all in
-`sessions/2026-06-30_11-15-56`. Suggested closure currently generates `8` suggestions across the
-corpus, but all of them are `needs_review`; there are no safe keep/drop rows to apply. Selected
-notes can still be used session-by-session when `status` says they are ready, while the operational
-corpus stays blocked until those five rows are closed or a safer local rule explains them.
+The same snapshot exposes a short irreducible mandatory review queue: `review_actions` is `7`,
+covering `10.85s` of raw audio. Suggested closure has no safe keep/drop rows left to apply; the
+remaining local-recall, lost-`Me` and uncertain-audio rows are intentionally not auto-closed by the
+current local agents. This is why the operational verdict is `pilot_ready_with_review` rather than
+`medium_risk_ready`: selected notes can be used session-by-session when `status` says they are
+ready, but the queue remains explicit until a human or a stronger local evidence layer closes it.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
 `--refresh` it first rebuilds session-quality and operational-readiness reports, then prints

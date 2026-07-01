@@ -2115,22 +2115,25 @@ sessions/_reports/operational-readiness/
   "operational_verdict": "pilot_ready_with_review",
   "scope": "local tool for medium-risk working meetings",
   "blockers": [],
-  "warnings": ["some_sessions_need_manual_review_before_use"],
+  "warnings": [
+    "some_sessions_need_manual_review_before_use",
+    "irreducible_manual_review_queue_present"
+  ],
   "summary": {
-    "session_count": 10,
-    "all_session_count": 14,
-    "excluded_diagnostic_session_count": 4,
+    "session_count": 19,
+    "all_session_count": 45,
+    "excluded_diagnostic_session_count": 26,
     "excluded_diagnostic_sessions": ["audio-input-smoke", "test"],
     "use_gates": {
-      "ready_for_notes": 4,
-      "review_first": 5,
-      "pipeline_incomplete_review_first": 1
+      "do_not_use_without_manual_review": 1,
+      "ready_for_notes": 14,
+      "review_first": 4
     },
-    "total_review_burden_ratio": 0.029619,
-    "total_notes_review_burden_sec": 106.63,
-    "total_notes_review_burden_ratio": 0.029619,
-    "total_transcript_review_burden_sec": 144.09,
-    "total_transcript_review_burden_ratio": 0.040023,
+    "total_review_burden_ratio": 0.001134,
+    "total_notes_review_burden_sec": 51.65,
+    "total_notes_review_burden_ratio": 0.001134,
+    "total_transcript_review_burden_sec": 211.23,
+    "total_transcript_review_burden_ratio": 0.004639,
     "corpus_readiness": "useful_for_audio_judge_v0",
     "audio_judge_readiness": "cleanup_shadow_candidate",
     "audio_judge_cv_accuracy": 0.901961,
@@ -2139,32 +2142,50 @@ sessions/_reports/operational-readiness/
       "resolved_by_selected_profile_items": 6,
       "remaining_human_review_items": 34
     },
-    "review_queue_items": 40,
+    "review_queue_items": 7,
     "review_queue_low_materiality_excluded": {
-      "items": 0,
-      "seconds": 0.0,
-      "minutes": 0.0,
-      "by_label": {}
+      "items": 25,
+      "seconds": 44.44,
+      "minutes": 0.74,
+      "by_label": {
+        "needs_review": 3,
+        "remote_leak": 5,
+        "uncertain": 17
+      }
     },
-    "review_action_count": 30,
-    "grouped_review_row_count": 10,
+    "review_action_count": 7,
+    "grouped_review_row_count": 0,
+    "irreducible_review": {
+      "schema": "murmurmark.operational_irreducible_review/v1",
+      "passed": true,
+      "status": "pilot_ready_with_irreducible_review",
+      "reasons": ["short_irreducible_review_queue"],
+      "metrics": {
+        "not_ready_sessions": 5,
+        "review_queue_items": 7,
+        "review_action_count": 7,
+        "review_queue_seconds": 10.85,
+        "review_queue_minutes": 0.18,
+        "notes_review_burden_seconds": 51.65,
+        "notes_review_burden_ratio": 0.001134,
+        "failed_sessions": 0,
+        "risky_sessions": 1,
+        "not_ready_without_queue": [],
+        "pending_safe_suggestions": []
+      }
+    },
     "by_review_action": {
-      "check_local_recall_island": 1,
-      "check_unique_me_content": 23,
-      "classify_audio": 14,
-      "confirm_drop_or_keep_me": 2
+      "check_local_recall_island": 3,
+      "check_lost_local_speech": 3,
+      "classify_audio": 1
     },
     "by_review_lane_actions": {
-      "check_local_recall": 1,
-      "check_unique_me_content": 17,
-      "classify_audio": 10,
-      "fast_confirm_drop": 2
+      "check_local_recall": 6,
+      "classify_audio": 1
     },
     "by_review_lane_grouped_rows": {
       "check_local_recall": 0,
-      "check_unique_me_content": 10,
-      "classify_audio": 0,
-      "fast_confirm_drop": 0
+      "classify_audio": 0
     }
   },
   "promotion_plan": {
@@ -2172,11 +2193,11 @@ sessions/_reports/operational-readiness/
     "current_verdict": "pilot_ready_with_review",
     "status": "manual_review_or_algorithmic_cleanup_needed",
     "outstanding_conditions": {
-      "sessions_not_ready_for_notes": 0,
-      "review_queue_items": 40,
-      "review_action_count": 30,
-      "grouped_review_row_count": 10,
-      "review_queue_raw_audio_minutes": 1.73
+      "sessions_not_ready_for_notes": 5,
+      "review_queue_items": 7,
+      "review_action_count": 7,
+      "grouped_review_row_count": 0,
+      "review_queue_raw_audio_minutes": 0.18
     },
     "review_queue_strategy": {
       "first_recommended_lane": "check_unique_me_content",
@@ -2246,6 +2267,14 @@ The operational verdict is not a transcript correctness proof. It is a use-readi
 piloting MurmurMark on medium-risk meeting notes with explicit notes review burden, per-session use
 gates and a prioritised review queue. Transcript/export review is reported separately and can still
 block `murmurmark export` after notes are ready.
+
+`pilot_ready_with_review` means the working corpus no longer has a hidden structural blocker, but
+still has a short explicit operator queue. The report may reach this state from `not_ready` only when
+`summary.irreducible_review.passed` is true: there are no failed working sessions, no pending safe
+suggestions, no not-ready sessions without a queue or non-actionable explanation, and the remaining
+mandatory review queue stays below the configured small-queue limits. This is a convergence gate,
+not an auto-approval gate: the listed rows must remain visible until a human or a stronger local
+evidence layer closes them.
 
 `promotion_plan` is the bridge from current pilot status to the target state. It names remaining
 conditions, sessions that are not yet `ready_for_notes`, notes review minutes and the next actions

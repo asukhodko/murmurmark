@@ -39,18 +39,23 @@ The CLI MVP is already real:
 
 Operational corpus snapshot from 2026-07-01:
 
-- the 2026-06-30 corpus snapshot was `not_ready` because a small explicit review queue remained;
-- two fresh 2026-07-01 sessions verified the stabilized local review loop;
-- `review suggested apply` is now cumulative: already reviewed rows are preserved even when the
+- `review suggested apply` is cumulative: already reviewed rows are preserved even when the
   regenerated template changes;
-- `review progress`, workspace `suggested_closure`, `status` and session-quality now agree on the
-  same remaining queue;
-- verified examples:
-  - `sessions/2026-07-01_11-17-22`: `2` rows / `2.72s` remaining;
-  - `sessions/2026-07-01_14-01-09`: `7` rows / `17.3s` remaining.
+- `review progress`, workspace `suggested_closure`, `status` and session-quality agree on the same
+  remaining queue;
+- safe suggested decisions and Target-Me evidence reduced the blocking queue to `7` actions;
+- `murmurmark report corpus` now reports `pilot_ready_with_review`;
+- irreducible review gate: `pilot_ready_with_irreducible_review`;
+- operational scope: `19` working sessions, `26` diagnostic sessions excluded;
+- readiness: `14/19 ready_for_notes`, `4/19 review_first`, `1/19` manual-review-required session;
+- mandatory review queue: `7` actions / `10.85s` raw audio;
+- notes review burden: `0.86 min`;
+- transcript/export review burden: `3.52 min`;
+- pending safe suggestions: `0`.
 
-This is enough to use many individual MurmurMark sessions with caution. It is not enough to call the
-current operational corpus green.
+This is enough to use the corpus as a pilot-ready local tool with explicit review. It is not yet
+`medium_risk_ready`: the remaining local-recall/lost-Me/uncertain rows still require a human check
+before broader use.
 
 The 2026-06-30 daily sync showed the review-loop gap: a meeting can have healthy capture and no
 harmful duplicate seconds, but still be marked `risky` because order/local-recall rows are not
@@ -272,15 +277,12 @@ Recently completed:
 
 ## Candidate Next Goals
 
-Recommended nearest goal: **finish Review-loop Stabilization v1**: keep suggested decisions
-cumulative, report-consistent and fast enough for the normal CLI path. After that, the next quality
-goal is Target-Me Evidence Hardening v1: turn the `resemblyzer_dvector_v0` signal into safe review
-suggestions and corpus gates, while keeping transcript edits manual or guarded by existing safety
-checks.
+Recommended nearest goal: **Operational Corpus Green v1**: keep the corpus at
+`pilot_ready_with_review` or better, make the irreducible review queue explicit, and prevent future
+algorithm changes from silently growing it.
 
-1. **Finish Review-loop Stabilization v1.** Preserve closed rows across regenerated templates, keep
-   `review progress`, `status`, `report` and `suggested_closure` aligned, and make targeted model work
-   explicit when it would be slow.
+1. **Operational Corpus Green v1.** Keep `murmurmark report corpus` as the source of truth, preserve
+   the short irreducible review queue and close only rows with safe local evidence.
 2. **Target-Me Evidence Hardening v1.** Integrate `resemblyzer_dvector_v0` with review-lane
    suggestions and corpus reports: keep true `Me` rows that old remote-duplicate heuristics would
    over-delete, but do not auto-edit transcripts.

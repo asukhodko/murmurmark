@@ -5,12 +5,13 @@ import argparse
 import json
 import re
 import shlex
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.5"
+SCRIPT_VERSION = "0.4.0"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
@@ -2242,9 +2243,92 @@ def session_target_action(row: dict[str, Any]) -> str:
 def session_review_non_actionable(row: dict[str, Any]) -> bool:
     if str(row.get("use_gate") or "") == "ready_for_notes":
         return False
-    if row.get("review_scope_complete") is not True:
+    remaining = safe_float(row.get("review_scope_remaining_seconds"))
+    if row.get("review_scope_complete") is not True and str(row.get("review_scope_status") or "") != "partial_allowed":
         return False
-    return safe_float(row.get("review_scope_remaining_seconds")) <= 0.001
+    return remaining <= 0.001
+
+
+def irreducible_review_assessment(
+    blockers: list[str],
+    warnings: list[str],
+    burdens: list[dict[str, Any]],
+    review_queue: list[dict[str, Any]],
+) -> dict[str, Any]:
+    not_ready = [row for row in burdens if row.get("use_gate") != "ready_for_notes"]
+    verdicts = Counter(str(row.get("verdict") or "missing") for row in burdens)
+    review_actions = review_action_summary(review_queue)
+    queue_seconds = sum(
+        safe_float((item.get("interval") if isinstance(item.get("interval"), dict) else {}).get("duration_sec"))
+        for item in review_queue
+    )
+    total_duration = sum(safe_float(row.get("duration_sec")) for row in burdens)
+    notes_burden_seconds = sum(safe_float(row.get("notes_review_burden_sec")) for row in burdens)
+    notes_burden_ratio = notes_burden_seconds / total_duration if total_duration > 0 else 0.0
+    queue_by_session = {str(item.get("session_id") or "") for item in review_queue if item.get("session_id")}
+    not_ready_without_queue = [
+        str(row.get("session_id") or "")
+        for row in not_ready
+        if str(row.get("session_id") or "") not in queue_by_session and not session_review_non_actionable(row)
+    ]
+    pending_safe_suggestions = [
+        str(row.get("session_id") or "")
+        for row in not_ready
+        if safe_int(row.get("suggested_closure_actionable_rows")) > 0
+    ]
+    hard_blockers = [item for item in blockers if item != "risky_or_failed_session_verdicts_present"]
+    passed = (
+        not hard_blockers
+        and safe_int(verdicts.get("failed")) == 0
+        and review_actions["review_action_count"] <= 12
+        and queue_seconds <= 90.0
+        and notes_burden_seconds <= 120.0
+        and notes_burden_ratio <= 0.005
+        and not not_ready_without_queue
+        and not pending_safe_suggestions
+    )
+    reasons: list[str] = []
+    if hard_blockers:
+        reasons.append("hard_blockers_present")
+    if safe_int(verdicts.get("failed")):
+        reasons.append("failed_sessions_present")
+    if review_actions["review_action_count"] > 12:
+        reasons.append("review_action_count_above_limit")
+    if queue_seconds > 90.0:
+        reasons.append("review_queue_seconds_above_limit")
+    if notes_burden_seconds > 120.0 or notes_burden_ratio > 0.005:
+        reasons.append("notes_review_burden_above_limit")
+    if not_ready_without_queue:
+        reasons.append("not_ready_sessions_without_queue_or_non_actionable_explanation")
+    if pending_safe_suggestions:
+        reasons.append("safe_suggestions_still_pending")
+    if not reasons:
+        reasons.append("short_irreducible_review_queue")
+    return {
+        "schema": "murmurmark.operational_irreducible_review/v1",
+        "passed": passed,
+        "status": "pilot_ready_with_irreducible_review" if passed else "not_irreducible",
+        "reasons": reasons,
+        "limits": {
+            "review_action_count_max": 12,
+            "review_queue_seconds_max": 90.0,
+            "notes_review_burden_seconds_max": 120.0,
+            "notes_review_burden_ratio_max": 0.005,
+        },
+        "metrics": {
+            "not_ready_sessions": len(not_ready),
+            "review_queue_items": len(review_queue),
+            "review_action_count": review_actions["review_action_count"],
+            "review_queue_seconds": round(queue_seconds, 3),
+            "review_queue_minutes": round(queue_seconds / 60.0, 2),
+            "notes_review_burden_seconds": round(notes_burden_seconds, 3),
+            "notes_review_burden_ratio": round(notes_burden_ratio, 6),
+            "failed_sessions": safe_int(verdicts.get("failed")),
+            "risky_sessions": safe_int(verdicts.get("risky")),
+            "not_ready_without_queue": not_ready_without_queue,
+            "pending_safe_suggestions": pending_safe_suggestions,
+        },
+    }
 
 
 def active_audio_judge_queue_summary(sessions: list[dict[str, Any]], predictions: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -2412,7 +2496,6 @@ def build_report(
     total_duration = sum(item["duration_sec"] for item in burdens)
     total_burden = sum(item["review_burden_sec"] for item in burdens)
     total_transcript_burden = sum(item["transcript_review_burden_sec"] for item in burdens)
-    verdict, blockers, warnings = operational_verdict(session_quality, corpus, audio_judge)
     gates: dict[str, int] = {}
     for row in burdens:
         gate = str(row.get("use_gate") or "unknown")
@@ -2422,6 +2505,13 @@ def build_report(
     review_actions = review_action_summary(review_queue)
     active_judge_queue = active_audio_judge_queue_summary(burdens, audio_judge_queue)
     audio_judge_review_queue = active_judge_queue or (audio_judge.get("review_queue") if isinstance(audio_judge, dict) else None)
+    verdict, blockers, warnings = operational_verdict(session_quality, corpus, audio_judge)
+    irreducible_review = irreducible_review_assessment(blockers, warnings, burdens, review_queue)
+    if verdict == "not_ready" and irreducible_review.get("passed") is True:
+        blockers = [item for item in blockers if item != "risky_or_failed_session_verdicts_present"]
+        if "irreducible_manual_review_queue_present" not in warnings:
+            warnings.append("irreducible_manual_review_queue_present")
+        verdict = "pilot_ready_with_review"
     promotion = promotion_plan(verdict, blockers, warnings, burdens, review_queue, audio_judge_review_queue)
     return {
         "schema": SCHEMA,
@@ -2470,6 +2560,7 @@ def build_report(
             "by_review_action": review_actions["by_review_action"],
             "by_review_lane_actions": review_actions["by_review_lane_actions"],
             "by_review_lane_grouped_rows": review_actions["by_review_lane_grouped_rows"],
+            "irreducible_review": irreducible_review,
         },
         "session_review_burden": burdens,
         "review_queue": review_queue,
@@ -2581,6 +2672,16 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         if isinstance(report["summary"].get("review_queue_low_materiality_excluded"), dict)
         else {}
     )
+    irreducible = (
+        report["summary"].get("irreducible_review")
+        if isinstance(report["summary"].get("irreducible_review"), dict)
+        else {}
+    )
+    irreducible_metrics = (
+        irreducible.get("metrics")
+        if isinstance(irreducible.get("metrics"), dict)
+        else {}
+    )
     lines = [
         "# MurmurMark Operational Readiness",
         "",
@@ -2598,6 +2699,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- Transcript/export review burden ratio: `{round(safe_float(report['summary'].get('total_transcript_review_burden_ratio')) * 100.0, 2)}%`",
         f"- Review queue rows: `{report['summary'].get('review_queue_items')}`",
         f"- Packed review actions: `{report['summary'].get('review_action_count')}`",
+        f"- Irreducible review gate: `{irreducible.get('status')}`",
+        f"- Irreducible review queue: `{irreducible_metrics.get('review_action_count')}` actions / `{irreducible_metrics.get('review_queue_seconds')}` sec",
         f"- Grouped review rows saved: `{report['summary'].get('grouped_review_row_count')}`",
         f"- Low-materiality rows outside mandatory queue: `{low_materiality.get('items', 0)}` / `{low_materiality.get('seconds', 0.0)} sec`",
         f"- Corpus readiness: `{report['summary']['corpus_readiness']}`",
