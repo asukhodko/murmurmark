@@ -21,26 +21,28 @@ evidence.
 
 ## Current Status
 
-The CLI pipeline is usable for regular medium-risk working meetings with a short explicit review
-queue.
+The CLI pipeline is usable for pilot notes on regular working meetings with a short explicit review
+queue. It is not yet `medium_risk_ready`: guarded full-transcript export can still require review.
 
 Current corpus snapshot from `murmurmark report corpus` on 2026-07-01:
 
 - operational status: `pilot_ready_with_review`;
-- working sessions in scope: `19`;
+- working sessions in scope: `20`;
 - diagnostic sessions excluded from readiness: `26`;
-- session readiness: `14/19 ready_for_notes`, `4/19 review_first`, `1/19` with manual review required;
-- selected notes review burden: `0.86 min`;
-- full transcript/export review surface: `3.52 min`;
-- mandatory review queue: `7` actions / `10.85s` raw audio;
+- session readiness: `14/20 ready_for_notes`, `6/20 review_first`, `0/20 do_not_use_without_manual_review`;
+- selected notes review burden: `0.85 min`;
+- full transcript/export review surface: `3.51 min`;
+- mandatory review queue: `7` actions / `11.19s` raw audio;
 - irreducible review gate: `pilot_ready_with_irreducible_review`;
 - safe suggested rows still pending: `0`.
 
 This does not mean “zero review”. It means the current operational corpus has no hidden blocker:
 safe local evidence has been applied where available, and the remaining queue is short, explicit and
-not safely closable by the current local agents.
+not safely closable by the current local agents. The one risky session is represented as formal
+residual risk, not as unattended export readiness. `finish` and `export` still block full transcript
+bundles when transcript-only blockers remain.
 
-Current quality goal: [Operational Corpus Green v1](docs/project/current-goal.md). `review suggested
+Current quality goal: [Operational Corpus Green v2](docs/project/current-goal.md). `review suggested
 apply` is cumulative, keeps already closed rows, consumes cached stronger-audio-judge and Target-Me
 evidence in lane suggestions, and makes `review progress`, `status`, `report` and `suggested_closure`
 agree on the same remaining queue. Latest product milestone: Export Bundle Quality v1; `finish`

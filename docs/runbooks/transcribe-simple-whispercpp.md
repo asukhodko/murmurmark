@@ -891,10 +891,10 @@ as `full_transcript_review_required`. In that state notes can be used with norma
 default export remains blocked until transcript-only review is closed or `--force` is used
 deliberately.
 The 2026-07-01 corpus snapshot is the current convergence baseline: `murmurmark report corpus`
-reports `pilot_ready_with_review`, `19` working sessions in scope and `26` diagnostic sessions
-excluded. `14/19` sessions are `ready_for_notes`, four are `review_first`, and one session still
-requires a manual check. Selected notes carry about `0.86 min` of documented residual review burden;
-the remaining full transcript/export surface is about `3.52 min`.
+reports `pilot_ready_with_review`, `20` working sessions in scope and `26` diagnostic sessions
+excluded. `14/20` sessions are `ready_for_notes`, six are `review_first`, and no session is
+`do_not_use_without_manual_review`. Selected notes carry about `0.85 min` of documented residual
+review burden; the remaining full transcript/export surface is about `3.51 min`.
 
 Session-quality reports de-duplicate transcript-only `uncertain` rows when the same selected `Me`
 interval is already covered by high-confidence `likely_reliable` audio-review evidence. The
@@ -904,11 +904,14 @@ Possible lost `Me` speech, probable transcript errors and uncertain semantic con
 visible to review/export gates.
 
 The same snapshot exposes a short irreducible mandatory review queue: `review_actions` is `7`,
-covering `10.85s` of raw audio. Suggested closure has no safe keep/drop rows left to apply; the
+covering `11.19s` of raw audio. Suggested closure has no safe keep/drop rows left to apply; the
 remaining local-recall, lost-`Me` and uncertain-audio rows are intentionally not auto-closed by the
 current local agents. This is why the operational verdict is `pilot_ready_with_review` rather than
 `medium_risk_ready`: selected notes can be used session-by-session when `status` says they are
 ready, but the queue remains explicit until a human or a stronger local evidence layer closes it.
+A narrow risky session is represented as `formal_residual_risk` when its remaining queue is short,
+bounded and made only of allowed risk flags; it remains `review_first` and default export stays
+blocked.
 `murmurmark next corpus` is the compact action-only view of that same report. Without `--refresh` it
 only reads `sessions/_reports/operational-readiness/operational_readiness_report.json`; with
 `--refresh` it first rebuilds session-quality and operational-readiness reports, then prints

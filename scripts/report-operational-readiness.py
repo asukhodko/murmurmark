@@ -824,7 +824,50 @@ def session_review_burden(session: dict[str, Any]) -> dict[str, Any]:
     }
     source_gate = session.get("use_gate")
     row["use_gate"] = source_gate if isinstance(source_gate, str) and source_gate else session_use_gate(row)
+    row["formal_residual_risk"] = formal_residual_risk(row)
     return row
+
+
+def formal_residual_risk(row: dict[str, Any]) -> dict[str, Any] | None:
+    profile = str(row.get("selected_profile") or "")
+    verdict = str(row.get("verdict") or "")
+    if verdict != "risky":
+        return None
+    if profile not in {
+        "audit_cleanup_v1",
+        "audit_cleanup_v2",
+        "audit_cleanup_v3",
+        "audit_cleanup_v4",
+        "audit_cleanup_v5",
+        "audit_cleanup_v6",
+        "audit_cleanup_v7",
+        "reviewed_v1",
+        "agent_reviewed_v1",
+        "local_recall_repair_v1",
+    }:
+        return None
+    flags = {str(flag) for flag in row.get("risk_flags") or []}
+    allowed_flags = {
+        "verdict:risky",
+        "partial_review_scope",
+        "local_recall_possible_lost_me",
+        "low_local_recall",
+        "notes_high_needs_review_ratio",
+    }
+    if flags - allowed_flags:
+        return None
+    remaining = safe_float(row.get("review_scope_remaining_seconds"))
+    if remaining <= 0.001 or remaining > 15.0:
+        return None
+    ratio = safe_float(row.get("review_burden_ratio"))
+    if ratio > 0.025:
+        return None
+    return {
+        "status": "review_first_residual_risk",
+        "remaining_review_seconds": round(remaining, 3),
+        "review_burden_ratio": round(ratio, 6),
+        "allowed_flags": sorted(flags),
+    }
 
 
 def session_use_gate(row: dict[str, Any]) -> str:
@@ -832,7 +875,9 @@ def session_use_gate(row: dict[str, Any]) -> str:
     flags = set(row.get("risk_flags") or [])
     profile = str(row.get("selected_profile") or "")
     verdict = str(row.get("verdict") or "")
-    if verdict in {"failed", "risky"}:
+    if verdict == "failed":
+        return "do_not_use_without_manual_review"
+    if verdict == "risky" and not formal_residual_risk(row):
         return "do_not_use_without_manual_review"
     if profile not in {
         "audit_cleanup_v1",
@@ -847,6 +892,8 @@ def session_use_gate(row: dict[str, Any]) -> str:
         "local_recall_repair_v1",
     }:
         return "pipeline_incomplete_review_first"
+    if formal_residual_risk(row):
+        return "review_first"
     if ratio <= 0.025 and not flags:
         return "ready_for_notes"
     if ratio <= 0.08:
@@ -2496,6 +2543,7 @@ def build_report(
     total_duration = sum(item["duration_sec"] for item in burdens)
     total_burden = sum(item["review_burden_sec"] for item in burdens)
     total_transcript_burden = sum(item["transcript_review_burden_sec"] for item in burdens)
+    formal_residual_count = sum(1 for item in burdens if isinstance(item.get("formal_residual_risk"), dict))
     gates: dict[str, int] = {}
     for row in burdens:
         gate = str(row.get("use_gate") or "unknown")
@@ -2543,6 +2591,7 @@ def build_report(
                 round(total_transcript_burden / total_duration, 6) if total_duration > 0 else 0.0
             ),
             "use_gates": dict(sorted(gates.items())),
+            "formal_residual_risk_sessions": formal_residual_count,
             "corpus_readiness": corpus.get("readiness") if isinstance(corpus, dict) else None,
             "corpus_item_count": safe_int(corpus.get("item_count")) if isinstance(corpus, dict) else 0,
             "corpus_missing_labels": corpus.get("missing_labels") if isinstance(corpus, dict) else None,
@@ -2850,9 +2899,10 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines.extend(["", "### Next Actions", ""])
     lines.extend(f"- `{item}`" for item in plan.get("next_actions", []))
     lines.extend(["", "## Session Review Burden", ""])
-    lines.append("| Session | Gate | Profile | Verdict | Notes review min | Notes review % | Transcript/export review min | Flags |")
-    lines.append("|---|---|---|---|---:|---:|---:|---|")
+    lines.append("| Session | Gate | Profile | Verdict | Notes review min | Notes review % | Transcript/export review min | Residual | Flags |")
+    lines.append("|---|---|---|---|---:|---:|---:|---|---|")
     for row in sorted(report["session_review_burden"], key=lambda item: item["review_burden_ratio"], reverse=True):
+        residual = row.get("formal_residual_risk") if isinstance(row.get("formal_residual_risk"), dict) else None
         lines.append(
             "| "
             + " | ".join(
@@ -2864,6 +2914,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                     f"{row['review_burden_sec'] / 60.0:.2f}",
                     f"{row['review_burden_ratio'] * 100.0:.2f}",
                     f"{safe_float(row.get('transcript_review_burden_sec')) / 60.0:.2f}",
+                    str(residual.get("status")) if residual else "-",
                     ", ".join(row["risk_flags"]),
                 ]
             )

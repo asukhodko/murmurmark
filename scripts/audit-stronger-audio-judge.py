@@ -732,7 +732,20 @@ def item_fingerprint(item: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def cached_row_matches_item(row: dict[str, Any], item: dict[str, Any]) -> bool:
+def cached_row_matches_item(row: dict[str, Any], item: dict[str, Any], sources: tuple[str, ...] = ()) -> bool:
+    expected = item_fingerprint(item)
+    actual = str(row.get("source_pack_item_fingerprint") or "")
+    fingerprint_matches = actual == expected if actual else item_fingerprint_payload(row) == item_fingerprint_payload(item)
+    if not fingerprint_matches:
+        return False
+    row_sources = {str(value) for value in row.get("sources") or [] if value}
+    if not row_sources:
+        transcripts = row.get("transcripts") if isinstance(row.get("transcripts"), dict) else {}
+        row_sources = {str(source) for source, value in transcripts.items() if isinstance(value, dict)}
+    return not sources or set(sources) <= row_sources
+
+
+def item_matches_legacy_fingerprint(row: dict[str, Any], item: dict[str, Any]) -> bool:
     expected = item_fingerprint(item)
     actual = str(row.get("source_pack_item_fingerprint") or "")
     if actual:
@@ -975,6 +988,22 @@ def classify_item(
         and remote_source_to_me_containment >= 0.60
         and mic_content_tokens >= 2
     )
+    lost_me_behaves_like_remote_artifact = (
+        short_content_me
+        and audit_verdict == "probable_transcript_error"
+        and audit_label == "lost_me"
+        and local_support <= 20
+        and best_remote_in_mic >= 0.85
+        and remote_source_to_remote >= 0.80
+        and remote_source_tokens >= 3
+        and mic_content_tokens >= 3
+        and best_me < 0.12
+        and (
+            best_remote_in_mic - best_me_any >= 0.45
+            or noise_fragment_me
+            or len(me_tokens) <= 1
+        )
+    )
     short_remote_leak_unconfirmed = (
         short_content_me
         and len(me_tokens) >= 2
@@ -1013,6 +1042,11 @@ def classify_item(
         suggested = "drop_me"
         confidence = 0.88
         reasons.append("remote-leak evidence behaves like a duplicate: mic decode is closer to remote than Me")
+    elif lost_me_behaves_like_remote_artifact:
+        label = "confirm_asr_noise"
+        suggested = "drop_me"
+        confidence = 0.90
+        reasons.append("lost-Me fragment behaves like remote/noise: mic decode is closer to remote than Me")
     elif remote_duplicate:
         label = "confirm_remote_duplicate"
         suggested = "drop_me"
@@ -1098,6 +1132,7 @@ def audit_item(model: Any, item: dict[str, Any], audit_row: dict[str, Any] | Non
         "source_pack_item_fingerprint": item_fingerprint(item),
         "session_id": item.get("session_id"),
         "profile": item.get("profile") or args.profile,
+        "sources": list(sources),
         "interval": item.get("interval"),
         "source_reasons": item.get("source_reasons") or [],
         "utterance_ids": item_utterance_ids(item),
@@ -1161,6 +1196,7 @@ def cached_rows_for_items(
     items: list[dict[str, Any]],
     *,
     disabled: bool,
+    sources: tuple[str, ...] = (),
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int]:
     if disabled:
         return [], items, 0
@@ -1174,20 +1210,24 @@ def cached_rows_for_items(
     for item in items:
         pack_id = str(item.get("id") or "")
         row = cached_by_pack_id.get(pack_id)
-        if row and cached_row_matches_item(row, item):
+        if row and cached_row_matches_item(row, item, sources):
             cached.append(row)
         else:
             missing.append(item)
     return cached, missing, len(cached)
 
 
-def valid_existing_rows_by_pack_id(out_dir: Path, items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+def valid_existing_rows_by_pack_id(
+    out_dir: Path,
+    items: list[dict[str, Any]],
+    sources: tuple[str, ...] = (),
+) -> dict[str, dict[str, Any]]:
     by_item_id = {str(item.get("id") or ""): item for item in items if item.get("id")}
     rows: dict[str, dict[str, Any]] = {}
     for row in read_jsonl(out_dir / "faster_whisper_judge.jsonl"):
         pack_id = str(row.get("source_pack_item_id") or "")
         item = by_item_id.get(pack_id)
-        if item and cached_row_matches_item(row, item):
+        if item and cached_row_matches_item(row, item, sources):
             rows[pack_id] = row
     return rows
 
@@ -1287,7 +1327,13 @@ def main() -> int:
     missing_lane_pack_files = list(dict.fromkeys(missing_lane_pack_files + lane_missing_files))
     selected = selected_items(items, matched_audio_review_rows, args.max_items, target_ids=requested_target_ids)
     missing_target_ids = [item_id for item_id in requested_target_ids if item_id not in {str(item.get("id") or "") for item in items}]
-    cached_rows, missing_items, cached_count = cached_rows_for_items(out_dir, selected, disabled=args.no_cache)
+    sources = selected_sources(args)
+    cached_rows, missing_items, cached_count = cached_rows_for_items(
+        out_dir,
+        selected,
+        disabled=args.no_cache,
+        sources=sources,
+    )
     pending_selected_count = len(missing_items)
     if args.cached_only:
         missing_items = []
@@ -1300,7 +1346,7 @@ def main() -> int:
             (
                 f"selected={len(selected)} cached={cached_count} "
                 f"pending={pending_selected_count} computing={len(missing_items)} "
-                f"sources={','.join(selected_sources(args))}"
+                f"sources={','.join(sources)}"
             ),
         )
         progress(args, f"loading faster-whisper model: {model_path}")
@@ -1330,7 +1376,7 @@ def main() -> int:
         row = new_by_pack_id.get(item_id) or cached_by_pack_id.get(item_id)
         if row:
             selected_rows.append(row)
-    merged_by_pack_id = valid_existing_rows_by_pack_id(out_dir, items)
+    merged_by_pack_id = valid_existing_rows_by_pack_id(out_dir, items, sources)
     for row in selected_rows:
         if row.get("source_pack_item_id"):
             merged_by_pack_id[str(row["source_pack_item_id"])] = row
@@ -1341,7 +1387,7 @@ def main() -> int:
     summary["selected_items"] = len(selected)
     summary["pending_selected_items_before_cap"] = pending_selected_count
     summary["pending_selected_items_after_cap"] = max(0, pending_selected_count - len(missing_items))
-    summary["sources"] = list(selected_sources(args))
+    summary["sources"] = list(sources)
     summary["quick"] = bool(args.quick)
     summary["cached_only"] = bool(args.cached_only)
     summary["max_computed_items"] = args.max_computed_items

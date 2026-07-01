@@ -1438,8 +1438,47 @@ def risk_flags(row: dict[str, Any]) -> list[str]:
     return flags
 
 
+def formal_residual_risk(row: dict[str, Any]) -> dict[str, Any] | None:
+    if row.get("pipeline_status") != "complete":
+        return None
+    if row.get("selected_profile") not in CLEANUP_PROFILES:
+        return None
+    if row.get("verdict") != "risky":
+        return None
+    flags = {str(flag) for flag in row.get("risk_flags") or []}
+    allowed_flags = {
+        "verdict:risky",
+        "partial_review_scope",
+        "local_recall_possible_lost_me",
+        "low_local_recall",
+        "notes_high_needs_review_ratio",
+    }
+    if flags - allowed_flags:
+        return None
+    remaining = safe_float(row.get("review_scope_remaining_seconds")) or 0.0
+    if remaining <= 0.001 or remaining > 15.0:
+        return None
+    duration = safe_float(row.get("meeting_duration_sec")) or 0.0
+    burden = safe_float(row.get("review_burden_sec")) or remaining
+    ratio = burden / duration if duration > 0 else 0.0
+    if ratio > 0.025:
+        return None
+    return {
+        "schema": "murmurmark.formal_residual_risk/v1",
+        "status": "review_first_residual_risk",
+        "reason": (
+            "The session has a short explicit review queue and no additional structural blockers. "
+            "It is not ready for unattended export, but it should not be treated as unusable."
+        ),
+        "remaining_review_seconds": round(remaining, 3),
+        "review_burden_ratio": round(ratio, 6),
+        "allowed_flags": sorted(flags),
+    }
+
+
 def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
     reasons: list[dict[str, Any]] = []
+    residual = formal_residual_risk(row)
     pipeline_status = row.get("pipeline_status")
     if pipeline_status != "complete":
         reasons.append(
@@ -1455,8 +1494,12 @@ def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
         reasons.append(
             {
                 "id": f"quality_verdict_{verdict}",
-                "severity": "block",
-                "message": "The quality verdict is not safe for unattended use.",
+                "severity": "review" if residual and verdict == "risky" else "block",
+                "message": (
+                    "The quality verdict is risky, but the remaining risk is short, explicit and review-scoped."
+                    if residual and verdict == "risky"
+                    else "The quality verdict is not safe for unattended use."
+                ),
                 "value": verdict,
             }
         )
@@ -1505,6 +1548,8 @@ def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
             "transcript_order_risk",
         }:
             severity = "block"
+        if residual and flag in set(residual.get("allowed_flags") or []):
+            severity = "review"
         reasons.append(
             {
                 "id": f"risk:{flag}",
@@ -1532,10 +1577,14 @@ def use_gate_reasons(row: dict[str, Any]) -> list[dict[str, Any]]:
 def session_use_gate(row: dict[str, Any]) -> str:
     if row.get("pipeline_status") != "complete":
         return "pipeline_incomplete"
-    if row.get("verdict") in {"failed", "risky"}:
+    if row.get("verdict") == "failed":
+        return "do_not_use_without_manual_review"
+    if row.get("verdict") == "risky" and not formal_residual_risk(row):
         return "do_not_use_without_manual_review"
     if row.get("selected_profile") not in CLEANUP_PROFILES:
         return "pipeline_incomplete_review_first"
+    if formal_residual_risk(row):
+        return "review_first"
 
     duration = safe_float(row.get("meeting_duration_sec")) or 0.0
     burden = safe_float(row.get("review_burden_sec")) or 0.0
@@ -1569,6 +1618,7 @@ def add_use_gate(row: dict[str, Any]) -> None:
     row["transcript_review_burden_ratio"] = round(transcript_burden / duration, 6) if duration > 0 else 0.0
     row["review_burden_sec"] = row["notes_review_burden_sec"]
     row["review_burden_ratio"] = row["notes_review_burden_ratio"]
+    row["formal_residual_risk"] = formal_residual_risk(row)
     row["use_gate"] = session_use_gate(row)
     reasons = use_gate_reasons(row)
     transcript_only_reasons: list[dict[str, Any]] = []
@@ -2494,6 +2544,7 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
         "review_blockers": row.get("review_blockers") or [],
         "export_blockers": row.get("export_blockers") or [],
         "warnings": row.get("readiness_warnings") or [],
+        "formal_residual_risk": row.get("formal_residual_risk"),
         "non_actionable_blockers": non_actionable_review_blockers(row),
         "recommended_next": preferred_next_command(next_commands),
         "next_commands": next_commands,
@@ -2644,6 +2695,14 @@ def write_session_readiness(session: Path, row: dict[str, Any]) -> None:
     if non_actionable:
         for item in non_actionable:
             lines.append(f"- `{item.get('id')}`: {item.get('message')}")
+    else:
+        lines.append("- none")
+    residual = payload.get("formal_residual_risk")
+    lines.extend(["", "## Formal Residual Risk", ""])
+    if isinstance(residual, dict):
+        lines.append(f"- `{residual.get('status')}`: {residual.get('reason')}")
+        lines.append(f"- remaining review seconds: `{fmt(residual.get('remaining_review_seconds'))}`")
+        lines.append(f"- allowed flags: `{', '.join(residual.get('allowed_flags') or [])}`")
     else:
         lines.append("- none")
     lines.extend(["", "## Export Blockers", ""])

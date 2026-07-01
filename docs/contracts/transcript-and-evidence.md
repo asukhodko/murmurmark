@@ -2022,6 +2022,27 @@ still have residual risk flags without any actionable review rows. In that case
 `murmurmark status SESSION` or a linked evidence document, and `next_commands` must not include
 `review_first_lane`. This is a documented blocker, not a hidden lane-pack task.
 
+When a risky session has only allowed risk flags and a short explicit review queue, readiness may
+include `formal_residual_risk`:
+
+```json
+{
+  "schema": "murmurmark.formal_residual_risk/v1",
+  "status": "review_first_residual_risk",
+  "remaining_review_seconds": 2.49,
+  "review_burden_ratio": 0.001514,
+  "allowed_flags": [
+    "local_recall_possible_lost_me",
+    "partial_review_scope",
+    "verdict:risky"
+  ]
+}
+```
+
+This does not make the session export-ready. It prevents a short, bounded, review-scoped risky
+session from making the whole corpus look unusable while keeping `use_gate: review_first` and
+default export blockers intact.
+
 `use_gate` is the short per-session answer for practical use:
 
 - `ready_for_notes`: use the notes with normal caution;
@@ -2120,20 +2141,20 @@ sessions/_reports/operational-readiness/
     "irreducible_manual_review_queue_present"
   ],
   "summary": {
-    "session_count": 19,
-    "all_session_count": 45,
+    "session_count": 20,
+    "all_session_count": 46,
     "excluded_diagnostic_session_count": 26,
     "excluded_diagnostic_sessions": ["audio-input-smoke", "test"],
     "use_gates": {
-      "do_not_use_without_manual_review": 1,
       "ready_for_notes": 14,
-      "review_first": 4
+      "review_first": 6
     },
-    "total_review_burden_ratio": 0.001134,
-    "total_notes_review_burden_sec": 51.65,
-    "total_notes_review_burden_ratio": 0.001134,
-    "total_transcript_review_burden_sec": 211.23,
-    "total_transcript_review_burden_ratio": 0.004639,
+    "formal_residual_risk_sessions": 1,
+    "total_review_burden_ratio": 0.001082,
+    "total_notes_review_burden_sec": 51.07,
+    "total_notes_review_burden_ratio": 0.001082,
+    "total_transcript_review_burden_sec": 210.4,
+    "total_transcript_review_burden_ratio": 0.004456,
     "corpus_readiness": "useful_for_audio_judge_v0",
     "audio_judge_readiness": "cleanup_shadow_candidate",
     "audio_judge_cv_accuracy": 0.901961,
@@ -2144,13 +2165,13 @@ sessions/_reports/operational-readiness/
     },
     "review_queue_items": 7,
     "review_queue_low_materiality_excluded": {
-      "items": 25,
-      "seconds": 44.44,
-      "minutes": 0.74,
+      "items": 27,
+      "seconds": 45.35,
+      "minutes": 0.76,
       "by_label": {
         "needs_review": 3,
         "remote_leak": 5,
-        "uncertain": 17
+        "uncertain": 19
       }
     },
     "review_action_count": 7,
@@ -2161,13 +2182,13 @@ sessions/_reports/operational-readiness/
       "status": "pilot_ready_with_irreducible_review",
       "reasons": ["short_irreducible_review_queue"],
       "metrics": {
-        "not_ready_sessions": 5,
+        "not_ready_sessions": 6,
         "review_queue_items": 7,
         "review_action_count": 7,
-        "review_queue_seconds": 10.85,
-        "review_queue_minutes": 0.18,
-        "notes_review_burden_seconds": 51.65,
-        "notes_review_burden_ratio": 0.001134,
+        "review_queue_seconds": 11.19,
+        "review_queue_minutes": 0.19,
+        "notes_review_burden_seconds": 51.07,
+        "notes_review_burden_ratio": 0.001082,
         "failed_sessions": 0,
         "risky_sessions": 1,
         "not_ready_without_queue": [],
@@ -2175,16 +2196,19 @@ sessions/_reports/operational-readiness/
       }
     },
     "by_review_action": {
-      "check_local_recall_island": 3,
+      "check_local_recall_island": 2,
       "check_lost_local_speech": 3,
+      "check_transcript_order": 1,
       "classify_audio": 1
     },
     "by_review_lane_actions": {
-      "check_local_recall": 6,
+      "check_local_recall": 5,
+      "check_transcript_order": 1,
       "classify_audio": 1
     },
     "by_review_lane_grouped_rows": {
       "check_local_recall": 0,
+      "check_transcript_order": 0,
       "classify_audio": 0
     }
   },

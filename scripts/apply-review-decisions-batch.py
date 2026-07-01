@@ -118,7 +118,14 @@ def session_key(row: dict[str, Any]) -> str:
 def session_matches(session: Path, filters: set[str]) -> bool:
     if not filters:
         return True
-    candidates = {str(session), session.as_posix(), session.name, f"./{session.as_posix()}"}
+    candidates = {
+        str(session),
+        session.as_posix(),
+        session.name,
+        f"sessions/{session.name}",
+        f"./sessions/{session.name}",
+        f"./{session.as_posix()}",
+    }
     try:
         candidates.add(str(session.resolve()))
     except OSError:

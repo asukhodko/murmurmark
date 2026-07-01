@@ -2480,14 +2480,19 @@ enum ReviewSuggestedCommand {
             return
         }
         if runStrongerAudioJudge {
+            let needsFullMicSources = lanePacks.contains { lanePack in
+                lanePack.lastPathComponent.contains("check_local_recall")
+            }
             var judgeArgs = [
                 try script("audit-stronger-audio-judge.py").path,
                 session.path,
                 "--profile", "auto",
                 "--max-items", envValue("MURMURMARK_TARGETED_JUDGE_MAX_ITEMS", defaultValue: "80"),
-                "--quick",
                 "--no-progress",
             ]
+            if !needsFullMicSources {
+                judgeArgs.append("--quick")
+            }
             if envBool("MURMURMARK_TARGETED_JUDGE_COMPUTE", defaultValue: false) {
                 judgeArgs += [
                     "--max-computed-items",

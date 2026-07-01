@@ -30,17 +30,18 @@ Current operating point, measured by `murmurmark report corpus` on 2026-07-01:
 
 - the current working corpus is `pilot_ready_with_review`: usable for pilot notes with explicit
   review, but not yet `medium_risk_ready`;
-- `19` working sessions are in scope and `26` diagnostic sessions are excluded from operational
+- `20` working sessions are in scope and `26` diagnostic sessions are excluded from operational
   readiness;
-- `14/19` working sessions are `ready_for_notes`, four are `review_first`, and one still requires a
-  manual check before use;
-- selected evidence-backed notes carry about `0.86 min` of documented residual review burden;
-- full transcript/export still has about `3.52 min` of explicit review surface;
-- the remaining mandatory review queue is `7` actions / `10.85s` of raw audio;
+- `14/20` working sessions are `ready_for_notes`, six are `review_first`, and none are currently
+  `do_not_use_without_manual_review`;
+- selected evidence-backed notes carry about `0.85 min` of documented residual review burden;
+- full transcript/export still has about `3.51 min` of explicit review surface;
+- the remaining mandatory review queue is `7` actions / `11.19s` of raw audio;
 - suggested review closure has no safe automatic keep/drop rows left; the remaining queue is treated
   as irreducible for the current local agents;
 - readiness reconciliation is complete: MurmurMark no longer sends the user to empty review packs,
-  and it keeps the remaining manual queue explicit.
+  and it keeps the remaining manual queue explicit. A narrow risky session is represented as formal
+  residual risk instead of blocking the whole corpus as unusable.
 
 Still future:
 

@@ -641,20 +641,19 @@ def stronger_matches_for_row(row: dict[str, Any], by_session: dict[str, list[dic
     matches: list[dict[str, Any]] = []
     for candidate in candidates:
         candidate_ids = {str(value) for value in candidate.get("utterance_ids") or [] if value}
-        if not candidate_ids:
-            continue
-        source_match = (
-            row.get("source_audit_id")
-            and str(row.get("source_audit_id")) == str(candidate.get("source_pack_item_id") or "")
-            and bool(row_ids & candidate_ids)
-        )
-        me_match = bool(me_ids and me_ids <= candidate_ids)
-        exactish = bool(row_ids and (row_ids <= candidate_ids or candidate_ids <= row_ids))
+        source_id = str(row.get("source_audit_id") or "")
+        candidate_source_id = str(candidate.get("source_pack_item_id") or "")
         time_match = interval_overlap_seconds(row, candidate) > 0.05
-        candidate_label = str((candidate.get("classification") or {}).get("label") or "")
-        if source_match:
+        source_id_match = bool(source_id and source_id == candidate_source_id)
+        source_utterance_match = bool(source_id_match and candidate_ids and (row_ids & candidate_ids or me_ids & candidate_ids))
+        if source_id_match and (time_match or source_utterance_match):
             matches.append(candidate)
             continue
+        if not candidate_ids:
+            continue
+        me_match = bool(me_ids and me_ids <= candidate_ids)
+        exactish = bool(row_ids and (row_ids <= candidate_ids or candidate_ids <= row_ids))
+        candidate_label = str((candidate.get("classification") or {}).get("label") or "")
         if me_match and time_match and candidate_label in {"confirm_me"}:
             matches.append(candidate)
             continue

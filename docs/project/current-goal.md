@@ -1,7 +1,9 @@
-# Current Goal: Operational Corpus Green v1
+# Current Goal: Operational Corpus Green v2 / Medium-Risk Readiness
 
 Status, 2026-07-01: active. The first pass turned the operational corpus from `not_ready` into
 `pilot_ready_with_review` without changing capture, Echo Guard, the main ASR or transcript text.
+The second pass removed the last `do_not_use_without_manual_review` gate by turning the risky
+session into explicit formal residual risk instead of pretending it is ready.
 
 The goal is to keep the real working corpus honest and usable:
 
@@ -10,20 +12,21 @@ recorded sessions -> process/review evidence -> report corpus -> explicit readin
 ```
 
 The important promise is not “all meetings need zero review”. The promise is that every working
-session is either ready for notes/export, or has a short review queue that is explicit, measurable
-and not safely closable by the current local evidence.
+session is either ready for notes, or has a short review queue that is explicit, measurable and not
+safely closable by the current local evidence. Full transcript export remains guarded separately and
+must stay blocked when transcript-only review blockers remain.
 
-Current corpus snapshot after the first pass:
+Current corpus snapshot after the v2 pass:
 
-- working sessions in scope: `19`;
+- working sessions in scope: `20`;
 - diagnostic sessions excluded from readiness: `26`;
 - operational verdict: `pilot_ready_with_review`;
 - `ready_for_notes`: `14`;
-- `review_first`: `4`;
-- manual-review-required session: `1`;
-- notes review burden: `0.86 min`;
-- transcript/export review burden: `3.52 min`;
-- mandatory review queue: `7` actions / `10.85s` raw audio;
+- `review_first`: `6`;
+- `do_not_use_without_manual_review`: `0`;
+- notes review burden: `0.85 min`;
+- transcript/export review burden: `3.51 min`;
+- mandatory review queue: `7` actions / `11.19s` raw audio;
 - irreducible review gate: `pilot_ready_with_irreducible_review`;
 - pending safe suggestions: `0`.
 
@@ -37,16 +40,27 @@ What changed in this goal so far:
   automatic answer;
 - `report-operational-readiness.py` now distinguishes a short irreducible review queue from a broken
   corpus and reports `pilot_ready_with_review` instead of `not_ready`.
+- `report-session-quality.py` and `report-operational-readiness.py` now represent a narrow risky
+  session as `formal_residual_risk` when it has only allowed risk flags and a short explicit review
+  queue;
+- review apply is idempotent for already closed decision sets, and batch apply matches session paths
+  consistently as absolute, `sessions/<id>` or `./sessions/<id>`.
 
 Remaining review queue:
 
+- `sessions/2026-07-01_17-38-53`: one transcript-order check, `1.00s`;
 - `sessions/2026-06-30_11-15-56`: two local-recall checks, `2.49s`;
-- `sessions/2026-07-01_14-01-09`: two local-recall checks, `1.58s`;
+- `sessions/2026-07-01_14-01-09`: one local-recall check, `0.92s`;
 - `sessions/2026-07-01_11-17-22`: two lost-Me checks, `2.72s`;
 - `sessions/2026-06-30_17-17-20`: one uncertain audio check, `4.06s`.
 
 This queue is intentionally not auto-closed. It is the current irreducible manual review list for
 medium-risk use.
+
+Important scope note: `ready_for_notes` is not the same as unattended full-transcript export. The
+current corpus still has transcript/export review surface, and `finish` must block export when
+export blockers remain. That is acceptable for the practical v2 state only if `status`, `review
+progress`, `finish`, export and corpus reports point to the same residual review work.
 
 Next work before closing this goal:
 

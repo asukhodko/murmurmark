@@ -346,6 +346,12 @@ def review_coverage(
         full_scope_complete = len(missing) == 0 and len(pending) == 0
         partial_allowed = allow_partial_review and not full_scope_complete and closed_rows > 0
         status = "complete" if full_scope_complete else ("partial_allowed" if partial_allowed else "incomplete")
+    elif all_decisions and all(str(row.get("decision") or "") not in OPEN_DECISIONS for row in all_decisions):
+        required_rows = len(all_decisions)
+        closed_rows = required_rows
+        full_scope_complete = True
+        partial_allowed = False
+        status = "complete_from_decisions"
     elif allow_partial_review:
         required_rows = len(all_decisions)
         closed_rows = sum(1 for row in all_decisions if str(row.get("decision") or "") not in OPEN_DECISIONS)
