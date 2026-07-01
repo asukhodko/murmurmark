@@ -384,7 +384,7 @@ jq -r '.rows[] | [
 Materialize the token guard as persistent review evidence:
 
 ```bash
-murmurmark audit remote-forbidden "$SESSION" --profile auto --asr-max-clips 6
+murmurmark audit remote-forbidden "$SESSION" --profile auto
 ```
 
 If the ASR audit has already been run and only the evidence files need to be refreshed:
@@ -418,13 +418,14 @@ less sessions/_reports/remote-forbidden/remote_forbidden_corpus_report.md
 Current reading:
 
 - evidence exists for all six smoke sessions after the lab has run;
-- one difficult 1x1 session is safely improved at ASR-token level;
+- Coverage v2 broadens ASR audit-window selection from speaker state, audio-review,
+  stronger-audio-judge, group-overlap, transcript-overlap and local/order risk artifacts;
+- four smoke sessions are safely improved at ASR-token level;
 - local-word recall regressions are zero;
-- target status is still `target_not_met_only_one_safe_session`, so this is not a default Echo Guard
+- target status is `target_met_two_sessions`, but this is still not a default Echo Guard
   promotion path.
-- Remote-Forbidden Evidence Hardening v1 is complete as a shadow evidence layer. The next Echo Guard
-  work is Coverage v2: select more suspicious ASR audit windows from audio-review rows, transcript
-  overlaps, group-overlap risk, local-recall/order risk and `speaker_state`.
+- The next Echo Guard work is ASR-positive audio candidate v2: use Coverage v2 windows as the judge
+  for actual audio candidates.
 
 ## Stop Rules
 

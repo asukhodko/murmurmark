@@ -68,6 +68,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--write-all-audio", action="store_true")
     parser.add_argument("--asr-audit", action="store_true", help="Run local faster-whisper clip audit.")
     parser.add_argument("--asr-max-clips", type=int, default=6)
+    parser.add_argument("--asr-max-local-clips", type=int, default=None)
+    parser.add_argument("--asr-window-profile", choices=("current", "coverage_v2"), default="coverage_v2")
+    parser.add_argument("--asr-max-risk-clips", type=int, default=4)
+    parser.add_argument("--asr-risk-padding-sec", type=float, default=0.5)
+    parser.add_argument("--asr-risk-max-window-sec", type=float, default=12.0)
+    parser.add_argument("--asr-candidate-keys", nargs="*", default=None)
     parser.add_argument("--faster-whisper-model", type=Path, default=None)
     return parser.parse_args()
 
@@ -100,6 +106,34 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def read_json(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if not path.exists():
+        return rows
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                value = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, dict):
+                rows.append(value)
+    return rows
 
 
 def is_known_asr_hallucination(text: str) -> bool:
@@ -875,6 +909,410 @@ def select_asr_rows(rows: list[dict[str, Any]], state_prefix: str, limit: int) -
     return sorted(candidates, key=lambda row: safe_float(row.get("remote_db"), -120.0), reverse=True)[:limit]
 
 
+def interval_from_row(row: dict[str, Any]) -> tuple[float | None, float | None]:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    start = row.get("start", row.get("start_sec", interval.get("start")))
+    end = row.get("end", row.get("end_sec", interval.get("end")))
+    if start is None or end is None:
+        return None, None
+    start_sec = safe_float(start, math.nan)
+    end_sec = safe_float(end, math.nan)
+    if not math.isfinite(start_sec) or not math.isfinite(end_sec) or end_sec <= start_sec:
+        return None, None
+    return start_sec, end_sec
+
+
+def normalize_risk_interval(start: float, end: float, args: argparse.Namespace) -> tuple[float, float]:
+    start -= max(0.0, safe_float(args.asr_risk_padding_sec))
+    end += max(0.0, safe_float(args.asr_risk_padding_sec))
+    max_window = max(1.5, safe_float(args.asr_risk_max_window_sec, 12.0))
+    if end - start > max_window:
+        center = (start + end) / 2.0
+        start = center - max_window / 2.0
+        end = center + max_window / 2.0
+    return max(0.0, round(start, 3)), round(max(start + 1.5, end), 3)
+
+
+def source_ref(path: Path) -> str:
+    return str(path)
+
+
+def risk_window(
+    *,
+    start: float,
+    end: float,
+    reason: str,
+    expected: str,
+    priority: int,
+    source_artifact: Path,
+    source_row_id: str | None = None,
+    details: dict[str, Any] | None = None,
+    args: argparse.Namespace,
+) -> dict[str, Any]:
+    normalized_start, normalized_end = normalize_risk_interval(start, end, args)
+    selection = {
+        "profile": "coverage_v2",
+        "selection_reason": reason,
+        "expected_risk_type": expected,
+        "priority": priority,
+        "source_artifacts": [source_ref(source_artifact)],
+        "source_row_ids": [source_row_id] if source_row_id else [],
+        "original_interval": {"start": round(start, 3), "end": round(end, 3), "duration_sec": round(end - start, 3)},
+    }
+    if details:
+        selection["details"] = details
+    return {
+        "start": normalized_start,
+        "end": normalized_end,
+        "state": "coverage_risk",
+        "selection_reason": reason,
+        "selection": selection,
+    }
+
+
+def append_audio_review_windows(session: Path, args: argparse.Namespace, windows: list[dict[str, Any]]) -> None:
+    path = session / "derived/audit/audio-review-pack/audio_review_audit.jsonl"
+    priority_by_label = {
+        "remote_duplicate": 100,
+        "remote_leak": 96,
+        "asr_noise": 86,
+        "uncertain": 72,
+    }
+    for row in read_jsonl(path):
+        start, end = interval_from_row(row)
+        if start is None or end is None:
+            continue
+        classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+        label = str(classification.get("label") or "")
+        verdict = str(classification.get("verdict") or "")
+        if label not in priority_by_label and verdict not in {"needs_stronger_audio_judge", "probable_transcript_error"}:
+            continue
+        reason = f"audio_review:{label or verdict}"
+        windows.append(
+            risk_window(
+                start=start,
+                end=end,
+                reason=reason,
+                expected=label or verdict or "audio_review_risk",
+                priority=priority_by_label.get(label, 70),
+                source_artifact=path,
+                source_row_id=str(row.get("id") or ""),
+                details={
+                    "verdict": verdict,
+                    "source_reasons": row.get("source_reasons") or [],
+                    "utterance_ids": row.get("utterance_ids") or [],
+                },
+                args=args,
+            )
+        )
+
+
+def append_stronger_judge_windows(session: Path, args: argparse.Namespace, windows: list[dict[str, Any]]) -> None:
+    path = session / "derived/audit/audio-review-pack/faster_whisper_judge.jsonl"
+    priority_by_label = {
+        "confirm_remote_duplicate": 105,
+        "confirm_asr_noise": 92,
+        "uncertain": 75,
+        "confirm_timing_or_doubletalk": 62,
+    }
+    for row in read_jsonl(path):
+        start, end = interval_from_row(row)
+        if start is None or end is None:
+            continue
+        classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+        label = str(classification.get("label") or "")
+        if label not in priority_by_label:
+            continue
+        windows.append(
+            risk_window(
+                start=start,
+                end=end,
+                reason=f"stronger_audio_judge:{label}",
+                expected=label,
+                priority=priority_by_label[label],
+                source_artifact=path,
+                source_row_id=str(row.get("id") or ""),
+                details={
+                    "suggested_decision": classification.get("suggested_decision"),
+                    "confidence": classification.get("confidence"),
+                    "source_pack_item_id": row.get("source_pack_item_id"),
+                    "utterance_ids": row.get("utterance_ids") or [],
+                },
+                args=args,
+            )
+        )
+
+
+def append_group_overlap_windows(session: Path, args: argparse.Namespace, windows: list[dict[str, Any]]) -> None:
+    path = session / "derived/audit/group-overlaps/group_overlap_audit.jsonl"
+    priority_by_label = {
+        "probable_duplicate": 98,
+        "probable_remote_leak": 96,
+        "probable_asr_noise": 88,
+        "needs_human_review": 74,
+        "probable_double_talk": 62,
+        "probable_timing_overlap": 58,
+    }
+    for row in read_jsonl(path):
+        start, end = interval_from_row(row)
+        if start is None or end is None:
+            continue
+        classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+        label = str(classification.get("label") or "")
+        if label not in priority_by_label:
+            continue
+        if label in {"probable_double_talk", "probable_timing_overlap"} and end - start < 2.0:
+            continue
+        utterances = row.get("utterances") if isinstance(row.get("utterances"), dict) else {}
+        windows.append(
+            risk_window(
+                start=start,
+                end=end,
+                reason=f"group_overlap:{label}",
+                expected=label,
+                priority=priority_by_label[label],
+                source_artifact=path,
+                source_row_id=str(row.get("id") or ""),
+                details={
+                    "confidence": classification.get("confidence"),
+                    "me_utterance_id": (utterances.get("me") or {}).get("id") if isinstance(utterances.get("me"), dict) else None,
+                    "remote_utterance_id": (utterances.get("remote") or {}).get("id")
+                    if isinstance(utterances.get("remote"), dict)
+                    else None,
+                },
+                args=args,
+            )
+        )
+
+
+def preferred_overlap_path(session: Path) -> Path | None:
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    for profile in (
+        "local_recall_repair_v1",
+        "agent_reviewed_v1",
+        "audit_cleanup_v7",
+        "audit_cleanup_v6",
+        "audit_cleanup_v5",
+        "audit_cleanup_v4",
+        "audit_cleanup_v3",
+        "audit_cleanup_v2",
+        "audit_cleanup_v1",
+        "shadow_v2",
+        "current",
+    ):
+        path = resolved / ("overlaps.json" if profile == "current" else f"overlaps.{profile}.json")
+        if path.exists():
+            return path
+    return None
+
+
+def append_transcript_overlap_windows(session: Path, args: argparse.Namespace, windows: list[dict[str, Any]]) -> None:
+    path = preferred_overlap_path(session)
+    if not path:
+        return
+    payload = read_json(path)
+    rows = payload.get("overlaps") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        return
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        start, end = interval_from_row(row)
+        if start is None or end is None:
+            continue
+        duration = end - start
+        similarity = safe_float(row.get("text_similarity"), 0.0)
+        if duration < 1.0 and similarity < 0.25:
+            continue
+        if duration < 2.0 and similarity < 0.45:
+            continue
+        windows.append(
+            risk_window(
+                start=start,
+                end=end,
+                reason="transcript_overlap:text_or_duration_risk",
+                expected="cross_role_overlap",
+                priority=68 if similarity >= 0.45 else 60,
+                source_artifact=path,
+                source_row_id=str(row.get("id") or ""),
+                details={
+                    "text_similarity": row.get("text_similarity"),
+                    "me_utterance_id": row.get("me_utterance_id"),
+                    "remote_utterance_id": row.get("remote_utterance_id"),
+                },
+                args=args,
+            )
+        )
+
+
+def append_audit_item_windows(session: Path, args: argparse.Namespace, windows: list[dict[str, Any]]) -> None:
+    sources = [
+        (
+            session / "derived/audit/local-recall/local_recall_items.jsonl",
+            "local_recall",
+            "local_recall_risk",
+            78,
+        ),
+        (
+            session / "derived/audit/order/transcript_order_items.jsonl",
+            "transcript_order",
+            "transcript_order_risk",
+            74,
+        ),
+    ]
+    for path, prefix, expected, priority in sources:
+        for row in read_jsonl(path):
+            start, end = interval_from_row(row)
+            if start is None or end is None:
+                continue
+            windows.append(
+                risk_window(
+                    start=start,
+                    end=end,
+                    reason=f"{prefix}:risk_item",
+                    expected=expected,
+                    priority=priority,
+                    source_artifact=path,
+                    source_row_id=str(row.get("id") or row.get("item_id") or ""),
+                    details={"label": row.get("label"), "reason": row.get("reason")},
+                    args=args,
+                )
+            )
+
+
+def append_existing_remote_forbidden_windows(session: Path, args: argparse.Namespace, windows: list[dict[str, Any]]) -> None:
+    path = session / "derived/audit/remote-forbidden/remote_forbidden_evidence.jsonl"
+    for row in read_jsonl(path):
+        if row.get("kind") != "remote_forbidden_token":
+            continue
+        start, end = interval_from_row(row)
+        if start is None or end is None:
+            continue
+        decision = row.get("decision") if isinstance(row.get("decision"), dict) else {}
+        action = str(decision.get("action") or "")
+        windows.append(
+            risk_window(
+                start=start,
+                end=end,
+                reason=f"remote_forbidden_v1:{action or 'evidence'}",
+                expected="remote_forbidden_v1_followup",
+                priority=66,
+                source_artifact=path,
+                source_row_id=str(row.get("id") or ""),
+                details={"action": action, "confidence": decision.get("confidence")},
+                args=args,
+            )
+        )
+
+
+def interval_overlap_seconds(a: dict[str, Any], b: dict[str, Any]) -> float:
+    a_start, a_end = interval_from_row(a)
+    b_start, b_end = interval_from_row(b)
+    if a_start is None or b_start is None or a_end is None or b_end is None:
+        return 0.0
+    return max(0.0, min(a_end, b_end) - max(a_start, b_start))
+
+
+def asr_window_summary(row: dict[str, Any], selected: bool, skip_reason: str | None = None) -> dict[str, Any]:
+    start, end = interval_from_row(row)
+    selection = row.get("selection") if isinstance(row.get("selection"), dict) else {}
+    return {
+        "start_sec": None if start is None else round(start, 3),
+        "end_sec": None if end is None else round(end, 3),
+        "duration_sec": None if start is None or end is None else round(end - start, 3),
+        "state": row.get("state"),
+        "selected": selected,
+        "skip_reason": skip_reason,
+        "selection_reason": selection.get("selection_reason") or row.get("selection_reason"),
+        "expected_risk_type": selection.get("expected_risk_type"),
+        "priority": selection.get("priority"),
+        "source_artifacts": selection.get("source_artifacts") or [],
+        "source_row_ids": selection.get("source_row_ids") or [],
+    }
+
+
+def selected_asr_remote_rows(
+    session: Path,
+    speaker_rows: list[dict[str, Any]],
+    args: argparse.Namespace,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    selected: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    base_rows: list[dict[str, Any]] = []
+    for row in select_asr_rows(speaker_rows, "remote_only", args.asr_max_clips):
+        item = dict(row)
+        item["selection_reason"] = "speaker_state_remote_only_top_remote_db"
+        item["selection"] = {
+            "profile": args.asr_window_profile,
+            "selection_reason": "speaker_state_remote_only_top_remote_db",
+            "expected_risk_type": "remote_only_leak",
+            "priority": 70,
+            "source_artifacts": ["derived/preprocess/echo/speaker_state.jsonl"],
+            "source_row_ids": [str(row.get("index"))] if row.get("index") is not None else [],
+        }
+        base_rows.append(item)
+    selected.extend(base_rows)
+
+    risk_candidates: list[dict[str, Any]] = []
+    if args.asr_window_profile == "coverage_v2":
+        append_audio_review_windows(session, args, risk_candidates)
+        append_stronger_judge_windows(session, args, risk_candidates)
+        append_group_overlap_windows(session, args, risk_candidates)
+        append_transcript_overlap_windows(session, args, risk_candidates)
+        append_audit_item_windows(session, args, risk_candidates)
+        append_existing_remote_forbidden_windows(session, args, risk_candidates)
+
+    risk_selected = 0
+    for candidate in sorted(
+        risk_candidates,
+        key=lambda row: (
+            safe_float((row.get("selection") or {}).get("priority"), 0.0),
+            safe_float(row.get("end")) - safe_float(row.get("start")),
+        ),
+        reverse=True,
+    ):
+        if risk_selected >= max(0, int(args.asr_max_risk_clips)):
+            skipped.append(asr_window_summary(candidate, False, "cap_asr_max_risk_clips"))
+            continue
+        duplicate_of = None
+        for existing in selected:
+            overlap = interval_overlap_seconds(candidate, existing)
+            duration = max(0.001, safe_float(candidate.get("end")) - safe_float(candidate.get("start")))
+            if overlap / duration >= 0.55:
+                duplicate_of = asr_window_summary(existing, True).get("selection_reason")
+                break
+        if duplicate_of:
+            skipped.append(asr_window_summary(candidate, False, f"deduped_by:{duplicate_of}"))
+            continue
+        selected.append(candidate)
+        risk_selected += 1
+
+    selected_windows = [asr_window_summary(row, True) for row in selected]
+    by_reason: dict[str, int] = {}
+    for row in selected_windows:
+        reason = str(row.get("selection_reason") or "unknown")
+        by_reason[reason] = by_reason.get(reason, 0) + 1
+    skipped_by_reason: dict[str, int] = {}
+    for row in skipped:
+        reason = str(row.get("skip_reason") or "unknown")
+        skipped_by_reason[reason] = skipped_by_reason.get(reason, 0) + 1
+    plan = {
+        "schema": "murmurmark.echo.offline_aec_v2_asr_window_selection/v1",
+        "profile": args.asr_window_profile,
+        "selected_windows": len(selected_windows),
+        "evaluable_windows": len(selected_windows),
+        "base_remote_only_windows": len(base_rows),
+        "risk_windows_selected": risk_selected,
+        "risk_windows_considered": len(risk_candidates),
+        "skipped_windows": len(skipped),
+        "selected_by_reason": dict(sorted(by_reason.items())),
+        "skipped_by_reason": dict(sorted(skipped_by_reason.items())),
+        "windows": selected_windows,
+        "skipped": skipped,
+    }
+    return selected, plan
+
+
 def average(items: list[float]) -> float | None:
     finite = [item for item in items if math.isfinite(item)]
     return None if not finite else round(float(np.mean(np.asarray(finite, dtype=np.float64))), 6)
@@ -967,6 +1405,11 @@ def run_asr_clip_audit(
     model = WhisperModel(str(path), device="cpu", compute_type="int8")
     clips_dir = out_dir / "offline_aec_v2_asr_clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
+    if args.asr_candidate_keys:
+        requested = {str(item) for item in args.asr_candidate_keys}
+        filtered = {key: value for key, value in candidate_audio.items() if key in requested}
+        if filtered:
+            candidate_audio = filtered
     count = min([remote.size, mic.size, *[audio.size for audio in candidate_audio.values()]])
     if local_fir_clean is not None:
         count = min(count, local_fir_clean.size)
@@ -987,8 +1430,11 @@ def run_asr_clip_audit(
             "remote_only_rows": [],
             "local_only_rows": [],
         }
+    remote_audit_rows, window_selection = selected_asr_remote_rows(session, rows, args)
+    write_json(out_dir / "offline_aec_v2_asr_window_selection.json", window_selection)
+
     remote_rows: list[dict[str, Any]] = []
-    for index, row in enumerate(select_asr_rows(rows, "remote_only", args.asr_max_clips), start=1):
+    for index, row in enumerate(remote_audit_rows, start=1):
         start, end = row_bounds(row, sample_rate, count)
         stem = f"remote_only_{index:02d}_{start / sample_rate:.1f}s"
         remote_path = clips_dir / f"{stem}_remote.wav"
@@ -1005,6 +1451,9 @@ def run_asr_clip_audit(
             "remote_text": remote_text,
             "local_fir_text": local_text,
             "local_fir_remote_token_overlap": token_overlap_precision(remote_text, local_text),
+            "selection": row.get("selection") if isinstance(row.get("selection"), dict) else {},
+            "selection_reason": row.get("selection_reason"),
+            "state": row.get("state"),
             "candidates": {},
         }
         for key, clean in sorted(candidate_audio.items()):
@@ -1028,6 +1477,9 @@ def run_asr_clip_audit(
                     "local_fir_text": local_text,
                     "candidate_remote_token_overlap": overlap,
                     "local_fir_remote_token_overlap": row_result["local_fir_remote_token_overlap"],
+                    "selection": row_result["selection"],
+                    "selection_reason": row_result["selection_reason"],
+                    "state": row_result["state"],
                     "wav": str(candidate_path),
                 }
             )
@@ -1057,12 +1509,16 @@ def run_asr_clip_audit(
                         "local_fir_remote_token_overlap": row_result["local_fir_remote_token_overlap"],
                         "base_candidate": token_guard_base_key,
                         "guard": guard_metadata,
+                        "selection": row_result["selection"],
+                        "selection_reason": row_result["selection_reason"],
+                        "state": row_result["state"],
                     }
                 )
         remote_rows.append(row_result)
 
     local_rows: list[dict[str, Any]] = []
-    for index, row in enumerate(select_asr_rows(rows, "local_only", args.asr_max_clips), start=1):
+    local_clip_limit = args.asr_max_local_clips if args.asr_max_local_clips is not None else args.asr_max_clips
+    for index, row in enumerate(select_asr_rows(rows, "local_only", local_clip_limit), start=1):
         start, end = row_bounds(row, sample_rate, count)
         stem = f"local_only_{index:02d}_{start / sample_rate:.1f}s"
         mic_path = clips_dir / f"{stem}_raw_mic.wav"
@@ -1079,6 +1535,16 @@ def run_asr_clip_audit(
             "raw_mic_text": mic_text,
             "local_fir_text": local_text,
             "local_fir_local_token_recall": token_overlap_recall(mic_text, local_text),
+            "selection": {
+                "profile": args.asr_window_profile,
+                "selection_reason": "speaker_state_local_only_top_mic_db",
+                "expected_risk_type": "local_speech_preservation",
+                "priority": 70,
+                "source_artifacts": ["derived/preprocess/echo/speaker_state.jsonl"],
+                "source_row_ids": [str(row.get("index"))] if row.get("index") is not None else [],
+            },
+            "selection_reason": "speaker_state_local_only_top_mic_db",
+            "state": row.get("state"),
             "candidates": {},
         }
         for key, clean in sorted(candidate_audio.items()):
@@ -1102,6 +1568,9 @@ def run_asr_clip_audit(
                     "local_fir_text": local_text,
                     "candidate_local_token_recall": recall,
                     "local_fir_local_token_recall": row_result["local_fir_local_token_recall"],
+                    "selection": row_result["selection"],
+                    "selection_reason": row_result["selection_reason"],
+                    "state": row_result["state"],
                     "wav": str(candidate_path),
                 }
             )
@@ -1129,6 +1598,9 @@ def run_asr_clip_audit(
                         "candidate_local_token_recall": base_recall,
                         "local_fir_local_token_recall": row_result["local_fir_local_token_recall"],
                         "base_candidate": token_guard_base_key,
+                        "selection": row_result["selection"],
+                        "selection_reason": row_result["selection_reason"],
+                        "state": row_result["state"],
                     }
                 )
         local_rows.append(row_result)
@@ -1159,7 +1631,9 @@ def run_asr_clip_audit(
         "asr_selected_candidate": choice.get("asr_selected_candidate"),
         "asr_candidate_gate_passed": choice.get("asr_candidate_gate_passed"),
         "asr_candidate_gate_reason": choice.get("asr_candidate_gate_reason"),
+        "window_selection": window_selection,
         "remote_only_clips": len(remote_rows),
+        "remote_audit_clips": len(remote_rows),
         "remote_token_leak_rate": top_stats.get("remote_token_leak_rate"),
         "local_fir_remote_token_leak_rate": baseline_leak,
         "remote_token_leak_delta": top_stats.get("remote_token_leak_delta"),

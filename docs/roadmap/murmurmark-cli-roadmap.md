@@ -68,10 +68,11 @@ right default because it protects local speech, but it is not a complete-removal
 harmful seconds, but ASR-token gates still do not beat `local_fir`. The follow-up vNext spike added
 segment switching and `remote_forbidden_token_guard`; it produced the first ASR-positive improvement
 on one difficult session without local-recall regression. That is enough to choose the next quality
-direction. Remote-Forbidden Evidence Hardening v1 has now materialized that spike as normal
-evidence/status artifacts. The next gap is coverage: the six-session smoke found only one safe
-improved case because the current ASR clip audit often misses windows where baseline `local_fir`
-contains recognizable remote words.
+direction. Remote-Forbidden Evidence Hardening v1 materialized that spike as normal evidence/status
+artifacts. Coverage v2 then broadened ASR audit-window selection from speaker state and review
+artifacts; the six-session smoke now has `4/6` safe improved sessions and zero local-recall
+regressions. The next gap is an actual audio candidate that beats `local_fir` under this stricter
+ASR-visible judge.
 
 ## Roadmap Tree
 
@@ -140,13 +141,13 @@ flowchart LR
   The 2026-06-30 daily sync showed the important pattern: the session was marked `risky`, but
   stronger audio judge confirmed most `check_transcript_order` rows as timing/double-talk, leaving
   only a few real manual checks.
-- Continue **Echo Guard Complete Removal** after Remote-Forbidden Evidence Hardening v1:
+- Continue **Echo Guard Complete Removal** after Remote-Forbidden Evidence Coverage v2:
   - keep `local_fir` as the production default;
   - use the shadow `offline_aec_v2_v0` lab as a repeatable diagnostic baseline;
   - treat `remote_floor` and segment switching as useful proxy/control candidates, not as production
     replacements;
-  - broaden remote-forbidden coverage: v1 writes `remote_forbidden_evidence.jsonl`, session
-    readiness metrics and a corpus report, but only one six-session smoke case is safely improved;
+  - use Coverage v2 windows as the ASR judge for audio candidates: v2 writes selection reasons,
+    evidence rows, readiness metrics and corpus report; current smoke is `4/6` safe improved;
   - keep target-speaker extraction and neural residual suppression as later spikes behind corpus
     gates.
 - Keep the final handoff readable: `finish` now opens a bundle whose `index.md` is the first working
@@ -178,8 +179,7 @@ flowchart LR
   - no-regression gates for order, local recall, duplicates and selected notes.
 - Echo Guard evidence and promotion path:
   - keep candidate artifacts separate from `mic_for_asr.wav`;
-  - broaden ASR audit-window selection before promotion: audio-review rows, transcript overlaps,
-    group-overlap risk, local-recall/order risk and speaker state should all be candidate sources;
+  - use Coverage v2 ASR windows before promotion;
   - promote audio only after corpus gates prove lower remote-token leakage without worse local
     recall;
   - keep transcript-level remote-forbidden reconciliation as the final safety net.
@@ -225,6 +225,10 @@ handoff and keeps uncertainty visible.
 
 Recently completed:
 
+- **Remote-Forbidden Evidence Coverage v2.** ASR audit-window selection now reads speaker state,
+  audio-review, stronger-audio-judge, group-overlap, transcript-overlap and local/order risk
+  artifacts. Six-session smoke: `4/6` safe improved sessions, `0/6` local-recall regressions, `24`
+  evaluable ASR windows, `578` skipped by cap, no default promotion.
 - **Remote-Forbidden Evidence Hardening v1.** The first ASR-positive guard is now a normal evidence
   layer: persistent remote/mic token rows, per-session review, readiness metrics and corpus
   explanation. Six-session smoke: one safe improved session, zero local-recall regressions, no
@@ -232,7 +236,7 @@ Recently completed:
 - **Echo Guard Complete Removal vNext.** Segment switching plus `remote_forbidden_token_guard`
   produced the first ASR-positive remote-leakage improvement on a difficult real session:
   `asr_candidate_gate_passed: 1/6`, with no local-word recall regressions in the six-session smoke
-  corpus. It remains shadow-only and becomes the baseline for the next evidence-hardening goal.
+  corpus. It remains shadow-only and became the baseline for remote-forbidden evidence hardening.
 - **Export Bundle Quality v1.** `finish` now produces a user-facing Markdown/Obsidian handoff:
   "Can I use this?", selected profile, review burden, evidence-backed notes, transcript utterance IDs
   and retention/privacy next steps.
@@ -245,24 +249,21 @@ Recently completed:
 
 ## Candidate Next Goals
 
-1. **Remote-Forbidden Evidence Coverage v2.** The nearest meaningful goal: broaden ASR audit-window
-   selection so the existing evidence layer can find more real remote-in-`Me` cases, or explain why a
-   session has no safe correction. This is the smallest step that can turn v1 from a useful proof into
-   a stronger corpus signal.
-2. **ASR-positive audio candidate v2.** Find an actual audio candidate that beats `local_fir` on
-   remote-token leakage without local-recall loss. This depends on the evidence gates from goal 1.
-3. **Target-Me extraction spike.** Use high-confidence local-only speech as enrollment material for
+1. **ASR-positive audio candidate v2.** Find an actual audio candidate that beats `local_fir` on
+   remote-token leakage without local-recall loss. This now depends on the completed Coverage v2
+   evidence gates.
+2. **Target-Me extraction spike.** Use high-confidence local-only speech as enrollment material for
    difficult double-talk and open-space-noise cases.
-4. **Suggested review closure maintenance.** Keep stronger-audio-judge suggestions first-class:
+3. **Suggested review closure maintenance.** Keep stronger-audio-judge suggestions first-class:
    preview, apply, refresh readiness and show the exact remaining manual queue. This remains
    operationally important, but it now supports the larger echo-removal direction.
-5. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
+4. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
    reviewed docs/ticket proposal exports.
-6. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
+5. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
    changes to beat or preserve it.
-7. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
+6. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
    to utterance IDs and review flags.
-8. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
+7. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
    artifacts and add security/contact guidance.
 
 ## Validation

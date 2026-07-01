@@ -223,6 +223,7 @@ def state_summary(speaker_rows: list[dict[str, Any]], start: float, end: float) 
 
 def decide_remote_row(row: dict[str, Any]) -> dict[str, Any]:
     guard = row.get("guard") if isinstance(row.get("guard"), dict) else {}
+    selection = row.get("selection") if isinstance(row.get("selection"), dict) else {}
     remote_text = str(row.get("remote_text") or "")
     local_text = str(row.get("local_fir_text") or "")
     base_text = str(row.get("base_candidate_text") or "")
@@ -234,12 +235,22 @@ def decide_remote_row(row: dict[str, Any]) -> dict[str, Any]:
     kept_tokens = [str(item) for item in guard.get("kept_tokens") or []]
     reason = str(guard.get("removed_reason") or "unknown")
     improvement = max(local_overlap, base_overlap) - guarded_overlap
+    state = str(row.get("state") or "")
+    expected_risk = str(selection.get("expected_risk_type") or "")
+    remote_only_context = state.startswith("remote_only") or expected_risk == "remote_only_leak"
 
     if reason == "known_asr_hallucination":
         return {
             "action": "quarantine",
             "confidence": 0.72,
             "reason": "base_candidate_is_known_hallucination",
+            "safe_to_apply": False,
+        }
+    if reason == "remote_forbidden_overlap" and removed_tokens and not remote_only_context:
+        return {
+            "action": "quarantine",
+            "confidence": 0.76,
+            "reason": "remote_tokens_removed_in_non_remote_only_window",
             "safe_to_apply": False,
         }
     if reason == "remote_forbidden_overlap" and removed_tokens and not kept_tokens and improvement >= 0.5:
@@ -342,6 +353,8 @@ def remote_evidence_row(
             "me_utterance_ids": linked["me"],
             "remote_utterance_ids": linked["remote"],
         },
+        "selection": source_row.get("selection") if isinstance(source_row.get("selection"), dict) else {},
+        "selection_reason": source_row.get("selection_reason"),
         "speaker_state": state_summary(speaker_rows, start, end),
         "texts": {
             "remote_reference": remote_text,
@@ -398,6 +411,8 @@ def local_gate_row(
             "me_utterance_ids": linked["me"],
             "remote_utterance_ids": linked["remote"],
         },
+        "selection": source_row.get("selection") if isinstance(source_row.get("selection"), dict) else {},
+        "selection_reason": source_row.get("selection_reason"),
         "speaker_state": state_summary(speaker_rows, start, end),
         "texts": {
             "raw_mic": raw_text,
@@ -451,9 +466,11 @@ def build_summary(
         + bucket_seconds(rows, "needs_review")
     )
     candidate = {}
+    window_selection = {}
     if isinstance(leak_report, dict):
         candidates = leak_report.get("candidates") if isinstance(leak_report.get("candidates"), dict) else {}
         candidate = candidates.get(REMOTE_FORBIDDEN_KEY) if isinstance(candidates.get(REMOTE_FORBIDDEN_KEY), dict) else {}
+        window_selection = leak_report.get("window_selection") if isinstance(leak_report.get("window_selection"), dict) else {}
     local_recall_delta = candidate.get("local_only_word_recall_delta")
     leak_delta = candidate.get("remote_token_leak_delta")
     local_gate_passed = local_recall_delta is not None and safe_float(local_recall_delta) >= -0.02
@@ -501,6 +518,11 @@ def build_summary(
             "remote_forbidden_guarded_seconds": total_seconds(remote_rows),
             "local_speech_gate_guarded_seconds": total_seconds(local_rows),
             "review_burden_seconds": round(review_burden_seconds, 3),
+            "asr_windows_selected": safe_int(window_selection.get("selected_windows")),
+            "asr_windows_evaluable": safe_int(window_selection.get("evaluable_windows", window_selection.get("selected_windows"))),
+            "asr_windows_skipped": safe_int(window_selection.get("skipped_windows")),
+            "asr_windows_selected_by_reason": window_selection.get("selected_by_reason") or {},
+            "asr_windows_skipped_by_reason": window_selection.get("skipped_by_reason") or {},
             "actions": dict(sorted(actions.items())),
             "suggest_drop_seconds": bucket_seconds(rows, "suggest_drop"),
             "quarantine_seconds": bucket_seconds(rows, "quarantine"),
@@ -541,27 +563,31 @@ def render_markdown(summary: dict[str, Any], rows: list[dict[str, Any]]) -> str:
         f"- Local-word recall delta: `{metrics.get('local_word_recall_delta')}`",
         f"- Guarded seconds: `{metrics.get('guarded_seconds')}`",
         f"- Review-burden seconds: `{metrics.get('review_burden_seconds')}`",
+        f"- ASR windows: selected `{metrics.get('asr_windows_selected')}`, "
+        f"evaluable `{metrics.get('asr_windows_evaluable')}`, skipped `{metrics.get('asr_windows_skipped')}`",
         f"- Actions: `{json.dumps(metrics.get('actions') or {}, ensure_ascii=False, sort_keys=True)}`",
         "",
         "## Evidence Rows",
         "",
-        "| ID | Kind | Time | Action | Confidence | Remote / Raw | Candidate | Reason | Transcript IDs |",
-        "|---|---|---:|---|---:|---|---|---|---|",
+        "| ID | Kind | Time | Selection | Action | Confidence | Remote / Raw | Candidate | Reason | Transcript IDs |",
+        "|---|---|---:|---|---|---:|---|---|---|---|",
     ]
     for row in rows:
         interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
         decision = row.get("decision") if isinstance(row.get("decision"), dict) else {}
         texts = row.get("texts") if isinstance(row.get("texts"), dict) else {}
         links = row.get("transcript_links") if isinstance(row.get("transcript_links"), dict) else {}
+        selection = row.get("selection") if isinstance(row.get("selection"), dict) else {}
         source_text = texts.get("remote_reference") or texts.get("raw_mic") or ""
         candidate_text = texts.get("guarded_candidate") or ""
         transcript_ids = ",".join((links.get("me_utterance_ids") or []) + (links.get("remote_utterance_ids") or []))
         lines.append(
-            "| `{id}` | `{kind}` | {start:.1f}-{end:.1f} | `{action}` | {confidence:.2f} | {source} | {candidate} | `{reason}` | {ids} |".format(
+            "| `{id}` | `{kind}` | {start:.1f}-{end:.1f} | `{selection}` | `{action}` | {confidence:.2f} | {source} | {candidate} | `{reason}` | {ids} |".format(
                 id=row.get("id"),
                 kind=row.get("kind"),
                 start=safe_float(interval.get("start")),
                 end=safe_float(interval.get("end")),
+                selection=selection.get("selection_reason") or row.get("selection_reason") or "-",
                 action=decision.get("action"),
                 confidence=safe_float(decision.get("confidence")),
                 source=escape_table(compact(source_text, 70)),
@@ -571,7 +597,7 @@ def render_markdown(summary: dict[str, Any], rows: list[dict[str, Any]]) -> str:
             )
         )
     if not rows:
-        lines.append("| none | | | | | | | | |")
+        lines.append("| none | | | | | | | | | |")
     lines.extend(
         [
             "",

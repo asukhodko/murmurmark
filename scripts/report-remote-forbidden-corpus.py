@@ -80,6 +80,11 @@ def row_for_session(session: Path) -> dict[str, Any]:
         "keep_count": safe_int(actions.get("keep")),
         "guarded_seconds": safe_float(metrics.get("guarded_seconds")),
         "review_burden_seconds": safe_float(metrics.get("review_burden_seconds")),
+        "asr_windows_selected": safe_int(metrics.get("asr_windows_selected")),
+        "asr_windows_evaluable": safe_int(metrics.get("asr_windows_evaluable")),
+        "asr_windows_skipped": safe_int(metrics.get("asr_windows_skipped")),
+        "asr_windows_selected_by_reason": metrics.get("asr_windows_selected_by_reason") or {},
+        "asr_windows_skipped_by_reason": metrics.get("asr_windows_skipped_by_reason") or {},
         "suggest_drop_seconds": safe_float(metrics.get("suggest_drop_seconds")),
         "quarantine_seconds": safe_float(metrics.get("quarantine_seconds")),
         "needs_review_seconds": safe_float(metrics.get("needs_review_seconds")),
@@ -103,6 +108,9 @@ def assess_session(row: dict[str, Any]) -> dict[str, Any]:
     recall_delta = row.get("local_word_recall_delta")
     remote_rows = safe_int(row.get("remote_forbidden_rows"))
     local_rows = safe_int(row.get("local_speech_gate_rows"))
+    selected_windows = safe_int(row.get("asr_windows_selected"))
+    evaluable_windows = safe_int(row.get("asr_windows_evaluable"))
+    skipped_windows = safe_int(row.get("asr_windows_skipped"))
     suggest_drop = safe_int(row.get("suggest_drop_count"))
     quarantine = safe_int(row.get("quarantine_count"))
     recall_regression = recall_delta is not None and safe_float(recall_delta) < -0.02
@@ -120,12 +128,24 @@ def assess_session(row: dict[str, Any]) -> dict[str, Any]:
             "reason": "remote_leak_reduced_local_recall_preserved",
             "explanation": "The ASR-visible remote-token leak goes down and local Me recall stays inside the safety gate.",
         }
+    if selected_windows <= 0:
+        return {
+            "class": "no_suspicious_windows",
+            "reason": "selector_found_no_asr_windows",
+            "explanation": "The coverage selector did not find suspicious windows worth ASR auditing in this session.",
+        }
+    if evaluable_windows <= 0 and skipped_windows > 0:
+        return {
+            "class": "window_not_selected",
+            "reason": "all_candidate_windows_were_skipped",
+            "explanation": "The selector found candidate windows, but cap or deduplication skipped all of them.",
+        }
     if leak_before is not None and safe_float(leak_before) <= 0.0 and remote_rows > 0:
         return {
             "class": "no_baseline_asr_visible_leak",
             "reason": "local_fir_leak_rate_before_is_zero",
             "explanation": (
-                "The sampled remote-only audit window did not contain ASR-visible remote words in the current "
+                "The selected ASR audit windows did not contain ASR-visible remote words in the current "
                 "local_fir output, so the guard has nothing measurable to reduce without inventing a cleanup."
             ),
         }
@@ -160,6 +180,17 @@ def group_assessments(rows: list[dict[str, Any]]) -> dict[str, int]:
         assessment = row.get("assessment") if isinstance(row.get("assessment"), dict) else {}
         key = str(assessment.get("class") or "unknown")
         counts[key] = counts.get(key, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def sum_reason_maps(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        mapping = row.get(key)
+        if not isinstance(mapping, dict):
+            continue
+        for reason, value in mapping.items():
+            counts[str(reason)] = counts.get(str(reason), 0) + safe_int(value)
     return dict(sorted(counts.items()))
 
 
@@ -234,18 +265,19 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "",
             "## Sessions",
             "",
-            "| Session | Status | Assessment | Gate | Leak delta | Local recall delta | Guarded sec | Suggested drops | Quarantine | Needs review |",
-            "|---|---|---|---|---:|---:|---:|---:|---:|---:|",
+            "| Session | Status | Assessment | Gate | Windows | Leak delta | Local recall delta | Guarded sec | Suggested drops | Quarantine | Needs review |",
+            "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for row in payload["sessions"]:
         assessment = row.get("assessment") if isinstance(row.get("assessment"), dict) else {}
         lines.append(
-            "| `{session}` | `{status}` | `{assessment}` | `{gate}` | {leak_delta} | {recall_delta} | {guarded} | {drop} | {quarantine} | {review} |".format(
+            "| `{session}` | `{status}` | `{assessment}` | `{gate}` | {windows} | {leak_delta} | {recall_delta} | {guarded} | {drop} | {quarantine} | {review} |".format(
                 session=row.get("session"),
                 status=row.get("status"),
                 assessment=assessment.get("class"),
                 gate=row.get("gate_reason"),
+                windows=f"{row.get('asr_windows_evaluable') or 0}/{row.get('asr_windows_skipped') or 0}",
                 leak_delta=fmt(row.get("remote_token_leak_delta")),
                 recall_delta=fmt(row.get("local_word_recall_delta")),
                 guarded=fmt(row.get("guarded_seconds")),
@@ -327,6 +359,11 @@ def main() -> int:
         "remote_forbidden_rows": sum(safe_int(row.get("remote_forbidden_rows")) for row in ok_rows),
         "local_speech_gate_rows": sum(safe_int(row.get("local_speech_gate_rows")) for row in ok_rows),
         "assessment_classes": group_assessments(ok_rows),
+        "asr_windows_selected": sum(safe_int(row.get("asr_windows_selected")) for row in ok_rows),
+        "asr_windows_evaluable": sum(safe_int(row.get("asr_windows_evaluable")) for row in ok_rows),
+        "asr_windows_skipped": sum(safe_int(row.get("asr_windows_skipped")) for row in ok_rows),
+        "asr_windows_selected_by_reason": sum_reason_maps(ok_rows, "asr_windows_selected_by_reason"),
+        "asr_windows_skipped_by_reason": sum_reason_maps(ok_rows, "asr_windows_skipped_by_reason"),
         "suggest_drop_count": sum(safe_int(row.get("suggest_drop_count")) for row in ok_rows),
         "quarantine_count": sum(safe_int(row.get("quarantine_count")) for row in ok_rows),
         "needs_review_count": sum(safe_int(row.get("needs_review_count")) for row in ok_rows),

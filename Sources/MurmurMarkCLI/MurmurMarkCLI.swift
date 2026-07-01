@@ -3216,7 +3216,16 @@ enum AuditCommands {
                     labArgs.append("--asr-audit")
                 }
                 if !ArgumentEditing.hasOption("asr-max-clips", in: labArgs) {
-                    labArgs += ["--asr-max-clips", "6"]
+                    labArgs += ["--asr-max-clips", "2"]
+                }
+                if !ArgumentEditing.hasOption("asr-max-local-clips", in: labArgs) {
+                    labArgs += ["--asr-max-local-clips", "1"]
+                }
+                if !ArgumentEditing.hasOption("asr-max-risk-clips", in: labArgs) {
+                    labArgs += ["--asr-max-risk-clips", "2"]
+                }
+                if !ArgumentEditing.hasOption("asr-candidate-keys", in: labArgs) {
+                    labArgs += ["--asr-candidate-keys", "segment_switch_remote_floor_local_fir"]
                 }
                 try Tooling.runPath(python, labArgs)
             }
@@ -3305,7 +3314,11 @@ enum AuditCommands {
           murmurmark audit audio-review ./session|latest [--profile audit_cleanup_v2] [--write-clips] [--sessions-root ./sessions]
           murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80]
                                              [--quick] [--max-computed-items N] [--sessions-root ./sessions]
-          murmurmark audit remote-forbidden ./session|latest [--profile auto] [--asr-max-clips 6] [--skip-lab]
+          murmurmark audit remote-forbidden ./session|latest [--profile auto]
+                                             [--asr-window-profile coverage_v2] [--asr-max-clips 2]
+                                             [--asr-max-risk-clips 2] [--asr-max-local-clips 1]
+                                             [--asr-candidate-keys segment_switch_remote_floor_local_fir]
+                                             [--skip-lab]
 
         Audit commands are local-only wrappers over existing Python scripts:
           local-recall    runs audit-local-recall.py
@@ -3541,6 +3554,11 @@ enum AuditPrinter {
         print("  gate_reason: \(string(gates["reason"]) ?? "unknown")")
         print("  remote_rows: \(int(metrics["remote_forbidden_rows"]))")
         print("  local_gate_rows: \(int(metrics["local_speech_gate_rows"]))")
+        print(
+            "  asr_windows: selected=\(int(metrics["asr_windows_selected"])) " +
+                "evaluable=\(int(metrics["asr_windows_evaluable"])) " +
+                "skipped=\(int(metrics["asr_windows_skipped"]))"
+        )
         print(String(format: "  remote_token_leak_delta: %.6f", double(metrics["remote_token_leak_delta"])))
         print(String(format: "  local_word_recall_delta: %.6f", double(metrics["local_word_recall_delta"])))
         print(String(format: "  suggest_drop_seconds: %.2fs", double(metrics["suggest_drop_seconds"])))

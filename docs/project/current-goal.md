@@ -1,17 +1,15 @@
-# Current Goal: Remote-Forbidden Evidence Coverage v2
+# Latest Completed Goal: Remote-Forbidden Evidence Coverage v2
 
-Status, 2026-07-01: selected as the recommended next goal.
+Status, 2026-07-01: completed as a shadow/review evidence coverage layer. Not promoted.
 
 Remote-Forbidden Evidence Hardening v1 is complete: MurmurMark now persists
 `remote_forbidden_token_guard` evidence rows, exposes them through session readiness/status, and
 writes a corpus report. The first six-session corpus has one safe ASR-visible improvement and zero
 local-recall regressions.
 
-The blocker is coverage. For five sampled sessions the report says
-`no_baseline_asr_visible_leak`: the current ASR clip audit did not pick windows where `local_fir`
-already contains recognizable remote words. That means the evidence layer is structurally sound, but
-too narrow. The next goal is to make it search the right risky windows before any attempt to promote
-audio or transcript changes.
+Coverage v2 fixed the main v1 blocker. Instead of auditing only the first small set of
+speaker-state clips, it selects risky ASR windows from speaker state, audio-review rows, stronger
+audio judge rows, group overlaps, transcript overlaps and local/order risk artifacts.
 
 ## Goal
 
@@ -33,8 +31,8 @@ why it cannot yet converge:
 - the other five sessions were not negative proof against the idea; they were mostly missed-window
   cases where the selected clip did not contain baseline ASR-visible remote leakage.
 
-So the shortest useful path is not a new neural model yet. It is a better deterministic window
-selector and corpus gate around the evidence layer that already exists.
+The implemented v2 selector makes that evidence gate useful enough for the next step: judging
+actual audio candidates by ASR-visible remote-token leakage instead of proxy loudness.
 
 ## Scope
 
@@ -80,13 +78,19 @@ Out of scope:
 Existing v1 command:
 
 ```bash
-.venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION" --asr-audit --asr-max-clips 6
+.venv/bin/python scripts/echo-guard-offline-aec-v2-lab.py "$SESSION" \
+  --asr-audit \
+  --asr-window-profile coverage_v2 \
+  --asr-max-clips 2 \
+  --asr-max-risk-clips 2 \
+  --asr-max-local-clips 1 \
+  --asr-candidate-keys segment_switch_remote_floor_local_fir
 ```
 
 Evidence materialization:
 
 ```bash
-murmurmark audit remote-forbidden "$SESSION" --profile auto --asr-max-clips 6
+murmurmark audit remote-forbidden "$SESSION" --profile auto
 ```
 
 Refresh evidence only:
@@ -115,27 +119,34 @@ either more safe improvements, or a clear reason why a session has no safe remot
 
 ## Current Finding
 
-Six-session smoke after v1:
+Six-session smoke after Coverage v2:
 
 - `reports_found = 6/6`;
-- `safe_improved_sessions = 1`;
+- `safe_improved_sessions = 4`;
 - `local_recall_regressions = 0`;
+- `asr_windows_evaluable = 24`;
+- `asr_windows_skipped = 578`;
 - `suggest_drop_count = 1`;
-- `quarantine_count = 8`;
-- `target_status = target_not_met_only_one_safe_session`.
+- `quarantine_count = 16`;
+- `needs_review_count = 1`;
+- `target_status = target_met_two_sessions`.
 
-Interpretation: v1 satisfies persistence and visibility. v2 should improve coverage by looking at
-more suspicious windows, not by relaxing local-speech safety gates.
+Interpretation: Coverage v2 meets the evidence target. It does not promote audio or transcript
+candidates. The next step can now use this stronger evidence gate to search for a real audio
+candidate that beats `local_fir`.
+
+## Recommended Next Goal
+
+ASR-positive audio candidate v2: make an actual audio candidate beat `local_fir` on remote-token
+leakage without local recall loss, using the Coverage v2 audit windows as the judge.
 
 ## Larger Goals After This
 
-1. ASR-positive audio candidate v2: make an actual audio candidate beat `local_fir` on remote-token
-   leakage without local recall loss.
-2. Target-Me extraction spike: use high-confidence local speech to separate the user's voice in
+1. Target-Me extraction spike: use high-confidence local speech to separate the user's voice in
    difficult double-talk and open-space noise.
-3. Neural residual echo suppression spike: test a narrow local model only after the evidence gates
+2. Neural residual echo suppression spike: test a narrow local model only after the evidence gates
    are stable.
-4. Transcript-level remote-forbidden reconciliation: keep a final safety net even when audio cleanup
+3. Transcript-level remote-forbidden reconciliation: keep a final safety net even when audio cleanup
    improves.
 
 ## References

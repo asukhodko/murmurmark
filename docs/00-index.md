@@ -34,7 +34,7 @@ Read in this order:
 ## Current Planning Entry Points
 
 - Start with [README](../README.md) for the current command-line workflow and latest corpus snapshot.
-- Current project goal: [Remote-Forbidden Evidence Coverage v2](project/current-goal.md).
+- Latest completed project goal: [Remote-Forbidden Evidence Coverage v2](project/current-goal.md).
 - Use [CLI MVP Definition of Done](project/cli-mvp-definition-of-done.md) to check whether the command-line product gate still holds.
 - Use [CLI roadmap](roadmap/murmurmark-cli-roadmap.md) for the next implementation goal and the dependency map.
 

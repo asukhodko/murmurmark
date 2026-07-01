@@ -43,12 +43,12 @@ manual review queue instead of pretending to be green. Most sessions are still u
 evidence-backed notes when their own `status` says so; full transcript/export can remain blocked
 until the explicit review items are closed.
 
-Current project goal: [Remote-Forbidden Evidence Coverage v2](docs/project/current-goal.md). Latest
-completed Echo Guard milestone: Remote-Forbidden Evidence Hardening v1 now persists ASR-visible
-remote-leak evidence, exposes it through status/review artifacts and explains why only one six-session
-smoke case is safely fixable so far. Latest product milestone: Export Bundle Quality v1; `finish`
-now writes a readable local handoff bundle whose `index.md` answers whether the result can be used,
-what still needs review and what retention/privacy step comes next.
+Latest completed project goal: [Remote-Forbidden Evidence Coverage v2](docs/project/current-goal.md).
+Recommended next goal: ASR-positive audio candidate v2. Coverage v2 broadens ASR audit-window
+selection and raises the six-session smoke from `1/6` to `4/6` safe ASR-visible improvements without
+local-recall regressions. It remains shadow/review-only. Latest product milestone: Export Bundle
+Quality v1; `finish` now writes a readable local handoff bundle whose `index.md` answers whether the
+result can be used, what still needs review and what retention/privacy step comes next.
 
 ## What Works Now
 
@@ -381,10 +381,14 @@ This is the current Echo Guard hardening path. It is shadow/review-only: it does
 ```bash
 SESSION=./sessions/<session-id>
 
-murmurmark audit remote-forbidden "$SESSION" --profile auto --asr-max-clips 6
+murmurmark audit remote-forbidden "$SESSION" --profile auto
 murmurmark report "$SESSION"
 less "$SESSION/derived/audit/remote-forbidden/remote_forbidden_review.md"
 ```
+
+The default audit uses Coverage v2: it keeps `local_fir` as production baseline, selects a small set
+of ASR windows from speaker state and risky review artifacts, writes `selection_reason` for every
+window, and stays shadow-only.
 
 If `offline_aec_v2` ASR audit already exists and only evidence files need to be rebuilt:
 
@@ -421,12 +425,11 @@ local-recall risk or weak quarantine-only evidence.
 
 Current focus:
 
-- expand Remote-Forbidden Evidence Coverage v2: v1 now persists evidence, but the current ASR clip
-  selection finds only one safe improved case in the six-session smoke corpus;
+- use Remote-Forbidden Evidence Coverage v2 as the judge for the next audio-candidate search;
 - keep `local_fir` as the default: the current audio candidates are useful diagnostics, not a
   production replacement;
-- select better risky windows from audio-review rows, transcript overlaps, group-overlap audit,
-  local-recall/order risk and speaker state before trying any promotion;
+- use the broader Coverage v2 evidence gate to judge the next audio candidate before trying any
+  promotion;
 - rank echo-removal work by ASR-visible remote-token leakage, local-word recall and review burden,
   not by loudness or ERLE alone;
 - keep `next`/`status`/`review` honest about residual risk while this layer is shadow-only;
@@ -435,29 +438,31 @@ Current focus:
 
 Near-term goals for discussion:
 
-1. Remote-Forbidden Evidence Coverage v2: broaden ASR audit-window selection so the existing v1
-   evidence layer can find more real remote-in-`Me` cases, or explain why a session has no safe
-   correction.
-2. ASR-positive audio candidate v2: find an actual audio candidate that beats `local_fir` on
-   remote-token leakage without local-recall loss.
-3. Target-Me extraction spike: use high-confidence local-only speech as enrollment material for
+1. ASR-positive audio candidate v2: find an actual audio candidate that beats `local_fir` on
+   remote-token leakage without local-recall loss. This is the next logical step after Coverage v2,
+   because the evidence gate now finds enough ASR-visible cases to judge candidates.
+2. Target-Me extraction spike: use high-confidence local-only speech as enrollment material for
    harder double-talk and open-space noise cases.
-4. Suggested review closure maintenance: keep the preview/apply path visible in session and corpus
+3. Suggested review closure maintenance: keep the preview/apply path visible in session and corpus
    reports, distinguish generated/actionable/needs-review suggestions and avoid closing unmatched
    risky rows.
-5. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
+4. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
-6. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
+5. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
    especially Obsidian-vault placement and reviewed proposal exports.
-7. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
+6. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
    regressions before new heuristics ship.
-8. Evidence notes vNext: improve extractive notes quality while preserving citations and review
+7. Evidence notes vNext: improve extractive notes quality while preserving citations and review
    flags.
-9. Open-source release hardening: trim private fixtures, document setup, add security/contact
+8. Open-source release hardening: trim private fixtures, document setup, add security/contact
    guidance and keep generated/private artifacts ignored.
 
 Recently completed:
 
+- Remote-Forbidden Evidence Coverage v2: ASR audit-window selection now reads speaker state,
+  audio-review, stronger-audio-judge, group-overlap, transcript-overlap and local/order risk
+  artifacts. Six-session smoke: `4/6` safe improved sessions, `0/6` local-recall regressions,
+  `24` evaluable windows, `578` skipped by cap, no default promotion.
 - Remote-Forbidden Evidence Hardening v1: `remote_forbidden_evidence.jsonl`,
   `remote_forbidden_summary.json`, `remote_forbidden_review.md`, session readiness metrics and
   corpus explanation are now normal artifacts. Six-session smoke: one safe improved session, zero

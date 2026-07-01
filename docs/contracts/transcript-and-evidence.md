@@ -3810,6 +3810,14 @@ Evidence row schema:
     "me_utterance_ids": [],
     "remote_utterance_ids": ["utt_000153"]
   },
+  "selection": {
+    "profile": "coverage_v2",
+    "selection_reason": "audio_review:remote_duplicate",
+    "expected_risk_type": "remote_duplicate",
+    "priority": 100,
+    "source_artifacts": ["derived/audit/audio-review-pack/audio_review_audit.jsonl"],
+    "source_row_ids": ["arp_000034"]
+  },
   "speaker_state": {
     "dominant_state": "remote_only",
     "remote_active_ratio": 1.0,
@@ -3869,6 +3877,13 @@ Summary schema:
     "local_word_recall_delta": 0.0,
     "guarded_seconds": 8.0,
     "review_burden_seconds": 6.0,
+    "asr_windows_selected": 4,
+    "asr_windows_evaluable": 4,
+    "asr_windows_skipped": 78,
+    "asr_windows_selected_by_reason": {
+      "audio_review:remote_duplicate": 2,
+      "speaker_state_remote_only_top_remote_db": 2
+    },
     "actions": {"suggest_drop": 1, "quarantine": 2, "keep": 1}
   },
   "gates": {
@@ -3887,8 +3902,11 @@ Invariants:
 - `mic_for_asr.wav` is not changed;
 - `local_fir` remains the selected production Echo Guard path;
 - corpus reports must count local-recall regressions separately from remote-token improvements;
-- corpus reports must include `acceptance.why_not_more_safe_sessions` when fewer than two sessions
-  are safely improved;
+- every selected ASR audit window must carry `selection.selection_reason`; rows from derived
+  artifacts should also carry `selection.source_artifacts` and `selection.source_row_ids`;
+- corpus reports must include selected/evaluable/skipped ASR window counts and reason buckets;
+- corpus reports must include `acceptance.why_not_more_safe_sessions` when some sessions are not
+  safely improved;
 - a corpus target of one safe improved session is not enough for default promotion.
 
 Corpus summary:
@@ -3897,19 +3915,21 @@ Corpus summary:
 {
   "schema": "murmurmark.echo.remote_forbidden_corpus_report/v1",
   "summary": {
-    "safe_improved_sessions": 1,
+    "safe_improved_sessions": 4,
     "assessment_classes": {
-      "no_baseline_asr_visible_leak": 5,
-      "safe_improved": 1
+      "no_baseline_asr_visible_leak": 2,
+      "safe_improved": 4
     },
-    "guarded_seconds": 28.0,
-    "review_burden_seconds": 18.0,
-    "target_status": "target_not_met_only_one_safe_session",
+    "asr_windows_evaluable": 24,
+    "asr_windows_skipped": 578,
+    "guarded_seconds": 83.71,
+    "review_burden_seconds": 47.29,
+    "target_status": "target_met_two_sessions",
     "promotion_decision": "shadow_review_only_do_not_promote"
   },
   "acceptance": {
-    "two_session_target_met": false,
-    "explanation": "Only one session has measurable ASR-visible remote-token reduction with local-word recall preserved.",
+    "two_session_target_met": true,
+    "explanation": "At least two sessions reduce ASR-visible remote leakage while preserving local-word recall.",
     "why_not_more_safe_sessions": [
       {
         "session": "sessions/2026-06-30_11-15-56",
@@ -3921,10 +3941,10 @@ Corpus summary:
 }
 ```
 
-`no_baseline_asr_visible_leak` means the sampled ASR-positive audit window did not reproduce the
-harmful condition in the selected baseline transcript: there were no remote tokens visible in the
-`local_fir` candidate for that window. Such a session cannot count as safely improved, because the
-evidence layer has nothing measurable to remove without inventing a fix.
+`no_baseline_asr_visible_leak` means the selected ASR audit windows did not reproduce the harmful
+condition in the selected baseline transcript: there were no remote tokens visible in the `local_fir`
+candidate for those windows. Such a session cannot count as safely improved, because the evidence
+layer has nothing measurable to remove without inventing a fix.
 
 For sanitized external synthesis:
 
