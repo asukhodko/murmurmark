@@ -162,6 +162,22 @@ murmurmark finish latest
 If `next` or `status` prints a review command, follow that command before relying on the result for
 medium-risk work.
 
+Optional near-realtime shadow mode:
+
+```bash
+murmurmark record --target-bundle system --live-pipeline
+murmurmark status latest
+murmurmark latest
+SESSION="sessions/<printed-session>"
+less "$SESSION/derived/live/transcript.draft.md"
+murmurmark process latest
+```
+
+This mode writes closed audio segments and a live draft under `derived/live/` while recording. It is
+for progress and early reading only: the normal `murmurmark process` result remains authoritative
+until corpus gates prove that the live branch matches the batch pipeline. If the live worker fails,
+recording should still produce a normal raw session package.
+
 ## Process An Existing Session
 
 Use this when the raw recording already exists:
@@ -519,6 +535,9 @@ Current focus:
 - keep `local_fir` as the default Echo Guard path while shadow audio candidates are compared by
   ASR-visible remote-token leakage, local-word recall and review burden;
 - keep `next`/`status`/`review` honest about residual risk;
+- keep near-realtime processing as a shadow CLI branch: `record --live-pipeline` now writes durable
+  live segments, a draft transcript and advisory live-vs-batch comparison artifacts, but the batch
+  pipeline is still authoritative;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 
@@ -528,17 +547,19 @@ Near-term goals for discussion:
    irreducible queue when new local evidence appears, and prevent status drift.
 2. Target-Me evidence hardening: turn the promising `resemblyzer_dvector_v0` shadow signal into safe
    review suggestions behind corpus gates, without automatic transcript edits.
-3. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only until
+3. Near-Realtime Pipeline Shadow v1 follow-up: harden the first live segment/draft worker with
+   overlap-aware Echo Guard, resumable worker state and corpus parity gates.
+4. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only until
    broader corpus gates prove it is safe beyond selected audit windows.
-4. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
+5. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
-5. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
+6. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
    especially Obsidian-vault placement and reviewed proposal exports.
-6. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
+7. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
    regressions before new heuristics ship.
-7. Evidence notes vNext: improve extractive notes quality while preserving citations and review
+8. Evidence notes vNext: improve extractive notes quality while preserving citations and review
    flags.
-8. Open-source release hardening: trim private fixtures, document setup, add security/contact
+9. Open-source release hardening: trim private fixtures, document setup, add security/contact
    guidance and keep generated/private artifacts ignored.
 
 Recently completed:

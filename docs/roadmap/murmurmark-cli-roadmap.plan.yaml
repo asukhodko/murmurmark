@@ -65,6 +65,8 @@ nodes:
         audit records и проверяемые артефакты.
       - Raw CAF, baseline, текущий `local_fir` и основной ASR остаются воспроизводимыми и
         неразрушаемыми; новые echo engines сначала работают только в shadow.
+      - Batch remains authoritative until proven otherwise: near-realtime processing тоже сначала
+        shadow-only и не должен ослаблять raw capture, batch processing, review gates или retention.
       - Synthesis/export не пишут во внешние системы без review.
       - UI App или menu bar не являются обязательным путём к полезному продукту.
 
@@ -279,6 +281,84 @@ nodes:
     status: done
     effort: 2
     notes: "Финальная CLI-обёртка: refresh readiness, guarded export, retention plan, provider payload manifest и один read-only next для пользователя."
+
+  near-realtime-pipeline:
+    title: "Near-Realtime Pipeline Shadow"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [cli-orchestration, cli-recording-reliability, corpus-regression]
+    status: current
+    effort: 16
+    notes: |
+      Потоковая ветка CLI: не ждать окончания встречи, а обрабатывать уже закрытые audio segments
+      во время записи. Первый shadow-контур существует: `record --live-pipeline` пишет segment
+      copies, live draft и advisory live-vs-batch comparison. Это всё ещё не замена batch pipeline:
+      raw CAF/session package и обычный `murmurmark process` остаются source of truth, пока
+      shadow-ветка не докажет parity на корпусе.
+
+  realtime-segment-writer:
+    title: "Segment writer during capture"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [cli-recording-reliability]
+    status: current
+    effort: 4
+    notes: |
+      Во время `record --live-pipeline` уже пишутся durable mic/remote segment copies и manifest для
+      очереди. Оставшийся gap v1: overlap `2-5s`, более явная backpressure/restart модель и corpus
+      gate на отсутствие дублей на границах. Raw capture не должен стать менее надёжным: если live
+      worker падает, запись продолжается, а session остаётся batch-processable.
+
+  realtime-worker-queue:
+    title: "Echo/ASR worker queue"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [realtime-segment-writer]
+    status: current
+    effort: 5
+    notes: |
+      Первый worker пишет chunk state и draft transcript под `derived/live/`. Он безопасен как
+      shadow, но пока использует лёгкую speech-band preprocessing вместо batch-grade Echo Guard.
+      Нужны backpressure, per-stage state, restartability и явный lag.
+
+  realtime-live-draft:
+    title: "Live draft transcript"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [realtime-worker-queue]
+    status: current
+    effort: 4
+    notes: |
+      Писать `derived/live/transcript.draft.md`, `derived/live/chunks/*.jsonl` и
+      `derived/live/live_pipeline_report.json`. Последние `5-10s` не считать окончательно
+      опубликованными: delayed commit защищает от потери начал/концов фраз и дублей на overlap
+      границах. Draft можно читать, но он не заменяет reviewed/final transcript.
+
+  realtime-final-reconcile:
+    title: "Final reconcile after stop"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [realtime-live-draft, review-loop, quality-hardening]
+    status: next
+    effort: 5
+    notes: |
+      После stop обработать последний tail и прогнать batch-grade reconcile: timeline repair,
+      role decisions, cleanup/review/readiness/synthesis/export gates. Цель — после встречи
+      оставлять только короткий хвост, но итоговый transcript должен проходить те же проверки, что
+      `murmurmark process`.
+
+  realtime-corpus-gates:
+    title: "Realtime vs batch corpus gates"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [realtime-final-reconcile, corpus-regression-gate]
+    status: next
+    effort: 4
+    notes: |
+      Сравнить live draft/finalized output с текущим batch baseline по order risk, local recall,
+      remote duplicate/leak, review burden, transcript chunk duplicates и missing boundary speech.
+      Promotion rule: live branch can shorten waiting time, but cannot become default if it grows
+      mandatory review queue or worsens selected notes/readiness.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -1061,6 +1141,10 @@ views:
         title: "CLI"
         expand_descendants: leaves
         nodes: [cli-orchestration]
+      realtime:
+        title: "Near-realtime"
+        expand_descendants: leaves
+        nodes: [near-realtime-pipeline]
       quality-loop:
         title: "Качество и review"
         expand_descendants: leaves
@@ -1094,6 +1178,7 @@ views:
         nodes:
           - foundation-done
           - cli-orchestration
+          - near-realtime-pipeline
           - corpus-regression
           - review-loop
           - quality-hardening
@@ -1131,12 +1216,12 @@ x:
           next_sync_goal: "Не ломать baseline и использовать готовую основу как regression corpus."
       next-cli:
         title: "Единый CLI"
-        scope_nodes: [cli-orchestration]
+        scope_nodes: [cli-orchestration, near-realtime-pipeline]
         kind: main
         mgmt:
           health: green
-          sync_note: "CLI MVP закрыт; readiness reconciliation, Recording Reliability и Export Bundle Quality v1 завершены. status/next/process честно ведут partial capture в inspect, finish даёт читаемый handoff."
-          next_sync_goal: "Поддерживать CLI стабильным, пока основной фокус уходит в контур качества."
+          sync_note: "CLI MVP закрыт; readiness reconciliation, Recording Reliability и Export Bundle Quality v1 завершены. Следующая CLI-ветка — near-realtime shadow: segment processing during recording без замены batch source of truth."
+          next_sync_goal: "Сначала спроектировать и проверить live shadow queue: segment writer, Echo/ASR workers, draft transcript, final reconcile и corpus parity gates."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening]

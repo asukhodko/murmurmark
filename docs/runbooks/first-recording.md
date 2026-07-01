@@ -98,6 +98,23 @@ murmurmark inspect latest
 
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
 
+Optional live-shadow recording:
+
+```bash
+murmurmark record --target-bundle system --live-pipeline
+murmurmark status latest
+murmurmark latest
+SESSION="sessions/<printed-session>"
+less "$SESSION/derived/live/transcript.draft.md"
+murmurmark process latest
+```
+
+`--live-pipeline` duplicates closed mic/remote capture windows into `derived/live/audio/`, starts a
+shadow worker and writes `derived/live/transcript.draft.md`,
+`derived/live/live_pipeline_report.json` and `derived/live/chunks.jsonl`. The draft is not the final
+transcript. If the worker crashes or falls behind, raw capture should still finish as a normal
+session and can be processed by the batch pipeline.
+
 Without `--duration`, recording continues until `Ctrl-C`. MurmurMark catches that explicit stop,
 stops capture, closes audio files and writes `session.json`.
 If ScreenCaptureKit stops before `Ctrl-C`, MurmurMark tries to restart the capture stream and keep

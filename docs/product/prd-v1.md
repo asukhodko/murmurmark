@@ -20,6 +20,9 @@ Working now:
 - `shadow_v2` repair profile with no-regression gates, audit artifacts and start-of-call repair;
 - local extractive synthesis with quality verdicts, review items and evidence-backed notes;
 - Markdown/Obsidian-style export bundles, JSON/audit artifacts for review, and raw retention plans.
+- first near-realtime shadow branch: `record --live-pipeline` writes closed mic/remote segment
+  copies, live worker state, a draft transcript and live-vs-batch comparison artifacts under
+  `derived/live/`.
 
 Current operating point, measured by `murmurmark report corpus` on 2026-07-01:
 
@@ -39,6 +42,9 @@ Current operating point, measured by `murmurmark report corpus` on 2026-07-01:
 
 Still future:
 
+- near-realtime promotion beyond shadow: overlap-aware segment processing, stronger per-segment Echo
+  Guard, resumable worker state, corpus parity gates and final-tail reuse before it can shorten the
+  authoritative post-meeting path;
 - signed menubar app;
 - remote speaker diarization inside `Colleagues`;
 - heavy-local ASR stack with specialized models;
@@ -97,6 +103,12 @@ Excluded from v1 scope or not implemented yet:
 
 The CLI is the primary v1 product path. Any future GUI should reuse the same capture and pipeline
 contracts instead of introducing a separate workflow.
+
+The near-realtime CLI mode reuses these contracts as a shadow branch. It processes already-closed
+mic/remote segment copies while recording and writes a draft transcript with small lag, but it must
+not weaken the batch path: raw capture remains durable, `murmurmark process` remains authoritative
+until corpus gates prove parity, and final reconcile after stop must run the same review/readiness
+checks.
 
 Required commands:
 

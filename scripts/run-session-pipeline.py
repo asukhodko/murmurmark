@@ -356,6 +356,7 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
     shadow_transcribe = list(transcribe_base) + ["--skip-export", "--skip-transcribe", "--repair-profile", "shadow_v2"]
 
     audio_judge_exists = args.audio_judge_queue.exists()
+    live_report_exists = (session / "derived/live/live_pipeline_report.json").exists()
     return [
         step("swift_build", ["swift", "build"], enabled=not args.skip_build, reason="--skip-build"),
         step("inspect", [str(args.murmurmark_bin), "inspect", str(session)]),
@@ -514,6 +515,12 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
                 str(session / "derived/readiness/session-quality"),
                 "--write-session-readiness",
             ],
+        ),
+        step(
+            "live_batch_comparison",
+            [py, str(repo_root / "scripts/compare-live-batch.py"), str(session)],
+            enabled=live_report_exists,
+            reason="missing live pipeline report",
         ),
     ]
 
@@ -914,6 +921,7 @@ def main() -> int:
     quality_path = session / "derived/synthesis-simple/extractive/quality_verdict.json"
     readiness_path = session / "derived/readiness/session_readiness.json"
     remote_leak_plan_path = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json"
+    live_comparison_path = session / "derived/live/live_batch_comparison.json"
     quality = read_json(quality_path)
     readiness = read_json(readiness_path)
     synthesis_profile = quality.get("selected_transcript_profile") if isinstance(quality, dict) else None
@@ -948,6 +956,7 @@ def main() -> int:
             "quality_verdict": rel(quality_path, session) if quality_path.exists() else None,
             "session_readiness": rel(readiness_path, session) if readiness_path.exists() else None,
             "remote_leak_segment_repair_plan": rel(remote_leak_plan_path, session) if remote_leak_plan_path.exists() else None,
+            "live_batch_comparison": rel(live_comparison_path, session) if live_comparison_path.exists() else None,
             "selected_transcript_profile": selected_profile,
             "synthesis_selected_transcript_profile": synthesis_profile,
             "readiness_selected_profile": readiness_profile,

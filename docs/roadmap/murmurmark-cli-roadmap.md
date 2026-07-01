@@ -19,6 +19,12 @@ MurmurMark should become a dependable local CLI pipeline for sensitive meetings:
 6. export reviewed artifacts;
 7. plan or apply raw-audio retention.
 
+The current product shape is batch-first: a meeting is recorded, then processed. A future
+near-realtime path should reduce the wait after a meeting by processing already-closed audio
+segments during recording. That path must start as a shadow pipeline, not as a replacement: raw
+capture and the existing batch pipeline remain the source of truth until corpus gates prove that
+near-realtime drafts are no worse than batch outputs.
+
 The optional UI/app path is deliberately late. It should not block the useful CLI product.
 
 ## Current State
@@ -90,6 +96,7 @@ flowchart LR
     mission["mission<br/>local meeting memory"]
     foundation["foundation-done<br/>capture / Echo Guard / ASR / repair"]
     cli["cli-orchestration<br/>single user-facing CLI"]
+    live["near-realtime-shadow<br/>segment pipeline during recording"]
     corpus["corpus-regression<br/>quality gates"]
     review["review-loop<br/>short explicit review queue"]
     hardening["quality-hardening<br/>fewer order/recall/duplicate failures"]
@@ -104,8 +111,11 @@ flowchart LR
 
     mission --> foundation
     foundation --> cli
+    cli --> live
     foundation --> corpus
     cli --> review
+    live --> review
+    corpus --> live
     corpus --> review
     review --> hardening
     corpus --> hardening
@@ -142,8 +152,8 @@ flowchart LR
 
 ### Current
 
-- Restore the corpus to `medium_risk_ready` by closing or safely explaining the five manual review
-  rows in `sessions/2026-06-30_11-15-56`.
+- Keep the operational corpus at `pilot_ready_with_review` or better, with the short irreducible
+  review queue visible in `murmurmark report corpus`.
 - Keep readiness/status/next honest when the actionable review queue is empty but residual risk
   remains documented.
 - Close safe review rows with local audio evidence before asking the user to listen manually.
@@ -164,6 +174,15 @@ flowchart LR
   - keep neural residual suppression as a later spike behind corpus gates.
 - Keep the final handoff readable: `finish` now opens a bundle whose `index.md` is the first working
   artifact, not a derived-file directory listing.
+- Design **Near-Realtime Pipeline Shadow v1** as a future CLI branch:
+  - first shadow implementation exists: `record --live-pipeline` writes durable mic/remote segment
+    copies, starts an optional worker, writes `derived/live/transcript.draft.md`,
+    `derived/live/live_pipeline_report.json` and advisory live-vs-batch comparison;
+  - next work is overlap-aware segmenting, per-segment Echo Guard stronger than speech-band
+    preprocessing, resumable queue state and corpus parity gates;
+  - after stop, the existing batch-grade repair/review/readiness layers remain authoritative;
+  - keep the existing post-recording `process` path as source of truth until corpus comparison proves
+    no worse order/local-recall/remote-duplicate behavior.
 - Make the everyday path boring:
 
   ```bash
@@ -178,6 +197,15 @@ flowchart LR
 
 ### Next
 
+- Near-realtime shadow pipeline follow-up:
+  - segment writer during capture exists, but still needs overlap-aware windows and better queue
+    recovery;
+  - worker queue exists as a safe shadow worker, but its v1 preprocessing is intentionally light and
+    must be upgraded before it can compete with batch Echo Guard;
+  - delayed transcript commit: do not finalize the last few seconds until the next segment arrives;
+  - live status: captured/preprocessed/ASR seconds, current lag and current worker;
+  - final reconcile after stop: batch-grade transcript remains authoritative until gates promote the
+    live output.
 - Review loop polish:
   - keep suggested review closure first-class: show how many rows can be accepted from stronger
     local audio evidence, how many remain manual, and whether generated suggestions are actionable
@@ -286,17 +314,20 @@ algorithm changes from silently growing it.
 2. **Target-Me Evidence Hardening v1.** Integrate `resemblyzer_dvector_v0` with review-lane
    suggestions and corpus reports: keep true `Me` rows that old remote-duplicate heuristics would
    over-delete, but do not auto-edit transcripts.
-3. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
+3. **Near-Realtime Pipeline Shadow v1.** Start processing closed audio segments while recording and
+   write a live draft transcript, but keep the current batch pipeline as final authority until corpus
+   gates prove parity.
+4. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
    close safe suggested review rows, preserve manual rows and keep status/report aligned.
-4. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only
+5. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only
    until broader corpus gates prove it is safe beyond selected audit windows.
-5. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
+6. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
    reviewed docs/ticket proposal exports.
-6. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
+7. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
    changes to beat or preserve it.
-7. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
+8. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
    to utterance IDs and review flags.
-7. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
+9. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
    artifacts and add security/contact guidance.
 
 ## Validation

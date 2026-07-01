@@ -4133,6 +4133,124 @@ condition in the selected baseline transcript: there were no remote tokens visib
 candidate for those windows. Such a session cannot count as safely improved, because the evidence
 layer has nothing measurable to remove without inventing a fix.
 
+## Near-Realtime Shadow Artifacts
+
+Near-realtime processing is a shadow branch. It may run during `murmurmark record --live-pipeline`,
+but it does not replace the batch transcript. The authoritative path is still:
+
+```text
+raw CAF session -> murmurmark process -> reviewed/readiness transcript
+```
+
+The live branch writes only under `derived/live/`.
+
+### Segment Manifest
+
+`derived/live/segments.jsonl` contains one row per closed mic or remote segment copy:
+
+```json
+{
+  "schema": "murmurmark.live_segment/v1",
+  "source": "mic",
+  "index": 1,
+  "path": "derived/live/audio/mic/000001.caf",
+  "start_sec": 0.0,
+  "end_sec": 60.0,
+  "duration_sec": 60.0,
+  "frames": 2880000,
+  "sample_rate": 48000.0,
+  "closed": true,
+  "final": false
+}
+```
+
+Invariants:
+
+- raw `audio/mic/*.caf` and `audio/remote/*.caf` remain the durable capture source;
+- live segment files are derived copies and may be deleted or regenerated;
+- a worker may process an index only after both `mic` and `remote` rows for that index are closed;
+- if the live worker fails, the session must remain batch-processable.
+
+### Worker State And Report
+
+`derived/live/live_pipeline_state.json` is the small mutable progress file. It is allowed to change
+while recording.
+
+`derived/live/live_pipeline_report.json` is the durable summary:
+
+```json
+{
+  "schema": "murmurmark.live_pipeline_report/v1",
+  "mode": "near_realtime_shadow",
+  "status": "completed",
+  "batch_authoritative": true,
+  "promotion_allowed": false,
+  "progress": {
+    "captured_sec": 600.0,
+    "processed_sec": 540.0,
+    "live_lag_sec": 60.0,
+    "chunks_processed": 9,
+    "segments_seen": 18
+  },
+  "outputs": {
+    "draft_transcript": "derived/live/transcript.draft.md",
+    "chunks_jsonl": "derived/live/chunks.jsonl"
+  }
+}
+```
+
+`batch_authoritative: true` and `promotion_allowed: false` are mandatory in v1.
+
+### Live Chunks And Draft Transcript
+
+Each processed index writes:
+
+```text
+derived/live/chunks/<index>/chunk.json
+derived/live/chunks/<index>/mic.wav
+derived/live/chunks/<index>/remote.wav
+```
+
+`derived/live/chunks.jsonl` repeats the chunk summaries for cheap streaming reads. A chunk row may
+contain `provisional: true` when it is inside the delayed commit window and may be rewritten by a
+later worker version.
+
+`derived/live/transcript.draft.md` is a read-only draft for early orientation. It must not be used as
+the final transcript, synthesis input or export source until a future corpus gate explicitly promotes
+the live path.
+
+### Live-vs-Batch Comparison
+
+After the normal batch pipeline runs, `scripts/compare-live-batch.py` writes:
+
+```text
+derived/live/live_batch_comparison.json
+```
+
+Schema:
+
+```json
+{
+  "schema": "murmurmark.live_batch_comparison/v1",
+  "status": "shadow_compared",
+  "promotion_allowed": false,
+  "promotion_reason": "near_realtime_shadow_v1_never_promotes_by_default",
+  "blockers": [],
+  "warnings": [],
+  "metrics": {
+    "live_chunks": 9,
+    "live_token_count": 1200,
+    "batch_token_count": 1350,
+    "live_token_recall_in_batch": 0.82,
+    "adjacent_duplicate_chunk_count": 0,
+    "batch_authoritative": true
+  }
+}
+```
+
+This comparison is advisory. Missing live or batch artifacts are written as `blockers`, but they must
+not fail the normal batch pipeline.
+
 For sanitized external synthesis:
 
 ```yaml

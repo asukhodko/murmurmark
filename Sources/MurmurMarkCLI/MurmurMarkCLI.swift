@@ -119,6 +119,7 @@ struct MurmurMark {
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
+                            [--live-pipeline] [--live-segment-sec 60] [--live-no-worker]
           murmurmark sessions [--limit 10] [--status exported|exportable|review_required|incomplete] [--path-only|--next-only|--json]
                               [--sessions-root ./sessions]
           murmurmark latest [--sessions-root ./sessions]
@@ -196,6 +197,7 @@ struct MurmurMark {
           audio-input remote capture and voice-processing mic capture are experimental comparison modes.
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C and finalizes the session.
+          --live-pipeline writes shadow live segments and a draft transcript under derived/live.
           SIGTERM/SIGHUP are treated as unexpected stops and leave a partial session.
           Unexpected ScreenCaptureKit stops are restarted when possible; unrecovered stops finalize a partial session and exit with an error.
           Without --out, recording creates a unique directory under ./sessions.
@@ -432,6 +434,12 @@ enum Commands {
         let remoteDevice = options.string("remote-device")
         let sampleRate = options.int("sample-rate") ?? 48000
         let channelCount = options.int("channels") ?? 2
+        let livePipelineEnabled = options.flag("live-pipeline")
+        let liveSegmentSeconds = try options.optionalPositiveDouble("live-segment-sec") ?? 60
+        let liveWorkerEnabled = livePipelineEnabled && !options.flag("live-no-worker")
+        if livePipelineEnabled && (microphoneBackend != .screenCaptureKit || remoteBackend != .screenCaptureKit) {
+            throw CLIError("--live-pipeline currently requires screencapturekit mic and remote backends")
+        }
 
         let recorder = SessionRecorder(
             outputDirectory: out,
@@ -442,7 +450,10 @@ enum Commands {
             remoteDeviceID: remoteDevice,
             duration: duration,
             sampleRate: sampleRate,
-            channelCount: channelCount
+            channelCount: channelCount,
+            livePipelineEnabled: livePipelineEnabled,
+            liveSegmentSeconds: liveSegmentSeconds,
+            liveWorkerEnabled: liveWorkerEnabled
         )
         let stopReason = try await recorder.run()
         if stopReason.isUnexpectedCaptureStop {
@@ -573,6 +584,8 @@ enum DoctorChecks {
     static func checkScripts(_ report: inout DoctorReport) {
         for path in [
             "scripts/run-session-pipeline.py",
+            "scripts/live-pipeline-shadow.py",
+            "scripts/compare-live-batch.py",
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/synthesize-simple-extractive.py",
             "scripts/audit-local-recall.py",
@@ -6567,6 +6580,9 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     let duration: TimeInterval?
     let sampleRate: Int
     let channelCount: Int
+    let livePipelineEnabled: Bool
+    let liveSegmentSeconds: TimeInterval
+    let liveWorkerEnabled: Bool
 
     private let fileManager = FileManager.default
     private let queue = DispatchQueue(label: "murmurmark.capture.samples")
@@ -6578,6 +6594,8 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var voiceProcessingMic: VoiceProcessingMicCapture?
     private var remoteWriter: AudioFileWriter?
     private var remoteInputCapture: AudioInputDeviceCapture?
+    private var liveSegments: LiveSegmentCapture?
+    private var liveWorker: LivePipelineWorker?
     private var events: EventLog?
     private var warnings: [String] = []
     private var targetDisplayName = "System Audio"
@@ -6600,7 +6618,10 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         remoteDeviceID: String?,
         duration: TimeInterval?,
         sampleRate: Int,
-        channelCount: Int
+        channelCount: Int,
+        livePipelineEnabled: Bool = false,
+        liveSegmentSeconds: TimeInterval = 60,
+        liveWorkerEnabled: Bool = false
     ) {
         self.outputDirectory = outputDirectory
         self.targetBundleID = targetBundleID
@@ -6611,6 +6632,9 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         self.duration = duration
         self.sampleRate = sampleRate
         self.channelCount = channelCount
+        self.livePipelineEnabled = livePipelineEnabled
+        self.liveSegmentSeconds = liveSegmentSeconds
+        self.liveWorkerEnabled = liveWorkerEnabled
     }
 
     func run() async throws -> StopReason {
@@ -6632,8 +6656,36 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                     "mic_backend": microphoneBackend.rawValue,
                     "remote_backend": remoteBackend.rawValue,
                     "remote_device": remoteDeviceID ?? "",
+                    "live_pipeline": livePipelineEnabled,
                 ]
             )
+            if livePipelineEnabled {
+                let capture = try LiveSegmentCapture(
+                    sessionDirectory: outputDirectory,
+                    segmentSeconds: liveSegmentSeconds
+                )
+                liveSegments = capture
+                try eventLog.write(
+                    type: "live_pipeline.prepare",
+                    fields: [
+                        "segment_sec": liveSegmentSeconds,
+                        "worker_enabled": liveWorkerEnabled,
+                        "segments": "derived/live/segments.jsonl",
+                    ]
+                )
+                if liveWorkerEnabled {
+                    let worker = try LivePipelineWorker(sessionDirectory: outputDirectory)
+                    liveWorker = worker
+                    try worker.start()
+                    try eventLog.write(
+                        type: "live_pipeline.worker_started",
+                        fields: [
+                            "log": "derived/live/live_worker.log",
+                            "report": "derived/live/live_pipeline_report.json",
+                        ]
+                    )
+                }
+            }
 
             if remoteBackend == .audioInput, let remoteDeviceID {
                 let capture = try AudioInputDeviceCapture(
@@ -6727,6 +6779,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             await stopScreenCaptureStream()
             stopRemoteInputCapture()
             stopVoiceProcessingMic()
+            liveSegments?.closeAll()
             stopDate = Date()
             let actualDuration = max(0.0, (stopDate ?? Date()).timeIntervalSince(startDate))
             var stoppedFields: [String: Any] = [
@@ -6741,6 +6794,20 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             }
             try eventLog.write(type: "capture.stopped", fields: stoppedFields)
             try finish()
+            if let worker = liveWorker {
+                let exited = worker.wait(seconds: 30)
+                try? eventLog.write(
+                    type: "live_pipeline.worker_waited",
+                    fields: [
+                        "exited": exited,
+                        "status": worker.terminationStatus.map { Int($0) } as Any? ?? NSNull(),
+                        "report": "derived/live/live_pipeline_report.json",
+                    ]
+                )
+                if !exited {
+                    appendWarning("live pipeline worker still running after 30s finalization wait")
+                }
+            }
             if stopReason.isUnexpectedCaptureStop {
                 print("partial session finalized")
                 printInterruptedHandoff()
@@ -6775,11 +6842,13 @@ extension SessionRecorder {
                     remoteWriter = try AudioFileWriter(url: outputDirectory.appendingPathComponent("audio/remote/000001.caf"), source: "remote")
                 }
                 try remoteWriter?.write(sampleBuffer)
+                try liveSegments?.write(sampleBuffer, source: "remote")
             case .microphone:
                 if micWriter == nil {
                     micWriter = try AudioFileWriter(url: outputDirectory.appendingPathComponent("audio/mic/000001.caf"), source: "mic")
                 }
                 try micWriter?.write(sampleBuffer)
+                try liveSegments?.write(sampleBuffer, source: "mic")
             default:
                 break
             }
@@ -7112,9 +7181,18 @@ extension SessionRecorder {
     private func printHandoff() {
         let session = PathDisplay.display(outputDirectory)
         print("SESSION=\"\(session)\"")
+        if livePipelineEnabled {
+            print("live_pipeline: shadow")
+            print("live_draft: \(session)/derived/live/transcript.draft.md")
+            print("live_report: \(session)/derived/live/live_pipeline_report.json")
+        }
         print("recommended_next: murmurmark process \(session)")
         print("next:")
         print("  murmurmark process \(session)")
+        if livePipelineEnabled {
+            print("  less \(session)/derived/live/transcript.draft.md")
+            print("  less \(session)/derived/live/live_pipeline_report.json")
+        }
     }
 
     private func printInterruptedHandoff() {
@@ -7277,6 +7355,186 @@ final class AudioFileWriter {
 
     func close() {
         file = nil
+    }
+}
+
+final class LiveSegmentCapture {
+    private struct SourceState {
+        var writer: AudioFileWriter?
+        var index = 1
+        var cumulativeFrames: AVAudioFramePosition = 0
+        var segmentStartFrame: AVAudioFramePosition = 0
+        var segmentFrames: AVAudioFramePosition = 0
+        var sampleRate: Double = 0
+        var path: String = ""
+    }
+
+    let sessionDirectory: URL
+    let segmentSeconds: TimeInterval
+
+    private let manifestURL: URL
+    private let manifestHandle: FileHandle
+    private var states: [String: SourceState] = [:]
+
+    init(sessionDirectory: URL, segmentSeconds: TimeInterval) throws {
+        self.sessionDirectory = sessionDirectory
+        self.segmentSeconds = max(5.0, segmentSeconds)
+        let liveDirectory = sessionDirectory.appendingPathComponent("derived/live")
+        try FileManager.default.createDirectory(at: liveDirectory.appendingPathComponent("audio/mic"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: liveDirectory.appendingPathComponent("audio/remote"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: liveDirectory.appendingPathComponent("chunks"), withIntermediateDirectories: true)
+        manifestURL = liveDirectory.appendingPathComponent("segments.jsonl")
+        FileManager.default.createFile(atPath: manifestURL.path, contents: Data())
+        manifestHandle = try FileHandle(forWritingTo: manifestURL)
+        try writeState(status: "recording")
+    }
+
+    func write(_ sampleBuffer: CMSampleBuffer, source: String) throws {
+        guard let format = AudioFileWriter.audioFormat(from: sampleBuffer) else {
+            throw CLIError("cannot read live audio format for \(source)")
+        }
+        var state = states[source] ?? SourceState()
+        if state.writer == nil {
+            state.sampleRate = format.sampleRate
+            state.segmentStartFrame = state.cumulativeFrames
+            state.segmentFrames = 0
+            state.path = "derived/live/audio/\(source)/\(String(format: "%06d", state.index)).caf"
+            state.writer = try AudioFileWriter(
+                url: sessionDirectory.appendingPathComponent(state.path),
+                source: "live-\(source)-\(state.index)"
+            )
+        }
+
+        let frameCount = AVAudioFramePosition(CMSampleBufferGetNumSamples(sampleBuffer))
+        try state.writer?.write(sampleBuffer, format: format)
+        state.segmentFrames += frameCount
+        state.cumulativeFrames += frameCount
+
+        let targetFrames = AVAudioFramePosition(max(1.0, state.sampleRate * segmentSeconds))
+        if state.segmentFrames >= targetFrames {
+            try closeSegment(source: source, state: &state, final: false)
+        }
+        states[source] = state
+    }
+
+    func closeAll() {
+        for source in Array(states.keys) {
+            var state = states[source] ?? SourceState()
+            try? closeSegment(source: source, state: &state, final: true)
+            states[source] = state
+        }
+        try? writeState(status: "capture_finished")
+        try? manifestHandle.close()
+    }
+
+    private func closeSegment(source: String, state: inout SourceState, final: Bool) throws {
+        guard state.writer != nil, state.segmentFrames > 0 else { return }
+        state.writer?.close()
+        let startSec = Double(state.segmentStartFrame) / max(state.sampleRate, 1.0)
+        let endSec = Double(state.segmentStartFrame + state.segmentFrames) / max(state.sampleRate, 1.0)
+        try appendJSONLine(
+            [
+                "schema": "murmurmark.live_segment/v1",
+                "source": source,
+                "index": state.index,
+                "path": state.path,
+                "start_sec": rounded(startSec),
+                "end_sec": rounded(endSec),
+                "duration_sec": rounded(endSec - startSec),
+                "frames": Int64(state.segmentFrames),
+                "sample_rate": Int(state.sampleRate.rounded()),
+                "closed": true,
+                "final": final,
+            ],
+            to: manifestHandle
+        )
+        state.index += 1
+        state.segmentStartFrame = state.cumulativeFrames
+        state.segmentFrames = 0
+        state.writer = nil
+        state.path = ""
+    }
+
+    private func writeState(status: String) throws {
+        try JSONObject.write(
+            [
+                "schema": "murmurmark.live_pipeline_state/v1",
+                "status": status,
+                "segment_sec": segmentSeconds,
+                "segments": "derived/live/segments.jsonl",
+                "draft_transcript": "derived/live/transcript.draft.md",
+                "report": "derived/live/live_pipeline_report.json",
+                "updated_at": DateStrings.iso8601(Date()),
+            ],
+            to: sessionDirectory.appendingPathComponent("derived/live/live_pipeline_state.json")
+        )
+    }
+
+    private func appendJSONLine(_ value: [String: Any], to handle: FileHandle) throws {
+        let data = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+        handle.write(data)
+        handle.write(Data("\n".utf8))
+    }
+
+    private func rounded(_ value: Double) -> Double {
+        Double((value * 1000).rounded() / 1000)
+    }
+}
+
+final class LivePipelineWorker {
+    let sessionDirectory: URL
+    private let process = Process()
+    private var logHandle: FileHandle?
+
+    init(sessionDirectory: URL) throws {
+        self.sessionDirectory = sessionDirectory
+        let script = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("scripts/live-pipeline-shadow.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("live pipeline worker script not found: \(script.path)")
+        }
+        let python = Self.resolvePython()
+        let logURL = sessionDirectory.appendingPathComponent("derived/live/live_worker.log")
+        try FileManager.default.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: logURL.path, contents: Data())
+        let handle = try FileHandle(forWritingTo: logURL)
+        logHandle = handle
+        process.executableURL = URL(fileURLWithPath: python)
+        process.arguments = [script.path, sessionDirectory.path]
+        process.standardOutput = handle
+        process.standardError = handle
+    }
+
+    func start() throws {
+        try process.run()
+    }
+
+    func wait(seconds: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(seconds)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        if !process.isRunning {
+            try? logHandle?.close()
+            return true
+        }
+        return false
+    }
+
+    var terminationStatus: Int32? {
+        process.isRunning ? nil : process.terminationStatus
+    }
+
+    private static func resolvePython() -> String {
+        let env = ProcessInfo.processInfo.environment
+        if let value = env["MURMURMARK_PYTHON"], !value.isEmpty {
+            return value
+        }
+        let venv = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(".venv/bin/python").path
+        if FileManager.default.isExecutableFile(atPath: venv) {
+            return venv
+        }
+        return Tooling.which("python3") ?? "/usr/bin/python3"
     }
 }
 
@@ -9237,6 +9495,10 @@ struct Options {
         values[key]
     }
 
+    func flag(_ key: String) -> Bool {
+        flags.contains(key)
+    }
+
     func int(_ key: String) -> Int? {
         values[key].flatMap(Int.init)
     }
@@ -9522,6 +9784,7 @@ enum ReadinessPrinter {
             let sessionPath = PathDisplay.display(session)
             print("  session: \(sessionPath)")
             print("  expected: \(PathDisplay.display(url))")
+            printLivePipelineSummary(session)
             print("  recommended_next: murmurmark process \(sessionPath)")
             print("  next:")
             print("    murmurmark process \(sessionPath)")
@@ -9577,6 +9840,7 @@ enum ReadinessPrinter {
             print(String(format: "  transcript_review_burden: %.2f min / %.2f%%", transcriptReviewSeconds / 60, transcriptReviewRatio))
         }
         ReviewSummaryPrinter.printSynthesisReviewMetrics(metrics, indent: "  ")
+        printLivePipelineSummary(session)
         printStrongerAudioJudgeSummary(session)
         printSuggestedClosureSummary(session)
         print("  open:")
@@ -9604,6 +9868,29 @@ enum ReadinessPrinter {
                 print("    \(command) — \(label)")
             }
         }
+    }
+
+    private static func printLivePipelineSummary(_ session: URL) {
+        let reportURL = session.appendingPathComponent("derived/live/live_pipeline_report.json")
+        guard FileManager.default.fileExists(atPath: reportURL.path),
+              let payload = try? JSONFiles.object(reportURL)
+        else {
+            return
+        }
+        let progress = payload["progress"] as? [String: Any] ?? [:]
+        let outputs = payload["outputs"] as? [String: Any] ?? [:]
+        print("  live_pipeline:")
+        print("    mode: \(string(payload["mode"]) ?? "shadow")")
+        print("    status: \(string(payload["status"]) ?? "unknown")")
+        print("    batch_authoritative: \(bool(payload["batch_authoritative"]) ?? true)")
+        print(String(format: "    captured: %.1fs", double(progress["captured_sec"]) ?? 0.0))
+        print(String(format: "    processed: %.1fs", double(progress["processed_sec"]) ?? 0.0))
+        print(String(format: "    lag: %.1fs", double(progress["live_lag_sec"]) ?? 0.0))
+        print("    chunks: \(int(progress["chunks_processed"]) ?? 0)")
+        if let draft = string(outputs["draft_transcript"]) {
+            print("    draft: \(PathDisplay.display(session.appendingPathComponent(draft)))")
+        }
+        print("    report: \(PathDisplay.display(reportURL))")
     }
 
     private static func printStrongerAudioJudgeSummary(_ session: URL) {
@@ -10023,6 +10310,15 @@ enum ReadinessPrinter {
     private static func int(_ value: Any?) -> Int? {
         if let number = value as? NSNumber { return number.intValue }
         if let text = value as? String { return Int(text) }
+        return nil
+    }
+
+    private static func bool(_ value: Any?) -> Bool? {
+        if let value = value as? Bool { return value }
+        if let number = value as? NSNumber { return number.boolValue }
+        if let text = value as? String {
+            return ["true", "yes", "1"].contains(text.lowercased())
+        }
         return nil
     }
 
