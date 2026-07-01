@@ -3982,6 +3982,87 @@ not be used to rewrite `mic_for_asr.wav` in v0.
 The Coverage gate candidate must stay shadow-only. It may use Coverage v2 audit windows and
 speaker-state evidence to build a WAV, but it must not write `mic_for_asr.wav`.
 
+## `asr_positive_echo_candidate_report.json`
+
+This report makes one shadow audio candidate explicit as an experimental Echo Guard profile. It is
+not a transcript profile and not selected ASR input.
+
+Files:
+
+```text
+derived/preprocess/echo/asr_positive_echo_candidate_report.json
+derived/preprocess/echo/asr_positive_echo_candidate_report.md
+sessions/_reports/asr-positive-echo-candidate/asr_positive_echo_candidate_corpus_report.json
+sessions/_reports/asr-positive-echo-candidate/asr_positive_echo_candidate_corpus_report.md
+```
+
+Session report schema:
+
+```json
+{
+  "schema": "murmurmark.echo.asr_positive_echo_candidate_report/v1",
+  "profile": "coverage_v2_remote_gate_local_fir",
+  "engine": "offline_aec_v2",
+  "mode": "experimental_shadow_only",
+  "default_pipeline_unchanged": true,
+  "local_fir_remains_default": true,
+  "promotion_decision": "shadow_only_do_not_promote",
+  "assessment": {
+    "status": "passed",
+    "reason": "remote_token_leak_reduced_without_local_recall_regression"
+  },
+  "metrics": {
+    "remote_token_leak_rate_local_fir": 0.42,
+    "remote_token_leak_rate_candidate": 0.18,
+    "remote_token_leak_delta": -0.24,
+    "local_word_recall_delta": 0.0,
+    "coverage_gate": {
+      "windows": 4,
+      "applied_windows": 3,
+      "skipped_windows": 1
+    }
+  }
+}
+```
+
+Allowed `assessment.status` values:
+
+- `passed`: candidate reduced ASR-visible remote-token leakage versus `local_fir` and did not
+  regress local-word recall;
+- `failed`: candidate was evaluable but unsafe or not better;
+- `not_applicable`: sampled baseline `local_fir` windows did not expose ASR-visible remote leakage;
+- `skipped`: required ASR audit artifacts are missing or unavailable.
+
+Corpus report schema:
+
+```json
+{
+  "schema": "murmurmark.echo.asr_positive_echo_candidate_corpus_report/v1",
+  "summary": {
+    "candidate": "coverage_v2_remote_gate_local_fir",
+    "sessions": 6,
+    "reports_found": 6,
+    "safe_improved_sessions": 5,
+    "not_applicable_sessions": 1,
+    "local_recall_regressions": 0,
+    "promotion_decision": "shadow_only_do_not_promote"
+  },
+  "promotion_gate": {
+    "passed": true,
+    "promotion_ready": false,
+    "promotion_decision": "shadow_only_do_not_promote"
+  }
+}
+```
+
+Required invariants:
+
+- `mode` must be `experimental_shadow_only`;
+- `promotion_decision` must remain `shadow_only_do_not_promote`;
+- `promotion_gate.promotion_ready` must remain `false`;
+- the report may point to candidate WAV files, but must not write or select `mic_for_asr.wav`;
+- corpus gates may validate the candidate, but must not promote it by themselves.
+
 Token-guard rows inside `offline_aec_v2_asr_leak_report.json` must preserve the base text and the
 removed-token evidence:
 

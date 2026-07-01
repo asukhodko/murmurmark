@@ -42,14 +42,14 @@ not safely closable by the current local agents. The one risky session is repres
 residual risk, not as unattended export readiness. `finish` and `export` still block full transcript
 bundles when transcript-only blockers remain.
 
-Current quality goal: [Target-Me Evidence Hardening v1](docs/project/current-goal.md). `review suggested
-apply` is cumulative, keeps already closed rows, consumes cached stronger-audio-judge and Target-Me
-evidence in lane suggestions, and makes `review progress`, `status`, `report` and `suggested_closure`
-agree on the same remaining queue. Target-Me now also audits readiness review-plan rows, so short
-lost-`Me` and order-risk checks can be closed when local-speaker evidence is strong enough. Latest
-product milestone: Export Bundle Quality v1; `finish`
-writes a readable local handoff bundle whose `index.md` answers whether the result can be used, what
-still needs review and what retention/privacy step comes next.
+Latest quality milestone:
+[ASR-Positive Echo Candidate Hardening v1](docs/project/current-goal.md). `coverage_v2_remote_gate_local_fir`
+is now an explicit experimental Echo Guard profile with one-session and corpus reports. Current
+six-session corpus: `5/6` safe improved, `1/6` not applicable, `0/6` local-recall regressions. It
+remains `shadow_only_do_not_promote`: `local_fir` is still the default ASR input. Latest product
+milestone: Export Bundle Quality v1; `finish` writes a readable local handoff bundle whose `index.md`
+answers whether the result can be used, what still needs review and what retention/privacy step comes
+next.
 
 ## What Works Now
 
@@ -461,6 +461,46 @@ The corpus report includes guarded seconds, review-burden seconds and an explici
 stays shadow-only and the report should say whether the blocker is missing ASR-visible baseline leak,
 local-recall risk or weak quarantine-only evidence.
 
+## ASR-Positive Echo Candidate
+
+`coverage_v2_remote_gate_local_fir` is the current experimental Echo Guard audio candidate. It is a
+real WAV candidate, but it is still shadow-only: it never replaces `mic_for_asr.wav`, never changes
+the selected transcript profile and never modifies raw CAF files.
+
+Run or refresh the candidate report for one session:
+
+```bash
+SESSION=./sessions/<session-id>
+
+murmurmark audit asr-positive-echo-candidate "$SESSION"
+less "$SESSION/derived/preprocess/echo/asr_positive_echo_candidate_report.md"
+```
+
+If `offline_aec_v2` ASR artifacts already exist:
+
+```bash
+murmurmark audit asr-positive-echo-candidate "$SESSION" --skip-lab
+```
+
+Build the corpus view:
+
+```bash
+murmurmark corpus echo-candidate \
+  sessions/2026-06-23_14-04-37 \
+  sessions/2026-06-25_11-14-27 \
+  sessions/2026-06-26_11-15-50 \
+  sessions/2026-06-26_12-04-04 \
+  sessions/2026-06-29_16-31-02 \
+  sessions/2026-06-30_17-17-20
+
+murmurmark corpus gate
+```
+
+Current six-session result: `5/6` safe improved, `1/6` not applicable because sampled `local_fir`
+had no ASR-visible remote leak, `0/6` local-recall regressions. The corpus gate checks that this
+candidate remains `shadow_only_do_not_promote`; promotion to default Echo Guard is a separate future
+goal.
+
 ## Target-Me Evidence Audit
 
 Target-Me evidence is the current research path for hard double-talk and open-space cases. It is
@@ -577,27 +617,34 @@ Current focus:
 
 Near-term goals for discussion:
 
-1. Target-Me evidence hardening: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
+1. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
+   the corpus beyond the current six sessions and define the future default-promotion bar.
+2. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
    safe review evidence, shrink only rows with strong local proof, and keep ambiguous rows explicit.
-2. Operational Corpus Green follow-up: keep `pilot_ready_with_review` stable, reduce the remaining
+3. Operational Corpus Green follow-up: keep `pilot_ready_with_review` stable, reduce the remaining
    irreducible queue when new local evidence appears, and prevent status drift.
-3. Near-Realtime Pipeline Shadow v1 follow-up: harden the live draft worker with per-fragment Echo
+4. Near-Realtime Pipeline Shadow v1 follow-up: harden the live draft worker with per-fragment Echo
    Guard, resumable worker state and corpus parity gates.
-4. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only until
-   broader corpus gates prove it is safe beyond selected audit windows.
-5. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
+5. Echo Guard promotion experiment: only after the shadow candidate passes a broader operational
+   corpus, test a separate promoted profile that writes a non-default `mic_for_asr` candidate bundle.
+6. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
-6. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
+7. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
    especially Obsidian-vault placement and reviewed proposal exports.
-7. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
+8. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
    regressions before new heuristics ship.
-8. Evidence notes vNext: improve extractive notes quality while preserving citations and review
+9. Evidence notes vNext: improve extractive notes quality while preserving citations and review
    flags.
-9. Open-source release hardening: trim private fixtures, document setup, add security/contact
+10. Open-source release hardening: trim private fixtures, document setup, add security/contact
    guidance and keep generated/private artifacts ignored.
 
 Recently completed:
 
+- ASR-positive echo candidate hardening v1: `murmurmark audit asr-positive-echo-candidate` now writes
+  `asr_positive_echo_candidate_report.{json,md}` for one session, and `murmurmark corpus
+  echo-candidate` writes `asr_positive_echo_candidate_corpus_report.{json,md}`. Current six-session
+  corpus: `5/6` safe improved, `1/6` not applicable, `0/6` local-recall regressions. `murmurmark
+  corpus gate` reads the report and enforces `shadow_only_do_not_promote`.
 - ASR-positive audio candidate v2: `coverage_v2_remote_gate_local_fir` is a real shadow audio
   candidate, not just a transcript token guard. It starts from the safe local-fir/segment-switch path
   and applies remote-floor cleanup only in Coverage v2 risk windows without strong local-speech

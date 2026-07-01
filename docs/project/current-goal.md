@@ -1,24 +1,28 @@
-# Current Goal: Target-Me Evidence Hardening v1
+# Current Goal: ASR-Positive Echo Candidate Hardening v1
 
-Status, 2026-07-01: active. Operational Corpus Green v2 is done: the corpus is
-`pilot_ready_with_review`, export blockers stay explicit, and `report corpus` is the source of
-truth. The current work is narrower: use local speaker evidence to close only those remaining
-`Me`-related review rows that can be checked safely by the machine.
+Status, 2026-07-01: implemented as an explicit shadow/experimental profile. Target-Me Evidence
+Hardening v1 is complete and pushed in `a6e9f48`: the mandatory operational review queue fell from
+`7` actions / `11.19s` to `5` actions / `8.78s`, and corpus gate passes as `passed_with_warnings`.
 
-The goal:
+The next meaningful goal should move closer to the root cause instead of adding more downstream
+cleanup: remote speech is still audible in `mic`, and later layers spend a lot of effort proving
+which `Me` fragments are real.
+
+Goal:
 
 ```text
-Target-Me Evidence Hardening v1: превратить локальное speaker-evidence на
-resemblyzer_dvector_v0 и stronger-audio-judge из shadow-аудита в безопасный
-review-evidence слой, который закрывает подтверждённые real-Me / not-Me случаи,
-снижает обязательную review-очередь корпуса и не делает автоматических transcript edits
-без corpus gates.
+ASR-Positive Echo Candidate Hardening v1: превратить `coverage_v2_remote_gate_local_fir`
+из успешного shadow audio candidate в строго проверяемый экспериментальный Echo Guard профиль,
+который может быть запущен на всём рабочем корпусе, снижает ASR-visible remote leakage, не
+ухудшает local recall, не меняет raw CAF и не становится default без corpus gates.
 ```
 
-Plainly: MurmurMark should better answer “is this really my microphone speech, or remote/noise/ASR
-trash?” without pretending uncertain evidence is certain.
+Plainly: keep `local_fir` as the default, but make the first ASR-positive stronger mic candidate
+usable as a repeatable, measurable and reviewable profile. The goal is not “perfect echo removal in
+one step”. The goal is a safe promotion path for a candidate that now improves `5/6` evaluated
+sessions without local-recall regression.
 
-Current corpus snapshot after the first Target-Me hardening pass:
+Current corpus snapshot after Target-Me hardening:
 
 - working sessions in scope: `20`;
 - diagnostic sessions excluded from readiness: `26`;
@@ -32,7 +36,17 @@ Current corpus snapshot after the first Target-Me hardening pass:
 - irreducible review gate: `pilot_ready_with_irreducible_review`;
 - pending safe suggestions: `0`.
 
-What changed in this goal so far:
+Why this goal mattered:
+
+- CLI, review, export and corpus gates are already usable enough for pilot work;
+- Target-Me hardening closed only the rows that could be closed safely and left the truly ambiguous
+  queue explicit;
+- `coverage_v2_remote_gate_local_fir` is the first real audio candidate with ASR-positive evidence:
+  it has now reached `5/6` safe improved evaluated sessions and `0/6` local-recall regressions;
+- if stronger mic audio becomes safer, less work is pushed into transcript repair, Target-Me review
+  and remote-duplicate cleanup.
+
+Target-Me Evidence Hardening v1 completion notes:
 
 - audio-review packs now include open readiness review-plan rows, so Target-Me sees the same rows as
   the mandatory review queue;
@@ -43,7 +57,7 @@ What changed in this goal so far:
 - two safe `keep_me` suggestions were applied: one lost-Me/local-recall row and one order-risk row;
 - no automatic transcript edit was made outside the existing review/apply flow.
 
-Remaining review queue:
+Remaining review queue after the completed Target-Me pass:
 
 - `sessions/2026-06-30_11-15-56`: one local-recall check, `1.08s`;
 - `sessions/2026-07-01_14-01-09`: one local-recall check, `0.92s`;
@@ -58,13 +72,23 @@ current corpus still has transcript/export review surface, and `finish` must blo
 export blockers remain. That is acceptable for the practical v2 state only if `status`, `review
 progress`, `finish`, export and corpus reports point to the same residual review work.
 
-Next work before closing this goal:
+Implementation result:
 
-- verify corpus gates and static checks after the Target-Me changes;
-- document the review-plan/Target-Me evidence bridge in contracts/runbooks;
-- keep `murmurmark report corpus` stable as the source of truth;
-- update roadmap/opskarta;
-- commit and push.
+- `murmurmark audit asr-positive-echo-candidate SESSION` writes
+  `derived/preprocess/echo/asr_positive_echo_candidate_report.{json,md}`;
+- `murmurmark corpus echo-candidate SESSION...` writes
+  `sessions/_reports/asr-positive-echo-candidate/asr_positive_echo_candidate_corpus_report.{json,md}`;
+- current six-session corpus: `5/6` safe improved, `1/6` not applicable, `0/6` local-recall
+  regressions;
+- `murmurmark corpus gate` reads the report and enforces `shadow_only_do_not_promote`;
+- candidate artifacts stay separate from `mic_for_asr.wav`, raw CAF and default `local_fir`.
+
+Remaining work after this goal:
+
+- widen the corpus before any promotion discussion;
+- define rollback and inspection criteria for a non-default promoted bundle;
+- keep comparing review burden, Target-Me evidence and remote-forbidden evidence;
+- do not change default Echo Guard until a separate promotion-readiness goal passes.
 
 # Recently Completed Goal: Review-Loop Stabilization v1
 

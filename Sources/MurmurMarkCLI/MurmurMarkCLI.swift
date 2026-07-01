@@ -608,6 +608,8 @@ enum DoctorChecks {
             "scripts/audit-audio-review-pack.py",
             "scripts/audit-stronger-audio-judge.py",
             "scripts/audit-target-me.py",
+            "scripts/run-asr-positive-echo-candidate.py",
+            "scripts/report-asr-positive-echo-candidate-corpus.py",
             "scripts/probe-review-lane-pack-audio.py",
             "scripts/report-session-quality.py",
             "scripts/apply-retention-policy.py",
@@ -3391,6 +3393,12 @@ enum AuditCommands {
             }
             try Tooling.runPath(python, auditArgs)
             try AuditPrinter.printTargetMe(session: session, args: auditArgs)
+        case "asr-positive-echo-candidate", "asr_positive_echo_candidate", "echo-candidate", "echo_candidate":
+            if !ArgumentEditing.hasOption("candidate", in: remaining) {
+                remaining += ["--candidate", "coverage_v2_remote_gate_local_fir"]
+            }
+            try Tooling.runPath(python, [try script("run-asr-positive-echo-candidate.py").path, session.path] + remaining)
+            try AuditPrinter.printASRPositiveEchoCandidate(session: session)
         case "remote-forbidden", "remote_forbidden":
             var forwarded = remaining
             let skipLab = ArgumentEditing.takeFlag("skip-lab", from: &forwarded)
@@ -3505,6 +3513,9 @@ enum AuditCommands {
           murmurmark audit stronger-audio-judge ./session|latest [--profile audit_cleanup_v2] [--max-items 80]
                                              [--quick] [--max-computed-items N] [--sessions-root ./sessions]
           murmurmark audit target-me ./session|latest [--profile auto] [--max-items 80] [--sessions-root ./sessions]
+          murmurmark audit asr-positive-echo-candidate ./session|latest
+                                             [--candidate coverage_v2_remote_gate_local_fir]
+                                             [--skip-lab] [--sessions-root ./sessions]
           murmurmark audit remote-forbidden ./session|latest [--profile auto]
                                              [--asr-window-profile coverage_v2] [--asr-max-clips 2]
                                              [--asr-max-risk-clips 2] [--asr-max-local-clips 1]
@@ -3521,6 +3532,8 @@ enum AuditCommands {
                           runs build-audio-review-pack.py, then audit-stronger-audio-judge.py
                           with --review-lane-pack or --pack-item-id, reuses the existing audio-review pack
           target-me       runs audit-target-me.py as a shadow voice-evidence layer
+          asr-positive-echo-candidate
+                          runs/reuses offline_aec_v2 and writes an explicit shadow audio-candidate report
           remote-forbidden
                           runs offline_aec_v2 ASR audit, then materializes remote-forbidden
                           evidence rows and a review report
@@ -3753,6 +3766,38 @@ enum AuditPrinter {
         printAuditHandoff(
             session: session,
             report: outDir.appendingPathComponent("target_me_report.md"),
+            needsReview: false
+        )
+    }
+
+    static func printASRPositiveEchoCandidate(session: URL) throws {
+        let outDir = session.appendingPathComponent("derived/preprocess/echo")
+        let reportURL = outDir.appendingPathComponent("asr_positive_echo_candidate_report.json")
+        guard FileManager.default.fileExists(atPath: reportURL.path) else {
+            printMissing(kind: "asr_positive_echo_candidate", expected: reportURL)
+            return
+        }
+        let payload = try JSONFiles.object(reportURL)
+        let assessment = dict(payload["assessment"])
+        let metrics = dict(payload["metrics"])
+        let coverage = dict(metrics["coverage_gate"])
+
+        print("")
+        print("audit:")
+        print("  kind: asr_positive_echo_candidate")
+        print("  report: \(PathDisplay.display(outDir.appendingPathComponent("asr_positive_echo_candidate_report.md")))")
+        print("  profile: \(string(payload["profile"]) ?? "unknown")")
+        print("  mode: \(string(payload["mode"]) ?? "unknown")")
+        print("  assessment: \(string(assessment["status"]) ?? "unknown")")
+        print("  reason: \(string(assessment["reason"]) ?? "unknown")")
+        print("  promotion: \(string(payload["promotion_decision"]) ?? "shadow_only_do_not_promote")")
+        print(String(format: "  remote_token_leak_delta: %.6f", double(metrics["remote_token_leak_delta"])))
+        print(String(format: "  local_word_recall_delta: %.6f", double(metrics["local_word_recall_delta"])))
+        print("  coverage_windows: \(int(coverage["windows"]))")
+        print("  coverage_applied_windows: \(int(coverage["applied_windows"]))")
+        printAuditHandoff(
+            session: session,
+            report: outDir.appendingPathComponent("asr_positive_echo_candidate_report.md"),
             needsReview: false
         )
     }
@@ -4793,7 +4838,7 @@ enum CorpusCommands {
         guard let subcommand = args.first else {
             throw CLIError(
                 "corpus requires process, build, evaluate, train-audio-judge, taxonomy, gate, order, " +
-                    "local-recall, local-recall-repair, remote-leak, or report"
+                    "local-recall, local-recall-repair, remote-leak, echo-candidate, or report"
             )
         }
         var forwarded = Array(args.dropFirst())
@@ -4918,6 +4963,8 @@ enum CorpusCommands {
             try CorpusLocalRecallRepairCommands.run(args: forwarded, sessionsRoot: sessionsRoot)
         case "remote-leak":
             try CorpusRemoteLeakCommands.run(args: forwarded, sessionsRoot: sessionsRoot)
+        case "echo-candidate", "asr-positive-echo-candidate", "asr_positive_echo_candidate":
+            try CorpusEchoCandidateCommands.run(args: forwarded, sessionsRoot: sessionsRoot)
         case "live":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-live-corpus-gates.py").path] + forwarded)
@@ -5056,6 +5103,7 @@ enum CorpusHelp {
           murmurmark corpus local-recall [all|latest|./session...] [--audit] [--sessions-root ./sessions]
           murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
+          murmurmark corpus echo-candidate [all|latest|./session...] [--run] [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--sessions-root ./sessions]
           murmurmark corpus report
 
@@ -5103,7 +5151,68 @@ enum CorpusProcessHelp {
               [--no-synthesize]
           murmurmark corpus remote-leak [all|latest|./session...] --plan
               [--session-quality sessions/_reports/session-quality/session_quality_report.json]
+          murmurmark corpus echo-candidate [all|latest|./session...] --run
+              [--candidate coverage_v2_remote_gate_local_fir]
         """)
+    }
+}
+
+enum CorpusEchoCandidateCommands {
+    static func run(args: [String], sessionsRoot: URL) throws {
+        var forwarded = args
+        if ArgumentEditing.hasHelpFlag(forwarded) {
+            try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-asr-positive-echo-candidate-corpus.py").path] + forwarded)
+            return
+        }
+        let run = ArgumentEditing.takeFlag("run", from: &forwarded)
+        let candidate = ArgumentEditing.takeOption("candidate", from: &forwarded) ?? "coverage_v2_remote_gate_local_fir"
+        let outDir = PathURLs.fileURL(
+            ArgumentEditing.peekOption("out-dir", in: forwarded) ?? "sessions/_reports/asr-positive-echo-candidate"
+        )
+        let sessions = try takeSessions(from: &forwarded, sessionsRoot: sessionsRoot)
+        if run {
+            try runCandidate(sessions: sessions, candidate: candidate)
+        }
+        var reportArgs = sessions.map(\.path) + ["--candidate", candidate]
+        reportArgs += forwarded
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
+            try script("report-asr-positive-echo-candidate-corpus.py").path,
+        ] + reportArgs)
+        try CorpusPrinter.printASRPositiveEchoCandidate(outDir: outDir)
+    }
+
+    private static func runCandidate(sessions: [URL], candidate: String) throws {
+        let python = try PythonRuntime.resolve()
+        for session in sessions {
+            try Tooling.runPathQuiet(python, [
+                try script("run-asr-positive-echo-candidate.py").path,
+                session.path,
+                "--candidate", candidate,
+            ])
+        }
+    }
+
+    private static func takeSessions(from args: inout [String], sessionsRoot: URL) throws -> [URL] {
+        var targets: [String] = []
+        while let first = args.first, !first.hasPrefix("--") {
+            targets.append(first)
+            args.removeFirst()
+        }
+        guard !targets.isEmpty else { throw CLIError("corpus echo-candidate requires all, latest, or at least one session path") }
+        if targets == ["all"] {
+            let sessions = try SessionResolver.all(in: sessionsRoot)
+            guard !sessions.isEmpty else { throw CLIError("no sessions with session.json found under \(sessionsRoot.path)") }
+            return sessions
+        }
+        return try targets.map { try SessionResolver.resolve($0, sessionsRoot: sessionsRoot) }
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("corpus echo-candidate script not found: \(url.path)")
+        }
+        return url
     }
 }
 
@@ -11663,6 +11772,27 @@ enum CorpusPrinter {
             print(String(format: "  protect_local_content_seconds: %.2f", seconds))
         }
         print("  recommendation: \(string(summary["recommended_next_step"]) ?? "unknown")")
+        printCorpusDiagnosticHandoff(payload: payload, report: report)
+    }
+
+    static func printASRPositiveEchoCandidate(
+        outDir: URL = PathURLs.fileURL("sessions/_reports/asr-positive-echo-candidate")
+    ) throws {
+        let url = outDir.appendingPathComponent("asr_positive_echo_candidate_corpus_report.json")
+        let payload = try JSONFiles.object(url)
+        let summary = payload["summary"] as? [String: Any] ?? [:]
+        let gate = payload["promotion_gate"] as? [String: Any] ?? [:]
+        let report = outDir.appendingPathComponent("asr_positive_echo_candidate_corpus_report.md")
+        print("")
+        print("asr_positive_echo_candidate_corpus:")
+        print("  report: \(PathDisplay.display(report))")
+        print("  candidate: \(string(summary["candidate"]) ?? "unknown")")
+        print("  reports_found: \(int(summary["reports_found"]) ?? 0) / \(int(summary["sessions"]) ?? 0)")
+        print("  safe_improved_sessions: \(int(summary["safe_improved_sessions"]) ?? 0)")
+        print("  not_applicable_sessions: \(int(summary["not_applicable_sessions"]) ?? 0)")
+        print("  local_recall_regressions: \(int(summary["local_recall_regressions"]) ?? 0)")
+        print("  promotion_gate: \((gate["passed"] as? Bool) == true ? "passed" : "not_passed")")
+        print("  promotion_decision: \(string(summary["promotion_decision"]) ?? "shadow_only_do_not_promote")")
         printCorpusDiagnosticHandoff(payload: payload, report: report)
     }
 

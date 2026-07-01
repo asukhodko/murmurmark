@@ -600,8 +600,10 @@ nodes:
       это дорогая защита. offline AEC v2 и первый vNext spike дали baseline: proxy audio cleanup
       недостаточен, а ASR-visible remote tokens надо ловить явными evidence gates. Coverage v2
       сделал этот gate достаточно широким для следующего шага. ASR-positive audio candidate v2
-      добавил `coverage_v2_remote_gate_local_fir` как текущий shadow audio baseline. Текущий фокус —
-      Target-Me extraction spike.
+      добавил `coverage_v2_remote_gate_local_fir` как текущий shadow audio baseline. Target-Me
+      hardening подключил speaker evidence к review-plan rows и закрыл две безопасные `keep_me`
+      строки. Текущий фокус — превратить ASR-positive shadow audio candidate в строго проверяемый
+      experimental Echo Guard profile без default promotion.
 
   quality-local-recall-repair:
     title: "Better local recall repair"
@@ -768,6 +770,34 @@ nodes:
       without strong local-speech evidence. Six-session smoke: 4/6 ASR audio candidate gate-passed,
       0/6 local-recall regressions, 2/6 `no_baseline_asr_visible_leak`, no default promotion.
 
+  quality-asr-positive-echo-candidate-hardening-v1:
+    title: "ASR-positive echo candidate hardening v1"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-asr-positive-audio-candidate-v2, quality-target-me-extractor-spike, corpus-regression]
+    status: done
+    effort: 8
+    notes: |
+      Completed. `murmurmark audit asr-positive-echo-candidate` writes
+      `asr_positive_echo_candidate_report.{json,md}` for one session, and `murmurmark corpus
+      echo-candidate` writes `asr_positive_echo_candidate_corpus_report.{json,md}`. Current
+      six-session corpus: 5/6 safe improved, 1/6 not applicable, 0/6 local-recall regressions.
+      `murmurmark corpus gate` reads the report and enforces `shadow_only_do_not_promote`.
+      `local_fir` remains default; raw CAF, baseline outputs and `mic_for_asr.wav` do not change.
+
+  quality-asr-positive-echo-promotion-readiness:
+    title: "ASR-positive Echo promotion readiness"
+    kind: task
+    parent: quality-hardening
+    deps: [quality-asr-positive-echo-candidate-hardening-v1, corpus-regression]
+    status: next
+    effort: 8
+    notes: |
+      Broaden the experimental candidate beyond the current six-session corpus and define the future
+      default-promotion bar: more operational sessions, explicit rollback, review-burden comparison,
+      stronger local-recall coverage and a non-default promoted bundle for inspection. This is still
+      not a default change.
+
   quality-neural-residual-echo-spike:
     title: "Neural residual echo suppression spike"
     kind: task
@@ -782,9 +812,9 @@ nodes:
     kind: task
     parent: quality-hardening
     deps: [quality-asr-positive-audio-candidate-v2]
-    status: current
+    status: done
     effort: 6
-    notes: "Current quality goal. `mfcc_voiceprint_v0` and `mfcc_contrastive_v0` are negative baselines: 102 clips, 0 helpful rows, 0 review-burden reductions. `resemblyzer_dvector_v0` is the first promising local speaker-embedding backend: 13 new keep-evidence rows / 48.82s and 54 corroborating rows / 306.95s on the six-session smoke corpus. Still shadow-only and no transcript edits. `wavlm_xvector_v0` remains wired but not evaluated because local model files are missing; no source-separation package is ready."
+    notes: "Completed as Target-Me Evidence Hardening v1. `mfcc_voiceprint_v0` and `mfcc_contrastive_v0` are negative baselines. `resemblyzer_dvector_v0` is the first promising local speaker-embedding backend. The hardening pass made audio-review packs include open readiness review-plan rows, added `source_audit_ids` to Target-Me rows, matched review suggestions by source_audit_id plus interval overlap, and closed two safe `keep_me` rows. Remaining ambiguous rows stay manual."
 
   quality-token-remote-forbidden:
     title: "Token-level remote-forbidden transcript"
@@ -1241,8 +1271,8 @@ x:
         kind: main
         mgmt:
           health: green
-          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до рабочей основы. ASR-positive audio candidate v2 добавил coverage_v2_remote_gate_local_fir: 4/6 ASR audio candidate gate-passed, 0 local-recall regressions, no default promotion. Target-Me d-vector evidence promising, но текущий долг — стабильная review очередь."
-          next_sync_goal: "Удерживать Operational Corpus Green v2: 0 do-not-use sessions, короткая irreducible queue, 0 pending safe suggestions, report corpus как source of truth."
+          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до рабочей основы. Target-Me Evidence Hardening v1 закрыл две безопасные keep_me строки. ASR-Positive Echo Candidate Hardening v1 сделал coverage_v2_remote_gate_local_fir явным experimental profile: 5/6 safe improved, 1/6 not applicable, 0 local-recall regressions, corpus gate enforces shadow_only_do_not_promote."
+          next_sync_goal: "ASR-positive Echo promotion readiness: расширить корпус и определить будущий default-promotion bar без изменения текущего local_fir default."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

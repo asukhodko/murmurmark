@@ -401,6 +401,20 @@ ASR-positive audio candidate v2 adds `coverage_v2_remote_gate_local_fir`:
   `2/6` explained as `no_baseline_asr_visible_leak`;
 - it remains shadow-only and does not replace `local_fir`.
 
+ASR-positive Echo Candidate Hardening v1 formalizes that candidate as an experimental profile:
+
+- `murmurmark audit asr-positive-echo-candidate SESSION` writes a per-session report for
+  `coverage_v2_remote_gate_local_fir`;
+- `murmurmark corpus echo-candidate SESSION...` aggregates the profile over a corpus;
+- `murmurmark corpus gate` reads the corpus report and checks that the candidate stays
+  `shadow_only_do_not_promote`;
+- current six-session hardened result: `5/6` safe improved, `1/6` not applicable, `0/6`
+  local-recall regressions.
+
+This is still not default promotion. The architecture now has a repeatable promotion runway:
+candidate audio can improve under ASR-visible metrics, but default Echo Guard changes require a
+separate goal with broader corpus gates and explicit rollback semantics.
+
 ## Other Conservative Cleanup Engines
 
 Cleanup is for ASR quality, not for rewriting history.

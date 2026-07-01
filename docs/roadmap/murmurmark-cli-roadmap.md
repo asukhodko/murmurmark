@@ -88,9 +88,10 @@ regressions. ASR-positive audio candidate v2 then added `coverage_v2_remote_gate
 shadow audio candidate that passes the ASR audio-candidate gate on `4/6` smoke sessions with zero
 local-recall regressions. Target-Me extraction has now tested `mfcc_voiceprint_v0`,
 `mfcc_contrastive_v0` and `resemblyzer_dvector_v0`. The MFCC baselines are useful only for
-instrumentation. `resemblyzer_dvector_v0` is the first promising speaker-embedding layer: six-session
-smoke found `13` new keep-evidence rows / `48.82s` and `54` corroborating rows / `306.95s`. The next
-quality gap is hardening that signal into safe review suggestions without automatic transcript edits.
+instrumentation. `resemblyzer_dvector_v0` is the first promising speaker-embedding layer, and the
+first hardening pass connected it to review-plan rows and closed two safe `keep_me` cases. The next
+quality gap is earlier in the pipeline: harden the ASR-positive shadow audio candidate so less remote
+speech reaches ASR as `Me` in the first place.
 
 ## Roadmap Tree
 
@@ -169,11 +170,13 @@ flowchart LR
   - treat `remote_floor` and segment switching as useful proxy/control candidates, not as production
     replacements;
   - use Coverage v2 windows as the ASR judge for audio candidates: v2 writes selection reasons,
-    evidence rows, readiness metrics and corpus report; current smoke is `4/6` safe improved;
-  - keep `coverage_v2_remote_gate_local_fir` as the current shadow audio candidate baseline;
+    evidence rows, readiness metrics and corpus report; hardened profile is `5/6` safe improved;
+  - keep `coverage_v2_remote_gate_local_fir` as the current explicit experimental audio candidate;
   - keep `mfcc_voiceprint_v0` and `mfcc_contrastive_v0` as Target-Me baselines: useful for
     measurement, not enough for review-burden reduction;
-  - harden `resemblyzer_dvector_v0` as the next Target-Me review/evidence layer;
+  - keep `resemblyzer_dvector_v0` as a review/evidence layer, now wired into review-plan rows;
+  - keep `coverage_v2_remote_gate_local_fir` shadow-only while promotion readiness is defined on a
+    broader corpus;
   - keep neural residual suppression as a later spike behind corpus gates.
 - Keep the final handoff readable: `finish` now opens a bundle whose `index.md` is the first working
   artifact, not a derived-file directory listing.
@@ -259,9 +262,9 @@ flowchart LR
 
 ## Latest Completed Goals
 
-ASR-positive audio candidate v2 is the latest completed quality goal. It adds
-`coverage_v2_remote_gate_local_fir`, a real shadow audio candidate judged against Coverage v2 ASR
-windows.
+ASR-positive Echo Candidate Hardening v1 is the latest completed quality goal. It turns
+`coverage_v2_remote_gate_local_fir` into an explicit experimental profile with one-session and
+corpus reports, while keeping `local_fir` as the default.
 
 Remote-Forbidden Evidence Coverage v2 broadened ASR audit window selection and made that
 audio-candidate search measurable.
@@ -288,6 +291,11 @@ Recently completed:
   report-consistent. It consumes cached stronger-audio-judge and Target-Me evidence in lane
   suggestions, preserves closed rows across regenerated templates, and makes progress/status/report
   agree on the same remaining rows and seconds.
+- **ASR-positive Echo Candidate Hardening v1.** `murmurmark audit asr-positive-echo-candidate`
+  writes `asr_positive_echo_candidate_report.{json,md}`, and `murmurmark corpus echo-candidate`
+  writes `asr_positive_echo_candidate_corpus_report.{json,md}`. Current six-session corpus: `5/6`
+  safe improved, `1/6` not applicable, `0/6` local-recall regressions. `murmurmark corpus gate`
+  enforces `shadow_only_do_not_promote`.
 - **ASR-positive audio candidate v2.** `coverage_v2_remote_gate_local_fir` starts from the safer
   local-fir/segment-switch path and applies remote-floor cleanup only in Coverage v2 risk windows
   without strong local-speech evidence. Six-session smoke: `4/6` ASR audio candidate gate-passed
@@ -317,30 +325,33 @@ Recently completed:
 
 ## Candidate Next Goals
 
-Recommended nearest goal: **Operational Corpus Green v2**: keep the corpus at
-`pilot_ready_with_review` or better, make the irreducible review queue explicit, and prevent future
-algorithm changes from silently growing it.
+Recommended nearest goal: **ASR-positive Echo promotion readiness**. Keep the candidate shadow-only,
+broaden the corpus and define the future default-promotion bar without changing `local_fir` yet.
 
-1. **Target-Me Evidence Hardening v1.** Keep integrating `resemblyzer_dvector_v0` with review-lane
+1. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
+   beyond the current six sessions, add rollback/inspection criteria, compare review burden and
+   local recall more broadly, and only then decide whether a non-default promoted bundle is worth
+   testing.
+2. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
    suggestions and corpus reports: close true `Me` rows only when the local-speaker evidence is
    strong, keep ambiguous rows explicit, and do not auto-edit transcripts.
-2. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
+3. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
-3. **Near-Realtime Pipeline Shadow v1.** Start processing closed audio segments while recording and
+4. **Near-Realtime Pipeline Shadow v1.** Start processing closed audio segments while recording and
    write a live draft transcript, but keep the current batch pipeline as final authority until corpus
    gates prove parity.
-4. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
+5. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
    close safe suggested review rows, preserve manual rows and keep status/report aligned.
-5. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only
+6. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only
    until broader corpus gates prove it is safe beyond selected audit windows.
-6. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
+7. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
    reviewed docs/ticket proposal exports.
-7. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
+8. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
    changes to beat or preserve it.
-8. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
+9. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
    to utterance IDs and review flags.
-9. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
+10. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
    artifacts and add security/contact guidance.
 
 ## Validation

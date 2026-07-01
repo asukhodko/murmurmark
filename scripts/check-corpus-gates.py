@@ -57,6 +57,13 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("sessions/_reports/remote-leak-segment/remote_leak_segment_corpus_report.json"),
     )
+    parser.add_argument(
+        "--asr-positive-echo-candidate",
+        type=Path,
+        default=Path(
+            "sessions/_reports/asr-positive-echo-candidate/asr_positive_echo_candidate_corpus_report.json"
+        ),
+    )
     parser.add_argument("--out-dir", type=Path, default=Path("sessions/_reports/corpus-gates"))
     parser.add_argument("--min-complete-sessions", type=int, default=3)
     parser.add_argument("--min-ready-for-notes", type=int, default=1)
@@ -549,6 +556,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     transcript_order = read_json(args.transcript_order)
     local_recall = read_json(args.local_recall)
     remote_leak_segment = read_json(args.remote_leak_segment_corpus)
+    asr_positive_echo_candidate = read_json(args.asr_positive_echo_candidate)
 
     checks: list[dict[str, Any]] = []
     inputs = {
@@ -559,6 +567,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "transcript_order": str(args.transcript_order),
         "local_recall": str(args.local_recall),
         "remote_leak_segment_corpus": str(args.remote_leak_segment_corpus),
+        "asr_positive_echo_candidate": str(args.asr_positive_echo_candidate),
     }
     thresholds = {
         "min_complete_sessions": args.min_complete_sessions,
@@ -590,7 +599,11 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "allowed_corpus_readiness": sorted(allowed_readiness),
     }
 
-    required_inputs = {key: path for key, path in inputs.items() if key not in {"local_recall", "remote_leak_segment_corpus"}}
+    required_inputs = {
+        key: path
+        for key, path in inputs.items()
+        if key not in {"local_recall", "remote_leak_segment_corpus", "asr_positive_echo_candidate"}
+    }
     for key, path in required_inputs.items():
         check(
             checks,
@@ -617,6 +630,15 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         observed=str(args.local_recall),
         threshold="valid JSON object",
         message="local-recall corpus report exists; corpus process rebuilds it automatically",
+    )
+    check(
+        checks,
+        "input.asr_positive_echo_candidate",
+        asr_positive_echo_candidate is not None,
+        severity="warn",
+        observed=str(args.asr_positive_echo_candidate),
+        threshold="valid JSON object",
+        message="ASR-positive Echo candidate corpus report exists for the experimental echo profile",
     )
 
     excluded_session_ids = operational_excluded_session_ids(operational)
@@ -924,6 +946,14 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     remote_leak_protect_local_content_items = safe_int(remote_leak_summary.get("protect_local_content_items"))
     remote_leak_protect_local_content_seconds = safe_float(remote_leak_summary.get("protect_local_content_seconds"))
     remote_leak_sessions_with_protected = safe_int(remote_leak_summary.get("sessions_with_protect_local_content"))
+    echo_candidate_summary = (
+        asr_positive_echo_candidate.get("summary")
+        if isinstance(asr_positive_echo_candidate, dict)
+        and isinstance(asr_positive_echo_candidate.get("summary"), dict)
+        else {}
+    )
+    echo_candidate_safe_improved = safe_int(echo_candidate_summary.get("safe_improved_sessions"))
+    echo_candidate_local_regressions = safe_int(echo_candidate_summary.get("local_recall_regressions"))
     check(
         checks,
         "transcript_order.audits_complete",
@@ -1028,6 +1058,60 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             },
             threshold="0 protected-local-content items",
             message="remote-leak queue has no intervals where Me may still contain unique local content",
+        )
+    if asr_positive_echo_candidate is not None:
+        echo_schema = str(asr_positive_echo_candidate.get("schema") or "")
+        echo_summary = (
+            asr_positive_echo_candidate.get("summary")
+            if isinstance(asr_positive_echo_candidate.get("summary"), dict)
+            else {}
+        )
+        echo_gate = (
+            asr_positive_echo_candidate.get("promotion_gate")
+            if isinstance(asr_positive_echo_candidate.get("promotion_gate"), dict)
+            else {}
+        )
+        echo_local_regressions = safe_int(echo_summary.get("local_recall_regressions"))
+        echo_safe_improved = safe_int(echo_summary.get("safe_improved_sessions"))
+        echo_promotion_decision = str(echo_summary.get("promotion_decision") or "")
+        echo_promotion_ready = echo_gate.get("promotion_ready") is True
+        check(
+            checks,
+            "asr_positive_echo_candidate.schema",
+            echo_schema == "murmurmark.echo.asr_positive_echo_candidate_corpus_report/v1",
+            severity="warn",
+            observed=echo_schema,
+            threshold="murmurmark.echo.asr_positive_echo_candidate_corpus_report/v1",
+            message="ASR-positive Echo candidate corpus report uses the expected schema",
+        )
+        check(
+            checks,
+            "asr_positive_echo_candidate.no_local_recall_regressions",
+            echo_local_regressions == 0,
+            severity="warn",
+            observed=echo_local_regressions,
+            threshold="0",
+            message="experimental Echo candidate has no ASR local-word recall regressions",
+        )
+        check(
+            checks,
+            "asr_positive_echo_candidate.has_safe_improvements",
+            echo_safe_improved >= 1,
+            severity="warn",
+            observed=echo_safe_improved,
+            threshold=">= 1",
+            message="experimental Echo candidate demonstrates at least one safe ASR-visible improvement",
+        )
+        check(
+            checks,
+            "asr_positive_echo_candidate.shadow_only",
+            echo_promotion_decision == "shadow_only_do_not_promote" and not echo_promotion_ready,
+            observed={
+                "promotion_decision": echo_promotion_decision,
+                "promotion_ready": echo_promotion_ready,
+            },
+            threshold="shadow_only_do_not_promote and promotion_ready=false",
+            message="experimental Echo candidate cannot be promoted by the general corpus gate",
         )
     check(
         checks,
@@ -1157,6 +1241,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "remote_leak_segment_protect_local_content_items": remote_leak_protect_local_content_items,
             "remote_leak_segment_protect_local_content_seconds": round(remote_leak_protect_local_content_seconds, 3),
             "remote_leak_segment_sessions_with_protect_local_content": remote_leak_sessions_with_protected,
+            "asr_positive_echo_candidate_safe_improved_sessions": echo_candidate_safe_improved,
+            "asr_positive_echo_candidate_local_recall_regressions": echo_candidate_local_regressions,
             "suggested_closure_generated_rows": suggested_closure_generated_rows,
             "suggested_closure_generated_seconds": round(suggested_closure_generated_seconds, 3),
             "suggested_closure_actionable_rows": suggested_closure_actionable_rows,

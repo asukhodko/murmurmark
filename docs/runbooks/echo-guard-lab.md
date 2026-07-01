@@ -379,6 +379,55 @@ Current ASR-positive audio candidate reading:
 - the two non-improved sessions are explained as `no_baseline_asr_visible_leak`;
 - this is still a shadow candidate and does not replace `local_fir`.
 
+Formal experimental profile:
+
+```bash
+SESSION=sessions/<session-id>
+
+murmurmark audit asr-positive-echo-candidate "$SESSION"
+less "$SESSION/derived/preprocess/echo/asr_positive_echo_candidate_report.md"
+```
+
+If the `offline_aec_v2` ASR audit already exists:
+
+```bash
+murmurmark audit asr-positive-echo-candidate "$SESSION" --skip-lab
+```
+
+This writes:
+
+```text
+derived/preprocess/echo/asr_positive_echo_candidate_report.json
+derived/preprocess/echo/asr_positive_echo_candidate_report.md
+```
+
+The report compares `coverage_v2_remote_gate_local_fir` with `local_fir` by ASR-visible remote-token
+leakage and local-word recall. It also records coverage-gate windows, review burden and links to
+Target-Me / remote-forbidden evidence when those artifacts exist. It never changes `mic_for_asr.wav`.
+
+Corpus check:
+
+```bash
+murmurmark corpus echo-candidate \
+  sessions/2026-06-23_14-04-37 \
+  sessions/2026-06-25_11-14-27 \
+  sessions/2026-06-26_11-15-50 \
+  sessions/2026-06-26_12-04-04 \
+  sessions/2026-06-29_16-31-02 \
+  sessions/2026-06-30_17-17-20
+
+murmurmark corpus gate
+less sessions/_reports/asr-positive-echo-candidate/asr_positive_echo_candidate_corpus_report.md
+```
+
+Current hardened result:
+
+- reports found: `6/6`;
+- safe improved: `5/6`;
+- not applicable: `1/6`, because sampled `local_fir` windows had no ASR-visible remote leak;
+- local-recall regressions: `0/6`;
+- promotion decision: `shadow_only_do_not_promote`.
+
 Inspect token-guard details:
 
 ```bash
