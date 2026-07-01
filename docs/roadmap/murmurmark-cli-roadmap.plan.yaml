@@ -45,8 +45,8 @@ nodes:
       `report` и `suggested_closure` показывают одну и ту же оставшуюся очередь, а
       `review suggested apply` стал cumulative/key-based. После досчёта Target-Me/stronger evidence
       текущий операционный корпус на 2026-07-01 перешёл из `not_ready` в
-      `pilot_ready_with_review`: `20` рабочих сессий, `14/20 ready_for_notes`, `6/20 review_first`,
-      `0/20 do_not_use_without_manual_review`, `7` обязательных review actions / `11.19s`,
+      `pilot_ready_with_review`: `20` рабочих сессий, `15/20 ready_for_notes`, `5/20 review_first`,
+      `0/20 do_not_use_without_manual_review`, `5` обязательных review actions / `8.78s`,
       irreducible review gate `pilot_ready_with_irreducible_review`.
       Это не отменяет более глубокую причину review burden: remote speech всё ещё просачивается в
       mic и потом требует transcript repair, cleanup и ручной проверки. Echo Guard v0/vNext уже
@@ -55,9 +55,10 @@ nodes:
       расширил выбор ASR-аудит окон до `4/6` safe improved sessions, а ASR-positive audio
       candidate v2 добавил `coverage_v2_remote_gate_local_fir`: реальный shadow audio candidate,
       который проходит ASR audio-candidate gate на `4/6` smoke sessions без local-recall
-      регрессий. Target-Me extraction spike уже дал promising d-vector evidence; ближайший долг —
-      удерживать operational corpus green while-review и не давать новым эвристикам раздувать
-      irreducible manual queue.
+      регрессий. Target-Me extraction spike уже дал promising d-vector evidence; первый hardening
+      pass подключил readiness review-plan rows к audio-review pack и закрыл две безопасные
+      `keep_me` строки. Ближайший долг — удерживать operational corpus green while-review и не
+      давать новым эвристикам раздувать irreducible manual queue.
 
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
@@ -561,7 +562,7 @@ nodes:
       рабочих встреч: все рабочие сессии либо ready_for_notes, либо имеют короткую,
       доказанную и не закрываемую безопасной автоматикой manual review очередь. Текущий проход:
       `murmurmark report corpus` пишет `pilot_ready_with_review`, `0` do-not-use sessions,
-      irreducible review gate `pilot_ready_with_irreducible_review`, `7` actions / `11.19s`
+      irreducible review gate `pilot_ready_with_irreducible_review`, `5` actions / `8.78s`
       обязательной очереди, `0` pending safe suggestions. Узкие risky-сессии с разрешёнными
       флагами и короткой очередью представлены как formal residual risk, а не как скрытая готовность.
       Full transcript export остаётся отдельным guarded gate: `finish` должен блокировать bundle,

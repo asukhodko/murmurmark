@@ -887,6 +887,24 @@ def me_utterance_ids(item: dict[str, Any]) -> list[str]:
     return list(dict.fromkeys(ids))
 
 
+def item_source_audit_ids(item: dict[str, Any]) -> list[str]:
+    ids: list[str] = []
+    for context in item.get("source_contexts") or []:
+        if not isinstance(context, dict):
+            continue
+        for key in ("source_audit_id", "id"):
+            value = context.get(key)
+            if value:
+                ids.append(str(value))
+        for nested_key in ("row", "review_item", "patch", "overlap"):
+            nested = context.get(nested_key)
+            if isinstance(nested, dict):
+                value = nested.get("source_audit_id") or nested.get("id")
+                if value:
+                    ids.append(str(value))
+    return list(dict.fromkeys(ids))
+
+
 def existing_audit_by_id(path: Path) -> dict[str, dict[str, Any]]:
     return {str(row.get("id") or row.get("source_pack_item_id") or ""): row for row in read_jsonl(path)}
 
@@ -1129,6 +1147,7 @@ def audit_item(
         "profile": item.get("profile"),
         "interval": interval,
         "source_reasons": item.get("source_reasons") or [],
+        "source_audit_ids": item_source_audit_ids(item),
         "utterance_ids": utterance_ids(item),
         "me_utterance_ids": me_utterance_ids(item),
         "utterances": item.get("utterances") or [],

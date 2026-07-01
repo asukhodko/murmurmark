@@ -1311,7 +1311,9 @@ def review_item_allowed_decisions(item: dict[str, Any]) -> list[str]:
             decisions.insert(insert_at, "drop_remote")
         return decisions
     source = str(item.get("source") or "")
-    if source in {"local_recall", "transcript_order"}:
+    if source == "local_recall":
+        return ["drop_me", "keep_me", "needs_review", "skip"]
+    if source == "transcript_order":
         return ["keep_me", "needs_review", "skip"]
     decisions = ["drop_me", "keep_me", "needs_review", "skip"]
     if item_list_values(item, "remote_utterance_ids") or item_text_utterance_ids(item, role="remote"):

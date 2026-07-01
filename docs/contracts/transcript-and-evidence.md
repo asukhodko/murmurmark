@@ -1156,8 +1156,10 @@ local reliability are the strongest classes and all error classes stay below `60
 escalating expected group-call timing overlap to a stronger judge.
 
 `murmurmark.target_me_*` is the shadow Target-Me evidence layer. It reads the selected transcript
-profile, `speaker_state.jsonl` and the existing audio review pack. It does not edit audio,
-transcripts, cleanup profiles or raw capture.
+profile, `speaker_state.jsonl` and the existing audio review pack. The pack includes transcript
+risks and open readiness review-plan rows, so Target-Me can audit candidate-only `local_recall_*`
+items that do not yet exist as transcript utterances. It does not edit audio, transcripts, cleanup
+profiles or raw capture.
 
 Current outputs:
 
@@ -1207,6 +1209,7 @@ sessions/_reports/target-me/
   "schema": "murmurmark.target_me_audit/v1",
   "id": "tme_000004",
   "source_pack_item_id": "arp_000004",
+  "source_audit_ids": ["local_recall_0001"],
   "utterance_ids": ["utt_000026", "utt_000027"],
   "state": {"local_only_ratio": 1.0, "remote_active_ratio": 0.0},
   "source_scores": {
@@ -1231,8 +1234,10 @@ Valid labels are:
 - `target_me_ambiguous`.
 
 `target_me_confirmed` and `target_me_absent_remote_like` are evidence labels, not automatic edits.
-They may become review suggestions only after the normal safety gates also agree. `mfcc_voiceprint_v0`
-is the first baseline method. `mfcc_contrastive_v0` is the deterministic fallback when WavLM and
+They may become review suggestions only after the normal safety gates also agree. Review-lane
+matching uses `source_audit_ids` plus interval overlap before falling back to transcript utterance
+IDs; this is required for candidate-only local-recall rows. `mfcc_voiceprint_v0` is the first
+baseline method. `mfcc_contrastive_v0` is the deterministic fallback when WavLM and
 `resemblyzer` are not available: it uses clean remote speech as a negative centroid. The current
 six-session contrastive
 smoke produced ready enrollment on all six sessions, `102` audited clips, `0` helpful rows, `0`
@@ -1622,7 +1627,10 @@ lost-`Me` blockers fails `local_recall.no_complete_blocking_sessions`; a short n
 `needs_review` island is a warning and stays in the review queue. The full historical local-recall
 report is still surfaced through `local_recall.raw_complete_blocking_sessions`, but diagnostic
 sessions and blockers already resolved by the selected transcript profile do not fail the operational
-gate. Missing local-recall corpus reports or missing per-session audits remain warnings for backwards
+gate. `transcript.local_recall_floor` and `transcript.session_review_burden_ratio` are hard only for
+`ready_for_notes` operational sessions. Sessions marked `review_first` are allowed to have local
+recall or review-burden issues as long as the operational review queue keeps them explicit. Missing
+local-recall corpus reports or missing per-session audits remain warnings for backwards
 compatibility.
 
 The post-recording runner writes a per-session execution manifest:
@@ -2868,9 +2876,13 @@ by stable review-row keys rather than list positions. This keeps `review progres
 remaining rows and seconds.
 
 `review suggested` is cached-first for expensive local model evidence. It consumes existing
-`faster_whisper_judge.jsonl` and Target-Me rows when building lane suggestions. New faster-whisper
-decodes during suggested review are opt-in through `MURMURMARK_TARGETED_JUDGE_COMPUTE=1`; Target-Me
-refresh during suggested review is opt-in through `MURMURMARK_REVIEW_TARGET_ME_REFRESH=1`.
+`faster_whisper_judge.jsonl` and Target-Me rows when building lane suggestions. Target-Me rows can
+close `keep_me` only when local-speaker evidence is high-confidence and no stronger drop evidence
+conflicts. `drop_me` from Target-Me remains stricter: it requires absent/remote-like evidence,
+existing remote/noise evidence, allowed `drop_me`, short non-protected `Me` text and no
+high-confidence stronger-audio keep evidence. New faster-whisper decodes during suggested review are
+opt-in through `MURMURMARK_TARGETED_JUDGE_COMPUTE=1`; Target-Me refresh during suggested review is
+opt-in through `MURMURMARK_REVIEW_TARGET_ME_REFRESH=1`.
 
 The workspace apply report is written to:
 

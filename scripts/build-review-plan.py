@@ -269,7 +269,9 @@ def output_allowed_decisions(item: dict[str, Any]) -> list[str]:
             insert_at = decisions.index("drop_me") + 1 if "drop_me" in decisions else 0
             decisions.insert(insert_at, "drop_remote")
         return decisions
-    if item.get("source") in {"local_recall", "transcript_order"}:
+    if item.get("source") == "local_recall":
+        return ["drop_me", "keep_me", "needs_review", "skip"]
+    if item.get("source") == "transcript_order":
         return ["keep_me", "needs_review", "skip"]
     decisions = ["drop_me", "keep_me", "needs_review", "skip"]
     if has_remote_utterance(item):

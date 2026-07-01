@@ -49,14 +49,14 @@ Operational corpus snapshot from 2026-07-01:
   regenerated template changes;
 - `review progress`, workspace `suggested_closure`, `status` and session-quality agree on the same
   remaining queue;
-- safe suggested decisions and Target-Me evidence reduced the blocking queue to `7` actions;
+- safe suggested decisions and Target-Me evidence reduced the blocking queue to `5` actions;
 - `murmurmark report corpus` now reports `pilot_ready_with_review`;
 - irreducible review gate: `pilot_ready_with_irreducible_review`;
 - operational scope: `20` working sessions, `26` diagnostic sessions excluded;
-- readiness: `14/20 ready_for_notes`, `6/20 review_first`, `0/20 do_not_use_without_manual_review`;
-- mandatory review queue: `7` actions / `11.19s` raw audio;
-- notes review burden: `0.85 min`;
-- transcript/export review burden: `3.51 min`;
+- readiness: `15/20 ready_for_notes`, `5/20 review_first`, `0/20 do_not_use_without_manual_review`;
+- mandatory review queue: `5` actions / `8.78s` raw audio;
+- notes review burden: `0.81 min`;
+- transcript/export review burden: `3.48 min`;
 - pending safe suggestions: `0`.
 
 This is enough to use the corpus as a pilot-ready local tool with explicit review. It is not yet
@@ -321,12 +321,12 @@ Recommended nearest goal: **Operational Corpus Green v2**: keep the corpus at
 `pilot_ready_with_review` or better, make the irreducible review queue explicit, and prevent future
 algorithm changes from silently growing it.
 
-1. **Operational Corpus Green v2.** Keep `murmurmark report corpus` as the source of truth, preserve
-   the short irreducible review queue, keep `0` `do_not_use_without_manual_review` sessions, keep
-   guarded export blockers explicit, and close only rows with safe local evidence.
-2. **Target-Me Evidence Hardening v1.** Integrate `resemblyzer_dvector_v0` with review-lane
-   suggestions and corpus reports: keep true `Me` rows that old remote-duplicate heuristics would
-   over-delete, but do not auto-edit transcripts.
+1. **Target-Me Evidence Hardening v1.** Keep integrating `resemblyzer_dvector_v0` with review-lane
+   suggestions and corpus reports: close true `Me` rows only when the local-speaker evidence is
+   strong, keep ambiguous rows explicit, and do not auto-edit transcripts.
+2. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
+   preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
+   sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
 3. **Near-Realtime Pipeline Shadow v1.** Start processing closed audio segments while recording and
    write a live draft transcript, but keep the current batch pipeline as final authority until corpus
    gates prove parity.

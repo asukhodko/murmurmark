@@ -670,19 +670,25 @@ def target_me_matches_for_row(row: dict[str, Any], by_session: dict[str, list[di
         return []
     row_ids = set(list_values(row, "utterance_ids"))
     me_ids = set(list_values(row, "me_utterance_ids"))
+    source_id = str(row.get("source_audit_id") or "")
     matches: list[dict[str, Any]] = []
     for candidate in candidates:
         candidate_ids = {str(value) for value in candidate.get("utterance_ids") or [] if value}
+        time_match = interval_overlap_seconds(row, candidate) > 0.05
+        candidate_source_ids = {str(value) for value in candidate.get("source_audit_ids") or [] if value}
+        candidate_source_id = str(candidate.get("source_pack_item_id") or "")
+        source_match = bool(
+            source_id
+            and time_match
+            and (source_id == candidate_source_id or source_id in candidate_source_ids)
+        )
+        if source_match:
+            matches.append(candidate)
+            continue
         if not candidate_ids:
             continue
-        source_match = (
-            row.get("source_audit_id")
-            and str(row.get("source_audit_id")) == str(candidate.get("source_pack_item_id") or "")
-            and bool(row_ids & candidate_ids)
-        )
         me_match = bool(me_ids and me_ids <= candidate_ids)
         exactish = bool(row_ids and (row_ids <= candidate_ids or candidate_ids <= row_ids))
-        time_match = interval_overlap_seconds(row, candidate) > 0.05
         if source_match or ((exactish or me_match) and time_match):
             matches.append(candidate)
     return matches
@@ -793,7 +799,7 @@ def target_me_suggested_decision(
     if not matches:
         return None, None, None, None
     allowed = set(common_allowed_decisions(rows))
-    if "keep_me" not in allowed:
+    if "keep_me" not in allowed and "drop_me" not in allowed:
         return None, None, None, summary
     high_confirmed = [
         match
@@ -807,7 +813,28 @@ def target_me_suggested_decision(
         if str((match.get("classification") or {}).get("label") or "") in {"target_me_absent", "target_me_absent_remote_like"}
         and float((match.get("classification") or {}).get("confidence") or 0.0) >= 0.88
     ]
+    useful_absent = [
+        match
+        for match in high_absent
+        if str((match.get("classification") or {}).get("label") or "") == "target_me_absent_remote_like"
+        and float((match.get("classification") or {}).get("confidence") or 0.0) >= 0.88
+        and str((match.get("impact") or {}).get("category") or "") == "new_drop_evidence"
+    ]
+    if useful_absent and not high_confirmed and "drop_me" in allowed and not stronger_has_high_confidence_keep(stronger_summary):
+        labels = {str(row.get("label") or "") for row in rows}
+        drop_safe_labels = {"lost_me", "uncertain", "asr_noise", "remote_duplicate"}
+        text = " ".join(row_role_text(row, "me") for row in rows)
+        if labels <= drop_safe_labels and len(content_tokens(text)) <= 5:
+            confidence = max(float((match.get("classification") or {}).get("confidence") or 0.0) for match in useful_absent)
+            return (
+                "drop_me",
+                round(confidence, 3),
+                "target_me: local speaker absent and existing evidence points to remote/noise",
+                summary,
+            )
     if not high_confirmed or high_absent:
+        return None, None, None, summary
+    if "keep_me" not in allowed:
         return None, None, None, summary
     if stronger_has_high_confidence_drop(stronger_summary):
         return (

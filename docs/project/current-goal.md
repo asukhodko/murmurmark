@@ -1,55 +1,51 @@
-# Current Goal: Operational Corpus Green v2 / Medium-Risk Readiness
+# Current Goal: Target-Me Evidence Hardening v1
 
-Status, 2026-07-01: active. The first pass turned the operational corpus from `not_ready` into
-`pilot_ready_with_review` without changing capture, Echo Guard, the main ASR or transcript text.
-The second pass removed the last `do_not_use_without_manual_review` gate by turning the risky
-session into explicit formal residual risk instead of pretending it is ready.
+Status, 2026-07-01: active. Operational Corpus Green v2 is done: the corpus is
+`pilot_ready_with_review`, export blockers stay explicit, and `report corpus` is the source of
+truth. The current work is narrower: use local speaker evidence to close only those remaining
+`Me`-related review rows that can be checked safely by the machine.
 
-The goal is to keep the real working corpus honest and usable:
+The goal:
 
 ```text
-recorded sessions -> process/review evidence -> report corpus -> explicit readiness
+Target-Me Evidence Hardening v1: превратить локальное speaker-evidence на
+resemblyzer_dvector_v0 и stronger-audio-judge из shadow-аудита в безопасный
+review-evidence слой, который закрывает подтверждённые real-Me / not-Me случаи,
+снижает обязательную review-очередь корпуса и не делает автоматических transcript edits
+без corpus gates.
 ```
 
-The important promise is not “all meetings need zero review”. The promise is that every working
-session is either ready for notes, or has a short review queue that is explicit, measurable and not
-safely closable by the current local evidence. Full transcript export remains guarded separately and
-must stay blocked when transcript-only review blockers remain.
+Plainly: MurmurMark should better answer “is this really my microphone speech, or remote/noise/ASR
+trash?” without pretending uncertain evidence is certain.
 
-Current corpus snapshot after the v2 pass:
+Current corpus snapshot after the first Target-Me hardening pass:
 
 - working sessions in scope: `20`;
 - diagnostic sessions excluded from readiness: `26`;
 - operational verdict: `pilot_ready_with_review`;
-- `ready_for_notes`: `14`;
-- `review_first`: `6`;
+- `ready_for_notes`: `15`;
+- `review_first`: `5`;
 - `do_not_use_without_manual_review`: `0`;
-- notes review burden: `0.85 min`;
-- transcript/export review burden: `3.51 min`;
-- mandatory review queue: `7` actions / `11.19s` raw audio;
+- notes review burden: `0.81 min`;
+- transcript/export review burden: `3.48 min`;
+- mandatory review queue: `5` actions / `8.78s` raw audio;
 - irreducible review gate: `pilot_ready_with_irreducible_review`;
 - pending safe suggestions: `0`.
 
 What changed in this goal so far:
 
-- safe suggested decisions were applied across the current blocker sessions;
-- Target-Me evidence was generated for sessions that did not yet have it;
-- targeted stronger-audio-judge was run on the remaining lane packs;
-- order-risk rows were reduced from a blocker to closed `keep_me` decisions where evidence allowed;
-- remaining rows are local-recall / lost-Me / uncertain audio checks that did not receive a safe
-  automatic answer;
-- `report-operational-readiness.py` now distinguishes a short irreducible review queue from a broken
-  corpus and reports `pilot_ready_with_review` instead of `not_ready`.
-- `report-session-quality.py` and `report-operational-readiness.py` now represent a narrow risky
-  session as `formal_residual_risk` when it has only allowed risk flags and a short explicit review
-  queue;
-- review apply is idempotent for already closed decision sets, and batch apply matches session paths
-  consistently as absolute, `sessions/<id>` or `./sessions/<id>`.
+- audio-review packs now include open readiness review-plan rows, so Target-Me sees the same rows as
+  the mandatory review queue;
+- Target-Me rows carry `source_audit_ids`, and review-lane suggestions match them by
+  `source_audit_id` plus interval overlap;
+- local-recall rows can now be answered as `drop_me` by a reviewer or by a future high-confidence
+  safe suggestion; transcript-order rows remain keep/review/skip only;
+- two safe `keep_me` suggestions were applied: one lost-Me/local-recall row and one order-risk row;
+- no automatic transcript edit was made outside the existing review/apply flow.
 
 Remaining review queue:
 
-- `sessions/2026-07-01_17-38-53`: one transcript-order check, `1.00s`;
-- `sessions/2026-06-30_11-15-56`: two local-recall checks, `2.49s`;
+- `sessions/2026-06-30_11-15-56`: one local-recall check, `1.08s`;
 - `sessions/2026-07-01_14-01-09`: one local-recall check, `0.92s`;
 - `sessions/2026-07-01_11-17-22`: two lost-Me checks, `2.72s`;
 - `sessions/2026-06-30_17-17-20`: one uncertain audio check, `4.06s`.
@@ -64,9 +60,9 @@ progress`, `finish`, export and corpus reports point to the same residual review
 
 Next work before closing this goal:
 
-- document the new irreducible review gate in contracts/runbooks;
+- verify corpus gates and static checks after the Target-Me changes;
+- document the review-plan/Target-Me evidence bridge in contracts/runbooks;
 - keep `murmurmark report corpus` stable as the source of truth;
-- run static checks and smoke checks;
 - update roadmap/opskarta;
 - commit and push.
 

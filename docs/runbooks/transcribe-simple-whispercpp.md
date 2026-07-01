@@ -793,10 +793,11 @@ murmurmark corpus process all --per-label 16 --max-items 160
 
 `corpus gate` reads the generated session-quality, regression-corpus, audio-judge, transcript-order,
 local-recall, remote-leak segment corpus and operational readiness JSON reports, then writes
-`sessions/_reports/corpus-gates/corpus_gates_report.json` and `.md`. Hard transcript and
-local-recall checks are scoped to selected operational sessions and selected transcript profiles.
-Full historical corpus blockers from diagnostic sessions, stale raw audit profiles or non-blocking
-short review items are warnings. Remote-leak segment queues are also warnings: they are
+`sessions/_reports/corpus-gates/corpus_gates_report.json` and `.md`. Hard readiness checks are
+scoped to selected operational sessions. Local-recall floor and per-session review-burden ratio are
+hard only for `ready_for_notes` sessions; `review_first` sessions remain visible through operational
+review queue checks and warnings. Full historical corpus blockers from diagnostic sessions, stale
+raw audit profiles or non-blocking short review items are warnings. Remote-leak segment queues are also warnings: they are
 review/repair backlog, not hard no-regression failures. `passed` or `passed_with_warnings` exits
 successfully. `failed` exits non-zero unless `--no-fail` is used, but the CLI still prints
 `read: less ...` and a final copyable `next: less ...` line first. The JSON stores the same handoff
@@ -892,9 +893,9 @@ default export remains blocked until transcript-only review is closed or `--forc
 deliberately.
 The 2026-07-01 corpus snapshot is the current convergence baseline: `murmurmark report corpus`
 reports `pilot_ready_with_review`, `20` working sessions in scope and `26` diagnostic sessions
-excluded. `14/20` sessions are `ready_for_notes`, six are `review_first`, and no session is
-`do_not_use_without_manual_review`. Selected notes carry about `0.85 min` of documented residual
-review burden; the remaining full transcript/export surface is about `3.51 min`.
+excluded. `15/20` sessions are `ready_for_notes`, five are `review_first`, and no session is
+`do_not_use_without_manual_review`. Selected notes carry about `0.81 min` of documented residual
+review burden; the remaining full transcript/export surface is about `3.48 min`.
 
 Session-quality reports de-duplicate transcript-only `uncertain` rows when the same selected `Me`
 interval is already covered by high-confidence `likely_reliable` audio-review evidence. The
@@ -903,8 +904,8 @@ evidence support `Me`, and cleanup profiles can remove only tightly gated duplic
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
 
-The same snapshot exposes a short irreducible mandatory review queue: `review_actions` is `7`,
-covering `11.19s` of raw audio. Suggested closure has no safe keep/drop rows left to apply; the
+The same snapshot exposes a short irreducible mandatory review queue: `review_actions` is `5`,
+covering `8.78s` of raw audio. Suggested closure has no safe keep/drop rows left to apply; the
 remaining local-recall, lost-`Me` and uncertain-audio rows are intentionally not auto-closed by the
 current local agents. This is why the operational verdict is `pilot_ready_with_review` rather than
 `medium_risk_ready`: selected notes can be used session-by-session when `status` says they are
@@ -1269,6 +1270,13 @@ To refresh Target-Me evidence during suggested review intentionally:
 ```bash
 MURMURMARK_REVIEW_TARGET_ME_REFRESH=1 murmurmark review suggested apply "$SESSION"
 ```
+
+Target-Me now audits open readiness review-plan rows as well as older transcript/audit rows. The
+audio-review pack stores those rows with `review_plan:*` reasons and `source_audit_id`, and
+`target_me_audit.jsonl` echoes that ID in `source_audit_ids`. This lets review suggestions close a
+lost-`Me`, local-recall, uncertain-audio or transcript-order row when the local speaker evidence
+matches the same review queue item. In the 2026-07-01 corpus pass this closed two safe `keep_me`
+rows and reduced the mandatory queue from `7` actions / `11.19s` to `5` actions / `8.78s`.
 
 The lower-level equivalent is:
 

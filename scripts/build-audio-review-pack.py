@@ -13,7 +13,7 @@ from typing import Any
 SCHEMA_MANIFEST = "murmurmark.audio_review_pack/v1"
 SCHEMA_ITEM = "murmurmark.audio_review_pack_item/v1"
 SCHEMA_SUMMARY = "murmurmark.audio_review_pack_summary/v1"
-SCRIPT_VERSION = "0.1.1"
+SCRIPT_VERSION = "0.1.2"
 SAMPLE_RATE = 16000
 PROFILE_CHOICES = [
     "auto",
@@ -163,6 +163,11 @@ def synthesis_review_items_path(session: Path, profile: str) -> Path | None:
     return path if path.exists() else None
 
 
+def review_plan_items_path(session: Path) -> Path | None:
+    path = session / "derived/readiness/review-plan/review_decisions.template.jsonl"
+    return path if path.exists() else None
+
+
 def source_paths(session: Path) -> dict[str, Path]:
     return {
         "mic_raw": session / "audio/mic/000001.caf",
@@ -184,6 +189,49 @@ def utterance_summary(row: dict[str, Any]) -> dict[str, Any]:
         "needs_review": bool(quality.get("needs_review")),
         "quality_flags": sorted(key for key, value in quality.items() if value is True),
     }
+
+
+def review_plan_is_open(row: dict[str, Any]) -> bool:
+    decision = str(row.get("decision") or "todo")
+    status = str(row.get("status") or "todo")
+    if bool(row.get("reviewed")):
+        return False
+    if decision not in {"", "todo", "needs_review"}:
+        return False
+    return status not in {"applied", "reviewed", "done", "skipped"}
+
+
+def review_plan_utterances(row: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    ids: list[str] = []
+    for key in ("utterance_ids", "me_utterance_ids", "remote_utterance_ids"):
+        values = row.get(key)
+        if isinstance(values, list):
+            ids.extend(str(value) for value in values if value)
+    utterances = [by_id[item_id] for item_id in dict.fromkeys(ids) if item_id in by_id]
+    if utterances:
+        return utterances
+
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    start = float(interval.get("start", 0.0) or 0.0)
+    end = float(interval.get("end", start) or start)
+    synthetic: list[dict[str, Any]] = []
+    for index, item in enumerate(row.get("text") or [], start=1):
+        if not isinstance(item, dict):
+            continue
+        item_id = str(item.get("id") or f"{row.get('source_audit_id') or 'review'}_{index}")
+        role = item.get("role") or ("Me" if str(item.get("source_track") or "").lower() == "mic" else "")
+        synthetic.append(
+            {
+                "id": item_id,
+                "role": role,
+                "source_track": item.get("source_track"),
+                "start": start,
+                "end": end,
+                "text": item.get("text", ""),
+                "quality": {"needs_review": True},
+            }
+        )
+    return synthetic
 
 
 def find_utterances_for_interval(by_id: dict[str, dict[str, Any]], start: float, end: float) -> list[dict[str, Any]]:
@@ -402,6 +450,56 @@ def add_synthesis_review_items(
         )
 
 
+def add_review_plan_items(
+    items: dict[tuple[Any, ...], dict[str, Any]],
+    rows: list[dict[str, Any]],
+    by_id: dict[str, dict[str, Any]],
+) -> None:
+    lane_priority = {
+        "check_local_recall": 118,
+        "classify_audio": 108,
+        "check_unique_me_content": 102,
+        "check_transcript_order": 92,
+        "fast_confirm_drop": 88,
+    }
+    for row in rows:
+        if not review_plan_is_open(row):
+            continue
+        lane = str(row.get("review_lane") or "")
+        if lane not in lane_priority:
+            continue
+        interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+        start = float(interval.get("start", 0.0) or 0.0)
+        end = float(interval.get("end", start) or start)
+        if end <= start:
+            continue
+        utterances = review_plan_utterances(row, by_id)
+        if not utterances:
+            utterances = find_utterances_for_interval(by_id, start, end)
+        if not utterances:
+            continue
+        label = str(row.get("label") or "review_item")
+        source_audit_id = str(row.get("source_audit_id") or "")
+        add_item(
+            items,
+            start=start,
+            end=end,
+            reasons=[f"review_plan:{lane}", f"review_plan_label:{label}"],
+            utterances=utterances,
+            priority=lane_priority[lane] + max(0.0, end - start),
+            source_context={
+                "type": "readiness_review_plan",
+                "source_audit_id": source_audit_id,
+                "review_lane": lane,
+                "review_action": row.get("review_action"),
+                "label": label,
+                "verdict": row.get("verdict"),
+                "confidence": row.get("confidence"),
+                "row": row,
+            },
+        )
+
+
 def extract_wav(source: Path, output: Path, start: float, duration: float) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
@@ -548,6 +646,7 @@ def main() -> int:
     add_group_audit(items_by_key, read_jsonl(session / "derived/audit/group-overlaps/group_overlap_audit.jsonl"), by_id)
     cleanup_rejections = cleanup_rejections_path(session, profile)
     synthesis_review_items = synthesis_review_items_path(session, profile)
+    review_plan_items = review_plan_items_path(session)
     add_cleanup_rejections(
         items_by_key,
         read_jsonl(cleanup_rejections) if cleanup_rejections else [],
@@ -556,6 +655,11 @@ def main() -> int:
     add_synthesis_review_items(
         items_by_key,
         read_jsonl(synthesis_review_items) if synthesis_review_items else [],
+        by_id,
+    )
+    add_review_plan_items(
+        items_by_key,
+        read_jsonl(review_plan_items) if review_plan_items else [],
         by_id,
     )
 

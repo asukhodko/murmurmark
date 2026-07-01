@@ -626,6 +626,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         for row in complete
         if str(row.get("session_id") or row.get("label") or "") not in excluded_session_ids
     ]
+    ready_scoped_complete = [row for row in scoped_complete if str(row.get("use_gate") or "") == "ready_for_notes"]
     summary = session_quality.get("summary") if isinstance(session_quality, dict) else {}
     summary = summary if isinstance(summary, dict) else {}
     use_gates = summary.get("use_gates") if isinstance(summary.get("use_gates"), dict) else {}
@@ -713,7 +714,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         or safe_float(row.get("transcript_order_probable_order_risk_seconds")) > 0
     ]
     local_recall_bad = [
-        row for row in scoped_complete if safe_float(row.get("local_only_island_recall"), 1.0) < args.min_local_recall
+        row for row in ready_scoped_complete if safe_float(row.get("local_only_island_recall"), 1.0) < args.min_local_recall
     ]
     local_recall_selected_blocking = [
         row
@@ -726,7 +727,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         if safe_float(row.get("local_recall_needs_review_seconds")) > 0
     ]
     session_review_bad = [
-        row for row in scoped_complete if safe_float(row.get("review_burden_ratio")) > args.max_session_review_burden_ratio
+        row
+        for row in ready_scoped_complete
+        if safe_float(row.get("review_burden_ratio")) > args.max_session_review_burden_ratio
     ]
     check(
         checks,
@@ -760,8 +763,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "transcript.local_recall_floor",
         not local_recall_bad,
         observed=len(local_recall_bad),
-        threshold=f"all selected operational sessions >= {args.min_local_recall}",
-        message="local recall does not fall below the configured floor",
+        threshold=f"all ready_for_notes operational sessions >= {args.min_local_recall}",
+        message="local recall does not fall below the configured floor for ready-for-notes sessions",
         details=session_ids(local_recall_bad),
     )
     check(
@@ -788,8 +791,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "transcript.session_review_burden_ratio",
         not session_review_bad,
         observed=len(session_review_bad),
-        threshold=f"all selected operational sessions <= {args.max_session_review_burden_ratio}",
-        message="no selected operational session has excessive review burden",
+        threshold=f"all ready_for_notes operational sessions <= {args.max_session_review_burden_ratio}",
+        message="no ready-for-notes operational session has excessive review burden",
         details=session_ids(session_review_bad),
     )
 
