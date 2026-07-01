@@ -165,7 +165,7 @@ medium-risk work.
 Optional near-realtime shadow mode:
 
 ```bash
-murmurmark record --target-bundle system --live-pipeline
+murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5
 murmurmark status latest
 murmurmark latest
 SESSION="sessions/<printed-session>"
@@ -173,12 +173,14 @@ less "$SESSION/derived/live/transcript.draft.md"
 murmurmark next latest
 ```
 
-This mode writes closed audio segments and a live draft under `derived/live/` while recording. After
-stop it runs the existing batch-grade reconcile through `murmurmark process --skip-build` and writes
+This mode writes closed audio segments and a live draft under `derived/live/` while recording.
+Segments have a non-overlapping authoritative window plus copied overlap context around it; raw
+`audio/mic/*.caf` and `audio/remote/*.caf` are not changed. After stop it runs the existing
+batch-grade reconcile through `murmurmark process --skip-build` and writes
 `derived/live/final_reconcile_report.json`. The normal batch result remains authoritative until
-corpus gates prove that the live branch matches it. If the live worker fails, recording should still
-produce a normal raw session package. If you need only the draft and want to run batch processing
-manually later, use `--live-no-finalize`.
+corpus gates prove that the live branch matches it. If the live worker or derived live segment writer
+fails, recording should still produce a normal raw session package. If you need only the draft and
+want to run batch processing manually later, use `--live-no-finalize`.
 
 During final reconcile, `process` also runs a live-ASR cache bridge:
 
@@ -187,8 +189,8 @@ derived/live/live_asr_cache_report.json
 ```
 
 In v1 this bridge is strict. It reuses live chunks only when model, language, audio prep and chunk
-geometry are batch-compatible. Otherwise it writes `status: not_eligible` and the pipeline falls back
-to normal batch ASR.
+geometry are batch-compatible, including overlap context compatible with batch ASR windows.
+Otherwise it writes `status: not_eligible` and the pipeline falls back to normal batch ASR.
 
 To inspect live parity over a local corpus:
 
@@ -558,10 +560,10 @@ Current focus:
   ASR-visible remote-token leakage, local-word recall and review burden;
 - keep `next`/`status`/`review` honest about residual risk;
 - keep near-realtime processing as a shadow CLI branch: `record --live-pipeline` now writes durable
-  live segments, a draft transcript and advisory live-vs-batch comparison artifacts, but the batch
-  pipeline is still authoritative;
+  overlap-aware live segments, a draft transcript and advisory live-vs-batch comparison artifacts,
+  but the batch pipeline is still authoritative;
 - keep live-ASR cache reuse behind strict eligibility gates; `not_eligible` is expected until
-  overlap-aware live chunks match batch ASR geometry;
+  live chunk geometry, audio prep, language and model match batch ASR expectations;
 - use `murmurmark corpus live` to keep live promotion blocked until parity gates cover order, local
   recall, remote leakage, review burden and chunk-boundary risks;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
@@ -573,8 +575,8 @@ Near-term goals for discussion:
    irreducible queue when new local evidence appears, and prevent status drift.
 2. Target-Me evidence hardening: turn the promising `resemblyzer_dvector_v0` shadow signal into safe
    review suggestions behind corpus gates, without automatic transcript edits.
-3. Near-Realtime Pipeline Shadow v1 follow-up: harden the first live segment/draft worker with
-   overlap-aware Echo Guard, resumable worker state and corpus parity gates.
+3. Near-Realtime Pipeline Shadow v1 follow-up: harden the live draft worker with per-fragment Echo
+   Guard, resumable worker state and corpus parity gates.
 4. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only until
    broader corpus gates prove it is safe beyond selected audit windows.
 5. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session

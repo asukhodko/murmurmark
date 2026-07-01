@@ -4157,10 +4157,17 @@ The live branch writes only under `derived/live/`.
   "start_sec": 0.0,
   "end_sec": 60.0,
   "duration_sec": 60.0,
+  "clip_start_sec": 0.0,
+  "clip_end_sec": 65.0,
+  "clip_duration_sec": 65.0,
+  "overlap_before_sec": 0.0,
+  "overlap_after_sec": 5.0,
   "frames": 2880000,
-  "sample_rate": 48000.0,
+  "clip_frames": 3120000,
+  "sample_rate": 48000,
   "closed": true,
-  "final": false
+  "final": false,
+  "after_overlap_complete": true
 }
 ```
 
@@ -4168,8 +4175,14 @@ Invariants:
 
 - raw `audio/mic/*.caf` and `audio/remote/*.caf` remain the durable capture source;
 - live segment files are derived copies and may be deleted or regenerated;
+- `start_sec..end_sec` is the non-overlapping hard window for publishing text;
+- `clip_start_sec..clip_end_sec` is the actual audio clip sent to ASR and may include copied
+  overlap before or after the hard window;
+- live workers must transcribe the clip but publish only text whose timestamp center falls inside
+  the hard window;
 - a worker may process an index only after both `mic` and `remote` rows for that index are closed;
-- if the live worker fails, the session must remain batch-processable.
+- if the live worker or derived live segment writer fails, the session must remain
+  batch-processable from raw CAF.
 
 ### Worker State And Report
 
@@ -4237,9 +4250,9 @@ Schema:
   "batch_authoritative": true,
   "promotion_allowed": false,
   "source_of_truth": "batch_pipeline",
-  "live_cache_reuse": "not_supported_yet",
-  "speedup_status": "fallback_batch_asr",
-  "fallback_reason": "live_asr_cache_is_not_batch_compatible_yet",
+  "live_cache_reuse": "materialized_raw_whisper_cache",
+  "speedup_status": "live_asr_cache_reused",
+  "fallback_reason": [],
   "outputs": {
     "pipeline_run_report": "derived/pipeline-run/pipeline_run_report.json",
     "session_readiness": "derived/readiness/session_readiness.json",
@@ -4248,11 +4261,16 @@ Schema:
 }
 ```
 
-In v1, `fallback_batch_asr` is an acceptable outcome: it means the final transcript went through the
-same batch-grade timeline repair, cleanup, review/readiness and synthesis layers as a normal
-`murmurmark process` run. It does not claim post-meeting speedup. Future versions may replace
-`live_cache_reuse: not_supported_yet` only after live chunks can be reused without worsening corpus
-gates.
+In v1, both outcomes are valid:
+
+- `speedup_status: live_asr_cache_reused` means live chunk ASR was strict-compatible and materialized
+  into the normal whisper.cpp raw cache before batch transcript assembly.
+- `speedup_status: fallback_batch_asr` means the final transcript went through the same batch-grade
+  timeline repair, cleanup, review/readiness and synthesis layers as a normal `murmurmark process`
+  run. It does not claim post-meeting speedup.
+
+Promotion beyond shadow still requires corpus gates; cache reuse only saves ASR time and does not
+make the live draft authoritative.
 
 ### Live ASR Cache Report
 
@@ -4271,7 +4289,8 @@ Schema:
   "status": "not_eligible",
   "materialized": false,
   "reasons": [
-    "live_chunks_have_no_batch_overlap_context"
+    "window_duration_mismatch:1",
+    "asr_json_missing:remote:1"
   ],
   "parameters": {
     "language": "ru",
@@ -4296,6 +4315,22 @@ derived/transcript-simple/whisper-cpp/raw/remote.meta.json
 The generated `.meta.json` must match `transcribe-simple-whispercpp.py` cache metadata exactly.
 Otherwise `transcribe_current` reruns whisper.cpp. A `not_eligible` report is an expected safe
 fallback, not an error.
+
+Compatibility gates include same whisper.cpp model and language, source-specific audio prep
+(`mic=speech`, `remote=loudnorm`), hard-window duration, clip overlap, matching mic/remote indices
+and usable whisper.cpp JSON for every included live chunk.
+
+Common `not_eligible` reasons:
+
+- `live_report_missing`;
+- `raw_cache_already_exists`;
+- `segment_count_mismatch`;
+- `asr_json_missing:<source>:<index>`;
+- `audio_prep_mismatch:<source>:<index>`;
+- `window_start_mismatch:<index>`;
+- `window_duration_mismatch:<index>`;
+- `overlap_before_mismatch:<index>`;
+- `overlap_after_mismatch:<index>`.
 
 ### Live-vs-Batch Comparison
 

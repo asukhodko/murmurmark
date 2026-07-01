@@ -20,7 +20,7 @@ Working now:
 - `shadow_v2` repair profile with no-regression gates, audit artifacts and start-of-call repair;
 - local extractive synthesis with quality verdicts, review items and evidence-backed notes;
 - Markdown/Obsidian-style export bundles, JSON/audit artifacts for review, and raw retention plans.
-- first near-realtime shadow branch: `record --live-pipeline` writes closed mic/remote segment
+- first near-realtime shadow branch: `record --live-pipeline` writes overlap-aware mic/remote segment
   copies, live worker state, a draft transcript, final-reconcile report and live-vs-batch comparison
   artifacts under `derived/live/`.
 - live-ASR cache bridge: final reconcile attempts strict cache materialization and writes
@@ -44,9 +44,9 @@ Current operating point, measured by `murmurmark report corpus` on 2026-07-01:
 
 Still future:
 
-- near-realtime promotion beyond shadow: overlap-aware segment processing, stronger per-segment Echo
-  Guard, resumable worker state, corpus parity gates and live-ASR cache reuse before it can shorten
-  the authoritative post-meeting path;
+- near-realtime promotion beyond shadow: stronger per-segment Echo Guard, resumable worker state,
+  corpus parity gates and live-ASR cache reuse before it can shorten the authoritative post-meeting
+  path;
 - signed menubar app;
 - remote speaker diarization inside `Colleagues`;
 - heavy-local ASR stack with specialized models;

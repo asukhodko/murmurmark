@@ -179,8 +179,9 @@ flowchart LR
     copies, starts an optional worker, writes `derived/live/transcript.draft.md`,
     `derived/live/live_pipeline_report.json`, post-stop final-reconcile report and advisory
     live-vs-batch comparison;
-  - next work is overlap-aware segmenting, per-segment Echo Guard stronger than speech-band
-    preprocessing, resumable queue state and corpus parity gates;
+  - live segments are overlap-aware: each segment has a hard publish window and a wider ASR clip
+    window; next work is per-segment Echo Guard stronger than speech-band preprocessing, resumable
+    queue state and corpus parity gates;
   - after stop, the existing batch-grade repair/review/readiness layers run as final reconcile and
     remain authoritative;
   - keep the existing post-recording `process` path as source of truth until corpus comparison proves
@@ -200,12 +201,12 @@ flowchart LR
 ### Next
 
 - Near-realtime shadow pipeline follow-up:
-  - segment writer during capture exists, but still needs overlap-aware windows and better queue
+  - segment writer during capture exists with hard/clip overlap windows, but still needs better queue
     recovery;
   - worker queue exists as a safe shadow worker, but its v1 preprocessing is intentionally light and
     must be upgraded before it can compete with batch Echo Guard;
-  - post-stop final reconcile exists, but currently reports `fallback_batch_asr` because live-ASR
-    cache is not yet compatible with the batch transcript builder;
+  - post-stop final reconcile exists; it can reuse strict-compatible live ASR cache, otherwise it
+    reports `fallback_batch_asr`;
   - live-ASR cache bridge exists and writes `live_asr_cache_report.json`; it materializes raw cache
     only when chunk geometry, model, language and audio prep are compatible with batch ASR;
   - corpus-level live report exists as `murmurmark corpus live`; it keeps promotion blocked while

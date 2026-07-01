@@ -305,9 +305,11 @@ nodes:
     effort: 4
     notes: |
       Во время `record --live-pipeline` уже пишутся durable mic/remote segment copies и manifest для
-      очереди. Оставшийся gap v1: overlap `2-5s`, более явная backpressure/restart модель и corpus
-      gate на отсутствие дублей на границах. Raw capture не должен стать менее надёжным: если live
-      worker падает, запись продолжается, а session остаётся batch-processable.
+      очереди. Каждый segment имеет hard window для публикации текста и clip window с overlap context
+      для ASR; worker/materializer обязаны публиковать только слова внутри hard window. Derived
+      segment writer best-effort: при сбое live-ветка отключается с warning, а raw capture остаётся
+      batch-processable. Оставшийся gap v1: более явная backpressure/restart модель и corpus gate на
+      отсутствие дублей на границах.
 
   realtime-worker-queue:
     title: "Echo/ASR worker queue"
@@ -346,9 +348,9 @@ nodes:
       пишется `derived/live/final_reconcile_report.json`. Live-ASR cache bridge уже пытается строго
       материализовать `raw/mic.json` и `raw/remote.json`, если live chunks совместимы с batch ASR
       metadata; иначе пишет `live_asr_cache_report.json` со статусом `not_eligible` и process честно
-      уходит в `fallback_batch_asr`. Следующий gap: overlap-aware live chunks/tail так, чтобы после
-      встречи оставался только короткий хвост, а итоговый transcript проходил те же проверки, что
-      `murmurmark process`.
+      уходит в `fallback_batch_asr`. Текущий gap: доказать на корпусе, что overlap-aware chunks
+      позволяют переиспользовать live ASR без ухудшения порядка реплик, local recall, remote leakage
+      и review burden.
 
   realtime-corpus-gates:
     title: "Realtime vs batch corpus gates"

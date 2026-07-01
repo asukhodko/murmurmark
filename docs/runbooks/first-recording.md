@@ -101,7 +101,7 @@ This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separ
 Optional live-shadow recording:
 
 ```bash
-murmurmark record --target-bundle system --live-pipeline
+murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5
 murmurmark status latest
 murmurmark latest
 SESSION="sessions/<printed-session>"
@@ -115,8 +115,19 @@ shadow worker and writes `derived/live/transcript.draft.md`,
 normal batch-grade reconcile and writes `derived/live/final_reconcile_report.json`; if live ASR
 cannot be safely reused yet, the report says `speedup_status: fallback_batch_asr`. The draft is not
 the final transcript. If the worker crashes or falls behind, raw capture should still finish as a
-normal session and can be processed by the batch pipeline. Use `--live-no-finalize` when you only
-want to test the live draft and run `murmurmark process` manually.
+normal session and can be processed by the batch pipeline. The derived segment writer is also
+best-effort: if it fails, MurmurMark disables live segments with a warning instead of stopping raw
+recording. Use `--live-no-finalize` when you only want to test the live draft and run
+`murmurmark process` manually.
+
+Each live segment has two timelines:
+
+- `start_sec..end_sec`: the non-overlapping hard window that may be published for this segment.
+- `clip_start_sec..clip_end_sec`: the copied audio clip passed to ASR, including overlap context
+  before and after the hard window.
+
+The default `--live-overlap-sec 5` is deliberately small: it gives Whisper boundary context without
+letting adjacent segments publish the same words twice.
 
 The final reconcile also writes `derived/live/live_asr_cache_report.json`. Check it when live mode
 does not speed up post-meeting processing:
@@ -125,8 +136,10 @@ does not speed up post-meeting processing:
 jq '.status, .reasons' "$SESSION/derived/live/live_asr_cache_report.json"
 ```
 
-Common v1 reason: `live_chunks_have_no_batch_overlap_context`. It means the live draft worked, but
-its ASR chunks cannot yet be reused as the authoritative batch cache.
+Common v1 reasons include `live_report_missing`, `raw_cache_already_exists`,
+`segment_count_mismatch`, `asr_json_missing:remote:1`, `audio_prep_mismatch:mic:1`,
+`window_duration_mismatch:1` and `overlap_after_mismatch:1`. They mean the live draft may still be
+useful for orientation, but the final transcript should use normal batch ASR.
 
 For a corpus-level live promotion check:
 

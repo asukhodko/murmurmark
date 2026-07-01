@@ -119,7 +119,8 @@ struct MurmurMark {
           murmurmark record [--out ./session] [--duration 60] [--target-bundle com.example.App]
                             [--mic default] [--mic-backend screencapturekit|voice-processing]
                             [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
-                            [--live-pipeline] [--live-segment-sec 60] [--live-no-worker] [--live-no-finalize]
+                            [--live-pipeline] [--live-segment-sec 60] [--live-overlap-sec 5]
+                            [--live-no-worker] [--live-no-finalize]
           murmurmark sessions [--limit 10] [--status exported|exportable|review_required|incomplete] [--path-only|--next-only|--json]
                               [--sessions-root ./sessions]
           murmurmark latest [--sessions-root ./sessions]
@@ -199,6 +200,7 @@ struct MurmurMark {
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C and finalizes the session.
           --live-pipeline writes shadow live segments and a draft transcript under derived/live, then runs final reconcile.
+          --live-overlap-sec controls copied context around live segments; raw capture is unaffected.
           Use --live-no-finalize to skip the post-stop batch-grade reconcile.
           SIGTERM/SIGHUP are treated as unexpected stops and leave a partial session.
           Unexpected ScreenCaptureKit stops are restarted when possible; unrecovered stops finalize a partial session and exit with an error.
@@ -438,8 +440,12 @@ enum Commands {
         let channelCount = options.int("channels") ?? 2
         let livePipelineEnabled = options.flag("live-pipeline")
         let liveSegmentSeconds = try options.optionalPositiveDouble("live-segment-sec") ?? 60
+        let liveOverlapSeconds = try options.optionalNonNegativeDouble("live-overlap-sec") ?? 5
         let liveWorkerEnabled = livePipelineEnabled && !options.flag("live-no-worker")
         let liveFinalizeEnabled = livePipelineEnabled && !options.flag("live-no-finalize")
+        if liveOverlapSeconds >= liveSegmentSeconds / 2 {
+            throw CLIError("--live-overlap-sec must be less than half of --live-segment-sec")
+        }
         if livePipelineEnabled && (microphoneBackend != .screenCaptureKit || remoteBackend != .screenCaptureKit) {
             throw CLIError("--live-pipeline currently requires screencapturekit mic and remote backends")
         }
@@ -456,6 +462,7 @@ enum Commands {
             channelCount: channelCount,
             livePipelineEnabled: livePipelineEnabled,
             liveSegmentSeconds: liveSegmentSeconds,
+            liveOverlapSeconds: liveOverlapSeconds,
             liveWorkerEnabled: liveWorkerEnabled,
             liveFinalizeEnabled: liveFinalizeEnabled
         )
@@ -6598,6 +6605,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     let channelCount: Int
     let livePipelineEnabled: Bool
     let liveSegmentSeconds: TimeInterval
+    let liveOverlapSeconds: TimeInterval
     let liveWorkerEnabled: Bool
     let liveFinalizeEnabled: Bool
 
@@ -6638,6 +6646,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         channelCount: Int,
         livePipelineEnabled: Bool = false,
         liveSegmentSeconds: TimeInterval = 60,
+        liveOverlapSeconds: TimeInterval = 5,
         liveWorkerEnabled: Bool = false,
         liveFinalizeEnabled: Bool = false
     ) {
@@ -6652,6 +6661,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         self.channelCount = channelCount
         self.livePipelineEnabled = livePipelineEnabled
         self.liveSegmentSeconds = liveSegmentSeconds
+        self.liveOverlapSeconds = liveOverlapSeconds
         self.liveWorkerEnabled = liveWorkerEnabled
         self.liveFinalizeEnabled = liveFinalizeEnabled
     }
@@ -6681,13 +6691,15 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             if livePipelineEnabled {
                 let capture = try LiveSegmentCapture(
                     sessionDirectory: outputDirectory,
-                    segmentSeconds: liveSegmentSeconds
+                    segmentSeconds: liveSegmentSeconds,
+                    overlapSeconds: liveOverlapSeconds
                 )
                 liveSegments = capture
                 try eventLog.write(
                     type: "live_pipeline.prepare",
                     fields: [
                         "segment_sec": liveSegmentSeconds,
+                        "overlap_sec": liveOverlapSeconds,
                         "worker_enabled": liveWorkerEnabled,
                         "finalize_enabled": liveFinalizeEnabled,
                         "segments": "derived/live/segments.jsonl",
@@ -6874,19 +6886,32 @@ extension SessionRecorder {
                     remoteWriter = try AudioFileWriter(url: outputDirectory.appendingPathComponent("audio/remote/000001.caf"), source: "remote")
                 }
                 try remoteWriter?.write(sampleBuffer)
-                try liveSegments?.write(sampleBuffer, source: "remote")
+                writeLiveSegmentSafely(sampleBuffer, source: "remote")
             case .microphone:
                 if micWriter == nil {
                     micWriter = try AudioFileWriter(url: outputDirectory.appendingPathComponent("audio/mic/000001.caf"), source: "mic")
                 }
                 try micWriter?.write(sampleBuffer)
-                try liveSegments?.write(sampleBuffer, source: "mic")
+                writeLiveSegmentSafely(sampleBuffer, source: "mic")
             default:
                 break
             }
         } catch {
             stateQueue.sync {
                 warnings.append("write failed for \(type): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func writeLiveSegmentSafely(_ sampleBuffer: CMSampleBuffer, source: String) {
+        guard let liveSegments else { return }
+        do {
+            try liveSegments.write(sampleBuffer, source: source)
+        } catch {
+            liveSegments.closeAll()
+            self.liveSegments = nil
+            stateQueue.sync {
+                warnings.append("live segment writer disabled for \(source): \(error.localizedDescription)")
             }
         }
     }
@@ -7532,26 +7557,65 @@ final class AudioFileWriter {
 }
 
 final class LiveSegmentCapture {
+    private struct BufferedSample {
+        let sampleBuffer: CMSampleBuffer
+        let format: AVAudioFormat
+        let frames: AVAudioFramePosition
+    }
+
+    private struct ClosingSegment {
+        let writer: AudioFileWriter
+        let index: Int
+        let path: String
+        let hardStartFrame: AVAudioFramePosition
+        let fileStartFrame: AVAudioFramePosition
+        let sampleRate: Double
+        var hardFrames: AVAudioFramePosition
+        var fileFrames: AVAudioFramePosition
+        var afterFramesTarget: AVAudioFramePosition
+        var afterFramesWritten: AVAudioFramePosition = 0
+    }
+
+    private struct SegmentManifestRow {
+        let source: String
+        let index: Int
+        let path: String
+        let hardStartFrame: AVAudioFramePosition
+        let hardFrames: AVAudioFramePosition
+        let fileStartFrame: AVAudioFramePosition
+        let fileFrames: AVAudioFramePosition
+        let sampleRate: Double
+        let final: Bool
+        let afterOverlapComplete: Bool
+    }
+
     private struct SourceState {
         var writer: AudioFileWriter?
         var index = 1
         var cumulativeFrames: AVAudioFramePosition = 0
-        var segmentStartFrame: AVAudioFramePosition = 0
-        var segmentFrames: AVAudioFramePosition = 0
+        var hardStartFrame: AVAudioFramePosition = 0
+        var fileStartFrame: AVAudioFramePosition = 0
+        var hardFrames: AVAudioFramePosition = 0
+        var fileFrames: AVAudioFramePosition = 0
         var sampleRate: Double = 0
         var path: String = ""
+        var tail: [BufferedSample] = []
+        var tailFrames: AVAudioFramePosition = 0
+        var closing: [ClosingSegment] = []
     }
 
     let sessionDirectory: URL
     let segmentSeconds: TimeInterval
+    let overlapSeconds: TimeInterval
 
     private let manifestURL: URL
     private let manifestHandle: FileHandle
     private var states: [String: SourceState] = [:]
 
-    init(sessionDirectory: URL, segmentSeconds: TimeInterval) throws {
+    init(sessionDirectory: URL, segmentSeconds: TimeInterval, overlapSeconds: TimeInterval) throws {
         self.sessionDirectory = sessionDirectory
         self.segmentSeconds = max(5.0, segmentSeconds)
+        self.overlapSeconds = max(0.0, overlapSeconds)
         let liveDirectory = sessionDirectory.appendingPathComponent("derived/live")
         try FileManager.default.createDirectory(at: liveDirectory.appendingPathComponent("audio/mic"), withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: liveDirectory.appendingPathComponent("audio/remote"), withIntermediateDirectories: true)
@@ -7567,25 +7631,21 @@ final class LiveSegmentCapture {
             throw CLIError("cannot read live audio format for \(source)")
         }
         var state = states[source] ?? SourceState()
-        if state.writer == nil {
-            state.sampleRate = format.sampleRate
-            state.segmentStartFrame = state.cumulativeFrames
-            state.segmentFrames = 0
-            state.path = "derived/live/audio/\(source)/\(String(format: "%06d", state.index)).caf"
-            state.writer = try AudioFileWriter(
-                url: sessionDirectory.appendingPathComponent(state.path),
-                source: "live-\(source)-\(state.index)"
-            )
-        }
 
         let frameCount = AVAudioFramePosition(CMSampleBufferGetNumSamples(sampleBuffer))
+        try writePendingAfterOverlap(sampleBuffer, format: format, source: source, state: &state)
+        if state.writer == nil {
+            try startSegment(source: source, format: format, state: &state)
+        }
         try state.writer?.write(sampleBuffer, format: format)
-        state.segmentFrames += frameCount
+        state.hardFrames += frameCount
+        state.fileFrames += frameCount
         state.cumulativeFrames += frameCount
+        appendTail(sampleBuffer, format: format, frames: frameCount, state: &state)
 
         let targetFrames = AVAudioFramePosition(max(1.0, state.sampleRate * segmentSeconds))
-        if state.segmentFrames >= targetFrames {
-            try closeSegment(source: source, state: &state, final: false)
+        if state.hardFrames >= targetFrames {
+            try rotateSegment(source: source, state: &state)
         }
         states[source] = state
     }
@@ -7593,39 +7653,193 @@ final class LiveSegmentCapture {
     func closeAll() {
         for source in Array(states.keys) {
             var state = states[source] ?? SourceState()
-            try? closeSegment(source: source, state: &state, final: true)
+            for index in state.closing.indices.reversed() {
+                try? closePendingSegment(source: source, state: &state, at: index, final: false)
+            }
+            try? closeCurrentSegment(source: source, state: &state, final: true)
             states[source] = state
         }
         try? writeState(status: "capture_finished")
         try? manifestHandle.close()
     }
 
-    private func closeSegment(source: String, state: inout SourceState, final: Bool) throws {
-        guard state.writer != nil, state.segmentFrames > 0 else { return }
-        state.writer?.close()
-        let startSec = Double(state.segmentStartFrame) / max(state.sampleRate, 1.0)
-        let endSec = Double(state.segmentStartFrame + state.segmentFrames) / max(state.sampleRate, 1.0)
+    private func startSegment(source: String, format: AVAudioFormat, state: inout SourceState) throws {
+        state.sampleRate = format.sampleRate
+        state.hardStartFrame = state.cumulativeFrames
+        state.fileStartFrame = max(0, state.cumulativeFrames - state.tailFrames)
+        state.hardFrames = 0
+        state.fileFrames = 0
+        state.path = "derived/live/audio/\(source)/\(String(format: "%06d", state.index)).caf"
+        let writer = try AudioFileWriter(
+            url: sessionDirectory.appendingPathComponent(state.path),
+            source: "live-\(source)-\(state.index)"
+        )
+        state.writer = writer
+        for sample in state.tail {
+            do {
+                try writer.write(sample.sampleBuffer, format: sample.format)
+                state.fileFrames += sample.frames
+            } catch {
+                state.fileStartFrame = state.cumulativeFrames
+                state.fileFrames = 0
+                state.tail.removeAll()
+                state.tailFrames = 0
+                break
+            }
+        }
+    }
+
+    private func rotateSegment(source: String, state: inout SourceState) throws {
+        guard let writer = state.writer else { return }
+        let closing = ClosingSegment(
+            writer: writer,
+            index: state.index,
+            path: state.path,
+            hardStartFrame: state.hardStartFrame,
+            fileStartFrame: state.fileStartFrame,
+            sampleRate: state.sampleRate,
+            hardFrames: state.hardFrames,
+            fileFrames: state.fileFrames,
+            afterFramesTarget: overlapFrames(sampleRate: state.sampleRate)
+        )
+        state.index += 1
+        state.writer = nil
+        state.path = ""
+        state.hardFrames = 0
+        state.fileFrames = 0
+        if closing.afterFramesTarget <= 0 {
+            state.closing.append(closing)
+            try closePendingSegment(source: source, state: &state, at: state.closing.count - 1, final: false)
+        } else {
+            state.closing.append(closing)
+        }
+    }
+
+    private func closeCurrentSegment(source: String, state: inout SourceState, final: Bool) throws {
+        guard let writer = state.writer, state.hardFrames > 0 else { return }
+        writer.close()
+        try appendSegmentRow(SegmentManifestRow(
+            source: source,
+            index: state.index,
+            path: state.path,
+            hardStartFrame: state.hardStartFrame,
+            hardFrames: state.hardFrames,
+            fileStartFrame: state.fileStartFrame,
+            fileFrames: state.fileFrames,
+            sampleRate: state.sampleRate,
+            final: final,
+            afterOverlapComplete: true
+        ))
+        state.index += 1
+        state.writer = nil
+        state.path = ""
+        state.hardFrames = 0
+        state.fileFrames = 0
+    }
+
+    private func closePendingSegment(source: String, state: inout SourceState, at index: Int, final: Bool) throws {
+        let pending = state.closing[index]
+        pending.writer.close()
+        try appendSegmentRow(SegmentManifestRow(
+            source: source,
+            index: pending.index,
+            path: pending.path,
+            hardStartFrame: pending.hardStartFrame,
+            hardFrames: pending.hardFrames,
+            fileStartFrame: pending.fileStartFrame,
+            fileFrames: pending.fileFrames,
+            sampleRate: pending.sampleRate,
+            final: final,
+            afterOverlapComplete: pending.afterFramesWritten >= pending.afterFramesTarget
+        ))
+        state.closing.remove(at: index)
+    }
+
+    private func appendSegmentRow(_ row: SegmentManifestRow) throws {
+        let startSec = Double(row.hardStartFrame) / max(row.sampleRate, 1.0)
+        let endSec = Double(row.hardStartFrame + row.hardFrames) / max(row.sampleRate, 1.0)
+        let clipStartSec = Double(row.fileStartFrame) / max(row.sampleRate, 1.0)
+        let clipEndSec = Double(row.fileStartFrame + row.fileFrames) / max(row.sampleRate, 1.0)
         try appendJSONLine(
             [
                 "schema": "murmurmark.live_segment/v1",
-                "source": source,
-                "index": state.index,
-                "path": state.path,
+                "source": row.source,
+                "index": row.index,
+                "path": row.path,
                 "start_sec": rounded(startSec),
                 "end_sec": rounded(endSec),
                 "duration_sec": rounded(endSec - startSec),
-                "frames": Int64(state.segmentFrames),
-                "sample_rate": Int(state.sampleRate.rounded()),
+                "clip_start_sec": rounded(clipStartSec),
+                "clip_end_sec": rounded(clipEndSec),
+                "clip_duration_sec": rounded(clipEndSec - clipStartSec),
+                "overlap_before_sec": rounded(startSec - clipStartSec),
+                "overlap_after_sec": rounded(clipEndSec - endSec),
+                "frames": Int64(row.hardFrames),
+                "clip_frames": Int64(row.fileFrames),
+                "sample_rate": Int(row.sampleRate.rounded()),
                 "closed": true,
-                "final": final,
+                "final": row.final,
+                "after_overlap_complete": row.afterOverlapComplete,
             ],
             to: manifestHandle
         )
-        state.index += 1
-        state.segmentStartFrame = state.cumulativeFrames
-        state.segmentFrames = 0
-        state.writer = nil
-        state.path = ""
+    }
+
+    private func writePendingAfterOverlap(
+        _ sampleBuffer: CMSampleBuffer,
+        format: AVAudioFormat,
+        source: String,
+        state: inout SourceState
+    ) throws {
+        let frameCount = AVAudioFramePosition(CMSampleBufferGetNumSamples(sampleBuffer))
+        for index in state.closing.indices.reversed() {
+            do {
+                try state.closing[index].writer.write(sampleBuffer, format: format)
+                state.closing[index].fileFrames += frameCount
+                state.closing[index].afterFramesWritten += frameCount
+            } catch {
+                try closePendingSegment(source: source, state: &state, at: index, final: false)
+                continue
+            }
+            if state.closing[index].afterFramesWritten >= state.closing[index].afterFramesTarget {
+                try closePendingSegment(source: source, state: &state, at: index, final: false)
+            }
+        }
+    }
+
+    private func appendTail(
+        _ sampleBuffer: CMSampleBuffer,
+        format: AVAudioFormat,
+        frames: AVAudioFramePosition,
+        state: inout SourceState
+    ) {
+        guard overlapSeconds > 0 else {
+            state.tail.removeAll()
+            state.tailFrames = 0
+            return
+        }
+        var copied: CMSampleBuffer?
+        let status = CMSampleBufferCreateCopy(
+            allocator: kCFAllocatorDefault,
+            sampleBuffer: sampleBuffer,
+            sampleBufferOut: &copied
+        )
+        guard status == noErr, let copied else {
+            state.tail.removeAll()
+            state.tailFrames = 0
+            return
+        }
+        state.tail.append(BufferedSample(sampleBuffer: copied, format: format, frames: frames))
+        state.tailFrames += frames
+        let maxFrames = overlapFrames(sampleRate: format.sampleRate)
+        while state.tailFrames > maxFrames, !state.tail.isEmpty {
+            let removed = state.tail.removeFirst()
+            state.tailFrames -= removed.frames
+        }
+    }
+
+    private func overlapFrames(sampleRate: Double) -> AVAudioFramePosition {
+        AVAudioFramePosition(max(0.0, sampleRate * overlapSeconds))
     }
 
     private func writeState(status: String) throws {
@@ -7634,6 +7848,7 @@ final class LiveSegmentCapture {
                 "schema": "murmurmark.live_pipeline_state/v1",
                 "status": status,
                 "segment_sec": segmentSeconds,
+                "overlap_sec": overlapSeconds,
                 "segments": "derived/live/segments.jsonl",
                 "draft_transcript": "derived/live/transcript.draft.md",
                 "report": "derived/live/live_pipeline_report.json",
@@ -9683,6 +9898,12 @@ struct Options {
     func optionalPositiveDouble(_ key: String) throws -> Double? {
         guard let value = double(key) else { return nil }
         guard value > 0 else { throw CLIError("--\(key) must be greater than 0") }
+        return value
+    }
+
+    func optionalNonNegativeDouble(_ key: String) throws -> Double? {
+        guard let value = double(key) else { return nil }
+        guard value >= 0 else { throw CLIError("--\(key) must be greater than or equal to 0") }
         return value
     }
 

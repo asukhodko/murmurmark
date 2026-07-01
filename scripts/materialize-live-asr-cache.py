@@ -176,22 +176,29 @@ def source_json_path(session: Path, source_record: dict[str, Any]) -> Path | Non
 
 def check_geometry(chunks: list[dict[str, Any]], window_sec: int, overlap_sec: int) -> list[str]:
     reasons: list[str] = []
-    if overlap_sec != 0:
-        reasons.append("live_chunks_have_no_batch_overlap_context")
     if not chunks:
         reasons.append("live_chunks_missing")
         return reasons
     sorted_chunks = sorted(chunks, key=lambda row: int(row.get("index") or 0))
     for index, row in enumerate(sorted_chunks):
+        chunk_index = int(row.get("index") or index + 1)
         start = float(row.get("start_sec") or 0.0)
         duration = float(row.get("duration_sec") or 0.0)
         expected_start = index * window_sec
         if abs(start - expected_start) > 1.0:
-            reasons.append("live_chunk_start_does_not_match_batch_window")
+            reasons.append(f"window_start_mismatch:{chunk_index}")
             break
         is_final = index == len(sorted_chunks) - 1
         if not is_final and abs(duration - window_sec) > 1.0:
-            reasons.append("live_chunk_duration_does_not_match_batch_window")
+            reasons.append(f"window_duration_mismatch:{chunk_index}")
+            break
+        clip_start = float(row.get("clip_start_sec") if row.get("clip_start_sec") is not None else start)
+        clip_end = float(row.get("clip_end_sec") if row.get("clip_end_sec") is not None else start + duration)
+        if overlap_sec > 0 and index > 0 and clip_start > start - overlap_sec + 1.0:
+            reasons.append(f"overlap_before_mismatch:{chunk_index}")
+            break
+        if overlap_sec > 0 and not is_final and clip_end < start + duration + overlap_sec - 1.0:
+            reasons.append(f"overlap_after_mismatch:{chunk_index}")
             break
     return sorted(set(reasons))
 
@@ -211,10 +218,18 @@ def build_combined_json(session: Path, chunks: list[dict[str, Any]], source: str
         if data is None:
             continue
         templates.append(data)
-        delta_ms = int(round(float(chunk.get("start_sec") or 0.0) * 1000))
+        hard_start_sec = float(source_record.get("hard_start_sec") or chunk.get("start_sec") or 0.0)
+        hard_end_sec = float(source_record.get("hard_end_sec") or chunk.get("end_sec") or hard_start_sec)
+        clip_start_sec = float(source_record.get("clip_start_sec") or chunk.get("clip_start_sec") or hard_start_sec)
+        delta_ms = int(round(clip_start_sec * 1000))
         for row in data.get("transcription") or []:
             if isinstance(row, dict):
-                rows.append(shifted_row(row, delta_ms))
+                offsets = row.get("offsets") or {}
+                local_start = int(offsets.get("from") or 0)
+                local_end = int(offsets.get("to") or local_start)
+                center_sec = clip_start_sec + ((local_start + local_end) / 2.0) / 1000.0
+                if hard_start_sec <= center_sec < hard_end_sec:
+                    rows.append(shifted_row(row, delta_ms))
         used.append(rel(json_path, session))
     template = copy.deepcopy(templates[-1]) if templates else {"params": {}, "transcription": []}
     template["transcription"] = sorted(
@@ -253,20 +268,21 @@ def main() -> int:
     elif live_report.get("status") != "completed":
         reasons.append("live_pipeline_not_completed")
     if existing_raw_cache(session) and not args.force:
-        reasons.append("batch_raw_cache_already_exists")
+        reasons.append("raw_cache_already_exists")
     reasons.extend(check_geometry(chunks, args.asr_window_sec, args.asr_overlap_sec))
     expected_prep = {"mic": args.mic_audio_prep, "remote": args.remote_audio_prep}
     for source, prep in expected_prep.items():
         for chunk in chunks:
+            index = int(chunk.get("index") or 0)
             source_record = chunk.get(source)
             if not isinstance(source_record, dict):
-                reasons.append(f"{source}_live_record_missing")
+                reasons.append(f"live_record_missing:{source}:{index}")
                 break
             if source_record.get("audio_prep") != prep:
-                reasons.append(f"{source}_audio_prep_mismatch")
+                reasons.append(f"audio_prep_mismatch:{source}:{index}")
                 break
             if source_json_path(session, source_record) is None:
-                reasons.append(f"{source}_asr_json_missing_or_not_passed")
+                reasons.append(f"asr_json_missing:{source}:{index}")
                 break
     reasons = sorted(set(reasons))
     raw_dir = session / "derived/transcript-simple/whisper-cpp/raw"
