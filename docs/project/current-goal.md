@@ -1,12 +1,125 @@
-# Current Goal: ASR-Positive Echo Candidate Hardening v1
+# Current Goal: Reliable Transcription Route v1
+
+Status, 2026-07-02: completed as v1. Outcome Contract v1, Gate Evaluator, Review Plan,
+Next Command, session-level Run Manifest and outcome-aware guarded export are implemented.
+The first follow-up, Review Burden Reduction v1, is also complete: the operational corpus now has a
+short explicit manual tail and no pending safe suggestions.
+
+Goal:
+
+```text
+Reliable Transcription Route v1: превратить текущий набор record/process/audit/review/export
+слоёв в один надёжный unattended маршрут от полной записи до честного результата. Реализовать
+Outcome Contract v1, Gate Evaluator, Review Plan, Next Command и Resumable Run Manifest. Не менять
+raw CAF, default local_fir и основной whisper.cpp ASR без отдельных corpus gates.
+```
+
+Plainly: the user should not have to supervise MurmurMark while it turns a recording into a
+transcript. A complete recording should lead to a clear result: usable notes, explicit short review,
+or an honest blocker. Long ASR should not look like a hang, export should not be offered when review
+is still required, and every remaining risk should point to an exact next command.
+
+Why this is the right next goal:
+
+- the CLI product is already real enough for pilot use, but not yet boring enough for daily trust;
+- recent sessions show the same pattern: capture and processing complete, but transcript order,
+  remote leak and review burden still decide whether the result can be used unattended;
+- adding more downstream cleanup alone will not converge unless the outcome contract and corpus gates
+  make "good enough" explicit;
+- ASR-positive Echo candidates, Target-Me evidence and stronger audio judge are now useful inputs to
+  a reliability route, not separate ends in themselves.
+
+Definition of done:
+
+- every processed session writes `derived/outcome/outcome.json`, `outcome.md`,
+  `review_plan.json` and `next_command.txt`;
+- `murmurmark status`, `next`, `outcome`, `finish`, `report session` and `report corpus --refresh`
+  expose or refresh the same outcome next action;
+- interrupted processing can be resumed without guessing which stage finished - implemented at
+  session-step/output-checkpoint level; ASR chunk/window resume remains future hardening;
+- corpus reports separate `ready_for_notes`, `review_first`, `blocked`, partial and diagnostic
+  sessions without hidden exceptions;
+- exported bundles are blocked unless the chosen outcome allows export;
+- `local_fir` remains the default Echo Guard path.
+
+Follow-up hardening:
+
+- calibrate the first gates on corpus v0 labels;
+- add ASR chunk/window progress and resume checkpoints;
+- widen ASR-positive Echo candidate validation, still without default promotion;
+- reduce mandatory review burden further at the audio source instead of adding more downstream
+  cleanup.
+
+Primary design document:
+
+- [Reliable Transcription Route](reliable-transcription-route.md)
+
+Consultation prompt:
+
+- [Reliable Transcription Route / Consultation Prompt](reliable-transcription-route.md#consultation-prompt)
+
+## Latest Completed Follow-up: Review Burden Reduction v1
+
+Status, 2026-07-02: complete.
+
+Goal:
+
+```text
+Review Burden Reduction v1: используя уже существующие outcome/review_plan/audio-review/
+stronger-judge/Target-Me evidence, уменьшить обязательную review-очередь на реальных сессиях без
+смены capture, default local_fir и основного whisper.cpp ASR. Сделать review lanes измеримыми,
+безопасно автозакрывать только доказанные строки, калибровать thresholds на корпусе и добиться,
+чтобы больше сессий переходили из review_first в ready_for_notes либо имели короткий, объяснимый
+manual tail.
+```
+
+Completion evidence:
+
+- operational corpus: `24` working sessions;
+- readiness split: `15/24 ready_for_notes`, `9/24 review_first`,
+  `0/24 do_not_use_without_manual_review`;
+- mandatory review queue: `9` actions / `12` rows / `25.31s`;
+- low-materiality rows excluded from mandatory review: `28` rows / `70.95s`;
+- corpus gates: `passed_with_warnings`, failed gates `0`;
+- calibrated hard limits: `15` review actions / `25` queue rows;
+- irreducible review gate: passed with limits `15` actions / `60s`;
+- pending safe suggestions: `0`.
+
+What changed:
+
+- `manual_tail_explanation` groups the remaining queue by reason, row count, lane, label and seconds;
+- stronger-audio-judge can close a narrow timing/double-talk overlap as safe `keep_me` when local
+  evidence is strong and remote/leak evidence is weak;
+- suggested review now leaves ambiguous rows open instead of turning uncertainty into transcript
+  edits;
+- corpus gates now treat review action count as a product metric, not as a loose diagnostic;
+- low-materiality single-word tails and short exact partial duplicates no longer inflate the
+  mandatory review queue.
+
+Verification:
+
+- `py_compile` over the changed Python entry points;
+- `git diff --check`;
+- `scripts/check-corpus-gates.py --no-fail`;
+- `scripts/smoke-fixture.sh`;
+- `swift build`;
+- `scripts/smoke-cli-handoff.sh`.
+
+The goal is complete because all remaining review rows are either weak/conflicting audio evidence,
+ambiguous chronology, possible unique `Me` content inside remote leak, or local-recall evidence that
+is not strong enough for an automatic decision. Those rows are explicit manual tail, not hidden
+automation debt.
+
+## Latest Completed Goal: ASR-Positive Echo Candidate Hardening v1
 
 Status, 2026-07-01: implemented as an explicit shadow/experimental profile. Target-Me Evidence
 Hardening v1 is complete and pushed in `a6e9f48`: the mandatory operational review queue fell from
 `7` actions / `11.19s` to `5` actions / `8.78s`, and corpus gate passes as `passed_with_warnings`.
 
-The next meaningful goal should move closer to the root cause instead of adding more downstream
-cleanup: remote speech is still audible in `mic`, and later layers spend a lot of effort proving
-which `Me` fragments are real.
+Recommended follow-up inside the new reliability route: **ASR-positive Echo promotion readiness**.
+Keep `local_fir` as default, keep `coverage_v2_remote_gate_local_fir` shadow-only, widen validation
+beyond the current six-session candidate corpus, and define the future default-promotion bar with
+rollback and inspection rules.
 
 Goal:
 
@@ -22,18 +135,20 @@ usable as a repeatable, measurable and reviewable profile. The goal is not “pe
 one step”. The goal is a safe promotion path for a candidate that now improves `5/6` evaluated
 sessions without local-recall regression.
 
-Current corpus snapshot after Target-Me hardening:
+Current corpus snapshot after Review Burden Reduction follow-up on 2026-07-02:
 
-- working sessions in scope: `20`;
+- working sessions in scope: `24`;
 - diagnostic sessions excluded from readiness: `26`;
 - operational verdict: `pilot_ready_with_review`;
 - `ready_for_notes`: `15`;
-- `review_first`: `5`;
+- `review_first`: `9`;
 - `do_not_use_without_manual_review`: `0`;
-- notes review burden: `0.81 min`;
-- transcript/export review burden: `3.48 min`;
-- mandatory review queue: `5` actions / `8.78s` raw audio;
-- irreducible review gate: `pilot_ready_with_irreducible_review`;
+- notes review burden: `1.32 min`;
+- transcript/export review burden: `4.09 min`;
+- mandatory review queue: `9` actions / `12` rows;
+- low-materiality rows outside mandatory review: `28` rows / `70.95s`;
+- corpus gate review limits: `15` actions / `25` rows;
+- irreducible review gate: `irreducible_manual_review_queue_present`;
 - pending safe suggestions: `0`.
 
 Why this goal mattered:
@@ -41,6 +156,13 @@ Why this goal mattered:
 - CLI, review, export and corpus gates are already usable enough for pilot work;
 - Target-Me hardening closed only the rows that could be closed safely and left the truly ambiguous
   queue explicit;
+- stronger-audio-judge closed one `check_transcript_order` overlap as `keep_me` only after
+  mic-clean text strongly matched `Me` and remote text stayed isolated on the remote track;
+- `manual_tail_explanation` now explains the remaining queue by reason, row count and seconds;
+- single-word `так` tails without action/decision/risk markers are now counted as low-materiality
+  instead of mandatory review;
+- short exact partial remote duplicates with no unique `Me` content are also kept out of the
+  mandatory queue;
 - `coverage_v2_remote_gate_local_fir` is the first real audio candidate with ASR-positive evidence:
   it has now reached `5/6` safe improved evaluated sessions and `0/6` local-recall regressions;
 - if stronger mic audio becomes safer, less work is pushed into transcript repair, Target-Me review
@@ -113,6 +235,15 @@ Current implementation:
 - `murmurmark review suggested` rebuilds lane packs, refreshes suggestions from cached
   stronger-audio-judge and Target-Me evidence, applies only safe generated answers, and then refreshes
   `reviewed_v1` readiness when anything was closed.
+- `murmurmark process` now gives the stronger-audio-judge stage an `80` item budget by default. The
+  older `12` item cap was too low for long meetings: on `sessions/2026-07-02_16-01-27`, a broader run
+  reduced the manual tail from `78.52s` to `11.19s`, and a later timing-overlap evidence rule reduced
+  it again to `8.92s`; on `sessions/2026-07-02_17-32-08`, it reduced
+  the tail to `5.03s`.
+- `audit-stronger-audio-judge.py` now treats a narrow `probable_timing_overlap` class as safe
+  `keep_me` evidence when group-overlap already shows strong local support and weak remote/leak
+  support. This closes benign timestamp overlaps without deleting text; conflicting double-talk
+  remains manual.
 - Targeted stronger-audio-judge is cached-first in the normal suggested path. It does not start a
   long new faster-whisper decode unless explicitly enabled:
 
@@ -386,9 +517,9 @@ Six-session smoke after ASR-positive audio candidate v2:
 Interpretation: the goal is achieved as a shadow candidate. The candidate is useful evidence and a
 stronger research baseline, but it is not yet a production replacement for `local_fir`.
 
-## Larger Goals After This
+## Historical Larger Goals After This Layer
 
-Recommended next goal:
+These were the next options when ASR-positive audio candidate v2 had just landed:
 
 1. Target-Me Evidence Hardening v1: integrate `resemblyzer_dvector_v0` into review suggestions
    behind corpus gates, without automatic transcript edits.

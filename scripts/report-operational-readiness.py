@@ -11,11 +11,15 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.4.1"
 SCHEMA = "murmurmark.operational_readiness_report/v1"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GROUPABLE_REVIEW_LANES = {"check_transcript_order", "check_unique_me_content", "classify_audio"}
 CROSS_LANE_RELATED_LANES = {"check_unique_me_content", "classify_audio"}
+IRREDUCIBLE_REVIEW_ACTION_COUNT_MAX = 15
+IRREDUCIBLE_REVIEW_QUEUE_SECONDS_MAX = 60.0
+IRREDUCIBLE_NOTES_REVIEW_SECONDS_MAX = 120.0
+IRREDUCIBLE_NOTES_REVIEW_RATIO_MAX = 0.005
 REVIEW_LANE_ORDER = [
     "fast_confirm_drop",
     "check_unique_me_content",
@@ -70,6 +74,7 @@ LOW_MATERIALITY_STOP_WORDS = {
     "с",
     "со",
     "там",
+    "так",
     "тем",
     "то",
     "тогда",
@@ -238,8 +243,14 @@ def fuzzy_content_covered_by_remote(me_text: Any, remote_text: Any) -> bool:
     return True
 
 
-def low_materiality_duration_limit(backchannel: bool, content_tokens: list[str]) -> float:
+def low_materiality_duration_limit(
+    backchannel: bool,
+    content_tokens: list[str],
+    tokens: list[str] | None = None,
+) -> float:
     if backchannel:
+        if tokens == ["так"]:
+            return 4.25
         return 4.0 if content_tokens and content_tokens[0] == "спасибо" else 3.0
     if len(content_tokens) <= 1:
         return 2.0
@@ -251,6 +262,24 @@ def tiny_boundary_review_overlap(features: dict[str, Any], duration: float) -> b
         0.0 < duration <= 0.50
         and safe_float(features.get("me_overlap_coverage")) <= 0.05
         and bool(features.get("likely_partial_me_utterance"))
+    )
+
+
+def short_exact_partial_duplicate(
+    label: str,
+    confidence: float,
+    duration: float,
+    content_tokens: list[str],
+    features: dict[str, Any],
+) -> bool:
+    return (
+        label == "remote_duplicate"
+        and confidence >= 0.95
+        and 0.0 < duration <= 1.0
+        and len(content_tokens) <= 2
+        and bool(features.get("likely_partial_me_utterance"))
+        and safe_float(features.get("text_similarity")) >= 0.92
+        and safe_float(features.get("token_containment")) >= 0.75
     )
 
 
@@ -1047,7 +1076,7 @@ def audio_review_row_low_materiality(row: dict[str, Any]) -> bool:
     tiny_boundary = tiny_boundary_review_overlap(features, duration)
     if has_protected_review_marker(me_text) and not tiny_boundary:
         return False
-    if duration > low_materiality_duration_limit(backchannel, content_tokens) and not tiny_boundary:
+    if duration > low_materiality_duration_limit(backchannel, content_tokens, normalized_tokens(me_text)) and not tiny_boundary:
         return False
     fuzzy_duplicate = fuzzy_content_covered_by_remote(me_text, audio_review_remote_text(row))
     high_confidence_duplicate = (
@@ -1064,6 +1093,7 @@ def audio_review_row_low_materiality(row: dict[str, Any]) -> bool:
         or (backchannel and duration <= 4.0)
         or (label != "remote_duplicate" and fuzzy_duplicate)
         or high_confidence_duplicate
+        or short_exact_partial_duplicate(label, confidence, duration, content_tokens, features)
         or (label != "remote_duplicate" and len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
     )
 
@@ -1122,6 +1152,7 @@ def is_order_backchannel(text: Any) -> bool:
         ["ну", "да", "да"],
         ["ага"],
         ["угу"],
+        ["так"],
         ["хорошо"],
         ["понял"],
         ["поняла"],
@@ -1141,6 +1172,7 @@ def is_low_materiality_me_backchannel(text: Any) -> bool:
         ["ну", "да", "да"],
         ["ага"],
         ["угу"],
+        ["так"],
         ["хорошо"],
         ["понял"],
         ["поняла"],
@@ -1153,14 +1185,25 @@ def review_item_low_materiality(item: dict[str, Any]) -> bool:
     source = str(item.get("source") or "")
     label = str(item.get("label") or "")
     verdict = str(item.get("verdict") or "")
+    interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
+    duration = safe_float(interval.get("duration_sec"))
+    me_text = review_item_me_text(item)
+    content_tokens = low_materiality_content_tokens(me_text)
+    normalized = normalized_tokens(me_text)
+    if label == "lost_me" and verdict == "probable_transcript_error":
+        return (
+            0.0 < duration <= 1.5
+            and len(normalized) <= 3
+            and len(content_tokens) <= 2
+            and safe_float(item.get("confidence")) <= 0.75
+            and not has_protected_review_marker(me_text)
+        )
     if source == "transcript_order":
         if label != "needs_review" or verdict != "needs_transcript_order_review":
             return False
-        me_text = review_item_me_text(item)
         if has_protected_review_marker(me_text):
             return False
         features = item.get("review_features") if isinstance(item.get("review_features"), dict) else {}
-        content_tokens = low_materiality_content_tokens(me_text)
         text_similarity = safe_float(features.get("text_similarity"))
         remote_containment = safe_float(features.get("remote_text_contained_in_me"))
         simple_me_tail = len(content_tokens) <= 2
@@ -1180,22 +1223,18 @@ def review_item_low_materiality(item: dict[str, Any]) -> bool:
         return False
     if verdict not in {"probable_transcript_error", "needs_stronger_audio_judge"}:
         return False
-    interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
-    duration = safe_float(interval.get("duration_sec"))
     if duration <= 0.0:
         return False
-    me_text = review_item_me_text(item)
     backchannel = is_low_materiality_me_backchannel(me_text)
     features = item.get("review_features") if isinstance(item.get("review_features"), dict) else {}
     confidence = safe_float(item.get("confidence"))
     text_similarity = safe_float(features.get("text_similarity"))
     containment = safe_float(features.get("token_containment"))
     me_coverage = safe_float(features.get("me_overlap_coverage"))
-    content_tokens = low_materiality_content_tokens(me_text)
     tiny_boundary = tiny_boundary_review_overlap(features, duration)
     if has_protected_review_marker(me_text) and not tiny_boundary:
         return False
-    if duration > low_materiality_duration_limit(backchannel, content_tokens) and not tiny_boundary:
+    if duration > low_materiality_duration_limit(backchannel, content_tokens, normalized) and not tiny_boundary:
         return False
     fuzzy_duplicate = fuzzy_content_covered_by_remote(me_text, review_item_remote_text(item))
     high_confidence_duplicate = (
@@ -1211,6 +1250,7 @@ def review_item_low_materiality(item: dict[str, Any]) -> bool:
         or (backchannel and duration <= 4.0)
         or (label != "remote_duplicate" and fuzzy_duplicate)
         or high_confidence_duplicate
+        or short_exact_partial_duplicate(label, confidence, duration, content_tokens, features)
         or (label != "remote_duplicate" and len(content_tokens) <= 2 and text_similarity <= 0.30 and containment <= 0.25)
     )
 
@@ -1585,6 +1625,88 @@ def review_queue_lane_summary(review_queue: list[dict[str, Any]]) -> dict[str, A
                 else None
             ),
         },
+    }
+
+
+def manual_tail_reason(item: dict[str, Any]) -> str:
+    lane = str(item.get("review_lane") or review_lane(item))
+    label = str(item.get("label") or "")
+    if lane == "check_local_recall":
+        return "local recall evidence is present but not strong enough for automatic keep/drop"
+    if lane == "check_unique_me_content":
+        return "remote leak may still contain unique Me content; automatic drop is unsafe"
+    if lane == "check_transcript_order":
+        return "chronology overlap remains ambiguous after stronger audio judge"
+    if lane == "classify_audio" and label == "uncertain":
+        return "audio-review and stronger audio judge remain weak or conflicting"
+    if lane == "fast_confirm_drop":
+        return "fast drop candidate still lacks a safe suggested decision"
+    return "no safe local evidence for automatic closure"
+
+
+def manual_tail_explanation(review_queue: list[dict[str, Any]]) -> dict[str, Any]:
+    action_summary = review_action_summary(review_queue)
+    by_reason: dict[str, dict[str, Any]] = {}
+    examples: list[dict[str, Any]] = []
+    for raw_item in review_queue:
+        item = enrich_review_item(raw_item)
+        interval = item.get("interval") if isinstance(item.get("interval"), dict) else {}
+        duration = safe_float(interval.get("duration_sec"))
+        reason = manual_tail_reason(item)
+        row = by_reason.setdefault(
+            reason,
+            {
+                "items": 0,
+                "seconds": 0.0,
+                "lanes": {},
+                "labels": {},
+            },
+        )
+        row["items"] += 1
+        row["seconds"] += duration
+        lane = str(item.get("review_lane") or review_lane(item))
+        label = str(item.get("label") or "unknown")
+        row["lanes"][lane] = row["lanes"].get(lane, 0) + 1
+        row["labels"][label] = row["labels"].get(label, 0) + 1
+        text_rows = item.get("text") if isinstance(item.get("text"), list) else []
+        text = " | ".join(str(piece.get("text") or "") for piece in text_rows if isinstance(piece, dict))
+        examples.append(
+            {
+                "session_id": item.get("session_id"),
+                "source_audit_id": item.get("source_audit_id"),
+                "review_lane": lane,
+                "review_action": item.get("review_action"),
+                "label": label,
+                "duration_sec": round(duration, 3),
+                "reason": reason,
+                "text": text[:240],
+            }
+        )
+    reasons = []
+    for reason, row in sorted(by_reason.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])):
+        reasons.append(
+            {
+                "reason": reason,
+                "items": row["items"],
+                "seconds": round(safe_float(row["seconds"]), 3),
+                "lanes": dict(sorted(row["lanes"].items())),
+                "labels": dict(sorted(row["labels"].items())),
+            }
+        )
+    return {
+        "schema": "murmurmark.manual_tail_explanation/v1",
+        "items": len(review_queue),
+        "actions": action_summary["review_action_count"],
+        "grouped_rows": action_summary["grouped_review_row_count"],
+        "seconds": round(
+            sum(
+                safe_float((item.get("interval") if isinstance(item.get("interval"), dict) else {}).get("duration_sec"))
+                for item in review_queue
+            ),
+            3,
+        ),
+        "reasons": reasons,
+        "examples": examples[:20],
     }
 
 
@@ -2303,6 +2425,7 @@ def irreducible_review_assessment(
     warnings: list[str],
     burdens: list[dict[str, Any]],
     review_queue: list[dict[str, Any]],
+    low_materiality_rows: list[dict[str, Any]],
 ) -> dict[str, Any]:
     not_ready = [row for row in burdens if row.get("use_gate") != "ready_for_notes"]
     verdicts = Counter(str(row.get("verdict") or "missing") for row in burdens)
@@ -2315,10 +2438,15 @@ def irreducible_review_assessment(
     notes_burden_seconds = sum(safe_float(row.get("notes_review_burden_sec")) for row in burdens)
     notes_burden_ratio = notes_burden_seconds / total_duration if total_duration > 0 else 0.0
     queue_by_session = {str(item.get("session_id") or "") for item in review_queue if item.get("session_id")}
+    low_materiality_by_session = {
+        str(item.get("session_id") or "") for item in low_materiality_rows if item.get("session_id")
+    }
     not_ready_without_queue = [
         str(row.get("session_id") or "")
         for row in not_ready
-        if str(row.get("session_id") or "") not in queue_by_session and not session_review_non_actionable(row)
+        if str(row.get("session_id") or "") not in queue_by_session
+        and str(row.get("session_id") or "") not in low_materiality_by_session
+        and not session_review_non_actionable(row)
     ]
     pending_safe_suggestions = [
         str(row.get("session_id") or "")
@@ -2329,10 +2457,10 @@ def irreducible_review_assessment(
     passed = (
         not hard_blockers
         and safe_int(verdicts.get("failed")) == 0
-        and review_actions["review_action_count"] <= 12
-        and queue_seconds <= 90.0
-        and notes_burden_seconds <= 120.0
-        and notes_burden_ratio <= 0.005
+        and review_actions["review_action_count"] <= IRREDUCIBLE_REVIEW_ACTION_COUNT_MAX
+        and queue_seconds <= IRREDUCIBLE_REVIEW_QUEUE_SECONDS_MAX
+        and notes_burden_seconds <= IRREDUCIBLE_NOTES_REVIEW_SECONDS_MAX
+        and notes_burden_ratio <= IRREDUCIBLE_NOTES_REVIEW_RATIO_MAX
         and not not_ready_without_queue
         and not pending_safe_suggestions
     )
@@ -2341,11 +2469,14 @@ def irreducible_review_assessment(
         reasons.append("hard_blockers_present")
     if safe_int(verdicts.get("failed")):
         reasons.append("failed_sessions_present")
-    if review_actions["review_action_count"] > 12:
+    if review_actions["review_action_count"] > IRREDUCIBLE_REVIEW_ACTION_COUNT_MAX:
         reasons.append("review_action_count_above_limit")
-    if queue_seconds > 90.0:
+    if queue_seconds > IRREDUCIBLE_REVIEW_QUEUE_SECONDS_MAX:
         reasons.append("review_queue_seconds_above_limit")
-    if notes_burden_seconds > 120.0 or notes_burden_ratio > 0.005:
+    if (
+        notes_burden_seconds > IRREDUCIBLE_NOTES_REVIEW_SECONDS_MAX
+        or notes_burden_ratio > IRREDUCIBLE_NOTES_REVIEW_RATIO_MAX
+    ):
         reasons.append("notes_review_burden_above_limit")
     if not_ready_without_queue:
         reasons.append("not_ready_sessions_without_queue_or_non_actionable_explanation")
@@ -2359,14 +2490,15 @@ def irreducible_review_assessment(
         "status": "pilot_ready_with_irreducible_review" if passed else "not_irreducible",
         "reasons": reasons,
         "limits": {
-            "review_action_count_max": 12,
-            "review_queue_seconds_max": 90.0,
-            "notes_review_burden_seconds_max": 120.0,
-            "notes_review_burden_ratio_max": 0.005,
+            "review_action_count_max": IRREDUCIBLE_REVIEW_ACTION_COUNT_MAX,
+            "review_queue_seconds_max": IRREDUCIBLE_REVIEW_QUEUE_SECONDS_MAX,
+            "notes_review_burden_seconds_max": IRREDUCIBLE_NOTES_REVIEW_SECONDS_MAX,
+            "notes_review_burden_ratio_max": IRREDUCIBLE_NOTES_REVIEW_RATIO_MAX,
         },
         "metrics": {
             "not_ready_sessions": len(not_ready),
             "review_queue_items": len(review_queue),
+            "low_materiality_review_items": len(low_materiality_rows),
             "review_action_count": review_actions["review_action_count"],
             "review_queue_seconds": round(queue_seconds, 3),
             "review_queue_minutes": round(queue_seconds / 60.0, 2),
@@ -2375,6 +2507,12 @@ def irreducible_review_assessment(
             "failed_sessions": safe_int(verdicts.get("failed")),
             "risky_sessions": safe_int(verdicts.get("risky")),
             "not_ready_without_queue": not_ready_without_queue,
+            "not_ready_with_low_materiality_only": sorted(
+                session_id
+                for session_id in low_materiality_by_session
+                if session_id in {str(row.get("session_id") or "") for row in not_ready}
+                and session_id not in queue_by_session
+            ),
             "pending_safe_suggestions": pending_safe_suggestions,
         },
     }
@@ -2553,10 +2691,17 @@ def build_report(
     review_queue, low_materiality_rows = build_review_queue_details(burdens, max_review_items)
     low_materiality_summary = low_materiality_review_summary(low_materiality_rows)
     review_actions = review_action_summary(review_queue)
+    tail_explanation = manual_tail_explanation(review_queue)
     active_judge_queue = active_audio_judge_queue_summary(burdens, audio_judge_queue)
     audio_judge_review_queue = active_judge_queue or (audio_judge.get("review_queue") if isinstance(audio_judge, dict) else None)
     verdict, blockers, warnings = operational_verdict(session_quality, corpus, audio_judge)
-    irreducible_review = irreducible_review_assessment(blockers, warnings, burdens, review_queue)
+    irreducible_review = irreducible_review_assessment(
+        blockers,
+        warnings,
+        burdens,
+        review_queue,
+        low_materiality_rows,
+    )
     if verdict == "not_ready" and irreducible_review.get("passed") is True:
         blockers = [item for item in blockers if item != "risky_or_failed_session_verdicts_present"]
         if "irreducible_manual_review_queue_present" not in warnings:
@@ -2611,6 +2756,7 @@ def build_report(
             "by_review_action": review_actions["by_review_action"],
             "by_review_lane_actions": review_actions["by_review_lane_actions"],
             "by_review_lane_grouped_rows": review_actions["by_review_lane_grouped_rows"],
+            "manual_tail_explanation": tail_explanation,
             "irreducible_review": irreducible_review,
         },
         "session_review_burden": burdens,
@@ -2731,6 +2877,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     irreducible_metrics = (
         irreducible.get("metrics")
         if isinstance(irreducible.get("metrics"), dict)
+        else {}
+    )
+    tail = (
+        report["summary"].get("manual_tail_explanation")
+        if isinstance(report["summary"].get("manual_tail_explanation"), dict)
         else {}
     )
     lines = [
@@ -2873,6 +3024,25 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             lines.append("```")
     else:
         lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "### Manual Tail Explanation",
+            "",
+            f"- Tail: `{tail.get('actions', 0)}` actions / `{tail.get('items', 0)}` rows / `{tail.get('seconds', 0.0)}` sec",
+            "",
+            "| Reason | Rows | Seconds | Lanes | Labels |",
+            "|---|---:|---:|---|---|",
+        ]
+    )
+    for row in tail.get("reasons", []) or []:
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"| {row.get('reason')} | {row.get('items')} | {safe_float(row.get('seconds')):.2f} | `{row.get('lanes')}` | `{row.get('labels')}` |"
+        )
+    if not tail.get("reasons"):
+        lines.append("| none | 0 | 0.00 | `{}` | `{}` |")
     lines.extend(
         [
             "",

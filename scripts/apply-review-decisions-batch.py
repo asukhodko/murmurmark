@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.1"
+SCRIPT_VERSION = "0.3.2"
 SCHEMA = "murmurmark.review_decisions_batch_report/v1"
 
 
@@ -208,6 +208,30 @@ def post_apply_readiness(session: Path) -> dict[str, Any]:
     }
 
 
+def partial_review_success(args: argparse.Namespace, apply_result: dict[str, Any], review_report: dict[str, Any] | None) -> bool:
+    if not args.allow_partial_review or not isinstance(review_report, dict):
+        return False
+    if apply_result.get("returncode") not in {0, 2}:
+        return False
+    gates = review_report.get("gates") if isinstance(review_report.get("gates"), dict) else {}
+    hard_failures = set(str(value) for value in gates.get("hard_failures") or [])
+    if hard_failures != {"incomplete_review_scope"}:
+        return False
+    summary = review_report.get("summary") if isinstance(review_report.get("summary"), dict) else {}
+    coverage = review_report.get("coverage") if isinstance(review_report.get("coverage"), dict) else {}
+    if coverage.get("complete") is True:
+        return False
+    if coverage.get("allow_partial_review") is not True:
+        return False
+    try:
+        applied_rows = int(summary.get("applied_decision_rows") or 0)
+        rejected_rows = int(summary.get("rejected_decision_rows") or 0)
+        conflicts = int(summary.get("conflict_count") or 0)
+    except (TypeError, ValueError):
+        return False
+    return applied_rows > 0 and rejected_rows == 0 and conflicts == 0
+
+
 def report_next_commands(report_path: Path, results: list[dict[str, Any]], failed: list[dict[str, Any]], failed_refresh: list[dict[str, Any]]) -> list[dict[str, str]]:
     if failed or failed_refresh:
         return [
@@ -356,9 +380,10 @@ def main() -> int:
         review_report = read_json(review_report_path)
         gates = review_report.get("gates") if isinstance(review_report, dict) else {}
         coverage = review_report.get("coverage") if isinstance(review_report, dict) else {}
+        partial_success = partial_review_success(args, apply_result, review_report)
 
         synthesize_result: dict[str, Any] | None = None
-        if (args.synthesize or args.refresh_reports) and apply_result["returncode"] == 0:
+        if (args.synthesize or args.refresh_reports) and (apply_result["returncode"] == 0 or partial_success):
             synthesize_result = run_command(
                 [
                     sys.executable,
@@ -375,6 +400,7 @@ def main() -> int:
                 "session_id": session.name,
                 "apply": {
                     "returncode": apply_result["returncode"],
+                    "partial_review_success": partial_success,
                     "gates_passed": gates.get("passed") if isinstance(gates, dict) else None,
                     "coverage_complete": coverage.get("complete") if isinstance(coverage, dict) else None,
                     "coverage_allowed": coverage.get("allowed") if isinstance(coverage, dict) else None,
@@ -399,8 +425,10 @@ def main() -> int:
     failed = [
         row
         for row in results
-        if row["apply"]["returncode"] != 0
-        or row["apply"]["gates_passed"] is not True
+        if (
+            (row["apply"]["returncode"] != 0 or row["apply"]["gates_passed"] is not True)
+            and row["apply"].get("partial_review_success") is not True
+        )
         or (row.get("synthesize") and row["synthesize"]["returncode"] != 0)
     ]
     failed_refresh = [row for row in refresh_results if row.get("returncode") != 0]

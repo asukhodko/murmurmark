@@ -9,7 +9,7 @@ This roadmap is mirrored as an opskarta v3 plan:
 
 ## Product Direction
 
-MurmurMark should become a dependable local CLI pipeline for sensitive meetings:
+MurmurMark should become a dependable local CLI transcription pipeline for sensitive meetings:
 
 1. record local `mic` and `remote` tracks;
 2. process them locally;
@@ -27,6 +27,40 @@ near-realtime drafts are no worse than batch outputs.
 
 The optional UI/app path is deliberately late. It should not block the useful CLI product.
 
+## Current Strategic Focus
+
+The next major focus is [Reliable Transcription Route](../project/reliable-transcription-route.md):
+make the existing CLI route from a complete recording to a truthful result work without the user
+watching every stage.
+
+The target outcome is:
+
+```text
+record meeting -> process unattended -> ready_for_notes | review_first | blocked
+```
+
+This is broader than Echo Guard and narrower than "perfect meeting intelligence". It means:
+
+- `process` is resumable and progress-aware;
+- `status`, `next`, `finish`, session report and corpus report agree;
+- safe review suggestions are applied before asking for manual listening;
+- remaining review is short, explicit and backed by audio/transcript evidence;
+- export stays blocked while transcript/export blockers remain;
+- stronger Echo Guard candidates stay shadow-only until corpus gates prove lower remote leakage
+  without local-recall regression.
+
+External consultation converged on the same implementation order:
+
+1. build `Outcome Contract v1` and a deterministic gate evaluator;
+2. write `outcome.json`, `outcome.md`, `review_plan.json` and `next_command.txt` for every processed
+   or failed session;
+3. add a resumable run manifest for long ASR stages;
+4. calibrate gates on a small real corpus with review labels;
+5. only then promote audio candidates or heavier validators.
+
+The explicit non-goal for this phase is changing the default ASR, default `local_fir`, UI, cloud
+services or broad repair heuristics before the outcome contract can measure the effect.
+
 ## Current State
 
 The CLI MVP is already real:
@@ -43,26 +77,38 @@ The CLI MVP is already real:
 - `murmurmark retention` plans payloads and raw deletion;
 - `murmurmark doctor`, `self-test`, `acceptance`, release bundle and open-source checks exist.
 
-Operational corpus snapshot from 2026-07-01:
+Operational corpus snapshot from 2026-07-02:
 
 - `review suggested apply` is cumulative: already reviewed rows are preserved even when the
   regenerated template changes;
 - `review progress`, workspace `suggested_closure`, `status` and session-quality agree on the same
   remaining queue;
-- safe suggested decisions and Target-Me evidence reduced the blocking queue to `5` actions;
+- safe suggested decisions and Target-Me evidence reduced the blocking queue; no safe suggestions are
+  currently pending;
 - `murmurmark report corpus` now reports `pilot_ready_with_review`;
-- irreducible review gate: `pilot_ready_with_irreducible_review`;
-- operational scope: `20` working sessions, `26` diagnostic sessions excluded;
-- readiness: `15/20 ready_for_notes`, `5/20 review_first`, `0/20 do_not_use_without_manual_review`;
-- mandatory review queue: `5` actions / `8.78s` raw audio;
-- notes review burden: `0.81 min`;
-- transcript/export review burden: `3.48 min`;
+- irreducible review gate: `irreducible_manual_review_queue_present`;
+- operational scope: `24` working sessions, `26` diagnostic sessions excluded;
+- readiness: `15/24 ready_for_notes`, `9/24 review_first`, `0/24 do_not_use_without_manual_review`;
+- mandatory review queue: `9` actions / `12` rows;
+- low-materiality rows outside mandatory review: `28` rows / `70.95s`;
+- corpus gate review limits: `15` actions / `25` rows;
+- notes review burden: `1.32 min`;
+- transcript/export review burden: `4.09 min`;
 - pending safe suggestions: `0`.
+
+The latest narrowing treats single-word `так` tails without action/decision/risk markers as
+low-materiality, not mandatory review. Content-bearing uncertain rows remain manual.
+Short exact partial duplicates with no unique `Me` content are also outside the mandatory queue.
+One `check_transcript_order` overlap is now closed by stronger-audio-judge evidence as a safe
+`keep_me`; conflicting order/audio rows remain manual.
 
 This is enough to use the corpus as a pilot-ready local tool with explicit review. It is not yet
 `medium_risk_ready`: the remaining local-recall/lost-Me/uncertain rows still require a human check
 before broader use. One risky session is now handled as formal residual risk because the remaining
-scope is short, explicit and bounded by allowed risk flags. Guarded full transcript export can still
+scope is short, explicit and bounded by allowed risk flags. The stronger local audio judge now has a
+keep-only timing-overlap rule: when group-overlap evidence already proves strong local support and
+weak remote/leak support, the row can be closed as `keep_me`. Conflicting double-talk remains manual.
+Guarded full transcript export can still
 be blocked by transcript-only review surface; `finish` should keep that blocker visible instead of
 silently exporting.
 
@@ -91,15 +137,17 @@ local-recall regressions. Target-Me extraction has now tested `mfcc_voiceprint_v
 instrumentation. `resemblyzer_dvector_v0` is the first promising speaker-embedding layer, and the
 first hardening pass connected it to review-plan rows and closed two safe `keep_me` cases. The next
 quality gap is earlier in the pipeline: harden the ASR-positive shadow audio candidate so less remote
-speech reaches ASR as `Me` in the first place.
+speech reaches ASR as `Me` in the first place. This now feeds the larger reliability route: better
+audio matters when it lowers unattended review burden and passes corpus gates.
 
 ## Roadmap Tree
 
 ```mermaid
 flowchart LR
-    mission["mission<br/>local meeting memory"]
+    mission["mission<br/>local meeting transcription"]
     foundation["foundation-done<br/>capture / Echo Guard / ASR / repair"]
     cli["cli-orchestration<br/>single user-facing CLI"]
+    reliable["reliable-transcription-route<br/>unattended truthful outcome"]
     live["near-realtime-shadow<br/>segment pipeline during recording"]
     corpus["corpus-regression<br/>quality gates"]
     review["review-loop<br/>short explicit review queue"]
@@ -115,6 +163,7 @@ flowchart LR
 
     mission --> foundation
     foundation --> cli
+    cli --> reliable
     cli --> live
     foundation --> corpus
     cli --> review
@@ -123,6 +172,11 @@ flowchart LR
     corpus --> review
     review --> hardening
     corpus --> hardening
+    review --> reliable
+    hardening --> reliable
+    corpus --> reliable
+    reliable --> live
+    reliable --> echo_lab
     hardening --> echo_lab
     corpus --> echo_lab
     hardening --> notes
@@ -156,14 +210,20 @@ flowchart LR
 
 ### Current
 
+- Make the reliable transcription route first-class:
+  - one complete recording should lead to `ready_for_notes`, `review_first` or `blocked`;
+  - `status`, `next`, `finish`, session reports and corpus reports must agree;
+  - long ASR stages must be resumable and visible enough not to look like a hang;
+  - export must stay guarded by explicit blockers.
 - Keep the operational corpus at `pilot_ready_with_review` or better, with the short irreducible
   review queue visible in `murmurmark report corpus`.
-- Keep readiness/status/next honest when the actionable review queue is empty but residual risk
-  remains documented.
 - Close safe review rows with local audio evidence before asking the user to listen manually.
   The 2026-06-30 daily sync showed the important pattern: the session was marked `risky`, but
   stronger audio judge confirmed most `check_transcript_order` rows as timing/double-talk, leaving
   only a few real manual checks.
+- Use the broader stronger-audio-judge budget as the normal pipeline default. The old `12` item cap
+  was a false economy: on the 2026-07-02 long strategy sync, a full `80` item pass turned most
+  order-risk rows into safe `keep_me` suggestions and cut the manual tail to seconds.
 - Continue **Echo Guard Complete Removal** after Remote-Forbidden Evidence Coverage v2:
   - keep `local_fir` as the production default;
   - use the shadow `offline_aec_v2_v0` lab as a repeatable diagnostic baseline;
@@ -206,6 +266,13 @@ flowchart LR
 
 ### Next
 
+- Reliable Transcription Route v1:
+  - `derived/outcome/outcome.json`, `outcome.md`, `review_plan.json`, `next_command.txt`;
+  - deterministic gate evaluator over harmful remote-in-Me, order risk, local recall, review burden
+    and notes evidence integrity;
+  - `derived/run/pipeline_run.json` with progress, checkpoints and resume command;
+  - suggested review closure as the first automatic step after processing;
+  - corpus v0 labels for calibration and promotion thresholds.
 - Near-realtime shadow pipeline follow-up:
   - segment writer during capture exists with hard/clip overlap windows, but still needs better queue
     recovery;
@@ -348,7 +415,9 @@ broaden the corpus and define the future default-promotion bar without changing 
 7. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
    reviewed docs/ticket proposal exports.
 8. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
-   changes to beat or preserve it.
+   changes to beat or preserve it. Operational review is bounded by both packed human actions and
+   raw rows: default limits are `15` actions and `25` rows, while the current corpus is at `9`
+   actions and `12` rows.
 9. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
    to utterance IDs and review flags.
 10. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated

@@ -18,7 +18,7 @@ from typing import Any
 
 SCHEMA_ROW = "murmurmark.faster_whisper_judge/v1"
 SCHEMA_SUMMARY = "murmurmark.faster_whisper_judge_summary/v1"
-SCRIPT_VERSION = "0.1.1"
+SCRIPT_VERSION = "0.1.3"
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/faster-whisper/large-v3"
 DEFAULT_MAX_ITEMS = 80
 DEFAULT_SOURCES = ("mic_role_masked", "mic_clean", "mic_raw", "remote")
@@ -876,6 +876,39 @@ def source_metrics(transcripts: dict[str, dict[str, Any]], me_text: str, remote_
     return metrics
 
 
+def group_overlap_contexts(item: dict[str, Any]) -> list[dict[str, Any]]:
+    contexts = item.get("source_contexts")
+    if not isinstance(contexts, list):
+        return []
+    return [
+        context
+        for context in contexts
+        if isinstance(context, dict) and context.get("type") == "group_overlap_audit"
+    ]
+
+
+def group_timing_overlap_support(item: dict[str, Any]) -> dict[str, Any] | None:
+    for context in group_overlap_contexts(item):
+        classification = context.get("classification") if isinstance(context.get("classification"), dict) else {}
+        scores = context.get("scores") if isinstance(context.get("scores"), dict) else {}
+        label = str(classification.get("label") or "")
+        confidence = safe_float(classification.get("confidence"), 0.0)
+        local_evidence = safe_float(scores.get("local_evidence"), 0.0)
+        remote_evidence = safe_float(scores.get("remote_evidence"), 0.0)
+        audio_leak = safe_float(scores.get("audio_leak"), 0.0)
+        text_duplicate = safe_float(scores.get("text_duplicate"), 0.0)
+        if (
+            label == "probable_timing_overlap"
+            and confidence >= 0.74
+            and local_evidence >= 70
+            and remote_evidence <= 10
+            and audio_leak <= 10
+            and text_duplicate <= 20
+        ):
+            return context
+    return None
+
+
 def best_score(metrics: dict[str, Any], sources: tuple[str, ...], target: str) -> tuple[float, str]:
     best = (0.0, "")
     for source in sources:
@@ -946,6 +979,7 @@ def classify_item(
     short_me_contained, short_me_source = short_me_tokens_contained(transcripts, clean_sources or mic_sources, me_tokens)
     noise_fragment_me = looks_like_noise_fragment(me_text)
     no_mic_me = best_me_any < 0.24 and mic_content_tokens <= 2
+    group_timing_context = group_timing_overlap_support(item)
     mic_rejects_noise_fragment = (
         noise_fragment_me
         and best_me_any < 0.18
@@ -1015,7 +1049,17 @@ def classify_item(
         and best_remote_in_mic >= 0.35
     )
 
-    if me_confirmed and remote_confirmed and best_remote_in_mic < 0.68:
+    if group_timing_context and best_remote_in_mic < 0.58 and remote_duplicate is False:
+        label = "confirm_timing_or_doubletalk"
+        suggested = "keep_me"
+        confidence = max(
+            0.78,
+            min(0.90, safe_float((group_timing_context.get("classification") or {}).get("confidence"), 0.0) + 0.06),
+        )
+        reasons.append("group-overlap confirms local-only timing overlap")
+        if best_me_any_source:
+            reasons.append(f"mic evidence comes from {best_me_any_source}")
+    elif me_confirmed and remote_confirmed and best_remote_in_mic < 0.68:
         label = "confirm_timing_or_doubletalk" if remote_text else "confirm_me"
         suggested = "keep_me"
         confidence = min(0.92, max(0.78, best_me_any + 0.25))
@@ -1232,6 +1276,15 @@ def valid_existing_rows_by_pack_id(
     return rows
 
 
+def existing_rows_by_pack_id(out_dir: Path) -> dict[str, dict[str, Any]]:
+    rows: dict[str, dict[str, Any]] = {}
+    for row in read_jsonl(out_dir / "faster_whisper_judge.jsonl"):
+        pack_id = str(row.get("source_pack_item_id") or "")
+        if pack_id:
+            rows[pack_id] = row
+    return rows
+
+
 def write_report(path: Path, summary: dict[str, Any], rows: list[dict[str, Any]]) -> None:
     lines = [
         "# Faster Whisper Judge",
@@ -1376,11 +1429,16 @@ def main() -> int:
         row = new_by_pack_id.get(item_id) or cached_by_pack_id.get(item_id)
         if row:
             selected_rows.append(row)
-    merged_by_pack_id = valid_existing_rows_by_pack_id(out_dir, items, sources)
+    targeted_run = bool(requested_target_ids or args.review_lane_pack or args.pack_item_id)
+    merged_by_pack_id = existing_rows_by_pack_id(out_dir) if targeted_run else {}
+    merged_by_pack_id.update(valid_existing_rows_by_pack_id(out_dir, items, sources))
     for row in selected_rows:
         if row.get("source_pack_item_id"):
             merged_by_pack_id[str(row["source_pack_item_id"])] = row
-    rows = [merged_by_pack_id[str(item.get("id") or "")] for item in items if str(item.get("id") or "") in merged_by_pack_id]
+    item_ids = [str(item.get("id") or "") for item in items if item.get("id")]
+    item_id_set = set(item_ids)
+    ordered_ids = item_ids + sorted(pack_id for pack_id in merged_by_pack_id if pack_id not in item_id_set)
+    rows = [merged_by_pack_id[pack_id] for pack_id in ordered_ids if pack_id in merged_by_pack_id]
     summary = summarize(rows, model_path=model_path, pack_summary=pack_summary)
     summary["cached_items"] = cached_count
     summary["computed_items"] = len(missing_items)

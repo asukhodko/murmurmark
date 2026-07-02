@@ -44,10 +44,17 @@ nodes:
       Review-loop stabilization завершён: `review_decisions.jsonl`, `review progress`, `status`,
       `report` и `suggested_closure` показывают одну и ту же оставшуюся очередь, а
       `review suggested apply` стал cumulative/key-based. После досчёта Target-Me/stronger evidence
-      текущий операционный корпус на 2026-07-01 перешёл из `not_ready` в
-      `pilot_ready_with_review`: `20` рабочих сессий, `15/20 ready_for_notes`, `5/20 review_first`,
-      `0/20 do_not_use_without_manual_review`, `5` обязательных review actions / `8.78s`,
-      irreducible review gate `pilot_ready_with_irreducible_review`.
+      текущий операционный корпус на 2026-07-02 удерживается в
+      `pilot_ready_with_review`: `24` рабочих сессии, `15/24 ready_for_notes`, `9/24 review_first`,
+      `0/24 do_not_use_without_manual_review`, `9` обязательных review actions,
+      `28` low-materiality rows / `70.95s` вне обязательной очереди, irreducible review gate
+      `irreducible_manual_review_queue_present`, notes review burden `1.32 min`, transcript/export
+      review surface `4.09 min`. Stronger audio judge теперь закрывает узкий keep-only класс
+      `probable_timing_overlap`, когда group-overlap evidence уже показывает сильную локальную
+      опору и слабую remote/leak опору; спорный double-talk остаётся ручным. Однословный `так`
+      без action/decision/risk markers и короткие exact partial duplicates без уникального `Me`
+      содержания учитываются как low-materiality, а не mandatory review. Один
+      `check_transcript_order` overlap уже закрыт через stronger-audio-judge как safe `keep_me`.
       Это не отменяет более глубокую причину review burden: remote speech всё ещё просачивается в
       mic и потом требует transcript repair, cleanup и ручной проверки. Echo Guard v0/vNext уже
       дал repeatable shadow baseline и первый ASR-positive safety result. Remote-Forbidden Evidence
@@ -57,8 +64,12 @@ nodes:
       который проходит ASR audio-candidate gate на `4/6` smoke sessions без local-recall
       регрессий. Target-Me extraction spike уже дал promising d-vector evidence; первый hardening
       pass подключил readiness review-plan rows к audio-review pack и закрыл две безопасные
-      `keep_me` строки. Ближайший долг — удерживать operational corpus green while-review и не
-      давать новым эвристикам раздувать irreducible manual queue.
+      `keep_me` строки. ASR-Positive Echo Candidate Hardening v1 сделал этот audio candidate явным
+      experimental profile: 5/6 safe improved, 1/6 not applicable, 0 local-recall regressions,
+      no default promotion. Ближайший крупный шаг теперь шире отдельного echo-кандидата:
+      Reliable Transcription Route v1. Нужно сделать так, чтобы полная запись без присмотра
+      приводила к честному результату `ready_for_notes`, `review_first` или `blocked`, а
+      ASR-positive Echo promotion readiness стала одним из доказательных подпотоков этого маршрута.
 
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
@@ -67,6 +78,8 @@ nodes:
         audit records и проверяемые артефакты.
       - Raw CAF, baseline, текущий `local_fir` и основной ASR остаются воспроизводимыми и
         неразрушаемыми; новые echo engines сначала работают только в shadow.
+      - Outcome-first: pipeline считается полезным только когда status/next/finish/report
+        согласованно объясняют, можно ли использовать transcript и что делать дальше.
       - Batch remains authoritative until proven otherwise: near-realtime processing тоже сначала
         shadow-only и не должен ослаблять raw capture, batch processing, review gates или retention.
       - Synthesis/export не пишут во внешние системы без review.
@@ -284,6 +297,145 @@ nodes:
     effort: 2
     notes: "Финальная CLI-обёртка: refresh readiness, guarded export, retention plan, provider payload manifest и один read-only next для пользователя."
 
+  reliable-transcription-route:
+    title: "Reliable Transcription Route"
+    kind: phase
+    parent: murmurmark-cli
+    deps: [cli-orchestration, corpus-regression, review-loop, quality-hardening]
+    status: current
+    effort: 24
+    notes: |
+      Ближайшая крупная цель: превратить текущий набор record/process/audit/review/export слоёв
+      в один надёжный маршрут от полной записи до честного результата. Пользователь не должен
+      контролировать внутренние стадии: `process` может быть долгим, но обязан быть наблюдаемым,
+      возобновляемым и честным. Итог каждого supported session: `ready_for_notes`, `review_first`
+      или `blocked`, с выбранным профилем, verdict, review burden, next command, export gate и
+      retention state. Echo Guard promotion readiness, Target-Me evidence, stronger audio judge,
+      order repair и live shadow pipeline становятся подпотоками этого маршрута, а не отдельными
+      самоцелями. После консультаций фокус v1 конкретизирован: Outcome Contract v1, Gate Evaluator,
+      Review Plan, Next Command, Resumable Run Manifest и corpus v0 labels.
+
+  reliable-outcome-contract:
+    title: "Outcome Contract v1"
+    kind: task
+    parent: reliable-transcription-route
+    deps: [readiness-single-output, corpus-review-export-blockers]
+    status: done
+    effort: 5
+    notes: |
+      Базовый v1 реализован: `process` пишет `derived/outcome/outcome.json`, `outcome.md`,
+      `review_plan.json`, `next_command.txt`, а `murmurmark outcome` выводит контракт.
+      `next` читает outcome как первичный источник команды; `finish`, `export`, `report session`
+      и `report corpus --refresh` пересобирают или соблюдают outcome. Обычный export блокируется,
+      если outcome не `ready_for_notes` или `export_status` не `allowed`. Outcome:
+      ready_for_notes, review_first, blocked, partial или pipeline_failed. Дальше нужно
+      калибровать thresholds на corpus labels и удерживать export строго поверх тех же blockers.
+
+  reliable-gate-evaluator:
+    title: "Gate Evaluator"
+    kind: task
+    parent: reliable-transcription-route
+    deps: [reliable-outcome-contract, corpus-review-export-blockers]
+    status: done
+    effort: 5
+    notes: |
+      Детерминированная функция `metrics + artifacts + policy -> outcome`. V1 реализован в
+      `scripts/evaluate-outcome.py`. Первые gate layers:
+      hard, risk, review burden, notes, export/retention. Основные метрики: harmful_remote_in_me_sec,
+      order risk, local recall, review burden и notes evidence integrity. Unknown metric degrades
+      outcome; it never improves it. Следующий шаг - калибровать thresholds на corpus v0 labels.
+
+  reliable-progress-resume:
+    title: "Resumable Run Manifest"
+    kind: task
+    parent: reliable-transcription-route
+    deps: [cli-process-command]
+    status: done
+    effort: 5
+    notes: |
+      Долгие ASR/current/shadow/optional judge stages не должны выглядеть как зависание.
+      Базовый `derived/run/pipeline_run.json` уже пишет step ids, status, timestamps, durations,
+      outcome, next command, session-level resume command, expected output checkpoints, missing
+      output count и stuck-state summary. Дальше нужны config hashes и ASR window/chunk checkpoints,
+      а не только whole-session resume.
+
+  reliable-suggested-review-first:
+    title: "Suggested review before manual review"
+    kind: task
+    parent: reliable-transcription-route
+    deps: [review-suggested-closure-v2, review-loop-stabilization-v1]
+    status: current
+    effort: 4
+    notes: |
+      После process первым автоматическим шагом закрывать только доказанные rows:
+      stronger-audio-judge/Target-Me/audio-review/order evidence, cumulative key-based apply,
+      source_audit_ids для каждого решения. Оставшийся ручной хвост должен быть точным и коротким.
+
+  reliable-burden-telemetry:
+    title: "Review burden telemetry"
+    kind: task
+    parent: reliable-transcription-route
+    deps: [reliable-gate-evaluator, reliable-suggested-review-first]
+    status: next
+    effort: 3
+    notes: |
+      Review burden должен считаться по lanes, а не только по количеству items:
+      critical, order, me_role_risk, notes_impacting, overlap_review, local_recall, low_priority.
+      Outcome показывает минуты, blocking lanes, hidden low-priority rows и первую команду для
+      закрытия обязательного хвоста.
+
+  reliable-corpus-v0-labels:
+    title: "Corpus v0 labels"
+    kind: task
+    parent: reliable-transcription-route
+    deps: [corpus-regression, review-loop]
+    status: next
+    effort: 5
+    notes: |
+      Собрать 12-20 реальных сессий как операционный актив: 1x1, group, noisy/open-space,
+      short-ack-heavy и sessions with known remote leak/order risks. Review decisions становятся
+      labels store: attribution_correct, text_usable, order_correct, local_speech_deleted_or_missing,
+      remote_duplicate_or_leak, review_decision, source_audit_ids. Без этого promotion thresholds
+      остаются интуицией.
+
+  reliable-echo-promotion-readiness:
+    title: "ASR-positive Echo promotion readiness"
+    kind: task
+    parent: reliable-transcription-route
+    deps: [quality-asr-positive-echo-candidate-hardening-v1, corpus-regression]
+    status: current
+    effort: 6
+    notes: |
+      Не менять default `local_fir`. Расширить validation `coverage_v2_remote_gate_local_fir`
+      beyond six-session candidate corpus, определить promotion/rollback/inspection gates и
+      связать результат с review burden, remote-token leakage, local recall, order risk и export
+      readiness. Candidate остаётся shadow-only до отдельного corpus gate.
+
+  reliable-order-boundary-hardening:
+    title: "Order and boundary hardening"
+    kind: task
+    parent: reliable-transcription-route
+    deps: [quality-order-regressions, quality-boundary-repair]
+    status: next
+    effort: 5
+    notes: |
+      Надёжная транскрибация невозможна, если длинные Me-блоки silently crossing remote turns.
+      Следующий слой: source-backed splits, opening/boundary repair corpus cases и явный blocker,
+      если порядок нельзя доказать.
+
+  reliable-final-handoff:
+    title: "Single final handoff"
+    kind: task
+    parent: reliable-transcription-route
+    deps: [cli-finish-command, reliable-outcome-contract]
+    status: done
+    effort: 4
+    notes: |
+      Один итоговый пользовательский артефакт: можно ли читать notes, можно ли export, сколько
+      осталось review, какие команды выполнить дальше, что с retention. Должен быть одинаковым
+      для новых сессий, возобновлённых обработок и corpus reports. V1 закрыт: normal export,
+      finish, next and session queue now obey `outcome.json`; deeper report polish remains later.
+
   near-realtime-pipeline:
     title: "Near-Realtime Pipeline Shadow"
     kind: phase
@@ -408,7 +560,7 @@ nodes:
     parent: corpus-regression
     status: done
     effort: 5
-    notes: "murmurmark corpus gate проверяет coverage, transcript-инварианты, corpus readiness, audio judge, review burden, local-recall blockers в выбранном operational-срезе и warning-очередь remote-leak segment repair."
+    notes: "murmurmark corpus gate проверяет coverage, transcript-инварианты, corpus readiness, audio judge, review burden, local-recall blockers в выбранном operational-срезе и warning-очередь remote-leak segment repair. Operational review ограничен и строками (`25`), и упакованными действиями (`15`) при текущем уровне `12` rows / `9` actions."
 
   corpus-audio-judge-refresh:
     title: "Audio judge evaluation"
@@ -424,7 +576,7 @@ nodes:
     parent: corpus-regression
     status: done
     effort: 5
-    notes: "check-corpus-gates.py поддерживает --write-baseline и --baseline; baseline ловит регрессии по готовым сессиям, use_gate, review burden, local recall, local-recall blockers/lost seconds, protected remote-leak queue, corpus size и audio judge. Hard transcript/local-recall gates используют выбранный operational-срез, а полный historical corpus остаётся warning-аудитом."
+    notes: "check-corpus-gates.py поддерживает --write-baseline и --baseline; baseline ловит регрессии по готовым сессиям, use_gate, review burden, operational review actions, local recall, local-recall blockers/lost seconds, protected remote-leak queue, corpus size и audio judge. Hard transcript/local-recall gates используют выбранный operational-срез, а полный historical corpus остаётся warning-аудитом."
 
   corpus-review-export-blockers:
     title: "Review/export blockers"
@@ -561,10 +713,12 @@ nodes:
       Текущая цель. Довести operational corpus до честного зелёного состояния для medium-risk
       рабочих встреч: все рабочие сессии либо ready_for_notes, либо имеют короткую,
       доказанную и не закрываемую безопасной автоматикой manual review очередь. Текущий проход:
-      `murmurmark report corpus` пишет `pilot_ready_with_review`, `0` do-not-use sessions,
-      irreducible review gate `pilot_ready_with_irreducible_review`, `5` actions / `8.78s`
-      обязательной очереди, `0` pending safe suggestions. Узкие risky-сессии с разрешёнными
-      флагами и короткой очередью представлены как formal residual risk, а не как скрытая готовность.
+      `murmurmark next corpus --refresh` пишет `pilot_ready_with_review`, `0` do-not-use sessions,
+      irreducible review gate `irreducible_manual_review_queue_present`, `9` actions
+      обязательной очереди, `28` low-materiality rows / `70.95s` вне mandatory queue,
+      `0` pending safe suggestions, notes review burden `1.32 min`, transcript/export surface
+      `4.09 min`. Узкие risky-сессии с разрешёнными флагами и короткой очередью
+      представлены как formal residual risk, а не как скрытая готовность.
       Full transcript export остаётся отдельным guarded gate: `finish` должен блокировать bundle,
       когда остаются transcript-only blockers.
 
@@ -786,11 +940,11 @@ nodes:
       `local_fir` remains default; raw CAF, baseline outputs and `mic_for_asr.wav` do not change.
 
   quality-asr-positive-echo-promotion-readiness:
-    title: "ASR-positive Echo promotion readiness"
+    title: "ASR-positive Echo promotion technical gates"
     kind: task
     parent: quality-hardening
     deps: [quality-asr-positive-echo-candidate-hardening-v1, corpus-regression]
-    status: next
+    status: current
     effort: 8
     notes: |
       Broaden the experimental candidate beyond the current six-session corpus and define the future
@@ -1184,6 +1338,10 @@ views:
         title: "CLI"
         expand_descendants: leaves
         nodes: [cli-orchestration]
+      reliable:
+        title: "Надёжный маршрут"
+        expand_descendants: leaves
+        nodes: [reliable-transcription-route]
       realtime:
         title: "Near-realtime"
         expand_descendants: leaves
@@ -1221,6 +1379,7 @@ views:
         nodes:
           - foundation-done
           - cli-orchestration
+          - reliable-transcription-route
           - near-realtime-pipeline
           - corpus-regression
           - review-loop
@@ -1236,8 +1395,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Operational Corpus Green v2: удерживать `murmurmark report corpus` в `pilot_ready_with_review` или лучше, с 0 do-not-use sessions, короткой irreducible manual queue и без скрытых safe suggestions."
-      success_by_next_sync: "Corpus report показывает `pilot_ready_with_review`, `0` pending safe suggestions, явный irreducible review gate и актуальные README/current-goal/roadmap."
+      nearest_goal: "Reliable Transcription Route v1: довести уже реализованный Outcome Contract v1 до полного handoff: откалибровать gates на corpus v0 labels, выровнять finish/export/corpus report и усилить run manifest до честного resume/stuck-state без смены default local_fir."
+      success_by_next_sync: "Каждая processed/failed session пишет derived/outcome/*; status/next/outcome/report читают тот же next action; finish/export/corpus report используют контракт; review burden показан по lanes; corpus v0 labels started; run manifest объясняет resume/cache/stuck-state."
     defaults:
       status_progress:
         done: 1.0
@@ -1259,20 +1418,20 @@ x:
           next_sync_goal: "Не ломать baseline и использовать готовую основу как regression corpus."
       next-cli:
         title: "Единый CLI"
-        scope_nodes: [cli-orchestration, near-realtime-pipeline]
+        scope_nodes: [cli-orchestration, reliable-transcription-route, near-realtime-pipeline]
         kind: main
         mgmt:
           health: green
-          sync_note: "CLI MVP закрыт; readiness reconciliation, Recording Reliability и Export Bundle Quality v1 завершены. Следующая CLI-ветка — near-realtime shadow: segment processing during recording без замены batch source of truth."
-          next_sync_goal: "Сначала спроектировать и проверить live shadow queue: segment writer, Echo/ASR workers, draft transcript, final reconcile и corpus parity gates."
+          sync_note: "CLI MVP закрыт; readiness reconciliation, Recording Reliability и Export Bundle Quality v1 завершены. Главный следующий слой — Reliable Transcription Route: unattended process должен вести к честному outcome и точному next command."
+          next_sync_goal: "Собрать Outcome Contract v1, Gate Evaluator, Review Plan, Next Command и Resumable Run Manifest так, чтобы пользователь не контролировал внутренние стадии pipeline."
       quality-loop:
         title: "Контур качества"
-        scope_nodes: [corpus-regression, review-loop, quality-hardening]
+        scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]
         kind: main
         mgmt:
           health: green
-          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до рабочей основы. Target-Me Evidence Hardening v1 закрыл две безопасные keep_me строки. ASR-Positive Echo Candidate Hardening v1 сделал coverage_v2_remote_gate_local_fir явным experimental profile: 5/6 safe improved, 1/6 not applicable, 0 local-recall regressions, corpus gate enforces shadow_only_do_not_promote."
-          next_sync_goal: "ASR-positive Echo promotion readiness: расширить корпус и определить будущий default-promotion bar без изменения текущего local_fir default."
+          sync_note: "corpus CLI, review loop, audio judge, baseline thresholds и audit_cleanup_v7 довели корпус до рабочей основы. ASR-Positive Echo Candidate Hardening v1 сделал coverage_v2_remote_gate_local_fir явным experimental profile: 5/6 safe improved, 1/6 not applicable, 0 local-recall regressions. Теперь это один из подпотоков Reliable Transcription Route."
+          next_sync_goal: "Снижать обязательный review burden только через доказанные rows и corpus gates; echo candidate promotion readiness держать shadow-only до отдельного passing report."
       future-capabilities:
         title: "Будущие возможности"
         scope_nodes: [evidence-notes, export-workflows, future-heavy-local, future-llm-synthesis]

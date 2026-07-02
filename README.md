@@ -1,55 +1,71 @@
 # MurmurMark
 
-Local-first meeting memory for sensitive work.
+Local-first meeting transcription for sensitive work.
 
 MurmurMark records a meeting into separate local `mic` and `remote` tracks, processes the session
-locally, and produces a reviewable transcript, quality verdict, evidence-backed notes, export bundle
-and retention plan.
+locally, and produces a transcript, quality verdict, evidence-backed notes, export bundle and
+retention plan.
 
 The project is CLI-first. A future app can be useful, but the main product is a reliable command-line
 pipeline with explicit evidence, review gates and local privacy controls.
 
 ## Mission
 
-MurmurMark exists to turn sensitive working conversations into durable, local, evidence-backed
-memory without sending raw meeting audio to a cloud recorder.
+MurmurMark exists to turn sensitive working conversations into reliable local transcripts and
+evidence-backed meeting memory without sending raw meeting audio to a cloud recorder.
 
 It is meant for people who need to recover what was said, what was decided and what should happen
-next, while keeping uncertainty visible. The system should never pretend that a risky transcript is
-clean: unclear regions remain review items, and generated notes must point back to utterance or audit
-evidence.
+next, without supervising every processing stage. The system should never pretend that a risky
+transcript is clean: unclear regions remain review items, and generated notes must point back to
+utterance or audit evidence.
 
 ## Current Status
 
 The CLI pipeline is usable for pilot notes on regular working meetings with a short explicit review
-queue. It is not yet `medium_risk_ready`: guarded full-transcript export can still require review.
+queue. It is not yet a fully unattended transcription appliance: guarded full-transcript export can
+still require review, especially for order risks and remote leakage in `mic`.
 
-Current corpus snapshot from `murmurmark report corpus` on 2026-07-01:
+Current corpus snapshot from `murmurmark next corpus --refresh` on 2026-07-02 after the broader
+stronger-audio-judge pass:
 
 - operational status: `pilot_ready_with_review`;
-- working sessions in scope: `20`;
+- working sessions in scope: `24`;
 - diagnostic sessions excluded from readiness: `26`;
-- session readiness: `15/20 ready_for_notes`, `5/20 review_first`, `0/20 do_not_use_without_manual_review`;
-- selected notes review burden: `0.81 min`;
-- full transcript/export review surface: `3.48 min`;
-- mandatory review queue: `5` actions / `8.78s` raw audio;
-- irreducible review gate: `pilot_ready_with_irreducible_review`;
+- session readiness: `15/24 ready_for_notes`, `9/24 review_first`, `0/24 do_not_use_without_manual_review`;
+- selected notes review burden: `1.32 min`;
+- full transcript/export review surface: `4.09 min`;
+- mandatory review queue: `9` actions / `12` rows;
+- low-materiality rows outside mandatory review: `28` rows / `70.95s`;
+- corpus gate review limits: `15` actions / `25` rows;
+- irreducible review gate: `irreducible_manual_review_queue_present`;
 - safe suggested rows still pending: `0`.
 
 This does not mean “zero review”. It means the current operational corpus has no hidden blocker:
 safe local evidence has been applied where available, and the remaining queue is short, explicit and
-not safely closable by the current local agents. The one risky session is represented as formal
-residual risk, not as unattended export readiness. `finish` and `export` still block full transcript
+not safely closable by the current local agents. The stronger local audio judge can now close a
+narrow `probable_timing_overlap` class as `keep_me` only when group-overlap evidence shows strong
+local support and weak remote/leak support; real double-talk and conflicting clips stay in review.
+One `check_transcript_order` overlap is already closed this way through the normal suggested-review
+apply path.
+Single-word `так` tails without action/decision/risk markers are counted as low-materiality rather
+than mandatory review.
+Short exact partial duplicates with no unique `Me` content are also kept out of the mandatory queue.
+The one risky session is represented as formal residual risk, not as unattended export readiness.
+`finish` and `export` still block full transcript
 bundles when transcript-only blockers remain.
+The operational report includes `manual_tail_explanation`, which groups the remaining queue by
+reason: weak/conflicting audio, ambiguous chronology, possible unique `Me` content inside remote
+leak, and local-recall evidence that is still too weak for an automatic call.
 
-Latest quality milestone:
-[ASR-Positive Echo Candidate Hardening v1](docs/project/current-goal.md). `coverage_v2_remote_gate_local_fir`
-is now an explicit experimental Echo Guard profile with one-session and corpus reports. Current
-six-session corpus: `5/6` safe improved, `1/6` not applicable, `0/6` local-recall regressions. It
-remains `shadow_only_do_not_promote`: `local_fir` is still the default ASR input. Latest product
-milestone: Export Bundle Quality v1; `finish` writes a readable local handoff bundle whose `index.md`
-answers whether the result can be used, what still needs review and what retention/privacy step comes
-next.
+Current reliability focus:
+[Reliable Transcription Route](docs/project/reliable-transcription-route.md). The next product step
+is to make the route from a complete recording to a truthful outcome boring and unattended:
+`ready_for_notes`, `review_first` or `blocked`, with one selected profile, one quality verdict, exact
+review burden, exact next command and guarded export/retention status. The latest audio milestone,
+ASR-Positive Echo Candidate Hardening v1, remains important but shadow-only:
+`coverage_v2_remote_gate_local_fir` improved `5/6` candidate-corpus sessions without local-recall
+regression, yet `local_fir` is still the default ASR input until promotion gates are defined and
+passed on a broader corpus.
 
 ## What Works Now
 
@@ -72,6 +88,46 @@ next.
 - Local release bundle, self-test, acceptance gate and open-source readiness check.
 - Recording reliability: duration/SIGINT complete normally, SIGTERM/SIGHUP/unrecovered capture stops
   become explicit partial sessions, and `doctor` catches missing shareable displays before recording.
+
+## Reliability Direction
+
+The user-facing target is:
+
+```text
+record meeting -> process unattended -> get transcript, notes, verdict and exact next action
+```
+
+The result must be one of:
+
+- `ready_for_notes`: notes are usable for ordinary follow-up;
+- `review_first`: the transcript is useful, but a short explicit queue must be checked before
+  medium-risk use or full export;
+- `blocked`: the session is partial, missing required artifacts, or too risky to use without manual
+  review.
+
+This route is tracked in [Reliable Transcription Route](docs/project/reliable-transcription-route.md)
+and in the CLI roadmap. The main work is to reduce review at the root, keep long processing
+resumable and observable, and make every blocker explicit instead of asking the user to inspect
+derived files by hand.
+
+`Outcome Contract v1` is now the first handoff layer after readiness:
+
+```text
+derived/outcome/outcome.json
+derived/outcome/outcome.md
+derived/outcome/review_plan.json
+derived/outcome/next_command.txt
+derived/run/pipeline_run.json
+```
+
+`murmurmark process` writes these files at the end of the run, and `murmurmark report` /
+`murmurmark outcome --refresh` can regenerate them without rerunning ASR. They are the compact
+answer to: "Can I use this session now, what blocks export, and what exact command should I run
+next?"
+
+`murmurmark next` now uses `outcome.json` as the primary source when it exists. The run manifest
+records step status, expected output checkpoints, missing output count, stuck-state summary and the
+session-level resume command.
 
 ## What Is Still Out Of Scope
 
@@ -156,6 +212,7 @@ Then run:
 murmurmark process latest
 murmurmark next latest
 murmurmark status latest
+murmurmark outcome latest
 
 murmurmark notes latest --kind verdict
 murmurmark notes latest
@@ -220,6 +277,7 @@ SESSION=./sessions/<session-id>
 murmurmark process "$SESSION"
 murmurmark next "$SESSION"
 murmurmark status "$SESSION"
+murmurmark outcome "$SESSION"
 
 murmurmark notes "$SESSION" --kind verdict
 murmurmark notes "$SESSION"
@@ -290,6 +348,10 @@ manual lane. Run `murmurmark report corpus` after that when you want the corpus 
 review loop writes decisions into separate reviewed profiles. It should not rewrite raw audio or hide
 unresolved risk.
 
+After a `review suggested` preview exists, `murmurmark outcome`, `murmurmark next` and `status` prefer
+`murmurmark review suggested apply ...` whenever safe rows can be closed. Manual lane listening comes
+after that, and should cover only the remaining tail.
+
 By default `review suggested` does not start a long new faster-whisper decode. It uses existing
 `faster_whisper_judge.jsonl` rows and current lane packs. To deliberately compute a small targeted
 batch during suggested review:
@@ -321,8 +383,9 @@ murmurmark finish "$SESSION" --format obsidian
 
 If the session is not exportable yet, `finish` writes the blocked export report and ends with the next
 review or processing command. For lower-level debugging you can still run export and retention
-directly. Export is local and blocks when readiness reports export blockers, unless `--force` is used
-deliberately.
+directly. Export is local and refreshes the outcome contract before it runs; it blocks unless
+`outcome.json` says `ready_for_notes` with `export_status: allowed`. Use `--force` only for deliberate
+debugging.
 
 ```bash
 murmurmark export latest --format markdown --include-json
@@ -354,6 +417,11 @@ murmurmark next corpus --refresh
 murmurmark report corpus
 ```
 
+`corpus gate` now treats the review queue as a hard product signal: by default it allows at most
+`15` packed mandatory review actions and `25` queue rows across the operational corpus. The current
+corpus is below that line (`9` actions / `12` rows), so future cleanup must preserve the shorter
+queue instead of hiding regressions behind a broad threshold.
+
 Useful targeted checks:
 
 ```bash
@@ -365,7 +433,9 @@ murmurmark audit stronger-audio-judge latest --max-items 80
 ```
 
 The stronger audio judge is a local second opinion over short review clips. It does not replace the
-main `whisper.cpp` transcript.
+main `whisper.cpp` transcript. The normal post-recording pipeline uses a broader `80` item budget by
+default because the earlier `12` item cap left many `check_transcript_order` rows manually queued
+even when local evidence could safely mark them as timing/double-talk.
 
 ## Command Reference
 

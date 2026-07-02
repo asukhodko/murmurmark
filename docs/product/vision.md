@@ -1,27 +1,37 @@
 # Product Vision
 
-MurmurMark turns sensitive meetings into local, reviewable work artifacts without relying on the meeting platform's cloud recording.
+MurmurMark turns sensitive meetings into reliable local transcripts and reviewable work artifacts
+without relying on the meeting platform's cloud recording.
 
 ## Mission
 
-MurmurMark exists to turn important work calls into local, reviewable and useful artifacts:
-transcript, notes, decisions, actions and risks. It should preserve privacy, source evidence and
-user control instead of asking the user to trust a cloud recorder, a meeting bot or unsupported
-generated summaries.
+MurmurMark exists to turn important work calls into local, reliable and useful artifacts:
+transcript, notes, decisions, actions and risks. It should preserve privacy, source evidence and user
+control instead of asking the user to trust a cloud recorder, a meeting bot or unsupported generated
+summaries.
+
+The practical mission is stricter than "produce some text". For a complete recording, MurmurMark
+should process unattended and return a truthful outcome: ready for notes, review first, or blocked
+with an explicit reason. A risky transcript must stay visibly risky.
 
 Short version:
 
 ```text
-Local-first meeting memory for sensitive work.
+Local-first meeting transcription for sensitive work.
 ```
 
-The product is for situations where a user needs memory and follow-up from a call, but cannot safely create a shared cloud recording: 1 on 1 meetings, retrospectives, incident reviews, architecture reviews, planning sessions, and internal discussions with sensitive context.
+The product is for situations where a user needs memory and follow-up from a call, but cannot safely
+create a shared cloud recording: 1 on 1 meetings, retrospectives, incident reviews, architecture
+reviews, planning sessions, and internal discussions with sensitive context.
 
 ## Product Promise
 
-MurmurMark records only what is needed, keeps it local by default, produces evidence-backed notes, and deletes raw audio under an explicit policy.
+MurmurMark records only what is needed, keeps it local by default, produces a transcript with a
+quality verdict, creates evidence-backed notes, and deletes raw audio under an explicit policy.
 
-The product should feel boring in the best way: clear permissions, visible health, local files, no surprise network activity, no hidden recording routes, no magical claims about speaker identity.
+The product should feel boring in the best way: clear permissions, visible health, resumable
+processing, local files, no surprise network activity, no hidden recording routes, no magical claims
+about speaker identity.
 
 ## Primary User
 
@@ -60,11 +70,13 @@ Use `MurmurMark` for the product and UI. Use `murmurmark` for repository, CLI, p
 Short description:
 
 ```text
-Local-first macOS meeting recorder and domain-aware notes pipeline.
+Local-first macOS meeting transcription and notes pipeline.
 ```
 
 Long description:
 
 ```text
-MurmurMark records your microphone and the selected meeting application's audio into separate local tracks, builds a speaker-aware transcript, and turns it into evidence-backed meeting notes under an explicit privacy and retention policy.
+MurmurMark records your microphone and the selected meeting application's audio into separate local
+tracks, builds a speaker-aware transcript with a quality verdict, and turns it into evidence-backed
+meeting notes under an explicit privacy and retention policy.
 ```

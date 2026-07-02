@@ -48,6 +48,21 @@ DEFAULT_RULES: dict[str, Any] = {
     },
 }
 
+
+def review_report_is_partial_scope_only(review_report: dict[str, Any]) -> bool:
+    gates = review_report.get("gates") if isinstance(review_report.get("gates"), dict) else {}
+    summary = review_report.get("summary") if isinstance(review_report.get("summary"), dict) else {}
+    coverage = review_report.get("coverage") if isinstance(review_report.get("coverage"), dict) else {}
+    hard_failures = set(gates.get("hard_failures") or [])
+    if hard_failures != {"incomplete_review_scope"}:
+        return False
+    if coverage.get("complete") is True:
+        return False
+    applied = int(summary.get("applied_decision_rows") or 0)
+    conflicts = int(summary.get("conflict_count") or 0)
+    rejected = int(summary.get("rejected_decision_rows") or 0)
+    return applied > 0 and conflicts == 0 and rejected == 0
+
 STOP_WORDS = {
     "а",
     "бы",
@@ -858,7 +873,14 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         review_report, review_error = read_json(paths["review_decisions_report"])
         if review_error is not None:
             risk_items.append({"type": "missing_review_decisions_report", "severity": "high", "reason": review_error})
-        elif not isinstance(review_report, dict) or not isinstance(review_report.get("gates"), dict) or review_report["gates"].get("passed") is not True:
+        elif (
+            not isinstance(review_report, dict)
+            or not isinstance(review_report.get("gates"), dict)
+            or (
+                review_report["gates"].get("passed") is not True
+                and not review_report_is_partial_scope_only(review_report)
+            )
+        ):
             risk_items.append(
                 {
                     "type": "review_decisions_gates_failed",
@@ -876,7 +898,14 @@ def choose_profile(resolved_dir: Path, requested_profile: str) -> tuple[str, dic
         review_report, review_error = read_json(paths["review_decisions_report"])
         if review_error is not None:
             risk_items.append({"type": "missing_agent_review_decisions_report", "severity": "high", "reason": review_error})
-        elif not isinstance(review_report, dict) or not isinstance(review_report.get("gates"), dict) or review_report["gates"].get("passed") is not True:
+        elif (
+            not isinstance(review_report, dict)
+            or not isinstance(review_report.get("gates"), dict)
+            or (
+                review_report["gates"].get("passed") is not True
+                and not review_report_is_partial_scope_only(review_report)
+            )
+        ):
             risk_items.append(
                 {
                     "type": "agent_review_decisions_gates_failed",

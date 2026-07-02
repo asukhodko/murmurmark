@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.5.0"
+SCRIPT_VERSION = "0.6.0"
 SCHEMA_REPORT = "murmurmark.corpus_gates_report/v1"
 SCHEMA_BASELINE = "murmurmark.corpus_gates_baseline/v1"
 
@@ -74,7 +74,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-local-recall", type=float, default=0.80)
     parser.add_argument("--max-total-review-burden-ratio", type=float, default=0.03)
     parser.add_argument("--max-session-review-burden-ratio", type=float, default=0.05)
-    parser.add_argument("--max-operational-review-queue-items", type=int, default=80)
+    parser.add_argument("--max-operational-review-queue-items", type=int, default=25)
+    parser.add_argument("--max-operational-review-actions", type=int, default=15)
     parser.add_argument("--max-audio-judge-remaining-review-items", type=int, default=80)
     parser.add_argument("--baseline", type=Path, help="Compare current corpus metrics with a saved baseline.")
     parser.add_argument("--write-baseline", type=Path, help="Write a baseline snapshot from the current inputs.")
@@ -89,6 +90,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-local-recall-drop", type=float, default=0.05)
     parser.add_argument("--max-audio-judge-review-queue-increase", type=int, default=10)
     parser.add_argument("--max-operational-review-queue-increase", type=int, default=10)
+    parser.add_argument("--max-operational-review-action-increase", type=int, default=5)
     parser.add_argument("--max-local-recall-complete-blocking-increase", type=int, default=0)
     parser.add_argument("--max-local-recall-possible-lost-sec-increase", type=float, default=0.0)
     parser.add_argument("--max-remote-leak-protected-items-increase", type=int, default=0)
@@ -214,6 +216,7 @@ def build_baseline_snapshot(
     audio_remaining: int,
     operational_verdict: str,
     operational_queue: int,
+    operational_actions: int,
     local_recall_missing_audit_count: int,
     local_recall_complete_blocking: int,
     local_recall_possible_lost_me_seconds: float,
@@ -291,6 +294,7 @@ def build_baseline_snapshot(
             "audio_judge_remaining_review_items": audio_remaining,
             "operational_verdict": operational_verdict or None,
             "operational_review_queue_items": operational_queue,
+            "operational_review_actions": operational_actions,
             "local_recall_missing_audit_count": local_recall_missing_audit_count,
             "local_recall_complete_blocking_sessions": local_recall_complete_blocking,
             "local_recall_possible_lost_me_seconds": round(local_recall_possible_lost_me_seconds, 3),
@@ -431,6 +435,15 @@ def compare_baseline(
         observed=current_operational_queue,
         threshold=f"<= baseline {baseline_operational_queue} + {args.max_operational_review_queue_increase}",
         message="operational review queue does not grow beyond the allowed budget",
+    )
+    current_operational_actions, baseline_operational_actions = int_metric("operational_review_actions")
+    check(
+        checks,
+        "baseline.operational_review_actions_not_higher",
+        current_operational_actions <= baseline_operational_actions + args.max_operational_review_action_increase,
+        observed=current_operational_actions,
+        threshold=f"<= baseline {baseline_operational_actions} + {args.max_operational_review_action_increase}",
+        message="operational review action count does not grow beyond the allowed budget",
     )
     current_local_blocking, baseline_local_blocking = int_metric("local_recall_complete_blocking_sessions")
     check(
@@ -580,6 +593,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "max_total_review_burden_ratio": args.max_total_review_burden_ratio,
         "max_session_review_burden_ratio": args.max_session_review_burden_ratio,
         "max_operational_review_queue_items": args.max_operational_review_queue_items,
+        "max_operational_review_actions": args.max_operational_review_actions,
         "max_audio_judge_remaining_review_items": args.max_audio_judge_remaining_review_items,
         "max_complete_sessions_drop": args.max_complete_sessions_drop,
         "max_ready_for_notes_drop": args.max_ready_for_notes_drop,
@@ -592,6 +606,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "max_local_recall_drop": args.max_local_recall_drop,
         "max_audio_judge_review_queue_increase": args.max_audio_judge_review_queue_increase,
         "max_operational_review_queue_increase": args.max_operational_review_queue_increase,
+        "max_operational_review_action_increase": args.max_operational_review_action_increase,
         "max_local_recall_complete_blocking_increase": args.max_local_recall_complete_blocking_increase,
         "max_local_recall_possible_lost_sec_increase": args.max_local_recall_possible_lost_sec_increase,
         "max_remote_leak_protected_items_increase": args.max_remote_leak_protected_items_increase,
@@ -894,6 +909,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     operational_summary = operational_summary if isinstance(operational_summary, dict) else {}
     operational_verdict = str(operational.get("operational_verdict") if isinstance(operational, dict) else "")
     operational_queue = safe_int(operational_summary.get("review_queue_items"))
+    operational_actions = safe_int(operational_summary.get("review_action_count"), operational_queue)
     operational_blockers = operational.get("blockers") if isinstance(operational, dict) and isinstance(operational.get("blockers"), list) else []
     operational_warnings = operational.get("warnings") if isinstance(operational, dict) and isinstance(operational.get("warnings"), list) else []
     order_summary = transcript_order.get("summary") if isinstance(transcript_order, dict) else {}
@@ -1123,8 +1139,16 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     )
     check(
         checks,
+        "operational.review_actions",
+        operational_actions <= args.max_operational_review_actions,
+        observed=operational_actions,
+        threshold=f"<= {args.max_operational_review_actions}",
+        message="operational review action count stays bounded",
+    )
+    check(
+        checks,
         "operational.verdict",
-        operational_verdict in {"medium_risk_ready", "review_limited_ready", "not_ready"},
+        operational_verdict in {"medium_risk_ready", "pilot_ready_with_review", "review_limited_ready", "not_ready"},
         severity="warn",
         observed=operational_verdict,
         threshold="known verdict",
@@ -1156,6 +1180,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         audio_remaining=audio_remaining,
         operational_verdict=operational_verdict,
         operational_queue=operational_queue,
+        operational_actions=operational_actions,
         local_recall_missing_audit_count=local_recall_missing_audit_count,
         local_recall_complete_blocking=local_recall_complete_blocking,
         local_recall_possible_lost_me_seconds=local_recall_possible_lost_me_seconds,
@@ -1220,6 +1245,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "audio_judge_remaining_review_items": audio_remaining,
             "operational_verdict": operational_verdict or None,
             "operational_review_queue_items": operational_queue,
+            "operational_review_actions": operational_actions,
             "operational_blockers": operational_blockers,
             "operational_warnings": operational_warnings,
             "transcript_order_audited_sessions": order_audited_sessions,

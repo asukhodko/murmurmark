@@ -576,9 +576,24 @@ jq -e '
 next_output="$("$bin" next "$session")"
 assert_no_helper_prefix "$next_output"
 echo "$next_output" | grep -q '^next:$'
-echo "$next_output" | grep -q '^  status: incomplete$'
+echo "$next_output" | grep -q '^  status: partial$'
 echo "$next_output" | grep -q '^  command: murmurmark process '
 echo "$next_output" | grep -q '^  open_first: less '
+if blocked_export_output="$("$bin" export "$session" --out-dir "$workdir/blocked-export" 2>&1)"; then
+  echo "export unexpectedly succeeded for partial outcome" >&2
+  exit 1
+fi
+assert_no_helper_prefix "$blocked_export_output"
+echo "$blocked_export_output" | grep -q '^export_blocked:$'
+echo "$blocked_export_output" | grep -q 'outcome:partial'
+blocked_manifest="$workdir/blocked-export/session.export_blocked.json"
+[[ -s "$blocked_manifest" ]]
+jq -e '
+  (.blockers | index("outcome:partial"))
+  and (.blockers | index("outcome_export:blocked_until_review"))
+  and .outcome.outcome == "partial"
+  and (.next_commands[0].command | startswith("murmurmark process "))
+' "$blocked_manifest" >/dev/null
 open_output="$("$bin" open "$session")"
 assert_no_helper_prefix "$open_output"
 echo "$open_output" | grep -q '^open:$'
@@ -1289,7 +1304,8 @@ ready_export_session="$workdir/export-ready-session"
 mkdir -p \
   "$ready_export_session/derived/transcript-simple/whisper-cpp/resolved" \
   "$ready_export_session/derived/synthesis-simple/extractive" \
-  "$ready_export_session/derived/readiness/session-quality"
+  "$ready_export_session/derived/readiness/session-quality" \
+  "$ready_export_session/derived/outcome"
 cp "$session/session.json" "$ready_export_session/session.json"
 cat >"$ready_export_session/derived/transcript-simple/whisper-cpp/resolved/transcript.md" <<'EOF'
 # Simple Transcript
@@ -1336,6 +1352,27 @@ jq -n '{
     }
   ]
 }' >"$ready_export_session/derived/readiness/session-quality/session_quality_report.json"
+jq -n '{
+  schema: "murmurmark.outcome/v1",
+  outcome: "ready_for_notes",
+  selected_profile: "current",
+  verdict: "good",
+  use_gate: "ready_for_notes",
+  export_status: "allowed",
+  next_command: "murmurmark finish SESSION",
+  export_blockers: [],
+  review_blockers: [],
+  metrics: {},
+  gates: []
+}' >"$ready_export_session/derived/outcome/outcome.json"
+cat >"$ready_export_session/derived/outcome/outcome.md" <<'EOF'
+# MurmurMark Outcome
+
+Outcome: `ready_for_notes`
+EOF
+echo 'murmurmark finish SESSION' >"$ready_export_session/derived/outcome/next_command.txt"
+jq -n '{schema: "murmurmark.outcome_review_plan/v1", lanes: []}' \
+  >"$ready_export_session/derived/outcome/review_plan.json"
 ready_export_dir="$workdir/export-ready"
 "$repo_root/scripts/export-session-bundle.py" "$ready_export_session" --out-dir "$ready_export_dir" >"$workdir/export_ready_stdout.txt"
 [[ -s "$ready_export_dir/$(basename "$ready_export_session")/export_manifest.json" ]]
@@ -4052,6 +4089,23 @@ short_remote_duplicate = {
 assert module.review_item_low_materiality(short_remote_duplicate), short_remote_duplicate
 short_remote_duplicate["confidence"] = 0.80
 assert not module.review_item_low_materiality(short_remote_duplicate), short_remote_duplicate
+short_partial_duplicate = {
+    **short_remote_duplicate,
+    "confidence": 0.96,
+    "interval": {"duration_sec": 0.68},
+    "review_features": {
+        "me_overlap_coverage": 0.48,
+        "text_similarity": 1.0,
+        "token_containment": 1.0,
+        "likely_partial_me_utterance": True,
+    },
+}
+assert module.review_item_low_materiality(short_partial_duplicate), short_partial_duplicate
+short_partial_duplicate["review_features"] = {
+    **short_partial_duplicate["review_features"],
+    "likely_partial_me_utterance": False,
+}
+assert not module.review_item_low_materiality(short_partial_duplicate), short_partial_duplicate
 short_thanks = {
     "source": "audio_review",
     "label": "uncertain",
@@ -4171,6 +4225,18 @@ backchannel_item = {
     "text": [{"role": "Me", "source_track": "mic", "text": "окей"}],
 }
 assert module.review_item_low_materiality(backchannel_item), backchannel_item
+long_tak_item = {
+    **backchannel_item,
+    "interval": {"duration_sec": 4.1},
+    "text": [{"role": "Me", "source_track": "mic", "text": "так"}],
+}
+assert module.review_item_low_materiality(long_tak_item), long_tak_item
+long_da_item = {
+    **backchannel_item,
+    "interval": {"duration_sec": 4.1},
+    "text": [{"role": "Me", "source_track": "mic", "text": "да"}],
+}
+assert not module.review_item_low_materiality(long_da_item), long_da_item
 long_backchannel_item = {
     **backchannel_item,
     "interval": {"duration_sec": 3.5},
@@ -4434,6 +4500,7 @@ PY
     --max-total-review-burden-ratio 1
     --max-session-review-burden-ratio 1
     --max-operational-review-queue-items 99
+    --max-operational-review-actions 99
     --max-audio-judge-remaining-review-items 99
   )
   "$repo_root/scripts/check-corpus-gates.py" \

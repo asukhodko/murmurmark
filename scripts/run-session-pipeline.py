@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.1"
+SCRIPT_VERSION = "0.1.2"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 INTERRUPTED_CAPTURE_WARNING_MARKERS = (
     "stream stopped with error",
@@ -117,7 +117,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-clips", type=int, default=80)
     parser.add_argument("--max-audio-review-items", type=int, default=160)
-    parser.add_argument("--max-stronger-audio-judge-items", type=int, default=12)
+    parser.add_argument("--max-stronger-audio-judge-items", type=int, default=80)
     parser.add_argument(
         "--report",
         type=Path,
@@ -596,6 +596,18 @@ def expected_output_specs(session: Path, report_path: Path) -> list[dict[str, st
             "produced_by": "run-session-pipeline",
             "purpose": "machine-readable run/plan report",
         },
+        {
+            "id": "outcome",
+            "path": rel(session / "derived/outcome/outcome.json", session),
+            "produced_by": "run-session-pipeline",
+            "purpose": "machine-readable final user-facing outcome",
+        },
+        {
+            "id": "next_command",
+            "path": rel(session / "derived/outcome/next_command.txt", session),
+            "produced_by": "run-session-pipeline",
+            "purpose": "single next safe command",
+        },
     ]
 
 
@@ -815,6 +827,32 @@ def command_list(value: Any) -> list[str]:
     return commands
 
 
+def write_outcome_artifacts(session: Path, report_path: Path, repo_root: Path) -> None:
+    script = repo_root / "scripts/evaluate-outcome.py"
+    if not script.exists():
+        return
+    command = [
+        sys.executable,
+        str(script),
+        str(session),
+        "--pipeline-report",
+        str(report_path),
+    ]
+    result = subprocess.run(
+        command,
+        cwd=repo_root,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        tail = (result.stderr or result.stdout or "").strip()
+        print("[warn] evaluate_outcome failed", flush=True)
+        if tail:
+            print(tail[-2000:], flush=True)
+
+
 def write_interrupted_capture_report(
     *,
     args: argparse.Namespace,
@@ -888,6 +926,7 @@ def write_interrupted_capture_report(
         "steps": [],
     }
     write_json(report_path, report)
+    write_outcome_artifacts(session, report_path, repo_root)
     return report
 
 
@@ -994,6 +1033,7 @@ def main() -> int:
         "steps": results,
     }
     write_json(report_path, report)
+    write_outcome_artifacts(session, report_path, repo_root)
     print_pipeline_summary(report, report_path, repo_root)
     return 0 if report["status"] in {"passed", "planned"} else 2
 

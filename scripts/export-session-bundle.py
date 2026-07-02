@@ -129,6 +129,7 @@ def resolve_profile(session: Path, requested: str) -> tuple[str, dict[str, Any] 
 def source_paths(session: Path, profile: str) -> dict[str, Path]:
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     synthesis = session / "derived/synthesis-simple/extractive"
+    outcome = session / "derived/outcome"
     paths = {
         "transcript_md": resolved / f"transcript{suffix(profile)}.md",
         "transcript_json": resolved / f"transcript.simple{suffix(profile)}.json",
@@ -142,6 +143,11 @@ def source_paths(session: Path, profile: str) -> dict[str, Path]:
         "session_readiness_json": session / "derived/readiness/session_readiness.json",
         "session_readiness_md": session / "derived/readiness/session_readiness.md",
         "session_quality_json": session / "derived/readiness/session-quality/session_quality_report.json",
+        "outcome_json": outcome / "outcome.json",
+        "outcome_md": outcome / "outcome.md",
+        "outcome_review_plan_json": outcome / "review_plan.json",
+        "outcome_next_command_txt": outcome / "next_command.txt",
+        "run_manifest_json": session / "derived/run/pipeline_run.json",
     }
     if profile == "current":
         paths.update(
@@ -165,6 +171,7 @@ def readiness_blockers(
     quality: dict[str, Any] | None,
     verdict: dict[str, Any] | None,
     readiness: dict[str, Any] | None,
+    outcome: dict[str, Any] | None,
 ) -> tuple[list[str], list[str]]:
     blockers: list[str] = []
     warnings: list[str] = []
@@ -189,6 +196,15 @@ def readiness_blockers(
                 warnings.append(f"readiness:{item}")
     else:
         blockers.append("missing_session_readiness_json")
+    if outcome:
+        outcome_status = str(outcome.get("outcome") or "unknown")
+        export_status = str(outcome.get("export_status") or "unknown")
+        if outcome_status != "ready_for_notes":
+            blockers.append(f"outcome:{outcome_status}")
+        if export_status != "allowed":
+            blockers.append(f"outcome_export:{export_status}")
+    else:
+        blockers.append("missing_outcome_json")
     if quality:
         if quality.get("pipeline_status") != "complete":
             blockers.append("pipeline_not_complete")
@@ -215,9 +231,18 @@ def readiness_blockers(
 def blocked_export_next_commands(
     session: Path,
     readiness: dict[str, Any] | None,
+    outcome: dict[str, Any] | None,
     blockers: list[str],
 ) -> list[dict[str, str]]:
     commands: list[dict[str, str]] = []
+    if outcome and outcome.get("next_command"):
+        return [
+            {
+                "id": "outcome_next",
+                "label": "Run the next command from the outcome contract.",
+                "command": str(outcome["next_command"]),
+            }
+        ]
     if readiness:
         for item in readiness.get("next_commands") or []:
             if isinstance(item, dict) and item.get("command"):
@@ -231,6 +256,14 @@ def blocked_export_next_commands(
         return commands
 
     session_arg = command_path(session)
+    if "missing_outcome_json" in blockers:
+        return [
+            {
+                "id": "refresh_outcome",
+                "label": "Refresh the session outcome contract.",
+                "command": f"murmurmark outcome {session_arg} --refresh",
+            }
+        ]
     if "pipeline_incomplete" in blockers or any(str(item).startswith("missing:") for item in blockers):
         return [
             {
@@ -552,6 +585,7 @@ def source_file_status(paths: dict[str, Path]) -> list[str]:
         ("clean dialogue JSON", "clean_dialogue_json"),
         ("review items JSONL", "review_items_jsonl"),
         ("readiness JSON", "session_readiness_json"),
+        ("outcome JSON", "outcome_json"),
     ):
         rows.append(f"- {label}: `{'present' if paths[key].exists() else 'missing'}`")
     return rows
@@ -936,12 +970,13 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
     profile, quality, verdict = resolve_profile(session, args.profile)
     paths = source_paths(session, profile)
     readiness = read_json(paths["session_readiness_json"])
+    outcome = read_json(paths["outcome_json"])
     evidence = read_json(paths["evidence_notes_json"])
     clean_dialogue = read_json(paths["clean_dialogue_json"])
     review_items = read_jsonl(paths["review_items_jsonl"])
-    blockers, warnings = readiness_blockers(paths, quality, verdict, readiness)
+    blockers, warnings = readiness_blockers(paths, quality, verdict, readiness, outcome)
     if blockers and not args.force:
-        next_commands = blocked_export_next_commands(session, readiness, blockers)
+        next_commands = blocked_export_next_commands(session, readiness, outcome, blockers)
         blocked_export_commands = export_commands(args, session)
         manifest = {
             "schema": SCHEMA_MANIFEST,
@@ -955,6 +990,7 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
             "blockers": blockers,
             "warnings": warnings,
             "readiness": readiness,
+            "outcome": outcome,
             "next": blocked_export_next(next_commands),
             "next_commands": next_commands,
             "export_commands": blocked_export_commands,
@@ -968,7 +1004,7 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
     out_dir = args.out_dir / session.name
     out_dir.mkdir(parents=True, exist_ok=True)
     files: dict[str, Any] = {}
-    next_commands_for_index = ready_export_next_commands(session, out_dir / "export_manifest.json") if not blockers else blocked_export_next_commands(session, readiness, blockers)
+    next_commands_for_index = ready_export_next_commands(session, out_dir / "export_manifest.json") if not blockers else blocked_export_next_commands(session, readiness, outcome, blockers)
     quality_text = render_quality_verdict_markdown(
         sid=sid,
         profile=profile,
@@ -1062,13 +1098,18 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
             "review_items_jsonl",
             "session_readiness_json",
             "session_quality_json",
+            "outcome_json",
+            "outcome_md",
+            "outcome_review_plan_json",
+            "outcome_next_command_txt",
+            "run_manifest_json",
         ):
             if paths[key].exists():
                 files[key] = copy_file(paths[key], out_dir / paths[key].name)
 
     manifest_path = out_dir / "export_manifest.json"
     if blockers:
-        next_commands = blocked_export_next_commands(session, readiness, blockers)
+        next_commands = blocked_export_next_commands(session, readiness, outcome, blockers)
         debug_retention_commands = ready_export_next_commands(session, manifest_path)
         next_text = first_next(next_commands, blocked_export_next(next_commands))
     else:
@@ -1091,6 +1132,7 @@ def export_session(args: argparse.Namespace) -> dict[str, Any]:
         "blockers": blockers,
         "warnings": warnings,
         "readiness": readiness,
+        "outcome": outcome,
         "files": files,
         "next": next_text,
         "next_commands": next_commands,

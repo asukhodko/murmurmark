@@ -40,6 +40,8 @@ struct MurmurMark {
                 try PipelineCommands.process(args)
             case "status":
                 try PipelineCommands.status(args)
+            case "outcome":
+                try PipelineCommands.outcome(args)
             case "next":
                 try PipelineCommands.next(args)
             case "open":
@@ -130,6 +132,7 @@ struct MurmurMark {
                                 [--skip-stronger-audio-judge] [--progress-interval-sec 60] [--allow-partial]
                                 [--config murmurmark.config.json] [--sessions-root ./sessions]
           murmurmark status [./session|latest] [--sessions-root ./sessions]
+          murmurmark outcome [./session|latest] [--refresh] [--sessions-root ./sessions]
           murmurmark next [./session|latest|corpus] [--refresh] [--export-manifest ./export_manifest.json] [--sessions-root ./sessions]
           murmurmark open [./session|latest] [--kind notes|transcript|verdict|readiness|audio-review] [--path-only|--command-only|--cat]
           murmurmark report ./session|latest [--sessions-root ./sessions]
@@ -595,6 +598,7 @@ enum DoctorChecks {
     static func checkScripts(_ report: inout DoctorReport) {
         for path in [
             "scripts/run-session-pipeline.py",
+            "scripts/evaluate-outcome.py",
             "scripts/live-pipeline-shadow.py",
             "scripts/compare-live-batch.py",
             "scripts/materialize-live-asr-cache.py",
@@ -887,6 +891,28 @@ enum PipelineCommands {
         try ReadinessPrinter.printFinalNext(session)
     }
 
+    static func outcome(_ args: [String]) throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            PipelineHelp.printOutcome()
+            return
+        }
+        var remaining = args
+        let refresh = ArgumentEditing.takeFlag("refresh", from: &remaining)
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let target = remaining.isEmpty ? "latest" : remaining.removeFirst()
+        guard remaining.isEmpty else {
+            throw CLIError("unexpected outcome arguments: \(remaining.joined(separator: " "))")
+        }
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        if refresh {
+            try refreshReadiness(session)
+        } else if !FileManager.default.fileExists(atPath: session.appendingPathComponent("derived/outcome/outcome.json").path) {
+            try refreshOutcome(session)
+        }
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        try ReadinessPrinter.printOutcome(session)
+    }
+
     static func next(_ args: [String]) throws {
         if ArgumentEditing.hasHelpFlag(args) {
             PipelineHelp.printNext()
@@ -963,6 +989,7 @@ enum PipelineCommands {
             "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
             "--write-session-readiness",
         ])
+        try refreshOutcome(session)
         try ReadinessPrinter.printSession(session)
         try ReadinessPrinter.printFinalNext(session)
     }
@@ -978,6 +1005,19 @@ enum PipelineCommands {
             session.path,
             "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
             "--write-session-readiness",
+        ])
+        try refreshOutcome(session)
+    }
+
+    private static func refreshOutcome(_ session: URL) throws {
+        let python = try PythonRuntime.resolve()
+        let script = PathURLs.fileURL("scripts/evaluate-outcome.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("outcome evaluator not found: \(script.path)")
+        }
+        try Tooling.runPathQuiet(python, [
+            script.path,
+            session.path,
         ])
     }
 
@@ -1009,6 +1049,15 @@ enum PipelineCommands {
             "--write-session-readiness",
         ]
         try Tooling.runPathQuiet(python, sessionQualityCommand)
+        let outcomeScript = PathURLs.fileURL("scripts/evaluate-outcome.py")
+        if FileManager.default.fileExists(atPath: outcomeScript.path) {
+            for session in sessions {
+                try Tooling.runPathQuiet(python, [
+                    outcomeScript.path,
+                    session.path,
+                ])
+            }
+        }
         try Tooling.runPathQuiet(python, [
             operationalReadinessScript.path,
             "--session-quality", sessionQualityOut.appendingPathComponent("session_quality_report.json").path,
@@ -1189,6 +1238,19 @@ enum PipelineHelp {
           murmurmark status
           murmurmark status latest
           murmurmark status ./sessions/<id>
+        """)
+    }
+
+    static func printOutcome() {
+        Swift.print("""
+        usage: murmurmark outcome [./session|latest] [--refresh] [--sessions-root ./sessions]
+
+        Prints the stable user-facing outcome contract for a processed session.
+        Use --refresh to recompute session readiness and outcome without rerunning ASR or audio processing.
+
+        Common:
+          murmurmark outcome latest
+          murmurmark outcome ./sessions/<id> --refresh
         """)
     }
 
@@ -1413,7 +1475,11 @@ enum SessionListPrinter {
         session: URL,
         readiness: [String: Any]?
     ) -> (command: String, manifest: URL)? {
-        guard isExportable(readiness) else { return nil }
+        guard isExportable(readiness),
+              outcomeAllowsExport(session)
+        else {
+            return nil
+        }
         let manifestURL = PathURLs.fileURL("exports/private")
             .appendingPathComponent(session.lastPathComponent)
             .appendingPathComponent("export_manifest.json")
@@ -1435,6 +1501,17 @@ enum SessionListPrinter {
             return (next, manifestURL)
         }
         return nil
+    }
+
+    private static func outcomeAllowsExport(_ session: URL) -> Bool {
+        let url = session.appendingPathComponent("derived/outcome/outcome.json")
+        guard FileManager.default.fileExists(atPath: url.path),
+              let payload = try? JSONFiles.object(url)
+        else {
+            return false
+        }
+        return string(payload["outcome"]) == "ready_for_notes"
+            && string(payload["export_status"]) == "allowed"
     }
 
     private static func isExportable(_ readiness: [String: Any]?) -> Bool {
@@ -2429,6 +2506,7 @@ enum ReviewSuggestedCommand {
             allowedExitCodes: [0, 2]
         )
         try ReviewPrinter.printApply(report: ReviewPaths.applyReport(from: batchArgs))
+        try refreshOutcome(session: session, python: python)
         print("")
         print("corpus_delta:")
         print("  refresh: murmurmark report corpus")
@@ -2462,6 +2540,13 @@ enum ReviewSuggestedCommand {
             throw CLIError("review script not found: \(url.path)")
         }
         return url
+    }
+
+    private static func refreshOutcome(session: URL, python: URL) throws {
+        try Tooling.runPathQuiet(python, [
+            try script("evaluate-outcome.py").path,
+            session.path,
+        ])
     }
 
     private static func buildReviewWorkspace(session: URL, python: URL) throws {
@@ -5579,6 +5664,7 @@ enum ExportCommands {
         let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
+        try refreshOutcome(session)
         let effectiveArgs = config.exportDefaults(unless: forwarded) + forwarded
         let outDir = exportOutDir(from: effectiveArgs)
         let status = try Tooling.runPathQuietAllowingExitCodes(try PythonRuntime.resolve(), [
@@ -5597,6 +5683,28 @@ enum ExportCommands {
         let url = PathURLs.fileURL("scripts/export-session-bundle.py")
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CLIError("export script not found: \(url.path)")
+        }
+        return url
+    }
+
+    private static func refreshOutcome(_ session: URL) throws {
+        let python = try PythonRuntime.resolve()
+        try Tooling.runPathQuiet(python, [
+            try script("report-session-quality.py").path,
+            session.path,
+            "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
+            "--write-session-readiness",
+        ])
+        try Tooling.runPathQuiet(python, [
+            try script("evaluate-outcome.py").path,
+            session.path,
+        ])
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts/\(name)")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("script not found: \(url.path)")
         }
         return url
     }
@@ -5669,6 +5777,7 @@ enum FinishCommands {
 
         try refreshReadiness(session)
         try ReadinessPrinter.printSession(session, label: "readiness")
+        try ReadinessPrinter.printOutcome(session)
 
         let exportRun = try runExport(
             session: session,
@@ -5703,6 +5812,14 @@ enum FinishCommands {
             session.path,
             "--out-dir", session.appendingPathComponent("derived/readiness/session-quality").path,
             "--write-session-readiness",
+        ])
+        try refreshOutcome(session)
+    }
+
+    private static func refreshOutcome(_ session: URL) throws {
+        try Tooling.runPathQuiet(try PythonRuntime.resolve(), [
+            try script("evaluate-outcome.py").path,
+            session.path,
         ])
     }
 
@@ -10232,18 +10349,30 @@ enum ReadinessPrinter {
         let exportHandoff = status == "exportable"
             ? successfulExportHandoff(session: session, explicitManifest: explicitExportManifest)
             : nil
-        let command = exportHandoff?.command ?? readinessCommand
+        let outcome = try? outcomePayload(session)
+        let outcomeCommand = outcome.flatMap { string($0["next_command"]) }
+        let command = exportHandoff?.command ?? outcomeCommand ?? readinessCommand
+        let source = exportHandoff == nil ? (outcomeCommand == nil ? "readiness" : "outcome") : "export_manifest"
+        let displayStatus = exportHandoff == nil ? (outcome.flatMap { string($0["outcome"]) } ?? status) : status
 
         print("")
         print("next:")
-        print("  status: \(status)")
+        print("  status: \(displayStatus)")
         print("  command: \(command)")
-        print("  source: \(exportHandoff == nil ? "readiness" : "export_manifest")")
+        print("  source: \(source)")
         print("  gate: \(gate)")
         print("  selected_profile: \(profile)")
         print("  verdict: \(verdict)")
+        if exportHandoff != nil {
+            print("  export_status: exported")
+        } else if let exportStatus = outcome.flatMap({ string($0["export_status"]) }) {
+            print("  export_status: \(exportStatus)")
+        }
         if let manifest = exportHandoff?.manifest {
             print("  export_manifest: \(PathDisplay.display(manifest))")
+        }
+        if outcome != nil {
+            print("  outcome: \(PathDisplay.display(session.appendingPathComponent("derived/outcome/outcome.json")))")
         }
         if let firstOpen = openCommands.compactMap({ string($0["command"]) }).first {
             print("  open_first: \(firstOpen)")
@@ -10257,7 +10386,21 @@ enum ReadinessPrinter {
         }
     }
 
+    private static func outcomePayload(_ session: URL) throws -> [String: Any]? {
+        let url = session.appendingPathComponent("derived/outcome/outcome.json")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+        return try JSONFiles.object(url)
+    }
+
     private static func successfulExportHandoff(session: URL, explicitManifest: URL?) -> (command: String, manifest: URL)? {
+        guard let outcome = try? outcomePayload(session),
+              string(outcome["outcome"]) == "ready_for_notes",
+              string(outcome["export_status"]) == "allowed"
+        else {
+            return nil
+        }
         let manifestURL = explicitManifest ?? PathURLs.fileURL("exports/private")
             .appendingPathComponent(session.lastPathComponent)
             .appendingPathComponent("export_manifest.json")
@@ -10313,11 +10456,23 @@ enum ReadinessPrinter {
         let reviewBlockers = strings(payload["review_blockers"])
         let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil)
         let status = exportHandoff == nil ? readinessStatus(gate: gate, payload: payload) : "exported"
-        let recommendedNext = exportHandoff?.command ?? string(payload["recommended_next"]) ?? preferredNextCommand(nextCommands)
+        let outcomeCommand = (try? outcomePayload(session)).flatMap { string($0["next_command"]) }
+        let recommendedNext = exportHandoff?.command ?? outcomeCommand ?? string(payload["recommended_next"]) ?? preferredNextCommand(nextCommands)
         let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0) * 100
         let transcriptReviewSeconds = double(metrics["transcript_review_burden_sec"]) ?? reviewSeconds
         let transcriptReviewRatio = (double(metrics["transcript_review_burden_ratio"]) ?? (reviewRatio / 100.0)) * 100
+        var displayedNextCommands = nextCommands
+        if let recommendedNext, !recommendedNext.isEmpty {
+            let first = nextCommands.first.flatMap { string($0["command"]) }
+            if first != recommendedNext {
+                displayedNextCommands = [[
+                    "id": "recommended_next",
+                    "label": "Run the recommended next action.",
+                    "command": recommendedNext,
+                ]] + nextCommands.filter { string($0["command"]) != recommendedNext }
+            }
+        }
 
         print("")
         print("\(label):")
@@ -10351,6 +10506,7 @@ enum ReadinessPrinter {
         printLivePipelineSummary(session)
         printStrongerAudioJudgeSummary(session)
         printSuggestedClosureSummary(session)
+        printOutcomeSummary(session)
         print("  open:")
         if openCommands.isEmpty {
             for key in ["transcript", "notes", "quality_verdict", "audio_review_report", "local_recall_review", "transcript_order_review"] {
@@ -10367,10 +10523,10 @@ enum ReadinessPrinter {
             }
         }
         print("  next:")
-        if nextCommands.isEmpty {
+        if displayedNextCommands.isEmpty {
             print("    none")
         } else {
-            for item in nextCommands {
+            for item in displayedNextCommands {
                 guard let command = string(item["command"]), !command.isEmpty else { continue }
                 let label = string(item["label"]) ?? string(item["id"]) ?? "next"
                 print("    \(command) — \(label)")
@@ -10480,7 +10636,8 @@ enum ReadinessPrinter {
         }
         print("  suggested_closure:")
         print("    status: \(string(closure["status"]) ?? "unknown")")
-        print(String(format: "    auto_closed: %d rows / %.2f min", closedRows, (double(closed["seconds"]) ?? 0.0) / 60.0))
+        let closureLabel = suggestedClosureAlreadyPartiallyApplied(session) ? "safe_rows_applied" : "auto_closable"
+        print(String(format: "    \(closureLabel): %d rows / %.2f min", closedRows, (double(closed["seconds"]) ?? 0.0) / 60.0))
         print(String(format: "    manual_remaining: %d rows / %.2f min", remainingRows, remainingSeconds / 60.0))
         if let beforeState = string(projection["before_state"]),
            let afterState = string(projection["after_state"]) {
@@ -10616,8 +10773,8 @@ enum ReadinessPrinter {
                 "    generated: \(generatedRows) rows "
                     + "(actionable=\(actionableRows), needs_review=\(needsReviewRows), todo=\(todoRows))"
             )
-            print(String(format: "    auto: %d rows / %.2fs", autoRows, autoSeconds))
-            print("    auto_decisions: keep=\(keepRows), drop=\(dropRows), review=\(reviewRows)")
+            print(String(format: "    safe_rows: %d rows / %.2fs", autoRows, autoSeconds))
+            print("    safe_decisions: keep=\(keepRows), drop=\(dropRows), review=\(reviewRows)")
             print(String(format: "    manual_remaining: %d rows / %.2fs", manualRows, manualSeconds))
         }
     }
@@ -10644,7 +10801,13 @@ enum ReadinessPrinter {
         let sessionPath = PathDisplay.display(session)
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
         let command: String
-        if FileManager.default.fileExists(atPath: url.path) {
+        if let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil) {
+            command = exportHandoff.command
+        } else if let outcome = try? outcomePayload(session),
+           let outcomeCommand = string(outcome["next_command"]),
+           !outcomeCommand.isEmpty {
+            command = outcomeCommand
+        } else if FileManager.default.fileExists(atPath: url.path) {
             let payload = try JSONFiles.object(url)
             let gate = string(payload["use_gate"]) ?? "unknown"
             let nextCommands = payload["next_commands"] as? [[String: Any]]
@@ -10661,6 +10824,66 @@ enum ReadinessPrinter {
         }
         print("")
         print("next: \(command)")
+    }
+
+    static func printOutcome(_ session: URL) throws {
+        let url = session.appendingPathComponent("derived/outcome/outcome.json")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            print("")
+            print("outcome: missing")
+            print("  expected: \(PathDisplay.display(url))")
+            print("  next: murmurmark outcome \(PathDisplay.display(session)) --refresh")
+            return
+        }
+        let payload = try JSONFiles.object(url)
+        print("")
+        print("outcome:")
+        print("  status: \(string(payload["outcome"]) ?? "unknown")")
+        print("  selected_profile: \(string(payload["selected_profile"]) ?? "unknown")")
+        print("  verdict: \(string(payload["verdict"]) ?? "unknown")")
+        print("  use_gate: \(string(payload["use_gate"]) ?? "unknown")")
+        print("  export_status: \(string(payload["export_status"]) ?? "unknown")")
+        if let next = string(payload["next_command"]), !next.isEmpty {
+            print("  next: \(next)")
+        }
+        if let metrics = payload["metrics"] as? [String: Any] {
+            if let review = double(metrics["review_burden_sec"]) {
+                print(String(format: "  review_burden: %.2f min", review / 60.0))
+            }
+            if let harmful = double(metrics["audit_harmful_seconds_after"]) {
+                print(String(format: "  harmful_remote_in_me: %.2fs", harmful))
+            }
+            if let localRecall = double(metrics["local_only_island_recall"]) {
+                print(String(format: "  local_recall: %.3f", localRecall))
+            }
+        }
+        if let gates = payload["gates"] as? [[String: Any]] {
+            let failed = gates.filter { (string($0["status"]) ?? "") == "fail" }.count
+            let review = gates.filter { (string($0["status"]) ?? "") == "review" }.count
+            let unknown = gates.filter { (string($0["status"]) ?? "") == "unknown" }.count
+            print("  gates: fail=\(failed), review=\(review), unknown=\(unknown)")
+        }
+        print("  files:")
+        print("    outcome: \(PathDisplay.display(url))")
+        print("    review_plan: \(PathDisplay.display(session.appendingPathComponent("derived/outcome/review_plan.json")))")
+        print("    next_command: \(PathDisplay.display(session.appendingPathComponent("derived/outcome/next_command.txt")))")
+        print("    run_manifest: \(PathDisplay.display(session.appendingPathComponent("derived/run/pipeline_run.json")))")
+    }
+
+    private static func printOutcomeSummary(_ session: URL) {
+        let url = session.appendingPathComponent("derived/outcome/outcome.json")
+        guard FileManager.default.fileExists(atPath: url.path),
+              let payload = try? JSONFiles.object(url)
+        else {
+            return
+        }
+        print("  outcome:")
+        print("    status: \(string(payload["outcome"]) ?? "unknown")")
+        print("    export_status: \(string(payload["export_status"]) ?? "unknown")")
+        if let next = string(payload["next_command"]), !next.isEmpty {
+            print("    next: \(next)")
+        }
+        print("    report: \(PathDisplay.display(url))")
     }
 
     private static func printPartialCaptureReadiness(label: String, session: URL, partial: PartialCaptureInfo) {
@@ -11673,7 +11896,7 @@ enum CorpusPrinter {
                 "    generated: \(suggestedGeneratedRows) rows "
                     + "(actionable=\(suggestedActionableRows), needs_review=\(suggestedNeedsReviewRows))"
             )
-            print("    auto: \(suggestedAutoRows) rows")
+            print("    safe_rows: \(suggestedAutoRows) rows")
             print("    manual_remaining: \(suggestedManualRows) rows")
         }
         print("  read: \(readCommand)")

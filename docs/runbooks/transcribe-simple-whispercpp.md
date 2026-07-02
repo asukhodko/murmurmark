@@ -606,9 +606,10 @@ murmurmark review lane apply "$LANE" --session "$SESSION" --answers-source sugge
 The stronger judge is local and optional. It decodes only short review clips, writes
 `faster_whisper_judge.jsonl`, `faster_whisper_judge_summary.json` and
 `faster_whisper_judge_report.md`, and never changes transcript profiles by itself. It prints progress
-while loading the model and decoding items. For CPU runs, prefer targeted lane-pack batches with
-`--quick --max-items 5 --max-computed-items 5`; larger runs are useful only as deliberate long
-audits. Review lane packs use those rows only for safer suggested answers: `confirm_me` and
+while loading the model and decoding items. For ad-hoc CPU debugging, use targeted lane-pack batches
+with `--quick --max-items 5 --max-computed-items 5`; for the normal full session process, keep the
+default broader budget so suggested review can close order/timing rows before asking for manual
+listening. Review lane packs use those rows only for safer suggested answers: `confirm_me` and
 `confirm_timing_or_doubletalk` suggest `keep_me` when allowed; `confirm_remote_duplicate` and
 `confirm_asr_noise` suggest `drop_me` only when the lane and safety gates allow that decision.
 Suggested answer sheets leave
@@ -796,7 +797,9 @@ local-recall, remote-leak segment corpus and operational readiness JSON reports,
 `sessions/_reports/corpus-gates/corpus_gates_report.json` and `.md`. Hard readiness checks are
 scoped to selected operational sessions. Local-recall floor and per-session review-burden ratio are
 hard only for `ready_for_notes` sessions; `review_first` sessions remain visible through operational
-review queue checks and warnings. Full historical corpus blockers from diagnostic sessions, stale
+review queue checks and warnings. The operational queue is checked both as raw rows and as packed
+human actions: default limits are `25` rows and `15` actions, with the current corpus at `12` rows
+and `9` actions. Full historical corpus blockers from diagnostic sessions, stale
 raw audit profiles or non-blocking short review items are warnings. Remote-leak segment queues are also warnings: they are
 review/repair backlog, not hard no-regression failures. `passed` or `passed_with_warnings` exits
 successfully. `failed` exits non-zero unless `--no-fail` is used, but the CLI still prints
@@ -891,11 +894,23 @@ counts, notes review burden and the minimum next command. Full transcript/export
 as `full_transcript_review_required`. In that state notes can be used with normal caution, while a
 default export remains blocked until transcript-only review is closed or `--force` is used
 deliberately.
-The 2026-07-01 corpus snapshot is the current convergence baseline: `murmurmark report corpus`
-reports `pilot_ready_with_review`, `20` working sessions in scope and `26` diagnostic sessions
-excluded. `15/20` sessions are `ready_for_notes`, five are `review_first`, and no session is
-`do_not_use_without_manual_review`. Selected notes carry about `0.81 min` of documented residual
-review burden; the remaining full transcript/export surface is about `3.48 min`.
+The 2026-07-02 corpus snapshot is the current convergence baseline: `murmurmark next corpus
+--refresh` reports `pilot_ready_with_review`, `24` working sessions in scope and `26` diagnostic
+sessions excluded. `15/24` sessions are `ready_for_notes`, nine are `review_first`, and no session is
+`do_not_use_without_manual_review`. Selected notes carry about `1.32 min` of documented residual
+review burden; the remaining full transcript/export surface is about `4.09 min`. The stronger local
+audio judge now uses an `80` item budget in the normal process path, because the earlier `12` item
+cap left avoidable order-risk rows in the manual queue on long meetings.
+
+The stronger local audio judge can also close a narrow benign timing-overlap case: if group-overlap
+evidence already shows strong local support and weak remote/leak support, it may suggest `keep_me`.
+This is intentionally keep-only; conflicting double-talk and remote-active overlaps remain in the
+manual queue.
+Single-word `так` tails without action/decision/risk markers are treated as low-materiality instead
+of mandatory review; this keeps discourse markers visible in the transcript without forcing audio
+review for every harmless filler tail.
+Short exact partial duplicates with no unique `Me` content are also treated as low-materiality
+rather than mandatory review.
 
 Session-quality reports de-duplicate transcript-only `uncertain` rows when the same selected `Me`
 interval is already covered by high-confidence `likely_reliable` audio-review evidence. The
@@ -904,12 +919,17 @@ evidence support `Me`, and cleanup profiles can remove only tightly gated duplic
 Possible lost `Me` speech, probable transcript errors and uncertain semantic content must stay
 visible to review/export gates.
 
-The same snapshot exposes a short irreducible mandatory review queue: `review_actions` is `5`,
-covering `8.78s` of raw audio. Suggested closure has no safe keep/drop rows left to apply; the
-remaining local-recall, lost-`Me` and uncertain-audio rows are intentionally not auto-closed by the
-current local agents. This is why the operational verdict is `pilot_ready_with_review` rather than
-`medium_risk_ready`: selected notes can be used session-by-session when `status` says they are
+The same snapshot exposes a bounded irreducible mandatory review queue: `review_actions` is `9`
+with `12` queue rows, below the corpus-gate limits of `15` actions and `25` rows. Another `28`
+rows / `70.95s` are tracked as low-materiality and are
+kept outside the mandatory queue. Suggested closure has no safe keep/drop rows left to apply; the
+remaining local-recall, lost-`Me`, order and uncertain-audio rows are intentionally not auto-closed
+by the current local agents. This is why the operational verdict is `pilot_ready_with_review` rather
+than `medium_risk_ready`: selected notes can be used session-by-session when `status` says they are
 ready, but the queue remains explicit until a human or a stronger local evidence layer closes it.
+The operational JSON and Markdown report include `manual_tail_explanation`: a compact table of
+remaining reasons, counts and seconds. Use it to distinguish true manual review from low-materiality
+rows and from bugs where evidence exists but the review loop failed to consume it.
 A narrow risky session is represented as `formal_residual_risk` when its remaining queue is short,
 bounded and made only of allowed risk flags; it remains `review_first` and default export stays
 blocked.
@@ -1276,7 +1296,9 @@ audio-review pack stores those rows with `review_plan:*` reasons and `source_aud
 `target_me_audit.jsonl` echoes that ID in `source_audit_ids`. This lets review suggestions close a
 lost-`Me`, local-recall, uncertain-audio or transcript-order row when the local speaker evidence
 matches the same review queue item. In the 2026-07-01 corpus pass this closed two safe `keep_me`
-rows and reduced the mandatory queue from `7` actions / `11.19s` to `5` actions / `8.78s`.
+rows and reduced the then-current mandatory queue from `7` actions / `11.19s` to `5` actions /
+`8.78s`. After the 2026-07-02 corpus expansion the same mechanism still reports `0` pending safe
+suggestions; the remaining queue is treated as irreducible until new local evidence appears.
 
 The lower-level equivalent is:
 

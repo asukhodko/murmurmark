@@ -123,7 +123,8 @@ jq -n '{
   cross_role_overlap_gt2_seconds: 0,
   remote_duplicate_in_me_seconds: 0,
   unrepaired_long_mic_crossings_count: 0,
-  golden_phrase_fail_count: 0
+  golden_phrase_fail_count: 0,
+  local_only_island_recall: 1.0
 }' >"$session/derived/transcript-simple/whisper-cpp/resolved/quality_report.json"
 
 cp "$session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.json" \
@@ -265,6 +266,24 @@ jq -n --arg session "$session" '{
   export_blockers: [],
   review_blockers: [],
   warnings: [],
+  metrics: {
+    meeting_duration_sec: 1,
+    review_burden_sec: 0,
+    review_burden_ratio: 0,
+    notes_review_burden_sec: 0,
+    notes_review_burden_ratio: 0,
+    transcript_review_burden_sec: 0,
+    transcript_review_burden_ratio: 0,
+    audit_harmful_seconds_after: 0,
+    audio_review_probable_error_seconds: 0,
+    local_only_island_recall: 1.0,
+    local_recall_missing_island_count: 0,
+    local_recall_possible_lost_me_seconds: 0,
+    transcript_order_review_seconds: 0,
+    transcript_order_probable_order_risk_count: 0,
+    needs_review_count: 0,
+    notes_needs_review_count: 0
+  },
   next_commands: [
     {id: "finish", label: "Create final handoff.", command: ("murmurmark finish " + $session)}
   ],
@@ -403,6 +422,83 @@ next_output="$("$bin" next "$session")"
 echo "$next_output" | grep -q '^next:$'
 echo "$next_output" | grep -q '^  command: murmurmark finish '
 
+review_session="$workdir/sessions/review-handoff"
+mkdir -p \
+  "$review_session/audio" \
+  "$review_session/derived/readiness/review-plan" \
+  "$review_session/derived/synthesis-simple/extractive" \
+  "$review_session/derived/transcript-simple/whisper-cpp/resolved"
+cp -R "$session/audio/mic" "$review_session/audio/mic"
+cp -R "$session/audio/remote" "$review_session/audio/remote"
+cp "$session/session.json" "$review_session/session.json"
+cat >"$review_session/derived/readiness/session_readiness.json" <<EOF
+{
+  "schema": "murmurmark.session_readiness/v1",
+  "use_gate": "review_first",
+  "pipeline_status": "complete",
+  "selected_profile": "audit_cleanup_v2",
+  "verdict": "usable_with_review",
+  "risk_flags": ["transcript_order_risk"],
+  "export_blockers": ["review_burden_requires_review"],
+  "review_blockers": ["review_burden_requires_review"],
+  "metrics": {
+    "meeting_duration_sec": 1200,
+    "review_burden_sec": 60,
+    "review_burden_ratio": 0.05,
+    "transcript_order_review_seconds": 60,
+    "transcript_order_probable_order_risk_count": 0,
+    "audit_harmful_seconds_after": 0,
+    "local_only_island_recall": 1.0
+  },
+  "outputs": {
+    "clean_dialogue": {"exists": true, "path": "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v2.json"},
+    "quality_report": {"exists": true, "path": "derived/transcript-simple/whisper-cpp/resolved/quality_report.audit_cleanup_v2.json"},
+    "notes": {"exists": true, "path": "derived/synthesis-simple/extractive/notes.audit_cleanup_v2.md"},
+    "quality_verdict": {"exists": true, "path": "derived/synthesis-simple/extractive/quality_verdict.audit_cleanup_v2.md"}
+  },
+  "recommended_next": "less $review_session/derived/audit/order/transcript_order_review.md"
+}
+EOF
+cat >"$review_session/derived/readiness/review-plan/review_workspace_apply_report.json" <<'EOF'
+{
+  "schema": "murmurmark.review_workspace_apply_report/v1",
+  "answers_source": "suggested",
+  "dry_run": true,
+  "summary": {
+    "ready_for_partial_apply": true,
+    "reviewed_count": 2,
+    "remaining_rows": 1,
+    "remaining_seconds": 2.5
+  },
+  "suggested_closure": {
+    "status": "partial_apply_ready",
+    "generated_suggestions": {
+      "rows": 3,
+      "seconds": 12.5,
+      "by_decision": [
+        {"key": "keep_me", "count": 1, "seconds": 7.0},
+        {"key": "drop_me", "count": 1, "seconds": 3.0},
+        {"key": "needs_review", "count": 1, "seconds": 2.5}
+      ]
+    },
+    "closed_by_suggestions": {"rows": 2, "seconds": 10.0},
+    "remaining_manual_queue": {"rows": 1, "seconds": 2.5}
+  }
+}
+EOF
+eval_python="$repo_root/.venv/bin/python"
+if [[ ! -x "$eval_python" ]]; then
+  eval_python="python3"
+fi
+"$eval_python" "$repo_root/scripts/evaluate-outcome.py" "$review_session" >/dev/null
+jq -e '
+  .outcome == "review_first"
+  and (.next_command | startswith("murmurmark review suggested apply "))
+  and (.next_command | contains("review-handoff"))
+  and .metrics.suggested_closure_auto_seconds == 10
+  and .metrics.suggested_closure_manual_remaining_seconds == 2.5
+' "$review_session/derived/outcome/outcome.json" >/dev/null
+
 open_output="$("$bin" open "$session" --kind all)"
 echo "$open_output" | grep -q '^open:$'
 echo "$open_output" | grep -q 'Quality verdict'
@@ -419,6 +515,7 @@ tail -1 <<<"$export_output" | grep -q '^next: murmurmark retention plan '
 manifest="$workdir/exports/private/cli-handoff/export_manifest.json"
 [[ -s "$manifest" ]]
 jq -e '.bundle_quality == "v1"' "$manifest" >/dev/null
+jq -e '.outcome.outcome == "ready_for_notes" and .outcome.export_status == "allowed" and (.files.outcome_json.path | length > 0)' "$manifest" >/dev/null
 grep -Fq '## Can I Use This?' "$workdir/exports/private/cli-handoff/index.md"
 grep -q '^## Retention And Privacy$' "$workdir/exports/private/cli-handoff/index.md"
 grep -q '`utt_cli_001`' "$workdir/exports/private/cli-handoff/transcript.md"
