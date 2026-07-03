@@ -6941,18 +6941,6 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                         "segments": "derived/live/segments.jsonl",
                     ]
                 )
-                if liveWorkerEnabled {
-                    let worker = try LivePipelineWorker(sessionDirectory: outputDirectory)
-                    liveWorker = worker
-                    try worker.start()
-                    try eventLog.write(
-                        type: "live_pipeline.worker_started",
-                        fields: [
-                            "log": "derived/live/live_worker.log",
-                            "report": "derived/live/live_pipeline_report.json",
-                        ]
-                    )
-                }
             }
 
             if remoteBackend == .audioInput, let remoteDeviceID {
@@ -7032,6 +7020,9 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             if needsScreenCaptureKit {
                 try await startScreenCaptureStream()
             }
+            if liveWorkerEnabled {
+                try startLiveWorker(eventLog: eventLog)
+            }
             if let duration {
                 print("recording \(String(format: "%.1f", duration))s -> \(outputDirectory.path)")
             } else {
@@ -7102,12 +7093,28 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             }
             return stopReason
         } catch {
+            liveWorker?.terminate()
+            await stopScreenCaptureStream()
             try? remoteInputCapture?.stop()
             try? voiceProcessingMic?.stop()
+            liveSegments?.closeAll()
             try? eventLog.write(type: "capture.failed", fields: ["error": error.localizedDescription])
             try? fileManager.removeItem(at: outputDirectory.appendingPathComponent("session.lock"))
             throw CaptureErrors.enrich(error)
         }
+    }
+
+    private func startLiveWorker(eventLog: EventLog) throws {
+        let worker = try LivePipelineWorker(sessionDirectory: outputDirectory)
+        liveWorker = worker
+        try worker.start()
+        try eventLog.write(
+            type: "live_pipeline.worker_started",
+            fields: [
+                "log": "derived/live/live_worker.log",
+                "report": "derived/live/live_pipeline_report.json",
+            ]
+        )
     }
 }
 
@@ -8351,6 +8358,20 @@ final class LivePipelineWorker {
             return true
         }
         return false
+    }
+
+    func terminate() {
+        if process.isRunning {
+            process.terminate()
+            let deadline = Date().addingTimeInterval(5)
+            while process.isRunning, Date() < deadline {
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+            if process.isRunning {
+                process.interrupt()
+            }
+        }
+        try? logHandle?.close()
     }
 
     var terminationStatus: Int32? {
@@ -13113,15 +13134,22 @@ enum RecordingStopper {
 final class SignalBridgeBox: @unchecked Sendable {
     private let lock = NSLock()
     private var bridge: SignalBridge?
+    private var cancelled = false
 
     func set(_ bridge: SignalBridge) {
         lock.lock()
+        if cancelled {
+            lock.unlock()
+            bridge.cancel()
+            return
+        }
         self.bridge = bridge
         lock.unlock()
     }
 
     func cancel() {
         lock.lock()
+        cancelled = true
         let active = bridge
         bridge = nil
         lock.unlock()
