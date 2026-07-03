@@ -845,6 +845,18 @@ murmurmark acceptance --skip-release
 scripts/check-open-source-readiness.sh
 ```
 
+`scripts/check.sh` includes a static capture regression check. It keeps the ScreenCaptureKit system
+audio contract pinned so `remote` capture does not silently regress back to digital silence.
+
+When changing recording code, also run one local live probe with real system audio:
+
+```bash
+MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
+```
+
+The live probe plays a short local tone, records with `--live-pipeline`, and fails if the `remote`
+track is silent or if ScreenCaptureKit restarts.
+
 Before trusting a pipeline change:
 
 ```bash

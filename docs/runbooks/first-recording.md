@@ -7,6 +7,7 @@ Use this runbook to prove that a fresh machine can record a minimal MurmurMark s
 - Xcode command line tools are installed.
 - `ffmpeg`, `ffprobe`, `jq`, `swiftlint` are available in `PATH`.
 - The repository builds with `scripts/check.sh`.
+- Before changing capture code, run `MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh`.
 
 ## Permission Check
 

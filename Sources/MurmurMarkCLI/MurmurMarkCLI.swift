@@ -607,6 +607,7 @@ enum DoctorChecks {
             "scripts/report-asr-chunk-cache-corpus.py",
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/check-asr-chunk-cache.py",
+            "scripts/check-capture-regressions.sh",
             "scripts/synthesize-simple-extractive.py",
             "scripts/audit-local-recall.py",
             "scripts/audit-transcript-order.py",
