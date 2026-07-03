@@ -187,11 +187,15 @@ Without `--duration`, recording continues until `Ctrl-C`. MurmurMark catches tha
 stops capture, closes audio files and writes `session.json`.
 If ScreenCaptureKit stops before `Ctrl-C`, MurmurMark tries to restart the capture stream and keep
 recording into the same session. A successful restart is written to `events.jsonl` as
-`capture.restarted`. If restart fails, capture keeps producing no audio, or the written CAF tracks
-cover far less time than the wall-clock recording, MurmurMark finalizes the partial session, writes
-`session.json` with `status: partial`, records `health.partial: true`, records `capture.stopped`
-with `partial: true`, and exits with an error. `SIGTERM` and `SIGHUP` are also treated as
-unexpected stops rather than successful meeting ends.
+`capture.restarted`.
+
+ScreenCaptureKit can omit audio buffers during silence or source inactivity. MurmurMark preserves
+the wall-clock timeline by inserting silence for timestamp gaps in the raw CAF tracks. A long
+no-sample interval is a warning, not a restart trigger by itself. If restart fails after a real stream
+stop, or if the final written CAF tracks still cover far less time than the wall-clock recording,
+MurmurMark finalizes the partial session, writes `session.json` with `status: partial`, records
+`health.partial: true`, records `capture.stopped` with `partial: true`, and exits with an error.
+`SIGTERM` and `SIGHUP` are also treated as unexpected stops rather than successful meeting ends.
 
 Do not process a partial session as a complete meeting; inspect it or start a new recording.
 `murmurmark status SESSION` and `murmurmark next SESSION` point to `murmurmark inspect SESSION` when

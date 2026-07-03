@@ -165,20 +165,28 @@ Health summary:
 - `degraded`
 - `failed`
 
-`partial` means capture ended before an explicit user stop or requested duration. Current partial
-stop reasons are:
+`partial` means capture ended before an explicit user stop or requested duration, or the final CAF
+tracks cover far less wall-clock time than the recording. Current partial stop reasons are:
 
 - `stream_stopped`;
 - `capture_stalled`;
 - `sigterm`;
 - `sighup`.
 
+An explicit `sigint`/duration stop may still produce `status: partial` when audio coverage is
+incomplete. In that case `health.explicit_stop` can be `true`; the blocker is the coverage gap, not
+the stop signal.
+
+ScreenCaptureKit no-sample intervals are not partial by themselves. Raw CAF writers preserve the
+timeline by inserting silence for timestamp gaps, so pauses or skipped silent buffers do not compress
+the recording.
+
 For a partial session:
 
 - `session.json.status` must be `partial`;
 - `health.summary` must be `partial`;
 - `health.partial` must be `true`;
-- `health.explicit_stop` must be `false`;
+- `health.explicit_stop` must reflect the real stop source;
 - `events.jsonl` must contain `capture.stopped` with `partial: true`;
 - normal `murmurmark process SESSION` must block unless `--allow-partial` is explicit;
 - `murmurmark status SESSION` and `murmurmark next SESSION` must point to `murmurmark inspect SESSION`

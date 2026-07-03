@@ -244,6 +244,11 @@ recording, MurmurMark finalizes a partial session instead of pretending it is co
 `record`, `status` and `next` point to `murmurmark inspect ...`; normal processing is blocked unless
 you explicitly pass `--allow-partial` for debugging.
 
+ScreenCaptureKit may skip audio buffers during silence or source inactivity. MurmurMark preserves
+the meeting timeline in raw CAF files by inserting silence for timestamp gaps instead of compressing
+the recording to only the buffers that arrived. A long no-sample interval is recorded as a warning;
+it is not treated as a reason to restart capture by itself.
+
 Then run:
 
 ```bash

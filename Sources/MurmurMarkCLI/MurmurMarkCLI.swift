@@ -2,6 +2,7 @@ import AppKit
 import AVFoundation
 import CoreMedia
 import CryptoKit
+import Darwin
 import Foundation
 import ScreenCaptureKit
 
@@ -6867,6 +6868,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var restartingScreenCapture = false
     private var screenCaptureRestartCount = 0
     private var lastSampleDate: Date?
+    private var captureSilenceWarningCount = 0
 
     init(
         outputDirectory: URL,
@@ -7046,12 +7048,14 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             stopRemoteInputCapture()
             stopVoiceProcessingMic()
             liveSegments?.closeAll()
-            let liveCapturedDuration = liveSegments?.capturedDurationSeconds()
             stopDate = Date()
             let actualDuration = max(0.0, (stopDate ?? Date()).timeIntervalSince(startDate))
-            let liveAudioCoverage = (liveCapturedDuration ?? actualDuration) / max(actualDuration, 1.0)
-            let severeLiveAudioCoverageGap = actualDuration >= 60 && liveAudioCoverage < 0.80
-            let finalizedAsPartial = stopReason.isUnexpectedCaptureStop || severeLiveAudioCoverageGap
+            let preFinishAudioCoverage = min(
+                writerCoverage(frames: micFramesWritten(), sampleRate: Double(sampleRate), actualDuration: actualDuration),
+                writerCoverage(frames: remoteFramesWritten(), sampleRate: Double(sampleRate), actualDuration: actualDuration)
+            )
+            let severePreFinishAudioCoverageGap = actualDuration >= 60 && preFinishAudioCoverage < 0.80
+            let finalizedAsPartial = stopReason.isUnexpectedCaptureStop || severePreFinishAudioCoverageGap
             var stoppedFields: [String: Any] = [
                 "reason": stopReason.rawValue,
                 "partial": finalizedAsPartial,
@@ -7059,8 +7063,8 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 "actual_duration_sec": Double(round(actualDuration * 1000) / 1000),
                 "screen_capture_restart_count": screenCaptureRestartCount,
             ]
-            if severeLiveAudioCoverageGap {
-                stoppedFields["audio_coverage_ratio"] = Double((liveAudioCoverage * 1000).rounded() / 1000)
+            if severePreFinishAudioCoverageGap {
+                stoppedFields["audio_coverage_ratio"] = Double((preFinishAudioCoverage * 1000).rounded() / 1000)
             }
             if let duration {
                 stoppedFields["requested_duration_sec"] = duration
@@ -7069,7 +7073,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             try finish()
             if let worker = liveWorker {
                 let workerWaitSeconds = livePipelineWorkerFinalizationWaitSeconds(
-                    capturedDuration: liveCapturedDuration ?? actualDuration
+                    capturedDuration: max(actualDuration, liveSegments?.capturedDurationSeconds() ?? 0)
                 )
                 let exited = worker.wait(seconds: workerWaitSeconds)
                 try? eventLog.write(
@@ -7128,13 +7132,21 @@ extension SessionRecorder {
             switch type {
             case .audio:
                 if remoteWriter == nil {
-                    remoteWriter = try AudioFileWriter(url: outputDirectory.appendingPathComponent("audio/remote/000001.caf"), source: "remote")
+                    remoteWriter = try AudioFileWriter(
+                        url: outputDirectory.appendingPathComponent("audio/remote/000001.caf"),
+                        source: "remote",
+                        timelineStartDate: startDate
+                    )
                 }
                 try remoteWriter?.write(sampleBuffer)
                 writeLiveSegmentSafely(sampleBuffer, source: "remote")
             case .microphone:
                 if micWriter == nil {
-                    micWriter = try AudioFileWriter(url: outputDirectory.appendingPathComponent("audio/mic/000001.caf"), source: "mic")
+                    micWriter = try AudioFileWriter(
+                        url: outputDirectory.appendingPathComponent("audio/mic/000001.caf"),
+                        source: "mic",
+                        timelineStartDate: startDate
+                    )
                 }
                 try micWriter?.write(sampleBuffer)
                 writeLiveSegmentSafely(sampleBuffer, source: "mic")
@@ -7180,7 +7192,7 @@ extension SessionRecorder {
                     await self?.waitForUnexpectedStreamStop() ?? .streamStopped
                 }
                 group.addTask { [weak self] in
-                    await self?.waitForCaptureStall() ?? .captureStalled
+                    await self?.monitorCaptureSilence() ?? .terminated
                 }
             }
 
@@ -7209,19 +7221,27 @@ extension SessionRecorder {
         return .terminated
     }
 
-    private func waitForCaptureStall() async -> StopReason {
-        let stallThreshold: TimeInterval = 10
+    private func monitorCaptureSilence() async -> StopReason {
+        let warningThreshold: TimeInterval = 60
         while !Task.isCancelled {
-            let stalled = stateQueue.sync {
+            let silentFor = stateQueue.sync {
                 let reference = lastSampleDate ?? startDate
-                return Date().timeIntervalSince(reference) > stallThreshold
+                return Date().timeIntervalSince(reference)
             }
-            if stalled {
-                appendWarning("capture produced no audio samples for \(Int(stallThreshold))s")
-                if await restartScreenCaptureStream(reason: .captureStalled) {
-                    continue
+            let warningBucket = Int(silentFor / warningThreshold)
+            if warningBucket > 0 {
+                let shouldWarn = stateQueue.sync { () -> Bool in
+                    if warningBucket > captureSilenceWarningCount {
+                        captureSilenceWarningCount = warningBucket
+                        return true
+                    }
+                    return false
                 }
-                return .captureStalled
+                if shouldWarn {
+                    appendWarning(
+                        "no ScreenCaptureKit audio samples for \(Int(silentFor.rounded()))s; recording continues and timestamp gaps will be preserved"
+                    )
+                }
             }
             do {
                 try await Task.sleep(nanoseconds: 1_000_000_000)
@@ -7700,6 +7720,24 @@ extension SessionRecorder {
         return min(1.0, max(0.0, duration / actualDuration))
     }
 
+    private func writerCoverage(
+        frames: AVAudioFramePosition?,
+        sampleRate: Double,
+        actualDuration: TimeInterval
+    ) -> Double {
+        guard actualDuration > 0, sampleRate > 0, let frames else { return 0.0 }
+        let duration = Double(frames) / sampleRate
+        return min(1.0, max(0.0, duration / actualDuration))
+    }
+
+    private func micFramesWritten() -> AVAudioFramePosition? {
+        microphoneBackend == .voiceProcessing ? voiceProcessingMic?.framesWritten : micWriter?.framesWritten
+    }
+
+    private func remoteFramesWritten() -> AVAudioFramePosition? {
+        remoteBackend == .audioInput ? remoteInputCapture?.framesWritten : remoteWriter?.framesWritten
+    }
+
     private func fileInfo(path: String, framesWritten: AVAudioFramePosition?) throws -> FileEntry {
         let url = outputDirectory.appendingPathComponent(path)
         let file = try? AVAudioFile(forReading: url)
@@ -7742,10 +7780,15 @@ final class AudioFileWriter {
     let source: String
     private var file: AVAudioFile?
     private(set) var framesWritten: AVAudioFramePosition = 0
+    private var firstPresentationTimeSec: Double?
+    private var firstWallDate: Date?
+    private var timelineResetCount = 0
+    private(set) var insertedSilenceFrames: AVAudioFramePosition = 0
 
-    init(url: URL, source: String) throws {
+    init(url: URL, source: String, timelineStartDate: Date? = nil) throws {
         self.url = url
         self.source = source
+        self.firstWallDate = timelineStartDate
     }
 
     static func audioFormat(from sampleBuffer: CMSampleBuffer) -> AVAudioFormat? {
@@ -7762,14 +7805,16 @@ final class AudioFileWriter {
         audioFormat(from: sampleBuffer) != nil
     }
 
-    func write(_ sampleBuffer: CMSampleBuffer) throws {
+    @discardableResult
+    func write(_ sampleBuffer: CMSampleBuffer) throws -> AVAudioFramePosition {
         guard let format = Self.audioFormat(from: sampleBuffer) else {
             throw CLIError("cannot read audio format for \(source)")
         }
-        try write(sampleBuffer, format: format)
+        return try write(sampleBuffer, format: format)
     }
 
-    func write(_ sampleBuffer: CMSampleBuffer, format: AVAudioFormat) throws {
+    @discardableResult
+    func write(_ sampleBuffer: CMSampleBuffer, format: AVAudioFormat) throws -> AVAudioFramePosition {
         let frameCount = AVAudioFrameCount(CMSampleBufferGetNumSamples(sampleBuffer))
         guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
             throw CLIError("cannot allocate PCM buffer for \(source)")
@@ -7786,19 +7831,95 @@ final class AudioFileWriter {
             throw CLIError("cannot copy PCM data for \(source): OSStatus \(status)")
         }
 
-        if file == nil {
-            do {
-                file = try Self.makeAudioFile(url: url, processingFormat: format)
-            } catch {
-                throw CLIError("cannot create audio file for \(source): \(error.localizedDescription)")
-            }
+        try ensureFile(format: format)
+        let gapFrames = timelineGapFrames(sampleBuffer: sampleBuffer, format: format)
+        if gapFrames > 0 {
+            try writeSilence(format: format, frames: gapFrames)
         }
+        try writePCMBuffer(buffer)
+        framesWritten += AVAudioFramePosition(frameCount)
+        return gapFrames + AVAudioFramePosition(frameCount)
+    }
+
+    private func ensureFile(format: AVAudioFormat) throws {
+        guard file == nil else { return }
+        do {
+            file = try Self.makeAudioFile(url: url, processingFormat: format)
+        } catch {
+            throw CLIError("cannot create audio file for \(source): \(error.localizedDescription)")
+        }
+    }
+
+    private func writePCMBuffer(_ buffer: AVAudioPCMBuffer) throws {
         do {
             try file?.write(from: buffer)
         } catch {
             throw CLIError("cannot write audio buffer for \(source): \(error.localizedDescription)")
         }
-        framesWritten += AVAudioFramePosition(frameCount)
+    }
+
+    private func timelineGapFrames(sampleBuffer: CMSampleBuffer, format: AVAudioFormat) -> AVAudioFramePosition {
+        let sampleRate = max(format.sampleRate, 1.0)
+        let toleranceFrames = AVAudioFramePosition(max(256.0, sampleRate * 0.050))
+        let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let ptsSeconds = CMTimeGetSeconds(pts)
+        if firstPresentationTimeSec == nil, ptsSeconds.isFinite {
+            firstPresentationTimeSec = ptsSeconds
+        }
+        if firstWallDate == nil {
+            firstWallDate = Date()
+        }
+
+        var expectedStartFrame: AVAudioFramePosition?
+        if let firstPresentationTimeSec, ptsSeconds.isFinite {
+            expectedStartFrame = AVAudioFramePosition(((ptsSeconds - firstPresentationTimeSec) * sampleRate).rounded())
+        }
+        if let firstWallDate {
+            let wallFrame = AVAudioFramePosition((Date().timeIntervalSince(firstWallDate) * sampleRate).rounded())
+            if let currentExpected = expectedStartFrame {
+                expectedStartFrame = max(currentExpected, wallFrame)
+            } else {
+                expectedStartFrame = wallFrame
+            }
+        }
+
+        guard var expectedStartFrame else { return 0 }
+        if expectedStartFrame + toleranceFrames < framesWritten {
+            timelineResetCount += 1
+            if ptsSeconds.isFinite {
+                firstPresentationTimeSec = ptsSeconds - (Double(framesWritten) / sampleRate)
+            }
+            expectedStartFrame = framesWritten
+        }
+        let gapFrames = expectedStartFrame - framesWritten
+        return gapFrames > toleranceFrames ? gapFrames : 0
+    }
+
+    private func writeSilence(format: AVAudioFormat, frames: AVAudioFramePosition) throws {
+        guard frames > 0 else { return }
+        let maxChunk = AVAudioFramePosition(max(1.0, format.sampleRate * 10.0))
+        var remaining = frames
+        while remaining > 0 {
+            let chunkFrames = AVAudioFrameCount(min(remaining, maxChunk))
+            guard let silence = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunkFrames) else {
+                throw CLIError("cannot allocate silence buffer for \(source)")
+            }
+            silence.frameLength = chunkFrames
+            zeroBuffer(silence)
+            try writePCMBuffer(silence)
+            framesWritten += AVAudioFramePosition(chunkFrames)
+            insertedSilenceFrames += AVAudioFramePosition(chunkFrames)
+            remaining -= AVAudioFramePosition(chunkFrames)
+        }
+    }
+
+    private func zeroBuffer(_ buffer: AVAudioPCMBuffer) {
+        let audioBuffers = UnsafeMutableAudioBufferListPointer(buffer.mutableAudioBufferList)
+        for audioBuffer in audioBuffers {
+            if let data = audioBuffer.mData {
+                memset(data, 0, Int(audioBuffer.mDataByteSize))
+            }
+        }
     }
 
     private static func makeAudioFile(url: URL, processingFormat: AVAudioFormat) throws -> AVAudioFile {
@@ -7902,16 +8023,16 @@ final class LiveSegmentCapture {
         }
         var state = states[source] ?? SourceState()
 
-        let frameCount = AVAudioFramePosition(CMSampleBufferGetNumSamples(sampleBuffer))
         try writePendingAfterOverlap(sampleBuffer, format: format, source: source, state: &state)
         if state.writer == nil {
             try startSegment(source: source, format: format, state: &state)
         }
-        try state.writer?.write(sampleBuffer, format: format)
-        state.hardFrames += frameCount
-        state.fileFrames += frameCount
-        state.cumulativeFrames += frameCount
-        appendTail(sampleBuffer, format: format, frames: frameCount, state: &state)
+        let sampleFrames = AVAudioFramePosition(CMSampleBufferGetNumSamples(sampleBuffer))
+        let writtenFrames = try state.writer?.write(sampleBuffer, format: format) ?? sampleFrames
+        state.hardFrames += writtenFrames
+        state.fileFrames += writtenFrames
+        state.cumulativeFrames += writtenFrames
+        appendTail(sampleBuffer, format: format, frames: sampleFrames, state: &state)
 
         let targetFrames = AVAudioFramePosition(max(1.0, state.sampleRate * segmentSeconds))
         if state.hardFrames >= targetFrames {
@@ -8067,12 +8188,11 @@ final class LiveSegmentCapture {
         source: String,
         state: inout SourceState
     ) throws {
-        let frameCount = AVAudioFramePosition(CMSampleBufferGetNumSamples(sampleBuffer))
         for index in state.closing.indices.reversed() {
             do {
-                try state.closing[index].writer.write(sampleBuffer, format: format)
-                state.closing[index].fileFrames += frameCount
-                state.closing[index].afterFramesWritten += frameCount
+                let writtenFrames = try state.closing[index].writer.write(sampleBuffer, format: format)
+                state.closing[index].fileFrames += writtenFrames
+                state.closing[index].afterFramesWritten += writtenFrames
             } catch {
                 try closePendingSegment(source: source, state: &state, at: index, final: false)
                 continue
