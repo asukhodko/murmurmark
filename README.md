@@ -91,7 +91,8 @@ passed on a broader corpus.
   burden, evidence-backed notes, transcript IDs and retention/privacy next steps.
 - Local release bundle, self-test, acceptance gate and open-source readiness check.
 - Recording reliability: duration/SIGINT complete normally, SIGTERM/SIGHUP/unrecovered capture stops
-  become explicit partial sessions, and `doctor` catches missing shareable displays before recording.
+  become explicit partial sessions, severe wall-clock/audio-duration gaps are blocked as partial
+  captures, and `doctor` catches missing shareable displays before recording.
 
 ## Reliability Direction
 
@@ -157,12 +158,13 @@ covers `14/50` sessions with `0` failed chunk rebuilds and `146/146` completed A
 
 Live/near-realtime cache promotion is gated separately. `murmurmark corpus live` writes the current
 live parity report, and `scripts/check-corpus-gates.py` copies the live coverage/risk counters into
-the main corpus gate report. Current diagnostic coverage has started: `1/51` sessions has
-`live_batch_comparison.json`, promotion remains `shadow_only_do_not_promote`, and the first
-meaningful comparison now passes the basic parity gates. It still has a warning for `0.57s` of
-suspicious short batch `Me` speech missing from the live draft, so this is coverage evidence, not a
-promotion signal. Measured live order, local recall, remote-in-`Me` leakage and adjacent chunk
-duplicates are currently clean on this single diagnostic comparison.
+the main corpus gate report. Current diagnostic coverage has started: `2/52` sessions have
+`live_batch_comparison.json`, promotion remains `shadow_only_do_not_promote`, and only the first
+meaningful comparison currently passes the basic parity gates. The second live recording is useful
+negative evidence: capture recovered only a short audio slice and the live draft missed too much
+`Me` speech. This is coverage evidence, not a
+promotion signal. Measured live order, remote-in-`Me` leakage and adjacent chunk duplicates are
+currently clean, while local recall and authoritative batch readiness still block live promotion.
 
 ## What Is Still Out Of Scope
 
@@ -237,9 +239,10 @@ SESSION="sessions/<timestamp>"
 recommended_next: murmurmark process sessions/<timestamp>
 ```
 
-If capture stops before `Ctrl-C`, MurmurMark finalizes a partial session instead of pretending it is
-complete. In that case `record`, `status` and `next` point to `murmurmark inspect ...`; normal
-processing is blocked unless you explicitly pass `--allow-partial` for debugging.
+If capture stops before `Ctrl-C`, or if written CAF tracks cover far less time than the wall-clock
+recording, MurmurMark finalizes a partial session instead of pretending it is complete. In that case
+`record`, `status` and `next` point to `murmurmark inspect ...`; normal processing is blocked unless
+you explicitly pass `--allow-partial` for debugging.
 
 Then run:
 
@@ -331,10 +334,10 @@ murmurmark corpus live all \
 ```
 
 This target command is expected to fail until at least three real live sessions have meaningful
-comparisons and all parity gates pass. The first diagnostic live capture now passes the minimal
-one-sample gate (`1/51` live sessions, `1` meaningful comparison, `1` passing comparison), while
-`coverage_target` remains `needs_more_live_coverage` and `promotion_allowed_sessions` stays `0`.
-The next evidence step is broader real live coverage, not promotion.
+comparisons and all parity gates pass. Current evidence has `2/52` live sessions, `2` meaningful
+comparisons and `1` passing comparison. `coverage_target` remains `needs_more_live_coverage` and
+`promotion_allowed_sessions` stays `0`. The next evidence step is broader real live coverage, not
+promotion.
 
 ## Process An Existing Session
 

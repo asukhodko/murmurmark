@@ -7046,38 +7046,49 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             stopRemoteInputCapture()
             stopVoiceProcessingMic()
             liveSegments?.closeAll()
+            let liveCapturedDuration = liveSegments?.capturedDurationSeconds()
             stopDate = Date()
             let actualDuration = max(0.0, (stopDate ?? Date()).timeIntervalSince(startDate))
+            let liveAudioCoverage = (liveCapturedDuration ?? actualDuration) / max(actualDuration, 1.0)
+            let severeLiveAudioCoverageGap = actualDuration >= 60 && liveAudioCoverage < 0.80
+            let finalizedAsPartial = stopReason.isUnexpectedCaptureStop || severeLiveAudioCoverageGap
             var stoppedFields: [String: Any] = [
                 "reason": stopReason.rawValue,
-                "partial": stopReason.isUnexpectedCaptureStop,
+                "partial": finalizedAsPartial,
                 "explicit_stop": stopReason.isExplicitStop,
                 "actual_duration_sec": Double(round(actualDuration * 1000) / 1000),
                 "screen_capture_restart_count": screenCaptureRestartCount,
             ]
+            if severeLiveAudioCoverageGap {
+                stoppedFields["audio_coverage_ratio"] = Double((liveAudioCoverage * 1000).rounded() / 1000)
+            }
             if let duration {
                 stoppedFields["requested_duration_sec"] = duration
             }
             try eventLog.write(type: "capture.stopped", fields: stoppedFields)
             try finish()
             if let worker = liveWorker {
-                let exited = worker.wait(seconds: 30)
+                let workerWaitSeconds = livePipelineWorkerFinalizationWaitSeconds(
+                    capturedDuration: liveCapturedDuration ?? actualDuration
+                )
+                let exited = worker.wait(seconds: workerWaitSeconds)
                 try? eventLog.write(
                     type: "live_pipeline.worker_waited",
                     fields: [
                         "exited": exited,
                         "status": worker.terminationStatus.map { Int($0) } as Any? ?? NSNull(),
                         "report": "derived/live/live_pipeline_report.json",
+                        "timeout_sec": Double((workerWaitSeconds * 1000).rounded() / 1000),
                     ]
                 )
                 if !exited {
-                    appendWarning("live pipeline worker still running after 30s finalization wait")
+                    appendWarning("live pipeline worker still running after \(Int(workerWaitSeconds.rounded()))s finalization wait")
                 }
             }
-            if liveFinalizeEnabled, !stopReason.isUnexpectedCaptureStop {
+            if liveFinalizeEnabled, !finalizedAsPartial {
                 runLiveFinalReconcile(eventLog: eventLog)
             }
-            if stopReason.isUnexpectedCaptureStop {
+            if finalizedAsPartial {
                 print("partial session finalized")
                 printInterruptedHandoff()
             } else {
@@ -7382,9 +7393,21 @@ extension SessionRecorder {
         let endedAt = stopDate ?? Date()
         let actualDuration = max(0.0, endedAt.timeIntervalSince(startDate))
         let stopReason = finalStopReason
-        let partial = stopReason?.isUnexpectedCaptureStop ?? false
-        if partial {
+        let trackCoverage = min(audioCoverage(micInfo, actualDuration: actualDuration), audioCoverage(remoteInfo, actualDuration: actualDuration))
+        let severeAudioCoverageGap = actualDuration >= 60 && trackCoverage < 0.80
+        if severeAudioCoverageGap {
+            finalWarnings.append(
+                String(
+                    format: "captured audio covers only %.1f%% of wall-clock recording duration",
+                    trackCoverage * 100.0
+                )
+            )
+        }
+        let partial = (stopReason?.isUnexpectedCaptureStop ?? false) || severeAudioCoverageGap
+        if stopReason?.isUnexpectedCaptureStop == true {
             finalWarnings.append("capture ended unexpectedly: \(stopReason?.rawValue ?? "unknown")")
+        } else if severeAudioCoverageGap {
+            finalWarnings.append("capture finalized as partial because audio coverage is incomplete")
         }
         let healthSummary: String
         if partial {
@@ -7593,6 +7616,13 @@ extension SessionRecorder {
         try? JSONObject.write(payload, to: outputDirectory.appendingPathComponent("derived/live/final_reconcile_report.json"))
     }
 
+    private func livePipelineWorkerFinalizationWaitSeconds(capturedDuration: TimeInterval) -> TimeInterval {
+        guard livePipelineEnabled && liveWorkerEnabled else { return 0 }
+        let segmentCount = max(1.0, ceil(max(capturedDuration, liveSegmentSeconds) / max(liveSegmentSeconds, 1.0)))
+        let estimatedTailWork = 30.0 + segmentCount * 30.0
+        return min(900.0, max(60.0, estimatedTailWork))
+    }
+
     private func printHandoff() {
         let session = PathDisplay.display(outputDirectory)
         let readinessExists = fileManager.fileExists(
@@ -7662,6 +7692,12 @@ extension SessionRecorder {
     private var isSystemTarget: Bool {
         guard let targetBundleID else { return true }
         return targetBundleID == "system" || targetBundleID == "all"
+    }
+
+    private func audioCoverage(_ file: FileEntry, actualDuration: TimeInterval) -> Double {
+        guard actualDuration > 0, file.sampleRate > 0 else { return 1.0 }
+        let duration = Double(file.frames) / Double(file.sampleRate)
+        return min(1.0, max(0.0, duration / actualDuration))
     }
 
     private func fileInfo(path: String, framesWritten: AVAudioFramePosition?) throws -> FileEntry {
@@ -7895,6 +7931,12 @@ final class LiveSegmentCapture {
         }
         try? writeState(status: "capture_finished")
         try? manifestHandle.close()
+    }
+
+    func capturedDurationSeconds() -> TimeInterval {
+        states.values.map { state in
+            Double(state.cumulativeFrames) / max(state.sampleRate, 1.0)
+        }.max() ?? 0
     }
 
     private func startSegment(source: String, format: AVAudioFormat, state: inout SourceState) throws {

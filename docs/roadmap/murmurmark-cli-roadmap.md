@@ -288,13 +288,12 @@ flowchart LR
   - use live chunks as an acceleration path only when strict metadata compatibility and parity gates
     pass; batch transcript remains authoritative.
   - current evidence: synthetic live-cache materialization passes, chunk rebuild gates exist, corpus
-    gates expose live parity counters, and the first diagnostic real live capture is compared:
-    `1/51` live sessions, `1` meaningful comparison, `1` passing comparison, `0` promoted
-    sessions. The first live role/boundary gates reduce measured remote-in-`Me` and boundary
-    duplicates to `0`; the comparison still has `0.57s` of suspicious short batch `Me` missing
-    from the live draft as a warning. The missing piece is broader real live coverage with varied
-    meeting shapes: target `3` live sessions and `3` passing meaningful comparisons. Promotion is
-    correctly blocked.
+    gates expose live parity counters, and two diagnostic real live captures are compared: `2/52`
+    live sessions, `2` meaningful comparisons, `1` passing comparison, `0` promoted sessions. The
+    second live recording is useful negative evidence: severe capture stalls left only a short audio
+    slice and live local recall missed `86.82s` of batch `Me` speech. The missing piece is broader
+    real live coverage with varied meeting shapes: target `3` live sessions and `3` passing
+    meaningful comparisons. Promotion is correctly blocked.
 - Near-realtime shadow pipeline follow-up:
   - segment writer during capture exists with hard/clip overlap windows, but still needs better queue
     recovery;

@@ -128,14 +128,13 @@ Completion evidence:
   `coverage_ratio: 0.28`, `chunks_completed: 146/146`;
 - `check-corpus-gates.py --no-fail` now reports `asr_chunk_cache_status: passed` with
   `asr_chunk_cache_passed_sessions: 14` and `asr_chunk_cache_coverage_ratio: 0.28`;
-- `check-corpus-gates.py --no-fail` now also reports live-cache parity state. After the first
-  diagnostic live capture, corpus live coverage is `1/51`, `live_cache_parity_promotion_allowed_sessions`
-  remains `0`, `meaningful_compared_sessions` is `1`, and `passing_compared_sessions` is `1`.
-  The minimal one-sample diagnostic gate passes, but the target coverage gate remains red until
-  three real live sessions have passing meaningful comparisons. The first live role/boundary gates
-  reduce measured remote-in-`Me` and adjacent chunk duplicates to `0`; the comparison still reports
-  `0.57s` of suspicious short batch `Me` missing from the live draft as a warning, not as failed
-  local recall;
+- `check-corpus-gates.py --no-fail` now also reports live-cache parity state. Current corpus live
+  coverage is `2/52`, `live_cache_parity_promotion_allowed_sessions` remains `0`,
+  `meaningful_compared_sessions` is `2`, and `passing_compared_sessions` is `1`. The first
+  diagnostic live capture passes the minimal one-sample gate. The second live recording is negative
+  evidence: capture recovered only a short audio slice, live comparison stayed non-promotable, and
+  local recall reported `86.82s` of missing `Me` speech. The target coverage gate remains red until
+  three real live sessions have passing meaningful comparisons;
 - ASR chunk-cache corpus report now separates the next coverage work: `22` sessions have old raw
   ASR without chunk reports, and `14` sessions have no raw ASR;
 - legacy top-level raw ASR caches without `raw/chunks/<track>/chunk_cache_report.json` no longer
@@ -162,12 +161,11 @@ Completion evidence:
 Follow-up hardening:
 
 - broader corpus no-regression comparison for chunked rebuild vs existing batch baseline;
-- corpus parity coverage for live-cache reuse on real sessions. The first real diagnostic
-  `record --live-pipeline` sample now exists and passes the basic strict live gate:
-  `meaningful_compared_sessions` is `1`, `passing_compared_sessions` is `1`, measured
-  remote-in-`Me` and adjacent chunk duplicates are `0`, and `promotion_allowed_sessions` remains
-  `0`. The next evidence step is broader real live coverage: target `3` live sessions and `3`
-  passing meaningful comparisons, not promotion.
+- corpus parity coverage for live-cache reuse on real sessions. Two real `record --live-pipeline`
+  samples now exist: one passing comparison and one non-passing comparison with local-recall loss
+  after severe capture stalls. `promotion_allowed_sessions` remains `0`. The next evidence step is
+  broader real live coverage: target `3` live sessions and `3` passing meaningful comparisons, not
+  promotion.
 
 Primary design document:
 
