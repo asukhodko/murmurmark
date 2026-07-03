@@ -131,9 +131,11 @@ Completion evidence:
 - `check-corpus-gates.py --no-fail` now also reports live-cache parity state. After the first
   diagnostic live capture, corpus live coverage is `1/51`, `live_cache_parity_promotion_allowed_sessions`
   remains `0`, `meaningful_compared_sessions` is `1`, and `passing_compared_sessions` is `1`.
-  Strict one-sample coverage now passes. The first live role/boundary gates reduce measured
-  remote-in-`Me` and adjacent chunk duplicates to `0`; the comparison still reports `0.57s` of
-  suspicious short batch `Me` missing from the live draft as a warning, not as failed local recall;
+  The minimal one-sample diagnostic gate passes, but the target coverage gate remains red until
+  three real live sessions have passing meaningful comparisons. The first live role/boundary gates
+  reduce measured remote-in-`Me` and adjacent chunk duplicates to `0`; the comparison still reports
+  `0.57s` of suspicious short batch `Me` missing from the live draft as a warning, not as failed
+  local recall;
 - ASR chunk-cache corpus report now separates the next coverage work: `22` sessions have old raw
   ASR without chunk reports, and `14` sessions have no raw ASR;
 - legacy top-level raw ASR caches without `raw/chunks/<track>/chunk_cache_report.json` no longer

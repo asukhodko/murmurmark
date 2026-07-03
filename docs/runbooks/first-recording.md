@@ -161,15 +161,16 @@ broad enough and the corpus gates are intentionally promoted. The command prints
 and `next:` lines; use them to inspect the current blocker or start the next live sample. The
 Markdown report's `Gate Issues` section lists the exact non-passing gates by session.
 
-For the current live-parity coverage goal, use the strict form after recording at least one real
-live session:
+For the current live-parity coverage goal, use the strict target form after recording enough real
+live sessions. It is expected to fail until three live sessions have meaningful passing
+comparisons:
 
 ```bash
 murmurmark corpus live all \
-  --min-live-sessions 1 \
-  --min-compared-sessions 1 \
-  --min-meaningful-compared-sessions 1 \
-  --min-passing-compared-sessions 1 \
+  --min-live-sessions 3 \
+  --min-compared-sessions 3 \
+  --min-meaningful-compared-sessions 3 \
+  --min-passing-compared-sessions 3 \
   --max-order-mismatches 0 \
   --max-missing-me-sec 0 \
   --max-remote-in-me-sec 0 \

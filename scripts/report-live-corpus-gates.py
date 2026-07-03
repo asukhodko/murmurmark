@@ -453,12 +453,6 @@ def recommended_next_commands(
 ) -> list[str]:
     target_live = max(1, safe_int(summary.get("live_sessions")) + safe_int(summary.get("coverage_target_live_sessions_remaining")))
     target_passing = max(1, safe_int(summary.get("passing_compared_sessions")) + safe_int(summary.get("coverage_target_passing_sessions_remaining")))
-    strict_command = (
-        "murmurmark corpus live all --min-live-sessions 1 --min-compared-sessions 1 "
-        "--min-meaningful-compared-sessions 1 --min-passing-compared-sessions 1 "
-        "--max-order-mismatches 0 --max-missing-me-sec 0 --max-remote-in-me-sec 0 "
-        "--max-boundary-duplicates 0 --require-passing-gates --fail-on-promotion"
-    )
     coverage_command = (
         f"murmurmark corpus live all --min-live-sessions {target_live} --min-compared-sessions {target_live} "
         f"--min-meaningful-compared-sessions {target_live} --min-passing-compared-sessions {target_passing} "
@@ -469,24 +463,24 @@ def recommended_next_commands(
         return [
             "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
             "murmurmark process latest",
-            strict_command,
+            coverage_command,
         ]
     if safe_int(summary.get("compared_sessions")) == 0:
         return [
             "murmurmark process latest",
-            strict_command,
+            coverage_command,
         ]
     if safe_int(summary.get("meaningful_compared_sessions")) == 0:
         return [
             "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
             "murmurmark process latest",
-            strict_command,
+            coverage_command,
         ]
     if safe_int(summary.get("passing_compared_sessions")) == 0:
         commands = [
             "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
             "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
-            strict_command,
+            coverage_command,
         ]
         first_issue = gate_issues[0] if gate_issues else {}
         comparison = first_issue.get("comparison")
@@ -508,14 +502,13 @@ def recommended_next_commands(
     if safe_int(summary.get("promotion_allowed_sessions")) > 0:
         return [
             "jq '.sessions[] | select(.promotion_allowed == true)' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
-            strict_command,
+            coverage_command,
         ]
     if summary.get("coverage_target_status") != "passed":
         return [
             "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
             "murmurmark process latest",
             coverage_command,
-            strict_command,
         ]
     return [
         coverage_command,

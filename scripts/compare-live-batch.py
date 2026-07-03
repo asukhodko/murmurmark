@@ -536,9 +536,9 @@ def check_row(check_id: str, status: str, message: str, evidence: dict[str, Any]
 def live_session_next_commands(session: Path, payload: dict[str, Any]) -> list[str]:
     session_path = str(session)
     comparison_path = session / "derived/live/live_batch_comparison.json"
-    strict_command = (
-        "murmurmark corpus live all --min-live-sessions 1 --min-compared-sessions 1 "
-        "--min-meaningful-compared-sessions 1 --min-passing-compared-sessions 1 "
+    coverage_command = (
+        "murmurmark corpus live all --min-live-sessions 3 --min-compared-sessions 3 "
+        "--min-meaningful-compared-sessions 3 --min-passing-compared-sessions 3 "
         "--max-order-mismatches 0 --max-missing-me-sec 0 --max-remote-in-me-sec 0 "
         "--max-boundary-duplicates 0 --require-passing-gates --fail-on-promotion"
     )
@@ -553,7 +553,7 @@ def live_session_next_commands(session: Path, payload: dict[str, Any]) -> list[s
         commands.append(f"jq '.risk_examples' {comparison_path}")
     if not metrics.get("meaningful_live_comparison") or not metrics.get("all_parity_gates_passed"):
         commands.append("murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5")
-    commands.append(strict_command)
+    commands.append(coverage_command)
     deduped: list[str] = []
     for command in commands:
         if command not in deduped:

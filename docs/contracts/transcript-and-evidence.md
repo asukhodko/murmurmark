@@ -4861,10 +4861,10 @@ Strict coverage mode is optional and is intended for the current live-parity rol
 
 ```bash
 murmurmark corpus live all \
-  --min-live-sessions 1 \
-  --min-compared-sessions 1 \
-  --min-meaningful-compared-sessions 1 \
-  --min-passing-compared-sessions 1 \
+  --min-live-sessions 3 \
+  --min-compared-sessions 3 \
+  --min-meaningful-compared-sessions 3 \
+  --min-passing-compared-sessions 3 \
   --max-order-mismatches 0 \
   --max-missing-me-sec 0 \
   --max-remote-in-me-sec 0 \
@@ -4874,8 +4874,8 @@ murmurmark corpus live all \
 ```
 
 When strict requirements are passed, the report still must keep `promotion_allowed_sessions: 0`.
-Passing strict coverage means "safe enough to keep evaluating live cache as a speed-up candidate",
-not "live is now authoritative".
+Passing strict coverage means "the first live-parity coverage target is met and live cache can keep
+being evaluated as a speed-up candidate", not "live is now authoritative".
 
 `scripts/check-corpus-gates.py` reads this report as the `live_cache_parity` gate family:
 
