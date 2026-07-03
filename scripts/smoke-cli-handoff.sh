@@ -848,6 +848,13 @@ jq -e '
   and ([.parity_gates.gates[] | select(.name == "selected_notes_readiness" and .status == "passed")] | length == 1)
   and ([.parity_gates.gates[] | select(.name == "chunk_boundary_risks" and .status == "passed")] | length == 1)
 ' "$live_parity_session/derived/live/live_batch_comparison.json" >/dev/null
+jq -e '
+  .status == "passing_shadow_locked"
+  and .promotion_allowed == false
+  and ([.checks[] | select(.id == "meaningful_two_role_comparison" and .status == "pass")] | length == 1)
+  and ([.checks[] | select(.id == "all_parity_gates_passed" and .status == "pass")] | length == 1)
+  and ([.checks[] | select(.id == "promotion_blocked" and .status == "pass")] | length == 1)
+' "$live_parity_session/derived/live/live_parity_session_report.json" >/dev/null
 "$eval_python" "$repo_root/scripts/report-live-corpus-gates.py" "$live_parity_session" \
   --sessions-root "$workdir/sessions" \
   --out-dir "$workdir/live-report" >/dev/null

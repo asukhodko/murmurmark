@@ -4637,6 +4637,8 @@ After the normal batch pipeline runs, `scripts/compare-live-batch.py` writes:
 
 ```text
 derived/live/live_batch_comparison.json
+derived/live/live_parity_session_report.json
+derived/live/live_parity_session_report.md
 ```
 
 Schema:
@@ -4716,6 +4718,10 @@ Schema:
         "reason": "live chunk boundaries should not introduce adjacent duplicate transcript text"
       }
     ]
+  },
+  "outputs": {
+    "live_parity_session_report": "derived/live/live_parity_session_report.json",
+    "live_parity_session_report_markdown": "derived/live/live_parity_session_report.md"
   }
 }
 ```
@@ -4723,6 +4729,36 @@ Schema:
 This comparison is advisory. Missing live or batch artifacts are written as `blockers`, but they must
 not fail the normal batch pipeline. `not_evaluated` gates are promotion blockers, not failures of the
 recording.
+
+`live_parity_session_report.json` is the human/agent handoff for one live session:
+
+```json
+{
+  "schema": "murmurmark.live_parity_session_report/v1",
+  "status": "not_passing",
+  "promotion_allowed": false,
+  "checks": [
+    {"id": "live_artifacts_present", "status": "pass"},
+    {"id": "batch_artifacts_present", "status": "pass"},
+    {"id": "meaningful_two_role_comparison", "status": "pass"},
+    {"id": "batch_ready_for_notes", "status": "block"},
+    {"id": "all_parity_gates_passed", "status": "block"},
+    {"id": "promotion_blocked", "status": "pass"},
+    {"id": "suspicious_batch_me_missing", "status": "warn"}
+  ],
+  "non_passing_gates": [
+    {"name": "selected_notes_readiness", "status": "warning"}
+  ],
+  "recommended_next": "murmurmark status sessions/<session>",
+  "next_commands": [
+    "murmurmark status sessions/<session>",
+    "jq '.parity_gates.gates[] | select(.status != \"passed\")' sessions/<session>/derived/live/live_batch_comparison.json"
+  ]
+}
+```
+
+This report is still advisory. It explains why a session does or does not count as a passing live
+comparison; it does not promote live output.
 
 The first live-parity layer computes measurable evidence from live chunks and the selected batch
 dialogue:

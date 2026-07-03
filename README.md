@@ -279,6 +279,8 @@ The live worker is still shadow-grade, but it now has three lightweight protecti
 draft text: per-chunk mic echo cleanup, a role gate that suppresses mic text when it duplicates the
 same chunk's remote text, and a boundary gate that suppresses adjacent chunk repeats. These
 protections reduce obvious live draft mistakes; they do not make live output authoritative.
+After batch processing, `derived/live/live_parity_session_report.md` explains whether that one
+session can count as a passing live comparison and lists the exact non-passing gates.
 
 During final reconcile, `process` also runs a live-ASR cache bridge:
 

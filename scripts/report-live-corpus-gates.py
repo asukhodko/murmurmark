@@ -148,6 +148,7 @@ def meaningful_comparison(metrics: dict[str, Any], comparison_status: Any) -> bo
 def summarize_session(session: Path, root: Path) -> dict[str, Any]:
     live_report_path = session / "derived/live/live_pipeline_report.json"
     comparison_path = session / "derived/live/live_batch_comparison.json"
+    session_report_path = session / "derived/live/live_parity_session_report.json"
     final_reconcile_path = session / "derived/live/final_reconcile_report.json"
     live_report = read_json(live_report_path)
     comparison = read_json(comparison_path)
@@ -202,6 +203,7 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
         "inputs": {
             "live_report": rel(live_report_path, session) if live_report_path.exists() else None,
             "live_batch_comparison": rel(comparison_path, session) if comparison_path.exists() else None,
+            "live_parity_session_report": rel(session_report_path, session) if session_report_path.exists() else None,
             "final_reconcile_report": rel(final_reconcile_path, session) if final_reconcile_path.exists() else None,
         },
         "gates": gates,

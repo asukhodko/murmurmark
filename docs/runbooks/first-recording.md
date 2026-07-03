@@ -119,6 +119,8 @@ normal session and can be processed by the batch pipeline. The derived segment w
 best-effort: if it fails, MurmurMark disables live segments with a warning instead of stopping raw
 recording. Use `--live-no-finalize` when you only want to test the live draft and run
 `murmurmark process` manually.
+After batch processing, `derived/live/live_parity_session_report.md` explains whether the session can
+count as a passing live comparison and lists the exact non-passing gates.
 
 `murmurmark status latest` prints the live worker, stage, captured/preprocessed/asr seconds, lag,
 chunk count and final-reconcile status when these artifacts exist.

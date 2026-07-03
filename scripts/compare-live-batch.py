@@ -11,7 +11,8 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
-SCRIPT_VERSION = "0.5.0"
+SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
+SCRIPT_VERSION = "0.6.0"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 
 
@@ -523,12 +524,178 @@ def parity_gates(
     return gates
 
 
+def check_row(check_id: str, status: str, message: str, evidence: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "id": check_id,
+        "status": status,
+        "message": message,
+        "evidence": evidence or {},
+    }
+
+
+def live_session_next_commands(session: Path, payload: dict[str, Any]) -> list[str]:
+    session_path = str(session)
+    comparison_path = session / "derived/live/live_batch_comparison.json"
+    strict_command = (
+        "murmurmark corpus live all --min-live-sessions 1 --min-compared-sessions 1 "
+        "--min-meaningful-compared-sessions 1 --min-passing-compared-sessions 1 "
+        "--max-order-mismatches 0 --max-missing-me-sec 0 --max-remote-in-me-sec 0 "
+        "--max-boundary-duplicates 0 --require-passing-gates --fail-on-promotion"
+    )
+    metrics = payload.get("metrics") if isinstance(payload.get("metrics"), dict) else {}
+    gates = (payload.get("parity_gates") or {}).get("gates") if isinstance(payload.get("parity_gates"), dict) else []
+    non_passing = [gate for gate in gates or [] if isinstance(gate, dict) and gate.get("status") != "passed"]
+    commands = [f"murmurmark status {session_path}"]
+    if non_passing:
+        commands.append(f"jq '.parity_gates.gates[] | select(.status != \"passed\")' {comparison_path}")
+    risk_examples = payload.get("risk_examples") if isinstance(payload.get("risk_examples"), dict) else {}
+    if any(risk_examples.values()):
+        commands.append(f"jq '.risk_examples' {comparison_path}")
+    if not metrics.get("meaningful_live_comparison") or not metrics.get("all_parity_gates_passed"):
+        commands.append("murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5")
+    commands.append(strict_command)
+    deduped: list[str] = []
+    for command in commands:
+        if command not in deduped:
+            deduped.append(command)
+    return deduped
+
+
+def build_session_report(session: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    metrics = payload.get("metrics") if isinstance(payload.get("metrics"), dict) else {}
+    blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
+    gates = (payload.get("parity_gates") or {}).get("gates") if isinstance(payload.get("parity_gates"), dict) else []
+    non_passing = [gate for gate in gates or [] if isinstance(gate, dict) and gate.get("status") != "passed"]
+    checks = [
+        check_row(
+            "live_artifacts_present",
+            "pass" if "live_report_missing" not in blockers and "live_chunks_missing" not in blockers else "block",
+            "live report and chunks are required for a live comparison",
+            {"blockers": [item for item in blockers if item in {"live_report_missing", "live_chunks_missing"}]},
+        ),
+        check_row(
+            "batch_artifacts_present",
+            "pass"
+            if "batch_transcript_missing" not in blockers and "batch_clean_dialogue_missing" not in blockers
+            else "block",
+            "authoritative batch transcript and clean dialogue are required",
+            {"blockers": [item for item in blockers if item in {"batch_transcript_missing", "batch_clean_dialogue_missing"}]},
+        ),
+        check_row(
+            "meaningful_two_role_comparison",
+            "pass" if metrics.get("meaningful_live_comparison") else "block",
+            "live and batch outputs must both contain Me and Colleagues evidence",
+            {
+                "live_me_turn_count": metrics.get("live_me_turn_count"),
+                "live_remote_turn_count": metrics.get("live_remote_turn_count"),
+                "batch_me_utterance_count": metrics.get("batch_me_utterance_count"),
+                "batch_remote_utterance_count": metrics.get("batch_remote_utterance_count"),
+            },
+        ),
+        check_row(
+            "batch_ready_for_notes",
+            "pass" if metrics.get("batch_ready_for_notes") else "block",
+            "live parity can pass only when the authoritative batch result is notes-ready",
+            {
+                "batch_use_gate": metrics.get("batch_use_gate"),
+                "batch_outcome": metrics.get("batch_outcome"),
+            },
+        ),
+        check_row(
+            "all_parity_gates_passed",
+            "pass" if metrics.get("all_parity_gates_passed") else "block",
+            "every live parity gate must pass before this session can count as a passing comparison",
+            {"non_passing_gates": [gate.get("name") for gate in non_passing]},
+        ),
+        check_row(
+            "promotion_blocked",
+            "pass" if payload.get("promotion_allowed") is False else "fail",
+            "live promotion must stay blocked in v1",
+            {"promotion_allowed": payload.get("promotion_allowed")},
+        ),
+        check_row(
+            "suspicious_batch_me_missing",
+            "pass" if safe_float(metrics.get("live_suspicious_batch_me_missing_seconds")) == 0 else "warn",
+            "suspicious short batch Me missing from live does not count as missing local speech, but should be inspected",
+            {
+                "seconds": metrics.get("live_suspicious_batch_me_missing_seconds"),
+                "count": metrics.get("live_suspicious_batch_me_missing_count"),
+            },
+        ),
+    ]
+    hard_statuses = {row["status"] for row in checks if row["id"] != "suspicious_batch_me_missing"}
+    if "fail" in hard_statuses:
+        status = "failed"
+    elif "block" in hard_statuses:
+        status = "not_passing"
+    elif any(row["status"] == "warn" for row in checks):
+        status = "passing_with_warnings"
+    else:
+        status = "passing_shadow_locked"
+    next_commands = live_session_next_commands(session, payload)
+    return {
+        "schema": SESSION_REPORT_SCHEMA,
+        "generator": {"name": "compare-live-batch", "version": SCRIPT_VERSION},
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "session": str(session),
+        "status": status,
+        "promotion_allowed": False,
+        "checks": checks,
+        "non_passing_gates": non_passing,
+        "metrics": metrics,
+        "risk_examples": payload.get("risk_examples") if isinstance(payload.get("risk_examples"), dict) else {},
+        "recommended_next": next_commands[0],
+        "next_commands": next_commands,
+    }
+
+
+def write_session_report_markdown(path: Path, report: dict[str, Any]) -> None:
+    metrics = report.get("metrics") if isinstance(report.get("metrics"), dict) else {}
+    lines = [
+        "# Live Parity Session Report",
+        "",
+        f"- status: `{report.get('status')}`",
+        f"- promotion allowed: `{report.get('promotion_allowed')}`",
+        f"- meaningful comparison: `{metrics.get('meaningful_live_comparison')}`",
+        f"- all parity gates passed: `{metrics.get('all_parity_gates_passed')}`",
+        f"- batch use gate: `{metrics.get('batch_use_gate')}`",
+        f"- batch outcome: `{metrics.get('batch_outcome')}`",
+        f"- suspicious batch-Me missing seconds: `{metrics.get('live_suspicious_batch_me_missing_seconds')}`",
+        "",
+        "## Checks",
+        "",
+    ]
+    for row in report.get("checks") or []:
+        if not isinstance(row, dict):
+            continue
+        lines.append(f"- `{row.get('id')}`: `{row.get('status')}` - {row.get('message')}")
+    issues = [row for row in report.get("non_passing_gates") or [] if isinstance(row, dict)]
+    if issues:
+        lines += ["", "## Non-Passing Gates", ""]
+        for row in issues:
+            lines.append(f"- `{row.get('name')}`: `{row.get('status')}` - {row.get('reason')}")
+    risk_examples = report.get("risk_examples") if isinstance(report.get("risk_examples"), dict) else {}
+    if any(risk_examples.values()):
+        lines += ["", "## Risk Examples", ""]
+        for key, values in risk_examples.items():
+            if values:
+                lines.append(f"- `{key}`: `{len(values)}`")
+    lines += ["", "## Next", ""]
+    for command in report.get("next_commands") or []:
+        lines.append(f"- `{command}`")
+    lines.append("")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def main() -> int:
     args = parse_args()
     session = args.session.expanduser().resolve()
     live_report_path = session / "derived/live/live_pipeline_report.json"
     chunks_path = session / "derived/live/chunks.jsonl"
     comparison_path = session / "derived/live/live_batch_comparison.json"
+    session_report_path = session / "derived/live/live_parity_session_report.json"
+    session_report_md_path = session / "derived/live/live_parity_session_report.md"
     live_report = read_json(live_report_path)
     chunks = read_jsonl(chunks_path)
     transcript_path = selected_transcript_path(session)
@@ -638,10 +805,18 @@ def main() -> int:
             "status": "not_promotable" if gate_statuses - {"passed"} else "passed_but_shadow_locked",
             "gates": gates,
         },
+        "outputs": {
+            "live_parity_session_report": rel(session_report_path, session),
+            "live_parity_session_report_markdown": rel(session_report_md_path, session),
+        },
         "recommended_next": "murmurmark status " + str(session),
     }
+    session_report = build_session_report(session, payload)
     write_json(comparison_path, payload)
+    write_json(session_report_path, session_report)
+    write_session_report_markdown(session_report_md_path, session_report)
     print(f"live_batch_comparison: {comparison_path}")
+    print(f"live_parity_session_report: {session_report_path}")
     print(f"status: {payload['status']}")
     print("promotion_allowed: false")
     if warnings:
