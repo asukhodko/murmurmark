@@ -6984,7 +6984,9 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 config.queueDepth = 3
                 config.showsCursor = false
                 config.capturesAudio = remoteBackend == .screenCaptureKit
-                config.excludesCurrentProcessAudio = true
+                // Keep this false: on macOS 26.5.1, excluding current-process audio
+                // can also silence terminal-launched or otherwise related system audio.
+                config.excludesCurrentProcessAudio = false
                 config.sampleRate = sampleRate
                 config.channelCount = channelCount
                 config.captureMicrophone = microphoneBackend == .screenCaptureKit
