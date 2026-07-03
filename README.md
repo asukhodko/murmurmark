@@ -318,10 +318,10 @@ To make the current live-coverage goal explicit after recording real live sessio
 
 ```bash
 murmurmark corpus live all \
-  --min-live-sessions 1 \
-  --min-compared-sessions 1 \
-  --min-meaningful-compared-sessions 1 \
-  --min-passing-compared-sessions 1 \
+  --min-live-sessions 3 \
+  --min-compared-sessions 3 \
+  --min-meaningful-compared-sessions 3 \
+  --min-passing-compared-sessions 3 \
   --max-order-mismatches 0 \
   --max-missing-me-sec 0 \
   --max-remote-in-me-sec 0 \
@@ -330,11 +330,11 @@ murmurmark corpus live all \
   --fail-on-promotion
 ```
 
-This strict command is expected to pass only when at least one real live session has a meaningful
-comparison and all basic parity gates pass. The first diagnostic live capture now does pass those
-minimal gates (`1/51` live sessions, `1` meaningful comparison, `1` passing comparison), while
-`promotion_allowed_sessions` stays `0`. The next evidence step is broader real live coverage, not
-promotion.
+This target command is expected to fail until at least three real live sessions have meaningful
+comparisons and all parity gates pass. The first diagnostic live capture now passes the minimal
+one-sample gate (`1/51` live sessions, `1` meaningful comparison, `1` passing comparison), while
+`coverage_target` remains `needs_more_live_coverage` and `promotion_allowed_sessions` stays `0`.
+The next evidence step is broader real live coverage, not promotion.
 
 ## Process An Existing Session
 
@@ -755,7 +755,8 @@ Current focus:
   live chunk geometry, audio prep, language and model match batch ASR expectations, and materialized
   live chunks must still pass the raw chunk rebuild check;
 - use `murmurmark corpus live` to keep live promotion blocked until parity gates cover order, local
-  recall, remote leakage, review burden and chunk-boundary risks;
+  recall, remote leakage, review burden and chunk-boundary risks; the current target is `3` real
+  live sessions with `3` passing meaningful comparisons;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 

@@ -180,7 +180,7 @@ struct MurmurMark {
           murmurmark corpus local-recall [all|latest|./session...] [--audit] [--sessions-root ./sessions]
           murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
-          murmurmark corpus live [all|latest|./session...] [--sessions-root ./sessions]
+          murmurmark corpus live [all|latest|./session...] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark corpus report
 
         Setup and diagnostics:
@@ -5192,7 +5192,7 @@ enum CorpusHelp {
           murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus echo-candidate [all|latest|./session...] [--run] [--sessions-root ./sessions]
-          murmurmark corpus live [all|latest|./session...] [--sessions-root ./sessions]
+          murmurmark corpus live [all|latest|./session...] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark corpus report
 
         Corpus commands operate on a local regression set and write reports under sessions/_reports/.

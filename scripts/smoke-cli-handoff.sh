@@ -864,7 +864,10 @@ jq -e '
   and .summary.meaningful_compared_sessions == 1
   and .summary.passing_compared_sessions == 1
   and .summary.promotion_allowed_sessions == 0
-  and .summary.target_status == "shadow_locked_after_basic_gates"
+  and .summary.target_status == "shadow_locked_needs_more_live_coverage"
+  and .coverage_target.status == "needs_more_live_coverage"
+  and .coverage_target.live_sessions_remaining == 2
+  and .coverage_target.passing_compared_sessions_remaining == 2
 ' "$workdir/live-report/live_corpus_gates_report.json" >/dev/null
 "$eval_python" "$repo_root/scripts/report-live-corpus-gates.py" "$live_parity_session" \
   --sessions-root "$workdir/sessions" \

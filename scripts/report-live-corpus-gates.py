@@ -10,7 +10,10 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.5.0"
+DEFAULT_TARGET_LIVE_SESSIONS = 3
+DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
+DEFAULT_TARGET_PASSING_COMPARED_SESSIONS = 3
 
 
 def parse_args() -> argparse.Namespace:
@@ -40,6 +43,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fail-on-insufficient-coverage", action="store_true")
     parser.add_argument("--fail-on-risk", action="store_true")
     parser.add_argument("--fail-on-promotion", action="store_true")
+    parser.add_argument(
+        "--target-live-sessions",
+        type=int,
+        default=DEFAULT_TARGET_LIVE_SESSIONS,
+        help="Advisory coverage target for normal live-parity confidence. Does not fail unless also used through strict --min-* gates.",
+    )
+    parser.add_argument(
+        "--target-meaningful-compared-sessions",
+        type=int,
+        default=DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS,
+        help="Advisory target for meaningful live-vs-batch comparisons.",
+    )
+    parser.add_argument(
+        "--target-passing-compared-sessions",
+        type=int,
+        default=DEFAULT_TARGET_PASSING_COMPARED_SESSIONS,
+        help="Advisory target for passing live-vs-batch comparisons.",
+    )
     return parser.parse_args()
 
 
@@ -226,14 +247,6 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             gate_counts[str(gate.get("name") or "unknown")][str(gate.get("status") or "unknown")] += 1
     promotable = [row for row in rows if row.get("promotion_allowed")]
     not_promotable = [row for row in live_rows if row.get("parity_status") != "passed_but_shadow_locked"]
-    if not live_rows:
-        target_status = "no_live_sessions"
-    elif promotable:
-        target_status = "unexpected_promotable_sessions"
-    elif not_promotable:
-        target_status = "shadow_only_not_promotable"
-    else:
-        target_status = "shadow_locked_after_basic_gates"
     summary = {
         "sessions_total": len(rows),
         "live_sessions": len(live_rows),
@@ -242,7 +255,6 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "passing_compared_sessions": sum(1 for row in rows if row.get("all_parity_gates_passed")),
         "blocked_sessions": sum(1 for row in rows if row.get("comparison_status") == "blocked"),
         "promotion_allowed_sessions": len(promotable),
-        "target_status": target_status,
         "promotion_decision": "shadow_only_do_not_promote",
         "speedup_supported_sessions": sum(
             1 for row in rows if (row.get("final_reconcile") or {}).get("speedup_status") == "live_asr_cache_reused"
@@ -264,6 +276,41 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             int(((row.get("metrics") or {}).get("adjacent_duplicate_chunk_count") or 0)) for row in rows
         ),
     }
+    coverage_target = {
+        "target_live_sessions": args.target_live_sessions,
+        "target_meaningful_compared_sessions": args.target_meaningful_compared_sessions,
+        "target_passing_compared_sessions": args.target_passing_compared_sessions,
+        "live_sessions_remaining": max(0, args.target_live_sessions - summary["live_sessions"]),
+        "meaningful_compared_sessions_remaining": max(
+            0,
+            args.target_meaningful_compared_sessions - summary["meaningful_compared_sessions"],
+        ),
+        "passing_compared_sessions_remaining": max(
+            0,
+            args.target_passing_compared_sessions - summary["passing_compared_sessions"],
+        ),
+    }
+    coverage_target["status"] = (
+        "passed"
+        if coverage_target["live_sessions_remaining"] == 0
+        and coverage_target["meaningful_compared_sessions_remaining"] == 0
+        and coverage_target["passing_compared_sessions_remaining"] == 0
+        else "needs_more_live_coverage"
+    )
+    summary["coverage_target_status"] = coverage_target["status"]
+    summary["coverage_target_live_sessions_remaining"] = coverage_target["live_sessions_remaining"]
+    summary["coverage_target_passing_sessions_remaining"] = coverage_target["passing_compared_sessions_remaining"]
+    if not live_rows:
+        target_status = "no_live_sessions"
+    elif promotable:
+        target_status = "unexpected_promotable_sessions"
+    elif not_promotable:
+        target_status = "shadow_only_not_promotable"
+    elif coverage_target["status"] != "passed":
+        target_status = "shadow_locked_needs_more_live_coverage"
+    else:
+        target_status = "shadow_locked_after_basic_gates"
+    summary["target_status"] = target_status
     strict_failures: list[dict[str, Any]] = []
     def add_failure(gate_id: str, message: str, value: Any, limit: Any) -> None:
         strict_failures.append({"id": gate_id, "message": message, "value": value, "limit": limit})
@@ -363,6 +410,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             },
             "failures": strict_failures,
         },
+        "coverage_target": coverage_target,
         "blockers": dict(blockers),
         "warnings": dict(warnings),
         "gate_counts": {name: dict(counts) for name, counts in sorted(gate_counts.items())},
@@ -403,9 +451,17 @@ def recommended_next_commands(
     gate_counts: dict[str, Counter[str]],
     gate_issues: list[dict[str, Any]],
 ) -> list[str]:
+    target_live = max(1, safe_int(summary.get("live_sessions")) + safe_int(summary.get("coverage_target_live_sessions_remaining")))
+    target_passing = max(1, safe_int(summary.get("passing_compared_sessions")) + safe_int(summary.get("coverage_target_passing_sessions_remaining")))
     strict_command = (
         "murmurmark corpus live all --min-live-sessions 1 --min-compared-sessions 1 "
         "--min-meaningful-compared-sessions 1 --min-passing-compared-sessions 1 "
+        "--max-order-mismatches 0 --max-missing-me-sec 0 --max-remote-in-me-sec 0 "
+        "--max-boundary-duplicates 0 --require-passing-gates --fail-on-promotion"
+    )
+    coverage_command = (
+        f"murmurmark corpus live all --min-live-sessions {target_live} --min-compared-sessions {target_live} "
+        f"--min-meaningful-compared-sessions {target_live} --min-passing-compared-sessions {target_passing} "
         "--max-order-mismatches 0 --max-missing-me-sec 0 --max-remote-in-me-sec 0 "
         "--max-boundary-duplicates 0 --require-passing-gates --fail-on-promotion"
     )
@@ -454,8 +510,15 @@ def recommended_next_commands(
             "jq '.sessions[] | select(.promotion_allowed == true)' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
             strict_command,
         ]
+    if summary.get("coverage_target_status") != "passed":
+        return [
+            "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
+            "murmurmark process latest",
+            coverage_command,
+            strict_command,
+        ]
     return [
-        strict_command,
+        coverage_command,
         "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
     ]
 
@@ -480,6 +543,9 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- live suspected remote-in-Me seconds: {summary.get('live_suspected_remote_leak_in_me_seconds', 0.0)}",
         f"- adjacent duplicate chunks: {summary.get('adjacent_duplicate_chunk_count', 0)}",
         f"- strict coverage: `{summary.get('strict_coverage_status')}`",
+        f"- coverage target: `{summary.get('coverage_target_status')}`",
+        f"- coverage target live remaining: {summary.get('coverage_target_live_sessions_remaining', 0)}",
+        f"- coverage target passing remaining: {summary.get('coverage_target_passing_sessions_remaining', 0)}",
         "",
         "## Recommended Next",
         "",
@@ -525,6 +591,15 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         failures = strict.get("failures") if isinstance(strict, dict) else []
         for row in failures or []:
             lines.append(f"- `{row.get('id')}`: {row.get('message')} (value: `{row.get('value')}`, limit: `{row.get('limit')}`)")
+    target = report.get("coverage_target") if isinstance(report.get("coverage_target"), dict) else {}
+    if target:
+        lines += ["", "## Coverage Target", ""]
+        lines.append(f"- status: `{target.get('status')}`")
+        lines.append(f"- target live sessions: `{target.get('target_live_sessions')}`")
+        lines.append(f"- target meaningful comparisons: `{target.get('target_meaningful_compared_sessions')}`")
+        lines.append(f"- target passing comparisons: `{target.get('target_passing_compared_sessions')}`")
+        lines.append(f"- live sessions remaining: `{target.get('live_sessions_remaining')}`")
+        lines.append(f"- passing comparisons remaining: `{target.get('passing_compared_sessions_remaining')}`")
     lines.append("")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -552,6 +627,9 @@ def main() -> int:
     print(f"live_suspected_remote_leak_in_me_seconds: {summary.get('live_suspected_remote_leak_in_me_seconds', 0.0)}")
     print(f"adjacent_duplicate_chunk_count: {summary.get('adjacent_duplicate_chunk_count', 0)}")
     print(f"strict_coverage: {summary.get('strict_coverage_status')}")
+    print(f"coverage_target: {summary.get('coverage_target_status')}")
+    print(f"coverage_target_live_remaining: {summary.get('coverage_target_live_sessions_remaining', 0)}")
+    print(f"coverage_target_passing_remaining: {summary.get('coverage_target_passing_sessions_remaining', 0)}")
     print(f"gate_issues: {len(report.get('gate_issues') or [])}")
     if report.get("recommended_next"):
         print(f"recommended_next: {report['recommended_next']}")

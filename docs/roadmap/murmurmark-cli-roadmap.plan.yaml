@@ -595,11 +595,13 @@ nodes:
       local recall, remote leakage, review burden, selected notes readiness and chunk-boundary
       duplicates/missing speech. Успех v1 — не включить live как default, а доказать, где live
       chunks безопасно ускоряют final batch reconcile, а где batch должен честно пересчитать ASR.
-      Strict coverage command: `murmurmark corpus live all --min-live-sessions 1
-      --min-compared-sessions 1 --min-meaningful-compared-sessions 1
-      --min-passing-compared-sessions 1 --max-order-mismatches 0 --max-missing-me-sec 0
+      Strict coverage target command: `murmurmark corpus live all --min-live-sessions 3
+      --min-compared-sessions 3 --min-meaningful-compared-sessions 3
+      --min-passing-compared-sessions 3 --max-order-mismatches 0 --max-missing-me-sec 0
       --max-remote-in-me-sec 0 --max-boundary-duplicates 0 --require-passing-gates
-      --fail-on-promotion`.
+      --fail-on-promotion`. The first diagnostic live session passes the minimal one-sample gate,
+      but the v1 coverage target remains `needs_more_live_coverage` until three meaningful live
+      comparisons pass.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -1475,7 +1477,7 @@ x:
   exec:
     program:
       nearest_goal: "Near-Realtime Live Parity Coverage v1: получить real live-pipeline coverage, сравнить live chunks/drafts с batch output и держать promotion заблокированным, пока parity gates не докажут безопасность."
-      success_by_next_sync: "Есть реальные live sessions с live_batch_comparison.json, corpus live report показывает order/local-recall/remote-leak/review-burden/boundary risks, live cache reuse остаётся gated, а batch transcript остаётся authoritative."
+      success_by_next_sync: "Есть 3 real live sessions с passing live_batch_comparison.json, corpus live report показывает order/local-recall/remote-leak/review-burden/boundary risks, live cache reuse остаётся gated, а batch transcript остаётся authoritative."
     defaults:
       status_progress:
         done: 1.0

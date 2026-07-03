@@ -164,7 +164,8 @@ Follow-up hardening:
   `record --live-pipeline` sample now exists and passes the basic strict live gate:
   `meaningful_compared_sessions` is `1`, `passing_compared_sessions` is `1`, measured
   remote-in-`Me` and adjacent chunk duplicates are `0`, and `promotion_allowed_sessions` remains
-  `0`. The next evidence step is broader real live coverage, not promotion.
+  `0`. The next evidence step is broader real live coverage: target `3` live sessions and `3`
+  passing meaningful comparisons, not promotion.
 
 Primary design document:
 

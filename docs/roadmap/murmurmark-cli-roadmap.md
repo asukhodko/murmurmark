@@ -279,9 +279,9 @@ flowchart LR
   - produce `live_batch_comparison.json` and corpus live reports for those sessions;
   - compare live chunks/drafts with batch output for order risk, local recall, remote leakage, review
     burden, selected notes readiness and chunk-boundary duplicates/missing speech;
-  - run strict coverage with `murmurmark corpus live all --min-live-sessions 1
-    --min-compared-sessions 1 --min-meaningful-compared-sessions 1
-    --min-passing-compared-sessions 1 --max-order-mismatches 0 --max-missing-me-sec 0
+  - run strict coverage with `murmurmark corpus live all --min-live-sessions 3
+    --min-compared-sessions 3 --min-meaningful-compared-sessions 3
+    --min-passing-compared-sessions 3 --max-order-mismatches 0 --max-missing-me-sec 0
     --max-remote-in-me-sec 0 --max-boundary-duplicates 0 --require-passing-gates
     --fail-on-promotion`;
   - keep live cache promotion blocked while coverage is missing or gates are unknown;
@@ -293,7 +293,8 @@ flowchart LR
     sessions. The first live role/boundary gates reduce measured remote-in-`Me` and boundary
     duplicates to `0`; the comparison still has `0.57s` of suspicious short batch `Me` missing
     from the live draft as a warning. The missing piece is broader real live coverage with varied
-    meeting shapes; promotion is correctly blocked.
+    meeting shapes: target `3` live sessions and `3` passing meaningful comparisons. Promotion is
+    correctly blocked.
 - Near-realtime shadow pipeline follow-up:
   - segment writer during capture exists with hard/clip overlap windows, but still needs better queue
     recovery;
@@ -426,7 +427,8 @@ time. The answer must be measured on real live-pipeline sessions, not assumed fr
 
 1. **Near-Realtime Live Parity Coverage v1.** Run real sessions through `record --live-pipeline`,
    compare live chunks/drafts with batch output, report order/local-recall/remote-leak/review-burden
-   and boundary risks, and keep live promotion blocked until gates are known and passing.
+   and boundary risks, reach the 3-session coverage target, and keep live promotion blocked until
+   gates are known and passing.
 2. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth
