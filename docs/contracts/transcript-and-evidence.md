@@ -4795,9 +4795,21 @@ Schema:
     "remote_duplicate_leak": {"passed": 2},
     "review_burden": {"warning": 1, "passed": 1}
   },
+  "gate_issues": [
+    {
+      "session": "2026-07-03_06-16-43",
+      "gate": "selected_notes_readiness",
+      "status": "warning",
+      "reason": "live parity is only promotion-ready when the authoritative batch result is notes-ready",
+      "evidence": {"readiness_use_gate": "review_first", "outcome": "review_first"},
+      "session_path": "sessions/2026-07-03_06-16-43",
+      "comparison": "sessions/2026-07-03_06-16-43/derived/live/live_batch_comparison.json"
+    }
+  ],
   "recommended_next": "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
   "next_commands": [
     "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
+    "jq '.parity_gates.gates[] | select(.status != \"passed\")' sessions/2026-07-03_06-16-43/derived/live/live_batch_comparison.json",
     "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5"
   ]
 }
@@ -4805,8 +4817,9 @@ Schema:
 
 The corpus gate is deliberately conservative. Any `not_evaluated`, `blocked`, `failed` or `warning`
 gate prevents promotion. v1 is expected to remain `shadow_only_do_not_promote`.
-The report also carries `recommended_next` and `next_commands`, so a live-parity run can point either
-to the failing gate evidence or to the next real live sample command without weakening the gates.
+The report also carries `gate_issues`, `recommended_next` and `next_commands`, so a live-parity run
+can point either to the failing gate evidence or to the next real live sample command without
+weakening the gates.
 
 Strict coverage mode is optional and is intended for the current live-parity rollout:
 

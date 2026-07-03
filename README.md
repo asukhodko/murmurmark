@@ -305,7 +305,9 @@ authoritative batch transcript for order mismatch, missing `Me` speech, suspecte
 leakage, selected batch review burden, notes readiness and adjacent chunk duplicates. Passing those
 checks is still not promotion: it only means the live branch is safe enough to keep studying as a
 speed-up candidate. The command also prints `recommended_next` and `next:` lines, so the report can
-point directly to failing gate evidence or the next live recording command.
+point directly to failing gate evidence or the next live recording command. The Markdown report has
+a `Gate Issues` section with the concrete session/gate/reason rows that currently prevent a passing
+comparison.
 
 To make the current live-coverage goal explicit after recording real live sessions:
 

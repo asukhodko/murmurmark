@@ -107,6 +107,10 @@ def gate_rows(comparison: dict[str, Any] | None) -> list[dict[str, Any]]:
     return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
 
+def non_passing_gate_rows(gates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [gate for gate in gates if gate.get("status") != "passed"]
+
+
 def safe_int(value: Any) -> int:
     try:
         return int(value)
@@ -157,6 +161,7 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
     metrics = comparison.get("metrics") if isinstance(comparison, dict) else {}
     parity = comparison.get("parity_gates") if isinstance(comparison, dict) else {}
     comparison_status = comparison.get("status") if isinstance(comparison, dict) else None
+    gates = gate_rows(comparison)
     return {
         "session": rel(session, root),
         "live_present": live_present,
@@ -199,7 +204,8 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "live_batch_comparison": rel(comparison_path, session) if comparison_path.exists() else None,
             "final_reconcile_report": rel(final_reconcile_path, session) if final_reconcile_path.exists() else None,
         },
-        "gates": gate_rows(comparison),
+        "gates": gates,
+        "non_passing_gates": non_passing_gate_rows(gates),
     }
 
 
@@ -329,7 +335,8 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         ]
     )
     summary["strict_coverage_status"] = "not_requested" if not strict_requested else ("failed" if strict_failures else "passed")
-    next_commands = recommended_next_commands(summary, gate_counts)
+    gate_issues = build_gate_issues(rows)
+    next_commands = recommended_next_commands(summary, gate_counts, gate_issues)
     return {
         "schema": SCHEMA,
         "generator": {"name": "report-live-corpus-gates", "version": SCRIPT_VERSION},
@@ -357,13 +364,43 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "blockers": dict(blockers),
         "warnings": dict(warnings),
         "gate_counts": {name: dict(counts) for name, counts in sorted(gate_counts.items())},
+        "gate_issues": gate_issues,
         "sessions": rows,
         "recommended_next": next_commands[0],
         "next_commands": next_commands,
     }
 
 
-def recommended_next_commands(summary: dict[str, Any], gate_counts: dict[str, Counter[str]]) -> list[str]:
+def build_gate_issues(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    for row in rows:
+        if not row.get("live_present"):
+            continue
+        session = str(row.get("session") or "")
+        session_path = session if session.startswith("/") or session.startswith("sessions/") else f"sessions/{session}"
+        comparison = f"{session_path}/derived/live/live_batch_comparison.json" if session else ""
+        for gate in row.get("non_passing_gates") or []:
+            if not isinstance(gate, dict):
+                continue
+            issues.append(
+                {
+                    "session": session,
+                    "gate": gate.get("name"),
+                    "status": gate.get("status"),
+                    "reason": gate.get("reason"),
+                    "evidence": gate.get("evidence"),
+                    "session_path": session_path,
+                    "comparison": comparison,
+                }
+            )
+    return issues
+
+
+def recommended_next_commands(
+    summary: dict[str, Any],
+    gate_counts: dict[str, Counter[str]],
+    gate_issues: list[dict[str, Any]],
+) -> list[str]:
     strict_command = (
         "murmurmark corpus live all --min-live-sessions 1 --min-compared-sessions 1 "
         "--min-meaningful-compared-sessions 1 --min-passing-compared-sessions 1 "
@@ -393,6 +430,14 @@ def recommended_next_commands(summary: dict[str, Any], gate_counts: dict[str, Co
             "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
             strict_command,
         ]
+        first_issue = gate_issues[0] if gate_issues else {}
+        comparison = first_issue.get("comparison")
+        session = first_issue.get("session")
+        if isinstance(comparison, str) and comparison:
+            commands.insert(1, f"jq '.parity_gates.gates[] | select(.status != \"passed\")' {comparison}")
+        session_path = first_issue.get("session_path")
+        if isinstance(session_path, str) and session_path:
+            commands.insert(1, f"murmurmark status {session_path}")
         non_passing = {
             name: {status: count for status, count in counts.items() if status != "passed" and count > 0}
             for name, counts in gate_counts.items()
@@ -439,6 +484,14 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     ]
     for command in report.get("next_commands") or []:
         lines.append(f"- `{command}`")
+    issues = [issue for issue in report.get("gate_issues") or [] if isinstance(issue, dict)]
+    if issues:
+        lines += ["", "## Gate Issues", ""]
+        for issue in issues:
+            lines.append(
+                f"- `{issue.get('session')}` gate `{issue.get('gate')}` is `{issue.get('status')}`: "
+                f"{issue.get('reason') or '-'}"
+            )
     lines += [
         "",
         "## Sessions",
@@ -497,6 +550,7 @@ def main() -> int:
     print(f"live_suspected_remote_leak_in_me_seconds: {summary.get('live_suspected_remote_leak_in_me_seconds', 0.0)}")
     print(f"adjacent_duplicate_chunk_count: {summary.get('adjacent_duplicate_chunk_count', 0)}")
     print(f"strict_coverage: {summary.get('strict_coverage_status')}")
+    print(f"gate_issues: {len(report.get('gate_issues') or [])}")
     if report.get("recommended_next"):
         print(f"recommended_next: {report['recommended_next']}")
     print(f"report: {md_path}")

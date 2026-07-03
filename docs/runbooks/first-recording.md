@@ -156,7 +156,8 @@ order risk, local recall, remote leakage, review burden and boundary speech. The
 already measures the first practical version of those checks from live chunks versus the selected
 batch transcript, but `promotion_allowed` must remain `false` until real live-session coverage is
 broad enough and the corpus gates are intentionally promoted. The command prints `recommended_next`
-and `next:` lines; use them to inspect the current blocker or start the next live sample.
+and `next:` lines; use them to inspect the current blocker or start the next live sample. The
+Markdown report's `Gate Issues` section lists the exact non-passing gates by session.
 
 For the current live-parity coverage goal, use the strict form after recording at least one real
 live session:
