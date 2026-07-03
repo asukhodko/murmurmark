@@ -404,10 +404,11 @@ nodes:
       `windowed` mode: process rebuilds chunks first, then requires rebuild parity.
       Corpus gates now expose live-cache parity explicitly. The first diagnostic real live capture
       is compared: `live_sessions: 1/51`, `meaningful_compared_sessions: 1`,
-      `passing_compared_sessions: 0`, `promotion_allowed_sessions: 0`. The first live role/boundary
-      gates reduce measured remote-in-`Me` and adjacent chunk duplicates to `0`, but strict parity is
-      not proven because `0.57s` of suspicious short batch `Me` are missing from the live draft. Live
-      coverage is now a measured blocker instead of an implicit caveat.
+      `passing_compared_sessions: 1`, `promotion_allowed_sessions: 0`. The first live role/boundary
+      gates reduce measured remote-in-`Me` and adjacent chunk duplicates to `0`; `0.57s` of
+      suspicious short batch `Me` missing from the live draft remains a warning. Live coverage is now
+      a measured blocker instead of an implicit caveat: the next step is broader real coverage, not
+      promotion.
       `scripts/smoke-cli-handoff.sh` включает deterministic fake-whisper failure/resume: первый
       запуск падает после одного cached chunk, второй запуск reuse-ит этот chunk и проходит
       rebuild-check. `scripts/smoke-process-chunk-resume.sh` доказывает тот же сценарий через

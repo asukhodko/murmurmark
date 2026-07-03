@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.1"
+SCRIPT_VERSION = "0.3.2"
 INPUT_PROFILE_DEFAULT = "shadow_v2"
 OUTPUT_PROFILE_DEFAULT = "audit_cleanup_v1"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
@@ -201,6 +201,32 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
             if isinstance(value, dict):
                 rows.append(value)
     return rows
+
+
+def local_recall_low_score_explained(session: Path) -> tuple[bool, str | None]:
+    path = session / "derived/audit/local-recall/local_recall_audit.json"
+    if not path.exists():
+        return False, None
+    audit = read_json(path)
+    summary = audit.get("summary") if isinstance(audit.get("summary"), dict) else {}
+    if not summary:
+        return False, None
+    possible_lost = float(summary.get("possible_lost_me_seconds", 0.0) or 0.0)
+    needs_review = float(summary.get("needs_review_seconds", 0.0) or 0.0)
+    blocking = bool(summary.get("blocking_low_local_recall"))
+    expected_missing = int(summary.get("expected_missing_island_count", 0) or 0)
+    audited_missing = int(summary.get("audited_missing_island_count", 0) or 0)
+    recommendation = str(summary.get("recommended_next_step") or "")
+    harmless = float(summary.get("likely_harmless_seconds", 0.0) or 0.0)
+    if (
+        possible_lost <= 0.001
+        and needs_review <= 0.001
+        and not blocking
+        and audited_missing >= expected_missing
+        and recommendation == "local_recall_risk_explained"
+    ):
+        return True, f"local_recall_risk_explained:{round(harmless, 3)}s_harmless"
+    return False, None
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -1669,16 +1695,20 @@ def main() -> int:
         active_review_seconds = active_audio_review_seconds(audio_review_records, output_utterances)
         output_quality["audit_cleanup"]["audit_review_seconds"] = active_review_seconds
         output_quality["audit_review_seconds"] = active_review_seconds
+    local_recall = float(output_quality.get("local_only_island_recall", 1.0) or 0.0)
+    local_recall_explained, local_recall_explanation = local_recall_low_score_explained(session)
     gates = {
         "passed": (
             int(output_quality.get("unrepaired_long_mic_crossings_count", 0) or 0) == 0
             and int(output_quality.get("golden_phrase_fail_count", 0) or 0) == 0
-            and float(output_quality.get("local_only_island_recall", 1.0) or 0.0) >= 0.70
+            and (local_recall >= 0.70 or local_recall_explained)
         ),
         "hard_failures": [],
         "warnings": [],
     }
-    if float(output_quality.get("local_only_island_recall", 1.0) or 0.0) < 0.80:
+    if local_recall_explanation:
+        gates["local_recall_explanation"] = local_recall_explanation
+    if local_recall < 0.80:
         gates["warnings"].append("local_only_island_recall_below_usable_threshold")
     if output_quality["audit_cleanup"]["audit_review_seconds"] > 300:
         gates["warnings"].append("audit_review_seconds_high")

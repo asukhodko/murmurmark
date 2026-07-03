@@ -289,11 +289,11 @@ flowchart LR
     pass; batch transcript remains authoritative.
   - current evidence: synthetic live-cache materialization passes, chunk rebuild gates exist, corpus
     gates expose live parity counters, and the first diagnostic real live capture is compared:
-    `1/51` live sessions, `1` meaningful comparison, `0` passing comparisons, `0` promoted
+    `1/51` live sessions, `1` meaningful comparison, `1` passing comparison, `0` promoted
     sessions. The first live role/boundary gates reduce measured remote-in-`Me` and boundary
-    duplicates to `0`, but the comparison still has `0.57s` of suspicious short batch `Me` missing
-    from the live draft. The missing piece is a real live coverage sample with both roles and
-    passing gates; promotion is correctly blocked.
+    duplicates to `0`; the comparison still has `0.57s` of suspicious short batch `Me` missing
+    from the live draft as a warning. The missing piece is broader real live coverage with varied
+    meeting shapes; promotion is correctly blocked.
 - Near-realtime shadow pipeline follow-up:
   - segment writer during capture exists with hard/clip overlap windows, but still needs better queue
     recovery;

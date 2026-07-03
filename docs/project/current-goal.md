@@ -130,10 +130,10 @@ Completion evidence:
   `asr_chunk_cache_passed_sessions: 14` and `asr_chunk_cache_coverage_ratio: 0.28`;
 - `check-corpus-gates.py --no-fail` now also reports live-cache parity state. After the first
   diagnostic live capture, corpus live coverage is `1/51`, `live_cache_parity_promotion_allowed_sessions`
-  remains `0`, `meaningful_compared_sessions` is `1`, and `passing_compared_sessions` is `0`.
-  Strict live parity is not proven. The first live role/boundary gates reduce measured
-  remote-in-`Me` and adjacent chunk duplicates to `0`, but the comparison still has `0.57s` of
-  suspicious short batch `Me` missing from the live draft;
+  remains `0`, `meaningful_compared_sessions` is `1`, and `passing_compared_sessions` is `1`.
+  Strict one-sample coverage now passes. The first live role/boundary gates reduce measured
+  remote-in-`Me` and adjacent chunk duplicates to `0`; the comparison still reports `0.57s` of
+  suspicious short batch `Me` missing from the live draft as a warning, not as failed local recall;
 - ASR chunk-cache corpus report now separates the next coverage work: `22` sessions have old raw
   ASR without chunk reports, and `14` sessions have no raw ASR;
 - legacy top-level raw ASR caches without `raw/chunks/<track>/chunk_cache_report.json` no longer
@@ -161,11 +161,10 @@ Follow-up hardening:
 
 - broader corpus no-regression comparison for chunked rebuild vs existing batch baseline;
 - corpus parity coverage for live-cache reuse on real sessions. The first real diagnostic
-  `record --live-pipeline` sample now exists and is compared, but strict live parity is still not
-  proven: `meaningful_compared_sessions` is `1`, `passing_compared_sessions` is `0`, measured
-  remote-in-`Me` and adjacent chunk duplicates are `0` after live role/boundary gates, while `0.57s`
-  of suspicious short batch `Me` are missing from live. The next evidence step is a passing real
-  live sample, not promotion.
+  `record --live-pipeline` sample now exists and passes the basic strict live gate:
+  `meaningful_compared_sessions` is `1`, `passing_compared_sessions` is `1`, measured
+  remote-in-`Me` and adjacent chunk duplicates are `0`, and `promotion_allowed_sessions` remains
+  `0`. The next evidence step is broader real live coverage, not promotion.
 
 Primary design document:
 

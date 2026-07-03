@@ -158,11 +158,11 @@ covers `14/50` sessions with `0` failed chunk rebuilds and `146/146` completed A
 Live/near-realtime cache promotion is gated separately. `murmurmark corpus live` writes the current
 live parity report, and `scripts/check-corpus-gates.py` copies the live coverage/risk counters into
 the main corpus gate report. Current diagnostic coverage has started: `1/51` sessions has
-`live_batch_comparison.json`, promotion remains `shadow_only_do_not_promote`, and the sample is not
-promotion-safe because the authoritative batch result is not notes-ready. The same sample has a
-warning for `0.57s` of suspicious short batch `Me` speech missing from the live draft; measured live
-order, local recall, remote-in-`Me` leakage and adjacent chunk duplicates are currently clean on this
-single diagnostic comparison.
+`live_batch_comparison.json`, promotion remains `shadow_only_do_not_promote`, and the first
+meaningful comparison now passes the basic parity gates. It still has a warning for `0.57s` of
+suspicious short batch `Me` speech missing from the live draft, so this is coverage evidence, not a
+promotion signal. Measured live order, local recall, remote-in-`Me` leakage and adjacent chunk
+duplicates are currently clean on this single diagnostic comparison.
 
 ## What Is Still Out Of Scope
 
@@ -330,11 +330,11 @@ murmurmark corpus live all \
   --fail-on-promotion
 ```
 
-This strict command is expected to fail until enough real live sessions have meaningful comparisons
-and at least one meaningful comparison has all parity gates passed. The first diagnostic live capture
-is now compared (`1/51` live sessions, `1` meaningful comparison, `0` passing comparisons):
-remote-in-`Me` and boundary duplicates are blocked by the live gates, but `0.57s` of suspicious short
-batch `Me` are missing from the live draft. `promotion_allowed_sessions` stays `0`.
+This strict command is expected to pass only when at least one real live session has a meaningful
+comparison and all basic parity gates pass. The first diagnostic live capture now does pass those
+minimal gates (`1/51` live sessions, `1` meaningful comparison, `1` passing comparison), while
+`promotion_allowed_sessions` stays `0`. The next evidence step is broader real live coverage, not
+promotion.
 
 ## Process An Existing Session
 

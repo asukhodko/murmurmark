@@ -1009,6 +1009,11 @@ def load_inputs(selected_profile: str, paths: dict[str, Path]) -> tuple[dict[str
     dialogue, dialogue_error = read_json(paths["clean_dialogue"])
     quality, quality_error = read_json(paths["quality_report"])
     overlaps, overlaps_error = read_json(paths["overlaps"])
+    cleanup_report: dict[str, Any] | None = None
+    if paths.get("audit_cleanup_report") and paths["audit_cleanup_report"].exists():
+        cleanup_candidate, cleanup_error = read_json(paths["audit_cleanup_report"])
+        if cleanup_error is None and isinstance(cleanup_candidate, dict):
+            cleanup_report = cleanup_candidate
 
     risk_items: list[dict[str, Any]] = []
     if dialogue_error:
@@ -1043,6 +1048,13 @@ def load_inputs(selected_profile: str, paths: dict[str, Path]) -> tuple[dict[str
         if isinstance(row, dict):
             row.setdefault("id", utterance_id(row, index))
 
+    if isinstance(quality, dict) and cleanup_report:
+        gates = cleanup_report.get("gates") if isinstance(cleanup_report.get("gates"), dict) else {}
+        explanation = gates.get("local_recall_explanation")
+        if explanation:
+            quality["local_recall_low_score_explained"] = True
+            quality["local_recall_explanation"] = explanation
+
     return quality if isinstance(quality, dict) else {}, utterances, overlap_rows + risk_items
 
 
@@ -1065,8 +1077,11 @@ def metrics_from_quality(quality: dict[str, Any], utterances: list[dict[str, Any
         "unrepaired_long_mic_crossings_count": int(quality.get("unrepaired_long_mic_crossings_count", 0) or 0),
         "golden_phrase_fail_count": int(quality.get("golden_phrase_fail_count", 0) or 0),
         "local_only_island_recall": float(quality.get("local_only_island_recall", 1.0) or 0.0),
+        "local_recall_low_score_explained": bool(quality.get("local_recall_low_score_explained")),
         "meeting_duration_sec": round(meeting_duration, 3),
     }
+    if quality.get("local_recall_explanation"):
+        metrics["local_recall_explanation"] = quality.get("local_recall_explanation")
     human_review = quality.get("human_review") if isinstance(quality.get("human_review"), dict) else {}
     if human_review:
         metrics["review_scope_complete"] = human_review.get("review_scope_complete")
@@ -1127,9 +1142,10 @@ def verdict_from_metrics(
         harmful = float(metrics.get("audit_harmful_seconds_after", 0.0) or 0.0)
         review = float(metrics.get("audit_review_seconds", 0.0) or 0.0)
         local_recall = float(metrics.get("local_only_island_recall", 1.0) or 1.0)
+        local_recall_explained = bool(metrics.get("local_recall_low_score_explained"))
         harmful_ratio = harmful / duration
         review_ratio = review / duration
-        if local_recall < 0.70 or harmful > max(180.0, duration * 0.06) or review > max(900.0, duration * 0.35):
+        if (local_recall < 0.70 and not local_recall_explained) or harmful > max(180.0, duration * 0.06) or review > max(900.0, duration * 0.35):
             items.append(
                 {
                     "type": "audit_cleanup_group_quality",
@@ -1138,7 +1154,7 @@ def verdict_from_metrics(
                 }
             )
             return "failed", items
-        if local_recall < 0.80 or harmful > max(90.0, duration * 0.03) or review > max(300.0, duration * 0.12):
+        if (local_recall < 0.80 and not local_recall_explained) or harmful > max(90.0, duration * 0.03) or review > max(300.0, duration * 0.12):
             items.append(
                 {
                     "type": "audit_cleanup_group_quality",
