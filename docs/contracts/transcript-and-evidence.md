@@ -3355,6 +3355,9 @@ wraps `scripts/apply-audit-cleanup.py`, forwards profile and mode options, write
 artifacts as the script, then prints a compact summary with applied/rejected patches, dropped
 seconds, harmful seconds after cleanup, gates and next commands. If cleanup gates fail, the JSON
 artifacts are still authoritative, but the command exits non-zero after printing the summary.
+Inside `murmurmark process`, cleanup exit code `2` is treated as `passed_with_warnings`: the pipeline
+continues to synthesis/readiness, and profile selection decides whether the cleanup profile is safe
+to use or whether it should fall back to `shadow_v2`/another profile.
 
 `audit_cleanup_v2` consumes the audio review audit as an extra evidence layer. It writes the same
 profile-shaped transcript artifacts as v1, but with the `audit_cleanup_v2` suffix:
@@ -4301,6 +4304,49 @@ Invariants:
 - if the live worker or derived live segment writer fails, the session must remain
   batch-processable from raw CAF.
 
+### Live Chunk Protection Gates
+
+`derived/live/chunks.jsonl` and `derived/live/chunks/<index>/chunk.json` contain the shadow ASR text
+for closed live chunks. Mic chunk rows may include lightweight protection metadata:
+
+```json
+{
+  "mic": {
+    "wav": "derived/live/chunks/000001/mic.wav",
+    "asr_wav": "derived/live/chunks/000001/mic.live_echo_guard.wav",
+    "live_echo_guard": {
+      "status": "accepted",
+      "reason": "accepted",
+      "remote_similarity_before": 0.55,
+      "remote_similarity_after": 0.12,
+      "estimated_reduction_db": 3.2
+    },
+    "raw_text_before_role_gate": "remote-like text decoded from mic",
+    "live_role_gate": {
+      "status": "suppressed",
+      "reason": "mic_text_duplicates_remote_text",
+      "duplicate_score": 0.88
+    }
+  },
+  "remote": {
+    "raw_text_before_boundary_gate": "short repeated tail",
+    "live_boundary_gate": {
+      "status": "suppressed",
+      "reason": "adjacent_chunk_duplicate",
+      "duplicate_score": 1.0
+    }
+  }
+}
+```
+
+These gates protect only the shadow live draft/chunks:
+
+- `live_echo_guard` can choose a cleaned mic WAV for live ASR;
+- `live_role_gate` suppresses mic text when it duplicates same-chunk remote text;
+- `live_boundary_gate` suppresses adjacent chunk repeats caused by overlap context.
+
+They do not modify raw CAF, batch ASR, selected transcript profiles or export readiness.
+
 ### Worker State And Report
 
 `derived/live/live_pipeline_state.json` is the small mutable progress file. It is allowed to change
@@ -4432,15 +4478,21 @@ derived/transcript-simple/whisper-cpp/raw/mic.json
 derived/transcript-simple/whisper-cpp/raw/mic.meta.json
 derived/transcript-simple/whisper-cpp/raw/remote.json
 derived/transcript-simple/whisper-cpp/raw/remote.meta.json
+derived/transcript-simple/whisper-cpp/raw/chunks/mic/chunk_cache_report.json
+derived/transcript-simple/whisper-cpp/raw/chunks/remote/chunk_cache_report.json
 ```
 
-The generated `.meta.json` must match `transcribe-simple-whispercpp.py` cache metadata exactly.
-Otherwise `transcribe_current` reruns whisper.cpp. A `not_eligible` report is an expected safe
-fallback, not an error.
+The generated top-level `.meta.json` uses the same raw cache fields as `transcribe-simple`.
+Materialized live chunks are not claimed to have the same source-audio fingerprint as batch-prepared
+WAV chunks. Instead, each materialized chunk `.meta.json` names `source_audio.kind: live_asr_cache`.
+The safety proof is `raw/chunk_rebuild_check.json`: the pipeline accepts live-ASR cache only when
+the current raw ASR JSON can be rebuilt from the materialized chunk reports. A `not_eligible` report
+is an expected safe fallback, not an error.
 
 Compatibility gates include same whisper.cpp model and language, source-specific audio prep
 (`mic=speech`, `remote=loudnorm`), hard-window duration, clip overlap, matching mic/remote indices
-and usable whisper.cpp JSON for every included live chunk.
+and usable whisper.cpp JSON for every included live chunk. After materialization,
+`check-asr-chunk-cache.py --require-chunks` is still the hard gate.
 
 Common `not_eligible` reasons:
 
@@ -4453,6 +4505,131 @@ Common `not_eligible` reasons:
 - `window_duration_mismatch:<index>`;
 - `overlap_before_mismatch:<index>`;
 - `overlap_after_mismatch:<index>`.
+
+### Batch ASR Chunk Cache And Rebuild Check
+
+Default `windowed` whisper.cpp ASR writes per-track chunk cache reports:
+
+```text
+derived/transcript-simple/whisper-cpp/raw/chunks/mic/chunk_cache_report.json
+derived/transcript-simple/whisper-cpp/raw/chunks/remote/chunk_cache_report.json
+```
+
+Schema:
+
+```json
+{
+  "schema": "murmurmark.whisper_cpp_chunk_cache_report/v1",
+  "status": "completed",
+  "track": "mic",
+  "chunks_total": 3,
+  "chunks_completed": 3,
+  "chunks_missing": 0,
+  "chunks_reused": 2,
+  "chunks_transcribed": 1,
+  "completed_hard_sec": 180.0,
+  "total_sec": 180.0,
+  "remaining_sec": 0.0,
+  "reused_sec": 120.0,
+  "transcribed_sec": 60.0
+}
+```
+
+Each chunk also has a `.meta.json` file with `schema:
+murmurmark.whisper_cpp_chunk_cache/v1`. The metadata includes the raw ASR cache configuration,
+source-audio identity, window index, hard window, clip window and tool version. For normal batch ASR,
+a chunk can be reused only when this metadata matches the current run exactly. For materialized live
+ASR cache, chunk metadata uses `source_audio.kind: live_asr_cache`; those chunks are accepted as a
+cache source only through the rebuild check, not by pretending they are batch-prepared WAV chunks.
+
+After `transcribe_current`, the pipeline runs:
+
+```text
+derived/transcript-simple/whisper-cpp/raw/chunk_rebuild_check.json
+```
+
+Schema:
+
+```json
+{
+  "schema": "murmurmark.whisper_cpp_chunk_rebuild_check/v1",
+  "status": "passed",
+  "tracks": [
+    {
+      "track": "mic",
+      "status": "pass",
+      "raw_rows": 120,
+      "rebuilt_rows": 120,
+      "chunks_completed": 42,
+      "chunks_total": 42
+    }
+  ]
+}
+```
+
+`status: failed` is a hard pipeline failure: the current raw ASR JSON is not proven rebuildable from
+cached chunks. `status: not_applicable` is allowed only for non-windowed modes or sessions without
+chunk reports when the caller did not require chunks.
+
+Corpus aggregation writes:
+
+```text
+sessions/_reports/asr-chunk-cache/asr_chunk_cache_corpus_report.json
+```
+
+`murmurmark process` also copies aggregated ASR chunk progress into
+`derived/pipeline-run/pipeline_run_report.json`:
+
+```json
+{
+  "progress": {
+    "asr_chunks": {
+      "chunks_completed": 12,
+      "chunks_total": 20,
+      "chunks_missing": 8,
+      "completed_sec": 720.0,
+      "total_sec": 1200.0,
+      "remaining_sec": 480.0,
+      "completed_ratio": 0.6
+    },
+    "asr_remaining_estimate": {
+      "remaining_audio_sec": 480.0,
+      "estimated_wall_sec": 300.0,
+      "basis": "current_step_completed_audio_ratio"
+    }
+  }
+}
+```
+
+The ETA is advisory. It is based on the current step's observed completed-audio ratio and becomes
+`null` when there is not enough progress to estimate.
+
+Schema:
+
+```json
+{
+  "schema": "murmurmark.asr_chunk_cache_corpus_report/v1",
+  "status": "passed_with_warnings",
+  "summary": {
+    "sessions": 24,
+    "passed": 3,
+    "failed": 0,
+    "missing": 21,
+    "coverage_ratio": 0.125,
+    "raw_asr_without_chunks": 12,
+    "raw_asr_missing": 9,
+    "chunks_completed": 240,
+    "chunks_reused": 120
+  }
+}
+```
+
+`check-corpus-gates.py` reads this report. `status: failed` is a hard corpus gate failure; missing or
+low coverage is a warning during the rollout of Chunked/Resumable Processing v1.
+`raw_asr_without_chunks` is the backlog of sessions whose existing `raw/mic.json` and
+`raw/remote.json` predate chunk reports. They need an ASR rerun or a safe migration before they can
+contribute to chunk-cache parity coverage. `raw_asr_missing` means there is no baseline raw ASR to
+verify.
 
 ### Live-vs-Batch Comparison
 
@@ -4486,7 +4663,24 @@ Schema:
     "batch_token_count": 1350,
     "live_token_recall_in_batch": 0.82,
     "adjacent_duplicate_chunk_count": 0,
-    "batch_authoritative": true
+    "batch_authoritative": true,
+    "batch_ready_for_notes": true,
+    "meaningful_live_comparison": true,
+    "all_parity_gates_passed": false,
+    "live_order_mismatch_count": 0,
+    "live_missing_me_seconds": 0.0,
+    "live_suspicious_batch_me_missing_seconds": 0.0,
+    "live_suspected_remote_leak_in_me_seconds": 0.0,
+    "live_turn_count": 18,
+    "live_me_turn_count": 9,
+    "live_remote_turn_count": 9,
+    "batch_utterance_count": 42
+  },
+  "risk_examples": {
+    "order_mismatches": [],
+    "local_missing": [],
+    "local_missing_suspicious_batch_me": [],
+    "remote_leak": []
   },
   "parity_gates": {
     "status": "not_promotable",
@@ -4498,8 +4692,28 @@ Schema:
       },
       {
         "name": "local_recall",
-        "status": "not_evaluated",
-        "reason": "near-realtime shadow v1 does not yet produce batch-grade profile metrics for this gate"
+        "status": "passed",
+        "reason": "batch Me speech should be visible in live mic turns when live draft is used as evidence"
+      },
+      {
+        "name": "remote_duplicate_leak",
+        "status": "passed",
+        "reason": "live mic turns should not look like selected batch remote speech"
+      },
+      {
+        "name": "review_burden",
+        "status": "warning",
+        "reason": "selected batch outcome review burden is the maximum allowed burden for live cache promotion"
+      },
+      {
+        "name": "selected_notes_readiness",
+        "status": "passed",
+        "reason": "live parity is only promotion-ready when the authoritative batch result is notes-ready"
+      },
+      {
+        "name": "chunk_boundary_risks",
+        "status": "passed",
+        "reason": "live chunk boundaries should not introduce adjacent duplicate transcript text"
       }
     ]
   }
@@ -4509,6 +4723,22 @@ Schema:
 This comparison is advisory. Missing live or batch artifacts are written as `blockers`, but they must
 not fail the normal batch pipeline. `not_evaluated` gates are promotion blockers, not failures of the
 recording.
+
+The first live-parity layer computes measurable evidence from live chunks and the selected batch
+dialogue:
+
+- `order_risk`: maps live turns to similar batch utterances and warns when live order contradicts
+  batch order;
+- `local_recall`: checks that selected batch `Me` utterances are visible in live mic turns;
+- `remote_duplicate_leak`: warns when live mic turns look more like selected batch `Colleagues`
+  speech than `Me` speech;
+- `review_burden`: reads the authoritative batch `outcome.json` review burden;
+- `selected_notes_readiness`: reads the authoritative batch readiness/outcome;
+- `chunk_boundary_risks`: detects adjacent live chunk duplicates.
+
+Even when all gates pass, `promotion_allowed` remains `false` in v1. A passing comparison only means
+the live branch is safe enough to study as an acceleration candidate; batch transcript remains
+authoritative.
 
 ### Live Corpus Gates
 
@@ -4524,25 +4754,87 @@ Schema:
 ```json
 {
   "schema": "murmurmark.live_corpus_gates_report/v1",
+  "status": "shadow_only_not_promotable",
   "summary": {
     "sessions_total": 10,
     "live_sessions": 3,
     "compared_sessions": 2,
+    "meaningful_compared_sessions": 2,
+    "passing_compared_sessions": 1,
     "blocked_sessions": 1,
     "promotion_allowed_sessions": 0,
     "target_status": "shadow_only_not_promotable",
     "promotion_decision": "shadow_only_do_not_promote",
-    "speedup_supported_sessions": 0
+    "speedup_supported_sessions": 0,
+    "live_order_mismatch_count": 0,
+    "live_missing_me_seconds": 0.0,
+    "live_suspicious_batch_me_missing_seconds": 0.0,
+    "live_suspected_remote_leak_in_me_seconds": 0.0,
+    "adjacent_duplicate_chunk_count": 0,
+    "strict_coverage_status": "passed"
+  },
+  "strict_coverage": {
+    "requested": true,
+    "status": "passed",
+    "requirements": {
+      "min_live_sessions": 1,
+      "min_compared_sessions": 1,
+      "min_meaningful_compared_sessions": 1,
+      "min_passing_compared_sessions": 1,
+      "max_order_mismatches": 0,
+      "max_missing_me_sec": 0.0,
+      "max_remote_in_me_sec": 0.0,
+      "max_boundary_duplicates": 0,
+      "fail_on_promotion": true
+    },
+    "failures": []
   },
   "gate_counts": {
     "duplicate_chunks": {"passed": 2},
-    "local_recall": {"not_evaluated": 2}
+    "local_recall": {"passed": 2},
+    "remote_duplicate_leak": {"passed": 2},
+    "review_burden": {"warning": 1, "passed": 1}
   }
 }
 ```
 
 The corpus gate is deliberately conservative. Any `not_evaluated`, `blocked`, `failed` or `warning`
 gate prevents promotion. v1 is expected to remain `shadow_only_do_not_promote`.
+
+Strict coverage mode is optional and is intended for the current live-parity rollout:
+
+```bash
+murmurmark corpus live all \
+  --min-live-sessions 1 \
+  --min-compared-sessions 1 \
+  --min-meaningful-compared-sessions 1 \
+  --min-passing-compared-sessions 1 \
+  --max-order-mismatches 0 \
+  --max-missing-me-sec 0 \
+  --max-remote-in-me-sec 0 \
+  --max-boundary-duplicates 0 \
+  --require-passing-gates \
+  --fail-on-promotion
+```
+
+When strict requirements are passed, the report still must keep `promotion_allowed_sessions: 0`.
+Passing strict coverage means "safe enough to keep evaluating live cache as a speed-up candidate",
+not "live is now authoritative".
+
+`scripts/check-corpus-gates.py` reads this report as the `live_cache_parity` gate family:
+
+- `live_cache_parity.no_promotion` is a hard invariant: live/near-realtime cache must not be promoted
+  as authoritative while this branch is shadow-only;
+- `live_cache_parity.real_coverage_started` is a rollout warning until at least one real live
+  session has both live artifacts and batch comparison;
+- `live_cache_parity.meaningful_coverage_started` is a rollout warning until at least one comparison
+  contains both `Me` and `Colleagues` evidence in live and batch outputs;
+- `live_cache_parity.passing_coverage_started` is a rollout warning until at least one meaningful
+  comparison has every live parity gate passed;
+- `live_cache_parity_status`, `live_cache_parity_live_sessions`,
+  `live_cache_parity_compared_sessions`, `live_cache_parity_meaningful_compared_sessions`,
+  `live_cache_parity_passing_compared_sessions` and `live_cache_parity_promotion_allowed_sessions`
+  are copied into `corpus_gates_report.json.summary`.
 
 For sanitized external synthesis:
 

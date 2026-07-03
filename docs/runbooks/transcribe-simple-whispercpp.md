@@ -61,14 +61,20 @@ local-recall audit, transcript-order audit, group-overlap audit, audio-review au
 `--force-asr` when you need to regenerate Whisper output, and `--reuse-asr-cache` when you only want
 to rebuild repair, cleanup, synthesis and reports from cached ASR JSON. The runner prints each stage
 with `[run]`, `[passed]`, `[failed]` or `[skip]`, prints heartbeat lines for long-running stages, and
-stores the same stage list in `derived/pipeline-run/pipeline_run_report.json`. Use
+stores the same stage list in `derived/pipeline-run/pipeline_run_report.json`. Heartbeats include
+the step reason, checkpoint count when the step has known outputs, and a resume command, so a slow
+ASR stage should not look like a silent hang. If you stop the runner with `Ctrl-C`, the current child
+process is terminated, the run report is written with `status: interrupted`, `outcome` is refreshed,
+and the printed next command is the same `murmurmark process SESSION` resume path. Use
 `--progress-interval-sec 0` if you need a quieter run. Use `--plan-only` to print a compact
 `pipeline_plan` with enabled/skipped stages, heavier stages, expected output files, `run_command`
 for executing that plan and `current_next` for the current session state without executing the
-pipeline; the CLI labels the following readiness summary as `existing_readiness`. The JSON report
-also stores this plan metadata under `plan`, plus top-level `recommended_next`, `next_commands` and
-`open_commands` for agent handoff; the `pipeline_run` terminal block prints the same next commands
-from that report. After `process` finishes, the last line is a single copyable `next: ...` command
+pipeline; the plan JSON goes to `derived/pipeline-run/pipeline_plan_report.json`, not the last real
+`pipeline_run_report.json`, and it does not refresh `outcome.json`. The CLI labels the following
+readiness summary as `existing_readiness`. The run JSON stores plan metadata under `plan`, plus
+top-level `recommended_next`, `next_commands` and `open_commands` for agent handoff; the
+`pipeline_run` terminal block prints the same next commands from that report. After `process`
+finishes, the last line is a single copyable `next: ...` command
 from the current readiness state.
 The usual summary commands (`status`, `report`, `open`, `audit`, `cleanup`, `repair`, `synthesize`,
 `notes`, `transcript`, `review`, `export`, `retention`) use the same convention. Pure output modes
@@ -288,11 +294,56 @@ scripts/transcribe-simple-whispercpp.py "$SESSION" \
   --remote-audio-prep none
 ```
 
-Raw Whisper results are cached in `raw/mic.json` and `raw/remote.json`. The cache is reused only
-when the model, language, prompt, duration limit, `--max-context`, ASR window settings, and audio
-preparation settings match the current run.
+Raw Whisper results are cached in `raw/mic.json` and `raw/remote.json`. In default `windowed` mode,
+each ASR window also has its own cache under `raw/chunks/<track>/`. The cache is reused only when
+the model, language, prompt, duration limit, `--max-context`, ASR window settings, audio preparation
+settings, source-audio fingerprint and window boundaries match the current run.
 Use `--force` to regenerate raw Whisper output anyway. Changing `--prompt-file` also changes the
 raw cache metadata, so the next non-skipped run will regenerate raw ASR output.
+
+When the top-level `raw/mic.json` or `raw/remote.json` is missing but valid chunk JSON files remain,
+the bridge reuses those chunks and rebuilds the combined raw JSON instead of rerunning `whisper-cli`
+for every window. Inspect chunk reuse here:
+
+```bash
+jq '{track,status,chunks_completed,chunks_total,chunks_reused,chunks_transcribed,completed_hard_sec,total_sec}' \
+  "$SESSION/derived/transcript-simple/whisper-cpp/raw/chunks/mic/chunk_cache_report.json"
+
+jq '{track,status,chunks_completed,chunks_total,chunks_reused,chunks_transcribed,completed_hard_sec,total_sec}' \
+  "$SESSION/derived/transcript-simple/whisper-cpp/raw/chunks/remote/chunk_cache_report.json"
+```
+
+The normal `murmurmark process` runner also executes a light rebuild check after `transcribe_current`:
+
+```bash
+scripts/check-asr-chunk-cache.py "$SESSION" --require-chunks
+jq '.status, [.tracks[] | {track,status,raw_rows,rebuilt_rows,chunks_completed,chunks_total}]' \
+  "$SESSION/derived/transcript-simple/whisper-cpp/raw/chunk_rebuild_check.json"
+```
+
+This check fails the pipeline if the current `raw/mic.json` or `raw/remote.json` cannot be rebuilt
+from cached chunks. It is the first no-regression gate for chunked ASR reuse.
+
+For a corpus-level view:
+
+```bash
+scripts/report-asr-chunk-cache-corpus.py --refresh --no-fail
+less sessions/_reports/asr-chunk-cache/asr_chunk_cache_corpus_report.md
+scripts/check-corpus-gates.py --no-fail
+```
+
+`check-corpus-gates.py` treats a failed ASR chunk-cache corpus report as a hard gate failure. Missing
+coverage is still a warning while Chunked/Resumable Processing v1 is being rolled out.
+It also reads `sessions/_reports/live-pipeline/live_corpus_gates_report.json`: live/near-realtime
+cache promotion must remain blocked. The live comparison records measurable order, local-recall,
+remote-leak, review-burden, notes-readiness and chunk-boundary gates. Current diagnostic live
+coverage has started, but strict parity is still not proven; the batch transcript remains
+authoritative and live promotion remains disabled in v1.
+
+Older sessions may have top-level `raw/mic.json` and `raw/remote.json` from pre-chunk runs but no
+`raw/chunks/<track>/chunk_cache_report.json`. In `windowed` mode that legacy raw cache is no longer
+enough for `murmurmark process`: the transcript step rebuilds per-window chunks first, then
+`check-asr-chunk-cache.py --require-chunks` proves that the combined raw ASR can be reconstructed.
 
 To test the next repair logic without changing the main transcript, run the shadow profile after the
 normal transcript exists:
@@ -1484,6 +1535,13 @@ derived/
     whisper-cpp/
       raw/
         chunks/
+          mic/
+            chunk_cache_report.json
+            0001_000000s.json
+            0001_000000s.meta.json
+          remote/
+            chunk_cache_report.json
+        chunk_rebuild_check.json
         mic.txt
         mic.json
         mic.vtt
@@ -1559,6 +1617,13 @@ derived/
       group_overlap_patch_suggestions.jsonl
       clips/
 ```
+
+The same `raw/chunks/<track>/` shape can also be materialized from eligible live ASR chunks by
+`scripts/materialize-live-asr-cache.py`. In that case chunk metadata names
+`source_audio.kind: live_asr_cache`; the safety check is not exact source WAV identity, but
+`raw/chunk_rebuild_check.json` proving that top-level raw ASR JSON can be rebuilt from those
+materialized chunks. If the live chunks are not compatible, the bridge writes `not_eligible` and
+normal batch ASR runs.
 
 Initial role assignment is deliberately simple:
 

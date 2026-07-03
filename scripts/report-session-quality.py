@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.4"
+SCRIPT_VERSION = "0.4.5"
 SCHEMA = "murmurmark.session_quality_report/v1"
 READINESS_SCHEMA = "murmurmark.session_readiness/v1"
 CLEANUP_PROFILES = {
@@ -334,11 +334,25 @@ def selected_profile(session: Path) -> str:
         if order_repair_usable_for("audit_cleanup_v3"):
             return "order_repair_v1"
         return "audit_cleanup_v3"
-    if (resolved / "quality_report.audit_cleanup_v2.json").exists() and (resolved / "clean_dialogue.audit_cleanup_v2.json").exists():
+    cleanup_v2 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v2.json")
+    cleanup_v2_gates = cleanup_v2.get("gates") if isinstance(cleanup_v2, dict) else {}
+    if (
+        (resolved / "quality_report.audit_cleanup_v2.json").exists()
+        and (resolved / "clean_dialogue.audit_cleanup_v2.json").exists()
+        and isinstance(cleanup_v2_gates, dict)
+        and cleanup_v2_gates.get("passed") is True
+    ):
         if order_repair_usable_for("audit_cleanup_v2"):
             return "order_repair_v1"
         return "audit_cleanup_v2"
-    if (resolved / "quality_report.audit_cleanup_v1.json").exists() and (resolved / "clean_dialogue.audit_cleanup_v1.json").exists():
+    cleanup_v1 = read_json(cleanup / "audit_cleanup_report.audit_cleanup_v1.json")
+    cleanup_v1_gates = cleanup_v1.get("gates") if isinstance(cleanup_v1, dict) else {}
+    if (
+        (resolved / "quality_report.audit_cleanup_v1.json").exists()
+        and (resolved / "clean_dialogue.audit_cleanup_v1.json").exists()
+        and isinstance(cleanup_v1_gates, dict)
+        and cleanup_v1_gates.get("passed") is True
+    ):
         if order_repair_usable_for("audit_cleanup_v1"):
             return "order_repair_v1"
         return "audit_cleanup_v1"
@@ -467,7 +481,7 @@ def missing_artifacts(status: dict[str, bool]) -> list[str]:
         "group_overlap_audit",
         "transcript_order_audit",
         "audit_cleanup_v1",
-        "synthesis_audit_cleanup_v1",
+        "synthesis",
         "audio_review_pack",
         "audio_review_audit",
     ]

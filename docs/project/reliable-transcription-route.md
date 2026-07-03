@@ -1,12 +1,16 @@
 # Reliable Transcription Route
 
-Status: planning target for the next major goal
-Date: 2026-07-02
+Status: active product route; Outcome/Processing UX v1 and Chunked/Resumable Processing v1 complete,
+live parity coverage next
+Date: 2026-07-03
 
-Consultation synthesis: Gemini, GPT-Pro and Fable agree on the same practical direction. Do not add
+Consultation synthesis: Gemini, GPT-Pro and Fable agreed on the same practical direction. Do not add
 another broad repair layer first. Turn the existing audits into one deterministic outcome contract,
 then use corpus-calibrated gates and review-burden telemetry to decide whether a transcript is ready,
-needs review or is blocked.
+needs review or is blocked. Outcome Contract v1 and Reliable Processing UX v1 are now implemented.
+The next concrete reliability gap is live parity coverage: near-realtime chunks already exist as a
+shadow path, but they need real-session comparisons before they can be trusted as a batch-grade
+cache source.
 
 ## Why This Exists
 
@@ -59,7 +63,7 @@ murmurmark finish latest
 The pipeline can still take time. The reliability requirement is that it is resumable, observable and
 honest:
 
-- long-running stages show progress and can be resumed;
+- long-running stages show progress and can be resumed from verified ASR chunks;
 - already completed stages are reused unless `--force-*` is explicit;
 - missing optional models degrade gracefully;
 - partial recordings are marked partial and blocked by default;
@@ -218,14 +222,15 @@ black box.
 
 Near-term work:
 
-- improve process progress reporting for ASR/current/shadow stages;
-- make resume/checkpoint behavior obvious;
+- keep ASR chunk cache and rebuild checks as hard gates;
+- expand chunk-cache coverage over the real corpus;
+- collect real live-pipeline sessions with `live_batch_comparison.json`;
 - keep live pipeline as shadow acceleration, not as the source of truth;
 - compare live draft to batch output through corpus gates.
 
 Acceptance:
 
-- interrupted processing can be resumed with one command;
+- interrupted processing can be resumed with one command and reused chunks are visible in reports;
 - `process` explains whether it is recomputing or reusing cache;
 - live mode never weakens batch readiness gates.
 
@@ -237,8 +242,10 @@ derived/run/pipeline_run.json
 
 Current v1 contains step ids, status, timestamps, durations, outcome, next command, session-level
 resume command, expected output checkpoints, missing output count and a basic stuck-state summary.
-The next hardening step is to add config hashes and ASR window/chunk resume instead of whole-session
-rerun.
+Chunked/Resumable Processing v1 adds stable ASR cache metadata, verified chunk rebuilds and
+process-level failure/`Ctrl-C` resume. The remaining hardening work is broader corpus coverage and
+real live-cache parity gates before near-realtime chunks can be trusted as a batch-grade cache
+source.
 
 ## Gate Model v1
 

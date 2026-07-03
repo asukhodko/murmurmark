@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import shlex
 import shutil
 import subprocess
@@ -15,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.2"
+SCRIPT_VERSION = "0.1.3"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
 INTERRUPTED_CAPTURE_WARNING_MARKERS = (
     "stream stopped with error",
@@ -37,6 +38,10 @@ STEP_COST_HINTS: dict[str, dict[str, str]] = {
     "transcribe_current": {
         "cost": "heavy",
         "reason": "runs whisper.cpp ASR unless cached raw ASR is reused",
+    },
+    "check_asr_chunk_cache": {
+        "cost": "light",
+        "reason": "verifies that raw ASR JSON can be rebuilt from cached chunks",
     },
     "materialize_live_asr_cache": {
         "cost": "light",
@@ -67,6 +72,15 @@ STEP_COST_HINTS: dict[str, dict[str, str]] = {
         "reason": "materializes remote-forbidden evidence rows when offline_aec_v2 ASR audit exists",
     },
 }
+
+
+def format_duration(seconds: float) -> str:
+    if seconds < 90:
+        return f"{seconds:.1f}s"
+    minutes = seconds / 60.0
+    if minutes < 90:
+        return f"{minutes:.1f}m"
+    return f"{minutes / 60.0:.1f}h"
 
 
 def parse_args() -> argparse.Namespace:
@@ -302,6 +316,19 @@ def pipeline_handoff(
                 "reason": "refresh and inspect the post-process readiness summary",
             }
         )
+    elif status == "interrupted":
+        next_commands = [
+            {
+                "id": "rerun_process",
+                "command": f"murmurmark process {session_arg}",
+                "reason": "resume the post-recording pipeline after Ctrl-C",
+            },
+            {
+                "id": "open_pipeline_run_report",
+                "command": f"less {report_arg}",
+                "reason": "inspect the interrupted step and command tails",
+            },
+        ]
     else:
         next_commands = [
             {
@@ -329,12 +356,20 @@ def add_prompt(command: list[str], prompt_file: Path | None) -> list[str]:
     return command
 
 
-def step(name: str, command: list[str], *, enabled: bool = True, reason: str | None = None) -> dict[str, Any]:
+def step(
+    name: str,
+    command: list[str],
+    *,
+    enabled: bool = True,
+    reason: str | None = None,
+    warning_returncodes: set[int] | None = None,
+) -> dict[str, Any]:
     return {
         "name": name,
         "enabled": enabled,
         "skip_reason": reason if not enabled else None,
         "command": command,
+        "warning_returncodes": sorted(warning_returncodes or set()),
     }
 
 
@@ -388,6 +423,12 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             reason="missing live report/--skip-transcription/--force-asr",
         ),
         step("transcribe_current", current_transcribe, enabled=not args.skip_transcription, reason="--skip-transcription"),
+        step(
+            "check_asr_chunk_cache",
+            [py, str(repo_root / "scripts/check-asr-chunk-cache.py"), str(session), "--require-chunks"],
+            enabled=not args.skip_transcription,
+            reason="--skip-transcription",
+        ),
         step("transcribe_shadow_v2", shadow_transcribe, enabled=not args.skip_transcription, reason="--skip-transcription"),
         step(
             "audit_local_recall",
@@ -419,6 +460,7 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             [py, str(repo_root / "scripts/apply-audit-cleanup.py"), str(session), "--input-profile", "shadow_v2", "--output-profile", "audit_cleanup_v1", "--mode", "conservative"],
             enabled=not args.skip_cleanup,
             reason="--skip-cleanup",
+            warning_returncodes={2},
         ),
         step("synthesize_v1", [py, str(repo_root / "scripts/synthesize-simple-extractive.py"), str(session), "--transcript-profile", "audit_cleanup_v1"]),
         step(
@@ -468,6 +510,7 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             [py, str(repo_root / "scripts/apply-audit-cleanup.py"), str(session), "--input-profile", "audit_cleanup_v1", "--output-profile", "audit_cleanup_v2", "--mode", "conservative"],
             enabled=not args.skip_cleanup,
             reason="--skip-cleanup",
+            warning_returncodes={2},
         ),
         step("synthesize_v2", [py, str(repo_root / "scripts/synthesize-simple-extractive.py"), str(session), "--transcript-profile", "audit_cleanup_v2"]),
         step(
@@ -487,6 +530,7 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             ],
             enabled=(not args.skip_cleanup and audio_judge_exists),
             reason="missing audio judge queue" if not audio_judge_exists else "--skip-cleanup",
+            warning_returncodes={2},
         ),
         step(
             "synthesize_v3",
@@ -511,6 +555,7 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             ],
             enabled=(not args.skip_cleanup and audio_judge_exists),
             reason="missing audio judge queue" if not audio_judge_exists else "--skip-cleanup",
+            warning_returncodes={2},
         ),
         step(
             "synthesize_v4",
@@ -558,6 +603,141 @@ def step_cost_hint(item: dict[str, Any]) -> dict[str, str] | None:
     return {"cost": cost, "reason": reason}
 
 
+def transcribe_chunk_progress(session: Path) -> dict[str, Any] | None:
+    raw_chunks = session / "derived/transcript-simple/whisper-cpp/raw/chunks"
+    reports = sorted(raw_chunks.glob("*/chunk_cache_report.json"))
+    if not reports:
+        return None
+    tracks: list[dict[str, Any]] = []
+    total_chunks = 0
+    completed_chunks = 0
+    reused_chunks = 0
+    transcribed_chunks = 0
+    total_sec = 0.0
+    completed_sec = 0.0
+    reused_sec = 0.0
+    transcribed_sec = 0.0
+    for path in reports:
+        report = read_json(path)
+        if not isinstance(report, dict):
+            continue
+        chunks_total = int(report.get("chunks_total") or 0)
+        chunks_completed = int(report.get("chunks_completed") or 0)
+        chunks_reused = int(report.get("chunks_reused") or 0)
+        chunks_transcribed = int(report.get("chunks_transcribed") or 0)
+        track_total_sec = float(report.get("total_sec") or 0.0)
+        track_completed_sec = float(report.get("completed_hard_sec") or 0.0)
+        track_reused_sec = 0.0
+        track_transcribed_sec = 0.0
+        for chunk in report.get("chunks") or []:
+            if not isinstance(chunk, dict):
+                continue
+            hard_sec = max(
+                0.0,
+                (float(chunk.get("hard_end_ms") or 0.0) - float(chunk.get("hard_start_ms") or 0.0)) / 1000.0,
+            )
+            if chunk.get("status") == "reused":
+                track_reused_sec += hard_sec
+            elif chunk.get("status") == "transcribed":
+                track_transcribed_sec += hard_sec
+        total_chunks += chunks_total
+        completed_chunks += chunks_completed
+        reused_chunks += chunks_reused
+        transcribed_chunks += chunks_transcribed
+        total_sec += track_total_sec
+        completed_sec += track_completed_sec
+        reused_sec += track_reused_sec
+        transcribed_sec += track_transcribed_sec
+        tracks.append(
+            {
+                "track": str(report.get("track") or path.parent.name),
+                "status": str(report.get("status") or "unknown"),
+                "chunks_completed": chunks_completed,
+                "chunks_total": chunks_total,
+                "chunks_missing": max(0, chunks_total - chunks_completed),
+                "chunks_reused": chunks_reused,
+                "chunks_transcribed": chunks_transcribed,
+                "completed_sec": track_completed_sec,
+                "total_sec": track_total_sec,
+                "remaining_sec": max(0.0, round(track_total_sec - track_completed_sec, 3)),
+                "reused_sec": round(track_reused_sec, 3),
+                "transcribed_sec": round(track_transcribed_sec, 3),
+                "report": rel(path, session),
+            }
+        )
+    if not tracks:
+        return None
+    return {
+        "tracks": tracks,
+        "chunks_completed": completed_chunks,
+        "chunks_total": total_chunks,
+        "chunks_missing": max(0, total_chunks - completed_chunks),
+        "chunks_reused": reused_chunks,
+        "chunks_transcribed": transcribed_chunks,
+        "completed_sec": completed_sec,
+        "total_sec": total_sec,
+        "remaining_sec": max(0.0, round(total_sec - completed_sec, 3)),
+        "reused_sec": round(reused_sec, 3),
+        "transcribed_sec": round(transcribed_sec, 3),
+        "completed_ratio": round(completed_sec / total_sec, 6) if total_sec > 0 else None,
+    }
+
+
+def estimate_remaining_runtime(progress: dict[str, Any] | None, elapsed_sec: float) -> dict[str, Any] | None:
+    if not isinstance(progress, dict):
+        return None
+    completed_sec = float(progress.get("completed_sec") or 0.0)
+    remaining_sec = float(progress.get("remaining_sec") or 0.0)
+    if completed_sec <= 0 or remaining_sec <= 0 or elapsed_sec <= 0:
+        return {
+            "remaining_audio_sec": round(remaining_sec, 3),
+            "estimated_wall_sec": None,
+            "basis": "insufficient_progress",
+        }
+    seconds_per_audio_sec = elapsed_sec / completed_sec
+    return {
+        "remaining_audio_sec": round(remaining_sec, 3),
+        "estimated_wall_sec": round(remaining_sec * seconds_per_audio_sec, 3),
+        "seconds_per_audio_sec": round(seconds_per_audio_sec, 6),
+        "basis": "current_step_completed_audio_ratio",
+    }
+
+
+def checkpoint_progress_for_step(
+    *,
+    step_name: str,
+    session: Path,
+    report_path: Path,
+) -> dict[str, Any]:
+    outputs = [
+        item
+        for item in expected_output_specs(session, report_path)
+        if item.get("produced_by") == step_name
+    ]
+    existing: list[str] = []
+    missing: list[str] = []
+    for item in outputs:
+        raw_path = str(item.get("path") or "")
+        if not raw_path:
+            continue
+        path = Path(raw_path)
+        absolute = path if path.is_absolute() else session / path
+        if absolute.exists():
+            existing.append(raw_path)
+        else:
+            missing.append(raw_path)
+    return {
+        "total": len(outputs),
+        "existing": len(existing),
+        "missing": len(missing),
+        "existing_paths": existing,
+        "missing_paths": missing,
+        "asr_chunks": transcribe_chunk_progress(session)
+        if step_name in {"transcribe_current", "transcribe_shadow_v2"}
+        else None,
+    }
+
+
 def expected_output_specs(session: Path, report_path: Path) -> list[dict[str, str]]:
     return [
         {
@@ -571,6 +751,12 @@ def expected_output_specs(session: Path, report_path: Path) -> list[dict[str, st
             "path": rel(session / "derived/transcript-simple/whisper-cpp/resolved/transcript.md", session),
             "produced_by": "transcribe_current",
             "purpose": "baseline readable transcript",
+        },
+        {
+            "id": "asr_chunk_rebuild_check",
+            "path": rel(session / "derived/transcript-simple/whisper-cpp/raw/chunk_rebuild_check.json", session),
+            "produced_by": "check_asr_chunk_cache",
+            "purpose": "raw ASR chunk rebuild parity check",
         },
         {
             "id": "best_notes",
@@ -665,16 +851,46 @@ def read_tail(path: Path, limit: int = 4000) -> str:
     return data[-limit:]
 
 
+def terminate_process_group(process: subprocess.Popen[str], *, timeout_sec: float = 5.0) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    except OSError:
+        process.terminate()
+    try:
+        process.wait(timeout=timeout_sec)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return
+    except OSError:
+        process.kill()
+    process.wait(timeout=timeout_sec)
+
+
 def run_step(
     item: dict[str, Any],
     repo_root: Path,
     plan_only: bool,
     *,
     progress_interval_sec: int,
+    session: Path,
+    report_path: Path,
 ) -> dict[str, Any]:
     started_at = datetime.now(timezone.utc).isoformat()
     started = time.monotonic()
-    result = {**item, "status": "planned" if plan_only else "pending", "started_at": started_at}
+    result = {
+        **item,
+        "status": "planned" if plan_only else "pending",
+        "started_at": started_at,
+        "cost_hint": step_cost_hint(item),
+    }
     if not item["enabled"]:
         result["status"] = "skipped"
         result["finished_at"] = datetime.now(timezone.utc).isoformat()
@@ -695,24 +911,91 @@ def run_step(
                 stdin=subprocess.DEVNULL,
                 stdout=stdout_file,
                 stderr=stderr_file,
+                start_new_session=True,
             )
             next_progress_at = time.monotonic() + max(1, progress_interval_sec)
-            while True:
-                returncode = process.poll()
-                if returncode is not None:
-                    break
-                now = time.monotonic()
-                if progress_interval_sec > 0 and now >= next_progress_at:
-                    elapsed = now - started
-                    print(f"[run] {item['name']} still running ({elapsed:.1f}s)", flush=True)
-                    next_progress_at = now + progress_interval_sec
-                time.sleep(0.5)
+            try:
+                while True:
+                    returncode = process.poll()
+                    if returncode is not None:
+                        break
+                    now = time.monotonic()
+                    if progress_interval_sec > 0 and now >= next_progress_at:
+                        elapsed = now - started
+                        step_name = str(item.get("name") or "unknown")
+                        hint = step_cost_hint(item) or {}
+                        progress = checkpoint_progress_for_step(
+                            step_name=step_name,
+                            session=session,
+                            report_path=report_path,
+                        )
+                        checkpoint = ""
+                        if progress["total"]:
+                            checkpoint = (
+                                f"; checkpoints {progress['existing']}/{progress['total']} present"
+                            )
+                        chunk_text = ""
+                        chunk_progress = progress.get("asr_chunks")
+                        if isinstance(chunk_progress, dict):
+                            chunks_completed = int(chunk_progress.get("chunks_completed") or 0)
+                            chunks_total = int(chunk_progress.get("chunks_total") or 0)
+                            completed_sec = float(chunk_progress.get("completed_sec") or 0.0)
+                            total_sec = float(chunk_progress.get("total_sec") or 0.0)
+                            remaining_sec = float(chunk_progress.get("remaining_sec") or 0.0)
+                            reused = int(chunk_progress.get("chunks_reused") or 0)
+                            transcribed = int(chunk_progress.get("chunks_transcribed") or 0)
+                            if chunks_total:
+                                estimate = estimate_remaining_runtime(chunk_progress, elapsed)
+                                eta_text = ""
+                                if isinstance(estimate, dict) and estimate.get("estimated_wall_sec") is not None:
+                                    eta_text = f", eta~{format_duration(float(estimate['estimated_wall_sec']))}"
+                                chunk_text = (
+                                    f"; ASR chunks {chunks_completed}/{chunks_total}"
+                                    f" ({format_duration(completed_sec)}/{format_duration(total_sec)}),"
+                                    f" remaining={format_duration(remaining_sec)},"
+                                    f" reused={reused}, transcribed={transcribed}{eta_text}"
+                                )
+                        reason = str(hint.get("reason") or "working")
+                        print(
+                            f"[run] {step_name} still running ({format_duration(elapsed)})"
+                            f"; {reason}{checkpoint}{chunk_text}",
+                            flush=True,
+                        )
+                        print(
+                            f"[run] resume hint: Ctrl-C is safe; rerun `murmurmark process {rel(session, repo_root)}`",
+                            flush=True,
+                        )
+                        next_progress_at = now + progress_interval_sec
+                    time.sleep(0.5)
+            except KeyboardInterrupt:
+                terminate_process_group(process)
+                stdout_tail = read_tail(stdout_path)
+                stderr_tail = read_tail(stderr_path)
+                result.update(
+                    {
+                        "status": "interrupted",
+                        "returncode": process.returncode,
+                        "finished_at": datetime.now(timezone.utc).isoformat(),
+                        "duration_sec": round(time.monotonic() - started, 3),
+                        "stdout_tail": stdout_tail,
+                        "stderr_tail": stderr_tail,
+                        "message": "interrupted by Ctrl-C; rerun murmurmark process for the same session",
+                    }
+                )
+                return result
         returncode = process.returncode
         stdout_tail = read_tail(stdout_path)
         stderr_tail = read_tail(stderr_path)
+    warning_returncodes = {int(value) for value in item.get("warning_returncodes", [])}
+    if returncode == 0:
+        status = "passed"
+    elif returncode in warning_returncodes:
+        status = "passed_with_warnings"
+    else:
+        status = "failed"
     result.update(
         {
-            "status": "passed" if returncode == 0 else "failed",
+            "status": status,
             "returncode": returncode,
             "finished_at": datetime.now(timezone.utc).isoformat(),
             "duration_sec": round(time.monotonic() - started, 3),
@@ -740,7 +1023,7 @@ def print_step_result(result: dict[str, Any]) -> None:
         print(f"[{status}] {result['name']}", flush=True)
         return
     print(f"[{status}] {result['name']} ({duration:.1f}s)", flush=True)
-    if status == "failed":
+    if status in {"failed", "interrupted"}:
         for key in ("stderr_tail", "stdout_tail"):
             tail = str(result.get(key) or "").strip()
             if tail:
@@ -935,7 +1218,12 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     args.murmurmark_bin = resolve_murmurmark_bin(args.murmurmark_bin, repo_root)
     session = args.session.expanduser()
-    report_path = args.report.expanduser() if args.report else session / "derived/pipeline-run/pipeline_run_report.json"
+    if args.report:
+        report_path = args.report.expanduser()
+    elif args.plan_only:
+        report_path = session / "derived/pipeline-run/pipeline_plan_report.json"
+    else:
+        report_path = session / "derived/pipeline-run/pipeline_run_report.json"
     steps = build_steps(args, repo_root, session)
     plan_metadata = build_plan_metadata(steps, session, report_path, repo_root, plan_only=args.plan_only)
     results: list[dict[str, Any]] = []
@@ -969,6 +1257,8 @@ def main() -> int:
             repo_root,
             args.plan_only,
             progress_interval_sec=args.progress_interval_sec,
+            session=session,
+            report_path=report_path,
         )
         results.append(result)
         if not args.plan_only:
@@ -976,12 +1266,16 @@ def main() -> int:
         if result["status"] == "failed":
             final_status = "failed"
             break
+        if result["status"] == "interrupted":
+            final_status = "interrupted"
+            break
 
     quality_path = session / "derived/synthesis-simple/extractive/quality_verdict.json"
     readiness_path = session / "derived/readiness/session_readiness.json"
     remote_leak_plan_path = session / "derived/transcript-simple/whisper-cpp/remote-leak-repair/remote_leak_segment_repair_plan.json"
     live_comparison_path = session / "derived/live/live_batch_comparison.json"
     live_asr_cache_path = session / "derived/live/live_asr_cache_report.json"
+    asr_chunk_check_path = session / "derived/transcript-simple/whisper-cpp/raw/chunk_rebuild_check.json"
     quality = read_json(quality_path)
     readiness = read_json(readiness_path)
     synthesis_profile = quality.get("selected_transcript_profile") if isinstance(quality, dict) else None
@@ -1016,6 +1310,7 @@ def main() -> int:
             "quality_verdict": rel(quality_path, session) if quality_path.exists() else None,
             "session_readiness": rel(readiness_path, session) if readiness_path.exists() else None,
             "remote_leak_segment_repair_plan": rel(remote_leak_plan_path, session) if remote_leak_plan_path.exists() else None,
+            "asr_chunk_rebuild_check": rel(asr_chunk_check_path, session) if asr_chunk_check_path.exists() else None,
             "live_asr_cache_report": rel(live_asr_cache_path, session) if live_asr_cache_path.exists() else None,
             "live_batch_comparison": rel(live_comparison_path, session) if live_comparison_path.exists() else None,
             "selected_transcript_profile": selected_profile,
@@ -1029,11 +1324,19 @@ def main() -> int:
         "recommended_next": handoff["recommended_next"],
         "next_commands": handoff["next_commands"],
         "open_commands": handoff["open_commands"],
+        "progress": {
+            "asr_chunks": transcribe_chunk_progress(session),
+            "asr_remaining_estimate": estimate_remaining_runtime(
+                transcribe_chunk_progress(session),
+                sum(float(item.get("duration_sec") or 0.0) for item in results if item.get("name") == "transcribe_current"),
+            ),
+        },
         "plan": plan_metadata,
         "steps": results,
     }
     write_json(report_path, report)
-    write_outcome_artifacts(session, report_path, repo_root)
+    if not args.plan_only:
+        write_outcome_artifacts(session, report_path, repo_root)
     print_pipeline_summary(report, report_path, repo_root)
     return 0 if report["status"] in {"passed", "planned"} else 2
 

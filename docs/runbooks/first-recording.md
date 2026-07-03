@@ -152,7 +152,31 @@ less sessions/_reports/live-pipeline/live_corpus_gates_report.md
 ```
 
 The correct v1 outcome is normally `shadow_only_not_promotable`; promotion requires future gates for
-order risk, local recall, remote leakage, review burden and boundary speech.
+order risk, local recall, remote leakage, review burden and boundary speech. The current comparison
+already measures the first practical version of those checks from live chunks versus the selected
+batch transcript, but `promotion_allowed` must remain `false` until real live-session coverage is
+broad enough and the corpus gates are intentionally promoted.
+
+For the current live-parity coverage goal, use the strict form after recording at least one real
+live session:
+
+```bash
+murmurmark corpus live all \
+  --min-live-sessions 1 \
+  --min-compared-sessions 1 \
+  --min-meaningful-compared-sessions 1 \
+  --min-passing-compared-sessions 1 \
+  --max-order-mismatches 0 \
+  --max-missing-me-sec 0 \
+  --max-remote-in-me-sec 0 \
+  --max-boundary-duplicates 0 \
+  --require-passing-gates \
+  --fail-on-promotion
+```
+
+This command should fail whenever coverage is missing or any live parity gate is still warning,
+failed or not evaluated. A failure is useful evidence: it says why live chunks are not ready to be a
+trusted cache source.
 
 Without `--duration`, recording continues until `Ctrl-C`. MurmurMark catches that explicit stop,
 stops capture, closes audio files and writes `session.json`.

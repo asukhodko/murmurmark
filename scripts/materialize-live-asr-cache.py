@@ -12,7 +12,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_asr_cache_report/v1"
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 DEFAULT_MODEL = Path.home() / ".local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 
 
@@ -64,6 +64,10 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def raw_meta_path(output_base: Path) -> Path:
+    return output_base.with_suffix(".meta.json")
 
 
 def rel(path: Path, session: Path) -> str:
@@ -249,9 +253,147 @@ def build_combined_json(session: Path, chunks: list[dict[str, Any]], source: str
     return len(rows), used
 
 
+def chunk_record_from_live(session: Path, chunk: dict[str, Any], source: str, chunk_dir: Path) -> dict[str, Any] | None:
+    source_record = chunk.get(source)
+    if not isinstance(source_record, dict):
+        return None
+    json_path = source_json_path(session, source_record)
+    if json_path is None:
+        return None
+    index = int(chunk.get("index") or 0)
+    hard_start_sec = float(source_record.get("hard_start_sec") or chunk.get("start_sec") or 0.0)
+    hard_end_sec = float(source_record.get("hard_end_sec") or chunk.get("end_sec") or hard_start_sec)
+    clip_start_sec = float(source_record.get("clip_start_sec") or chunk.get("clip_start_sec") or hard_start_sec)
+    clip_end_sec = float(source_record.get("clip_end_sec") or chunk.get("clip_end_sec") or hard_end_sec)
+    hard_start_ms = int(round(hard_start_sec * 1000))
+    hard_end_ms = int(round(hard_end_sec * 1000))
+    seek_ms = int(round(clip_start_sec * 1000))
+    clip_end_ms = int(round(clip_end_sec * 1000))
+    chunk_base = chunk_dir / f"{index:04d}_{hard_start_ms // 1000:06d}s"
+    return {
+        "index": index,
+        "status": "reused",
+        "source": "live_asr_cache",
+        "hard_start_ms": hard_start_ms,
+        "hard_end_ms": hard_end_ms,
+        "seek_ms": seek_ms,
+        "clip_duration_ms": max(1, clip_end_ms - seek_ms),
+        "wav": str(Path(str(source_record.get("wav") or ""))),
+        "json": str(chunk_base.with_suffix(".json")),
+        "meta": str(raw_meta_path(chunk_base)),
+        "live_json": rel(json_path, session),
+        "live_chunk_index": index,
+    }
+
+
+def materialize_chunk_cache(
+    *,
+    session: Path,
+    chunks: list[dict[str, Any]],
+    source: str,
+    raw_dir: Path,
+    raw_cache_config: dict[str, Any],
+    source_duration_ms: int,
+    total_ms: int,
+    window_sec: int,
+    overlap_sec: int,
+) -> tuple[list[dict[str, Any]], str]:
+    chunk_dir = raw_dir / "chunks" / source
+    chunk_dir.mkdir(parents=True, exist_ok=True)
+    records: list[dict[str, Any]] = []
+    for chunk in sorted(chunks, key=lambda row: int(row.get("index") or 0)):
+        record = chunk_record_from_live(session, chunk, source, chunk_dir)
+        if record is None:
+            continue
+        source_record = chunk.get(source)
+        assert isinstance(source_record, dict)
+        json_path = source_json_path(session, source_record)
+        assert json_path is not None
+        data = read_json(json_path)
+        if data is None:
+            continue
+        chunk_base = Path(record["json"]).with_suffix("")
+        write_json(chunk_base.with_suffix(".json"), data)
+        write_text_sidecars(chunk_base, data.get("transcription") if isinstance(data.get("transcription"), list) else [])
+        chunk_meta = {
+            "schema": "murmurmark.whisper_cpp_chunk_cache/v1",
+            "generator": {"name": "materialize-live-asr-cache", "version": SCRIPT_VERSION},
+            "raw_cache": raw_cache_config,
+            "source_audio": {
+                "kind": "live_asr_cache",
+                "live_json": rel(json_path, session),
+                "live_wav": rel(Path(str(source_record.get("wav") or "")), session)
+                if source_record.get("wav")
+                else None,
+            },
+            "window": {
+                "index": record["index"],
+                "hard_start_ms": record["hard_start_ms"],
+                "hard_end_ms": record["hard_end_ms"],
+                "seek_ms": record["seek_ms"],
+                "clip_end_ms": record["seek_ms"] + record["clip_duration_ms"],
+                "clip_duration_ms": record["clip_duration_ms"],
+            },
+        }
+        write_json(raw_meta_path(chunk_base), chunk_meta)
+        records.append(record)
+    completed_hard_ms = sum(
+        max(0, int(item.get("hard_end_ms") or 0) - int(item.get("hard_start_ms") or 0))
+        for item in records
+    )
+    remaining_ms = max(0, total_ms - completed_hard_ms)
+    report = {
+        "schema": "murmurmark.whisper_cpp_chunk_cache_report/v1",
+        "generator": {"name": "materialize-live-asr-cache", "version": SCRIPT_VERSION},
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "status": "completed" if records else "empty",
+        "track": source,
+        "output_json": str(raw_dir / f"{source}.json"),
+        "source_audio": {"kind": "live_asr_cache", "live_chunks": "derived/live/chunks.jsonl"},
+        "source_duration_ms": source_duration_ms,
+        "limited_duration_ms": total_ms,
+        "window_sec": window_sec,
+        "overlap_sec": overlap_sec,
+        "chunks_total": len(records),
+        "chunks_completed": len(records),
+        "chunks_missing": 0,
+        "chunks_reused": len(records),
+        "chunks_transcribed": 0,
+        "completed_hard_ms": completed_hard_ms,
+        "completed_hard_sec": round(completed_hard_ms / 1000.0, 3),
+        "total_sec": round(total_ms / 1000.0, 3),
+        "remaining_sec": round(remaining_ms / 1000.0, 3),
+        "reused_sec": round(completed_hard_ms / 1000.0, 3),
+        "transcribed_sec": 0.0,
+        "completed_ratio": round(completed_hard_ms / total_ms, 6) if total_ms > 0 else None,
+        "chunks": records,
+        "notes": [
+            "These chunks were materialized from live ASR output.",
+            "They are accepted only when check-asr-chunk-cache proves raw JSON rebuild parity.",
+        ],
+    }
+    report_path = chunk_dir / "chunk_cache_report.json"
+    write_json(report_path, report)
+    return records, rel(report_path, session)
+
+
 def existing_raw_cache(session: Path) -> bool:
     raw_dir = session / "derived/transcript-simple/whisper-cpp/raw"
     return (raw_dir / "mic.json").exists() or (raw_dir / "remote.json").exists()
+
+
+def live_duration_ms(chunks: list[dict[str, Any]], source: str) -> tuple[int, int]:
+    max_hard_end = 0
+    max_clip_end = 0
+    for chunk in chunks:
+        source_record = chunk.get(source)
+        if not isinstance(source_record, dict):
+            continue
+        hard_end_sec = float(source_record.get("hard_end_sec") or chunk.get("end_sec") or 0.0)
+        clip_end_sec = float(source_record.get("clip_end_sec") or chunk.get("clip_end_sec") or hard_end_sec)
+        max_hard_end = max(max_hard_end, int(round(hard_end_sec * 1000)))
+        max_clip_end = max(max_clip_end, int(round(clip_end_sec * 1000)))
+    return max_hard_end, max(max_clip_end, max_hard_end)
 
 
 def main() -> int:
@@ -291,6 +433,8 @@ def main() -> int:
     if not reasons:
         rows_by_source: dict[str, int] = {}
         used_json_by_source: dict[str, list[str]] = {}
+        chunk_reports_by_source: dict[str, str] = {}
+        chunk_records_by_source: dict[str, dict[str, Any]] = {}
         for source, prep in expected_prep.items():
             output_base = raw_dir / source
             row_count, used = build_combined_json(session, chunks, source, output_base)
@@ -308,7 +452,26 @@ def main() -> int:
                 audio_prep=prep,
             )
             write_json(output_base.with_suffix(".meta.json"), meta)
+            hard_duration_ms, source_duration_ms = live_duration_ms(chunks, source)
+            limited_duration_ms = min(hard_duration_ms, args.duration_ms) if args.duration_ms > 0 else hard_duration_ms
+            chunk_records, chunk_report = materialize_chunk_cache(
+                session=session,
+                chunks=chunks,
+                source=source,
+                raw_dir=raw_dir,
+                raw_cache_config=meta,
+                source_duration_ms=source_duration_ms,
+                total_ms=limited_duration_ms,
+                window_sec=args.asr_window_sec,
+                overlap_sec=args.asr_overlap_sec,
+            )
+            chunk_reports_by_source[source] = chunk_report
+            chunk_records_by_source[source] = {
+                "chunks_total": len(chunk_records),
+                "chunks_completed": len(chunk_records),
+            }
             outputs[source] = rel(output_base.with_suffix(".json"), session)
+            outputs[f"{source}_chunk_report"] = chunk_report
         materialized = True
     status = "materialized" if materialized else "not_eligible"
     payload = {
@@ -344,6 +507,8 @@ def main() -> int:
     if materialized:
         payload["rows_by_source"] = rows_by_source
         payload["used_live_json_by_source"] = used_json_by_source
+        payload["chunk_reports_by_source"] = chunk_reports_by_source
+        payload["chunk_records_by_source"] = chunk_records_by_source
     write_json(report_path, payload)
     print(f"live_asr_cache_report: {report_path}")
     print(f"status: {status}")

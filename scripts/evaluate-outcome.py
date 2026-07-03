@@ -422,11 +422,12 @@ def evaluate_gates(
 
     if isinstance(pipeline_report, dict):
         status = str(pipeline_report.get("status") or "unknown")
+        pipeline_ok = status in {"passed", "planned"}
         gates.append(
             {
                 "id": "last_pipeline_run",
-                "status": "pass" if status in {"passed", "planned"} else "fail",
-                "severity": "hard" if status == "failed" else "info",
+                "status": "pass" if pipeline_ok else "fail",
+                "severity": "info" if pipeline_ok else "hard",
                 "message": f"last pipeline run status={status}",
                 "value": status,
             }
@@ -663,6 +664,8 @@ def build_run_manifest(session: Path, pipeline_report: dict[str, Any] | None, ou
     expected_outputs = expected_outputs_from_report(session, pipeline_report)
     missing_outputs = [item for item in expected_outputs if not item.get("exists")]
     status = str((pipeline_report or {}).get("status") or "unknown")
+    pipeline_progress = pipeline_report.get("progress") if isinstance(pipeline_report, dict) else None
+    asr_chunks = pipeline_progress.get("asr_chunks") if isinstance(pipeline_progress, dict) else None
     return {
         "schema": RUN_SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -681,6 +684,7 @@ def build_run_manifest(session: Path, pipeline_report: dict[str, Any] | None, ou
             "steps_failed": 1 if failed_step else 0,
             "expected_outputs": len(expected_outputs),
             "missing_outputs": len(missing_outputs),
+            "asr_chunks": asr_chunks,
         },
         "stuck_state": {
             "status": "failed" if failed_step else "incomplete" if status not in {"passed", "planned"} else "clear",
@@ -695,8 +699,68 @@ def build_run_manifest(session: Path, pipeline_report: dict[str, Any] | None, ou
             "expected_outputs": expected_outputs,
             "missing_outputs": missing_outputs,
         },
-        "note": "Current resume reruns the pipeline but reuses existing derived caches where steps support it; ASR chunk-level resume remains future hardening.",
+        "note": "Current resume reruns the pipeline shell, reuses existing derived caches where steps support it, and windowed ASR can resume from verified chunk cache with rebuild checks.",
         "steps": steps,
+    }
+
+
+def build_outcome_summary(
+    *,
+    outcome: str,
+    export_status: str,
+    next_command: str,
+    readiness: dict[str, Any] | None,
+    metrics: dict[str, Any],
+    gates: list[dict[str, Any]],
+    review_plan: dict[str, Any],
+    outputs: dict[str, Any],
+) -> dict[str, Any]:
+    review_seconds = safe_float(metrics.get("review_burden_sec")) or 0.0
+    transcript_review_seconds = safe_float(metrics.get("transcript_review_burden_sec"))
+    if transcript_review_seconds is None:
+        transcript_review_seconds = review_seconds
+    lanes = review_plan.get("lanes") if isinstance(review_plan.get("lanes"), list) else []
+    gate_counts = gate_summary(gates)
+    export_blockers = []
+    if isinstance(readiness, dict) and isinstance(readiness.get("export_blockers"), list):
+        export_blockers = [str(item) for item in readiness.get("export_blockers") or []]
+    if outcome == "ready_for_notes":
+        headline = "ready_for_notes: notes can be read; export is allowed only when export_status is allowed"
+    elif outcome == "review_first":
+        headline = "review_first: transcript is useful, but a short review queue remains"
+    elif outcome == "pipeline_failed":
+        headline = "pipeline_failed: inspect the failed step, then rerun process"
+    elif outcome == "partial":
+        headline = "partial: pipeline outputs are incomplete; resume processing"
+    else:
+        headline = "blocked: do not use this session until the blocker is resolved"
+    def output_path(key: str) -> str | None:
+        item = outputs.get(key)
+        if not isinstance(item, dict) or item.get("exists") is not True:
+            return None
+        path = item.get("path")
+        return str(path) if path else None
+
+    return {
+        "headline": headline,
+        "can_read_notes": outcome in {"ready_for_notes", "review_first"},
+        "can_export": outcome == "ready_for_notes" and export_status == "allowed",
+        "notes_path": output_path("notes"),
+        "transcript_path": output_path("transcript"),
+        "quality_verdict_path": output_path("quality_verdict"),
+        "export_blockers": export_blockers,
+        "review_burden_seconds": round(review_seconds, 3),
+        "review_burden_minutes": round(review_seconds / 60.0, 3),
+        "transcript_review_burden_seconds": round(transcript_review_seconds, 3),
+        "transcript_review_burden_minutes": round(transcript_review_seconds / 60.0, 3),
+        "open_review_lanes": len([lane for lane in lanes if isinstance(lane, dict) and lane.get("status") == "open"]),
+        "first_review_lane": lanes[0].get("id") if lanes and isinstance(lanes[0], dict) else None,
+        "next_command": next_command,
+        "selected_profile": (readiness or {}).get("selected_profile"),
+        "verdict": (readiness or {}).get("verdict"),
+        "use_gate": (readiness or {}).get("use_gate"),
+        "export_status": export_status,
+        "gate_counts": gate_counts,
     }
 
 
@@ -709,9 +773,32 @@ def markdown(outcome_payload: dict[str, Any], review_plan: dict[str, Any]) -> st
         f"Verdict: `{outcome_payload.get('verdict')}`",
         f"Next command: `{outcome_payload.get('next_command')}`",
         "",
-        "## Gates",
+        "## Summary",
         "",
     ]
+    summary = outcome_payload.get("summary") if isinstance(outcome_payload.get("summary"), dict) else {}
+    for key in (
+        "headline",
+        "can_read_notes",
+        "can_export",
+        "review_burden_minutes",
+        "transcript_review_burden_minutes",
+        "open_review_lanes",
+        "first_review_lane",
+        "notes_path",
+        "transcript_path",
+        "quality_verdict_path",
+        "export_blockers",
+    ):
+        if key in summary:
+            lines.append(f"- `{key}`: `{summary.get(key)}`")
+    lines.extend(
+        [
+            "",
+            "## Gates",
+            "",
+        ]
+    )
     for gate in outcome_payload.get("gates", []):
         lines.append(
             f"- `{gate.get('id')}`: `{gate.get('status')}` / `{gate.get('severity')}` - {gate.get('message')}"
@@ -760,6 +847,17 @@ def main() -> int:
     metrics = compact_metrics(merged_metrics(readiness, session))
     outputs = readiness.get("outputs") if isinstance(readiness, dict) and isinstance(readiness.get("outputs"), dict) else {}
     export_blockers = (readiness or {}).get("export_blockers") or []
+    export_status = "allowed" if outcome == "ready_for_notes" and not export_blockers else "blocked_until_review"
+    summary = build_outcome_summary(
+        outcome=outcome,
+        export_status=export_status,
+        next_command=next_command,
+        readiness=readiness,
+        metrics=metrics,
+        gates=gates,
+        review_plan=review_plan,
+        outputs=outputs,
+    )
     payload = {
         "schema": OUTCOME_SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -771,8 +869,9 @@ def main() -> int:
         "verdict": (readiness or {}).get("verdict"),
         "use_gate": (readiness or {}).get("use_gate"),
         "next_command": next_command,
-        "export_status": "allowed" if outcome == "ready_for_notes" and not export_blockers else "blocked_until_review",
+        "export_status": export_status,
         "retention_status": "not_planned",
+        "summary": summary,
         "risk_flags": (readiness or {}).get("risk_flags") or [],
         "review_blockers": (readiness or {}).get("review_blockers") or [],
         "export_blockers": (readiness or {}).get("export_blockers") or [],

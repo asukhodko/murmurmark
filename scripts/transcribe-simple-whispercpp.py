@@ -21,11 +21,13 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
 DEFAULT_MODEL = "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
+SCRIPT_VERSION = "0.2.0"
 KNOWN_HALLUCINATION_RE = re.compile(
     r"("
     r"редактор\s+субтитров"
@@ -258,6 +260,23 @@ def raw_meta_path(output_base: Path) -> Path:
     return output_base.with_suffix(".meta.json")
 
 
+def sha256_file(path: Path) -> str:
+    hasher = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def audio_fingerprint(path: Path) -> dict[str, Any]:
+    stat = path.stat()
+    return {
+        "path": str(path),
+        "size": stat.st_size,
+        "sha256": sha256_file(path),
+    }
+
+
 def whisper_cache_config(
     *,
     model: Path,
@@ -269,8 +288,9 @@ def whisper_cache_config(
     asr_window_sec: int,
     asr_overlap_sec: int,
     audio_prep: str,
+    source_audio: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    config = {
         "schema": "murmurmark.whisper_cpp_raw_cache/v1",
         "model": str(model),
         "language": language,
@@ -286,6 +306,9 @@ def whisper_cache_config(
         "suppress_nst": True,
         "suppress_regex": r"^(Редактор субтитров|Продолжение следует|Спасибо за просмотр|Субтитры.*)$",
     }
+    if source_audio is not None:
+        config["source_audio"] = source_audio
+    return config
 
 
 def cache_matches(output_base: Path, expected: dict[str, Any]) -> bool:
@@ -297,7 +320,31 @@ def cache_matches(output_base: Path, expected: dict[str, Any]) -> bool:
         actual = json.loads(meta_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return False
-    return actual == expected
+    if actual == expected:
+        return True
+    if "source_audio" in expected and "source_audio" not in actual:
+        legacy_expected = dict(expected)
+        legacy_expected.pop("source_audio", None)
+        return actual == legacy_expected
+    return False
+
+
+def chunk_report_complete(output_base: Path) -> bool:
+    report_path = output_base.parent / "chunks" / output_base.name / "chunk_cache_report.json"
+    if not report_path.exists():
+        return False
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    chunks_total = int(report.get("chunks_total") or 0)
+    chunks_completed = int(report.get("chunks_completed") or 0)
+    return (
+        report.get("schema") == "murmurmark.whisper_cpp_chunk_cache_report/v1"
+        and report.get("status") == "completed"
+        and chunks_total > 0
+        and chunks_completed == chunks_total
+    )
 
 
 def write_cache_meta(output_base: Path, metadata: dict[str, Any]) -> None:
@@ -496,6 +543,136 @@ def write_combined_whisper_json(
     write_whisper_text_sidecars(output_base)
 
 
+def build_window_specs(
+    *,
+    source_duration_ms: int,
+    duration_ms: int,
+    window_sec: int,
+    overlap_sec: int,
+) -> list[dict[str, int]]:
+    total_ms = source_duration_ms
+    if duration_ms > 0:
+        total_ms = min(total_ms, duration_ms)
+    window_ms = window_sec * 1000
+    overlap_ms = overlap_sec * 1000
+    specs: list[dict[str, int]] = []
+    hard_start = 0
+    index = 1
+    while hard_start < total_ms:
+        hard_end = min(total_ms, hard_start + window_ms)
+        seek_ms = max(0, hard_start - overlap_ms)
+        clip_end_ms = min(source_duration_ms, hard_end + overlap_ms)
+        clip_duration_ms = max(1, clip_end_ms - seek_ms)
+        specs.append(
+            {
+                "index": index,
+                "hard_start_ms": hard_start,
+                "hard_end_ms": hard_end,
+                "seek_ms": seek_ms,
+                "clip_end_ms": clip_end_ms,
+                "clip_duration_ms": clip_duration_ms,
+            }
+        )
+        hard_start += window_ms
+        index += 1
+    return specs
+
+
+def chunk_cache_config(
+    *,
+    raw_cache_config: dict[str, Any],
+    source_audio: dict[str, Any],
+    spec: dict[str, int],
+) -> dict[str, Any]:
+    return {
+        "schema": "murmurmark.whisper_cpp_chunk_cache/v1",
+        "generator": {"name": "transcribe-simple-whispercpp", "version": SCRIPT_VERSION},
+        "raw_cache": raw_cache_config,
+        "source_audio": source_audio,
+        "window": {
+            "index": spec["index"],
+            "hard_start_ms": spec["hard_start_ms"],
+            "hard_end_ms": spec["hard_end_ms"],
+            "seek_ms": spec["seek_ms"],
+            "clip_end_ms": spec["clip_end_ms"],
+            "clip_duration_ms": spec["clip_duration_ms"],
+        },
+    }
+
+
+def chunk_cache_matches(chunk_base: Path, expected: dict[str, Any]) -> bool:
+    json_path = chunk_base.with_suffix(".json")
+    meta_path = raw_meta_path(chunk_base)
+    if not json_path.exists() or not meta_path.exists():
+        return False
+    try:
+        actual = json.loads(meta_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    return actual == expected
+
+
+def write_chunk_cache_report(
+    *,
+    report_path: Path,
+    output_base: Path,
+    source_audio: dict[str, Any],
+    source_duration_ms: int,
+    total_ms: int,
+    window_sec: int,
+    overlap_sec: int,
+    chunks: list[dict[str, Any]],
+    status: str,
+    expected_chunks_total: int | None = None,
+) -> None:
+    completed_chunks = len([item for item in chunks if item.get("status") in {"reused", "transcribed"}])
+    chunks_total = expected_chunks_total if expected_chunks_total is not None else len(chunks)
+    completed_hard_ms = sum(
+        max(0, int(item.get("hard_end_ms") or 0) - int(item.get("hard_start_ms") or 0))
+        for item in chunks
+        if item.get("status") in {"reused", "transcribed"}
+    )
+    reused_hard_ms = sum(
+        max(0, int(item.get("hard_end_ms") or 0) - int(item.get("hard_start_ms") or 0))
+        for item in chunks
+        if item.get("status") == "reused"
+    )
+    transcribed_hard_ms = sum(
+        max(0, int(item.get("hard_end_ms") or 0) - int(item.get("hard_start_ms") or 0))
+        for item in chunks
+        if item.get("status") == "transcribed"
+    )
+    remaining_ms = max(0, total_ms - completed_hard_ms)
+    payload = {
+        "schema": "murmurmark.whisper_cpp_chunk_cache_report/v1",
+        "generator": {"name": "transcribe-simple-whispercpp", "version": SCRIPT_VERSION},
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "status": status,
+        "track": output_base.name,
+        "output_json": str(output_base.with_suffix(".json")),
+        "source_audio": source_audio,
+        "source_duration_ms": source_duration_ms,
+        "limited_duration_ms": total_ms,
+        "window_sec": window_sec,
+        "overlap_sec": overlap_sec,
+        "chunks_total": chunks_total,
+        "chunks_completed": completed_chunks,
+        "chunks_missing": max(0, chunks_total - completed_chunks),
+        "chunks_reused": len([item for item in chunks if item.get("status") == "reused"]),
+        "chunks_transcribed": len([item for item in chunks if item.get("status") == "transcribed"]),
+        "completed_hard_ms": completed_hard_ms,
+        "completed_hard_sec": round(completed_hard_ms / 1000.0, 3),
+        "total_sec": round(total_ms / 1000.0, 3),
+        "remaining_sec": round(remaining_ms / 1000.0, 3),
+        "reused_sec": round(reused_hard_ms / 1000.0, 3),
+        "transcribed_sec": round(transcribed_hard_ms / 1000.0, 3),
+        "completed_ratio": round(completed_hard_ms / total_ms, 6) if total_ms > 0 else None,
+        "chunks": chunks,
+    }
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def run_whisper_windowed(
     *,
     whisper_cli: str,
@@ -509,6 +686,9 @@ def run_whisper_windowed(
     output_base: Path,
     window_sec: int,
     overlap_sec: int,
+    raw_cache_config: dict[str, Any],
+    source_audio: dict[str, Any],
+    force: bool,
 ) -> None:
     if window_sec <= 0:
         raise SystemExit("--asr-window-sec must be positive")
@@ -519,57 +699,103 @@ def run_whisper_windowed(
 
     ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
     source_duration_ms = audio_duration_ms(input_wav)
-    total_ms = source_duration_ms
-    if duration_ms > 0:
-        total_ms = min(total_ms, duration_ms)
-    window_ms = window_sec * 1000
-    overlap_ms = overlap_sec * 1000
+    total_ms = min(source_duration_ms, duration_ms) if duration_ms > 0 else source_duration_ms
+    specs = build_window_specs(
+        source_duration_ms=source_duration_ms,
+        duration_ms=duration_ms,
+        window_sec=window_sec,
+        overlap_sec=overlap_sec,
+    )
     chunk_dir = output_base.parent / "chunks" / output_base.name
-    if chunk_dir.exists():
-        shutil.rmtree(chunk_dir)
     chunk_dir.mkdir(parents=True, exist_ok=True)
+    report_path = chunk_dir / "chunk_cache_report.json"
 
     all_rows: list[dict[str, Any]] = []
     chunks: list[dict[str, Any]] = []
-    hard_start = 0
-    index = 1
-    while hard_start < total_ms:
-        hard_end = min(total_ms, hard_start + window_ms)
-        seek_ms = max(0, hard_start - overlap_ms)
-        clip_end_ms = min(source_duration_ms, hard_end + overlap_ms)
-        clip_duration_ms = max(1, clip_end_ms - seek_ms)
+    chunk_records: list[dict[str, Any]] = []
+    write_chunk_cache_report(
+        report_path=report_path,
+        output_base=output_base,
+        source_audio=source_audio,
+        source_duration_ms=source_duration_ms,
+        total_ms=total_ms,
+        window_sec=window_sec,
+        overlap_sec=overlap_sec,
+        chunks=[],
+        status="running",
+        expected_chunks_total=len(specs),
+    )
+    for spec in specs:
+        index = spec["index"]
+        hard_start = spec["hard_start_ms"]
+        hard_end = spec["hard_end_ms"]
+        seek_ms = spec["seek_ms"]
+        clip_duration_ms = spec["clip_duration_ms"]
         chunk_wav = chunk_dir / f"{index:04d}_{hard_start // 1000:06d}s.wav"
         chunk_base = chunk_dir / f"{index:04d}_{hard_start // 1000:06d}s"
-        run(
-            [
-                ffmpeg,
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-y",
-                "-ss",
-                f"{seek_ms / 1000:.3f}",
-                "-t",
-                f"{clip_duration_ms / 1000:.3f}",
-                "-i",
-                str(input_wav),
-                "-ar",
-                "16000",
-                "-ac",
-                "1",
-                str(chunk_wav),
-            ]
+        expected_chunk_config = chunk_cache_config(
+            raw_cache_config=raw_cache_config,
+            source_audio=source_audio,
+            spec=spec,
         )
-        run_whisper(
-            whisper_cli=whisper_cli,
-            model=model,
-            language=language,
-            threads=threads,
-            max_context=max_context,
-            prompt=prompt,
-            duration_ms=0,
-            input_wav=chunk_wav,
-            output_base=chunk_base,
+        reused = not force and chunk_cache_matches(chunk_base, expected_chunk_config)
+        if not reused:
+            run(
+                [
+                    ffmpeg,
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-ss",
+                    f"{seek_ms / 1000:.3f}",
+                    "-t",
+                    f"{clip_duration_ms / 1000:.3f}",
+                    "-i",
+                    str(input_wav),
+                    "-ar",
+                    "16000",
+                    "-ac",
+                    "1",
+                    str(chunk_wav),
+                ]
+            )
+            run_whisper(
+                whisper_cli=whisper_cli,
+                model=model,
+                language=language,
+                threads=threads,
+                max_context=max_context,
+                prompt=prompt,
+                duration_ms=0,
+                input_wav=chunk_wav,
+                output_base=chunk_base,
+            )
+            write_cache_meta(chunk_base, expected_chunk_config)
+        else:
+            print(
+                f"reusing cached whisper chunk: {chunk_base.with_suffix('.json')}",
+                flush=True,
+            )
+            write_whisper_text_sidecars(chunk_base)
+        chunk_record = {
+            "index": index,
+            "status": "reused" if reused else "transcribed",
+            "hard_start_ms": hard_start,
+            "hard_end_ms": hard_end,
+            "seek_ms": seek_ms,
+            "clip_duration_ms": clip_duration_ms,
+            "wav": str(chunk_wav),
+            "json": str(chunk_base.with_suffix(".json")),
+            "meta": str(raw_meta_path(chunk_base)),
+        }
+        chunk_records.append(chunk_record)
+        print(
+            f"chunk_progress {output_base.name}: {len(chunk_records)}/{len(specs)} "
+            f"windows; reused={len([item for item in chunk_records if item['status'] == 'reused'])} "
+            f"transcribed={len([item for item in chunk_records if item['status'] == 'transcribed'])}; "
+            f"completed={hard_end / 1000:.1f}s/{total_ms / 1000:.1f}s",
+            flush=True,
         )
         data = json.loads(chunk_base.with_suffix(".json").read_text(encoding="utf-8"))
         chunks.append(
@@ -591,8 +817,18 @@ def run_whisper_windowed(
             if center < hard_start or center >= hard_end:
                 continue
             all_rows.append(shift_transcription_row(row, seek_ms))
-        hard_start += window_ms
-        index += 1
+        write_chunk_cache_report(
+            report_path=report_path,
+            output_base=output_base,
+            source_audio=source_audio,
+            source_duration_ms=source_duration_ms,
+            total_ms=total_ms,
+            window_sec=window_sec,
+            overlap_sec=overlap_sec,
+            chunks=chunk_records,
+            status="running" if len(chunk_records) < len(specs) else "completed",
+            expected_chunks_total=len(specs),
+        )
 
     write_combined_whisper_json(
         chunks=chunks,
@@ -602,6 +838,18 @@ def run_whisper_windowed(
         asr_mode="windowed",
         window_sec=window_sec,
         overlap_sec=overlap_sec,
+    )
+    write_chunk_cache_report(
+        report_path=report_path,
+        output_base=output_base,
+        source_audio=source_audio,
+        source_duration_ms=source_duration_ms,
+        total_ms=total_ms,
+        window_sec=window_sec,
+        overlap_sec=overlap_sec,
+        chunks=chunk_records,
+        status="completed",
+        expected_chunks_total=len(specs),
     )
 
 
@@ -4498,6 +4746,7 @@ def main() -> int:
         for _, _, _, input_wav, output_base, audio_prep in tracks:
             if not input_wav.exists():
                 raise SystemExit(f"input wav not found: {input_wav}")
+            source_audio = audio_fingerprint(input_wav)
             cache_config = whisper_cache_config(
                 model=model,
                 language=args.language,
@@ -4508,8 +4757,17 @@ def main() -> int:
                 asr_window_sec=args.asr_window_sec,
                 asr_overlap_sec=args.asr_overlap_sec,
                 audio_prep=audio_prep,
+                source_audio=source_audio,
             )
-            if args.force or not cache_matches(output_base, cache_config):
+            raw_cache_ok = cache_matches(output_base, cache_config)
+            if args.asr_mode == "windowed" and raw_cache_ok and not chunk_report_complete(output_base):
+                print(
+                    "cached raw whisper output has no completed chunk report; rebuilding windowed chunks: "
+                    f"{output_base.with_suffix('.json')}",
+                    flush=True,
+                )
+                raw_cache_ok = False
+            if args.force or not raw_cache_ok:
                 if args.asr_mode == "whole":
                     run_whisper(
                         whisper_cli=whisper_cli,
@@ -4535,6 +4793,9 @@ def main() -> int:
                         output_base=output_base,
                         window_sec=args.asr_window_sec,
                         overlap_sec=args.asr_overlap_sec,
+                        raw_cache_config=cache_config,
+                        source_audio=source_audio,
+                        force=args.force,
                     )
                 write_cache_meta(output_base, cache_config)
             else:

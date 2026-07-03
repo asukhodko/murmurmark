@@ -261,6 +261,7 @@ EOF
 jq -n --arg session "$session" '{
   schema: "murmurmark.session_readiness/v1",
   use_gate: "ready_for_notes",
+  pipeline_status: "complete",
   selected_profile: "current",
   verdict: "good",
   export_blockers: [],
@@ -291,6 +292,8 @@ jq -n --arg session "$session" '{
     {id: "open_notes", label: "Read notes.", command: ("less " + $session + "/derived/synthesis-simple/extractive/notes.md")}
   ],
   outputs: {
+    clean_dialogue: {exists: true, path: "derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.json"},
+    quality_report: {exists: true, path: "derived/transcript-simple/whisper-cpp/resolved/quality_report.json"},
     notes: {exists: true, path: "derived/synthesis-simple/extractive/notes.md"},
     transcript: {exists: true, path: "derived/transcript-simple/whisper-cpp/resolved/transcript.md"},
     quality_verdict: {exists: true, path: "derived/synthesis-simple/extractive/quality_verdict.md"},
@@ -398,7 +401,12 @@ jq -e '
   and .plan.mode == "plan_only"
   and ([.next_commands[].id] | index("run_process"))
   and ([.open_commands[].id] | index("open_pipeline_run_report"))
-' "$session/derived/pipeline-run/pipeline_run_report.json" >/dev/null
+' "$session/derived/pipeline-run/pipeline_plan_report.json" >/dev/null
+
+if [[ -e "$session/derived/pipeline-run/pipeline_run_report.json" ]]; then
+  echo "plan-only unexpectedly wrote pipeline_run_report.json" >&2
+  exit 1
+fi
 
 status_output="$("$bin" status "$session")"
 echo "$status_output" | grep -q '^readiness:$'
@@ -409,6 +417,16 @@ echo "$status_output" | grep -q '^    can_read_notes: true$'
 echo "$status_output" | grep -q '^    can_export: true$'
 echo "$status_output" | grep -q '^    minimum_step: murmurmark finish '
 tail -1 <<<"$status_output" | grep -q '^next: murmurmark finish '
+
+outcome_output="$("$bin" outcome "$session")"
+echo "$outcome_output" | grep -q '^outcome:$'
+echo "$outcome_output" | grep -q '^  status: ready_for_notes$'
+echo "$outcome_output" | grep -q '^  summary:$'
+echo "$outcome_output" | grep -q '^    can_read_notes: true$'
+echo "$outcome_output" | grep -q '^    can_export: true$'
+echo "$outcome_output" | grep -q 'notes.md$'
+echo "$outcome_output" | grep -q 'transcript.md$'
+echo "$outcome_output" | grep -q 'quality_verdict.md$'
 
 report_output="$("$bin" report "$session")"
 echo "$report_output" | grep -q '^readiness:$'
@@ -552,5 +570,314 @@ grep -Fq '## Can I Use This?' "$workdir/finish/private/cli-handoff/index.md"
 post_export_next="$("$bin" next "$session" --export-manifest "$manifest")"
 echo "$post_export_next" | grep -q '^  status: exportable$'
 echo "$post_export_next" | grep -q '^  command: murmurmark retention plan '
+
+live_cache_session="$workdir/sessions/live-cache-smoke"
+mkdir -p \
+  "$live_cache_session/derived/live/chunks/0001" \
+  "$live_cache_session/derived/live/chunks/0002"
+"$eval_python" - "$live_cache_session" <<'PY'
+from pathlib import Path
+import json
+import sys
+
+base = Path(sys.argv[1])
+(base / "derived/live").mkdir(parents=True, exist_ok=True)
+(base / "derived/live/live_pipeline_report.json").write_text(
+    json.dumps({"schema": "murmurmark.live_pipeline_report/v1", "status": "completed"}, indent=2) + "\n",
+    encoding="utf-8",
+)
+chunks = []
+for index, start, end, clip_start, clip_end in [(1, 0, 60, 0, 65), (2, 60, 80, 55, 80)]:
+    chunk = {
+        "schema": "murmurmark.live_chunk/v1",
+        "index": index,
+        "start_sec": start,
+        "end_sec": end,
+        "duration_sec": end - start,
+        "clip_start_sec": clip_start,
+        "clip_end_sec": clip_end,
+    }
+    for source, prep in (("mic", "speech"), ("remote", "loudnorm")):
+        live_dir = base / f"derived/live/chunks/{index:04d}"
+        live_json = live_dir / f"{source}.json"
+        live_wav = live_dir / f"{source}.wav"
+        live_wav.write_bytes(b"fake-wav")
+        if index == 1:
+            text = f"{source} first"
+            offset_from, offset_to = 1000, 2000
+        else:
+            text = f"{source} second"
+            offset_from, offset_to = 6000, 7000
+        live_json.write_text(
+            json.dumps(
+                {
+                    "params": {"source": source},
+                    "transcription": [
+                        {
+                            "text": text,
+                            "offsets": {"from": offset_from, "to": offset_to},
+                            "timestamps": {"from": "00:00:01,000", "to": "00:00:02,000"},
+                            "tokens": [{"text": text, "offsets": {"from": offset_from, "to": offset_to}}],
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        chunk[source] = {
+            "input": str(live_wav),
+            "wav": str(live_wav),
+            "audio_prep": prep,
+            "hard_start_sec": start,
+            "hard_end_sec": end,
+            "clip_start_sec": clip_start,
+            "clip_end_sec": clip_end,
+            "preprocess_status": "passed",
+            "asr": {"status": "passed", "json": str(live_json)},
+            "text": text,
+        }
+    chunks.append(chunk)
+with (base / "derived/live/chunks.jsonl").open("w", encoding="utf-8") as file:
+    for chunk in chunks:
+        file.write(json.dumps(chunk, ensure_ascii=False) + "\n")
+PY
+
+"$eval_python" "$repo_root/scripts/materialize-live-asr-cache.py" \
+  "$live_cache_session" \
+  --asr-window-sec 60 \
+  --asr-overlap-sec 5 \
+  --force >/dev/null
+"$eval_python" "$repo_root/scripts/check-asr-chunk-cache.py" \
+  "$live_cache_session" \
+  --require-chunks >/dev/null
+jq -e '
+  .status == "materialized"
+  and .materialized == true
+  and .chunk_records_by_source.mic.chunks_completed == 2
+  and .chunk_records_by_source.remote.chunks_completed == 2
+' "$live_cache_session/derived/live/live_asr_cache_report.json" >/dev/null
+jq -e '
+  .status == "passed"
+  and ([.tracks[] | select(.status == "pass")] | length == 2)
+  and ([.tracks[] | select(.chunks_completed == 2 and .chunks_total == 2)] | length == 2)
+' "$live_cache_session/derived/transcript-simple/whisper-cpp/raw/chunk_rebuild_check.json" >/dev/null
+
+chunk_resume_session="$workdir/sessions/chunk-resume-smoke"
+mkdir -p "$chunk_resume_session/derived/asr" "$chunk_resume_session/bin"
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "sine=frequency=440:duration=5" \
+  -ar 16000 -ac 1 "$chunk_resume_session/derived/asr/mic.wav"
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "sine=frequency=660:duration=5" \
+  -ar 16000 -ac 1 "$chunk_resume_session/derived/asr/remote.wav"
+: >"$chunk_resume_session/fake-model.bin"
+cat >"$chunk_resume_session/bin/fake-whisper-cli" <<'PY'
+#!/usr/bin/env python3
+from pathlib import Path
+import json
+import os
+import sys
+
+output_base = None
+args = sys.argv[1:]
+for index, arg in enumerate(args):
+    if arg == "--output-file" and index + 1 < len(args):
+        output_base = Path(args[index + 1])
+        break
+if output_base is None:
+    print("missing --output-file", file=sys.stderr)
+    raise SystemExit(2)
+
+count_path = Path(os.environ["FAKE_WHISPER_COUNT"])
+count = int(count_path.read_text(encoding="utf-8") or "0") if count_path.exists() else 0
+count += 1
+count_path.write_text(str(count), encoding="utf-8")
+
+text = f"fake chunk {output_base.name}"
+payload = {
+    "params": {"fake_whisper_call": count},
+    "transcription": [
+        {
+            "text": text,
+            "offsets": {"from": 100, "to": 500},
+            "timestamps": {"from": "00:00:00,100", "to": "00:00:00,500"},
+            "tokens": [{"text": text, "offsets": {"from": 100, "to": 500}}],
+        }
+    ],
+}
+output_base.parent.mkdir(parents=True, exist_ok=True)
+output_base.with_suffix(".json").write_text(
+    json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+    encoding="utf-8",
+)
+output_base.with_suffix(".txt").write_text(text + "\n", encoding="utf-8")
+output_base.with_suffix(".vtt").write_text(
+    "WEBVTT\n\n00:00:00.100 --> 00:00:00.500\n" + text + "\n",
+    encoding="utf-8",
+)
+if count == 2:
+    print("intentional fake whisper failure on call 2", file=sys.stderr)
+    raise SystemExit(42)
+PY
+chmod +x "$chunk_resume_session/bin/fake-whisper-cli"
+export FAKE_WHISPER_COUNT="$chunk_resume_session/fake-count.txt"
+set +e
+"$eval_python" "$repo_root/scripts/transcribe-simple-whispercpp.py" "$chunk_resume_session" \
+  --model "$chunk_resume_session/fake-model.bin" \
+  --whisper-cli "$chunk_resume_session/bin/fake-whisper-cli" \
+  --skip-export \
+  --asr-window-sec 2 \
+  --asr-overlap-sec 0 \
+  --mic-audio-prep none \
+  --remote-audio-prep none \
+  --threads 1 >"$chunk_resume_session/first.log" 2>&1
+first_status=$?
+set -e
+if [[ "$first_status" -eq 0 ]]; then
+  echo "expected first fake ASR run to fail" >&2
+  exit 1
+fi
+jq -e '.status == "running" and .chunks_completed == 1 and .chunks_total == 3 and .chunks_missing == 2' \
+  "$chunk_resume_session/derived/transcript-simple/whisper-cpp/raw/chunks/mic/chunk_cache_report.json" >/dev/null
+"$eval_python" "$repo_root/scripts/transcribe-simple-whispercpp.py" "$chunk_resume_session" \
+  --model "$chunk_resume_session/fake-model.bin" \
+  --whisper-cli "$chunk_resume_session/bin/fake-whisper-cli" \
+  --skip-export \
+  --asr-window-sec 2 \
+  --asr-overlap-sec 0 \
+  --mic-audio-prep none \
+  --remote-audio-prep none \
+  --threads 1 >"$chunk_resume_session/second.log" 2>&1
+"$eval_python" "$repo_root/scripts/check-asr-chunk-cache.py" "$chunk_resume_session" --require-chunks >/dev/null
+jq -e '
+  .status == "completed"
+  and .chunks_total == 3
+  and .chunks_completed == 3
+  and .chunks_reused == 1
+  and .chunks_transcribed == 2
+' "$chunk_resume_session/derived/transcript-simple/whisper-cpp/raw/chunks/mic/chunk_cache_report.json" >/dev/null
+jq -e '
+  .status == "passed"
+  and ([.tracks[] | select(.status == "pass")] | length == 2)
+' "$chunk_resume_session/derived/transcript-simple/whisper-cpp/raw/chunk_rebuild_check.json" >/dev/null
+
+live_parity_session="$workdir/sessions/live-parity-smoke"
+mkdir -p \
+  "$live_parity_session/derived/live" \
+  "$live_parity_session/derived/transcript-simple/whisper-cpp/resolved" \
+  "$live_parity_session/derived/readiness" \
+  "$live_parity_session/derived/outcome"
+cat >"$live_parity_session/session.json" <<'JSON'
+{"schema":"murmurmark.session/v1","session_id":"live-parity-smoke","status":"completed"}
+JSON
+cat >"$live_parity_session/derived/live/live_pipeline_report.json" <<'JSON'
+{
+  "schema": "murmurmark.live_pipeline_report/v1",
+  "status": "completed",
+  "batch_authoritative": true,
+  "promotion_allowed": false,
+  "progress": {"chunks_processed": 1, "draft_sec": 10.0}
+}
+JSON
+cat >"$live_parity_session/derived/live/chunks.jsonl" <<'JSONL'
+{"schema":"murmurmark.live_chunk/v1","index":1,"start_sec":0.0,"end_sec":10.0,"mic":{"text":"привет проверю задачу","hard_start_sec":0.0,"hard_end_sec":10.0},"remote":{"text":"привет обсудим план","hard_start_sec":0.0,"hard_end_sec":10.0}}
+JSONL
+cat >"$live_parity_session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v4.json" <<'JSON'
+{
+  "schema": "murmurmark.clean_dialogue/v1",
+  "utterances": [
+    {"id":"utt_0001","start":0.0,"end":4.0,"role":"Me","speaker_label":"Me","text":"привет проверю задачу","quality":{"needs_review":false}},
+    {"id":"utt_0002","start":4.0,"end":10.0,"role":"Colleagues","speaker_label":"Colleagues","text":"привет обсудим план","quality":{"needs_review":false}}
+  ]
+}
+JSON
+cat >"$live_parity_session/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v4.md" <<'MD'
+# Simple Transcript
+
+## 00:00 Me
+
+привет проверю задачу
+
+## 00:04 Colleagues
+
+привет обсудим план
+MD
+cat >"$live_parity_session/derived/transcript-simple/whisper-cpp/resolved/quality_report.audit_cleanup_v4.json" <<'JSON'
+{
+  "schema": "murmurmark.simple_transcript_quality/v1",
+  "unrepaired_long_mic_crossings_count": 0,
+  "local_only_island_recall": 1.0,
+  "remote_duplicate_in_me_seconds": 0.0,
+  "needs_review_count": 0,
+  "cross_role_overlap_gt2_seconds": 0.0
+}
+JSON
+cat >"$live_parity_session/derived/readiness/session_readiness.json" <<'JSON'
+{
+  "schema": "murmurmark.session_readiness/v1",
+  "selected_profile": "audit_cleanup_v4",
+  "use_gate": "ready_for_notes",
+  "outputs": {
+    "transcript": {"path": "derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v4.md"}
+  }
+}
+JSON
+cat >"$live_parity_session/derived/outcome/outcome.json" <<'JSON'
+{
+  "schema": "murmurmark.outcome/v1",
+  "outcome": "ready_for_notes",
+  "metrics": {
+    "review_burden_sec": 0.0,
+    "review_burden_ratio": 0.0
+  }
+}
+JSON
+"$eval_python" "$repo_root/scripts/compare-live-batch.py" "$live_parity_session" >/dev/null
+jq -e '
+  .promotion_allowed == false
+  and .parity_gates.status == "passed_but_shadow_locked"
+  and .metrics.meaningful_live_comparison == true
+  and .metrics.all_parity_gates_passed == true
+  and ([.parity_gates.gates[] | select(.name == "order_risk" and .status == "passed")] | length == 1)
+  and ([.parity_gates.gates[] | select(.name == "local_recall" and .status == "passed")] | length == 1)
+  and ([.parity_gates.gates[] | select(.name == "remote_duplicate_leak" and .status == "passed")] | length == 1)
+  and ([.parity_gates.gates[] | select(.name == "review_burden" and .status == "passed")] | length == 1)
+  and ([.parity_gates.gates[] | select(.name == "selected_notes_readiness" and .status == "passed")] | length == 1)
+  and ([.parity_gates.gates[] | select(.name == "chunk_boundary_risks" and .status == "passed")] | length == 1)
+' "$live_parity_session/derived/live/live_batch_comparison.json" >/dev/null
+"$eval_python" "$repo_root/scripts/report-live-corpus-gates.py" "$live_parity_session" \
+  --sessions-root "$workdir/sessions" \
+  --out-dir "$workdir/live-report" >/dev/null
+jq -e '
+  .summary.live_sessions == 1
+  and .summary.compared_sessions == 1
+  and .summary.meaningful_compared_sessions == 1
+  and .summary.passing_compared_sessions == 1
+  and .summary.promotion_allowed_sessions == 0
+  and .summary.target_status == "shadow_locked_after_basic_gates"
+' "$workdir/live-report/live_corpus_gates_report.json" >/dev/null
+"$eval_python" "$repo_root/scripts/report-live-corpus-gates.py" "$live_parity_session" \
+  --sessions-root "$workdir/sessions" \
+  --out-dir "$workdir/live-report-strict" \
+  --min-live-sessions 1 \
+  --min-compared-sessions 1 \
+  --min-meaningful-compared-sessions 1 \
+  --min-passing-compared-sessions 1 \
+  --max-order-mismatches 0 \
+  --max-missing-me-sec 0 \
+  --max-remote-in-me-sec 0 \
+  --max-boundary-duplicates 0 \
+  --require-passing-gates \
+  --fail-on-promotion >/dev/null
+jq -e '
+  .summary.strict_coverage_status == "passed"
+  and .strict_coverage.requested == true
+  and (.strict_coverage.failures | length) == 0
+' "$workdir/live-report-strict/live_corpus_gates_report.json" >/dev/null
+
+"$repo_root/scripts/smoke-process-chunk-resume.sh" >/dev/null
 
 echo "cli handoff smoke ok"

@@ -29,9 +29,11 @@ The optional UI/app path is deliberately late. It should not block the useful CL
 
 ## Current Strategic Focus
 
-The next major focus is [Reliable Transcription Route](../project/reliable-transcription-route.md):
-make the existing CLI route from a complete recording to a truthful result work without the user
-watching every stage.
+The major product route remains [Reliable Transcription Route](../project/reliable-transcription-route.md):
+turn a complete recording into a truthful result without the user watching every stage.
+Outcome Contract v1 and Reliable Processing UX v1 are now implemented. The next meaningful gap is
+not another report layer. Chunked/resumable ASR processing is now implemented; the next gap is to
+prove the near-realtime branch on real sessions before live chunks can be trusted as a cache source.
 
 The target outcome is:
 
@@ -39,9 +41,12 @@ The target outcome is:
 record meeting -> process unattended -> ready_for_notes | review_first | blocked
 ```
 
-This is broader than Echo Guard and narrower than "perfect meeting intelligence". It means:
+This is broader than Echo Guard and narrower than "perfect meeting intelligence". At the current
+roadmap point it means:
 
-- `process` is resumable and progress-aware;
+- `process` is progress-aware and interruption-safe;
+- ASR/heavy-stage work is chunk-addressed, cacheable and safely resumable;
+- near-realtime chunks remain shadow-only until real live-vs-batch parity is measured;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -49,14 +54,17 @@ This is broader than Echo Guard and narrower than "perfect meeting intelligence"
 - stronger Echo Guard candidates stay shadow-only until corpus gates prove lower remote leakage
   without local-recall regression.
 
-External consultation converged on the same implementation order:
+External consultation converged on the same implementation order. The first four steps are now
+implemented as v1; the next step is real live parity coverage:
 
 1. build `Outcome Contract v1` and a deterministic gate evaluator;
 2. write `outcome.json`, `outcome.md`, `review_plan.json` and `next_command.txt` for every processed
    or failed session;
 3. add a resumable run manifest for long ASR stages;
-4. calibrate gates on a small real corpus with review labels;
-5. only then promote audio candidates or heavier validators.
+4. add ASR/window-level cache and resume, with stable metadata hashes;
+5. collect real live-pipeline sessions and compare live chunks/drafts with batch output;
+6. reuse live/near-realtime chunks only when strict metadata and corpus parity gates pass;
+7. only then promote audio candidates or heavier validators.
 
 The explicit non-goal for this phase is changing the default ASR, default `local_fir`, UI, cloud
 services or broad repair heuristics before the outcome contract can measure the effect.
@@ -266,13 +274,26 @@ flowchart LR
 
 ### Next
 
-- Reliable Transcription Route v1:
-  - `derived/outcome/outcome.json`, `outcome.md`, `review_plan.json`, `next_command.txt`;
-  - deterministic gate evaluator over harmful remote-in-Me, order risk, local recall, review burden
-    and notes evidence integrity;
-  - `derived/run/pipeline_run.json` with progress, checkpoints and resume command;
-  - suggested review closure as the first automatic step after processing;
-  - corpus v0 labels for calibration and promotion thresholds.
+- Near-Realtime Live Parity Coverage v1:
+  - record real sessions with `record --live-pipeline`;
+  - produce `live_batch_comparison.json` and corpus live reports for those sessions;
+  - compare live chunks/drafts with batch output for order risk, local recall, remote leakage, review
+    burden, selected notes readiness and chunk-boundary duplicates/missing speech;
+  - run strict coverage with `murmurmark corpus live all --min-live-sessions 1
+    --min-compared-sessions 1 --min-meaningful-compared-sessions 1
+    --min-passing-compared-sessions 1 --max-order-mismatches 0 --max-missing-me-sec 0
+    --max-remote-in-me-sec 0 --max-boundary-duplicates 0 --require-passing-gates
+    --fail-on-promotion`;
+  - keep live cache promotion blocked while coverage is missing or gates are unknown;
+  - use live chunks as an acceleration path only when strict metadata compatibility and parity gates
+    pass; batch transcript remains authoritative.
+  - current evidence: synthetic live-cache materialization passes, chunk rebuild gates exist, corpus
+    gates expose live parity counters, and the first diagnostic real live capture is compared:
+    `1/51` live sessions, `1` meaningful comparison, `0` passing comparisons, `0` promoted
+    sessions. The first live role/boundary gates reduce measured remote-in-`Me` and boundary
+    duplicates to `0`, but the comparison still has `0.57s` of suspicious short batch `Me` missing
+    from the live draft. The missing piece is a real live coverage sample with both roles and
+    passing gates; promotion is correctly blocked.
 - Near-realtime shadow pipeline follow-up:
   - segment writer during capture exists with hard/clip overlap windows, but still needs better queue
     recovery;
@@ -280,8 +301,9 @@ flowchart LR
     must be upgraded before it can compete with batch Echo Guard;
   - post-stop final reconcile exists; it can reuse strict-compatible live ASR cache, otherwise it
     reports `fallback_batch_asr`;
-  - live-ASR cache bridge exists and writes `live_asr_cache_report.json`; it materializes raw cache
-    only when chunk geometry, model, language and audio prep are compatible with batch ASR;
+  - live-ASR cache bridge exists and writes `live_asr_cache_report.json`; when eligible it
+    materializes both top-level raw ASR JSON and `raw/chunks/<track>/chunk_cache_report.json`, then
+    relies on the normal chunk rebuild check as the hard proof;
   - corpus-level live report exists as `murmurmark corpus live`; it keeps promotion blocked while
     order/local-recall/remote-leak/review-burden gates are not evaluated by live outputs;
   - delayed transcript commit: do not finalize the last few seconds until the next segment arrives;
@@ -328,6 +350,12 @@ flowchart LR
 - Optional menu bar or desktop UI after the CLI is mature.
 
 ## Latest Completed Goals
+
+Chunked/Resumable Processing v1 is the latest completed reliability goal. Default `windowed`
+whisper.cpp runs now write per-window chunk cache metadata, `murmurmark process` can resume
+interrupted ASR work from verified chunks, legacy raw ASR cache without chunk reports is rebuilt
+instead of being trusted, and corpus gates treat chunk rebuild failures as hard failures. Current
+ASR chunk-cache corpus coverage is `14/50`, with `0` failed rebuilds and `146/146` completed chunks.
 
 ASR-positive Echo Candidate Hardening v1 is the latest completed quality goal. It turns
 `coverage_v2_remote_gate_local_fir` into an explicit experimental profile with one-session and
@@ -392,35 +420,39 @@ Recently completed:
 
 ## Candidate Next Goals
 
-Recommended nearest goal: **ASR-positive Echo promotion readiness**. Keep the candidate shadow-only,
-broaden the corpus and define the future default-promotion bar without changing `local_fir` yet.
+Recommended nearest goal: **Near-Realtime Live Parity Coverage v1**. Chunked ASR resume is now in
+place, so the next useful question is whether the live branch can safely reduce post-meeting wait
+time. The answer must be measured on real live-pipeline sessions, not assumed from synthetic smokes.
 
-1. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
+1. **Near-Realtime Live Parity Coverage v1.** Run real sessions through `record --live-pipeline`,
+   compare live chunks/drafts with batch output, report order/local-recall/remote-leak/review-burden
+   and boundary risks, and keep live promotion blocked until gates are known and passing.
+2. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth
    testing.
-2. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
+3. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
    suggestions and corpus reports: close true `Me` rows only when the local-speaker evidence is
    strong, keep ambiguous rows explicit, and do not auto-edit transcripts.
-3. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
+4. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
-4. **Near-Realtime Pipeline Shadow v1.** Start processing closed audio segments while recording and
+5. **Near-Realtime Pipeline Shadow v1.** Start processing closed audio segments while recording and
    write a live draft transcript, but keep the current batch pipeline as final authority until corpus
    gates prove parity.
-5. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
+6. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
    close safe suggested review rows, preserve manual rows and keep status/report aligned.
-6. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only
+7. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only
    until broader corpus gates prove it is safe beyond selected audit windows.
-7. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
+8. **Export follow-up.** Keep the v1 bundle stable, then add optional Obsidian-vault placement and
    reviewed docs/ticket proposal exports.
-8. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
+9. **Strengthen corpus gates.** Freeze the current good state as a baseline and require new pipeline
    changes to beat or preserve it. Operational review is bounded by both packed human actions and
    raw rows: default limits are `15` actions and `25` rows, while the current corpus is at `9`
    actions and `12` rows.
-9. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
+10. **Improve notes quality.** Refine extractive decisions/actions/risks while keeping every item tied
    to utterance IDs and review flags.
-10. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
+11. **Prepare for public release.** Remove private fixtures, document setup, verify ignored generated
    artifacts and add security/contact guidance.
 
 ## Validation

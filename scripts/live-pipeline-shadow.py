@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -11,14 +12,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+from scipy import linalg, signal
+from scipy.io import wavfile
+
 
 SCHEMA = "murmurmark.live_pipeline_report/v1"
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
+EPSILON = 1.0e-12
 KNOWN_HALLUCINATIONS = {
     "редактор субтитров",
     "продолжение следует",
     "спасибо за просмотр",
 }
+TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,6 +54,13 @@ def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as file:
         file.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def rewrite_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as file:
+        for row in rows:
+            file.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -86,9 +100,100 @@ def clean_text(text: str) -> str:
     return " ".join(text.replace("\n", " ").split()).strip()
 
 
+def tokens(text: str) -> list[str]:
+    return [match.group(0).lower() for match in TOKEN_RE.finditer(text)]
+
+
+def bag_recall(source_tokens: list[str], target_tokens: list[str]) -> float | None:
+    if not source_tokens:
+        return None
+    target = {}
+    for token in target_tokens:
+        target[token] = target.get(token, 0) + 1
+    matched = 0
+    for token in source_tokens:
+        if target.get(token, 0) > 0:
+            matched += 1
+            target[token] -= 1
+    return matched / max(1, len(source_tokens))
+
+
 def is_hallucination(text: str) -> bool:
     normalized = clean_text(text).lower().strip(".!?, ")
-    return normalized in KNOWN_HALLUCINATIONS
+    return normalized in KNOWN_HALLUCINATIONS or normalized.startswith("субтитры")
+
+
+def apply_live_role_gate(record: dict[str, Any]) -> None:
+    mic = record.get("mic")
+    remote = record.get("remote")
+    if not isinstance(mic, dict) or not isinstance(remote, dict):
+        return
+    mic_text = clean_text(str(mic.get("text") or ""))
+    remote_text = clean_text(str(remote.get("text") or ""))
+    mic_tokens = tokens(mic_text)
+    remote_tokens = tokens(remote_text)
+    if len(mic_tokens) < 3 or len(remote_tokens) < 3:
+        mic["live_role_gate"] = {"status": "passed", "reason": "too_short_for_duplicate_gate"}
+        return
+    mic_in_remote = bag_recall(mic_tokens, remote_tokens) or 0.0
+    remote_in_mic = bag_recall(remote_tokens, mic_tokens) or 0.0
+    duplicate_score = max(mic_in_remote, remote_in_mic)
+    if duplicate_score >= 0.62:
+        mic["raw_text_before_role_gate"] = mic_text
+        mic["text"] = ""
+        mic["live_role_gate"] = {
+            "status": "suppressed",
+            "reason": "mic_text_duplicates_remote_text",
+            "duplicate_score": round(duplicate_score, 6),
+            "mic_token_recall_in_remote": round(mic_in_remote, 6),
+            "remote_token_recall_in_mic": round(remote_in_mic, 6),
+        }
+    else:
+        mic["live_role_gate"] = {
+            "status": "passed",
+            "reason": "mic_text_not_duplicate_remote_text",
+            "duplicate_score": round(duplicate_score, 6),
+            "mic_token_recall_in_remote": round(mic_in_remote, 6),
+            "remote_token_recall_in_mic": round(remote_in_mic, 6),
+        }
+
+
+def apply_adjacent_boundary_gate(previous: dict[str, Any] | None, current: dict[str, Any]) -> None:
+    if previous is None:
+        return
+    for source in ("mic", "remote"):
+        previous_source = previous.get(source)
+        current_source = current.get(source)
+        if not isinstance(previous_source, dict) or not isinstance(current_source, dict):
+            continue
+        previous_text = clean_text(str(previous_source.get("text") or ""))
+        current_text = clean_text(str(current_source.get("text") or ""))
+        previous_tokens = tokens(previous_text)
+        current_tokens = tokens(current_text)
+        if len(previous_tokens) < 3 or len(current_tokens) < 2:
+            current_source["live_boundary_gate"] = {"status": "passed", "reason": "too_short_for_boundary_gate"}
+            continue
+        current_in_previous = bag_recall(current_tokens, previous_tokens) or 0.0
+        previous_in_current = bag_recall(previous_tokens, current_tokens) or 0.0
+        duplicate_score = max(current_in_previous, previous_in_current)
+        if current_in_previous >= 0.80 or (duplicate_score >= 0.88 and len(current_tokens) <= len(previous_tokens) + 2):
+            current_source["raw_text_before_boundary_gate"] = current_text
+            current_source["text"] = ""
+            current_source["live_boundary_gate"] = {
+                "status": "suppressed",
+                "reason": "adjacent_chunk_duplicate",
+                "duplicate_score": round(duplicate_score, 6),
+                "current_token_recall_in_previous": round(current_in_previous, 6),
+                "previous_token_recall_in_current": round(previous_in_current, 6),
+            }
+        else:
+            current_source["live_boundary_gate"] = {
+                "status": "passed",
+                "reason": "not_adjacent_duplicate",
+                "duplicate_score": round(duplicate_score, 6),
+                "current_token_recall_in_previous": round(current_in_previous, 6),
+                "previous_token_recall_in_current": round(previous_in_current, 6),
+            }
 
 
 def run(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -180,6 +285,158 @@ def transcribe(wav: Path, output_base: Path, args: argparse.Namespace) -> dict[s
     }
 
 
+def read_wav_float(path: Path) -> tuple[int, np.ndarray]:
+    sample_rate, data = wavfile.read(path)
+    if data.ndim > 1:
+        data = data.mean(axis=1)
+    if np.issubdtype(data.dtype, np.integer):
+        info = np.iinfo(data.dtype)
+        scale = float(max(abs(info.min), info.max))
+        audio = data.astype(np.float32) / scale
+    else:
+        audio = data.astype(np.float32)
+    return sample_rate, np.nan_to_num(audio)
+
+
+def write_wav_float(path: Path, sample_rate: int, audio: np.ndarray) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    wavfile.write(path, sample_rate, np.clip(audio, -1.0, 1.0).astype(np.float32))
+
+
+def rms_db(audio: np.ndarray) -> float:
+    rms = float(np.sqrt(np.mean(np.square(audio), dtype=np.float64) + EPSILON))
+    return 20.0 * np.log10(rms + EPSILON)
+
+
+def normalized_corr(left: np.ndarray, right: np.ndarray) -> float:
+    a = np.asarray(left, dtype=np.float64) - float(np.mean(left))
+    b = np.asarray(right, dtype=np.float64) - float(np.mean(right))
+    return float(np.dot(a, b) / (np.sqrt(np.dot(a, a) * np.dot(b, b)) + EPSILON))
+
+
+def shift_reference(remote: np.ndarray, delay_samples: int) -> np.ndarray:
+    shifted = np.zeros_like(remote)
+    if delay_samples > 0:
+        shifted[delay_samples:] = remote[:-delay_samples]
+    elif delay_samples < 0:
+        lead = -delay_samples
+        shifted[:-lead] = remote[lead:]
+    else:
+        shifted[:] = remote
+    return shifted
+
+
+def estimate_delay_samples(mic: np.ndarray, remote: np.ndarray, sample_rate: int) -> tuple[int, float]:
+    min_lag = int(round(-0.25 * sample_rate))
+    max_lag = int(round(0.80 * sample_rate))
+    count = min(mic.size, remote.size)
+    if count < sample_rate // 4:
+        return 0, 0.0
+    mic_data = mic[:count].astype(np.float64) - float(np.mean(mic[:count]))
+    remote_data = remote[:count].astype(np.float64) - float(np.mean(remote[:count]))
+    corr = signal.correlate(mic_data, remote_data, mode="full", method="fft")
+    lags = signal.correlation_lags(mic_data.size, remote_data.size, mode="full")
+    mask = (lags >= min_lag) & (lags <= max_lag)
+    if not np.any(mask):
+        return 0, 0.0
+    limited = np.abs(corr[mask])
+    limited_lags = lags[mask]
+    best_index = int(np.argmax(limited))
+    peak = float(limited[best_index])
+    denom = float(np.sqrt(np.dot(mic_data, mic_data) * np.dot(remote_data, remote_data)) + EPSILON)
+    return int(limited_lags[best_index]), peak / denom
+
+
+def fit_local_fir(remote_fit: np.ndarray, mic_fit: np.ndarray, taps: int, regularization: float) -> np.ndarray:
+    x = remote_fit.astype(np.float64) - float(np.mean(remote_fit))
+    y = mic_fit.astype(np.float64) - float(np.mean(mic_fit))
+    corr_xx = signal.correlate(x, x, mode="full", method="fft")
+    corr_yx = signal.correlate(y, x, mode="full", method="fft")
+    center = x.size - 1
+    r_xx = corr_xx[center : center + taps]
+    p_yx = corr_yx[center : center + taps]
+    if r_xx.size < taps or p_yx.size < taps or float(r_xx[0]) <= EPSILON:
+        return np.zeros(taps, dtype=np.float64)
+    toeplitz_col = r_xx.copy()
+    toeplitz_col[0] += max(float(r_xx[0]) * regularization, EPSILON)
+    try:
+        fir = linalg.solve_toeplitz((toeplitz_col, toeplitz_col), p_yx, check_finite=False)
+    except Exception:
+        return np.zeros(taps, dtype=np.float64)
+    return np.asarray(fir, dtype=np.float64)
+
+
+def live_echo_guard(mic_wav: Path, remote_wav: Path, output_wav: Path) -> dict[str, Any]:
+    if not mic_wav.exists() or not remote_wav.exists():
+        return {"status": "skipped", "reason": "missing_wav"}
+    mic_rate, mic = read_wav_float(mic_wav)
+    remote_rate, remote = read_wav_float(remote_wav)
+    if mic_rate != remote_rate:
+        return {"status": "skipped", "reason": "sample_rate_mismatch", "mic_rate": mic_rate, "remote_rate": remote_rate}
+    count = min(mic.size, remote.size)
+    if count < int(round(mic_rate * 1.0)):
+        return {"status": "skipped", "reason": "too_short"}
+    mic = mic[:count]
+    remote = remote[:count]
+    mic_db = rms_db(mic)
+    remote_db = rms_db(remote)
+    if remote_db < -55.0 or mic_db < -65.0:
+        return {
+            "status": "skipped",
+            "reason": "inactive_audio",
+            "mic_db": round(mic_db, 3),
+            "remote_db": round(remote_db, 3),
+        }
+    delay_samples, delay_corr = estimate_delay_samples(mic, remote, mic_rate)
+    remote_aligned = shift_reference(remote, delay_samples)
+    before_corr = abs(normalized_corr(remote_aligned, mic))
+    if before_corr < 0.08 and delay_corr < 0.08:
+        return {
+            "status": "skipped",
+            "reason": "weak_remote_similarity",
+            "mic_db": round(mic_db, 3),
+            "remote_db": round(remote_db, 3),
+            "delay_samples": delay_samples,
+            "delay_corr": round(delay_corr, 6),
+            "remote_similarity_before": round(before_corr, 6),
+        }
+    taps = max(1, int(round(mic_rate * 0.080)))
+    fir = fit_local_fir(remote_aligned, mic, taps=taps, regularization=1.0e-2)
+    echo_hat = signal.lfilter(fir, [1.0], remote_aligned.astype(np.float64))
+    strength = 0.85
+    clean = mic.astype(np.float64) - strength * echo_hat
+    after_corr = abs(normalized_corr(remote_aligned, clean))
+    before_power = float(np.mean(mic.astype(np.float64) ** 2) + EPSILON)
+    after_power = float(np.mean(clean.astype(np.float64) ** 2) + EPSILON)
+    peak = float(np.max(np.abs(clean))) if clean.size else 0.0
+    reduction_db = 10.0 * np.log10(before_power / after_power)
+    accepted = (
+        np.all(np.isfinite(clean))
+        and peak <= 1.25
+        and after_corr <= max(before_corr * 0.95, 0.10)
+        and after_power <= before_power * 1.25
+    )
+    report = {
+        "schema": "murmurmark.live_echo_guard/v1",
+        "status": "accepted" if accepted else "rejected",
+        "reason": "accepted" if accepted else "quality_gate_rejected",
+        "mic_db": round(mic_db, 3),
+        "remote_db": round(remote_db, 3),
+        "delay_samples": delay_samples,
+        "delay_ms": round(delay_samples * 1000.0 / max(mic_rate, 1), 3),
+        "delay_corr": round(delay_corr, 6),
+        "remote_similarity_before": round(before_corr, 6),
+        "remote_similarity_after": round(after_corr, 6),
+        "estimated_reduction_db": round(float(reduction_db), 3),
+        "strength": strength,
+        "taps": taps,
+    }
+    if accepted:
+        write_wav_float(output_wav, mic_rate, clean)
+        report["output"] = str(output_wav)
+    return report
+
+
 def text_inside_hard_window(json_path: Path | None, clip_start_sec: float, hard_start_sec: float, hard_end_sec: float) -> str | None:
     if json_path is None or not json_path.exists():
         return None
@@ -264,6 +521,7 @@ def process_segment(session: Path, index: int, pair: dict[str, dict[str, Any]], 
         "mic": {},
         "remote": {},
     }
+    converted: dict[str, Path] = {}
     for source in ("mic", "remote"):
         source_path = session / str(pair[source].get("path"))
         wav_path = chunk_dir / f"{source}.wav"
@@ -283,19 +541,47 @@ def process_segment(session: Path, index: int, pair: dict[str, dict[str, Any]], 
             "preprocess_status": "passed" if ok else "failed",
         }
         if ok:
-            asr = transcribe(wav_path, chunk_dir / source, args)
+            converted[source] = wav_path
+        record[source] = source_record
+    if {"mic", "remote"} <= set(converted):
+        clean_wav = chunk_dir / "mic.live_echo_guard.wav"
+        guard_report = live_echo_guard(converted["mic"], converted["remote"], clean_wav)
+        record["mic"]["live_echo_guard"] = {
+            **{key: value for key, value in guard_report.items() if key != "output"},
+            "output": rel(clean_wav, session) if clean_wav.exists() else None,
+        }
+        if guard_report.get("status") == "accepted" and clean_wav.exists():
+            record["mic"]["asr_wav"] = rel(clean_wav, session)
+            converted["mic"] = clean_wav
+        else:
+            record["mic"]["asr_wav"] = record["mic"].get("wav")
+    for source in ("mic", "remote"):
+        source_record = record[source]
+        wav_for_asr = converted.get(source)
+        if wav_for_asr:
+            asr = transcribe(wav_for_asr, chunk_dir / source, args)
             source_record["asr"] = asr
             asr_json = Path(str(asr.get("json"))) if asr.get("json") else None
             source_record["text"] = text_inside_hard_window(
                 asr_json,
-                clip_start_sec=clip_start_sec,
-                hard_start_sec=hard_start_sec,
-                hard_end_sec=hard_end_sec,
+                clip_start_sec=float(source_record.get("clip_start_sec") or 0.0),
+                hard_start_sec=float(source_record.get("hard_start_sec") or 0.0),
+                hard_end_sec=float(source_record.get("hard_end_sec") or 0.0),
             ) or asr.get("text", "")
-        record[source] = source_record
+    apply_live_role_gate(record)
     write_json(chunk_dir / "chunk.json", record)
-    append_jsonl(session / "derived/live/chunks.jsonl", record)
     return record
+
+
+def write_chunks(session: Path, chunks: list[dict[str, Any]]) -> None:
+    rewrite_jsonl(session / "derived/live/chunks.jsonl", chunks)
+    for chunk in chunks:
+        try:
+            index = int(chunk.get("index") or 0)
+        except (TypeError, ValueError):
+            continue
+        if index > 0:
+            write_json(session / "derived/live/chunks" / f"{index:06d}" / "chunk.json", chunk)
 
 
 def write_report(session: Path, status: str, chunks: list[dict[str, Any]], rows: list[dict[str, Any]], args: argparse.Namespace) -> None:
@@ -366,7 +652,9 @@ def main() -> int:
                 break
             chunk = process_segment(session, index, grouped[index], args)
             processed.add(index)
+            apply_adjacent_boundary_gate(chunks[-1] if chunks else None, chunk)
             chunks.append(chunk)
+            write_chunks(session, chunks)
             write_draft(session, chunks, args.commit_delay_sec)
             write_report(session, "running", chunks, rows, args)
             last_new_work = time.monotonic()

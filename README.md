@@ -58,11 +58,15 @@ reason: weak/conflicting audio, ambiguous chronology, possible unique `Me` conte
 leak, and local-recall evidence that is still too weak for an automatic call.
 
 Current reliability focus:
-[Reliable Transcription Route](docs/project/reliable-transcription-route.md). The next product step
-is to make the route from a complete recording to a truthful outcome boring and unattended:
-`ready_for_notes`, `review_first` or `blocked`, with one selected profile, one quality verdict, exact
-review burden, exact next command and guarded export/retention status. The latest audio milestone,
-ASR-Positive Echo Candidate Hardening v1, remains important but shadow-only:
+[Reliable Transcription Route](docs/project/reliable-transcription-route.md). Outcome and handoff
+UX v1 are now in place: a processed session reports `ready_for_notes`, `review_first` or `blocked`,
+with selected profile, verdict, review burden, export blockers and one next command.
+Chunked/Resumable Processing v1 is now complete at the ASR layer: long `windowed` whisper.cpp runs
+write validated chunk reports, interrupted `process` runs can resume from verified chunks, and
+corpus gates treat failed chunk rebuilds as hard failures. The next significant gap is live parity:
+near-realtime chunks must be proven on real recordings before they can become a strictly gated cache
+source. Batch processing remains authoritative. The latest audio
+milestone, ASR-Positive Echo Candidate Hardening v1, remains important but shadow-only:
 `coverage_v2_remote_gate_local_fir` improved `5/6` candidate-corpus sessions without local-recall
 regression, yet `local_fir` is still the default ASR input until promotion gates are defined and
 passed on a broader corpus.
@@ -128,6 +132,34 @@ next?"
 `murmurmark next` now uses `outcome.json` as the primary source when it exists. The run manifest
 records step status, expected output checkpoints, missing output count, stuck-state summary and the
 session-level resume command.
+
+Reliable Processing UX v1 tightens this route: `outcome.json` now includes a compact `summary`
+with `can_read_notes`, `can_export`, export blockers, transcript/notes/verdict paths, review burden,
+first review lane and the next command, and `murmurmark outcome` prints that summary directly. Long
+`process` stages also print a heartbeat with the stage reason, checkpoint count and resume command,
+so a slow ASR stage does not look like a silent hang. If you stop `process` with `Ctrl-C`, MurmurMark terminates
+the current child step, writes `pipeline_run_report.json` with `status: interrupted`, refreshes
+`outcome`, and points back to the same `murmurmark process SESSION` command.
+
+Chunked/Resumable Processing v1 is complete at the ASR layer. Default `windowed` whisper.cpp runs now
+write per-window cache reports under `derived/transcript-simple/whisper-cpp/raw/chunks/<track>/`.
+If the combined raw JSON is missing but the window cache is still compatible, the next
+`murmurmark process SESSION` rebuilds the combined ASR JSON from cached windows instead of
+rerunning every window. `process` also runs `check-asr-chunk-cache.py` and writes
+`raw/chunk_rebuild_check.json`; the pipeline stops if raw ASR cannot be rebuilt from chunks. When
+near-realtime mode produced compatible live ASR chunks, the live-cache bridge materializes the same
+raw/chunks structure and still requires the rebuild check to pass. The batch transcript remains
+authoritative. During long ASR, heartbeat lines include completed and remaining ASR audio seconds,
+chunk counts, reuse counts and a current-run ETA when enough progress exists. Current corpus evidence
+covers `14/50` sessions with `0` failed chunk rebuilds and `146/146` completed ASR chunks. A real
+29-minute session was interrupted during `murmurmark process`, resumed with the same command, reused
+`14` cached ASR chunks and passed the rebuild gate.
+
+Live/near-realtime cache promotion is gated separately. `murmurmark corpus live` writes the current
+live parity report, and `scripts/check-corpus-gates.py` copies the live coverage/risk counters into
+the main corpus gate report. Current diagnostic coverage has started: `1/51` sessions has
+`live_batch_comparison.json`, promotion remains `shadow_only_do_not_promote`, and the sample is not
+promotion-safe because strict parity still fails on local recall and selected notes readiness.
 
 ## What Is Still Out Of Scope
 
@@ -243,6 +275,11 @@ corpus gates prove that the live branch matches it. If the live worker or derive
 fails, recording should still produce a normal raw session package. If you need only the draft and
 want to run batch processing manually later, use `--live-no-finalize`.
 
+The live worker is still shadow-grade, but it now has three lightweight protections before writing
+draft text: per-chunk mic echo cleanup, a role gate that suppresses mic text when it duplicates the
+same chunk's remote text, and a boundary gate that suppresses adjacent chunk repeats. These
+protections reduce obvious live draft mistakes; they do not make live output authoritative.
+
 During final reconcile, `process` also runs a live-ASR cache bridge:
 
 ```text
@@ -250,8 +287,10 @@ derived/live/live_asr_cache_report.json
 ```
 
 In v1 this bridge is strict. It reuses live chunks only when model, language, audio prep and chunk
-geometry are batch-compatible, including overlap context compatible with batch ASR windows.
-Otherwise it writes `status: not_eligible` and the pipeline falls back to normal batch ASR.
+geometry are batch-compatible, including overlap context compatible with batch ASR windows. When
+eligible, it writes both top-level raw ASR JSON and materialized `raw/chunks/<track>/` reports; the
+next `check-asr-chunk-cache.py --require-chunks` must prove rebuild parity. Otherwise it writes
+`status: not_eligible` and the pipeline falls back to normal batch ASR.
 
 To inspect live parity over a local corpus:
 
@@ -261,7 +300,33 @@ less sessions/_reports/live-pipeline/live_corpus_gates_report.md
 ```
 
 The expected v1 result is still `shadow_only_do_not_promote`: the report should explain which gates
-are evaluated and which remain blockers.
+are evaluated and which remain blockers. Current live comparison checks the live draft against the
+authoritative batch transcript for order mismatch, missing `Me` speech, suspected remote-in-`Me`
+leakage, selected batch review burden, notes readiness and adjacent chunk duplicates. Passing those
+checks is still not promotion: it only means the live branch is safe enough to keep studying as a
+speed-up candidate.
+
+To make the current live-coverage goal explicit after recording real live sessions:
+
+```bash
+murmurmark corpus live all \
+  --min-live-sessions 1 \
+  --min-compared-sessions 1 \
+  --min-meaningful-compared-sessions 1 \
+  --min-passing-compared-sessions 1 \
+  --max-order-mismatches 0 \
+  --max-missing-me-sec 0 \
+  --max-remote-in-me-sec 0 \
+  --max-boundary-duplicates 0 \
+  --require-passing-gates \
+  --fail-on-promotion
+```
+
+This strict command is expected to fail until enough real live sessions have meaningful comparisons
+and at least one meaningful comparison has all parity gates passed. The first diagnostic live capture
+is now compared (`1/51` live sessions, `1` meaningful comparison, `0` passing comparisons):
+remote-in-`Me` and boundary duplicates are blocked by the live gates, but `0.57s` of suspicious short
+batch `Me` are missing from the live draft. `promotion_allowed_sessions` stays `0`.
 
 ## Process An Existing Session
 
@@ -679,33 +744,40 @@ Current focus:
   overlap-aware live segments, a draft transcript and advisory live-vs-batch comparison artifacts,
   but the batch pipeline is still authoritative;
 - keep live-ASR cache reuse behind strict eligibility gates; `not_eligible` is expected until
-  live chunk geometry, audio prep, language and model match batch ASR expectations;
+  live chunk geometry, audio prep, language and model match batch ASR expectations, and materialized
+  live chunks must still pass the raw chunk rebuild check;
 - use `murmurmark corpus live` to keep live promotion blocked until parity gates cover order, local
   recall, remote leakage, review burden and chunk-boundary risks;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 
-Near-term goals for discussion:
+Active goal and near-term candidates:
 
-1. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
+1. Active candidate: Near-Realtime Live Parity Coverage v1: collect real live-pipeline sessions,
+   compare live chunks and drafts against batch output, keep promotion blocked until order, local
+   recall, remote leakage, review burden and chunk-boundary gates are measured and passed.
+2. Completed: Chunked/Resumable Processing v1: ASR work is chunk-addressed, cacheable,
+   interrupt-safe and guarded by rebuild/corpus gates. The remaining work is broader corpus
+   coverage, not the v1 mechanism.
+3. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
-2. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
+4. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
    safe review evidence, shrink only rows with strong local proof, and keep ambiguous rows explicit.
-3. Operational Corpus Green follow-up: keep `pilot_ready_with_review` stable, reduce the remaining
+5. Operational Corpus Green follow-up: keep `pilot_ready_with_review` stable, reduce the remaining
    irreducible queue when new local evidence appears, and prevent status drift.
-4. Near-Realtime Pipeline Shadow v1 follow-up: harden the live draft worker with per-fragment Echo
+6. Near-Realtime Pipeline Shadow v1 follow-up: harden the live draft worker with per-fragment Echo
    Guard, resumable worker state and corpus parity gates.
-5. Echo Guard promotion experiment: only after the shadow candidate passes a broader operational
+7. Echo Guard promotion experiment: only after the shadow candidate passes a broader operational
    corpus, test a separate promoted profile that writes a non-default `mic_for_asr` candidate bundle.
-6. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
+8. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
-7. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
+9. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
    especially Obsidian-vault placement and reviewed proposal exports.
-8. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
+10. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
    regressions before new heuristics ship.
-9. Evidence notes vNext: improve extractive notes quality while preserving citations and review
+11. Evidence notes vNext: improve extractive notes quality while preserving citations and review
    flags.
-10. Open-source release hardening: trim private fixtures, document setup, add security/contact
+12. Open-source release hardening: trim private fixtures, document setup, add security/contact
    guidance and keep generated/private artifacts ignored.
 
 Recently completed:

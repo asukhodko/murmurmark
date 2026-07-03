@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.6.0"
+SCRIPT_VERSION = "0.7.0"
 SCHEMA_REPORT = "murmurmark.corpus_gates_report/v1"
 SCHEMA_BASELINE = "murmurmark.corpus_gates_baseline/v1"
 
@@ -63,6 +63,16 @@ def parse_args() -> argparse.Namespace:
         default=Path(
             "sessions/_reports/asr-positive-echo-candidate/asr_positive_echo_candidate_corpus_report.json"
         ),
+    )
+    parser.add_argument(
+        "--asr-chunk-cache",
+        type=Path,
+        default=Path("sessions/_reports/asr-chunk-cache/asr_chunk_cache_corpus_report.json"),
+    )
+    parser.add_argument(
+        "--live-corpus",
+        type=Path,
+        default=Path("sessions/_reports/live-pipeline/live_corpus_gates_report.json"),
     )
     parser.add_argument("--out-dir", type=Path, default=Path("sessions/_reports/corpus-gates"))
     parser.add_argument("--min-complete-sessions", type=int, default=3)
@@ -570,6 +580,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     local_recall = read_json(args.local_recall)
     remote_leak_segment = read_json(args.remote_leak_segment_corpus)
     asr_positive_echo_candidate = read_json(args.asr_positive_echo_candidate)
+    asr_chunk_cache = read_json(args.asr_chunk_cache)
+    live_corpus = read_json(args.live_corpus)
 
     checks: list[dict[str, Any]] = []
     inputs = {
@@ -581,6 +593,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "local_recall": str(args.local_recall),
         "remote_leak_segment_corpus": str(args.remote_leak_segment_corpus),
         "asr_positive_echo_candidate": str(args.asr_positive_echo_candidate),
+        "asr_chunk_cache": str(args.asr_chunk_cache),
+        "live_corpus": str(args.live_corpus),
     }
     thresholds = {
         "min_complete_sessions": args.min_complete_sessions,
@@ -617,7 +631,13 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     required_inputs = {
         key: path
         for key, path in inputs.items()
-        if key not in {"local_recall", "remote_leak_segment_corpus", "asr_positive_echo_candidate"}
+        if key not in {
+            "local_recall",
+            "remote_leak_segment_corpus",
+            "asr_positive_echo_candidate",
+            "asr_chunk_cache",
+            "live_corpus",
+        }
     }
     for key, path in required_inputs.items():
         check(
@@ -654,6 +674,24 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         observed=str(args.asr_positive_echo_candidate),
         threshold="valid JSON object",
         message="ASR-positive Echo candidate corpus report exists for the experimental echo profile",
+    )
+    check(
+        checks,
+        "input.asr_chunk_cache",
+        asr_chunk_cache is not None,
+        severity="warn",
+        observed=str(args.asr_chunk_cache),
+        threshold="valid JSON object",
+        message="ASR chunk cache corpus report exists for chunked/resumable ASR checks",
+    )
+    check(
+        checks,
+        "input.live_corpus",
+        live_corpus is not None,
+        severity="warn",
+        observed=str(args.live_corpus),
+        threshold="valid JSON object",
+        message="live pipeline corpus report exists for near-realtime cache parity checks",
     )
 
     excluded_session_ids = operational_excluded_session_ids(operational)
@@ -738,6 +776,143 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         observed=round(total_review_burden_ratio, 6),
         threshold=f"<= {args.max_total_review_burden_ratio}",
         message="total review burden stays within the medium-risk budget",
+    )
+
+    asr_chunk_status = str(asr_chunk_cache.get("status") if isinstance(asr_chunk_cache, dict) else "")
+    asr_chunk_summary = asr_chunk_cache.get("summary") if isinstance(asr_chunk_cache, dict) else {}
+    asr_chunk_summary = asr_chunk_summary if isinstance(asr_chunk_summary, dict) else {}
+    asr_chunk_passed = safe_int(asr_chunk_summary.get("passed"))
+    asr_chunk_failed = safe_int(asr_chunk_summary.get("failed"))
+    asr_chunk_coverage_ratio = safe_float(asr_chunk_summary.get("coverage_ratio"))
+    asr_chunk_raw_without_chunks = safe_int(asr_chunk_summary.get("raw_asr_without_chunks"))
+    asr_chunk_raw_missing = safe_int(asr_chunk_summary.get("raw_asr_missing"))
+    live_summary = live_corpus.get("summary") if isinstance(live_corpus, dict) else {}
+    live_summary = live_summary if isinstance(live_summary, dict) else {}
+    live_target_status = str(live_summary.get("target_status") or "")
+    live_sessions = safe_int(live_summary.get("live_sessions"))
+    live_compared_sessions = safe_int(live_summary.get("compared_sessions"))
+    live_meaningful_compared_sessions = safe_int(live_summary.get("meaningful_compared_sessions"))
+    live_passing_compared_sessions = safe_int(live_summary.get("passing_compared_sessions"))
+    live_promotion_allowed_sessions = safe_int(live_summary.get("promotion_allowed_sessions"))
+    live_speedup_supported_sessions = safe_int(live_summary.get("speedup_supported_sessions"))
+    live_strict_coverage_status = str(live_summary.get("strict_coverage_status") or "")
+    live_order_mismatch_count = safe_int(live_summary.get("live_order_mismatch_count"))
+    live_missing_me_seconds = safe_float(live_summary.get("live_missing_me_seconds"))
+    live_suspicious_batch_me_missing_seconds = safe_float(live_summary.get("live_suspicious_batch_me_missing_seconds"))
+    live_remote_in_me_seconds = safe_float(live_summary.get("live_suspected_remote_leak_in_me_seconds"))
+    live_boundary_duplicate_count = safe_int(live_summary.get("adjacent_duplicate_chunk_count"))
+    check(
+        checks,
+        "asr_chunk_cache.no_failed_rebuilds",
+        asr_chunk_status != "failed",
+        observed=asr_chunk_status or "missing",
+        threshold="not failed",
+        message="ASR chunk cache rebuild checks do not fail",
+        details=asr_chunk_summary,
+    )
+    check(
+        checks,
+        "asr_chunk_cache.coverage_started",
+        asr_chunk_passed > 0,
+        severity="warn",
+        observed=asr_chunk_passed,
+        threshold="> 0 passed sessions",
+        message="ASR chunk cache corpus coverage has started",
+        details=asr_chunk_summary,
+    )
+    check(
+        checks,
+        "live_cache_parity.report_present",
+        live_corpus is not None,
+        severity="warn",
+        observed=str(args.live_corpus),
+        threshold="valid JSON object",
+        message="live-cache parity corpus report exists",
+    )
+    check(
+        checks,
+        "live_cache_parity.no_promotion",
+        live_promotion_allowed_sessions == 0,
+        observed=live_promotion_allowed_sessions,
+        threshold="0 promoted sessions",
+        message="near-realtime/live ASR cache is not promoted as authoritative",
+        details=live_summary,
+    )
+    check(
+        checks,
+        "live_cache_parity.real_coverage_started",
+        live_sessions > 0 and live_compared_sessions > 0,
+        severity="warn",
+        observed={
+            "live_sessions": live_sessions,
+            "compared_sessions": live_compared_sessions,
+            "meaningful_compared_sessions": live_meaningful_compared_sessions,
+            "passing_compared_sessions": live_passing_compared_sessions,
+            "target_status": live_target_status or None,
+        },
+        threshold="> 0 live sessions with comparison",
+        message="real live-cache parity coverage has started",
+        details=live_summary,
+    )
+    check(
+        checks,
+        "live_cache_parity.meaningful_coverage_started",
+        live_meaningful_compared_sessions > 0,
+        severity="warn",
+        observed=live_meaningful_compared_sessions,
+        threshold="> 0 compared sessions with both Me and remote evidence",
+        message="live-cache parity coverage includes a meaningful two-role comparison",
+        details=live_summary,
+    )
+    check(
+        checks,
+        "live_cache_parity.passing_coverage_started",
+        live_passing_compared_sessions > 0,
+        severity="warn",
+        observed=live_passing_compared_sessions,
+        threshold="> 0 compared sessions with all parity gates passed",
+        message="live-cache parity coverage includes at least one fully passing comparison",
+        details=live_summary,
+    )
+    check(
+        checks,
+        "live_cache_parity.no_measured_order_mismatches",
+        live_order_mismatch_count == 0,
+        severity="warn",
+        observed=live_order_mismatch_count,
+        threshold="0 live order mismatches",
+        message="live-vs-batch comparison found no measured order mismatches",
+        details=live_summary,
+    )
+    check(
+        checks,
+        "live_cache_parity.no_measured_missing_me",
+        live_missing_me_seconds <= 0.0,
+        severity="warn",
+        observed=round(live_missing_me_seconds, 3),
+        threshold="0.0s missing Me speech",
+        message="live-vs-batch comparison found no measured missing Me speech",
+        details=live_summary,
+    )
+    check(
+        checks,
+        "live_cache_parity.no_measured_remote_in_me",
+        live_remote_in_me_seconds <= 0.0,
+        severity="warn",
+        observed=round(live_remote_in_me_seconds, 3),
+        threshold="0.0s suspected remote-in-Me speech",
+        message="live-vs-batch comparison found no measured remote-in-Me leakage",
+        details=live_summary,
+    )
+    check(
+        checks,
+        "live_cache_parity.no_boundary_duplicates",
+        live_boundary_duplicate_count == 0,
+        severity="warn",
+        observed=live_boundary_duplicate_count,
+        threshold="0 adjacent duplicate chunks",
+        message="live-vs-batch comparison found no adjacent chunk duplicates",
+        details=live_summary,
     )
 
     long_crossing_bad = [
@@ -1248,6 +1423,25 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "operational_review_actions": operational_actions,
             "operational_blockers": operational_blockers,
             "operational_warnings": operational_warnings,
+            "asr_chunk_cache_status": asr_chunk_status or None,
+            "asr_chunk_cache_passed_sessions": asr_chunk_passed,
+            "asr_chunk_cache_failed_sessions": asr_chunk_failed,
+            "asr_chunk_cache_coverage_ratio": round(asr_chunk_coverage_ratio, 6),
+            "asr_chunk_cache_raw_asr_without_chunks": asr_chunk_raw_without_chunks,
+            "asr_chunk_cache_raw_asr_missing": asr_chunk_raw_missing,
+            "live_cache_parity_status": live_target_status or None,
+            "live_cache_parity_strict_coverage_status": live_strict_coverage_status or None,
+            "live_cache_parity_live_sessions": live_sessions,
+            "live_cache_parity_compared_sessions": live_compared_sessions,
+            "live_cache_parity_meaningful_compared_sessions": live_meaningful_compared_sessions,
+            "live_cache_parity_passing_compared_sessions": live_passing_compared_sessions,
+            "live_cache_parity_promotion_allowed_sessions": live_promotion_allowed_sessions,
+            "live_cache_parity_speedup_supported_sessions": live_speedup_supported_sessions,
+            "live_cache_parity_order_mismatch_count": live_order_mismatch_count,
+            "live_cache_parity_missing_me_seconds": round(live_missing_me_seconds, 3),
+            "live_cache_parity_suspicious_batch_me_missing_seconds": round(live_suspicious_batch_me_missing_seconds, 3),
+            "live_cache_parity_remote_in_me_seconds": round(live_remote_in_me_seconds, 3),
+            "live_cache_parity_boundary_duplicate_count": live_boundary_duplicate_count,
             "transcript_order_audited_sessions": order_audited_sessions,
             "transcript_order_session_count": order_session_count,
             "transcript_order_missing_audits": order_missing_audits,

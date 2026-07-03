@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-GENERATOR_VERSION = "0.3.0"
+GENERATOR_VERSION = "0.3.1"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
 
 DEFAULT_RULES: dict[str, Any] = {
@@ -2444,6 +2444,7 @@ def main() -> int:
     write_jsonl(out_dir / "review_items.jsonl", review_items)
     profile_aliases: dict[str, str] = {}
     if selected_profile in {
+        "shadow_v2",
         "audit_cleanup_v1",
         "audit_cleanup_v2",
         "audit_cleanup_v3",

@@ -66,10 +66,12 @@ nodes:
       pass подключил readiness review-plan rows к audio-review pack и закрыл две безопасные
       `keep_me` строки. ASR-Positive Echo Candidate Hardening v1 сделал этот audio candidate явным
       experimental profile: 5/6 safe improved, 1/6 not applicable, 0 local-recall regressions,
-      no default promotion. Ближайший крупный шаг теперь шире отдельного echo-кандидата:
-      Reliable Transcription Route v1. Нужно сделать так, чтобы полная запись без присмотра
-      приводила к честному результату `ready_for_notes`, `review_first` или `blocked`, а
-      ASR-positive Echo promotion readiness стала одним из доказательных подпотоков этого маршрута.
+      no default promotion. Reliable Transcription Route v1, Reliable Processing UX v1 и
+      Chunked/Resumable Processing v1 уже сделали outcome/next/export gate и ASR chunk-resume
+      честным пользовательским контрактом. Ближайший крупный шаг теперь — Near-Realtime Live
+      Parity Coverage v1: получить реальные live-pipeline сессии, сравнить live chunks/drafts с
+      batch output и держать promotion заблокированным, пока order, local recall, remote leakage,
+      review burden и boundary gates не доказаны.
 
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
@@ -305,15 +307,13 @@ nodes:
     status: current
     effort: 24
     notes: |
-      Ближайшая крупная цель: превратить текущий набор record/process/audit/review/export слоёв
-      в один надёжный маршрут от полной записи до честного результата. Пользователь не должен
-      контролировать внутренние стадии: `process` может быть долгим, но обязан быть наблюдаемым,
-      возобновляемым и честным. Итог каждого supported session: `ready_for_notes`, `review_first`
-      или `blocked`, с выбранным профилем, verdict, review burden, next command, export gate и
-      retention state. Echo Guard promotion readiness, Target-Me evidence, stronger audio judge,
-      order repair и live shadow pipeline становятся подпотоками этого маршрута, а не отдельными
-      самоцелями. После консультаций фокус v1 конкретизирован: Outcome Contract v1, Gate Evaluator,
-      Review Plan, Next Command, Resumable Run Manifest и corpus v0 labels.
+      Это текущая рамка продукта: полная запись должна без присмотра приходить к честному
+      результату `ready_for_notes`, `review_first` или `blocked`, с выбранным профилем, verdict,
+      review burden, next command, export gate и retention state. Outcome Contract v1, Gate
+      Evaluator, Review Plan, Next Command, Reliable Processing UX v1 и Chunked/Resumable
+      Processing v1 уже закрыли пользовательский handoff и ASR chunk-resume. Следующий конкретный
+      узел внутри маршрута — Near-Realtime Live Parity Coverage v1: получить реальные live sessions
+      и доказать live-vs-batch parity, не меняя default local_fir и основной ASR.
 
   reliable-outcome-contract:
     title: "Outcome Contract v1"
@@ -356,8 +356,64 @@ nodes:
       Долгие ASR/current/shadow/optional judge stages не должны выглядеть как зависание.
       Базовый `derived/run/pipeline_run.json` уже пишет step ids, status, timestamps, durations,
       outcome, next command, session-level resume command, expected output checkpoints, missing
-      output count и stuck-state summary. Дальше нужны config hashes и ASR window/chunk checkpoints,
-      а не только whole-session resume.
+      output count и stuck-state summary. Reliable Processing UX v1 добавляет более понятный
+      heartbeat для долгих steps: причина шага, checkpoint count и команда возобновления.
+      `process --plan-only` пишет отдельный `pipeline_plan_report.json`, не портит последний
+      реальный run report и не refresh-ит outcome. Ctrl-C во время process гасит текущий дочерний
+      шаг, пишет `status: interrupted`, обновляет outcome и ведёт обратно к `murmurmark process
+      SESSION`. Дальше нужен отдельный chunk-level resume, а не расширение этого v1-слоя.
+
+  chunked-resumable-processing-v1:
+    title: "Chunked/Resumable Processing v1"
+    kind: task
+    parent: reliable-transcription-route
+    deps: [reliable-progress-resume, realtime-final-reconcile, corpus-regression-gate]
+    status: done
+    effort: 8
+    notes: |
+      Завершённая значимая цель: сделать тяжёлую post-recording обработку chunk-addressed,
+      cacheable и безопасно возобновляемой. ASR/cache артефакты должны иметь стабильную
+      идентичность: source audio, model, language, prompt, audio prep, window boundaries и tool
+      version. `murmurmark process SESSION` должен пропускать валидные chunks, продолжать после
+      interrupt/failure и показывать completed seconds, missing chunks, reused chunks и оценку
+      оставшейся тяжёлой работы. Live/near-realtime chunks можно использовать только как строгий
+      cache source, если metadata compatibility и corpus parity gates проходят; batch transcript
+      остаётся authoritative. No default ASR, capture or Echo Guard change.
+
+      Первый ASR-layer slice реализован: default `windowed` whisper.cpp пишет per-window
+      `chunk_cache_report.json` и `.meta.json`; если combined raw JSON отсутствует, но chunks
+      совместимы, bridge пересобирает `mic.json`/`remote.json` из cached chunks без повторного
+      whisper decode. `process` запускает `check-asr-chunk-cache.py --require-chunks` и пишет
+      `raw/chunk_rebuild_check.json`; несовпадение chunk rebuild с current raw ASR становится hard
+      pipeline failure. `report-asr-chunk-cache-corpus.py` агрегирует эти checks по корпусу, а
+      `check-corpus-gates.py` считает failed ASR chunk-cache report hard gate failure. Pipeline
+      heartbeat читает эти reports и показывает ASR chunks/seconds/reuse. Осталось расширить
+      coverage на реальные длинные сессии, добавить real interrupted-run corpus evidence и проверить
+      materialized live-ASR chunk cache на реальных sessions/corpus parity gates. Synthetic
+      live-cache smoke уже подтверждает, что materializer пишет `raw/chunks/<track>/` и
+      `check-asr-chunk-cache.py --require-chunks` пересобирает `mic`/`remote` из live chunks.
+      Coverage теперь есть на четырнадцати реальных sessions, включая real 29-minute
+      `murmurmark process` interruption/resume: first interrupted run wrote `status: interrupted`
+      and ASR progress, the next run reused `14` cached mic chunks and passed rebuild. ASR chunk
+      cache corpus видит `passed_sessions: 14`, `failed_sessions: 0`, `coverage_ratio: 0.28`,
+      `chunks_completed: 146/146`.
+      `pipeline_run_report.json` теперь хранит ASR chunk remaining seconds, completed ratio и
+      advisory `asr_remaining_estimate`. Coverage backlog explicit: `22` sessions have old raw ASR
+      without chunks, `14` have no raw ASR baseline.
+      Legacy top-level raw ASR cache without chunk reports is no longer accepted as sufficient in
+      `windowed` mode: process rebuilds chunks first, then requires rebuild parity.
+      Corpus gates now expose live-cache parity explicitly. The first diagnostic real live capture
+      is compared: `live_sessions: 1/51`, `meaningful_compared_sessions: 1`,
+      `passing_compared_sessions: 0`, `promotion_allowed_sessions: 0`. The first live role/boundary
+      gates reduce measured remote-in-`Me` and adjacent chunk duplicates to `0`, but strict parity is
+      not proven because `0.57s` of suspicious short batch `Me` are missing from the live draft. Live
+      coverage is now a measured blocker instead of an implicit caveat.
+      `scripts/smoke-cli-handoff.sh` включает deterministic fake-whisper failure/resume: первый
+      запуск падает после одного cached chunk, второй запуск reuse-ит этот chunk и проходит
+      rebuild-check. `scripts/smoke-process-chunk-resume.sh` доказывает тот же сценарий через
+      настоящий `run-session-pipeline.py`, а также контролируемый `Ctrl-C` в середине ASR: run
+      report получает `status: interrupted`, verified chunk остаётся в cache, следующий запуск
+      reuse-ит его и проходит rebuild-check.
 
   reliable-suggested-review-first:
     title: "Suggested review before manual review"
@@ -500,9 +556,10 @@ nodes:
     notes: |
       После stop уже запускается batch-grade reconcile через `murmurmark process --skip-build` и
       пишется `derived/live/final_reconcile_report.json`. Live-ASR cache bridge уже пытается строго
-      материализовать `raw/mic.json` и `raw/remote.json`, если live chunks совместимы с batch ASR
-      metadata; иначе пишет `live_asr_cache_report.json` со статусом `not_eligible` и process честно
-      уходит в `fallback_batch_asr`. Текущий gap: доказать на корпусе, что overlap-aware chunks
+      материализовать `raw/mic.json`, `raw/remote.json` и `raw/chunks/<track>/chunk_cache_report.json`,
+      если live chunks совместимы с batch ASR geometry/model/language/audio prep; иначе пишет
+      `live_asr_cache_report.json` со статусом `not_eligible` и process честно уходит в
+      `fallback_batch_asr`. Текущий gap: доказать на корпусе, что overlap-aware chunks
       позволяют переиспользовать live ASR без ухудшения порядка реплик, local recall, remote leakage
       и review burden.
 
@@ -511,7 +568,7 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [realtime-final-reconcile, corpus-regression-gate]
-    status: next
+    status: current
     effort: 4
     notes: |
       Первый `live_batch_comparison.json` уже пишет advisory parity gates, а `murmurmark corpus live`
@@ -521,6 +578,27 @@ nodes:
       recall, remote duplicate/leak, review burden, transcript chunk duplicates и missing boundary
       speech. Promotion rule: live branch can shorten waiting time, but cannot become default if it
       grows mandatory review queue or worsens selected notes/readiness.
+
+  realtime-live-parity-coverage-v1:
+    title: "Near-Realtime Live Parity Coverage v1"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [chunked-resumable-processing-v1, realtime-corpus-gates]
+    status: current
+    effort: 6
+    notes: |
+      Ближайшая крупная цель после chunked resume. Нужно получить real live-pipeline coverage, а не
+      synthetic-only proof: несколько реальных записей через `record --live-pipeline`, materialized
+      live ASR chunks, `live_batch_comparison.json`, corpus live report и corpus gates. Live cache
+      остаётся shadow-only: promotion allowed sessions must stay `0` until gates cover order risk,
+      local recall, remote leakage, review burden, selected notes readiness and chunk-boundary
+      duplicates/missing speech. Успех v1 — не включить live как default, а доказать, где live
+      chunks безопасно ускоряют final batch reconcile, а где batch должен честно пересчитать ASR.
+      Strict coverage command: `murmurmark corpus live all --min-live-sessions 1
+      --min-compared-sessions 1 --min-meaningful-compared-sessions 1
+      --min-passing-compared-sessions 1 --max-order-mismatches 0 --max-missing-me-sec 0
+      --max-remote-in-me-sec 0 --max-boundary-duplicates 0 --require-passing-gates
+      --fail-on-promotion`.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -1395,8 +1473,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Reliable Transcription Route v1: довести уже реализованный Outcome Contract v1 до полного handoff: откалибровать gates на corpus v0 labels, выровнять finish/export/corpus report и усилить run manifest до честного resume/stuck-state без смены default local_fir."
-      success_by_next_sync: "Каждая processed/failed session пишет derived/outcome/*; status/next/outcome/report читают тот же next action; finish/export/corpus report используют контракт; review burden показан по lanes; corpus v0 labels started; run manifest объясняет resume/cache/stuck-state."
+      nearest_goal: "Near-Realtime Live Parity Coverage v1: получить real live-pipeline coverage, сравнить live chunks/drafts с batch output и держать promotion заблокированным, пока parity gates не докажут безопасность."
+      success_by_next_sync: "Есть реальные live sessions с live_batch_comparison.json, corpus live report показывает order/local-recall/remote-leak/review-burden/boundary risks, live cache reuse остаётся gated, а batch transcript остаётся authoritative."
     defaults:
       status_progress:
         done: 1.0
@@ -1422,8 +1500,8 @@ x:
         kind: main
         mgmt:
           health: green
-          sync_note: "CLI MVP закрыт; readiness reconciliation, Recording Reliability и Export Bundle Quality v1 завершены. Главный следующий слой — Reliable Transcription Route: unattended process должен вести к честному outcome и точному next command."
-          next_sync_goal: "Собрать Outcome Contract v1, Gate Evaluator, Review Plan, Next Command и Resumable Run Manifest так, чтобы пользователь не контролировал внутренние стадии pipeline."
+          sync_note: "CLI MVP, readiness reconciliation, Recording Reliability, Export Bundle Quality v1, Outcome Contract v1, Reliable Processing UX v1 и Chunked/Resumable Processing v1 закрыты. Пользователь уже получает честный outcome, next command и ASR chunk-resume; следующий разрыв — real live parity coverage."
+          next_sync_goal: "Сделать Near-Realtime Live Parity Coverage v1: real live sessions, live-vs-batch comparison, corpus live gates и запрет promotion без доказанной parity."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]

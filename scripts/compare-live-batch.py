@@ -11,7 +11,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.5.0"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 
 
@@ -137,6 +137,266 @@ def metric_value(report: dict[str, Any] | None, key: str) -> Any:
     return None
 
 
+def safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def interval_overlap(start_a: float, end_a: float, start_b: float, end_b: float) -> float:
+    return max(0.0, min(end_a, end_b) - max(start_a, start_b))
+
+
+def read_utterances(path: Path | None) -> list[dict[str, Any]]:
+    data = read_json(path) if path else None
+    rows = data.get("utterances") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return []
+    utterances: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            continue
+        text = str(row.get("text") or "").strip()
+        if not text:
+            continue
+        start = safe_float(row.get("start"), safe_float(row.get("source_start")))
+        end = safe_float(row.get("end"), safe_float(row.get("source_end"), start))
+        role = str(row.get("speaker_label") or row.get("role") or "")
+        if role.lower() in {"me", "mic"}:
+            role = "Me"
+        elif role.lower() in {"remote", "colleagues", "colleague"}:
+            role = "Colleagues"
+        utterances.append(
+            {
+                "id": str(row.get("id") or f"batch_{index:06d}"),
+                "start": start,
+                "end": max(end, start),
+                "role": role,
+                "text": text,
+                "tokens": tokens(text),
+                "needs_review": bool((row.get("quality") or {}).get("needs_review")) if isinstance(row.get("quality"), dict) else False,
+                "quality": row.get("quality") if isinstance(row.get("quality"), dict) else {},
+            }
+        )
+    return utterances
+
+
+def selected_clean_dialogue_path(session: Path, profile: str | None) -> Path | None:
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    candidates: list[Path] = []
+    if profile and profile != "missing":
+        candidates.append(resolved / f"clean_dialogue.{profile}.json")
+    candidates.append(resolved / "clean_dialogue.json")
+    candidates.extend(sorted(resolved.glob("clean_dialogue.*.json"), key=lambda item: item.stat().st_mtime, reverse=True))
+    return next((path for path in candidates if path.exists()), None)
+
+
+def live_turns(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    turns: list[dict[str, Any]] = []
+    for row in chunks:
+        try:
+            index = int(row.get("index") or 0)
+        except (TypeError, ValueError):
+            index = 0
+        for source, role in (("mic", "Me"), ("remote", "Colleagues")):
+            source_row = row.get(source)
+            if not isinstance(source_row, dict):
+                continue
+            text = str(source_row.get("text") or "").strip()
+            if not text:
+                continue
+            start = safe_float(source_row.get("hard_start_sec"), safe_float(row.get("start_sec")))
+            end = safe_float(source_row.get("hard_end_sec"), safe_float(row.get("end_sec"), start))
+            turns.append(
+                {
+                    "id": f"live_{index:06d}_{source}",
+                    "chunk_index": index,
+                    "source": source,
+                    "role": role,
+                    "start": start,
+                    "end": max(end, start),
+                    "text": text,
+                    "tokens": tokens(text),
+                }
+            )
+    return sorted(turns, key=lambda item: (item["start"], item["end"], item["source"]))
+
+
+def utterance_tokens_in_interval(utterances: list[dict[str, Any]], start: float, end: float, role: str | None = None) -> list[str]:
+    result: list[str] = []
+    for row in utterances:
+        if role and row.get("role") != role:
+            continue
+        if interval_overlap(start, end, safe_float(row.get("start")), safe_float(row.get("end"))) <= 0:
+            continue
+        result.extend(row.get("tokens") or [])
+    return result
+
+
+def nested_token_probability(row: dict[str, Any]) -> float | None:
+    quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+    repair = quality.get("repair") if isinstance(quality.get("repair"), dict) else {}
+    micro = repair.get("micro_reasr") if isinstance(repair.get("micro_reasr"), dict) else {}
+    rows = micro.get("rows") if isinstance(micro.get("rows"), list) else []
+    values: list[float] = []
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        try:
+            values.append(float(item.get("token_avg_prob")))
+        except (TypeError, ValueError):
+            continue
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def suspicious_batch_me_utterance(row: dict[str, Any]) -> bool:
+    quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+    repair = quality.get("repair") if isinstance(quality.get("repair"), dict) else {}
+    duration = max(0.0, safe_float(row.get("end")) - safe_float(row.get("start")))
+    reason = str(quality.get("decision_reason") or repair.get("reason") or "")
+    matched_remote = repair.get("matched_remote_candidate_ids") if isinstance(repair, dict) else None
+    token_prob = nested_token_probability(row)
+    return bool(
+        row.get("role") == "Me"
+        and duration <= 1.2
+        and len(row.get("tokens") or []) <= 4
+        and (
+            "crosses_authoritative_remote" in reason
+            or (isinstance(matched_remote, list) and len(matched_remote) > 0)
+        )
+        and (token_prob is None or token_prob < 0.70)
+    )
+
+
+def best_batch_match(turn: dict[str, Any], batch: list[dict[str, Any]]) -> dict[str, Any] | None:
+    turn_tokens = turn.get("tokens") or []
+    if not turn_tokens:
+        return None
+    best: dict[str, Any] | None = None
+    for row in batch:
+        row_tokens = row.get("tokens") or []
+        if not row_tokens:
+            continue
+        score = bag_recall(turn_tokens, row_tokens) or 0.0
+        overlap = interval_overlap(
+            safe_float(turn.get("start")),
+            safe_float(turn.get("end")),
+            safe_float(row.get("start")),
+            safe_float(row.get("end")),
+        )
+        if overlap > 0:
+            score += 0.15
+        if row.get("role") == turn.get("role"):
+            score += 0.1
+        candidate = {
+            "batch_id": row.get("id"),
+            "batch_start": row.get("start"),
+            "batch_end": row.get("end"),
+            "batch_role": row.get("role"),
+            "score": round(score, 6),
+            "token_recall": round(bag_recall(turn_tokens, row_tokens) or 0.0, 6),
+        }
+        if best is None or safe_float(candidate["score"]) > safe_float(best["score"]):
+            best = candidate
+    return best
+
+
+def assess_live_vs_batch(chunks: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> dict[str, Any]:
+    turns = live_turns(chunks)
+    local_missing: list[dict[str, Any]] = []
+    local_missing_suspicious_batch_me: list[dict[str, Any]] = []
+    remote_leak: list[dict[str, Any]] = []
+    order_mismatches: list[dict[str, Any]] = []
+    matched_turns: list[dict[str, Any]] = []
+    for turn in turns:
+        match = best_batch_match(turn, batch_utterances)
+        if match and safe_float(match.get("token_recall")) >= 0.25:
+            matched_turn = {**turn, "match": match}
+            matched_turns.append(matched_turn)
+    previous: dict[str, Any] | None = None
+    for turn in matched_turns:
+        if previous is not None:
+            previous_batch_start = safe_float((previous.get("match") or {}).get("batch_start"))
+            current_batch_start = safe_float((turn.get("match") or {}).get("batch_start"))
+            if current_batch_start + 1.0 < previous_batch_start:
+                order_mismatches.append(
+                    {
+                        "previous_live_id": previous.get("id"),
+                        "current_live_id": turn.get("id"),
+                        "previous_batch_start": round(previous_batch_start, 3),
+                        "current_batch_start": round(current_batch_start, 3),
+                    }
+                )
+        previous = turn
+    for row in batch_utterances:
+        if row.get("role") != "Me" or len(row.get("tokens") or []) < 2:
+            continue
+        live_tokens_for_me = utterance_tokens_in_interval(turns, safe_float(row.get("start")), safe_float(row.get("end")), "Me")
+        recall = bag_recall(row.get("tokens") or [], live_tokens_for_me) or 0.0
+        if recall < 0.35:
+            missing_row = {
+                "batch_id": row.get("id"),
+                "start": row.get("start"),
+                "end": row.get("end"),
+                "duration_sec": round(safe_float(row.get("end")) - safe_float(row.get("start")), 3),
+                "recall_in_live_me": round(recall, 6),
+                "text": row.get("text"),
+            }
+            if suspicious_batch_me_utterance(row):
+                missing_row["reason"] = "suspicious_short_batch_me_crosses_authoritative_remote"
+                local_missing_suspicious_batch_me.append(missing_row)
+            else:
+                local_missing.append(missing_row)
+    for turn in turns:
+        if turn.get("role") != "Me" or len(turn.get("tokens") or []) < 3:
+            continue
+        same_role_tokens = utterance_tokens_in_interval(batch_utterances, safe_float(turn.get("start")), safe_float(turn.get("end")), "Me")
+        remote_tokens = utterance_tokens_in_interval(batch_utterances, safe_float(turn.get("start")), safe_float(turn.get("end")), "Colleagues")
+        same_recall = bag_recall(turn.get("tokens") or [], same_role_tokens) or 0.0
+        remote_recall = bag_recall(turn.get("tokens") or [], remote_tokens) or 0.0
+        if remote_recall >= 0.55 and same_recall < 0.35:
+            remote_leak.append(
+                {
+                    "live_id": turn.get("id"),
+                    "start": turn.get("start"),
+                    "end": turn.get("end"),
+                    "duration_sec": round(safe_float(turn.get("end")) - safe_float(turn.get("start")), 3),
+                    "same_role_recall": round(same_recall, 6),
+                    "remote_role_recall": round(remote_recall, 6),
+                    "text": turn.get("text"),
+                }
+            )
+    return {
+        "live_turns": turns,
+        "matched_turns": matched_turns,
+        "local_missing": local_missing,
+        "local_missing_suspicious_batch_me": local_missing_suspicious_batch_me,
+        "remote_leak": remote_leak,
+        "order_mismatches": order_mismatches,
+        "metrics": {
+            "live_turn_count": len(turns),
+            "live_me_turn_count": sum(1 for turn in turns if turn.get("role") == "Me"),
+            "live_remote_turn_count": sum(1 for turn in turns if turn.get("role") == "Colleagues"),
+            "batch_utterance_count": len(batch_utterances),
+            "batch_me_utterance_count": sum(1 for row in batch_utterances if row.get("role") == "Me"),
+            "batch_remote_utterance_count": sum(1 for row in batch_utterances if row.get("role") == "Colleagues"),
+            "live_order_mismatch_count": len(order_mismatches),
+            "live_missing_me_utterance_count": len(local_missing),
+            "live_missing_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3),
+            "live_suspicious_batch_me_missing_count": len(local_missing_suspicious_batch_me),
+            "live_suspicious_batch_me_missing_seconds": round(
+                sum(safe_float(row.get("duration_sec")) for row in local_missing_suspicious_batch_me),
+                3,
+            ),
+            "live_suspected_remote_leak_in_me_count": len(remote_leak),
+            "live_suspected_remote_leak_in_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in remote_leak), 3),
+        },
+    }
+
+
 def gate(name: str, status: str, reason: str, evidence: dict[str, Any] | None = None) -> dict[str, Any]:
     row: dict[str, Any] = {"name": name, "status": status, "reason": reason}
     if evidence:
@@ -150,6 +410,9 @@ def parity_gates(
     duplicate_count: int,
     recall: float | None,
     batch_quality: dict[str, Any] | None,
+    live_assessment: dict[str, Any],
+    readiness: dict[str, Any] | None,
+    outcome: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
     gates: list[dict[str, Any]] = [
         gate(
@@ -182,6 +445,7 @@ def parity_gates(
                 {"live_token_recall_in_batch": round(recall, 6)},
             )
         )
+    assessment_metrics = live_assessment.get("metrics") if isinstance(live_assessment, dict) else {}
     batch_metrics = {
         "unrepaired_long_mic_crossings_count": metric_value(batch_quality, "unrepaired_long_mic_crossings_count"),
         "local_only_island_recall": metric_value(batch_quality, "local_only_island_recall"),
@@ -189,15 +453,73 @@ def parity_gates(
         "needs_review_count": metric_value(batch_quality, "needs_review_count"),
         "cross_role_overlap_gt2_seconds": metric_value(batch_quality, "cross_role_overlap_gt2_seconds"),
     }
-    for name in ("order_risk", "local_recall", "remote_duplicate_leak", "review_burden", "missing_boundary_speech"):
-        gates.append(
-            gate(
-                name,
-                "not_evaluated",
-                "near-realtime shadow v1 does not yet produce batch-grade profile metrics for this gate",
-                {"batch_metrics": batch_metrics},
-            )
+    order_mismatches = int(assessment_metrics.get("live_order_mismatch_count") or 0)
+    missing_me_seconds = safe_float(assessment_metrics.get("live_missing_me_seconds"))
+    remote_leak_seconds = safe_float(assessment_metrics.get("live_suspected_remote_leak_in_me_seconds"))
+    gates.append(
+        gate(
+            "order_risk",
+            "passed" if order_mismatches == 0 else "warning",
+            "live turn order should not contradict the selected batch transcript order",
+            {"live_order_mismatch_count": order_mismatches, "batch_metrics": batch_metrics},
         )
+    )
+    gates.append(
+        gate(
+            "local_recall",
+            "passed" if missing_me_seconds <= 0.5 else "warning",
+            "batch Me speech should be visible in live mic turns when live draft is used as evidence",
+            {
+                "live_missing_me_seconds": round(missing_me_seconds, 3),
+                "live_missing_me_utterance_count": assessment_metrics.get("live_missing_me_utterance_count"),
+                "batch_metrics": batch_metrics,
+            },
+        )
+    )
+    gates.append(
+        gate(
+            "remote_duplicate_leak",
+            "passed" if remote_leak_seconds <= 0.5 else "warning",
+            "live mic turns should not look like selected batch remote speech",
+            {
+                "live_suspected_remote_leak_in_me_seconds": round(remote_leak_seconds, 3),
+                "live_suspected_remote_leak_in_me_count": assessment_metrics.get("live_suspected_remote_leak_in_me_count"),
+                "batch_metrics": batch_metrics,
+            },
+        )
+    )
+    outcome_metrics = outcome.get("metrics") if isinstance(outcome, dict) else {}
+    review_burden_sec = safe_float(outcome_metrics.get("review_burden_sec"))
+    review_burden_ratio = safe_float(outcome_metrics.get("review_burden_ratio"))
+    gates.append(
+        gate(
+            "review_burden",
+            "passed" if review_burden_ratio <= 0.03 else ("warning" if review_burden_ratio <= 0.12 else "failed"),
+            "selected batch outcome review burden is the maximum allowed burden for live cache promotion",
+            {
+                "review_burden_sec": round(review_burden_sec, 3),
+                "review_burden_ratio": round(review_burden_ratio, 6),
+            },
+        )
+    )
+    use_gate = readiness.get("use_gate") if isinstance(readiness, dict) else None
+    outcome_value = outcome.get("outcome") if isinstance(outcome, dict) else None
+    gates.append(
+        gate(
+            "selected_notes_readiness",
+            "passed" if use_gate == "ready_for_notes" or outcome_value == "ready_for_notes" else "warning",
+            "live parity is only promotion-ready when the authoritative batch result is notes-ready",
+            {"readiness_use_gate": use_gate, "outcome": outcome_value},
+        )
+    )
+    gates.append(
+        gate(
+            "chunk_boundary_risks",
+            "passed" if duplicate_count == 0 else "failed",
+            "live chunk boundaries should not introduce adjacent duplicate transcript text",
+            {"adjacent_duplicate_chunk_count": duplicate_count},
+        )
+    )
     return gates
 
 
@@ -211,14 +533,19 @@ def main() -> int:
     chunks = read_jsonl(chunks_path)
     transcript_path = selected_transcript_path(session)
     profile = selected_profile(session)
+    clean_dialogue_path = selected_clean_dialogue_path(session, profile)
+    batch_utterances = read_utterances(clean_dialogue_path)
     batch_quality_path = quality_report_path(session, profile)
     batch_quality = read_json(batch_quality_path) if batch_quality_path else None
+    readiness = read_json(session / "derived/readiness/session_readiness.json")
+    outcome = read_json(session / "derived/outcome/outcome.json")
     final_text = transcript_path.read_text(encoding="utf-8", errors="ignore") if transcript_path else ""
     live_text = "\n".join(chunk_text(row) for row in chunks)
     live_tokens = tokens(live_text)
     final_tokens = tokens(final_text)
     recall = bag_recall(live_tokens, final_tokens)
     duplicate_count = duplicate_adjacent_chunks(chunks)
+    live_assessment = assess_live_vs_batch(chunks, batch_utterances)
     blockers: list[str] = []
     warnings: list[str] = []
     if live_report is None:
@@ -227,17 +554,41 @@ def main() -> int:
         blockers.append("live_chunks_missing")
     if transcript_path is None:
         blockers.append("batch_transcript_missing")
+    if clean_dialogue_path is None or not batch_utterances:
+        blockers.append("batch_clean_dialogue_missing")
     if duplicate_count > 0:
         warnings.append("adjacent_live_chunk_duplicates_detected")
     if recall is not None and recall < 0.60:
         warnings.append("low_live_token_recall_in_batch")
+    if safe_float((live_assessment.get("metrics") or {}).get("live_missing_me_seconds")) > 0.5:
+        warnings.append("live_missing_me_speech_detected")
+    if safe_float((live_assessment.get("metrics") or {}).get("live_suspected_remote_leak_in_me_seconds")) > 0.5:
+        warnings.append("live_remote_leak_in_me_detected")
+    if int((live_assessment.get("metrics") or {}).get("live_order_mismatch_count") or 0) > 0:
+        warnings.append("live_order_mismatch_detected")
     gates = parity_gates(
         blockers=blockers,
         duplicate_count=duplicate_count,
         recall=recall,
         batch_quality=batch_quality,
+        live_assessment=live_assessment,
+        readiness=readiness,
+        outcome=outcome,
     )
     gate_statuses = {str(row.get("status")) for row in gates}
+    live_metrics = live_assessment.get("metrics") if isinstance(live_assessment, dict) else {}
+    batch_use_gate = readiness.get("use_gate") if isinstance(readiness, dict) else None
+    batch_outcome = outcome.get("outcome") if isinstance(outcome, dict) else None
+    all_parity_gates_passed = bool(gates) and all(row.get("status") == "passed" for row in gates)
+    meaningful_live_comparison = bool(
+        not blockers
+        and int(live_metrics.get("live_turn_count") or 0) > 0
+        and int(live_metrics.get("batch_utterance_count") or 0) > 0
+        and int(live_metrics.get("live_me_turn_count") or 0) > 0
+        and int(live_metrics.get("live_remote_turn_count") or 0) > 0
+        and int(live_metrics.get("batch_me_utterance_count") or 0) > 0
+        and int(live_metrics.get("batch_remote_utterance_count") or 0) > 0
+    )
     promotion_blockers = [
         "shadow_v1_never_promotes_by_default",
         *[str(row.get("name")) for row in gates if row.get("status") in {"blocked", "failed", "warning", "not_evaluated"}],
@@ -257,7 +608,10 @@ def main() -> int:
             "live_report": rel(live_report_path, session) if live_report_path.exists() else None,
             "live_chunks": rel(chunks_path, session) if chunks_path.exists() else None,
             "batch_transcript": rel(transcript_path, session) if transcript_path else None,
+            "batch_clean_dialogue": rel(clean_dialogue_path, session) if clean_dialogue_path else None,
             "batch_quality_report": rel(batch_quality_path, session) if batch_quality_path else None,
+            "readiness": "derived/readiness/session_readiness.json" if (session / "derived/readiness/session_readiness.json").exists() else None,
+            "outcome": "derived/outcome/outcome.json" if (session / "derived/outcome/outcome.json").exists() else None,
             "selected_batch_profile": profile,
         },
         "metrics": {
@@ -267,6 +621,18 @@ def main() -> int:
             "live_token_recall_in_batch": round(recall, 6) if recall is not None else None,
             "adjacent_duplicate_chunk_count": duplicate_count,
             "batch_authoritative": True,
+            "batch_use_gate": batch_use_gate,
+            "batch_outcome": batch_outcome,
+            "batch_ready_for_notes": bool(batch_use_gate == "ready_for_notes" or batch_outcome == "ready_for_notes"),
+            "all_parity_gates_passed": all_parity_gates_passed,
+            "meaningful_live_comparison": meaningful_live_comparison,
+            **live_metrics,
+        },
+        "risk_examples": {
+            "order_mismatches": (live_assessment.get("order_mismatches") or [])[:20],
+            "local_missing": (live_assessment.get("local_missing") or [])[:20],
+            "local_missing_suspicious_batch_me": (live_assessment.get("local_missing_suspicious_batch_me") or [])[:20],
+            "remote_leak": (live_assessment.get("remote_leak") or [])[:20],
         },
         "parity_gates": {
             "status": "not_promotable" if gate_statuses - {"passed"} else "passed_but_shadow_locked",

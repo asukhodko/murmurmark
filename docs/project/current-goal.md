@@ -1,54 +1,171 @@
-# Current Goal: Reliable Transcription Route v1
+# Current Goal Context
 
-Status, 2026-07-02: completed as v1. Outcome Contract v1, Gate Evaluator, Review Plan,
-Next Command, session-level Run Manifest and outcome-aware guarded export are implemented.
-The first follow-up, Review Burden Reduction v1, is also complete: the operational corpus now has a
-short explicit manual tail and no pending safe suggestions.
+This file keeps the latest completed goals for context. The next recommended goal is documented in
+the roadmap as Near-Realtime Live Parity Coverage v1: prove the live/near-realtime branch on real
+sessions before any live cache can be treated as more than a shadow acceleration path.
+
+## Latest Completed Goal: Reliable Processing UX v1
+
+Status, 2026-07-02: complete.
 
 Goal:
 
 ```text
-Reliable Transcription Route v1: превратить текущий набор record/process/audit/review/export
-слоёв в один надёжный unattended маршрут от полной записи до честного результата. Реализовать
-Outcome Contract v1, Gate Evaluator, Review Plan, Next Command и Resumable Run Manifest. Не менять
-raw CAF, default local_fir и основной whisper.cpp ASR без отдельных corpus gates.
+Reliable Processing UX v1: сделать post-recording путь MurmurMark надёжным и понятным для
+ежедневного использования. После записи пользователь запускает `murmurmark process latest` и
+получает не поток догадок, а ясный результат: `ready_for_notes`, `review_first` или `blocked`,
+путь к transcript/notes, точный review burden, причину блокировки экспорта и одну следующую
+команду. Пайплайн должен нормально возобновляться после прерывания, показывать понятный прогресс
+долгого ASR, не пересчитывать лишнее без `--force` и не оставлять пользователя гадать, завис процесс
+или работает.
 ```
 
-Plainly: the user should not have to supervise MurmurMark while it turns a recording into a
-transcript. A complete recording should lead to a clear result: usable notes, explicit short review,
-or an honest blocker. Long ASR should not look like a hang, export should not be offered when review
-is still required, and every remaining risk should point to an exact next command.
+Plainly: MurmurMark should feel less like a lab and more like a tool. The main user question after
+recording is simple: "Can I use this, where is the transcript, and what is the one next safe action?"
 
 Why this is the right next goal:
 
-- the CLI product is already real enough for pilot use, but not yet boring enough for daily trust;
-- recent sessions show the same pattern: capture and processing complete, but transcript order,
-  remote leak and review burden still decide whether the result can be used unattended;
-- adding more downstream cleanup alone will not converge unless the outcome contract and corpus gates
-  make "good enough" explicit;
-- ASR-positive Echo candidates, Target-Me evidence and stronger audio judge are now useful inputs to
-  a reliability route, not separate ends in themselves.
+- the core transcription/review pipeline is pilot-ready, but the terminal handoff is still too noisy;
+- long ASR and judge stages can look like a hang unless progress explains what is happening;
+- after interruption, the user needs a resume path, not a pile of derived files;
+- `outcome.json` already exists, so the shortest path is to make it the stable UX contract.
 
 Definition of done:
 
-- every processed session writes `derived/outcome/outcome.json`, `outcome.md`,
-  `review_plan.json` and `next_command.txt`;
-- `murmurmark status`, `next`, `outcome`, `finish`, `report session` and `report corpus --refresh`
-  expose or refresh the same outcome next action;
-- interrupted processing can be resumed without guessing which stage finished - implemented at
-  session-step/output-checkpoint level; ASR chunk/window resume remains future hardening;
-- corpus reports separate `ready_for_notes`, `review_first`, `blocked`, partial and diagnostic
-  sessions without hidden exceptions;
-- exported bundles are blocked unless the chosen outcome allows export;
-- `local_fir` remains the default Echo Guard path.
+- `murmurmark outcome SESSION` prints a compact human summary: can read notes, can export, review
+  burden, first review lane, next command and key file paths;
+- `derived/outcome/outcome.json` contains the same compact `summary` for tools and agents;
+- long-running `murmurmark process` steps print useful heartbeats with step reason, checkpoints and
+  resume command;
+- rerunning `murmurmark process SESSION` remains the normal recovery path after interruption;
+- docs describe the simple post-recording route and where deeper diagnostics live;
+- no change to capture, default `local_fir` or main `whisper.cpp` ASR.
 
 Follow-up hardening:
 
-- calibrate the first gates on corpus v0 labels;
-- add ASR chunk/window progress and resume checkpoints;
-- widen ASR-positive Echo candidate validation, still without default promotion;
-- reduce mandatory review burden further at the audio source instead of adding more downstream
-  cleanup.
+- add ASR window/chunk-level resume instead of whole-stage rerun;
+- add duration estimates from historical corpus timings;
+- make `status` default to the compact outcome view, with diagnostics behind an explicit flag;
+- keep reducing mandatory review burden at the audio source.
+
+Completion evidence, 2026-07-02:
+
+- `murmurmark outcome SESSION` prints `can_read_notes`, `can_export`, `export_blockers`, review
+  burden, first review lane, key file paths and the next command;
+- `outcome.json` carries the same compact `summary`;
+- long `murmurmark process` stages print heartbeat lines with step reason, checkpoint count and
+  resume command;
+- `process --plan-only` writes `pipeline_plan_report.json` and does not overwrite the last real
+  `pipeline_run_report.json` or refresh `outcome`;
+- `Ctrl-C` during `process` terminates the current child step, writes `status: interrupted`,
+  refreshes `outcome` and points back to `murmurmark process SESSION`;
+- checks passed: `py_compile`, `git diff --check`, `swift build`, `scripts/smoke-cli-handoff.sh`,
+  `scripts/smoke-fixture.sh`, `scripts/check-corpus-gates.py --no-fail`.
+
+## Latest Completed Goal: Chunked/Resumable Processing v1
+
+Status, 2026-07-03: complete.
+
+Goal:
+
+```text
+Chunked/Resumable Processing v1: превратить тяжёлую post-recording обработку MurmurMark из
+монолитных стадий в кусочный, кэшируемый и безопасно возобновляемый pipeline. После прерывания или
+сбоя `murmurmark process SESSION` должен продолжать с последнего проверенного chunk/checkpoint, не
+пересчитывать весь ASR без необходимости, показывать реальный прогресс по секундам/окнам и
+сохранять batch-quality результат. Live/near-realtime chunks могут использоваться как кэш только
+через строгие parity gates; batch transcript остаётся authoritative.
+```
+
+Why this was the right significant goal:
+
+- Reliable Processing UX now explains what happens, but the expensive ASR stage can still rerun too
+  much work;
+- near-realtime already exists as a shadow branch, but its chunks are not yet trusted as batch-grade
+  cache;
+- true resumability reduces waiting time, makes interruptions cheap and gives a concrete path from
+  batch-first to near-realtime without weakening transcript quality;
+- this goal does not require changing capture, default Echo Guard or main `whisper.cpp` ASR.
+
+Definition of done:
+
+- ASR/cache artifacts are indexed by stable chunk identity: source audio, model, language, prompt,
+  audio prep, window boundaries and tool version;
+- `murmurmark process SESSION` can skip already valid ASR chunks and resume after interruption;
+- run reports show chunk totals, completed seconds, missing chunks, reused chunks and estimated
+  remaining heavy work;
+- live/near-realtime ASR cache is reused only when strict metadata compatibility and parity checks
+  pass; otherwise the batch path recomputes safely;
+- corpus gates compare chunked/resumed output with current batch baseline for order risk, local
+  recall, remote leakage, review burden and selected notes readiness;
+- docs describe when to use `--force-asr`, when cache is reused, and how to inspect a stuck chunk.
+
+Completion evidence:
+
+- default `windowed` whisper.cpp ASR writes per-window chunk cache metadata and
+  `raw/chunks/<track>/chunk_cache_report.json`;
+- if the combined raw ASR JSON is missing but compatible chunk JSON remains, the bridge rebuilds the
+  combined raw JSON from chunks instead of rerunning all windows;
+- chunk identity includes source audio fingerprint, model, language, prompt, audio prep, window
+  boundaries and tool version;
+- `murmurmark process` heartbeat reads chunk cache reports and can show completed/missing/reused/
+  transcribed ASR windows, completed/remaining audio seconds and a current-run ETA when enough
+  progress exists;
+- `murmurmark process` runs `check-asr-chunk-cache.py --require-chunks` after `transcribe_current`;
+  `raw/chunk_rebuild_check.json` is a hard gate proving current raw ASR JSON can be rebuilt from
+  cached chunks;
+- `report-asr-chunk-cache-corpus.py` aggregates chunk rebuild checks across sessions, and
+  `check-corpus-gates.py` now treats failed ASR chunk-cache corpus reports as hard failures;
+- `materialize-live-asr-cache.py` now writes materialized `raw/chunks/<track>/` reports from eligible
+  live ASR chunks, so live-cache reuse is also covered by the same rebuild gate;
+- verified on a temporary 4.5s two-track session: after deleting only top-level `mic.json` and
+  `remote.json`, the second run reused `6/6` chunks, rebuilt the combined raw JSON, and the rebuild
+  verifier passed.
+- verified on a synthetic live-cache session: live chunks were materialized into raw chunk reports,
+  and `check-asr-chunk-cache.py --require-chunks` rebuilt `mic` and `remote` with `2/2` chunks.
+- verified on fourteen real sessions, including a real interrupted 29-minute `murmurmark process`
+  run: `report-asr-chunk-cache-corpus.py --refresh` reports `passed: 14`, `failed: 0`,
+  `coverage_ratio: 0.28`, `chunks_completed: 146/146`;
+- `check-corpus-gates.py --no-fail` now reports `asr_chunk_cache_status: passed` with
+  `asr_chunk_cache_passed_sessions: 14` and `asr_chunk_cache_coverage_ratio: 0.28`;
+- `check-corpus-gates.py --no-fail` now also reports live-cache parity state. After the first
+  diagnostic live capture, corpus live coverage is `1/51`, `live_cache_parity_promotion_allowed_sessions`
+  remains `0`, `meaningful_compared_sessions` is `1`, and `passing_compared_sessions` is `0`.
+  Strict live parity is not proven. The first live role/boundary gates reduce measured
+  remote-in-`Me` and adjacent chunk duplicates to `0`, but the comparison still has `0.57s` of
+  suspicious short batch `Me` missing from the live draft;
+- ASR chunk-cache corpus report now separates the next coverage work: `22` sessions have old raw
+  ASR without chunk reports, and `14` sessions have no raw ASR;
+- legacy top-level raw ASR caches without `raw/chunks/<track>/chunk_cache_report.json` no longer
+  satisfy `windowed` cache reuse by themselves; `murmurmark process` now rebuilds per-window chunks
+  first, then requires `check-asr-chunk-cache.py --require-chunks` to pass;
+- `pipeline_run_report.json` now carries `progress.asr_chunks.remaining_sec`,
+  `progress.asr_chunks.completed_ratio` and `progress.asr_remaining_estimate`;
+- `scripts/smoke-cli-handoff.sh` now includes a controlled fake-whisper failure/resume case: the
+  first run fails after one cached mic chunk, the second run reuses that chunk, transcribes the
+  remaining windows and passes `check-asr-chunk-cache.py --require-chunks`.
+- `scripts/smoke-process-chunk-resume.sh` now proves the same recovery through the actual
+  `run-session-pipeline.py` process path: first run fails in `transcribe_current`, rerun resumes,
+  reuses a cached mic chunk, passes `check_asr_chunk_cache` and writes zero remaining ASR chunks.
+- the same smoke now proves controlled `Ctrl-C` behavior in the actual process path: the interrupted
+  run writes `pipeline_run_report.json` with `status: interrupted`, leaves one verified mic chunk in
+  cache, and the next run reuses it instead of starting ASR from zero.
+- the same smoke also covers legacy raw-cache rollout: a pre-chunk `raw/mic.json`/`raw/remote.json`
+  pair without chunk reports is rebuilt into per-window chunks instead of being accepted as complete.
+- verified with the user-facing CLI on `sessions/2026-07-02_13-33-49`: the first real interrupted
+  long run wrote `pipeline_run_report.json` with `status: interrupted`, `transcribe_current`, ASR
+  progress `10/30` mic chunks and a `murmurmark process SESSION` resume command; the next run reused
+  `14` cached mic chunks, finished `60/60` total chunks and passed `check_asr_chunk_cache`.
+
+Follow-up hardening:
+
+- broader corpus no-regression comparison for chunked rebuild vs existing batch baseline;
+- corpus parity coverage for live-cache reuse on real sessions. The first real diagnostic
+  `record --live-pipeline` sample now exists and is compared, but strict live parity is still not
+  proven: `meaningful_compared_sessions` is `1`, `passing_compared_sessions` is `0`, measured
+  remote-in-`Me` and adjacent chunk duplicates are `0` after live role/boundary gates, while `0.57s`
+  of suspicious short batch `Me` are missing from live. The next evidence step is a passing real
+  live sample, not promotion.
 
 Primary design document:
 
@@ -57,6 +174,25 @@ Primary design document:
 Consultation prompt:
 
 - [Reliable Transcription Route / Consultation Prompt](reliable-transcription-route.md#consultation-prompt)
+
+## Completed Base Goal: Reliable Transcription Route v1
+
+Status, 2026-07-02: completed as v1. Outcome Contract v1, Gate Evaluator, Review Plan,
+Next Command, session-level Run Manifest and outcome-aware guarded export are implemented.
+Review Burden Reduction v1 is also complete: the operational corpus now has a short explicit manual
+tail and no pending safe suggestions.
+
+Completion evidence:
+
+- every processed session writes `derived/outcome/outcome.json`, `outcome.md`,
+  `review_plan.json` and `next_command.txt`;
+- `murmurmark status`, `next`, `outcome`, `finish`, `report session` and `report corpus --refresh`
+  expose or refresh the same outcome next action;
+- interrupted processing can be resumed at session-step/output-checkpoint level;
+- corpus reports separate `ready_for_notes`, `review_first`, `blocked`, partial and diagnostic
+  sessions without hidden exceptions;
+- exported bundles are blocked unless the chosen outcome allows export;
+- `local_fir` remains the default Echo Guard path.
 
 ## Latest Completed Follow-up: Review Burden Reduction v1
 

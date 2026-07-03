@@ -603,7 +603,9 @@ enum DoctorChecks {
             "scripts/compare-live-batch.py",
             "scripts/materialize-live-asr-cache.py",
             "scripts/report-live-corpus-gates.py",
+            "scripts/report-asr-chunk-cache-corpus.py",
             "scripts/transcribe-simple-whispercpp.py",
+            "scripts/check-asr-chunk-cache.py",
             "scripts/synthesize-simple-extractive.py",
             "scripts/audit-local-recall.py",
             "scripts/audit-transcript-order.py",
@@ -619,6 +621,7 @@ enum DoctorChecks {
             "scripts/apply-retention-policy.py",
             "scripts/build-provider-payload-manifest.py",
             "scripts/smoke-cli-handoff.sh",
+            "scripts/smoke-process-chunk-resume.sh",
         ] {
             let url = PathURLs.fileURL(path)
             if FileManager.default.fileExists(atPath: url.path) {
@@ -857,7 +860,7 @@ enum PipelineCommands {
 
         print("SESSION=\"\(PathDisplay.display(session))\"")
         fflush(stdout)
-        try Tooling.runPath(python, command)
+        try Tooling.runPathForwardingInterrupts(python, command)
         let planOnly = ArgumentEditing.hasOption("plan-only", in: forwarded)
         try ReadinessPrinter.printSession(session, label: planOnly ? "existing_readiness" : "readiness")
         if planOnly {
@@ -10588,10 +10591,18 @@ enum ReadinessPrinter {
         if FileManager.default.fileExists(atPath: comparisonURL.path),
            let comparison = try? JSONFiles.object(comparisonURL) {
             let gates = comparison["parity_gates"] as? [String: Any] ?? [:]
+            let metrics = comparison["metrics"] as? [String: Any] ?? [:]
             print("    batch_comparison:")
             print("      status: \(string(comparison["status"]) ?? "unknown")")
             print("      parity: \(string(gates["status"]) ?? "unknown")")
             print("      promotion_allowed: \(bool(comparison["promotion_allowed"]) ?? false)")
+            print("      meaningful: \(bool(metrics["meaningful_live_comparison"]) ?? false)")
+            print("      all_gates_passed: \(bool(metrics["all_parity_gates_passed"]) ?? false)")
+            print("      live_order_mismatches: \(int(metrics["live_order_mismatch_count"]) ?? 0)")
+            print(String(format: "      live_missing_me: %.1fs", double(metrics["live_missing_me_seconds"]) ?? 0.0))
+            print(String(format: "      suspicious_batch_me: %.1fs", double(metrics["live_suspicious_batch_me_missing_seconds"]) ?? 0.0))
+            print(String(format: "      live_remote_in_me: %.1fs", double(metrics["live_suspected_remote_leak_in_me_seconds"]) ?? 0.0))
+            print("      boundary_duplicates: \(int(metrics["adjacent_duplicate_chunk_count"]) ?? 0)")
             print("      report: \(PathDisplay.display(comparisonURL))")
         }
     }
@@ -10846,8 +10857,47 @@ enum ReadinessPrinter {
         if let next = string(payload["next_command"]), !next.isEmpty {
             print("  next: \(next)")
         }
+        let hasSummary = payload["summary"] is [String: Any]
+        if let summary = payload["summary"] as? [String: Any] {
+            print("  summary:")
+            if let headline = string(summary["headline"]), !headline.isEmpty {
+                print("    \(headline)")
+            }
+            if let canRead = bool(summary["can_read_notes"]) {
+                print("    can_read_notes: \(canRead)")
+            }
+            if let canExport = bool(summary["can_export"]) {
+                print("    can_export: \(canExport)")
+            }
+            let exportBlockers = strings(summary["export_blockers"])
+            if !exportBlockers.isEmpty {
+                let blockerText = exportBlockers.joined(separator: ", ")
+                print("    export_blockers: \(blockerText)")
+            }
+            if let review = double(summary["review_burden_minutes"]) {
+                print(String(format: "    review_burden: %.2f min", review))
+            }
+            if let transcriptReview = double(summary["transcript_review_burden_minutes"]) {
+                print(String(format: "    transcript_review_burden: %.2f min", transcriptReview))
+            }
+            if let lanes = int(summary["open_review_lanes"]) {
+                print("    open_review_lanes: \(lanes)")
+            }
+            if let firstLane = string(summary["first_review_lane"]), !firstLane.isEmpty {
+                print("    first_review_lane: \(firstLane)")
+            }
+            if let notesPath = string(summary["notes_path"]), !notesPath.isEmpty {
+                print("    notes: \(PathDisplay.display(session.appendingPathComponent(notesPath)))")
+            }
+            if let transcriptPath = string(summary["transcript_path"]), !transcriptPath.isEmpty {
+                print("    transcript: \(PathDisplay.display(session.appendingPathComponent(transcriptPath)))")
+            }
+            if let verdictPath = string(summary["quality_verdict_path"]), !verdictPath.isEmpty {
+                print("    verdict: \(PathDisplay.display(session.appendingPathComponent(verdictPath)))")
+            }
+        }
         if let metrics = payload["metrics"] as? [String: Any] {
-            if let review = double(metrics["review_burden_sec"]) {
+            if !hasSummary, let review = double(metrics["review_burden_sec"]) {
                 print(String(format: "  review_burden: %.2f min", review / 60.0))
             }
             if let harmful = double(metrics["audit_harmful_seconds_after"]) {
@@ -12927,6 +12977,68 @@ final class SignalBridge: @unchecked Sendable {
     }
 }
 
+final class ChildProcessSignalForwarder: @unchecked Sendable {
+    private let process: Process
+    private let queue = DispatchQueue(label: "murmurmark.child-process.signals")
+    private let lock = NSLock()
+    private var sources: [DispatchSourceSignal] = []
+    private var active = false
+
+    init(process: Process) {
+        self.process = process
+    }
+
+    func start() {
+        lock.lock()
+        guard !active else {
+            lock.unlock()
+            return
+        }
+        active = true
+        lock.unlock()
+
+        signal(SIGINT, SIG_IGN)
+        signal(SIGTERM, SIG_IGN)
+        addSource(signal: SIGINT) { [process] in
+            if process.isRunning {
+                process.interrupt()
+            }
+        }
+        addSource(signal: SIGTERM) { [process] in
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+    }
+
+    private func addSource(signal: Int32, handler: @escaping @Sendable () -> Void) {
+        let source = DispatchSource.makeSignalSource(signal: signal, queue: queue)
+        source.setEventHandler(handler: handler)
+        lock.lock()
+        sources.append(source)
+        lock.unlock()
+        source.resume()
+    }
+
+    func cancel() {
+        lock.lock()
+        guard active else {
+            lock.unlock()
+            return
+        }
+        active = false
+        let activeSources = sources
+        sources.removeAll()
+        lock.unlock()
+
+        for source in activeSources {
+            source.cancel()
+        }
+        signal(SIGINT, SIG_DFL)
+        signal(SIGTERM, SIG_DFL)
+    }
+}
+
 enum Tooling {
     static func which(_ name: String) -> String? {
         let paths = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map(String.init)
@@ -12960,11 +13072,41 @@ enum Tooling {
         }
     }
 
+    static func runPathForwardingInterrupts(_ executable: URL, _ arguments: [String]) throws {
+        let status = try runPathForwardingInterruptsAllowingExitCodes(executable, arguments, allowedExitCodes: [0])
+        guard status == 0 else {
+            throw CLIError("\(executable.lastPathComponent) exited with \(status)")
+        }
+    }
+
     static func runPathQuiet(_ executable: URL, _ arguments: [String]) throws {
         let status = try runPathQuietAllowingExitCodes(executable, arguments, allowedExitCodes: [0])
         guard status == 0 else {
             throw CLIError("\(executable.lastPathComponent) exited with \(status)")
         }
+    }
+
+    static func runPathForwardingInterruptsAllowingExitCodes(
+        _ executable: URL,
+        _ arguments: [String],
+        allowedExitCodes: Set<Int32>
+    ) throws -> Int32 {
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+            throw CLIError("executable not found: \(executable.path)")
+        }
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = arguments
+        process.standardInput = FileHandle.nullDevice
+        try process.run()
+        let signalForwarder = ChildProcessSignalForwarder(process: process)
+        signalForwarder.start()
+        process.waitUntilExit()
+        signalForwarder.cancel()
+        guard allowedExitCodes.contains(process.terminationStatus) else {
+            throw CLIError("\(executable.lastPathComponent) exited with \(process.terminationStatus)")
+        }
+        return process.terminationStatus
     }
 
     static func runPathAllowingExitCodes(_ executable: URL, _ arguments: [String], allowedExitCodes: Set<Int32>) throws -> Int32 {
