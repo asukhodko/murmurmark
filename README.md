@@ -304,7 +304,8 @@ are evaluated and which remain blockers. Current live comparison checks the live
 authoritative batch transcript for order mismatch, missing `Me` speech, suspected remote-in-`Me`
 leakage, selected batch review burden, notes readiness and adjacent chunk duplicates. Passing those
 checks is still not promotion: it only means the live branch is safe enough to keep studying as a
-speed-up candidate.
+speed-up candidate. The command also prints `recommended_next` and `next:` lines, so the report can
+point directly to failing gate evidence or the next live recording command.
 
 To make the current live-coverage goal explicit after recording real live sessions:
 

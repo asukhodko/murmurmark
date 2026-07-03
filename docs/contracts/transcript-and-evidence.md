@@ -4794,12 +4794,19 @@ Schema:
     "local_recall": {"passed": 2},
     "remote_duplicate_leak": {"passed": 2},
     "review_burden": {"warning": 1, "passed": 1}
-  }
+  },
+  "recommended_next": "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
+  "next_commands": [
+    "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
+    "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5"
+  ]
 }
 ```
 
 The corpus gate is deliberately conservative. Any `not_evaluated`, `blocked`, `failed` or `warning`
 gate prevents promotion. v1 is expected to remain `shadow_only_do_not_promote`.
+The report also carries `recommended_next` and `next_commands`, so a live-parity run can point either
+to the failing gate evidence or to the next real live sample command without weakening the gates.
 
 Strict coverage mode is optional and is intended for the current live-parity rollout:
 

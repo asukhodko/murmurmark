@@ -329,6 +329,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         ]
     )
     summary["strict_coverage_status"] = "not_requested" if not strict_requested else ("failed" if strict_failures else "passed")
+    next_commands = recommended_next_commands(summary, gate_counts)
     return {
         "schema": SCHEMA,
         "generator": {"name": "report-live-corpus-gates", "version": SCRIPT_VERSION},
@@ -357,7 +358,59 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "warnings": dict(warnings),
         "gate_counts": {name: dict(counts) for name, counts in sorted(gate_counts.items())},
         "sessions": rows,
+        "recommended_next": next_commands[0],
+        "next_commands": next_commands,
     }
+
+
+def recommended_next_commands(summary: dict[str, Any], gate_counts: dict[str, Counter[str]]) -> list[str]:
+    strict_command = (
+        "murmurmark corpus live all --min-live-sessions 1 --min-compared-sessions 1 "
+        "--min-meaningful-compared-sessions 1 --min-passing-compared-sessions 1 "
+        "--max-order-mismatches 0 --max-missing-me-sec 0 --max-remote-in-me-sec 0 "
+        "--max-boundary-duplicates 0 --require-passing-gates --fail-on-promotion"
+    )
+    if safe_int(summary.get("live_sessions")) == 0:
+        return [
+            "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
+            "murmurmark process latest",
+            strict_command,
+        ]
+    if safe_int(summary.get("compared_sessions")) == 0:
+        return [
+            "murmurmark process latest",
+            strict_command,
+        ]
+    if safe_int(summary.get("meaningful_compared_sessions")) == 0:
+        return [
+            "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
+            "murmurmark process latest",
+            strict_command,
+        ]
+    if safe_int(summary.get("passing_compared_sessions")) == 0:
+        commands = [
+            "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
+            "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
+            strict_command,
+        ]
+        non_passing = {
+            name: {status: count for status, count in counts.items() if status != "passed" and count > 0}
+            for name, counts in gate_counts.items()
+        }
+        if non_passing:
+            commands.insert(1, "jq '.gate_counts' sessions/_reports/live-pipeline/live_corpus_gates_report.json")
+        if safe_float(summary.get("live_suspicious_batch_me_missing_seconds")) > 0:
+            commands.insert(1, "jq '.sessions[] | select(.metrics.live_suspicious_batch_me_missing_seconds > 0)' sessions/_reports/live-pipeline/live_corpus_gates_report.json")
+        return commands
+    if safe_int(summary.get("promotion_allowed_sessions")) > 0:
+        return [
+            "jq '.sessions[] | select(.promotion_allowed == true)' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
+            strict_command,
+        ]
+    return [
+        strict_command,
+        "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
+    ]
 
 
 def write_markdown(path: Path, report: dict[str, Any]) -> None:
@@ -380,6 +433,13 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- live suspected remote-in-Me seconds: {summary.get('live_suspected_remote_leak_in_me_seconds', 0.0)}",
         f"- adjacent duplicate chunks: {summary.get('adjacent_duplicate_chunk_count', 0)}",
         f"- strict coverage: `{summary.get('strict_coverage_status')}`",
+        "",
+        "## Recommended Next",
+        "",
+    ]
+    for command in report.get("next_commands") or []:
+        lines.append(f"- `{command}`")
+    lines += [
         "",
         "## Sessions",
         "",
@@ -437,7 +497,11 @@ def main() -> int:
     print(f"live_suspected_remote_leak_in_me_seconds: {summary.get('live_suspected_remote_leak_in_me_seconds', 0.0)}")
     print(f"adjacent_duplicate_chunk_count: {summary.get('adjacent_duplicate_chunk_count', 0)}")
     print(f"strict_coverage: {summary.get('strict_coverage_status')}")
+    if report.get("recommended_next"):
+        print(f"recommended_next: {report['recommended_next']}")
     print(f"report: {md_path}")
+    for command in report.get("next_commands") or []:
+        print(f"next: {command}")
     strict = report.get("strict_coverage") or {}
     strict_failed = strict.get("status") == "failed"
     risk_failed = bool(args.fail_on_risk and (

@@ -155,7 +155,8 @@ The correct v1 outcome is normally `shadow_only_not_promotable`; promotion requi
 order risk, local recall, remote leakage, review burden and boundary speech. The current comparison
 already measures the first practical version of those checks from live chunks versus the selected
 batch transcript, but `promotion_allowed` must remain `false` until real live-session coverage is
-broad enough and the corpus gates are intentionally promoted.
+broad enough and the corpus gates are intentionally promoted. The command prints `recommended_next`
+and `next:` lines; use them to inspect the current blocker or start the next live sample.
 
 For the current live-parity coverage goal, use the strict form after recording at least one real
 live session:
