@@ -7047,9 +7047,10 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             await stopScreenCaptureStream()
             stopRemoteInputCapture()
             stopVoiceProcessingMic()
-            liveSegments?.closeAll()
             stopDate = Date()
             let actualDuration = max(0.0, (stopDate ?? Date()).timeIntervalSince(startDate))
+            try padScreenCaptureWritersToDuration(actualDuration)
+            liveSegments?.closeAll(finalDurationSeconds: actualDuration)
             let preFinishAudioCoverage = min(
                 writerCoverage(frames: micFramesWritten(), sampleRate: Double(sampleRate), actualDuration: actualDuration),
                 writerCoverage(frames: remoteFramesWritten(), sampleRate: Double(sampleRate), actualDuration: actualDuration)
@@ -7355,6 +7356,15 @@ extension SessionRecorder {
     private func appendWarning(_ warning: String) {
         stateQueue.sync {
             warnings.append(warning)
+        }
+    }
+
+    private func padScreenCaptureWritersToDuration(_ duration: TimeInterval) throws {
+        if microphoneBackend == .screenCaptureKit {
+            try micWriter?.padToDuration(duration)
+        }
+        if remoteBackend == .screenCaptureKit {
+            try remoteWriter?.padToDuration(duration)
         }
     }
 
@@ -7779,6 +7789,7 @@ final class AudioFileWriter {
     let url: URL
     let source: String
     private var file: AVAudioFile?
+    private var currentFormat: AVAudioFormat?
     private(set) var framesWritten: AVAudioFramePosition = 0
     private var firstPresentationTimeSec: Double?
     private var firstWallDate: Date?
@@ -7842,6 +7853,7 @@ final class AudioFileWriter {
     }
 
     private func ensureFile(format: AVAudioFormat) throws {
+        currentFormat = format
         guard file == nil else { return }
         do {
             file = try Self.makeAudioFile(url: url, processingFormat: format)
@@ -7856,6 +7868,19 @@ final class AudioFileWriter {
         } catch {
             throw CLIError("cannot write audio buffer for \(source): \(error.localizedDescription)")
         }
+    }
+
+    @discardableResult
+    func padToDuration(_ duration: TimeInterval) throws -> AVAudioFramePosition {
+        guard duration > 0, let currentFormat else { return 0 }
+        try ensureFile(format: currentFormat)
+        let targetFrames = AVAudioFramePosition((duration * currentFormat.sampleRate).rounded())
+        let missingFrames = targetFrames - framesWritten
+        if missingFrames > 0 {
+            try writeSilence(format: currentFormat, frames: missingFrames)
+            return missingFrames
+        }
+        return 0
     }
 
     private func timelineGapFrames(sampleBuffer: CMSampleBuffer, format: AVAudioFormat) -> AVAudioFramePosition {
@@ -8041,9 +8066,16 @@ final class LiveSegmentCapture {
         states[source] = state
     }
 
-    func closeAll() {
+    func closeAll(finalDurationSeconds: TimeInterval? = nil) {
         for source in Array(states.keys) {
             var state = states[source] ?? SourceState()
+            if let finalDurationSeconds, finalDurationSeconds > 0 {
+                try? padCurrentSegment(
+                    toGlobalDuration: finalDurationSeconds,
+                    source: source,
+                    state: &state
+                )
+            }
             for index in state.closing.indices.reversed() {
                 try? closePendingSegment(source: source, state: &state, at: index, final: false)
             }
@@ -8084,6 +8116,22 @@ final class LiveSegmentCapture {
                 break
             }
         }
+    }
+
+    private func padCurrentSegment(
+        toGlobalDuration duration: TimeInterval,
+        source _: String,
+        state: inout SourceState
+    ) throws {
+        guard let writer = state.writer, state.sampleRate > 0 else { return }
+        let targetGlobalFrame = AVAudioFramePosition((duration * state.sampleRate).rounded())
+        let missingGlobalFrames = targetGlobalFrame - state.cumulativeFrames
+        guard missingGlobalFrames > 0 else { return }
+        let targetFileDuration = Double(targetGlobalFrame - state.fileStartFrame) / state.sampleRate
+        let writtenFrames = try writer.padToDuration(targetFileDuration)
+        state.hardFrames += writtenFrames
+        state.fileFrames += writtenFrames
+        state.cumulativeFrames += writtenFrames
     }
 
     private func rotateSegment(source: String, state: inout SourceState) throws {
