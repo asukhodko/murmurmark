@@ -159,7 +159,10 @@ Live/near-realtime cache promotion is gated separately. `murmurmark corpus live`
 live parity report, and `scripts/check-corpus-gates.py` copies the live coverage/risk counters into
 the main corpus gate report. Current diagnostic coverage has started: `1/51` sessions has
 `live_batch_comparison.json`, promotion remains `shadow_only_do_not_promote`, and the sample is not
-promotion-safe because strict parity still fails on local recall and selected notes readiness.
+promotion-safe because the authoritative batch result is not notes-ready. The same sample has a
+warning for `0.57s` of suspicious short batch `Me` speech missing from the live draft; measured live
+order, local recall, remote-in-`Me` leakage and adjacent chunk duplicates are currently clean on this
+single diagnostic comparison.
 
 ## What Is Still Out Of Scope
 
