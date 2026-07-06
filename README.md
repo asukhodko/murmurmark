@@ -314,8 +314,10 @@ scripts/run-live-parity-pilot.sh --duration 45
 
 It first runs the local capture/live fail-open probe, then records a short lab-only live session,
 runs the normal batch pipeline, compares live output with batch output and refreshes
-`murmurmark corpus live all`. It writes `derived/live/live_parity_pilot_report.json` under the pilot
-session. Promotion must remain blocked and the batch transcript remains authoritative.
+`murmurmark corpus live all`. `--skip-safety-gate` only reuses an existing
+`full_fail_open_proof_passed` report; it does not allow a new live recording without proof. It writes
+`derived/live/live_parity_pilot_report.json` under the pilot session. Promotion must remain blocked
+and the batch transcript remains authoritative.
 
 The live worker is still shadow-grade, but it now has three lightweight protections before writing
 draft text: per-chunk mic echo cleanup, a role gate that suppresses mic text when it duplicates the

@@ -19,7 +19,7 @@ Options:
   --segment-sec SEC    Live segment length. Default: 15.
   --overlap-sec SEC    Live overlap length. Default: 3.
   --out SESSION        Output session path for a new pilot.
-  --skip-safety-gate   Do not run the local capture/live fail-open probe first.
+  --skip-safety-gate   Reuse the existing full capture proof instead of running the probe first.
   --force-asr          Force batch ASR during murmurmark process.
   --help               Show this help.
 
@@ -92,6 +92,8 @@ done
 
 command -v jq >/dev/null 2>&1 || fail "missing jq"
 
+capture_regression_report="${MURMURMARK_CAPTURE_REGRESSION_REPORT:-sessions/_reports/capture-regression/capture_regression_check.json}"
+
 bin="${MURMURMARK_BIN:-}"
 if [[ -z "$bin" ]]; then
   if command -v murmurmark >/dev/null 2>&1; then
@@ -113,6 +115,18 @@ fi
 if [[ "$record_new" == "1" && "$skip_safety_gate" != "1" ]]; then
   echo "[pilot] safety gate: system audio + live fail-open probe"
   MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
+fi
+
+if [[ "$record_new" == "1" ]]; then
+  proof_status="$(
+    jq -r '.capture_safe_proof.status // "missing"' "$capture_regression_report" 2>/dev/null || printf 'missing\n'
+  )"
+  if [[ "$proof_status" != "full_fail_open_proof_passed" ]]; then
+    if [[ "${MURMURMARK_ALLOW_UNSAFE_LIVE_PILOT_WITHOUT_PROOF:-0}" != "1" ]]; then
+      fail "capture-safe proof is not full_fail_open_proof_passed: ${proof_status}. Run MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh first."
+    fi
+    echo "[pilot] warning: bypassing missing capture-safe proof because MURMURMARK_ALLOW_UNSAFE_LIVE_PILOT_WITHOUT_PROOF=1" >&2
+  fi
 fi
 
 if [[ "$record_new" == "1" ]]; then

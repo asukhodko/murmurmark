@@ -61,6 +61,20 @@ fi
 "$bin" config init --config "$config_path" --force >/dev/null
 "$bin" config print --config "$config_path" >/dev/null
 
+live_pilot_denied_session="$workdir/live-pilot-denied"
+if MURMURMARK_CAPTURE_REGRESSION_REPORT="$workdir/missing-capture-proof.json" \
+  "$repo_root/scripts/run-live-parity-pilot.sh" \
+    --skip-safety-gate \
+    --out "$live_pilot_denied_session" >"$workdir/live-pilot-denied.out" 2>&1; then
+  echo "expected live parity pilot to reject new recording without full capture proof" >&2
+  exit 1
+fi
+grep -q 'capture-safe proof is not full_fail_open_proof_passed' "$workdir/live-pilot-denied.out"
+[[ ! -e "$live_pilot_denied_session/session.json" ]] || {
+  echo "live parity pilot created a session despite missing capture proof" >&2
+  exit 1
+}
+
 cd "$workdir"
 
 session="$workdir/sessions/cli-handoff"

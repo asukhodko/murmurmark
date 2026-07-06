@@ -4314,7 +4314,10 @@ Invariants:
 ### Live Parity Pilot Report
 
 `scripts/run-live-parity-pilot.sh` is the lab-only runner for collecting near-realtime evidence
-without promoting live output. It writes:
+without promoting live output. When it creates a new live recording, it must first have
+`capture_regression_check.json.capture_safe_proof.status == "full_fail_open_proof_passed"`.
+`--skip-safety-gate` reuses an existing full proof; it does not bypass this requirement. The runner
+writes:
 
 ```text
 derived/live/live_parity_pilot_report.json

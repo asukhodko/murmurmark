@@ -116,6 +116,11 @@ For a short lab pilot after the safety probe, run:
 scripts/run-live-parity-pilot.sh --duration 45
 ```
 
+The pilot refuses to create a new live recording unless
+`sessions/_reports/capture-regression/capture_regression_check.json` says
+`capture_safe_proof.status == "full_fail_open_proof_passed"`. `--skip-safety-gate` can reuse that
+existing proof, but it does not bypass the proof requirement.
+
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
 
 Experimental live-shadow recording is disabled by default:
