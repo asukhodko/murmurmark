@@ -9,6 +9,10 @@ letting them become empty transcripts or stale handoffs.
 
 Status, 2026-07-06: active.
 
+Current baseline:
+
+- [2026-07-06 Current Pipeline Stabilization Baseline](../testing/2026-07-06-current-pipeline-stabilization-baseline.md)
+
 Goal:
 
 ```text
