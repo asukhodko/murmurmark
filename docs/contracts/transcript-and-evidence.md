@@ -5066,12 +5066,13 @@ already present.
 
 The corpus gate is deliberately conservative. Any `not_evaluated`, `blocked`, `failed` or `warning`
 gate prevents promotion. v1 is expected to remain `shadow_only_do_not_promote`.
-The report also carries `gate_issues`, `recommended_next` and `next_commands`, so a live-parity run
-can point to failing gate evidence without weakening the gates. It must not suggest collecting more
-real live meetings while `--live-pipeline` is quarantined. `parity_dimensions` groups the per-session
-gates into the product safety dimensions required for future promotion: order risk, local recall,
-remote leakage, review burden, selected notes readiness, chunk-boundary risks, draft text recall,
-required artifacts and capture safety. Capture safety is built from `session.json` health and
+The Markdown report includes a `Capture Regression Proof` section with the same proof status. The
+report also carries `gate_issues`, `recommended_next` and `next_commands`, so a live-parity run can
+point to failing gate evidence without weakening the gates. It must not suggest collecting more real
+live meetings while `--live-pipeline` is quarantined. `parity_dimensions` groups the per-session gates
+into the product safety dimensions required for future promotion: order risk, local recall, remote
+leakage, review burden, selected notes readiness, chunk-boundary risks, draft text recall, required
+artifacts and capture safety. Capture safety is built from `session.json` health and
 `pipeline_run_report.json` blockers such as `interrupted_capture`, `silent_capture` and
 `sparse_capture`; objective-level live collection safety additionally requires the capture regression
 proof report above.

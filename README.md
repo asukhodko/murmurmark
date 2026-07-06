@@ -378,7 +378,8 @@ MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
 ```
 
 Until that report says `capture_safe_proof.status == "full_fail_open_proof_passed"`, live stays
-quarantined even if old live-vs-batch comparisons look clean.
+quarantined even if old live-vs-batch comparisons look clean. If the full proof cannot run in the
+current desktop session, the report should say `status: failed` instead of leaving stale proof data.
 When `capture_safety` is among blocking dimensions, `objective_audit.next_focus` must point to
 `capture_safe_redesign_before_more_live_coverage`; broader live coverage is not the next step until
 that proof exists.

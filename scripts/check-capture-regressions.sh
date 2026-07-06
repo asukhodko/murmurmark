@@ -44,11 +44,39 @@ write_report() {
       mode: $mode,
       live_capture_test_enabled: ($live_capture_test == "1"),
       capture_safe_proof: {
-        status: (if $live_capture_test == "1" and $status == "passed" then "full_fail_open_proof_passed" else "static_only" end),
+        status: (
+          if $status != "passed" then "failed"
+          elif $live_capture_test == "1" then "full_fail_open_proof_passed"
+          else "static_only"
+          end
+        ),
         required_for_real_live_collection: true
       },
       checks: .
     }' "$checks_jsonl" >"$report_path"
+}
+
+run_live_probe_step() {
+  local name="$1"
+  local mode="$2"
+  local success_note="$3"
+  shift 3
+
+  local log
+  log="$(mktemp "${TMPDIR:-/tmp}/murmurmark-capture-regression-${name}.XXXXXX")"
+  if ( "$@" ) >"$log" 2>&1; then
+    record_check "$name" "passed" "$mode" "$success_note"
+    rm -f "$log"
+    return 0
+  fi
+
+  local note
+  note="$(tail -20 "$log" | tr '\n' ' ' | cut -c1-700)"
+  record_check "$name" "failed" "$mode" "${note:-probe command failed}"
+  write_report "static_system_audio_live_fail_open" "failed"
+  cat "$log" >&2
+  rm -f "$log"
+  fail "$name failed; report written to $report_path"
 }
 
 require_tool() {
@@ -491,10 +519,16 @@ assert_live_pipeline_guard
 record_check "live_pipeline_guard" "passed" "static" "live pipeline remains disabled unless explicitly enabled for lab diagnostics"
 
 if [[ "${MURMURMARK_RUN_LIVE_CAPTURE_TEST:-0}" == "1" ]]; then
-  run_system_audio_capture_probe
-  record_check "system_audio_capture_probe" "passed" "live_probe" "short system-audio capture produced healthy remote audio"
-  scripts/smoke-live-segment-fail-open.sh
-  record_check "live_segment_fail_open_probe" "passed" "live_probe" "raw mic/remote capture survived an overloaded async live segment queue"
+  run_live_probe_step \
+    "system_audio_capture_probe" \
+    "live_probe" \
+    "short system-audio capture produced healthy remote audio" \
+    run_system_audio_capture_probe
+  run_live_probe_step \
+    "live_segment_fail_open_probe" \
+    "live_probe" \
+    "raw mic/remote capture survived an overloaded async live segment queue" \
+    scripts/smoke-live-segment-fail-open.sh
   write_report "static_system_audio_live_fail_open" "passed"
   echo "capture regression check ok (static + system-audio probe + live fail-open probe)"
 else

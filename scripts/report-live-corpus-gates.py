@@ -1440,6 +1440,30 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         "",
         f"- quarantine reason: {summary.get('live_quarantine_reason')}",
         "",
+        "## Capture Regression Proof",
+        "",
+    ]
+    capture_regression_check = (
+        report.get("capture_regression_check")
+        if isinstance(report.get("capture_regression_check"), dict)
+        else {}
+    )
+    if capture_regression_check:
+        lines += [
+            f"- report present: `{capture_regression_check.get('present')}`",
+            f"- status: `{capture_regression_check.get('status')}`",
+            f"- mode: `{capture_regression_check.get('mode')}`",
+            f"- capture-safe proof: `{capture_regression_check.get('capture_safe_proof_status')}`",
+            f"- path: `{capture_regression_check.get('path')}`",
+            "",
+        ]
+    else:
+        lines += [
+            "- report present: `false`",
+            "- capture-safe proof: `missing`",
+            "",
+        ]
+    lines += [
         "## Objective Audit",
         "",
     ]
