@@ -92,7 +92,8 @@ passed on a broader corpus.
 - Local release bundle, self-test, acceptance gate and open-source readiness check.
 - Recording reliability: duration/SIGINT complete normally, SIGTERM/SIGHUP/unrecovered capture stops
   become explicit partial sessions, severe wall-clock/audio-duration gaps are blocked as partial
-  captures, and `doctor` catches missing shareable displays before recording.
+  captures, all-silent mic+remote sessions are blocked before ASR, and `doctor` catches missing
+  shareable displays before recording.
 
 ## Reliability Direction
 
@@ -239,15 +240,17 @@ SESSION="sessions/<timestamp>"
 recommended_next: murmurmark process sessions/<timestamp>
 ```
 
-If capture stops before `Ctrl-C`, or if written CAF tracks cover far less time than the wall-clock
-recording, MurmurMark finalizes a partial session instead of pretending it is complete. In that case
-`record`, `status` and `next` point to `murmurmark inspect ...`; normal processing is blocked unless
-you explicitly pass `--allow-partial` for debugging.
+If capture stops before `Ctrl-C`, if written CAF tracks cover far less time than the wall-clock
+recording, or if both mic and remote tracks are effectively silent, MurmurMark finalizes or blocks the
+session instead of pretending it is complete. In that case `record`, `status`, `next` and `process`
+point to `murmurmark inspect ...`; normal processing is blocked unless you explicitly pass
+`--allow-partial` for debugging.
 
 ScreenCaptureKit may skip audio buffers during silence or source inactivity. MurmurMark preserves
 the meeting timeline in raw CAF files by inserting silence for timestamp gaps instead of compressing
-the recording to only the buffers that arrived. A long no-sample interval is recorded as a warning;
-it is not treated as a reason to restart capture by itself.
+the recording to only the buffers that arrived. If no ScreenCaptureKit audio samples arrive at the
+start of recording, MurmurMark now tries short restarts and then fails fast as a partial capture
+instead of letting a whole meeting become an empty transcript.
 
 Then run:
 
@@ -283,8 +286,10 @@ Segments have a non-overlapping authoritative window plus copied overlap context
 batch-grade reconcile through `murmurmark process --skip-build` and writes
 `derived/live/final_reconcile_report.json`. The normal batch result remains authoritative until
 corpus gates prove that the live branch matches it. If the live worker or derived live segment writer
-fails, recording should still produce a normal raw session package. If you need only the draft and
-want to run batch processing manually later, use `--live-no-finalize`.
+fails, recording should still produce a normal raw session package. After `Ctrl-C`, MurmurMark waits
+only a short finalization tail for the live worker; a stuck worker is terminated and batch reconcile
+continues. If you need only the draft and want to run batch processing manually later, use
+`--live-no-finalize`.
 
 The live worker is still shadow-grade, but it now has three lightweight protections before writing
 draft text: per-chunk mic echo cleanup, a role gate that suppresses mic text when it duplicates the

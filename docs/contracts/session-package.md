@@ -165,8 +165,9 @@ Health summary:
 - `degraded`
 - `failed`
 
-`partial` means capture ended before an explicit user stop or requested duration, or the final CAF
-tracks cover far less wall-clock time than the recording. Current partial stop reasons are:
+`partial` means capture ended before an explicit user stop or requested duration, the final CAF
+tracks cover far less wall-clock time than the recording, or capture produced no usable audio after
+startup retries. Current partial stop reasons are:
 
 - `stream_stopped`;
 - `capture_stalled`;
@@ -174,12 +175,14 @@ tracks cover far less wall-clock time than the recording. Current partial stop r
 - `sighup`.
 
 An explicit `sigint`/duration stop may still produce `status: partial` when audio coverage is
-incomplete. In that case `health.explicit_stop` can be `true`; the blocker is the coverage gap, not
-the stop signal.
+incomplete or both final tracks are effectively silent. In that case `health.explicit_stop` can be
+`true`; the blocker is audio evidence, not the stop signal.
 
 ScreenCaptureKit no-sample intervals are not partial by themselves. Raw CAF writers preserve the
 timeline by inserting silence for timestamp gaps, so pauses or skipped silent buffers do not compress
-the recording.
+the recording. At startup, however, a complete absence of ScreenCaptureKit audio samples is treated as
+a capture failure: MurmurMark retries the stream briefly and then finalizes a partial session rather
+than creating a long empty recording.
 
 For a partial session:
 
@@ -191,6 +194,10 @@ For a partial session:
 - normal `murmurmark process SESSION` must block unless `--allow-partial` is explicit;
 - `murmurmark status SESSION` and `murmurmark next SESSION` must point to `murmurmark inspect SESSION`
   when readiness has not already been generated.
+
+For an explicit-stop session whose mic and remote tracks are both silent, normal processing must also
+block with `blocker: silent_capture`. This prevents ASR from producing an empty transcript that looks
+like a valid meeting result.
 
 ## `events.jsonl`
 

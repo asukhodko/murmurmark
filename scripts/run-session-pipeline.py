@@ -22,6 +22,7 @@ INTERRUPTED_CAPTURE_WARNING_MARKERS = (
     "stream stopped with error",
     "capture produced no audio samples",
     "capture ended unexpectedly",
+    "capture finalized as partial because both mic and remote tracks are silent",
 )
 INTERRUPTED_CAPTURE_STOP_REASONS = {"stream_stopped", "capture_stalled", "sigterm", "sighup"}
 
@@ -204,6 +205,26 @@ def interrupted_capture_warnings(session: Path) -> list[str]:
     if partial and not matched:
         matched.append(f"capture ended unexpectedly: {reason or 'unknown'}")
     return matched
+
+
+def silent_capture_warnings(session: Path) -> list[str]:
+    session_json = read_json(session / "session.json")
+    if not isinstance(session_json, dict):
+        return []
+    health = session_json.get("health")
+    if not isinstance(health, dict):
+        return []
+    actual_duration = float(health.get("actual_duration_sec") or 0.0)
+    warnings = health.get("warnings")
+    if not isinstance(warnings, list):
+        return []
+    mic_silent = any("mic track appears silent or almost silent" in str(item) for item in warnings)
+    remote_silent = any("remote track appears silent or almost silent" in str(item) for item in warnings)
+    if actual_duration >= 30 and mic_silent and remote_silent:
+        return [str(item) for item in warnings if "track appears silent or almost silent" in str(item)] + [
+            "both mic and remote tracks are silent; ASR would produce an empty transcript"
+        ]
+    return []
 
 
 def resolve_murmurmark_bin(explicit: Path | None, repo_root: Path) -> str:
@@ -1230,6 +1251,7 @@ def main() -> int:
     started_at = datetime.now(timezone.utc).isoformat()
     final_status = "passed"
     interrupted_warnings = interrupted_capture_warnings(session)
+    silent_warnings = silent_capture_warnings(session)
     if interrupted_warnings and not args.allow_partial and not args.plan_only:
         report = write_interrupted_capture_report(
             args=args,
@@ -1244,6 +1266,31 @@ def main() -> int:
         print("  blocker: interrupted_capture", flush=True)
         print("  warning: capture stopped before Ctrl-C or requested duration", flush=True)
         print("  hint: inspect the partial session or re-record; use --allow-partial only for debugging", flush=True)
+        return 2
+    if silent_warnings and not args.allow_partial and not args.plan_only:
+        report = write_interrupted_capture_report(
+            args=args,
+            session=session,
+            report_path=report_path,
+            repo_root=repo_root,
+            plan_metadata=plan_metadata,
+            warnings=silent_warnings,
+            started_at=started_at,
+        )
+        report["blocker"] = "silent_capture"
+        if report.get("next_commands"):
+            report["next_commands"][0] = {
+                "id": "inspect_silent_session",
+                "command": f"murmurmark inspect {shell_path(session, repo_root)}",
+                "reason": "inspect the silent recording and capture warnings",
+            }
+        report["recommended_next"] = report["next_commands"][0]["command"]
+        write_json(report_path, report)
+        write_outcome_artifacts(session, report_path, repo_root)
+        print_pipeline_summary(report, report_path, repo_root)
+        print("  blocker: silent_capture", flush=True)
+        print("  warning: both mic and remote tracks are silent; transcription would be empty", flush=True)
+        print("  hint: inspect the session, run live capture check, then re-record", flush=True)
         return 2
 
     if args.plan_only:

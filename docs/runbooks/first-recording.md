@@ -116,10 +116,11 @@ shadow worker and writes `derived/live/transcript.draft.md`,
 normal batch-grade reconcile and writes `derived/live/final_reconcile_report.json`; if live ASR
 cannot be safely reused yet, the report says `speedup_status: fallback_batch_asr`. The draft is not
 the final transcript. If the worker crashes or falls behind, raw capture should still finish as a
-normal session and can be processed by the batch pipeline. The derived segment writer is also
-best-effort: if it fails, MurmurMark disables live segments with a warning instead of stopping raw
-recording. Use `--live-no-finalize` when you only want to test the live draft and run
-`murmurmark process` manually.
+normal session and can be processed by the batch pipeline. After `Ctrl-C`, MurmurMark waits only a
+short finalization tail for the live worker; a stuck worker is terminated and batch reconcile
+continues. The derived segment writer is also best-effort: if it fails, MurmurMark disables live
+segments with a warning instead of stopping raw recording. Use `--live-no-finalize` when you only
+want to test the live draft and run `murmurmark process` manually.
 After batch processing, `derived/live/live_parity_session_report.md` explains whether the session can
 count as a passing live comparison and lists the exact non-passing gates.
 
@@ -191,17 +192,19 @@ recording into the same session. A successful restart is written to `events.json
 `capture.restarted`.
 
 ScreenCaptureKit can omit audio buffers during silence or source inactivity. MurmurMark preserves
-the wall-clock timeline by inserting silence for timestamp gaps in the raw CAF tracks. A long
-no-sample interval is a warning, not a restart trigger by itself. If restart fails after a real stream
-stop, or if the final written CAF tracks still cover far less time than the wall-clock recording,
-MurmurMark finalizes the partial session, writes `session.json` with `status: partial`, records
-`health.partial: true`, records `capture.stopped` with `partial: true`, and exits with an error.
-`SIGTERM` and `SIGHUP` are also treated as unexpected stops rather than successful meeting ends.
+the wall-clock timeline by inserting silence for timestamp gaps in the raw CAF tracks. If no
+ScreenCaptureKit audio samples arrive at the start of recording, MurmurMark tries short restarts and
+then finalizes the session as partial instead of waiting through a whole meeting. If restart fails
+after a real stream stop, if the final written CAF tracks cover far less time than the wall-clock
+recording, or if both mic and remote tracks are effectively silent, MurmurMark writes explicit health
+warnings and blocks normal processing. `SIGTERM` and `SIGHUP` are also treated as unexpected stops
+rather than successful meeting ends.
 
-Do not process a partial session as a complete meeting; inspect it or start a new recording.
-`murmurmark status SESSION` and `murmurmark next SESSION` point to `murmurmark inspect SESSION` when
-readiness has not been generated yet. The normal `murmurmark process` path refuses unrecovered
-interrupted partial captures unless `--allow-partial` is passed explicitly for debugging.
+Do not process a partial or all-silent session as a complete meeting; inspect it or start a new
+recording. `murmurmark status SESSION` and `murmurmark next SESSION` point to
+`murmurmark inspect SESSION` for these cases. The normal `murmurmark process` path refuses
+unrecovered interrupted or silent captures unless `--allow-partial` is passed explicitly for
+debugging.
 
 Without `--out`, MurmurMark creates a fresh directory under `./sessions`, for example:
 

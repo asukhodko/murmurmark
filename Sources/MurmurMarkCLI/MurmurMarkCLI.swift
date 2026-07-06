@@ -6869,7 +6869,9 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var restartingScreenCapture = false
     private var screenCaptureRestartCount = 0
     private var lastSampleDate: Date?
+    private var screenCaptureSampleBufferCount = 0
     private var captureSilenceWarningCount = 0
+    private var captureSilenceRestartCount = 0
 
     init(
         outputDirectory: URL,
@@ -7082,6 +7084,14 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 )
                 if !exited {
                     appendWarning("live pipeline worker still running after \(Int(workerWaitSeconds.rounded()))s finalization wait")
+                    worker.terminate()
+                    try? eventLog.write(
+                        type: "live_pipeline.worker_terminated",
+                        fields: [
+                            "reason": "finalization_wait_timeout",
+                            "report": "derived/live/live_pipeline_report.json",
+                        ]
+                    )
                 }
             }
             if liveFinalizeEnabled, !finalizedAsPartial {
@@ -7131,12 +7141,20 @@ struct LiveFinalReconcileSnapshot {
 }
 
 extension SessionRecorder {
+    private struct CaptureSilenceSnapshot {
+        let silentFor: TimeInterval
+        let sinceStart: TimeInterval
+        let sampleCount: Int
+        let restartCount: Int
+    }
+
     func stream(_: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard CMSampleBufferDataIsReady(sampleBuffer), CMSampleBufferGetNumSamples(sampleBuffer) > 0 else {
             return
         }
         stateQueue.sync {
             lastSampleDate = Date()
+            screenCaptureSampleBufferCount += 1
         }
 
         do {
@@ -7234,12 +7252,43 @@ extension SessionRecorder {
 
     private func monitorCaptureSilence() async -> StopReason {
         let warningThreshold: TimeInterval = 60
+        let initialRestartThreshold: TimeInterval = 10
+        let initialFailureThreshold: TimeInterval = 45
+        let maxInitialRestartCount = 3
         while !Task.isCancelled {
-            let silentFor = stateQueue.sync {
+            let snapshot = stateQueue.sync { () -> CaptureSilenceSnapshot in
+                let now = Date()
                 let reference = lastSampleDate ?? startDate
-                return Date().timeIntervalSince(reference)
+                return CaptureSilenceSnapshot(
+                    silentFor: now.timeIntervalSince(reference),
+                    sinceStart: now.timeIntervalSince(startDate),
+                    sampleCount: screenCaptureSampleBufferCount,
+                    restartCount: captureSilenceRestartCount
+                )
             }
-            let warningBucket = Int(silentFor / warningThreshold)
+
+            if snapshot.sampleCount == 0 {
+                if snapshot.sinceStart >= initialFailureThreshold, snapshot.restartCount >= maxInitialRestartCount {
+                    let warning = "capture produced no ScreenCaptureKit audio samples for "
+                        + "\(Int(snapshot.sinceStart.rounded()))s after \(snapshot.restartCount) restart attempts"
+                    appendWarning(warning)
+                    print("\n\(warning); finalizing partial session...")
+                    return .captureStalled
+                }
+
+                if snapshot.silentFor >= initialRestartThreshold, snapshot.restartCount < maxInitialRestartCount {
+                    appendWarning("capture produced no ScreenCaptureKit audio samples for \(Int(snapshot.silentFor.rounded()))s")
+                    if await restartScreenCaptureStream(reason: .captureStalled) {
+                        stateQueue.sync {
+                            captureSilenceRestartCount += 1
+                        }
+                        continue
+                    }
+                    return .captureStalled
+                }
+            }
+
+            let warningBucket = Int(snapshot.silentFor / warningThreshold)
             if warningBucket > 0 {
                 let shouldWarn = stateQueue.sync { () -> Bool in
                     if warningBucket > captureSilenceWarningCount {
@@ -7250,8 +7299,13 @@ extension SessionRecorder {
                 }
                 if shouldWarn {
                     appendWarning(
-                        "no ScreenCaptureKit audio samples for \(Int(silentFor.rounded()))s; recording continues and timestamp gaps will be preserved"
+                        "no ScreenCaptureKit audio samples for \(Int(snapshot.silentFor.rounded()))s; "
+                            + "recording continues and timestamp gaps will be preserved"
                     )
+                    if await restartScreenCaptureStream(reason: .captureStalled) {
+                        continue
+                    }
+                    return .captureStalled
                 }
             }
             do {
@@ -7419,12 +7473,12 @@ extension SessionRecorder {
         if remoteInfo.frames == 0 {
             finalWarnings.append("remote track is empty")
         }
-        addSilenceWarning(
+        let micSilent = addSilenceWarning(
             source: "mic",
             file: outputDirectory.appendingPathComponent(micInfo.path),
             to: &finalWarnings
         )
-        addSilenceWarning(
+        let remoteSilent = addSilenceWarning(
             source: "remote",
             file: outputDirectory.appendingPathComponent(remoteInfo.path),
             to: &finalWarnings
@@ -7435,6 +7489,7 @@ extension SessionRecorder {
         let stopReason = finalStopReason
         let trackCoverage = min(audioCoverage(micInfo, actualDuration: actualDuration), audioCoverage(remoteInfo, actualDuration: actualDuration))
         let severeAudioCoverageGap = actualDuration >= 60 && trackCoverage < 0.80
+        let severeSilentCapture = actualDuration >= 30 && micSilent && remoteSilent
         if severeAudioCoverageGap {
             finalWarnings.append(
                 String(
@@ -7443,7 +7498,10 @@ extension SessionRecorder {
                 )
             )
         }
-        let partial = (stopReason?.isUnexpectedCaptureStop ?? false) || severeAudioCoverageGap
+        if severeSilentCapture {
+            finalWarnings.append("capture finalized as partial because both mic and remote tracks are silent")
+        }
+        let partial = (stopReason?.isUnexpectedCaptureStop ?? false) || severeAudioCoverageGap || severeSilentCapture
         if stopReason?.isUnexpectedCaptureStop == true {
             finalWarnings.append("capture ended unexpectedly: \(stopReason?.rawValue ?? "unknown")")
         } else if severeAudioCoverageGap {
@@ -7659,8 +7717,8 @@ extension SessionRecorder {
     private func livePipelineWorkerFinalizationWaitSeconds(capturedDuration: TimeInterval) -> TimeInterval {
         guard livePipelineEnabled && liveWorkerEnabled else { return 0 }
         let segmentCount = max(1.0, ceil(max(capturedDuration, liveSegmentSeconds) / max(liveSegmentSeconds, 1.0)))
-        let estimatedTailWork = 30.0 + segmentCount * 30.0
-        return min(900.0, max(60.0, estimatedTailWork))
+        let estimatedTailWork = segmentCount
+        return min(30.0, max(10.0, estimatedTailWork))
     }
 
     private func printHandoff() {
@@ -7777,15 +7835,16 @@ extension SessionRecorder {
         )
     }
 
-    private func addSilenceWarning(source: String, file: URL, to warnings: inout [String]) {
+    private func addSilenceWarning(source: String, file: URL, to warnings: inout [String]) -> Bool {
         guard FileManager.default.fileExists(atPath: file.path),
               let rmsDb = try? AudioLevelProbe.rmsDb(url: file),
               rmsDb < -65
         else {
-            return
+            return false
         }
 
         warnings.append("\(source) track appears silent or almost silent (RMS \(AudioLevelProbe.formatDb(rmsDb)))")
+        return true
     }
 
     private func microphoneName(for id: String) -> String {
@@ -10555,6 +10614,28 @@ enum ReadinessPrinter {
     static func printNext(_ session: URL, exportManifest explicitExportManifest: URL? = nil) throws {
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
         let sessionPath = PathDisplay.display(session)
+        if let blocked = pipelineBlockedPayload(session) {
+            let blocker = string(blocked["blocker"]) ?? "pipeline_blocked"
+            let nextCommands = blocked["next_commands"] as? [[String: Any]] ?? []
+            let command = string(blocked["recommended_next"])
+                ?? nextCommands.compactMap { string($0["command"]) }.first
+                ?? "murmurmark inspect \(sessionPath)"
+            print("")
+            print("next:")
+            print("  status: blocked")
+            print("  command: \(command)")
+            print("  source: pipeline_run")
+            print("  gate: \(blocker)")
+            print("  verdict: capture_failed")
+            if nextCommands.count > 1 {
+                print("  alternatives:")
+                for item in nextCommands.dropFirst().prefix(4) {
+                    guard let alternative = string(item["command"]), !alternative.isEmpty else { continue }
+                    print("    \(alternative)")
+                }
+            }
+            return
+        }
         guard FileManager.default.fileExists(atPath: url.path) else {
             if let partial = CaptureHealthState.partialInfo(session: session) {
                 print("")
@@ -10663,6 +10744,10 @@ enum ReadinessPrinter {
 
     static func printSession(_ session: URL, label: String = "readiness") throws {
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        if let blocked = pipelineBlockedPayload(session) {
+            printPipelineBlockedReadiness(label: label, session: session, pipeline: blocked)
+            return
+        }
         guard FileManager.default.fileExists(atPath: url.path) else {
             if let partial = CaptureHealthState.partialInfo(session: session) {
                 printPartialCaptureReadiness(label: label, session: session, partial: partial)
@@ -10771,6 +10856,62 @@ enum ReadinessPrinter {
         }
     }
 
+    private static func pipelineBlockedPayload(_ session: URL) -> [String: Any]? {
+        let url = session.appendingPathComponent("derived/pipeline-run/pipeline_run_report.json")
+        guard FileManager.default.fileExists(atPath: url.path),
+              let payload = try? JSONFiles.object(url),
+              string(payload["status"]) == "blocked"
+        else {
+            return nil
+        }
+        let blocker = string(payload["blocker"]) ?? ""
+        guard blocker == "silent_capture" || blocker == "interrupted_capture" else {
+            return nil
+        }
+        return payload
+    }
+
+    private static func printPipelineBlockedReadiness(label: String, session: URL, pipeline: [String: Any]) {
+        let sessionPath = PathDisplay.display(session)
+        let blocker = string(pipeline["blocker"]) ?? "pipeline_blocked"
+        let nextCommands = pipeline["next_commands"] as? [[String: Any]] ?? []
+        let recommendedNext = string(pipeline["recommended_next"])
+            ?? nextCommands.compactMap { string($0["command"]) }.first
+            ?? "murmurmark inspect \(sessionPath)"
+        print("")
+        print("\(label):")
+        print("  session: \(sessionPath)")
+        print("  status: blocked")
+        print("  recommended_next: \(recommendedNext)")
+        print("  use:")
+        print("    summary: capture failed; do not use transcript")
+        print("    can_read_notes: false")
+        print("    can_export: false")
+        print("    blocker: \(blocker)")
+        print("    minimum_step: \(recommendedNext)")
+        print("  gate: \(blocker)")
+        print("  recommendation: re_record")
+        if let warnings = pipeline["warnings"] as? [Any], !warnings.isEmpty {
+            print("  warnings:")
+            for warning in warnings.prefix(5) {
+                print("    - \(String(describing: warning))")
+            }
+        }
+        printLivePipelineSummary(session)
+        print("  open:")
+        print("    less \(sessionPath)/derived/pipeline-run/pipeline_run_report.json — Inspect the blocked pipeline report.")
+        print("  next:")
+        if nextCommands.isEmpty {
+            print("    \(recommendedNext) — Run the recommended next action.")
+        } else {
+            for item in nextCommands {
+                guard let command = string(item["command"]), !command.isEmpty else { continue }
+                let label = string(item["reason"]) ?? string(item["id"]) ?? "next"
+                print("    \(command) — \(label)")
+            }
+        }
+    }
+
     private static func printLivePipelineSummary(_ session: URL) {
         let reportURL = session.appendingPathComponent("derived/live/live_pipeline_report.json")
         guard FileManager.default.fileExists(atPath: reportURL.path),
@@ -10780,9 +10921,14 @@ enum ReadinessPrinter {
         }
         let progress = payload["progress"] as? [String: Any] ?? [:]
         let outputs = payload["outputs"] as? [String: Any] ?? [:]
+        let finalURL = session.appendingPathComponent("derived/live/final_reconcile_report.json")
+        let liveStatus = string(payload["status"]) ?? "unknown"
+        let displayLiveStatus = liveStatus == "running" && FileManager.default.fileExists(atPath: finalURL.path)
+            ? "stale_running_after_finalize"
+            : liveStatus
         print("  live_pipeline:")
         print("    mode: \(string(payload["mode"]) ?? "shadow")")
-        print("    status: \(string(payload["status"]) ?? "unknown")")
+        print("    status: \(displayLiveStatus)")
         print("    batch_authoritative: \(bool(payload["batch_authoritative"]) ?? true)")
         if let worker = string(payload["current_worker"]) {
             print("    worker: \(worker)")
@@ -10804,7 +10950,6 @@ enum ReadinessPrinter {
             print("    draft: \(PathDisplay.display(session.appendingPathComponent(draft)))")
         }
         print("    report: \(PathDisplay.display(reportURL))")
-        let finalURL = session.appendingPathComponent("derived/live/final_reconcile_report.json")
         if FileManager.default.fileExists(atPath: finalURL.path),
            let final = try? JSONFiles.object(finalURL) {
             print("    final_reconcile:")
@@ -11046,7 +11191,12 @@ enum ReadinessPrinter {
         let sessionPath = PathDisplay.display(session)
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
         let command: String
-        if let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil) {
+        if let blocked = pipelineBlockedPayload(session) {
+            let nextCommands = blocked["next_commands"] as? [[String: Any]] ?? []
+            command = string(blocked["recommended_next"])
+                ?? nextCommands.compactMap { string($0["command"]) }.first
+                ?? "murmurmark inspect \(sessionPath)"
+        } else if let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil) {
             command = exportHandoff.command
         } else if let outcome = try? outcomePayload(session),
            let outcomeCommand = string(outcome["next_command"]),
