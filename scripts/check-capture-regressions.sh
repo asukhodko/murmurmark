@@ -471,6 +471,13 @@ run_system_audio_capture_probe() {
   local session="$workdir/session"
   local record_log="$workdir/record.log"
 
+  # ScreenCaptureKit can briefly report no shareable displays when the screen just went idle.
+  # Wake the display immediately before the probe; the recorder holds sleep assertions after start.
+  if command -v caffeinate >/dev/null 2>&1; then
+    caffeinate -u -t 5 >/dev/null 2>&1 || true
+    sleep 1
+  fi
+
   (
     sleep 1
     ffplay -autoexit -loglevel quiet -f lavfi -i 'sine=frequency=770:duration=8:sample_rate=48000'

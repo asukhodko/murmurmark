@@ -581,6 +581,15 @@ def build_objective_audit(
             "priority": 0,
         }
     if next_focus.get("dimension") == "capture_safety":
+        if capture_proof_row_status == "passed":
+            next_focus = {
+                **next_focus,
+                "title": "Resolve historical capture-safety evidence",
+                "recommended_next": (
+                    "capture-safe fail-open proof passed; keep live quarantined, treat historical unsafe "
+                    "live sessions as negative evidence, and focus on capture-safe candidate parity blockers"
+                ),
+            }
         next_focus = {
             **next_focus,
             "capture_regression_check": {
