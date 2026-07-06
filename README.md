@@ -864,6 +864,10 @@ scripts/check-open-source-readiness.sh
 
 `scripts/check.sh` includes a static capture regression check. It keeps the ScreenCaptureKit system
 audio contract pinned so `remote` capture does not silently regress back to digital silence.
+When `sessions/_reports/session-quality/session_quality_report.json` exists, it also runs the
+current-pipeline stabilization audit: no usable/review-first session may have an empty transcript,
+incomplete sessions must not expose normal notes/transcript handoff, and `status latest` must agree
+with `next latest`.
 
 When changing recording code, also run one local live probe with real system audio:
 
@@ -877,6 +881,8 @@ track is silent or if ScreenCaptureKit restarts.
 Before trusting a pipeline change:
 
 ```bash
+murmurmark report corpus
+scripts/check-current-pipeline-stabilization.py
 murmurmark corpus process all --per-label 16 --max-items 160
 murmurmark corpus gate
 murmurmark next corpus --refresh

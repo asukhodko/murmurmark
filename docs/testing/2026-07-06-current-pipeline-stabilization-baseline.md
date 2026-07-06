@@ -11,12 +11,14 @@ existing pipeline without adding new product features or changing raw capture fi
 scripts/check.sh
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
 murmurmark report corpus
+scripts/check-current-pipeline-stabilization.py
 ```
 
 Result:
 
 - `scripts/check.sh`: passed.
 - capture regression check: passed in static and live modes.
+- current-pipeline stabilization audit: passed.
 - fresh short non-live recording with audible content: `sessions/2026-07-06_13-12-08`.
 - fresh silent/failed capture blocker reference: `sessions/2026-07-06_11-16-22`.
 
@@ -45,6 +47,7 @@ Generated report:
 ```text
 sessions/_reports/session-quality/session_quality_report.json
 sessions/_reports/operational-readiness/operational_readiness_report.json
+sessions/_reports/current-pipeline-stabilization/current_pipeline_stabilization_check.json
 ```
 
 All sessions under `sessions/`:
@@ -85,6 +88,8 @@ This is not yet completion of Current Pipeline Stabilization v1. It proves that:
 - incomplete sessions no longer show normal notes/transcript handoff just because old files exist;
 - corpus classification is available and separates usable, review-first, blocked and incomplete
   sessions.
+- `scripts/check-current-pipeline-stabilization.py` now checks these invariants from the corpus
+  report and CLI handoff.
 
 Remaining stabilization work:
 

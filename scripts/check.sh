@@ -9,6 +9,9 @@ swiftlint lint --quiet
 python3 -m py_compile scripts/*.py
 scripts/check-open-source-readiness.sh
 scripts/check-capture-regressions.sh
+if [[ -f sessions/_reports/session-quality/session_quality_report.json ]]; then
+  scripts/check-current-pipeline-stabilization.py
+fi
 if command -v cargo >/dev/null 2>&1; then
   cargo fmt --manifest-path tools/murmurmark-aec-webrtc/Cargo.toml --check
 fi
