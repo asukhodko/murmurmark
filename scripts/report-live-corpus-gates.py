@@ -15,8 +15,8 @@ DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
 DEFAULT_TARGET_PASSING_COMPARED_SESSIONS = 3
 LIVE_QUARANTINE_REASON = (
-    "live pipeline is quarantined because the current segment writer can starve ScreenCaptureKit "
-    "audio delivery; collect no new real live meetings until capture-safe redesign passes"
+    "live pipeline is quarantined because the async live path has not yet passed capture-safety "
+    "and parity gates; collect no new real live meetings until those gates pass"
 )
 PARITY_DIMENSIONS: dict[str, dict[str, Any]] = {
     "order_risk": {

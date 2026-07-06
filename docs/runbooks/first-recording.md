@@ -115,10 +115,11 @@ MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 \
   murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5
 ```
 
-Do not use this as the normal meeting command. The current Swift live segment writer can starve
+Do not use this as the normal meeting command. Older inline live segment writing could starve
 ScreenCaptureKit audio delivery, which can leave the raw `mic` and `remote` tracks mostly silent.
-The supported production path is the plain recording command above plus `murmurmark process latest`.
-Live-shadow mode is lab-only until it is redesigned so it cannot affect raw capture.
+The current async bounded live queue is lab-only until capture-safety and live-vs-batch parity gates
+pass. The supported production path is the plain recording command above plus
+`murmurmark process latest`.
 
 `--live-pipeline` duplicates closed mic/remote capture windows into `derived/live/audio/`, starts a
 shadow worker and writes `derived/live/transcript.draft.md`,

@@ -203,7 +203,7 @@ struct MurmurMark {
           audio-input remote capture and voice-processing mic capture are experimental comparison modes.
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C and finalizes the session.
-          --live-pipeline is disabled by default; the current live segment writer can starve ScreenCaptureKit audio delivery.
+          --live-pipeline is disabled by default; it remains lab-only until async live segments pass parity gates.
           Use plain `record --target-bundle system` for real meetings.
           Use --live-no-finalize only for lab diagnostics when unsafe live mode is explicitly enabled.
           SIGTERM/SIGHUP are treated as unexpected stops and leave a partial session.
@@ -440,8 +440,8 @@ enum Commands {
         let livePipelineEnabled = options.flag("live-pipeline")
         if livePipelineEnabled && ProcessInfo.processInfo.environment["MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE"] != "1" {
             throw CLIError(
-                "--live-pipeline is disabled for real recordings because the current live segment writer can starve " +
-                    "ScreenCaptureKit audio delivery. Use `murmurmark record --target-bundle system`. " +
+                "--live-pipeline is disabled for real recordings until the async live path passes parity gates. " +
+                    "Use `murmurmark record --target-bundle system`. " +
                     "For lab-only diagnostics set MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1."
             )
         }
@@ -511,9 +511,8 @@ enum Commands {
         The record command keeps macOS display/system idle sleep disabled while capture is active,
         because ScreenCaptureKit needs an awake desktop capture source.
 
-        --live-pipeline is disabled by default because the current live segment writer can starve
-        ScreenCaptureKit audio delivery. Use it only in lab diagnostics with
-        MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1.
+        --live-pipeline is disabled by default. Use it only in lab diagnostics with
+        MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 until the async live path passes parity gates.
         """)
     }
 }
@@ -7013,10 +7012,14 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 ]
             )
             if livePipelineEnabled {
+                let liveSegmentMaxPendingSamples = AsyncLiveSegmentCapture.resolveMaxPendingSamples()
+                let liveSegmentWriteDelayMilliseconds = AsyncLiveSegmentCapture.resolveWriteDelayMilliseconds()
                 let capture = try AsyncLiveSegmentCapture(
                     sessionDirectory: outputDirectory,
                     segmentSeconds: liveSegmentSeconds,
                     overlapSeconds: liveOverlapSeconds,
+                    maxPendingSamples: liveSegmentMaxPendingSamples,
+                    artificialWriteDelayMilliseconds: liveSegmentWriteDelayMilliseconds,
                     warningHandler: { [weak self] warning in
                         self?.appendWarning(warning)
                     }
@@ -7031,6 +7034,8 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                         "finalize_enabled": liveFinalizeEnabled,
                         "writer_mode": "async_bounded_queue",
                         "callback_policy": "raw_write_then_nonblocking_live_enqueue",
+                        "max_pending_samples": liveSegmentMaxPendingSamples,
+                        "artificial_write_delay_ms": liveSegmentWriteDelayMilliseconds,
                         "segments": "derived/live/segments.jsonl",
                     ]
                 )
@@ -8146,6 +8151,7 @@ final class AsyncLiveSegmentCapture: @unchecked Sendable {
     private let writerQueue = DispatchQueue(label: "murmurmark.live.segment.writer")
     private let stateQueue = DispatchQueue(label: "murmurmark.live.segment.state")
     private let maxPendingSamples: Int
+    private let artificialWriteDelayMilliseconds: Int
     private let warningHandler: (String) -> Void
 
     private var pendingSamples = 0
@@ -8158,6 +8164,7 @@ final class AsyncLiveSegmentCapture: @unchecked Sendable {
         segmentSeconds: TimeInterval,
         overlapSeconds: TimeInterval,
         maxPendingSamples: Int = 512,
+        artificialWriteDelayMilliseconds: Int = 0,
         warningHandler: @escaping (String) -> Void
     ) throws {
         writer = try LiveSegmentCapture(
@@ -8166,7 +8173,26 @@ final class AsyncLiveSegmentCapture: @unchecked Sendable {
             overlapSeconds: overlapSeconds
         )
         self.maxPendingSamples = max(1, maxPendingSamples)
+        self.artificialWriteDelayMilliseconds = max(0, min(artificialWriteDelayMilliseconds, 5000))
         self.warningHandler = warningHandler
+    }
+
+    static func resolveMaxPendingSamples() -> Int {
+        let env = ProcessInfo.processInfo.environment
+        guard let value = env["MURMURMARK_LIVE_SEGMENT_MAX_PENDING_SAMPLES"],
+              let parsed = Int(value) else {
+            return 512
+        }
+        return max(1, min(parsed, 100_000))
+    }
+
+    static func resolveWriteDelayMilliseconds() -> Int {
+        let env = ProcessInfo.processInfo.environment
+        guard let value = env["MURMURMARK_LIVE_SEGMENT_WRITE_DELAY_MS"],
+              let parsed = Int(value) else {
+            return 0
+        }
+        return max(0, min(parsed, 5000))
     }
 
     func enqueue(_ sampleBuffer: CMSampleBuffer, source: String) {
@@ -8208,6 +8234,9 @@ final class AsyncLiveSegmentCapture: @unchecked Sendable {
                 let shouldWrite = stateQueue.sync { !closed && !disabled }
                 guard shouldWrite else { return }
                 do {
+                    if artificialWriteDelayMilliseconds > 0 {
+                        Thread.sleep(forTimeInterval: Double(artificialWriteDelayMilliseconds) / 1000.0)
+                    }
                     try writer.write(queuedSample.sampleBuffer, source: source)
                     let duration = writer.capturedDurationSeconds()
                     stateQueue.sync {

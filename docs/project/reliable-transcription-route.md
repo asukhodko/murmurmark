@@ -226,9 +226,9 @@ Near-term work:
 
 - keep ASR chunk cache and rebuild checks as hard gates;
 - expand chunk-cache coverage over the real corpus;
-- keep `--live-pipeline` quarantined until segment production is redesigned;
-- do not collect real live-pipeline meetings while the current writer can starve ScreenCaptureKit;
-- after redesign, compare live draft to batch output through corpus gates.
+- keep `--live-pipeline` quarantined until the async bounded segment queue proves capture-safety;
+- do not collect real live-pipeline meetings while live capture-safety and parity evidence is missing;
+- after the proof, compare live draft to batch output through corpus gates.
 
 Acceptance:
 

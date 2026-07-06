@@ -162,9 +162,10 @@ covers `14/50` sessions with `0` failed chunk rebuilds and `146/146` completed A
 `14` cached ASR chunks and passed the rebuild gate.
 
 Live/near-realtime cache promotion is gated separately and is currently quarantined. Existing
-diagnostic live sessions are negative evidence: the live segment writer can starve ScreenCaptureKit
-audio delivery and leave raw capture mostly silent. Do not collect real meetings with
-`--live-pipeline` until that branch is redesigned so it cannot affect raw `mic`/`remote` capture.
+diagnostic live sessions are negative evidence for the old inline writer: it could starve
+ScreenCaptureKit audio delivery and leave raw capture mostly silent. The new async bounded live
+queue still needs capture-safety and parity proof. Do not collect real meetings with
+`--live-pipeline` until those gates pass.
 
 ## What Is Still Out Of Scope
 
@@ -880,15 +881,16 @@ current-pipeline stabilization audit: no usable/review-first session may have an
 incomplete sessions must not expose normal notes/transcript handoff, and `status latest` must agree
 with `next latest`.
 
-When changing recording code, also run one local system-audio probe:
+When changing recording code, also run one local system-audio and live fail-open probe:
 
 ```bash
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
 ```
 
 The probe plays a short local tone, records with the normal `record --target-bundle system` path,
-and fails if the `remote` track is silent or if ScreenCaptureKit restarts. The name of the
-environment variable is historical; the probe no longer uses `--live-pipeline`.
+and fails if the `remote` track is silent or if ScreenCaptureKit restarts. It also runs a lab-only
+unsafe live recording with a deliberately overloaded async live segment queue and fails if raw
+`mic`/`remote` capture does not survive after live-derived segments disable themselves.
 
 Before trusting a pipeline change:
 

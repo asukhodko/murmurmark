@@ -64,6 +64,12 @@ assert_static_capture_contract() {
 
   grep -q 'raw_write_then_nonblocking_live_enqueue' "$source_file" \
     || fail "live pipeline prepare event must record the capture-safe callback policy"
+
+  grep -q 'MURMURMARK_LIVE_SEGMENT_MAX_PENDING_SAMPLES' "$source_file" \
+    || fail "async live segment queue must expose a lab max-pending override for fail-open tests"
+
+  grep -q 'MURMURMARK_LIVE_SEGMENT_WRITE_DELAY_MS' "$source_file" \
+    || fail "async live segment queue must expose a lab write-delay override for fail-open tests"
 }
 
 assert_silent_pipeline_gate() {
@@ -440,7 +446,8 @@ assert_live_pipeline_guard
 
 if [[ "${MURMURMARK_RUN_LIVE_CAPTURE_TEST:-0}" == "1" ]]; then
   run_system_audio_capture_probe
-  echo "capture regression check ok (static + system-audio probe)"
+  scripts/smoke-live-segment-fail-open.sh
+  echo "capture regression check ok (static + system-audio probe + live fail-open probe)"
 else
   echo "capture regression check ok (static)"
 fi

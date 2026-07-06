@@ -20,9 +20,10 @@ Working now:
 - `shadow_v2` repair profile with no-regression gates, audit artifacts and start-of-call repair;
 - local extractive synthesis with quality verdicts, review items and evidence-backed notes;
 - Markdown/Obsidian-style export bundles, JSON/audit artifacts for review, and raw retention plans.
-- first near-realtime shadow branch exists, but is quarantined: tests showed that the current
-  `record --live-pipeline` segment writer can starve ScreenCaptureKit audio delivery and leave raw
-  meeting tracks mostly silent. It is disabled by default and must not be used for real meetings.
+- first near-realtime shadow branch exists, but is quarantined: tests showed that older inline
+  segment writing in `record --live-pipeline` can starve ScreenCaptureKit audio delivery and leave
+  raw meeting tracks mostly silent. The current async bounded segment queue still needs
+  capture-safety and parity proof. It is disabled by default and must not be used for real meetings.
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
@@ -109,9 +110,9 @@ contracts instead of introducing a separate workflow.
 
 The near-realtime CLI mode reuses these contracts as a future shadow branch, but the current
 implementation is disabled by default. It may be used only for lab diagnostics with an explicit
-unsafe environment flag until segment production is redesigned so it cannot affect raw
-ScreenCaptureKit capture. The normal v1 product path is batch-first: record raw `mic`/`remote`, then
-run `murmurmark process`.
+unsafe environment flag until the async segment queue proves that it cannot affect raw
+ScreenCaptureKit capture and live-vs-batch parity gates pass. The normal v1 product path is
+batch-first: record raw `mic`/`remote`, then run `murmurmark process`.
 
 Required commands:
 

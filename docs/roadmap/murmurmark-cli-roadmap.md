@@ -21,9 +21,9 @@ MurmurMark should become a dependable local CLI transcription pipeline for sensi
 
 The current product shape is batch-first: a meeting is recorded, then processed. During Current
 Pipeline Stabilization v1, this batch-first path is the only supported production route. A future
-near-realtime path should eventually reduce the wait after a meeting, but the current live segment
-writer is quarantined because it can starve ScreenCaptureKit audio delivery. Future near-realtime
-work must redesign segment production so it cannot affect raw capture.
+near-realtime path should eventually reduce the wait after a meeting. The old inline live segment
+writer is quarantined because it can starve ScreenCaptureKit audio delivery; the new async bounded
+segment queue must prove capture-safety before real live coverage resumes.
 
 The optional UI/app path is deliberately late. It should not block the useful CLI product.
 
