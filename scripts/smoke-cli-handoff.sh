@@ -764,7 +764,7 @@ jq -e '
   and ([.tracks[] | select(.status == "pass")] | length == 2)
 ' "$chunk_resume_session/derived/transcript-simple/whisper-cpp/raw/chunk_rebuild_check.json" >/dev/null
 
-live_parity_session="$workdir/sessions/live-parity-smoke"
+live_parity_session="$workdir/sessions/2026-07-06_00-00-00"
 mkdir -p \
   "$live_parity_session/derived/live" \
   "$live_parity_session/derived/transcript-simple/whisper-cpp/resolved" \
@@ -860,9 +860,14 @@ jq -e '
   --out-dir "$workdir/live-report" >/dev/null
 jq -e '
   .summary.live_sessions == 1
+  and .summary.real_live_sessions == 1
+  and .summary.diagnostic_live_sessions == 0
   and .summary.compared_sessions == 1
+  and .summary.real_compared_sessions == 1
   and .summary.meaningful_compared_sessions == 1
+  and .summary.real_meaningful_compared_sessions == 1
   and .summary.passing_compared_sessions == 1
+  and .summary.real_passing_compared_sessions == 1
   and .summary.promotion_allowed_sessions == 0
   and .summary.live_quarantined == true
   and .summary.live_evidence_mode == "historical_debug_only"

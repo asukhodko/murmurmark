@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import Any
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
 SCRIPT_VERSION = "0.6.0"
+REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
 DEFAULT_TARGET_PASSING_COMPARED_SESSIONS = 3
@@ -235,6 +237,33 @@ def meaningful_comparison(metrics: dict[str, Any], comparison_status: Any) -> bo
     )
 
 
+def evidence_scope(session: Path, root: Path) -> str:
+    session_name = rel(session, root).split("/", maxsplit=1)[0]
+    return "real_meeting" if REAL_SESSION_RE.match(session_name) else "diagnostic"
+
+
+def summarize_dimensions(rows: list[dict[str, Any]]) -> tuple[dict[str, Counter[str]], dict[str, list[str]]]:
+    dimension_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    dimension_issue_sessions: dict[str, list[str]] = defaultdict(list)
+    for row in rows:
+        dimensions = row.get("parity_dimensions") if isinstance(row.get("parity_dimensions"), dict) else {}
+        for key in PARITY_DIMENSIONS:
+            value = dimensions.get(key) if isinstance(dimensions, dict) else None
+            status = str(value.get("status") if isinstance(value, dict) else "missing")
+            dimension_counts[key][status] += 1
+            if status != "passed":
+                dimension_issue_sessions[key].append(str(row.get("session") or ""))
+    return dimension_counts, dimension_issue_sessions
+
+
+def sum_metric(rows: list[dict[str, Any]], metric: str) -> float:
+    return round(sum(float(((row.get("metrics") or {}).get(metric) or 0.0)) for row in rows), 3)
+
+
+def sum_int_metric(rows: list[dict[str, Any]], metric: str) -> int:
+    return sum(int(((row.get("metrics") or {}).get(metric) or 0)) for row in rows)
+
+
 def summarize_session(session: Path, root: Path) -> dict[str, Any]:
     live_report_path = session / "derived/live/live_pipeline_report.json"
     comparison_path = session / "derived/live/live_batch_comparison.json"
@@ -255,6 +284,7 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
     gates = gate_rows(comparison)
     return {
         "session": rel(session, root),
+        "evidence_scope": evidence_scope(session, root),
         "live_present": live_present,
         "live_status": live_report.get("status") if isinstance(live_report, dict) else None,
         "comparison_status": comparison_status,
@@ -305,7 +335,10 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
 def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> dict[str, Any]:
     rows = [summarize_session(session, root) for session in sessions]
     live_rows = [row for row in rows if row["live_present"]]
+    real_live_rows = [row for row in live_rows if row.get("evidence_scope") == "real_meeting"]
+    diagnostic_live_rows = [row for row in live_rows if row.get("evidence_scope") != "real_meeting"]
     gate_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    real_gate_counts: dict[str, Counter[str]] = defaultdict(Counter)
     blockers = Counter()
     warnings = Counter()
     for row in rows:
@@ -315,59 +348,59 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             warnings[str(warning)] += 1
         for gate in row.get("gates") or []:
             gate_counts[str(gate.get("name") or "unknown")][str(gate.get("status") or "unknown")] += 1
-    dimension_counts: dict[str, Counter[str]] = defaultdict(Counter)
-    dimension_issue_sessions: dict[str, list[str]] = defaultdict(list)
-    for row in live_rows:
-        dimensions = row.get("parity_dimensions") if isinstance(row.get("parity_dimensions"), dict) else {}
-        for key in PARITY_DIMENSIONS:
-            value = dimensions.get(key) if isinstance(dimensions, dict) else None
-            status = str(value.get("status") if isinstance(value, dict) else "missing")
-            dimension_counts[key][status] += 1
-            if status != "passed":
-                dimension_issue_sessions[key].append(str(row.get("session") or ""))
+    for row in real_live_rows:
+        for gate in row.get("gates") or []:
+            real_gate_counts[str(gate.get("name") or "unknown")][str(gate.get("status") or "unknown")] += 1
+    dimension_counts, dimension_issue_sessions = summarize_dimensions(live_rows)
+    real_dimension_counts, real_dimension_issue_sessions = summarize_dimensions(real_live_rows)
     promotable = [row for row in rows if row.get("promotion_allowed")]
     not_promotable = [row for row in live_rows if row.get("parity_status") != "passed_but_shadow_locked"]
     summary = {
         "sessions_total": len(rows),
         "live_sessions": len(live_rows),
+        "real_live_sessions": len(real_live_rows),
+        "diagnostic_live_sessions": len(diagnostic_live_rows),
         "compared_sessions": sum(1 for row in rows if row.get("comparison_status") == "shadow_compared"),
+        "real_compared_sessions": sum(1 for row in real_live_rows if row.get("comparison_status") == "shadow_compared"),
         "meaningful_compared_sessions": sum(1 for row in rows if row.get("meaningful_compared")),
+        "real_meaningful_compared_sessions": sum(1 for row in real_live_rows if row.get("meaningful_compared")),
         "passing_compared_sessions": sum(1 for row in rows if row.get("all_parity_gates_passed")),
+        "real_passing_compared_sessions": sum(1 for row in real_live_rows if row.get("all_parity_gates_passed")),
         "blocked_sessions": sum(1 for row in rows if row.get("comparison_status") == "blocked"),
         "promotion_allowed_sessions": len(promotable),
         "promotion_decision": "shadow_only_do_not_promote",
         "speedup_supported_sessions": sum(
             1 for row in rows if (row.get("final_reconcile") or {}).get("speedup_status") == "live_asr_cache_reused"
         ),
-        "live_order_mismatch_count": sum(int(((row.get("metrics") or {}).get("live_order_mismatch_count") or 0)) for row in rows),
-        "live_missing_me_seconds": round(
-            sum(float(((row.get("metrics") or {}).get("live_missing_me_seconds") or 0.0)) for row in rows),
-            3,
+        "live_order_mismatch_count": sum_int_metric(rows, "live_order_mismatch_count"),
+        "real_live_order_mismatch_count": sum_int_metric(real_live_rows, "live_order_mismatch_count"),
+        "live_missing_me_seconds": sum_metric(rows, "live_missing_me_seconds"),
+        "real_live_missing_me_seconds": sum_metric(real_live_rows, "live_missing_me_seconds"),
+        "live_suspicious_batch_me_missing_seconds": sum_metric(rows, "live_suspicious_batch_me_missing_seconds"),
+        "real_live_suspicious_batch_me_missing_seconds": sum_metric(
+            real_live_rows,
+            "live_suspicious_batch_me_missing_seconds",
         ),
-        "live_suspicious_batch_me_missing_seconds": round(
-            sum(float(((row.get("metrics") or {}).get("live_suspicious_batch_me_missing_seconds") or 0.0)) for row in rows),
-            3,
+        "live_suspected_remote_leak_in_me_seconds": sum_metric(rows, "live_suspected_remote_leak_in_me_seconds"),
+        "real_live_suspected_remote_leak_in_me_seconds": sum_metric(
+            real_live_rows,
+            "live_suspected_remote_leak_in_me_seconds",
         ),
-        "live_suspected_remote_leak_in_me_seconds": round(
-            sum(float(((row.get("metrics") or {}).get("live_suspected_remote_leak_in_me_seconds") or 0.0)) for row in rows),
-            3,
-        ),
-        "adjacent_duplicate_chunk_count": sum(
-            int(((row.get("metrics") or {}).get("adjacent_duplicate_chunk_count") or 0)) for row in rows
-        ),
+        "adjacent_duplicate_chunk_count": sum_int_metric(rows, "adjacent_duplicate_chunk_count"),
+        "real_adjacent_duplicate_chunk_count": sum_int_metric(real_live_rows, "adjacent_duplicate_chunk_count"),
     }
     coverage_target = {
         "target_live_sessions": args.target_live_sessions,
         "target_meaningful_compared_sessions": args.target_meaningful_compared_sessions,
         "target_passing_compared_sessions": args.target_passing_compared_sessions,
-        "live_sessions_remaining": max(0, args.target_live_sessions - summary["live_sessions"]),
+        "live_sessions_remaining": max(0, args.target_live_sessions - summary["real_live_sessions"]),
         "meaningful_compared_sessions_remaining": max(
             0,
-            args.target_meaningful_compared_sessions - summary["meaningful_compared_sessions"],
+            args.target_meaningful_compared_sessions - summary["real_meaningful_compared_sessions"],
         ),
         "passing_compared_sessions_remaining": max(
             0,
-            args.target_passing_compared_sessions - summary["passing_compared_sessions"],
+            args.target_passing_compared_sessions - summary["real_passing_compared_sessions"],
         ),
     }
     coverage_target["status"] = (
@@ -393,9 +426,11 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["target_status"] = target_status
     promotion_blocking_dimensions = [
         key
-        for key, counts in dimension_counts.items()
+        for key, counts in real_dimension_counts.items()
         if any(status != "passed" and count > 0 for status, count in counts.items())
     ]
+    if live_rows and not real_live_rows:
+        promotion_blocking_dimensions = list(PARITY_DIMENSIONS.keys())
     summary["promotion_blocking_dimensions"] = promotion_blocking_dimensions
     summary["promotion_blocking_dimension_count"] = len(promotion_blocking_dimensions)
     summary["live_quarantined"] = True
@@ -406,58 +441,78 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     def add_failure(gate_id: str, message: str, value: Any, limit: Any) -> None:
         strict_failures.append({"id": gate_id, "message": message, "value": value, "limit": limit})
 
-    if args.min_live_sessions and summary["live_sessions"] < args.min_live_sessions:
-        add_failure("min_live_sessions", "not enough real live sessions", summary["live_sessions"], args.min_live_sessions)
-    if args.min_compared_sessions and summary["compared_sessions"] < args.min_compared_sessions:
+    if args.min_live_sessions and summary["real_live_sessions"] < args.min_live_sessions:
+        add_failure("min_live_sessions", "not enough real live sessions", summary["real_live_sessions"], args.min_live_sessions)
+    if args.min_compared_sessions and summary["real_compared_sessions"] < args.min_compared_sessions:
         add_failure(
             "min_compared_sessions",
             "not enough live-vs-batch compared sessions",
-            summary["compared_sessions"],
+            summary["real_compared_sessions"],
             args.min_compared_sessions,
         )
     if (
         args.min_meaningful_compared_sessions
-        and summary["meaningful_compared_sessions"] < args.min_meaningful_compared_sessions
+        and summary["real_meaningful_compared_sessions"] < args.min_meaningful_compared_sessions
     ):
         add_failure(
             "min_meaningful_compared_sessions",
             "not enough compared sessions with both Me and remote evidence",
-            summary["meaningful_compared_sessions"],
+            summary["real_meaningful_compared_sessions"],
             args.min_meaningful_compared_sessions,
         )
-    if args.min_passing_compared_sessions and summary["passing_compared_sessions"] < args.min_passing_compared_sessions:
+    if args.min_passing_compared_sessions and summary["real_passing_compared_sessions"] < args.min_passing_compared_sessions:
         add_failure(
             "min_passing_compared_sessions",
             "not enough compared sessions where every live parity gate passed",
-            summary["passing_compared_sessions"],
+            summary["real_passing_compared_sessions"],
             args.min_passing_compared_sessions,
         )
-    if args.max_order_mismatches is not None and summary["live_order_mismatch_count"] > args.max_order_mismatches:
-        add_failure("max_order_mismatches", "live order mismatches exceed limit", summary["live_order_mismatch_count"], args.max_order_mismatches)
-    if args.max_missing_me_sec is not None and summary["live_missing_me_seconds"] > args.max_missing_me_sec:
-        add_failure("max_missing_me_sec", "live missing Me seconds exceed limit", summary["live_missing_me_seconds"], args.max_missing_me_sec)
-    if args.max_remote_in_me_sec is not None and summary["live_suspected_remote_leak_in_me_seconds"] > args.max_remote_in_me_sec:
+    if args.max_order_mismatches is not None and summary["real_live_order_mismatch_count"] > args.max_order_mismatches:
+        add_failure(
+            "max_order_mismatches",
+            "real live order mismatches exceed limit",
+            summary["real_live_order_mismatch_count"],
+            args.max_order_mismatches,
+        )
+    if args.max_missing_me_sec is not None and summary["real_live_missing_me_seconds"] > args.max_missing_me_sec:
+        add_failure(
+            "max_missing_me_sec",
+            "real live missing Me seconds exceed limit",
+            summary["real_live_missing_me_seconds"],
+            args.max_missing_me_sec,
+        )
+    if (
+        args.max_remote_in_me_sec is not None
+        and summary["real_live_suspected_remote_leak_in_me_seconds"] > args.max_remote_in_me_sec
+    ):
         add_failure(
             "max_remote_in_me_sec",
-            "live suspected remote-in-Me seconds exceed limit",
-            summary["live_suspected_remote_leak_in_me_seconds"],
+            "real live suspected remote-in-Me seconds exceed limit",
+            summary["real_live_suspected_remote_leak_in_me_seconds"],
             args.max_remote_in_me_sec,
         )
-    if args.max_boundary_duplicates is not None and summary["adjacent_duplicate_chunk_count"] > args.max_boundary_duplicates:
+    if (
+        args.max_boundary_duplicates is not None
+        and summary["real_adjacent_duplicate_chunk_count"] > args.max_boundary_duplicates
+    ):
         add_failure(
             "max_boundary_duplicates",
-            "adjacent live chunk duplicates exceed limit",
-            summary["adjacent_duplicate_chunk_count"],
+            "real adjacent live chunk duplicates exceed limit",
+            summary["real_adjacent_duplicate_chunk_count"],
             args.max_boundary_duplicates,
         )
     if args.fail_on_promotion and summary["promotion_allowed_sessions"] > 0:
         add_failure("no_promotion", "live promotion must remain blocked in v1", summary["promotion_allowed_sessions"], 0)
     if args.require_passing_gates:
         non_passing: dict[str, dict[str, int]] = {}
-        for name, counts in gate_counts.items():
+        if not real_live_rows:
+            add_failure("require_passing_gates", "no real live sessions available for parity gates", 0, "> 0")
+        for name, counts in real_gate_counts.items():
             bad = {status: count for status, count in counts.items() if status != "passed" and count > 0}
             if bad:
                 non_passing[name] = bad
+        if real_live_rows and not real_gate_counts:
+            non_passing["required_artifacts"] = {"missing": len(real_live_rows)}
         if non_passing:
             add_failure("require_passing_gates", "one or more live parity gates did not pass", non_passing, "all passed")
     strict_requested = any(
@@ -476,7 +531,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     )
     summary["strict_coverage_status"] = "not_requested" if not strict_requested else ("failed" if strict_failures else "passed")
     gate_issues = build_gate_issues(rows)
-    next_commands = recommended_next_commands(summary, gate_counts, gate_issues)
+    next_commands = recommended_next_commands(summary, real_gate_counts, gate_issues)
     return {
         "schema": SCHEMA,
         "generator": {"name": "report-live-corpus-gates", "version": SCRIPT_VERSION},
@@ -511,12 +566,23 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             }
             for key, spec in PARITY_DIMENSIONS.items()
         },
+        "real_parity_dimensions": {
+            key: {
+                "title": spec["title"],
+                "promotion_required": bool(spec.get("promotion_required")),
+                "counts": dict(real_dimension_counts.get(key, Counter())),
+                "issue_sessions": real_dimension_issue_sessions.get(key, []),
+            }
+            for key, spec in PARITY_DIMENSIONS.items()
+        },
         "promotion_policy": {
             "status": "blocked",
             "decision": summary["promotion_decision"],
             "batch_authoritative": True,
             "live_quarantined": True,
             "evidence_mode": summary["live_evidence_mode"],
+            "evidence_scope": "real_meeting",
+            "diagnostic_live_sessions": len(diagnostic_live_rows),
             "new_real_live_collection_allowed": False,
             "quarantine_reason": LIVE_QUARANTINE_REASON,
             "required_dimensions": list(PARITY_DIMENSIONS.keys()),
@@ -526,6 +592,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "blockers": dict(blockers),
         "warnings": dict(warnings),
         "gate_counts": {name: dict(counts) for name, counts in sorted(gate_counts.items())},
+        "real_gate_counts": {name: dict(counts) for name, counts in sorted(real_gate_counts.items())},
         "gate_issues": gate_issues,
         "sessions": rows,
         "recommended_next": next_commands[0],
@@ -539,6 +606,7 @@ def build_gate_issues(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not row.get("live_present"):
             continue
         session = str(row.get("session") or "")
+        scope = str(row.get("evidence_scope") or "diagnostic")
         session_path = session if session.startswith("/") or session.startswith("sessions/") else f"sessions/{session}"
         comparison = f"{session_path}/derived/live/live_batch_comparison.json" if session else ""
         for gate in row.get("non_passing_gates") or []:
@@ -547,6 +615,7 @@ def build_gate_issues(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             issues.append(
                 {
                     "session": session,
+                    "evidence_scope": scope,
                     "gate": gate.get("name"),
                     "status": gate.get("status"),
                     "reason": gate.get("reason"),
@@ -555,7 +624,7 @@ def build_gate_issues(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "comparison": comparison,
                 }
             )
-    return issues
+    return sorted(issues, key=lambda item: (item.get("evidence_scope") != "real_meeting", item.get("session") or ""))
 
 
 def recommended_next_commands(
@@ -563,8 +632,15 @@ def recommended_next_commands(
     gate_counts: dict[str, Counter[str]],
     gate_issues: list[dict[str, Any]],
 ) -> list[str]:
-    target_live = max(1, safe_int(summary.get("live_sessions")) + safe_int(summary.get("coverage_target_live_sessions_remaining")))
-    target_passing = max(1, safe_int(summary.get("passing_compared_sessions")) + safe_int(summary.get("coverage_target_passing_sessions_remaining")))
+    target_live = max(
+        1,
+        safe_int(summary.get("real_live_sessions")) + safe_int(summary.get("coverage_target_live_sessions_remaining")),
+    )
+    target_passing = max(
+        1,
+        safe_int(summary.get("real_passing_compared_sessions"))
+        + safe_int(summary.get("coverage_target_passing_sessions_remaining")),
+    )
     coverage_command = (
         f"murmurmark corpus live all --min-live-sessions {target_live} --min-compared-sessions {target_live} "
         f"--min-meaningful-compared-sessions {target_live} --min-passing-compared-sessions {target_passing} "
@@ -572,22 +648,22 @@ def recommended_next_commands(
         "--max-boundary-duplicates 0 --require-passing-gates --fail-on-promotion"
     )
     live_quarantine_note = "murmurmark status latest  # live pipeline is quarantined; use normal record/process for real meetings"
-    if safe_int(summary.get("live_sessions")) == 0:
+    if safe_int(summary.get("real_live_sessions")) == 0:
         return [
             live_quarantine_note,
             coverage_command,
         ]
-    if safe_int(summary.get("compared_sessions")) == 0:
+    if safe_int(summary.get("real_compared_sessions")) == 0:
         return [
             "murmurmark process latest",
             coverage_command,
         ]
-    if safe_int(summary.get("meaningful_compared_sessions")) == 0:
+    if safe_int(summary.get("real_meaningful_compared_sessions")) == 0:
         return [
             live_quarantine_note,
             coverage_command,
         ]
-    if safe_int(summary.get("passing_compared_sessions")) == 0:
+    if safe_int(summary.get("real_passing_compared_sessions")) == 0:
         commands = [
             "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
             live_quarantine_note,
@@ -606,9 +682,12 @@ def recommended_next_commands(
             for name, counts in gate_counts.items()
         }
         if non_passing:
-            commands.insert(1, "jq '.gate_counts' sessions/_reports/live-pipeline/live_corpus_gates_report.json")
-        if safe_float(summary.get("live_suspicious_batch_me_missing_seconds")) > 0:
-            commands.insert(1, "jq '.sessions[] | select(.metrics.live_suspicious_batch_me_missing_seconds > 0)' sessions/_reports/live-pipeline/live_corpus_gates_report.json")
+            commands.insert(1, "jq '.real_gate_counts' sessions/_reports/live-pipeline/live_corpus_gates_report.json")
+        if safe_float(summary.get("real_live_suspicious_batch_me_missing_seconds")) > 0:
+            commands.insert(
+                1,
+                "jq '.sessions[] | select(.evidence_scope == \"real_meeting\" and .metrics.live_suspicious_batch_me_missing_seconds > 0)' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
+            )
         return commands
     if safe_int(summary.get("promotion_allowed_sessions")) > 0:
         return [
@@ -633,18 +712,28 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         "",
         f"- sessions: {summary['sessions_total']}",
         f"- live sessions: {summary['live_sessions']}",
+        f"- real live sessions: {summary.get('real_live_sessions', 0)}",
+        f"- diagnostic live sessions: {summary.get('diagnostic_live_sessions', 0)}",
         f"- compared sessions: {summary['compared_sessions']}",
+        f"- real compared sessions: {summary.get('real_compared_sessions', 0)}",
         f"- meaningful compared sessions: {summary['meaningful_compared_sessions']}",
+        f"- real meaningful compared sessions: {summary.get('real_meaningful_compared_sessions', 0)}",
         f"- passing compared sessions: {summary['passing_compared_sessions']}",
+        f"- real passing compared sessions: {summary.get('real_passing_compared_sessions', 0)}",
         f"- blocked sessions: {summary['blocked_sessions']}",
         f"- promotion allowed sessions: {summary['promotion_allowed_sessions']}",
         f"- target status: `{summary['target_status']}`",
         f"- promotion decision: `{summary['promotion_decision']}`",
         f"- live order mismatches: {summary.get('live_order_mismatch_count', 0)}",
+        f"- real live order mismatches: {summary.get('real_live_order_mismatch_count', 0)}",
         f"- live missing Me seconds: {summary.get('live_missing_me_seconds', 0.0)}",
+        f"- real live missing Me seconds: {summary.get('real_live_missing_me_seconds', 0.0)}",
         f"- live suspicious batch-Me missing seconds: {summary.get('live_suspicious_batch_me_missing_seconds', 0.0)}",
+        f"- real live suspicious batch-Me missing seconds: {summary.get('real_live_suspicious_batch_me_missing_seconds', 0.0)}",
         f"- live suspected remote-in-Me seconds: {summary.get('live_suspected_remote_leak_in_me_seconds', 0.0)}",
+        f"- real live suspected remote-in-Me seconds: {summary.get('real_live_suspected_remote_leak_in_me_seconds', 0.0)}",
         f"- adjacent duplicate chunks: {summary.get('adjacent_duplicate_chunk_count', 0)}",
+        f"- real adjacent duplicate chunks: {summary.get('real_adjacent_duplicate_chunk_count', 0)}",
         f"- strict coverage: `{summary.get('strict_coverage_status')}`",
         f"- coverage target: `{summary.get('coverage_target_status')}`",
         f"- coverage target live remaining: {summary.get('coverage_target_live_sessions_remaining', 0)}",
@@ -662,7 +751,27 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         "",
         f"- quarantine reason: {summary.get('live_quarantine_reason')}",
         "",
-        "## Parity Dimensions",
+        "## Real Parity Dimensions",
+        "",
+        "Only `real_meeting` live sessions count toward promotion. Diagnostic and lab sessions remain evidence, "
+        "but they do not satisfy real coverage.",
+        "",
+        "| Dimension | Required | Counts | Issue sessions |",
+        "| --- | --- | --- | --- |",
+    ]
+    real_dimensions = report.get("real_parity_dimensions") if isinstance(report.get("real_parity_dimensions"), dict) else {}
+    for key, value in real_dimensions.items():
+        if not isinstance(value, dict):
+            continue
+        counts = value.get("counts") if isinstance(value.get("counts"), dict) else {}
+        counts_text = ", ".join(f"{status}: {count}" for status, count in sorted(counts.items())) or "-"
+        issue_sessions = value.get("issue_sessions") if isinstance(value.get("issue_sessions"), list) else []
+        lines.append(
+            f"| `{key}` | `{value.get('promotion_required')}` | {counts_text} | {len(issue_sessions)} |"
+        )
+    lines += [
+        "",
+        "## All Parity Dimensions",
         "",
         "| Dimension | Required | Counts | Issue sessions |",
         "| --- | --- | --- | --- |",
@@ -751,14 +860,29 @@ def main() -> int:
     print(f"live_corpus_gates: {json_path}")
     print(f"status: {summary['target_status']}")
     print(f"live_sessions: {summary['live_sessions']}/{summary['sessions_total']}")
+    print(f"real_live_sessions: {summary.get('real_live_sessions', 0)}")
+    print(f"diagnostic_live_sessions: {summary.get('diagnostic_live_sessions', 0)}")
+    print(f"real_meaningful_compared_sessions: {summary.get('real_meaningful_compared_sessions', 0)}")
+    print(f"real_passing_compared_sessions: {summary.get('real_passing_compared_sessions', 0)}")
     print(f"meaningful_compared_sessions: {summary['meaningful_compared_sessions']}")
     print(f"passing_compared_sessions: {summary['passing_compared_sessions']}")
     print(f"promotion_decision: {summary['promotion_decision']}")
     print(f"live_order_mismatch_count: {summary.get('live_order_mismatch_count', 0)}")
+    print(f"real_live_order_mismatch_count: {summary.get('real_live_order_mismatch_count', 0)}")
     print(f"live_missing_me_seconds: {summary.get('live_missing_me_seconds', 0.0)}")
+    print(f"real_live_missing_me_seconds: {summary.get('real_live_missing_me_seconds', 0.0)}")
     print(f"live_suspicious_batch_me_missing_seconds: {summary.get('live_suspicious_batch_me_missing_seconds', 0.0)}")
+    print(
+        "real_live_suspicious_batch_me_missing_seconds: "
+        f"{summary.get('real_live_suspicious_batch_me_missing_seconds', 0.0)}"
+    )
     print(f"live_suspected_remote_leak_in_me_seconds: {summary.get('live_suspected_remote_leak_in_me_seconds', 0.0)}")
+    print(
+        "real_live_suspected_remote_leak_in_me_seconds: "
+        f"{summary.get('real_live_suspected_remote_leak_in_me_seconds', 0.0)}"
+    )
     print(f"adjacent_duplicate_chunk_count: {summary.get('adjacent_duplicate_chunk_count', 0)}")
+    print(f"real_adjacent_duplicate_chunk_count: {summary.get('real_adjacent_duplicate_chunk_count', 0)}")
     print(f"strict_coverage: {summary.get('strict_coverage_status')}")
     print(f"coverage_target: {summary.get('coverage_target_status')}")
     print(f"coverage_target_live_remaining: {summary.get('coverage_target_live_sessions_remaining', 0)}")

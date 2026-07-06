@@ -4839,19 +4839,29 @@ Schema:
   "summary": {
     "sessions_total": 10,
     "live_sessions": 3,
+    "real_live_sessions": 2,
+    "diagnostic_live_sessions": 1,
     "compared_sessions": 2,
+    "real_compared_sessions": 2,
     "meaningful_compared_sessions": 2,
+    "real_meaningful_compared_sessions": 2,
     "passing_compared_sessions": 1,
+    "real_passing_compared_sessions": 1,
     "blocked_sessions": 1,
     "promotion_allowed_sessions": 0,
     "target_status": "shadow_only_not_promotable",
     "promotion_decision": "shadow_only_do_not_promote",
     "speedup_supported_sessions": 0,
     "live_order_mismatch_count": 0,
+    "real_live_order_mismatch_count": 0,
     "live_missing_me_seconds": 0.0,
+    "real_live_missing_me_seconds": 0.0,
     "live_suspicious_batch_me_missing_seconds": 0.0,
+    "real_live_suspicious_batch_me_missing_seconds": 0.0,
     "live_suspected_remote_leak_in_me_seconds": 0.0,
+    "real_live_suspected_remote_leak_in_me_seconds": 0.0,
     "adjacent_duplicate_chunk_count": 0,
+    "real_adjacent_duplicate_chunk_count": 0,
     "strict_coverage_status": "passed",
     "live_quarantined": true,
     "live_evidence_mode": "historical_debug_only",
@@ -4868,6 +4878,8 @@ Schema:
     "batch_authoritative": true,
     "live_quarantined": true,
     "evidence_mode": "historical_debug_only",
+    "evidence_scope": "real_meeting",
+    "diagnostic_live_sessions": 1,
     "new_real_live_collection_allowed": false,
     "required_dimensions": [
       "order_risk",
@@ -4886,6 +4898,14 @@ Schema:
     "promotion_allowed_sessions": 0
   },
   "parity_dimensions": {
+    "local_recall": {
+      "title": "Local recall",
+      "promotion_required": true,
+      "counts": {"passed": 1, "warning": 1},
+      "issue_sessions": ["2026-07-03_06-16-43"]
+    }
+  },
+  "real_parity_dimensions": {
     "local_recall": {
       "title": "Local recall",
       "promotion_required": true,
@@ -4918,6 +4938,7 @@ Schema:
   "gate_issues": [
     {
       "session": "2026-07-03_06-16-43",
+      "evidence_scope": "real_meeting",
       "gate": "selected_notes_readiness",
       "status": "warning",
       "reason": "live parity is only promotion-ready when the authoritative batch result is notes-ready",
@@ -4926,6 +4947,12 @@ Schema:
       "comparison": "sessions/2026-07-03_06-16-43/derived/live/live_batch_comparison.json"
     }
   ],
+  "gate_counts": {
+    "selected_notes_readiness": {"warning": 1}
+  },
+  "real_gate_counts": {
+    "selected_notes_readiness": {"warning": 1}
+  },
   "recommended_next": "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
   "next_commands": [
     "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
@@ -4942,8 +4969,10 @@ can point to failing gate evidence without weakening the gates. It must not sugg
 real live meetings while `--live-pipeline` is quarantined. `parity_dimensions` groups the per-session
 gates into the product safety dimensions required for future promotion: order risk, local recall,
 remote leakage, review burden, selected notes readiness, chunk-boundary risks and required artifacts.
-`promotion_policy` is the machine-readable statement that batch remains authoritative and live
-evidence is historical/debug-only until the capture-safe redesign is proven.
+`real_parity_dimensions` is the promotion scope: date-named real meeting sessions count there, while
+`_debug_*` and `live-pilot-*` sessions remain diagnostic evidence only. `promotion_policy` is the
+machine-readable statement that batch remains authoritative and live evidence is historical/debug-only
+until the capture-safe redesign and real parity coverage are proven.
 
 Strict coverage mode is optional and is intended for the current live-parity rollout:
 

@@ -340,8 +340,10 @@ coverage is still a warning while Chunked/Resumable Processing v1 is being rolle
 It also reads `sessions/_reports/live-pipeline/live_corpus_gates_report.json`: live/near-realtime
 cache promotion must remain blocked. The live comparison records measurable order, local-recall,
 remote-leak, review-burden, notes-readiness and chunk-boundary gates. Current diagnostic live
-coverage has started, but strict parity is still not proven; the batch transcript remains
-authoritative and live promotion remains disabled in v1.
+coverage is separated from date-named real meeting evidence. Only real meeting sessions contribute
+to `real_parity_dimensions` and strict promotion gates; `_debug_*` and `live-pilot-*` sessions remain
+useful failure evidence but cannot make live promotion look ready. Strict parity is still not proven;
+the batch transcript remains authoritative and live promotion remains disabled in v1.
 
 Older sessions may have top-level `raw/mic.json` and `raw/remote.json` from pre-chunk runs but no
 `raw/chunks/<track>/chunk_cache_report.json`. In `windowed` mode that legacy raw cache is no longer

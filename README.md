@@ -349,11 +349,13 @@ authoritative batch transcript for order mismatch, missing `Me` speech, suspecte
 leakage, selected batch review burden, notes readiness and adjacent chunk duplicates. Passing those
 checks is still not promotion. With live quarantined, use this report only to inspect old diagnostic
 evidence and gate failures. The Markdown report has a `Gate Issues` section with the concrete
-session/gate/reason rows that currently prevent a passing comparison, plus `Parity Dimensions`
-grouped by order risk, local recall, remote leakage, review burden, selected notes readiness and
-chunk-boundary risks.
+session/gate/reason rows that currently prevent a passing comparison. Promotion checks use
+`real_parity_dimensions`: only date-named real meeting sessions count there. `_debug_*`,
+`live-pilot-*` and other lab sessions stay visible as diagnostic evidence, but they cannot satisfy
+real coverage.
 
-The old live-coverage target remains a diagnostic report shape, not a current action item:
+The old live-coverage target remains a diagnostic report shape, not a current action item. Do not use
+this command as an instruction to collect more live meetings while live recording is quarantined:
 
 ```bash
 murmurmark corpus live all \
