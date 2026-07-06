@@ -877,6 +877,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "real_live_sessions_present",
         "live_compared_to_batch",
         "coverage_target_met",
+        "capture_safe_fail_open_proof",
         "required_dimensions_covered",
         "required_dimensions_passed",
         "batch_authoritative",

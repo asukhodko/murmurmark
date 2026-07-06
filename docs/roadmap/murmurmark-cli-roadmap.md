@@ -296,6 +296,10 @@ flowchart LR
     ScreenCaptureKit audio delivery and leave raw tracks mostly silent;
   - first redesign step is now implemented as a non-blocking async bounded queue after durable raw
     writes; the next step is proving capture-safety under normal, overloaded and failed live paths;
+  - `scripts/check-capture-regressions.sh` now writes
+    `sessions/_reports/capture-regression/capture_regression_check.json`; `static_only` is useful
+    regression evidence, while `full_fail_open_proof_passed` is required before any real live
+    collection resumes;
   - `scripts/run-live-parity-pilot.sh` now wraps the lab-only evidence path: safety probe, short live
     recording, batch process, live-vs-batch compare and corpus live report;
   - worker queue exists as a safe shadow worker, but its v1 preprocessing is intentionally light and

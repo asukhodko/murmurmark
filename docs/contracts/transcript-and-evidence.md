@@ -4832,6 +4832,7 @@ authoritative.
 ```text
 sessions/_reports/live-pipeline/live_corpus_gates_report.json
 sessions/_reports/live-pipeline/live_corpus_gates_report.md
+sessions/_reports/capture-regression/capture_regression_check.json
 ```
 
 Schema:
@@ -5039,6 +5040,30 @@ Schema:
 }
 ```
 
+`capture_regression_check.json` has schema `murmurmark.capture_regression_check/v1`:
+
+```json
+{
+  "schema": "murmurmark.capture_regression_check/v1",
+  "status": "passed",
+  "mode": "static_only",
+  "live_capture_test_enabled": false,
+  "capture_safe_proof": {
+    "status": "static_only",
+    "required_for_real_live_collection": true
+  },
+  "checks": [
+    {"name": "static_capture_contract", "status": "passed", "mode": "static"},
+    {"name": "system_audio_capture_probe", "status": "skipped", "mode": "live_probe"}
+  ]
+}
+```
+
+Only `capture_safe_proof.status == "full_fail_open_proof_passed"` is enough for future real live
+collection. `static_only` keeps live quarantined and makes `objective_audit.next_focus` point to
+`capture_safe_redesign_before_more_live_coverage` unless a more direct capture-safety blocker is
+already present.
+
 The corpus gate is deliberately conservative. Any `not_evaluated`, `blocked`, `failed` or `warning`
 gate prevents promotion. v1 is expected to remain `shadow_only_do_not_promote`.
 The report also carries `gate_issues`, `recommended_next` and `next_commands`, so a live-parity run
@@ -5048,7 +5073,8 @@ gates into the product safety dimensions required for future promotion: order ri
 remote leakage, review burden, selected notes readiness, chunk-boundary risks, draft text recall,
 required artifacts and capture safety. Capture safety is built from `session.json` health and
 `pipeline_run_report.json` blockers such as `interrupted_capture`, `silent_capture` and
-`sparse_capture`.
+`sparse_capture`; objective-level live collection safety additionally requires the capture regression
+proof report above.
 `real_blocker_triage_summary` and `real_blocker_triage` group only real-meeting non-passing gates
 into actionable buckets. Typical categories are `batch_review_required`, `live_local_recall_gap`,
 `live_remote_leakage`, `live_draft_text_drift`, `missing_batch_artifacts`,

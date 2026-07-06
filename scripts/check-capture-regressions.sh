@@ -5,10 +5,50 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 source_file="Sources/MurmurMarkCLI/MurmurMarkCLI.swift"
+report_path="${MURMURMARK_CAPTURE_REGRESSION_REPORT:-sessions/_reports/capture-regression/capture_regression_check.json}"
+checks_jsonl="$(mktemp "${TMPDIR:-/tmp}/murmurmark-capture-regression-checks.XXXXXX")"
+trap 'rm -f "$checks_jsonl"' EXIT
 
 fail() {
   echo "capture regression check failed: $*" >&2
   exit 1
+}
+
+record_check() {
+  local name="$1"
+  local status="$2"
+  local mode="$3"
+  local note="$4"
+  jq -n \
+    --arg name "$name" \
+    --arg status "$status" \
+    --arg mode "$mode" \
+    --arg note "$note" \
+    '{name: $name, status: $status, mode: $mode, note: $note}' >>"$checks_jsonl"
+}
+
+write_report() {
+  local mode="$1"
+  local status="$2"
+  mkdir -p "$(dirname "$report_path")"
+  jq -s \
+    --arg schema "murmurmark.capture_regression_check/v1" \
+    --arg generated_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    --arg mode "$mode" \
+    --arg status "$status" \
+    --arg live_capture_test "${MURMURMARK_RUN_LIVE_CAPTURE_TEST:-0}" \
+    '{
+      schema: $schema,
+      generated_at: $generated_at,
+      status: $status,
+      mode: $mode,
+      live_capture_test_enabled: ($live_capture_test == "1"),
+      capture_safe_proof: {
+        status: (if $live_capture_test == "1" and $status == "passed" then "full_fail_open_proof_passed" else "static_only" end),
+        required_for_real_live_collection: true
+      },
+      checks: .
+    }' "$checks_jsonl" >"$report_path"
 }
 
 require_tool() {
@@ -439,15 +479,27 @@ run_system_audio_capture_probe() {
     || fail "remote system audio is too quiet in capture probe: ${remote_mean} dB"
 }
 
+require_tool jq
+
 assert_static_capture_contract
+record_check "static_capture_contract" "passed" "static" "capture code keeps live work behind non-blocking bounded queue and preserves system audio settings"
 assert_silent_pipeline_gate
+record_check "silent_pipeline_gate" "passed" "fixture" "silent mic+remote capture blocks before ASR"
 assert_capture_health_matrix
+record_check "capture_health_matrix" "passed" "fixture" "mic-only, remote-only and healthy two-track fixtures pass; silent/interrupted/sparse fixtures block"
 assert_live_pipeline_guard
+record_check "live_pipeline_guard" "passed" "static" "live pipeline remains disabled unless explicitly enabled for lab diagnostics"
 
 if [[ "${MURMURMARK_RUN_LIVE_CAPTURE_TEST:-0}" == "1" ]]; then
   run_system_audio_capture_probe
+  record_check "system_audio_capture_probe" "passed" "live_probe" "short system-audio capture produced healthy remote audio"
   scripts/smoke-live-segment-fail-open.sh
+  record_check "live_segment_fail_open_probe" "passed" "live_probe" "raw mic/remote capture survived an overloaded async live segment queue"
+  write_report "static_system_audio_live_fail_open" "passed"
   echo "capture regression check ok (static + system-audio probe + live fail-open probe)"
 else
+  record_check "system_audio_capture_probe" "skipped" "live_probe" "set MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 to run the local system-audio probe"
+  record_check "live_segment_fail_open_probe" "skipped" "live_probe" "set MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 to run the overloaded live segment fail-open probe"
+  write_report "static_only" "passed"
   echo "capture regression check ok (static)"
 fi

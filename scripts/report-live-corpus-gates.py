@@ -490,6 +490,7 @@ def build_objective_audit(
     coverage_target: dict[str, Any],
     real_dimensions: dict[str, dict[str, Any]],
     promotion_policy: dict[str, Any],
+    capture_regression_check: dict[str, Any] | None,
 ) -> dict[str, Any]:
     required_dimensions = set(PARITY_DIMENSIONS.keys())
     covered_dimensions = set(real_dimensions.keys())
@@ -552,6 +553,42 @@ def build_objective_audit(
         "score": 0,
         "priority": 999,
     }
+    capture_proof = (
+        capture_regression_check.get("capture_safe_proof")
+        if isinstance(capture_regression_check, dict) and isinstance(capture_regression_check.get("capture_safe_proof"), dict)
+        else {}
+    )
+    capture_proof_status = str(capture_proof.get("status") or "missing")
+    capture_proof_row_status = (
+        "passed"
+        if capture_proof_status == "full_fail_open_proof_passed"
+        else ("incomplete" if capture_proof_status == "static_only" else "blocked")
+    )
+    if capture_proof_row_status != "passed" and (
+        not next_actions or next_focus.get("action_id") == "collect_controlled_live_parity_coverage"
+    ):
+        next_focus = {
+            "dimension": "capture_safety",
+            "action_id": "capture_safe_redesign_before_more_live_coverage",
+            "title": "Prove capture-safe live segment production",
+            "recommended_next": (
+                "keep live quarantined; run the full capture regression proof before collecting real live meetings"
+            ),
+            "non_passing": {"capture_safe_proof": 1},
+            "issue_sessions": [],
+            "issue_session_count": 0,
+            "score": 100,
+            "priority": 0,
+        }
+    if next_focus.get("dimension") == "capture_safety":
+        next_focus = {
+            **next_focus,
+            "capture_regression_check": {
+                "status": capture_regression_check.get("status") if isinstance(capture_regression_check, dict) else None,
+                "mode": capture_regression_check.get("mode") if isinstance(capture_regression_check, dict) else None,
+                "capture_safe_proof_status": capture_proof_status,
+            },
+        }
 
     rows = [
         objective_audit_row(
@@ -594,6 +631,17 @@ def build_objective_audit(
             "passed" if not blocking_dimensions else "blocked",
             "Every required real-session parity dimension has passed",
             {"blocking_dimensions": blocking_dimensions, "dimension_statuses": dimension_statuses},
+        ),
+        objective_audit_row(
+            "capture_safe_fail_open_proof",
+            capture_proof_row_status,
+            "Capture-safe live fail-open proof has been run",
+            {
+                "report_present": isinstance(capture_regression_check, dict),
+                "status": capture_regression_check.get("status") if isinstance(capture_regression_check, dict) else None,
+                "mode": capture_regression_check.get("mode") if isinstance(capture_regression_check, dict) else None,
+                "capture_safe_proof_status": capture_proof_status,
+            },
         ),
         objective_audit_row(
             "batch_authoritative",
@@ -947,6 +995,8 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     gate_issues = build_gate_issues(rows)
     real_blocker_triage_summary, real_blocker_triage = build_real_blocker_triage(real_live_rows)
     next_commands = recommended_next_commands(summary, real_gate_counts, gate_issues)
+    capture_regression_check_path = root / "_reports/capture-regression/capture_regression_check.json"
+    capture_regression_check = read_json(capture_regression_check_path)
     parity_dimensions_payload = {
         key: {
             "title": spec["title"],
@@ -1007,11 +1057,24 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "parity_dimensions": parity_dimensions_payload,
         "real_parity_dimensions": real_parity_dimensions_payload,
         "promotion_policy": promotion_policy,
+        "capture_regression_check": {
+            "path": str(capture_regression_check_path),
+            "present": capture_regression_check is not None,
+            "status": capture_regression_check.get("status") if isinstance(capture_regression_check, dict) else None,
+            "mode": capture_regression_check.get("mode") if isinstance(capture_regression_check, dict) else None,
+            "capture_safe_proof_status": (
+                (capture_regression_check.get("capture_safe_proof") or {}).get("status")
+                if isinstance(capture_regression_check, dict)
+                and isinstance(capture_regression_check.get("capture_safe_proof"), dict)
+                else None
+            ),
+        },
         "objective_audit": build_objective_audit(
             summary,
             coverage_target,
             real_parity_dimensions_payload,
             promotion_policy,
+            capture_regression_check,
         ),
         "blockers": dict(blockers),
         "warnings": dict(warnings),

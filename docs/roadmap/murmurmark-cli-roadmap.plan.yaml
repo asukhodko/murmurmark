@@ -551,7 +551,10 @@ nodes:
       есть: callback пишет durable raw CAF, затем делает non-blocking enqueue в async bounded live
       segment queue. При backlog/error отключаются только live-derived artifacts. Следующий шаг —
       лабораторно доказать, что raw `audio/mic` и `audio/remote` остаются корректными при нормальной
-      работе, перегрузе и отказе live-ветки. Для этого добавлен `scripts/run-live-parity-pilot.sh`:
+      работе, перегрузе и отказе live-ветки. `scripts/check-capture-regressions.sh` пишет
+      `sessions/_reports/capture-regression/capture_regression_check.json`: `static_only` фиксирует
+      статические и fixture-проверки, а `full_fail_open_proof_passed` требуется перед любым возвратом
+      к сбору real live coverage. Для пилотного контура добавлен `scripts/run-live-parity-pilot.sh`:
       он запускает safety probe, lab-only live recording, batch process, live-vs-batch compare и
       corpus live report, сохраняя live promotion blocked.
 

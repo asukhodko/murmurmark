@@ -368,6 +368,17 @@ states whether real live sessions exist, whether they were compared with batch, 
 dimensions are covered, which dimensions still block promotion, and whether batch remains
 authoritative. Its safe current state is `ready_for_live_promotion: false` and
 `new_real_live_collection_allowed: false`.
+It also reads the capture regression proof at
+`sessions/_reports/capture-regression/capture_regression_check.json`. A normal static run of
+`scripts/check-capture-regressions.sh` is useful, but it is only `static_only`; real live collection
+requires the full local proof:
+
+```bash
+MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
+```
+
+Until that report says `capture_safe_proof.status == "full_fail_open_proof_passed"`, live stays
+quarantined even if old live-vs-batch comparisons look clean.
 When `capture_safety` is among blocking dimensions, `objective_audit.next_focus` must point to
 `capture_safe_redesign_before_more_live_coverage`; broader live coverage is not the next step until
 that proof exists.

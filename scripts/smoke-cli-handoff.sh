@@ -23,6 +23,31 @@ export MURMURMARK_HOME="$repo_root"
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-cli-handoff.XXXXXX")"
 trap 'rm -rf "$workdir"' EXIT
 
+write_full_capture_regression_proof() {
+  mkdir -p "$workdir/sessions/_reports/capture-regression"
+  cat >"$workdir/sessions/_reports/capture-regression/capture_regression_check.json" <<'JSON'
+{
+  "schema": "murmurmark.capture_regression_check/v1",
+  "generated_at": "2026-07-06T00:00:00Z",
+  "status": "passed",
+  "mode": "static_system_audio_live_fail_open",
+  "live_capture_test_enabled": true,
+  "capture_safe_proof": {
+    "status": "full_fail_open_proof_passed",
+    "required_for_real_live_collection": true
+  },
+  "checks": [
+    {"name": "static_capture_contract", "status": "passed", "mode": "static"},
+    {"name": "silent_pipeline_gate", "status": "passed", "mode": "fixture"},
+    {"name": "capture_health_matrix", "status": "passed", "mode": "fixture"},
+    {"name": "live_pipeline_guard", "status": "passed", "mode": "static"},
+    {"name": "system_audio_capture_probe", "status": "passed", "mode": "live_probe"},
+    {"name": "live_segment_fail_open_probe", "status": "passed", "mode": "live_probe"}
+  ]
+}
+JSON
+}
+
 config_path="$workdir/murmurmark.config.json"
 "$bin" config init --config "$config_path" >/dev/null
 "$bin" config print --config "$config_path" >/dev/null
@@ -901,6 +926,7 @@ jq -e '
   [.risk_examples.boundary_gate_issues[] | select(.source == "remote" and .status == "suppressed")]
   | length == 1
 ' "$live_boundary_risk_session/derived/live/live_batch_comparison.json" >/dev/null
+write_full_capture_regression_proof
 "$eval_python" "$repo_root/scripts/report-live-corpus-gates.py" "$live_boundary_risk_session" \
   --sessions-root "$workdir/sessions" \
   --out-dir "$workdir/live-boundary-risk-report" >/dev/null

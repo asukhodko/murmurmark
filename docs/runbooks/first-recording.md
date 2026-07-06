@@ -203,6 +203,16 @@ stays quarantined for new real meetings until a capture-safe redesign exists.
 live-vs-batch comparison, required dimensions, batch-authoritative policy and promotion/collection
 blocks. During quarantine it should keep `ready_for_live_promotion` and
 `new_real_live_collection_allowed` false.
+It also checks `sessions/_reports/capture-regression/capture_regression_check.json`. A static
+capture regression report proves the code shape and fixtures, but not live promotion safety. Before
+any new real live collection is allowed, run the full local proof:
+
+```bash
+MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
+```
+
+The required proof status is `full_fail_open_proof_passed`; `static_only` keeps live collection
+blocked.
 If `capture_safety` is blocking, `objective_audit.next_focus` should be
 `capture_safe_redesign_before_more_live_coverage`; do not treat missing passing coverage as a prompt
 to collect more real live sessions.
