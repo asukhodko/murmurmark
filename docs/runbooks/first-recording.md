@@ -169,9 +169,12 @@ The correct v1 outcome is normally `shadow_only_not_promotable`; promotion requi
 order risk, local recall, remote leakage, review burden and boundary speech. The current comparison
 already measures the first practical version of those checks from live chunks versus the selected
 batch transcript, but `promotion_allowed` must remain `false` until real live-session coverage is
-broad enough and the corpus gates are intentionally promoted. The command prints `recommended_next`
-and `next:` lines; use them to inspect the current blocker or start the next live sample. The
-Markdown report's `Gate Issues` section lists the exact non-passing gates by session.
+broad enough and the corpus gates are intentionally promoted. While live is quarantined, the report
+is historical/debug evidence only: do not start new real live recordings from this command. The
+command prints `recommended_next` and `next:` lines; use them to inspect the current blocker or
+return to the normal non-live `record -> process` path. The Markdown report's `Gate Issues` section
+lists the exact non-passing gates by session, and `Parity Dimensions` groups them by order risk,
+local recall, remote leakage, review burden, notes readiness and chunk-boundary risk.
 
 For the current live-parity coverage goal, use the strict target form after recording enough real
 live sessions. It is expected to fail until three live sessions have meaningful passing

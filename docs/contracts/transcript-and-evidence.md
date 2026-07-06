@@ -4810,7 +4810,46 @@ Schema:
     "live_suspicious_batch_me_missing_seconds": 0.0,
     "live_suspected_remote_leak_in_me_seconds": 0.0,
     "adjacent_duplicate_chunk_count": 0,
-    "strict_coverage_status": "passed"
+    "strict_coverage_status": "passed",
+    "live_quarantined": true,
+    "live_evidence_mode": "historical_debug_only",
+    "new_real_live_collection_allowed": false,
+    "promotion_blocking_dimensions": [
+      "local_recall",
+      "review_burden",
+      "selected_notes_readiness"
+    ]
+  },
+  "promotion_policy": {
+    "status": "blocked",
+    "decision": "shadow_only_do_not_promote",
+    "batch_authoritative": true,
+    "live_quarantined": true,
+    "evidence_mode": "historical_debug_only",
+    "new_real_live_collection_allowed": false,
+    "required_dimensions": [
+      "order_risk",
+      "local_recall",
+      "remote_leakage",
+      "review_burden",
+      "selected_notes_readiness",
+      "chunk_boundary_risks",
+      "required_artifacts"
+    ],
+    "blocking_dimensions": [
+      "local_recall",
+      "review_burden",
+      "selected_notes_readiness"
+    ],
+    "promotion_allowed_sessions": 0
+  },
+  "parity_dimensions": {
+    "local_recall": {
+      "title": "Local recall",
+      "promotion_required": true,
+      "counts": {"passed": 1, "warning": 1},
+      "issue_sessions": ["2026-07-03_06-16-43"]
+    }
   },
   "strict_coverage": {
     "requested": true,
@@ -4858,7 +4897,11 @@ The corpus gate is deliberately conservative. Any `not_evaluated`, `blocked`, `f
 gate prevents promotion. v1 is expected to remain `shadow_only_do_not_promote`.
 The report also carries `gate_issues`, `recommended_next` and `next_commands`, so a live-parity run
 can point to failing gate evidence without weakening the gates. It must not suggest collecting more
-real live meetings while `--live-pipeline` is quarantined.
+real live meetings while `--live-pipeline` is quarantined. `parity_dimensions` groups the per-session
+gates into the product safety dimensions required for future promotion: order risk, local recall,
+remote leakage, review burden, selected notes readiness, chunk-boundary risks and required artifacts.
+`promotion_policy` is the machine-readable statement that batch remains authoritative and live
+evidence is historical/debug-only until the capture-safe redesign is proven.
 
 Strict coverage mode is optional and is intended for the current live-parity rollout:
 

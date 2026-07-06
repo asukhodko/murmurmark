@@ -10,10 +10,51 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "0.5.0"
+SCRIPT_VERSION = "0.6.0"
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
 DEFAULT_TARGET_PASSING_COMPARED_SESSIONS = 3
+LIVE_QUARANTINE_REASON = (
+    "live pipeline is quarantined because the current segment writer can starve ScreenCaptureKit "
+    "audio delivery; collect no new real live meetings until capture-safe redesign passes"
+)
+PARITY_DIMENSIONS: dict[str, dict[str, Any]] = {
+    "order_risk": {
+        "title": "Order risk",
+        "gates": ["order_risk"],
+        "promotion_required": True,
+    },
+    "local_recall": {
+        "title": "Local recall",
+        "gates": ["local_recall"],
+        "promotion_required": True,
+    },
+    "remote_leakage": {
+        "title": "Remote leakage",
+        "gates": ["remote_duplicate_leak"],
+        "promotion_required": True,
+    },
+    "review_burden": {
+        "title": "Review burden",
+        "gates": ["review_burden"],
+        "promotion_required": True,
+    },
+    "selected_notes_readiness": {
+        "title": "Selected notes readiness",
+        "gates": ["selected_notes_readiness"],
+        "promotion_required": True,
+    },
+    "chunk_boundary_risks": {
+        "title": "Chunk-boundary risks",
+        "gates": ["chunk_boundary_risks", "duplicate_chunks"],
+        "promotion_required": True,
+    },
+    "required_artifacts": {
+        "title": "Required artifacts",
+        "gates": ["required_artifacts", "live_token_recall", "raw_batch_authoritative"],
+        "promotion_required": True,
+    },
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -151,6 +192,34 @@ def all_gates_passed(comparison: dict[str, Any] | None) -> bool:
     return bool(rows) and all(row.get("status") == "passed" for row in rows)
 
 
+def dimension_statuses(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    gate_by_name: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        gate_by_name[str(row.get("name") or "unknown")].append(row)
+    severity = {"failed": 4, "blocked": 4, "warning": 3, "not_evaluated": 2, "passed": 1}
+    for key, spec in PARITY_DIMENSIONS.items():
+        gates = [gate for name in spec["gates"] for gate in gate_by_name.get(name, [])]
+        if not gates:
+            status = "missing"
+        else:
+            status = max((str(gate.get("status") or "unknown") for gate in gates), key=lambda item: severity.get(item, 2))
+        result[key] = {
+            "title": spec["title"],
+            "status": status,
+            "promotion_required": bool(spec.get("promotion_required")),
+            "gates": [
+                {
+                    "name": str(gate.get("name") or "unknown"),
+                    "status": str(gate.get("status") or "unknown"),
+                    "reason": gate.get("reason"),
+                }
+                for gate in gates
+            ],
+        }
+    return result
+
+
 def meaningful_comparison(metrics: dict[str, Any], comparison_status: Any) -> bool:
     if metrics.get("meaningful_live_comparison") is True:
         return True
@@ -229,6 +298,7 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
         },
         "gates": gates,
         "non_passing_gates": non_passing_gate_rows(gates),
+        "parity_dimensions": dimension_statuses(gates),
     }
 
 
@@ -245,6 +315,16 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             warnings[str(warning)] += 1
         for gate in row.get("gates") or []:
             gate_counts[str(gate.get("name") or "unknown")][str(gate.get("status") or "unknown")] += 1
+    dimension_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    dimension_issue_sessions: dict[str, list[str]] = defaultdict(list)
+    for row in live_rows:
+        dimensions = row.get("parity_dimensions") if isinstance(row.get("parity_dimensions"), dict) else {}
+        for key in PARITY_DIMENSIONS:
+            value = dimensions.get(key) if isinstance(dimensions, dict) else None
+            status = str(value.get("status") if isinstance(value, dict) else "missing")
+            dimension_counts[key][status] += 1
+            if status != "passed":
+                dimension_issue_sessions[key].append(str(row.get("session") or ""))
     promotable = [row for row in rows if row.get("promotion_allowed")]
     not_promotable = [row for row in live_rows if row.get("parity_status") != "passed_but_shadow_locked"]
     summary = {
@@ -311,6 +391,17 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     else:
         target_status = "shadow_locked_after_basic_gates"
     summary["target_status"] = target_status
+    promotion_blocking_dimensions = [
+        key
+        for key, counts in dimension_counts.items()
+        if any(status != "passed" and count > 0 for status, count in counts.items())
+    ]
+    summary["promotion_blocking_dimensions"] = promotion_blocking_dimensions
+    summary["promotion_blocking_dimension_count"] = len(promotion_blocking_dimensions)
+    summary["live_quarantined"] = True
+    summary["live_quarantine_reason"] = LIVE_QUARANTINE_REASON
+    summary["live_evidence_mode"] = "historical_debug_only"
+    summary["new_real_live_collection_allowed"] = False
     strict_failures: list[dict[str, Any]] = []
     def add_failure(gate_id: str, message: str, value: Any, limit: Any) -> None:
         strict_failures.append({"id": gate_id, "message": message, "value": value, "limit": limit})
@@ -411,6 +502,27 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             "failures": strict_failures,
         },
         "coverage_target": coverage_target,
+        "parity_dimensions": {
+            key: {
+                "title": spec["title"],
+                "promotion_required": bool(spec.get("promotion_required")),
+                "counts": dict(dimension_counts.get(key, Counter())),
+                "issue_sessions": dimension_issue_sessions.get(key, []),
+            }
+            for key, spec in PARITY_DIMENSIONS.items()
+        },
+        "promotion_policy": {
+            "status": "blocked",
+            "decision": summary["promotion_decision"],
+            "batch_authoritative": True,
+            "live_quarantined": True,
+            "evidence_mode": summary["live_evidence_mode"],
+            "new_real_live_collection_allowed": False,
+            "quarantine_reason": LIVE_QUARANTINE_REASON,
+            "required_dimensions": list(PARITY_DIMENSIONS.keys()),
+            "blocking_dimensions": promotion_blocking_dimensions,
+            "promotion_allowed_sessions": summary["promotion_allowed_sessions"],
+        },
         "blockers": dict(blockers),
         "warnings": dict(warnings),
         "gate_counts": {name: dict(counts) for name, counts in sorted(gate_counts.items())},
@@ -537,6 +649,36 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- coverage target: `{summary.get('coverage_target_status')}`",
         f"- coverage target live remaining: {summary.get('coverage_target_live_sessions_remaining', 0)}",
         f"- coverage target passing remaining: {summary.get('coverage_target_passing_sessions_remaining', 0)}",
+        f"- live quarantined: `{summary.get('live_quarantined')}`",
+        f"- live evidence mode: `{summary.get('live_evidence_mode')}`",
+        f"- new real live collection allowed: `{summary.get('new_real_live_collection_allowed')}`",
+        f"- promotion blocking dimensions: {', '.join(summary.get('promotion_blocking_dimensions') or []) or 'none'}",
+        "",
+        "## Promotion Policy",
+        "",
+        "Batch transcript remains authoritative. Live promotion is blocked while the live branch is "
+        "quarantined and until every required parity dimension passes on enough meaningful real "
+        "comparisons.",
+        "",
+        f"- quarantine reason: {summary.get('live_quarantine_reason')}",
+        "",
+        "## Parity Dimensions",
+        "",
+        "| Dimension | Required | Counts | Issue sessions |",
+        "| --- | --- | --- | --- |",
+    ]
+    dimensions = report.get("parity_dimensions") if isinstance(report.get("parity_dimensions"), dict) else {}
+    for key, value in dimensions.items():
+        if not isinstance(value, dict):
+            continue
+        counts = value.get("counts") if isinstance(value.get("counts"), dict) else {}
+        counts_text = ", ".join(f"{status}: {count}" for status, count in sorted(counts.items())) or "-"
+        issue_sessions = value.get("issue_sessions") if isinstance(value.get("issue_sessions"), list) else []
+        issue_text = str(len(issue_sessions))
+        lines.append(
+            f"| `{key}` | `{value.get('promotion_required')}` | {counts_text} | {issue_text} |"
+        )
+    lines += [
         "",
         "## Recommended Next",
         "",
@@ -621,6 +763,10 @@ def main() -> int:
     print(f"coverage_target: {summary.get('coverage_target_status')}")
     print(f"coverage_target_live_remaining: {summary.get('coverage_target_live_sessions_remaining', 0)}")
     print(f"coverage_target_passing_remaining: {summary.get('coverage_target_passing_sessions_remaining', 0)}")
+    print(f"live_evidence_mode: {summary.get('live_evidence_mode')}")
+    print(f"new_real_live_collection_allowed: {summary.get('new_real_live_collection_allowed')}")
+    blocking_dimensions = summary.get("promotion_blocking_dimensions") or []
+    print(f"promotion_blocking_dimensions: {', '.join(blocking_dimensions) if blocking_dimensions else 'none'}")
     print(f"gate_issues: {len(report.get('gate_issues') or [])}")
     if report.get("recommended_next"):
         print(f"recommended_next: {report['recommended_next']}")

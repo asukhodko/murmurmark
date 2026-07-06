@@ -333,7 +333,9 @@ authoritative batch transcript for order mismatch, missing `Me` speech, suspecte
 leakage, selected batch review burden, notes readiness and adjacent chunk duplicates. Passing those
 checks is still not promotion. With live quarantined, use this report only to inspect old diagnostic
 evidence and gate failures. The Markdown report has a `Gate Issues` section with the concrete
-session/gate/reason rows that currently prevent a passing comparison.
+session/gate/reason rows that currently prevent a passing comparison, plus `Parity Dimensions`
+grouped by order risk, local recall, remote leakage, review burden, selected notes readiness and
+chunk-boundary risks.
 
 The old live-coverage target remains a diagnostic report shape, not a current action item:
 
