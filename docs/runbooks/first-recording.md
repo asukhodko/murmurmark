@@ -174,6 +174,7 @@ For a corpus-level live promotion check:
 ```bash
 murmurmark corpus live all
 less sessions/_reports/live-pipeline/live_corpus_gates_report.md
+jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json
 ```
 
 The correct v1 outcome is normally `shadow_only_not_promotable`; promotion requires future gates for
@@ -190,10 +191,14 @@ visible for failure analysis but cannot satisfy real coverage. `Parity Dimension
 mixed audit view by order risk, local recall, remote leakage, review burden, notes readiness and
 chunk-boundary risk. `draft_text_recall` is separate from `required_artifacts`: present live files
 are not enough if live draft text no longer matches the authoritative batch transcript.
+Start with `real_blocker_triage_summary` when deciding the next action. It groups real-session
+blockers into actionable buckets such as batch review/readiness, missing artifacts, local recall gap,
+remote leakage and live draft drift. Treat it as diagnosis only: live capture stays quarantined for
+new real meetings until a capture-safe redesign exists.
 
-For the current live-parity coverage goal, use the strict target form after recording enough real
-live sessions. It is expected to fail until three live sessions have meaningful passing
-comparisons:
+For historical live-parity diagnostics, use the strict target form against existing live artifacts.
+It is expected to fail while live capture is quarantined and until enough real sessions have
+meaningful passing comparisons:
 
 ```bash
 murmurmark corpus live all \

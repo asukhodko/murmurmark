@@ -4956,6 +4956,50 @@ Schema:
       "comparison": "sessions/2026-07-03_06-16-43/derived/live/live_batch_comparison.json"
     }
   ],
+  "real_blocker_triage_summary": {
+    "total_items": 3,
+    "session_count": 2,
+    "promotion_scope": "real_meeting",
+    "new_real_live_collection_allowed": false,
+    "by_category": {
+      "batch_review_required": {
+        "title": "Batch review/readiness required",
+        "item_count": 1,
+        "session_count": 1,
+        "sessions": ["2026-07-03_06-16-43"],
+        "severities": {"warning": 1},
+        "recommended_next": "finish the authoritative batch review/readiness path for this session; this is not a live-capture fix"
+      },
+      "live_local_recall_gap": {
+        "title": "Live local-recall gap",
+        "item_count": 1,
+        "session_count": 1,
+        "sessions": ["2026-07-03_06-16-43"],
+        "severities": {"warning": 1},
+        "recommended_next": "keep live quarantined; redesign capture-safe live segmentation before collecting more real live meetings"
+      }
+    },
+    "by_severity": {"warning": 2}
+  },
+  "real_blocker_triage": [
+    {
+      "session": "2026-07-03_06-16-43",
+      "session_path": "sessions/2026-07-03_06-16-43",
+      "comparison": "sessions/2026-07-03_06-16-43/derived/live/live_batch_comparison.json",
+      "category": "live_local_recall_gap",
+      "severity": "warning",
+      "promotion_blocker": true,
+      "gates": [
+        {
+          "name": "local_recall",
+          "status": "warning",
+          "reason": "batch Me speech should be visible in live mic turns when live draft is used as evidence"
+        }
+      ],
+      "dimensions": ["local_recall"],
+      "recommended_next": "keep live quarantined; redesign capture-safe live segmentation before collecting more real live meetings"
+    }
+  ],
   "gate_counts": {
     "selected_notes_readiness": {"warning": 1}
   },
@@ -4979,6 +5023,12 @@ real live meetings while `--live-pipeline` is quarantined. `parity_dimensions` g
 gates into the product safety dimensions required for future promotion: order risk, local recall,
 remote leakage, review burden, selected notes readiness, chunk-boundary risks, draft text recall and
 required artifacts.
+`real_blocker_triage_summary` and `real_blocker_triage` group only real-meeting non-passing gates
+into actionable buckets. Typical categories are `batch_review_required`, `live_local_recall_gap`,
+`live_remote_leakage`, `live_draft_text_drift`, `missing_batch_artifacts`,
+`missing_live_asr_artifacts`, `chunk_boundary_risk` and `order_risk`. Triage is diagnostic evidence:
+it explains the next safe action per blocker, but it does not relax promotion gates and does not
+allow new real live collection while live capture is quarantined.
 `real_parity_dimensions` is the promotion scope: date-named real meeting sessions count there, while
 `_debug_*` and `live-pilot-*` sessions remain diagnostic evidence only. `promotion_policy` is the
 machine-readable statement that batch remains authoritative and live evidence is historical/debug-only

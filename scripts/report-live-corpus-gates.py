@@ -11,7 +11,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "0.6.0"
+SCRIPT_VERSION = "0.7.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -62,6 +62,60 @@ PARITY_DIMENSIONS: dict[str, dict[str, Any]] = {
         "promotion_required": True,
     },
 }
+TRIAGE_CATEGORY_INFO: dict[str, dict[str, str]] = {
+    "batch_review_required": {
+        "title": "Batch review/readiness required",
+        "recommended_next": (
+            "finish the authoritative batch review/readiness path for this session; this is not a live-capture fix"
+        ),
+    },
+    "live_local_recall_gap": {
+        "title": "Live local-recall gap",
+        "recommended_next": (
+            "keep live quarantined; redesign capture-safe live segmentation before collecting more real live meetings"
+        ),
+    },
+    "live_remote_leakage": {
+        "title": "Live remote leakage",
+        "recommended_next": (
+            "inspect echo/role evidence and keep live Me output blocked until remote-forbidden gates pass"
+        ),
+    },
+    "live_draft_text_drift": {
+        "title": "Live draft text drift",
+        "recommended_next": "treat live draft as orientation only; keep the batch transcript authoritative",
+    },
+    "missing_batch_artifacts": {
+        "title": "Missing batch artifacts",
+        "recommended_next": "run or repair normal batch processing for this session before using it for live parity",
+    },
+    "missing_live_asr_artifacts": {
+        "title": "Missing live ASR artifacts",
+        "recommended_next": (
+            "do not use this live run as promotion evidence; rerun only offline diagnostics on copied artifacts if useful"
+        ),
+    },
+    "chunk_boundary_risk": {
+        "title": "Chunk-boundary risk",
+        "recommended_next": "fix chunk reconciliation and overlap dedupe before live promotion",
+    },
+    "order_risk": {
+        "title": "Order risk",
+        "recommended_next": "fix live timeline ordering/reconciliation before live promotion",
+    },
+    "other": {
+        "title": "Other live parity blocker",
+        "recommended_next": "inspect the session live_batch_comparison.json and keep live blocked",
+    },
+}
+
+
+def dimensions_for_gate(gate_name: str) -> list[str]:
+    return [
+        key
+        for key, spec in PARITY_DIMENSIONS.items()
+        if gate_name in {str(name) for name in spec.get("gates", [])}
+    ]
 
 
 def parse_args() -> argparse.Namespace:
@@ -536,6 +590,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     )
     summary["strict_coverage_status"] = "not_requested" if not strict_requested else ("failed" if strict_failures else "passed")
     gate_issues = build_gate_issues(rows)
+    real_blocker_triage_summary, real_blocker_triage = build_real_blocker_triage(real_live_rows)
     next_commands = recommended_next_commands(summary, real_gate_counts, gate_issues)
     return {
         "schema": SCHEMA,
@@ -599,6 +654,8 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "gate_counts": {name: dict(counts) for name, counts in sorted(gate_counts.items())},
         "real_gate_counts": {name: dict(counts) for name, counts in sorted(real_gate_counts.items())},
         "gate_issues": gate_issues,
+        "real_blocker_triage_summary": real_blocker_triage_summary,
+        "real_blocker_triage": real_blocker_triage,
         "sessions": rows,
         "recommended_next": next_commands[0],
         "next_commands": next_commands,
@@ -630,6 +687,162 @@ def build_gate_issues(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 }
             )
     return sorted(issues, key=lambda item: (item.get("evidence_scope") != "real_meeting", item.get("session") or ""))
+
+
+def gate_blob(row: dict[str, Any], gate: dict[str, Any]) -> str:
+    value = {
+        "gate": gate,
+        "blockers": row.get("blockers"),
+        "warnings": row.get("warnings"),
+        "promotion_blockers": row.get("promotion_blockers"),
+    }
+    return json.dumps(value, ensure_ascii=False, sort_keys=True).lower()
+
+
+def triage_categories_for_gate(row: dict[str, Any], gate: dict[str, Any]) -> list[str]:
+    name = str(gate.get("name") or "unknown")
+    if name in {"review_burden", "selected_notes_readiness"}:
+        return ["batch_review_required"]
+    if name == "local_recall":
+        return ["live_local_recall_gap"]
+    if name == "remote_duplicate_leak":
+        return ["live_remote_leakage"]
+    if name == "live_token_recall":
+        return ["live_draft_text_drift"]
+    if name in {"chunk_boundary_risks", "duplicate_chunks"}:
+        return ["chunk_boundary_risk"]
+    if name == "order_risk":
+        return ["order_risk"]
+    if name in {"required_artifacts", "raw_batch_authoritative"}:
+        text = gate_blob(row, gate)
+        categories: list[str] = []
+        if "batch_clean_dialogue_missing" in text or "batch_transcript_missing" in text:
+            categories.append("missing_batch_artifacts")
+        if (
+            "live_chunks_missing" in text
+            or "live_report_missing" in text
+            or "live_batch_comparison_missing" in text
+            or "live_asr" in text
+        ):
+            categories.append("missing_live_asr_artifacts")
+        if not categories:
+            categories.append("missing_batch_artifacts")
+        return categories
+    return ["other"]
+
+
+def triage_severity(statuses: list[str]) -> str:
+    rank = {
+        "blocked": 4,
+        "failed": 4,
+        "warning": 3,
+        "not_evaluated": 2,
+        "missing": 2,
+        "unknown": 1,
+    }
+    status = max((status or "unknown" for status in statuses), key=lambda item: rank.get(item, 1))
+    if status in {"blocked", "failed"}:
+        return "blocker"
+    if status == "warning":
+        return "warning"
+    if status in {"not_evaluated", "missing"}:
+        return "needs_evidence"
+    return "unknown"
+
+
+def build_real_blocker_triage(real_live_rows: list[dict[str, Any]]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in real_live_rows:
+        session = str(row.get("session") or "")
+        if not session:
+            continue
+        session_path = session if session.startswith("/") or session.startswith("sessions/") else f"sessions/{session}"
+        comparison = f"{session_path}/derived/live/live_batch_comparison.json"
+        for gate in row.get("non_passing_gates") or []:
+            if not isinstance(gate, dict):
+                continue
+            gate_name = str(gate.get("name") or "unknown")
+            categories = triage_categories_for_gate(row, gate)
+            for category in categories:
+                item = grouped.setdefault(
+                    (session, category),
+                    {
+                        "session": session,
+                        "session_path": session_path,
+                        "comparison": comparison,
+                        "category": category,
+                        "title": TRIAGE_CATEGORY_INFO.get(category, TRIAGE_CATEGORY_INFO["other"])["title"],
+                        "promotion_blocker": True,
+                        "gates": [],
+                        "dimensions": [],
+                        "reasons": [],
+                        "evidence": [],
+                        "metrics": row.get("metrics") or {},
+                        "recommended_next": TRIAGE_CATEGORY_INFO.get(
+                            category,
+                            TRIAGE_CATEGORY_INFO["other"],
+                        )["recommended_next"],
+                    },
+                )
+                item["gates"].append(
+                    {
+                        "name": gate_name,
+                        "status": str(gate.get("status") or "unknown"),
+                        "reason": gate.get("reason"),
+                    }
+                )
+                for dimension in dimensions_for_gate(gate_name):
+                    if dimension not in item["dimensions"]:
+                        item["dimensions"].append(dimension)
+                reason = gate.get("reason")
+                if reason and reason not in item["reasons"]:
+                    item["reasons"].append(reason)
+                evidence = gate.get("evidence")
+                if evidence is not None:
+                    item["evidence"].append({"gate": gate_name, "value": evidence})
+    items: list[dict[str, Any]] = []
+    for item in grouped.values():
+        statuses = [str(gate.get("status") or "unknown") for gate in item.get("gates") or []]
+        item["severity"] = triage_severity(statuses)
+        item["gates"] = sorted(item["gates"], key=lambda gate: str(gate.get("name") or ""))
+        item["dimensions"] = sorted(item["dimensions"])
+        items.append(item)
+    items = sorted(
+        items,
+        key=lambda item: (
+            {"blocker": 0, "warning": 1, "needs_evidence": 2, "unknown": 3}.get(str(item.get("severity")), 9),
+            str(item.get("category") or ""),
+            str(item.get("session") or ""),
+        ),
+    )
+    by_category: dict[str, dict[str, Any]] = {}
+    by_severity: Counter[str] = Counter()
+    sessions_by_category: dict[str, set[str]] = defaultdict(set)
+    for item in items:
+        category = str(item.get("category") or "other")
+        severity = str(item.get("severity") or "unknown")
+        by_severity[severity] += 1
+        sessions_by_category[category].add(str(item.get("session") or ""))
+    for category, sessions in sorted(sessions_by_category.items()):
+        category_items = [item for item in items if item.get("category") == category]
+        by_category[category] = {
+            "title": TRIAGE_CATEGORY_INFO.get(category, TRIAGE_CATEGORY_INFO["other"])["title"],
+            "item_count": len(category_items),
+            "session_count": len(sessions),
+            "sessions": sorted(sessions),
+            "severities": dict(Counter(str(item.get("severity") or "unknown") for item in category_items)),
+            "recommended_next": TRIAGE_CATEGORY_INFO.get(category, TRIAGE_CATEGORY_INFO["other"])["recommended_next"],
+        }
+    summary = {
+        "total_items": len(items),
+        "session_count": len({str(item.get("session") or "") for item in items}),
+        "by_category": by_category,
+        "by_severity": dict(by_severity),
+        "promotion_scope": "real_meeting",
+        "new_real_live_collection_allowed": False,
+        "note": "triage is derived only from non-passing real live parity gates; diagnostic sessions are excluded",
+    }
+    return summary, items
 
 
 def recommended_next_commands(
@@ -774,6 +987,49 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         lines.append(
             f"| `{key}` | `{value.get('promotion_required')}` | {counts_text} | {len(issue_sessions)} |"
         )
+    triage_summary = (
+        report.get("real_blocker_triage_summary")
+        if isinstance(report.get("real_blocker_triage_summary"), dict)
+        else {}
+    )
+    triage_categories = (
+        triage_summary.get("by_category") if isinstance(triage_summary.get("by_category"), dict) else {}
+    )
+    if triage_summary:
+        lines += [
+            "",
+            "## Real Blocker Triage",
+            "",
+            "This section groups only real-meeting non-passing gates into actionable buckets. It does "
+            "not suggest collecting new live meetings while live capture is quarantined.",
+            "",
+            f"- triage items: {triage_summary.get('total_items', 0)}",
+            f"- affected sessions: {triage_summary.get('session_count', 0)}",
+            f"- severities: "
+            + (
+                ", ".join(
+                    f"{severity}: {count}"
+                    for severity, count in sorted((triage_summary.get("by_severity") or {}).items())
+                )
+                or "-"
+            ),
+            "",
+            "| Category | Items | Sessions | Severity | Next |",
+            "| --- | ---: | --- | --- | --- |",
+        ]
+        for category, value in sorted(triage_categories.items()):
+            if not isinstance(value, dict):
+                continue
+            sessions = value.get("sessions") if isinstance(value.get("sessions"), list) else []
+            severities = value.get("severities") if isinstance(value.get("severities"), dict) else {}
+            severity_text = ", ".join(f"{key}: {count}" for key, count in sorted(severities.items())) or "-"
+            session_text = ", ".join(f"`{session}`" for session in sessions[:4])
+            if len(sessions) > 4:
+                session_text += f", +{len(sessions) - 4}"
+            lines.append(
+                f"| `{category}` | {value.get('item_count', 0)} | {session_text or '-'} | "
+                f"{severity_text} | {value.get('recommended_next') or '-'} |"
+            )
     lines += [
         "",
         "## All Parity Dimensions",
@@ -897,6 +1153,13 @@ def main() -> int:
     blocking_dimensions = summary.get("promotion_blocking_dimensions") or []
     print(f"promotion_blocking_dimensions: {', '.join(blocking_dimensions) if blocking_dimensions else 'none'}")
     print(f"gate_issues: {len(report.get('gate_issues') or [])}")
+    triage_summary = (
+        report.get("real_blocker_triage_summary")
+        if isinstance(report.get("real_blocker_triage_summary"), dict)
+        else {}
+    )
+    print(f"real_blocker_triage_items: {triage_summary.get('total_items', 0)}")
+    print(f"real_blocker_triage_sessions: {triage_summary.get('session_count', 0)}")
     if report.get("recommended_next"):
         print(f"recommended_next: {report['recommended_next']}")
     print(f"report: {md_path}")

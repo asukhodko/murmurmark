@@ -341,6 +341,7 @@ To inspect live parity over a local corpus:
 ```bash
 murmurmark corpus live all
 less sessions/_reports/live-pipeline/live_corpus_gates_report.md
+jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json
 ```
 
 The expected v1 result is still `shadow_only_do_not_promote`: the report should explain which gates
@@ -355,6 +356,10 @@ session/gate/reason rows that currently prevent a passing comparison. Promotion 
 real coverage. Draft text recall is tracked separately from required artifacts: a session can have
 all files present and still fail because the live draft text does not match the authoritative batch
 transcript.
+The report also has `real_blocker_triage_summary` and a `Real Blocker Triage` Markdown section. Use
+that first when deciding what to do next: it separates batch review/readiness debt, missing artifacts,
+local recall gaps, remote leakage and live draft drift. Triage is explanatory only; it does not make
+live safe for new real meetings.
 
 The old live-coverage target remains a diagnostic report shape, not a current action item. Do not use
 this command as an instruction to collect more live meetings while live recording is quarantined:
