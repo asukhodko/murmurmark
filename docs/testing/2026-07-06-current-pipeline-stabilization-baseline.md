@@ -20,7 +20,7 @@ Result:
 - capture regression check: passed in static and live modes.
 - current-pipeline stabilization audit: passed.
 - capture health matrix: `mic-only`, `remote-only` and `mic+remote` pass the early capture gate;
-  `silence` and `interrupted` block before ASR.
+  `silence`, `sparse` and `interrupted` block before ASR.
 - process resume smoke: passed; chunk resume, legacy raw-cache rebuild and interrupted process resume
   all complete.
 - Ctrl-C recording smoke: passed in `/tmp`; `stop_reason=sigint`, `partial=false`, one mic file
@@ -30,6 +30,8 @@ Result:
 - ScreenCaptureKit display-state check: when both displays were asleep, `doctor --strict` reported
   `shareable displays: 0` and blocked recording; after `caffeinate -u -t 5`, it saw shareable
   displays again and passed.
+- sparse capture check: `sessions/2026-07-06_14-03-58` now blocks as `sparse_capture`; it had
+  31m39s CAF tracks but only about 16s of active mic audio and 2s of active remote audio.
 
 ## Fresh Session Handoff
 

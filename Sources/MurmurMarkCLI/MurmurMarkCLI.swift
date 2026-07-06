@@ -10888,7 +10888,7 @@ enum ReadinessPrinter {
             return nil
         }
         let blocker = string(payload["blocker"]) ?? ""
-        guard blocker == "silent_capture" || blocker == "interrupted_capture" else {
+        guard blocker == "silent_capture" || blocker == "interrupted_capture" || blocker == "sparse_capture" else {
             return nil
         }
         return payload

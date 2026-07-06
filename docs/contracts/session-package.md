@@ -178,6 +178,10 @@ An explicit `sigint`/duration stop may still produce `status: partial` when audi
 incomplete or both final tracks are effectively silent. In that case `health.explicit_stop` can be
 `true`; the blocker is audio evidence, not the stop signal.
 
+A long recording can also be blocked later by the pipeline as `sparse_capture`: the CAF duration may
+match wall-clock time because MurmurMark padded timestamp gaps with silence, but active audio is too
+rare to support transcription. This is a capture failure, not a good transcript with few utterances.
+
 ScreenCaptureKit no-sample intervals are not partial by themselves. Raw CAF writers preserve the
 timeline by inserting silence for timestamp gaps, so pauses or skipped silent buffers do not compress
 the recording. At startup, however, a complete absence of ScreenCaptureKit audio samples is treated as
@@ -196,8 +200,9 @@ For a partial session:
   when readiness has not already been generated.
 
 For an explicit-stop session whose mic and remote tracks are both silent, normal processing must also
-block with `blocker: silent_capture`. This prevents ASR from producing an empty transcript that looks
-like a valid meeting result.
+block with `blocker: silent_capture`. If a long recording has only sparse audio bursts, it must block
+with `blocker: sparse_capture`. This prevents ASR from producing an empty or tiny transcript that
+looks like a valid meeting result.
 
 ## `events.jsonl`
 

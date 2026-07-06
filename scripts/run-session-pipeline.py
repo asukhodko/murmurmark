@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import json
 import os
 import signal
@@ -25,6 +26,11 @@ INTERRUPTED_CAPTURE_WARNING_MARKERS = (
     "capture finalized as partial because both mic and remote tracks are silent",
 )
 INTERRUPTED_CAPTURE_STOP_REASONS = {"stream_stopped", "capture_stalled", "sigterm", "sighup"}
+SPARSE_CAPTURE_MIN_DURATION_SEC = 180.0
+SPARSE_CAPTURE_ACTIVE_DB = -60.0
+SPARSE_CAPTURE_MIN_ACTIVE_RATIO = 0.03
+SPARSE_CAPTURE_MIN_ACTIVE_SEC = 15.0
+SPARSE_CAPTURE_MAX_REQUIRED_ACTIVE_SEC = 60.0
 
 
 STEP_COST_HINTS: dict[str, dict[str, str]] = {
@@ -225,6 +231,120 @@ def silent_capture_warnings(session: Path) -> list[str]:
             "both mic and remote tracks are silent; ASR would produce an empty transcript"
         ]
     return []
+
+
+def first_audio_paths(session: Path, session_json: dict[str, Any], track: str) -> list[Path]:
+    files = ((session_json.get("files") or {}).get(track) or [])
+    paths: list[Path] = []
+    if isinstance(files, list):
+        for item in files:
+            if not isinstance(item, dict):
+                continue
+            raw_path = item.get("path")
+            if isinstance(raw_path, str) and raw_path:
+                paths.append(session / raw_path)
+    return [path for path in paths if path.exists()]
+
+
+def audio_active_seconds(path: Path, *, active_db: float = SPARSE_CAPTURE_ACTIVE_DB) -> tuple[float, float] | None:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return None
+    sample_rate = 8000
+    bytes_per_sample = 2
+    chunk_bytes = sample_rate * bytes_per_sample
+    active_sec = 0.0
+    duration_sec = 0.0
+    threshold = 10 ** (active_db / 20.0)
+    process = subprocess.Popen(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(path),
+            "-ac",
+            "1",
+            "-ar",
+            str(sample_rate),
+            "-f",
+            "s16le",
+            "-",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert process.stdout is not None
+    while True:
+        chunk = process.stdout.read(chunk_bytes)
+        if not chunk:
+            break
+        sample_count = len(chunk) // bytes_per_sample
+        if sample_count <= 0:
+            continue
+        # s16le by construction above.
+        total = 0
+        for index in range(0, sample_count * bytes_per_sample, bytes_per_sample):
+            value = int.from_bytes(chunk[index : index + bytes_per_sample], "little", signed=True)
+            total += value * value
+        rms = math.sqrt(total / sample_count) / 32768.0
+        seconds = sample_count / sample_rate
+        duration_sec += seconds
+        if rms > threshold:
+            active_sec += seconds
+    _, stderr = process.communicate()
+    if process.returncode != 0:
+        message = stderr.decode("utf-8", errors="replace").strip()
+        print(f"[warn] cannot probe audio activity for {path}: {message[-500:]}", flush=True)
+        return None
+    return active_sec, duration_sec
+
+
+def sparse_capture_warnings(session: Path) -> list[str]:
+    session_json = read_json(session / "session.json")
+    if not isinstance(session_json, dict):
+        return []
+    health = session_json.get("health")
+    if not isinstance(health, dict):
+        return []
+    actual_duration = float(health.get("actual_duration_sec") or 0.0)
+    if actual_duration < SPARSE_CAPTURE_MIN_DURATION_SEC:
+        return []
+    if bool(health.get("partial")) or session_json.get("status") == "partial":
+        return []
+
+    track_profiles: dict[str, dict[str, float]] = {}
+    for track in ("mic", "remote"):
+        active_sec = 0.0
+        decoded_sec = 0.0
+        for path in first_audio_paths(session, session_json, track):
+            stats = audio_active_seconds(path)
+            if stats is None:
+                return []
+            track_active, track_decoded = stats
+            active_sec += track_active
+            decoded_sec += track_decoded
+        track_profiles[track] = {"active_sec": active_sec, "decoded_sec": decoded_sec}
+
+    strongest_active = max(profile["active_sec"] for profile in track_profiles.values())
+    active_ratio = strongest_active / actual_duration if actual_duration > 0 else 0.0
+    required_active = min(
+        SPARSE_CAPTURE_MAX_REQUIRED_ACTIVE_SEC,
+        max(SPARSE_CAPTURE_MIN_ACTIVE_SEC, actual_duration * SPARSE_CAPTURE_MIN_ACTIVE_RATIO),
+    )
+    if strongest_active >= required_active:
+        return []
+    return [
+        (
+            "captured audio is too sparse for meeting transcription: "
+            f"strongest track has {strongest_active:.1f}s above {SPARSE_CAPTURE_ACTIVE_DB:.0f} dB "
+            f"over {actual_duration:.1f}s ({active_ratio * 100:.2f}%); "
+            f"minimum expected active audio is {required_active:.1f}s"
+        ),
+        f"mic active audio: {track_profiles['mic']['active_sec']:.1f}s; remote active audio: {track_profiles['remote']['active_sec']:.1f}s",
+    ]
 
 
 def resolve_murmurmark_bin(explicit: Path | None, repo_root: Path) -> str:
@@ -1166,6 +1286,7 @@ def write_interrupted_capture_report(
     plan_metadata: dict[str, Any],
     warnings: list[str],
     started_at: str,
+    blocker: str = "interrupted_capture",
 ) -> dict[str, Any]:
     session_arg = shell_path(session, repo_root)
     report_arg = shell_path(report_path, repo_root)
@@ -1193,7 +1314,7 @@ def write_interrupted_capture_report(
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "session": str(session),
         "status": "blocked",
-        "blocker": "interrupted_capture",
+        "blocker": blocker,
         "inputs": {
             "model": str(args.model),
             "language": args.language,
@@ -1252,6 +1373,7 @@ def main() -> int:
     final_status = "passed"
     interrupted_warnings = interrupted_capture_warnings(session)
     silent_warnings = silent_capture_warnings(session)
+    sparse_warnings = sparse_capture_warnings(session)
     if interrupted_warnings and not args.allow_partial and not args.plan_only:
         report = write_interrupted_capture_report(
             args=args,
@@ -1261,6 +1383,7 @@ def main() -> int:
             plan_metadata=plan_metadata,
             warnings=interrupted_warnings,
             started_at=started_at,
+            blocker="interrupted_capture",
         )
         print_pipeline_summary(report, report_path, repo_root)
         print("  blocker: interrupted_capture", flush=True)
@@ -1276,8 +1399,8 @@ def main() -> int:
             plan_metadata=plan_metadata,
             warnings=silent_warnings,
             started_at=started_at,
+            blocker="silent_capture",
         )
-        report["blocker"] = "silent_capture"
         if report.get("next_commands"):
             report["next_commands"][0] = {
                 "id": "inspect_silent_session",
@@ -1291,6 +1414,31 @@ def main() -> int:
         print("  blocker: silent_capture", flush=True)
         print("  warning: both mic and remote tracks are silent; transcription would be empty", flush=True)
         print("  hint: inspect the session, run live capture check, then re-record", flush=True)
+        return 2
+    if sparse_warnings and not args.allow_partial and not args.plan_only:
+        report = write_interrupted_capture_report(
+            args=args,
+            session=session,
+            report_path=report_path,
+            repo_root=repo_root,
+            plan_metadata=plan_metadata,
+            warnings=sparse_warnings,
+            started_at=started_at,
+            blocker="sparse_capture",
+        )
+        if report.get("next_commands"):
+            report["next_commands"][0] = {
+                "id": "inspect_sparse_session",
+                "command": f"murmurmark inspect {shell_path(session, repo_root)}",
+                "reason": "inspect sparse recording health and capture warnings",
+            }
+        report["recommended_next"] = report["next_commands"][0]["command"]
+        write_json(report_path, report)
+        write_outcome_artifacts(session, report_path, repo_root)
+        print_pipeline_summary(report, report_path, repo_root)
+        print("  blocker: sparse_capture", flush=True)
+        print("  warning: captured audio is too sparse for meeting transcription", flush=True)
+        print("  hint: inspect the session, run doctor --strict, then re-record", flush=True)
         return 2
 
     if args.plan_only:

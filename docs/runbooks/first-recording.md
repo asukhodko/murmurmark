@@ -210,9 +210,13 @@ the wall-clock timeline by inserting silence for timestamp gaps in the raw CAF t
 ScreenCaptureKit audio samples arrive at the start of recording, MurmurMark tries short restarts and
 then finalizes the session as partial instead of waiting through a whole meeting. If restart fails
 after a real stream stop, if the final written CAF tracks cover far less time than the wall-clock
-recording, or if both mic and remote tracks are effectively silent, MurmurMark writes explicit health
-warnings and blocks normal processing. `SIGTERM` and `SIGHUP` are also treated as unexpected stops
-rather than successful meeting ends.
+recording, if both mic and remote tracks are effectively silent, or if a long recording contains only
+sparse audio bursts, MurmurMark writes explicit health warnings and blocks normal processing.
+`SIGTERM` and `SIGHUP` are also treated as unexpected stops rather than successful meeting ends.
+
+The `sparse_capture` blocker means the raw CAF files may be long, but there is too little active
+audio for a meeting transcript. This usually points to ScreenCaptureKit not delivering useful audio
+for most of the session. Do not trust old derived transcripts from such a session.
 
 Do not process a partial or all-silent session as a complete meeting; inspect it or start a new
 recording. `murmurmark status SESSION` and `murmurmark next SESSION` point to

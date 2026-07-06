@@ -251,16 +251,18 @@ recommended_next: murmurmark process sessions/<timestamp>
 ```
 
 If capture stops before `Ctrl-C`, if written CAF tracks cover far less time than the wall-clock
-recording, or if both mic and remote tracks are effectively silent, MurmurMark finalizes or blocks the
-session instead of pretending it is complete. In that case `record`, `status`, `next` and `process`
-point to `murmurmark inspect ...`; normal processing is blocked unless you explicitly pass
-`--allow-partial` for debugging.
+recording, if both mic and remote tracks are effectively silent, or if a long recording contains only
+a tiny amount of active audio, MurmurMark finalizes or blocks the session instead of pretending it is
+complete. In that case `record`, `status`, `next` and `process` point to `murmurmark inspect ...`;
+normal processing is blocked unless you explicitly pass `--allow-partial` for debugging.
 
 ScreenCaptureKit may skip audio buffers during silence or source inactivity. MurmurMark preserves
 the meeting timeline in raw CAF files by inserting silence for timestamp gaps instead of compressing
 the recording to only the buffers that arrived. If no ScreenCaptureKit audio samples arrive at the
 start of recording, MurmurMark now tries short restarts and then fails fast as a partial capture
-instead of letting a whole meeting become an empty transcript.
+instead of letting a whole meeting become an empty transcript. If a long recording has only sparse
+audio bursts, `process` blocks with `sparse_capture`; this catches cases where timestamp padding kept
+the CAF duration correct but ScreenCaptureKit delivered almost no useful audio.
 
 Then run:
 

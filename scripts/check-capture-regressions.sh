@@ -302,6 +302,30 @@ assert_capture_health_matrix() {
   jq -e '.status == "blocked" and .blocker == "interrupted_capture"' \
     "$interrupted/derived/pipeline-run/pipeline_run_report.json" >/dev/null \
     || fail "interrupted fixture did not write interrupted_capture blocker"
+
+  local sparse="$workdir/sparse"
+  write_capture_fixture_session "$sparse" tone tone completed_with_warnings false sigint none
+  jq '.health.actual_duration_sec = 600 | .health.summary = "warning" | .health.warnings = ["ScreenCaptureKit stream restarted after capture_stalled"]' \
+    "$sparse/session.json" >"$sparse/session.json.tmp"
+  mv "$sparse/session.json.tmp" "$sparse/session.json"
+  set +e
+  python3 "$repo_root/scripts/run-session-pipeline.py" "$sparse" \
+    --murmurmark-bin "$bin" \
+    --model "$fake_model" \
+    --skip-build \
+    --skip-preprocess \
+    --skip-transcription \
+    --skip-audits \
+    --skip-cleanup >"$workdir/sparse.log" 2>&1
+  status=$?
+  set -e
+  [[ "$status" -eq 2 ]] || {
+    cat "$workdir/sparse.log" >&2
+    fail "sparse fixture should be blocked before ASR"
+  }
+  jq -e '.status == "blocked" and .blocker == "sparse_capture"' \
+    "$sparse/derived/pipeline-run/pipeline_run_report.json" >/dev/null \
+    || fail "sparse fixture did not write sparse_capture blocker"
 }
 
 run_live_capture_probe() {
