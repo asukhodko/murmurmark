@@ -10713,6 +10713,10 @@ enum ReadinessPrinter {
     static func printNext(_ session: URL, exportManifest explicitExportManifest: URL? = nil) throws {
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
         let sessionPath = PathDisplay.display(session)
+        if let runState = pipelineRunStatePayload(session) {
+            printPipelineRunStateNext(session: session, state: runState)
+            return
+        }
         if let blocked = pipelineBlockedPayload(session) {
             let blocker = string(blocked["blocker"]) ?? "pipeline_blocked"
             let nextCommands = blocked["next_commands"] as? [[String: Any]] ?? []
@@ -10848,6 +10852,10 @@ enum ReadinessPrinter {
 
     static func printSession(_ session: URL, label: String = "readiness") throws {
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
+        if let runState = pipelineRunStatePayload(session) {
+            printPipelineRunStateReadiness(label: label, session: session, state: runState)
+            return
+        }
         if let blocked = pipelineBlockedPayload(session) {
             printPipelineBlockedReadiness(label: label, session: session, pipeline: blocked)
             return
@@ -10991,6 +10999,113 @@ enum ReadinessPrinter {
             return nil
         }
         return payload
+    }
+
+    private static func pipelineRunStatePayload(_ session: URL) -> [String: Any]? {
+        let stateURL = session.appendingPathComponent("derived/pipeline-run/pipeline_run_state.json")
+        guard FileManager.default.fileExists(atPath: stateURL.path),
+              let payload = try? JSONFiles.object(stateURL)
+        else {
+            return nil
+        }
+        let status = string(payload["status"]) ?? ""
+        guard status == "running" || status == "interrupted" else {
+            return nil
+        }
+        let reportURL = session.appendingPathComponent("derived/pipeline-run/pipeline_run_report.json")
+        if let stateDate = modificationDate(stateURL),
+           let reportDate = modificationDate(reportURL),
+           reportDate >= stateDate {
+            return nil
+        }
+        return payload
+    }
+
+    private static func modificationDate(_ url: URL) -> Date? {
+        guard FileManager.default.fileExists(atPath: url.path),
+              let values = try? url.resourceValues(forKeys: [.contentModificationDateKey])
+        else {
+            return nil
+        }
+        return values.contentModificationDate
+    }
+
+    private static func printPipelineRunStateNext(session: URL, state: [String: Any]) {
+        let sessionPath = PathDisplay.display(session)
+        let status = string(state["status"]) ?? "running"
+        let command = string(state["resume_command"]) ?? "murmurmark process \(sessionPath)"
+        print("")
+        print("next:")
+        print("  status: process_\(status)")
+        print("  command: \(command)")
+        print("  source: pipeline_run_state")
+        if let step = string(state["active_step"]) {
+            print("  active_step: \(step)")
+        }
+        if let elapsed = double(state["active_step_elapsed_sec"]) {
+            print(String(format: "  active_step_elapsed: %.1fs", elapsed))
+        }
+        print("  safe_interrupt: \(bool(state["safe_interrupt"]) ?? true)")
+        if let hint = string(state["safe_interrupt_hint"]) {
+            print("  hint: \(hint)")
+        }
+        if let progress = state["progress"] as? [String: Any] {
+            printASRChunkProgress(progress, indent: "  ")
+        }
+        print("  read: murmurmark status \(sessionPath)")
+    }
+
+    private static func printPipelineRunStateReadiness(label: String, session: URL, state: [String: Any]) {
+        let sessionPath = PathDisplay.display(session)
+        let status = string(state["status"]) ?? "running"
+        let command = string(state["resume_command"]) ?? "murmurmark process \(sessionPath)"
+        print("")
+        print("\(label):")
+        print("  session: \(sessionPath)")
+        print("  status: process_\(status)")
+        print("  recommended_next: \(command)")
+        if let step = string(state["active_step"]) {
+            print("  active_step: \(step)")
+        }
+        if let elapsed = double(state["active_step_elapsed_sec"]) {
+            print(String(format: "  active_step_elapsed: %.1fs", elapsed))
+        }
+        if let message = string(state["message"]) {
+            print("  message: \(message)")
+        }
+        if let progress = state["progress"] as? [String: Any] {
+            printASRChunkProgress(progress, indent: "  ")
+        }
+        print("  use:")
+        print("    summary: processing is not finished yet")
+        print("    can_read_notes: false")
+        print("    can_export: false")
+        print("    minimum_step: \(command)")
+        print("  next:")
+        print("    \(command) — resume or continue processing")
+        print("    murmurmark next \(sessionPath) — print the current handoff")
+    }
+
+    private static func printASRChunkProgress(_ progress: [String: Any], indent: String) {
+        guard let chunks = progress["asr_chunks"] as? [String: Any] else {
+            return
+        }
+        let completed = int(chunks["chunks_completed"]) ?? 0
+        let total = int(chunks["chunks_total"]) ?? 0
+        guard total > 0 else {
+            return
+        }
+        let completedSec = double(chunks["completed_sec"]) ?? 0.0
+        let totalSec = double(chunks["total_sec"]) ?? 0.0
+        let remainingSec = double(chunks["remaining_sec"]) ?? max(0.0, totalSec - completedSec)
+        let reused = int(chunks["chunks_reused"]) ?? 0
+        let transcribed = int(chunks["chunks_transcribed"]) ?? 0
+        print("\(indent)asr_chunks:")
+        print("\(indent)  chunks: \(completed)/\(total)")
+        print(String(format: "\(indent)  audio: %.1fs/%.1fs", completedSec, totalSec))
+        print(String(format: "\(indent)  remaining: %.1fs", remainingSec))
+        print("\(indent)  reused: \(reused)")
+        print("\(indent)  transcribed: \(transcribed)")
     }
 
     private static func printPipelineBlockedReadiness(label: String, session: URL, pipeline: [String: Any]) {
@@ -11328,7 +11443,9 @@ enum ReadinessPrinter {
         let sessionPath = PathDisplay.display(session)
         let url = session.appendingPathComponent("derived/readiness/session_readiness.json")
         let command: String
-        if let blocked = pipelineBlockedPayload(session) {
+        if let runState = pipelineRunStatePayload(session) {
+            command = string(runState["resume_command"]) ?? "murmurmark process \(sessionPath)"
+        } else if let blocked = pipelineBlockedPayload(session) {
             let nextCommands = blocked["next_commands"] as? [[String: Any]] ?? []
             command = string(blocked["recommended_next"])
                 ?? nextCommands.compactMap { string($0["command"]) }.first

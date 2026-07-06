@@ -1,13 +1,40 @@
 # Current Goal Context
 
 This file keeps the latest completed goals for context. The next recommended goal is documented in
-the roadmap as Current Pipeline Stabilization v1: freeze product work, prove one supported
-record/process/status/next/finish path, and make capture/process failures explicit instead of
-letting them become empty transcripts or stale handoffs.
+the roadmap as Process Observability & Run Monitor v1: keep the stable non-live production path, but
+make long `process` runs observable, resumable and unambiguous from another terminal.
 
-## Active Goal: Current Pipeline Stabilization v1
+## Active Goal: Process Observability & Run Monitor v1
 
 Status, 2026-07-06: active.
+
+Goal:
+
+```text
+Сделать долгий `murmurmark process SESSION` понятным и контролируемым без ручного чтения логов.
+Пользователь должен видеть, какой шаг сейчас идёт, есть ли прогресс по ASR chunks, безопасно ли
+прерывать процесс, как его возобновить и почему текущий результат ещё не готов. Нельзя добавлять
+новые repair/synthesis/audit-слои; задача только в наблюдаемости, run-state, resume-handoff и
+согласованности `process`, `status`, `next`, `sessions --all`.
+```
+
+Plainly: the recording path is stable again; now processing must stop feeling like a black box.
+
+Definition of done:
+
+- a running `process` writes a current run-state artifact before final `pipeline_run_report.json`;
+- `murmurmark status SESSION` and `murmurmark next SESSION` can show an in-progress/interrupted
+  process state without trusting stale readiness;
+- heartbeats include the active step, ASR chunk progress when available, resume command and safe
+  interrupt hint;
+- interrupted runs leave one obvious recovery command and do not make stale transcript/notes look
+  current;
+- docs describe how to watch, interrupt and resume long processing;
+- no change to capture, Echo Guard, ASR model, transcript profiles or review logic.
+
+## Latest Completed Goal: Current Pipeline Stabilization v1
+
+Status, 2026-07-06: complete.
 
 Current baseline:
 

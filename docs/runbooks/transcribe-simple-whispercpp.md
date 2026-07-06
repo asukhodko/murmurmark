@@ -61,9 +61,12 @@ local-recall audit, transcript-order audit, group-overlap audit, audio-review au
 `--force-asr` when you need to regenerate Whisper output, and `--reuse-asr-cache` when you only want
 to rebuild repair, cleanup, synthesis and reports from cached ASR JSON. The runner prints each stage
 with `[run]`, `[passed]`, `[failed]` or `[skip]`, prints heartbeat lines for long-running stages, and
-stores the same stage list in `derived/pipeline-run/pipeline_run_report.json`. Heartbeats include
-the step reason, checkpoint count when the step has known outputs, and a resume command, so a slow
-ASR stage should not look like a silent hang. If you stop the runner with `Ctrl-C`, the current child
+stores the final stage list in `derived/pipeline-run/pipeline_run_report.json`. While the run is
+active it also writes `derived/pipeline-run/pipeline_run_state.json`, which lets
+`murmurmark status SESSION` and `murmurmark next SESSION` show the active step, ASR chunk progress,
+safe interrupt hint and resume command instead of trusting stale readiness. Heartbeats include the
+step reason, checkpoint count when the step has known outputs, and a resume command, so a slow ASR
+stage should not look like a silent hang. If you stop the runner with `Ctrl-C`, the current child
 process is terminated, the run report is written with `status: interrupted`, `outcome` is refreshed,
 and the printed next command is the same `murmurmark process SESSION` resume path. Use
 `--progress-interval-sec 0` if you need a quieter run. Use `--plan-only` to print a compact

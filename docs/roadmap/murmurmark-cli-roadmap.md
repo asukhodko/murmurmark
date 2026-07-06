@@ -419,13 +419,15 @@ Recently completed:
 
 ## Candidate Next Goals
 
-Recommended nearest goal: **Current Pipeline Stabilization v1**. Chunked ASR resume is in place, but
-recent capture/live failures showed that the product needs one boring production path before more
-experiments. Live parity, echo promotion and heavier validators wait behind this stabilization pass.
+Recommended nearest goal: **Process Observability & Run Monitor v1**. Current Pipeline
+Stabilization v1 restored one supported production path: normal non-live recording, then batch
+processing. The next reliability gap is visibility while `murmurmark process` is still running or
+has been interrupted: `status`, `next` and `sessions --all` must not depend on stale readiness when a
+newer run-state exists.
 
-1. **Current Pipeline Stabilization v1.** Prove normal non-live record/process/status/next/finish,
-   classify failed capture cleanly, keep stale derived reports from overriding newer blockers and
-   make README/runbooks match the supported path.
+1. **Process Observability & Run Monitor v1.** Write a current run-state artifact during
+   `murmurmark process`, expose the active step and ASR chunk progress through `status`/`next`, keep
+   interruption recovery obvious and make stale readiness harmless.
 2. **Near-Realtime Capture-Safe Redesign v1.** Redesign live segment production so it never runs
    blocking file/ASR work on the ScreenCaptureKit callback path and cannot corrupt raw capture. Only
    after that, restore live parity coverage on controlled non-critical sessions.

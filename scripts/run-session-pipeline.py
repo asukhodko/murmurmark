@@ -19,6 +19,7 @@ from typing import Any
 
 SCRIPT_VERSION = "0.1.3"
 SCHEMA = "murmurmark.session_pipeline_run/v1"
+RUN_STATE_SCHEMA = "murmurmark.pipeline_run_state/v1"
 INTERRUPTED_CAPTURE_WARNING_MARKERS = (
     "stream stopped with error",
     "capture produced no audio samples",
@@ -371,6 +372,60 @@ def rel(path: Path, base: Path) -> str:
 
 def shell_path(path: Path, base: Path) -> str:
     return shlex.quote(rel(path, base))
+
+
+def pipeline_run_state_path(session: Path) -> Path:
+    return session / "derived/pipeline-run/pipeline_run_state.json"
+
+
+def write_pipeline_run_state(
+    *,
+    session: Path,
+    repo_root: Path,
+    report_path: Path,
+    started_at: str,
+    status: str,
+    active_step: str | None = None,
+    active_step_started_at: str | None = None,
+    active_step_elapsed_sec: float | None = None,
+    progress: dict[str, Any] | None = None,
+    message: str | None = None,
+    completed_steps: list[dict[str, Any]] | None = None,
+) -> None:
+    session_arg = rel(session, repo_root)
+    payload: dict[str, Any] = {
+        "schema": RUN_STATE_SCHEMA,
+        "generator": {"name": "run-session-pipeline", "version": SCRIPT_VERSION},
+        "session": str(session),
+        "status": status,
+        "started_at": started_at,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "report": rel(report_path, session),
+        "resume_command": f"murmurmark process {session_arg}",
+        "next_command": f"murmurmark next {session_arg}",
+        "safe_interrupt": True,
+        "safe_interrupt_hint": f"Ctrl-C is safe; rerun `murmurmark process {session_arg}`",
+    }
+    if active_step:
+        payload["active_step"] = active_step
+    if active_step_started_at:
+        payload["active_step_started_at"] = active_step_started_at
+    if active_step_elapsed_sec is not None:
+        payload["active_step_elapsed_sec"] = round(active_step_elapsed_sec, 3)
+    if progress is not None:
+        payload["progress"] = progress
+    if message:
+        payload["message"] = message
+    if completed_steps is not None:
+        payload["completed_steps"] = [
+            {
+                "name": str(item.get("name") or ""),
+                "status": str(item.get("status") or ""),
+                "duration_sec": item.get("duration_sec"),
+            }
+            for item in completed_steps
+        ]
+    write_json(pipeline_run_state_path(session), payload)
 
 
 def first_next_command(readiness: dict[str, Any] | None) -> str | None:
@@ -1023,6 +1078,7 @@ def run_step(
     progress_interval_sec: int,
     session: Path,
     report_path: Path,
+    pipeline_started_at: str,
 ) -> dict[str, Any]:
     started_at = datetime.now(timezone.utc).isoformat()
     started = time.monotonic()
@@ -1045,6 +1101,23 @@ def run_step(
         stdout_path = Path(temp_dir) / "stdout.log"
         stderr_path = Path(temp_dir) / "stderr.log"
         with stdout_path.open("w", encoding="utf-8") as stdout_file, stderr_path.open("w", encoding="utf-8") as stderr_file:
+            step_name = str(item.get("name") or "unknown")
+            write_pipeline_run_state(
+                session=session,
+                repo_root=repo_root,
+                report_path=report_path,
+                started_at=pipeline_started_at,
+                status="running",
+                active_step=step_name,
+                active_step_started_at=started_at,
+                active_step_elapsed_sec=0.0,
+                progress=checkpoint_progress_for_step(
+                    step_name=step_name,
+                    session=session,
+                    report_path=report_path,
+                ),
+                message="step_started",
+            )
             process = subprocess.Popen(
                 item["command"],
                 cwd=repo_root,
@@ -1063,12 +1136,23 @@ def run_step(
                     now = time.monotonic()
                     if progress_interval_sec > 0 and now >= next_progress_at:
                         elapsed = now - started
-                        step_name = str(item.get("name") or "unknown")
                         hint = step_cost_hint(item) or {}
                         progress = checkpoint_progress_for_step(
                             step_name=step_name,
                             session=session,
                             report_path=report_path,
+                        )
+                        write_pipeline_run_state(
+                            session=session,
+                            repo_root=repo_root,
+                            report_path=report_path,
+                            started_at=pipeline_started_at,
+                            status="running",
+                            active_step=step_name,
+                            active_step_started_at=started_at,
+                            active_step_elapsed_sec=elapsed,
+                            progress=progress,
+                            message="step_heartbeat",
                         )
                         checkpoint = ""
                         if progress["total"]:
@@ -1112,6 +1196,23 @@ def run_step(
                 terminate_process_group(process)
                 stdout_tail = read_tail(stdout_path)
                 stderr_tail = read_tail(stderr_path)
+                elapsed = time.monotonic() - started
+                write_pipeline_run_state(
+                    session=session,
+                    repo_root=repo_root,
+                    report_path=report_path,
+                    started_at=pipeline_started_at,
+                    status="interrupted",
+                    active_step=str(item.get("name") or "unknown"),
+                    active_step_started_at=started_at,
+                    active_step_elapsed_sec=elapsed,
+                    progress=checkpoint_progress_for_step(
+                        step_name=str(item.get("name") or "unknown"),
+                        session=session,
+                        report_path=report_path,
+                    ),
+                    message="interrupted_by_user",
+                )
                 result.update(
                     {
                         "status": "interrupted",
@@ -1371,6 +1472,15 @@ def main() -> int:
     results: list[dict[str, Any]] = []
     started_at = datetime.now(timezone.utc).isoformat()
     final_status = "passed"
+    write_pipeline_run_state(
+        session=session,
+        repo_root=repo_root,
+        report_path=report_path,
+        started_at=started_at,
+        status="running",
+        message="pipeline_started",
+        completed_steps=[],
+    )
     interrupted_warnings = interrupted_capture_warnings(session)
     silent_warnings = silent_capture_warnings(session)
     sparse_warnings = sparse_capture_warnings(session)
@@ -1389,6 +1499,15 @@ def main() -> int:
         print("  blocker: interrupted_capture", flush=True)
         print("  warning: capture stopped before Ctrl-C or requested duration", flush=True)
         print("  hint: inspect the partial session or re-record; use --allow-partial only for debugging", flush=True)
+        write_pipeline_run_state(
+            session=session,
+            repo_root=repo_root,
+            report_path=report_path,
+            started_at=started_at,
+            status="blocked",
+            message="interrupted_capture",
+            completed_steps=results,
+        )
         return 2
     if silent_warnings and not args.allow_partial and not args.plan_only:
         report = write_interrupted_capture_report(
@@ -1414,6 +1533,15 @@ def main() -> int:
         print("  blocker: silent_capture", flush=True)
         print("  warning: both mic and remote tracks are silent; transcription would be empty", flush=True)
         print("  hint: inspect the session, run live capture check, then re-record", flush=True)
+        write_pipeline_run_state(
+            session=session,
+            repo_root=repo_root,
+            report_path=report_path,
+            started_at=started_at,
+            status="blocked",
+            message="silent_capture",
+            completed_steps=results,
+        )
         return 2
     if sparse_warnings and not args.allow_partial and not args.plan_only:
         report = write_interrupted_capture_report(
@@ -1439,6 +1567,15 @@ def main() -> int:
         print("  blocker: sparse_capture", flush=True)
         print("  warning: captured audio is too sparse for meeting transcription", flush=True)
         print("  hint: inspect the session, run doctor --strict, then re-record", flush=True)
+        write_pipeline_run_state(
+            session=session,
+            repo_root=repo_root,
+            report_path=report_path,
+            started_at=started_at,
+            status="blocked",
+            message="sparse_capture",
+            completed_steps=results,
+        )
         return 2
 
     if args.plan_only:
@@ -1454,8 +1591,25 @@ def main() -> int:
             progress_interval_sec=args.progress_interval_sec,
             session=session,
             report_path=report_path,
+            pipeline_started_at=started_at,
         )
         results.append(result)
+        write_pipeline_run_state(
+            session=session,
+            repo_root=repo_root,
+            report_path=report_path,
+            started_at=started_at,
+            status="running" if result["status"] not in {"failed", "interrupted"} else str(result["status"]),
+            active_step=str(result.get("name") or ""),
+            active_step_elapsed_sec=float(result.get("duration_sec") or 0.0),
+            progress=checkpoint_progress_for_step(
+                step_name=str(result.get("name") or ""),
+                session=session,
+                report_path=report_path,
+            ),
+            message=f"step_{result['status']}",
+            completed_steps=results,
+        )
         if not args.plan_only:
             print_step_result(result)
         if result["status"] == "failed":
@@ -1530,6 +1684,16 @@ def main() -> int:
         "steps": results,
     }
     write_json(report_path, report)
+    write_pipeline_run_state(
+        session=session,
+        repo_root=repo_root,
+        report_path=report_path,
+        started_at=started_at,
+        status=status,
+        progress=report["progress"],
+        message="pipeline_finished",
+        completed_steps=results,
+    )
     if not args.plan_only:
         write_outcome_artifacts(session, report_path, repo_root)
     print_pipeline_summary(report, report_path, repo_root)

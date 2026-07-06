@@ -138,9 +138,12 @@ Reliable Processing UX v1 tightens this route: `outcome.json` now includes a com
 with `can_read_notes`, `can_export`, export blockers, transcript/notes/verdict paths, review burden,
 first review lane and the next command, and `murmurmark outcome` prints that summary directly. Long
 `process` stages also print a heartbeat with the stage reason, checkpoint count and resume command,
-so a slow ASR stage does not look like a silent hang. If you stop `process` with `Ctrl-C`, MurmurMark terminates
-the current child step, writes `pipeline_run_report.json` with `status: interrupted`, refreshes
-`outcome`, and points back to the same `murmurmark process SESSION` command.
+so a slow ASR stage does not look like a silent hang. While the run is active, the same live state is
+written to `derived/pipeline-run/pipeline_run_state.json`; `murmurmark status SESSION` and
+`murmurmark next SESSION` prefer that state over stale readiness and show the active step, ASR chunk
+progress and resume command. If you stop `process` with `Ctrl-C`, MurmurMark terminates the current
+child step, writes `pipeline_run_report.json` with `status: interrupted`, refreshes `outcome`, and
+points back to the same `murmurmark process SESSION` command.
 
 Chunked/Resumable Processing v1 is complete at the ASR layer. Default `windowed` whisper.cpp runs now
 write per-window cache reports under `derived/transcript-simple/whisper-cpp/raw/chunks/<track>/`.
@@ -782,32 +785,34 @@ Current focus:
 
 Active goal and near-term candidates:
 
-1. Active: Current Pipeline Stabilization v1: freeze new product work, use one supported production
-   path, prove normal capture/process/status/next/finish behavior, and block silent/partial/failed
-   sessions before ASR.
-2. Completed: Chunked/Resumable Processing v1: ASR work is chunk-addressed, cacheable,
+1. Active: Process Observability & Run Monitor v1: keep the stable non-live production path and make
+   long `murmurmark process` runs observable from `status`/`next` without trusting stale reports.
+2. Completed: Current Pipeline Stabilization v1: the supported production path is normal non-live
+   `record -> process -> status/next/finish`; silent, sparse, partial and interrupted captures block
+   before ASR, and live recording is quarantined.
+3. Completed: Chunked/Resumable Processing v1: ASR work is chunk-addressed, cacheable,
    interrupt-safe and guarded by rebuild/corpus gates. The remaining work is broader corpus
    coverage, not the v1 mechanism.
-3. Later: Near-Realtime Capture-Safe Redesign v1, after the stable production path is boring and
+4. Later: Near-Realtime Capture-Safe Redesign v1, after the stable production path is boring and
    repeatable again. Only after that may live parity coverage return.
-4. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
+5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
-5. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
+6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
    safe review evidence, shrink only rows with strong local proof, and keep ambiguous rows explicit.
-6. Operational Corpus Green follow-up: keep `pilot_ready_with_review` stable, reduce the remaining
+7. Operational Corpus Green follow-up: keep `pilot_ready_with_review` stable, reduce the remaining
    irreducible queue when new local evidence appears, and prevent status drift.
-7. Near-Realtime Pipeline Shadow v1 follow-up: first redesign segment production so live work cannot
+8. Near-Realtime Pipeline Shadow v1 follow-up: first redesign segment production so live work cannot
    affect raw capture, then harden the live draft worker with per-fragment Echo Guard, resumable
    worker state and corpus parity gates.
-8. Echo Guard promotion experiment: only after the shadow candidate passes a broader operational
+9. Echo Guard promotion experiment: only after the shadow candidate passes a broader operational
    corpus, test a separate promoted profile that writes a non-default `mic_for_asr` candidate bundle.
-9. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
+10. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
-10. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
+11. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
    especially Obsidian-vault placement and reviewed proposal exports.
-11. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
+12. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
    regressions before new heuristics ship.
-12. Evidence notes vNext: improve extractive notes quality while preserving citations and review
+13. Evidence notes vNext: improve extractive notes quality while preserving citations and review
    flags.
 13. Open-source release hardening: trim private fixtures, document setup, add security/contact
    guidance and keep generated/private artifacts ignored.

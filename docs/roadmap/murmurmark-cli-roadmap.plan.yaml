@@ -311,26 +311,40 @@ nodes:
       результату `ready_for_notes`, `review_first` или `blocked`, с выбранным профилем, verdict,
       review burden, next command, export gate и retention state. Outcome Contract v1, Gate
       Evaluator, Review Plan, Next Command, Reliable Processing UX v1 и Chunked/Resumable
-      Processing v1 уже закрыли пользовательский handoff и ASR chunk-resume. Следующий конкретный
-      узел внутри маршрута — Current Pipeline Stabilization v1: не добавлять новых возможностей,
-      а доказать один поддерживаемый production path и убрать двусмысленные состояния.
+      Processing v1 уже закрыли пользовательский handoff и ASR chunk-resume. Current Pipeline
+      Stabilization v1 доказал один поддерживаемый non-live production path. Следующий конкретный
+      узел внутри маршрута — Process Observability & Run Monitor v1: сделать долгие
+      `process`-прогоны наблюдаемыми и безопасно возобновляемыми без новых quality слоёв.
 
   current-pipeline-stabilization-v1:
     title: "Current Pipeline Stabilization v1"
     kind: task
     parent: reliable-transcription-route
     deps: [chunked-resumable-processing-v1, cli-recording-reliability, reliable-outcome-contract]
-    status: current
+    status: done
     effort: 6
     notes: |
-      Текущая цель: стабилизировать уже существующий pipeline без новых product features.
-      Production path: `murmurmark record --target-bundle system` без `--live-pipeline`,
-      затем `murmurmark process latest`, `next`, `status`, `finish`. Live-pipeline, echo
-      experiments, new ASR models, diarization, synthesis/review layers and UI stay out of scope.
-      Done means: fresh short non-live recording with audible content produces non-empty transcript;
-      silent/partial/interrupted capture blocks before ASR; `status`/`next` never suggest review or
+      Завершено 2026-07-06. Production path: `murmurmark record --target-bundle system` без
+      `--live-pipeline`, затем `murmurmark process latest`, `next`, `status`, `finish`.
+      Live-pipeline quarantined behind `MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1`. Silent, sparse,
+      partial and interrupted captures block before ASR; `status`/`next` do not suggest review or
       export for failed capture; stale readiness/outcome/live reports cannot override a newer
-      blocker; README/runbooks/roadmap describe this supported route.
+      blocker. Fresh non-live sessions confirmed usable, and restart after ScreenCaptureKit
+      `stream_stopped` preserved raw mic/remote.
+
+  process-observability-run-monitor-v1:
+    title: "Process Observability & Run Monitor v1"
+    kind: task
+    parent: reliable-transcription-route
+    deps: [current-pipeline-stabilization-v1, chunked-resumable-processing-v1, reliable-progress-resume]
+    status: current
+    effort: 5
+    notes: |
+      Ближайшая цель после стабилизации записи. Долгий `murmurmark process SESSION` должен быть
+      понятен без чтения сырых логов: текущий шаг, heartbeat, ASR chunk progress, safe interrupt
+      hint, resume command и stale-report protection должны быть доступны из `status`, `next` и
+      машинно-читаемого run-state ещё до финального `pipeline_run_report.json`. Не менять capture,
+      Echo Guard, ASR model, transcript profiles, review logic или synthesis.
 
   reliable-outcome-contract:
     title: "Outcome Contract v1"
@@ -1483,8 +1497,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Current Pipeline Stabilization v1: заморозить новые product features, доказать обычный record/process/status/next/finish path и блокировать silent/partial/interrupted capture до ASR."
-      success_by_next_sync: "Есть свежая non-live запись с непустым transcript, fresh failed/silent scenario blocks before ASR, `status` и `next` не конфликтуют, docs/README/runbook показывают один production path, live остаётся diagnostic/later."
+      nearest_goal: "Process Observability & Run Monitor v1: сделать долгий `murmurmark process` наблюдаемым из status/next, с live run-state, ASR chunk progress, safe interrupt и понятным resume."
+      success_by_next_sync: "Во время длинного process пользователь видит текущий шаг и прогресс без чтения логов; stale readiness/outcome не перекрывают running/interrupted run-state; docs описывают watch/interruption/resume path."
     defaults:
       status_progress:
         done: 1.0
@@ -1510,8 +1524,8 @@ x:
         kind: main
         mgmt:
           health: green
-          sync_note: "CLI MVP, readiness reconciliation, Recording Reliability, Export Bundle Quality v1, Outcome Contract v1, Reliable Processing UX v1 и Chunked/Resumable Processing v1 закрыты. После серии live/capture отказов следующий разрыв — доказать текущий production path без новых product features."
-          next_sync_goal: "Сделать Current Pipeline Stabilization v1: обычная запись без live, обработка, status/next/finish, failed-capture blockers и документация одного поддерживаемого пути."
+          sync_note: "CLI MVP, readiness reconciliation, Recording Reliability, Export Bundle Quality v1, Outcome Contract v1, Reliable Processing UX v1, Chunked/Resumable Processing v1 и Current Pipeline Stabilization v1 закрыты. Live quarantined; production path снова non-live."
+          next_sync_goal: "Сделать Process Observability & Run Monitor v1: running/interrupted process state, status/next visibility, ASR chunk progress и ясный resume path."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]
