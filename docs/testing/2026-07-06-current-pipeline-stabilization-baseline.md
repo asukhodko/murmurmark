@@ -19,6 +19,8 @@ Result:
 - `scripts/check.sh`: passed.
 - capture regression check: passed in static and live modes.
 - current-pipeline stabilization audit: passed.
+- capture health matrix: `mic-only`, `remote-only` and `mic+remote` pass the early capture gate;
+  `silence` and `interrupted` block before ASR.
 - fresh short non-live recording with audible content: `sessions/2026-07-06_13-12-08`.
 - fresh silent/failed capture blocker reference: `sessions/2026-07-06_11-16-22`.
 
