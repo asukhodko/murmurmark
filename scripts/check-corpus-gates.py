@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.8.0"
+SCRIPT_VERSION = "0.9.0"
 SCHEMA_REPORT = "murmurmark.corpus_gates_report/v1"
 SCHEMA_BASELINE = "murmurmark.corpus_gates_baseline/v1"
 
@@ -805,6 +805,14 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     live_triage_summary = live_triage_summary if isinstance(live_triage_summary, dict) else {}
     live_triage_items = live_corpus.get("real_blocker_triage") if isinstance(live_corpus, dict) else []
     live_triage_items = live_triage_items if isinstance(live_triage_items, list) else []
+    live_objective_audit = live_corpus.get("objective_audit") if isinstance(live_corpus, dict) else {}
+    live_objective_audit = live_objective_audit if isinstance(live_objective_audit, dict) else {}
+    live_objective_rows = live_objective_audit.get("rows") if isinstance(live_objective_audit.get("rows"), list) else []
+    live_objective_row_ids = {
+        str(item.get("id") or "")
+        for item in live_objective_rows
+        if isinstance(item, dict) and item.get("id")
+    }
     live_triage_total = safe_int(live_triage_summary.get("total_items"))
     live_triage_uncategorized = safe_int(live_triage_summary.get("uncategorized_gate_issue_count"))
     live_triage_categorized = safe_int(live_triage_summary.get("categorized_gate_issue_count"))
@@ -854,6 +862,16 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "chunk_boundary_risk",
         "order_risk",
         "other",
+    }
+    required_live_objective_rows = {
+        "real_live_sessions_present",
+        "live_compared_to_batch",
+        "coverage_target_met",
+        "required_dimensions_covered",
+        "required_dimensions_passed",
+        "batch_authoritative",
+        "live_promotion_blocked",
+        "new_real_live_collection_quarantined",
     }
     live_triage_categories = {
         str(item.get("category") or "")
@@ -931,6 +949,44 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "real_parity_dimensions": real_live_parity_dimensions,
             "all_parity_dimensions": live_parity_dimensions,
         },
+    )
+    check(
+        checks,
+        "live_cache_parity.objective_audit_present",
+        live_corpus is None
+        or (
+            live_objective_audit.get("schema") == "murmurmark.live_parity_objective_audit/v1"
+            and required_live_objective_rows.issubset(live_objective_row_ids)
+        ),
+        observed={
+            "schema": live_objective_audit.get("schema"),
+            "rows": sorted(live_objective_row_ids),
+        },
+        threshold={
+            "schema": "murmurmark.live_parity_objective_audit/v1",
+            "rows": sorted(required_live_objective_rows),
+        },
+        message="live-cache parity report includes an objective-level audit for the active near-realtime goal",
+        details=live_objective_audit,
+    )
+    check(
+        checks,
+        "live_cache_parity.objective_policy_safe",
+        live_corpus is None
+        or (
+            live_objective_audit.get("batch_authoritative") is True
+            and live_objective_audit.get("ready_for_live_promotion") is False
+            and live_objective_audit.get("new_real_live_collection_allowed") is False
+        ),
+        observed={
+            "overall_status": live_objective_audit.get("overall_status"),
+            "batch_authoritative": live_objective_audit.get("batch_authoritative"),
+            "ready_for_live_promotion": live_objective_audit.get("ready_for_live_promotion"),
+            "new_real_live_collection_allowed": live_objective_audit.get("new_real_live_collection_allowed"),
+        },
+        threshold="batch_authoritative=true, ready_for_live_promotion=false, new_real_live_collection_allowed=false",
+        message="objective audit keeps batch authoritative and live promotion/collection blocked",
+        details=live_objective_audit,
     )
     check(
         checks,

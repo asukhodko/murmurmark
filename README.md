@@ -363,6 +363,11 @@ The report also has `real_blocker_triage_summary` and a `Real Blocker Triage` Ma
 that first when deciding what to do next: it separates batch review/readiness debt, missing artifacts,
 capture safety risks, local recall gaps, remote leakage and live draft drift. Triage is explanatory
 only; it does not make live safe for new real meetings.
+For the active near-realtime goal, `objective_audit` is the quickest machine-readable summary: it
+states whether real live sessions exist, whether they were compared with batch, whether required
+dimensions are covered, which dimensions still block promotion, and whether batch remains
+authoritative. Its safe current state is `ready_for_live_promotion: false` and
+`new_real_live_collection_allowed: false`.
 While live is quarantined, `recommended_next` and `next:` point to triage and inspection commands for
 existing artifacts. They must not suggest the strict live-coverage command as the next action.
 

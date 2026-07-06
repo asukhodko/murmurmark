@@ -11,7 +11,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "0.9.0"
+SCRIPT_VERSION = "1.0.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -401,6 +401,125 @@ def summarize_dimensions(rows: list[dict[str, Any]]) -> tuple[dict[str, Counter[
     return dimension_counts, dimension_issue_sessions
 
 
+def objective_audit_row(row_id: str, status: str, title: str, evidence: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": row_id,
+        "status": status,
+        "title": title,
+        "evidence": evidence,
+    }
+
+
+def build_objective_audit(
+    summary: dict[str, Any],
+    coverage_target: dict[str, Any],
+    real_dimensions: dict[str, dict[str, Any]],
+    promotion_policy: dict[str, Any],
+) -> dict[str, Any]:
+    required_dimensions = set(PARITY_DIMENSIONS.keys())
+    covered_dimensions = set(real_dimensions.keys())
+    missing_dimensions = sorted(required_dimensions - covered_dimensions)
+    blocking_dimensions: list[str] = []
+    dimension_statuses: dict[str, dict[str, Any]] = {}
+    for key in sorted(required_dimensions):
+        value = real_dimensions.get(key) if isinstance(real_dimensions.get(key), dict) else {}
+        counts = value.get("counts") if isinstance(value.get("counts"), dict) else {}
+        non_passing = {status: count for status, count in counts.items() if status != "passed" and count}
+        if not counts:
+            non_passing = {"missing": 1}
+        if non_passing:
+            blocking_dimensions.append(key)
+        dimension_statuses[key] = {
+            "counts": counts,
+            "non_passing": non_passing,
+            "issue_sessions": value.get("issue_sessions") if isinstance(value.get("issue_sessions"), list) else [],
+        }
+
+    rows = [
+        objective_audit_row(
+            "real_live_sessions_present",
+            "passed" if safe_int(summary.get("real_live_sessions")) > 0 else "incomplete",
+            "There is at least one real meeting live-pipeline session in the corpus",
+            {"real_live_sessions": safe_int(summary.get("real_live_sessions"))},
+        ),
+        objective_audit_row(
+            "live_compared_to_batch",
+            "passed" if safe_int(summary.get("real_compared_sessions")) > 0 else "incomplete",
+            "Real live chunks/drafts are compared with authoritative batch output",
+            {
+                "real_compared_sessions": safe_int(summary.get("real_compared_sessions")),
+                "real_meaningful_compared_sessions": safe_int(summary.get("real_meaningful_compared_sessions")),
+            },
+        ),
+        objective_audit_row(
+            "coverage_target_met",
+            "passed" if coverage_target.get("status") == "passed" else "incomplete",
+            "Advisory real live coverage target is met",
+            {
+                "status": coverage_target.get("status"),
+                "target_live_sessions": coverage_target.get("target_live_sessions"),
+                "target_meaningful_compared_sessions": coverage_target.get("target_meaningful_compared_sessions"),
+                "target_passing_compared_sessions": coverage_target.get("target_passing_compared_sessions"),
+                "live_sessions_remaining": coverage_target.get("live_sessions_remaining"),
+                "meaningful_compared_sessions_remaining": coverage_target.get("meaningful_compared_sessions_remaining"),
+                "passing_compared_sessions_remaining": coverage_target.get("passing_compared_sessions_remaining"),
+            },
+        ),
+        objective_audit_row(
+            "required_dimensions_covered",
+            "passed" if not missing_dimensions else "blocked",
+            "Live parity report covers every required promotion dimension",
+            {"required_dimensions": sorted(required_dimensions), "missing_dimensions": missing_dimensions},
+        ),
+        objective_audit_row(
+            "required_dimensions_passed",
+            "passed" if not blocking_dimensions else "blocked",
+            "Every required real-session parity dimension has passed",
+            {"blocking_dimensions": blocking_dimensions, "dimension_statuses": dimension_statuses},
+        ),
+        objective_audit_row(
+            "batch_authoritative",
+            "passed" if promotion_policy.get("batch_authoritative") is True else "blocked",
+            "Batch transcript remains authoritative",
+            {"batch_authoritative": promotion_policy.get("batch_authoritative")},
+        ),
+        objective_audit_row(
+            "live_promotion_blocked",
+            "passed"
+            if promotion_policy.get("status") == "blocked" and safe_int(summary.get("promotion_allowed_sessions")) == 0
+            else "blocked",
+            "Live promotion is blocked until parity gates prove safety",
+            {
+                "promotion_policy_status": promotion_policy.get("status"),
+                "promotion_allowed_sessions": safe_int(summary.get("promotion_allowed_sessions")),
+            },
+        ),
+        objective_audit_row(
+            "new_real_live_collection_quarantined",
+            "passed" if promotion_policy.get("new_real_live_collection_allowed") is False else "blocked",
+            "New real live-pipeline collection remains disabled while live is quarantined",
+            {"new_real_live_collection_allowed": promotion_policy.get("new_real_live_collection_allowed")},
+        ),
+    ]
+    statuses = {str(row.get("status")) for row in rows}
+    if "blocked" in statuses:
+        overall = "blocked_by_parity_gates"
+    elif "incomplete" in statuses:
+        overall = "incomplete_coverage"
+    else:
+        overall = "coverage_ready_shadow_locked"
+    return {
+        "schema": "murmurmark.live_parity_objective_audit/v1",
+        "objective": "Near-Realtime Live Parity Coverage v1",
+        "overall_status": overall,
+        "ready_for_live_promotion": False,
+        "batch_authoritative": promotion_policy.get("batch_authoritative") is True,
+        "new_real_live_collection_allowed": promotion_policy.get("new_real_live_collection_allowed") is True,
+        "blocking_dimensions": blocking_dimensions,
+        "rows": rows,
+    }
+
+
 def sum_metric(rows: list[dict[str, Any]], metric: str) -> float:
     return round(sum(float(((row.get("metrics") or {}).get(metric) or 0.0)) for row in rows), 3)
 
@@ -708,6 +827,38 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     gate_issues = build_gate_issues(rows)
     real_blocker_triage_summary, real_blocker_triage = build_real_blocker_triage(real_live_rows)
     next_commands = recommended_next_commands(summary, real_gate_counts, gate_issues)
+    parity_dimensions_payload = {
+        key: {
+            "title": spec["title"],
+            "promotion_required": bool(spec.get("promotion_required")),
+            "counts": dict(dimension_counts.get(key, Counter())),
+            "issue_sessions": dimension_issue_sessions.get(key, []),
+        }
+        for key, spec in PARITY_DIMENSIONS.items()
+    }
+    real_parity_dimensions_payload = {
+        key: {
+            "title": spec["title"],
+            "promotion_required": bool(spec.get("promotion_required")),
+            "counts": dict(real_dimension_counts.get(key, Counter())),
+            "issue_sessions": real_dimension_issue_sessions.get(key, []),
+        }
+        for key, spec in PARITY_DIMENSIONS.items()
+    }
+    promotion_policy = {
+        "status": "blocked",
+        "decision": summary["promotion_decision"],
+        "batch_authoritative": True,
+        "live_quarantined": True,
+        "evidence_mode": summary["live_evidence_mode"],
+        "evidence_scope": "real_meeting",
+        "diagnostic_live_sessions": len(diagnostic_live_rows),
+        "new_real_live_collection_allowed": False,
+        "quarantine_reason": LIVE_QUARANTINE_REASON,
+        "required_dimensions": list(PARITY_DIMENSIONS.keys()),
+        "blocking_dimensions": promotion_blocking_dimensions,
+        "promotion_allowed_sessions": summary["promotion_allowed_sessions"],
+    }
     return {
         "schema": SCHEMA,
         "generator": {"name": "report-live-corpus-gates", "version": SCRIPT_VERSION},
@@ -733,38 +884,15 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             "failures": strict_failures,
         },
         "coverage_target": coverage_target,
-        "parity_dimensions": {
-            key: {
-                "title": spec["title"],
-                "promotion_required": bool(spec.get("promotion_required")),
-                "counts": dict(dimension_counts.get(key, Counter())),
-                "issue_sessions": dimension_issue_sessions.get(key, []),
-            }
-            for key, spec in PARITY_DIMENSIONS.items()
-        },
-        "real_parity_dimensions": {
-            key: {
-                "title": spec["title"],
-                "promotion_required": bool(spec.get("promotion_required")),
-                "counts": dict(real_dimension_counts.get(key, Counter())),
-                "issue_sessions": real_dimension_issue_sessions.get(key, []),
-            }
-            for key, spec in PARITY_DIMENSIONS.items()
-        },
-        "promotion_policy": {
-            "status": "blocked",
-            "decision": summary["promotion_decision"],
-            "batch_authoritative": True,
-            "live_quarantined": True,
-            "evidence_mode": summary["live_evidence_mode"],
-            "evidence_scope": "real_meeting",
-            "diagnostic_live_sessions": len(diagnostic_live_rows),
-            "new_real_live_collection_allowed": False,
-            "quarantine_reason": LIVE_QUARANTINE_REASON,
-            "required_dimensions": list(PARITY_DIMENSIONS.keys()),
-            "blocking_dimensions": promotion_blocking_dimensions,
-            "promotion_allowed_sessions": summary["promotion_allowed_sessions"],
-        },
+        "parity_dimensions": parity_dimensions_payload,
+        "real_parity_dimensions": real_parity_dimensions_payload,
+        "promotion_policy": promotion_policy,
+        "objective_audit": build_objective_audit(
+            summary,
+            coverage_target,
+            real_parity_dimensions_payload,
+            promotion_policy,
+        ),
         "blockers": dict(blockers),
         "warnings": dict(warnings),
         "gate_counts": {name: dict(counts) for name, counts in sorted(gate_counts.items())},
@@ -1129,6 +1257,32 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         "",
         f"- quarantine reason: {summary.get('live_quarantine_reason')}",
         "",
+        "## Objective Audit",
+        "",
+    ]
+    objective_audit = report.get("objective_audit") if isinstance(report.get("objective_audit"), dict) else {}
+    if objective_audit:
+        lines += [
+            f"- objective: {objective_audit.get('objective')}",
+            f"- overall status: `{objective_audit.get('overall_status')}`",
+            f"- ready for live promotion: `{objective_audit.get('ready_for_live_promotion')}`",
+            f"- batch authoritative: `{objective_audit.get('batch_authoritative')}`",
+            f"- new real live collection allowed: `{objective_audit.get('new_real_live_collection_allowed')}`",
+            f"- blocking dimensions: {', '.join(objective_audit.get('blocking_dimensions') or []) or 'none'}",
+            "",
+            "| Check | Status | Evidence |",
+            "| --- | --- | --- |",
+        ]
+        for row in objective_audit.get("rows") or []:
+            if not isinstance(row, dict):
+                continue
+            evidence = row.get("evidence") if isinstance(row.get("evidence"), dict) else {}
+            evidence_text = json.dumps(evidence, ensure_ascii=False, sort_keys=True)
+            if len(evidence_text) > 240:
+                evidence_text = evidence_text[:237] + "..."
+            lines.append(f"| `{row.get('id')}` | `{row.get('status')}` | `{evidence_text}` |")
+        lines.append("")
+    lines += [
         "## Real Parity Dimensions",
         "",
         "Only `real_meeting` live sessions count toward promotion. Diagnostic and lab sessions remain evidence, "
@@ -1318,6 +1472,18 @@ def main() -> int:
     print(f"new_real_live_collection_allowed: {summary.get('new_real_live_collection_allowed')}")
     blocking_dimensions = summary.get("promotion_blocking_dimensions") or []
     print(f"promotion_blocking_dimensions: {', '.join(blocking_dimensions) if blocking_dimensions else 'none'}")
+    objective_audit = (
+        report.get("objective_audit")
+        if isinstance(report.get("objective_audit"), dict)
+        else {}
+    )
+    if objective_audit:
+        print(f"objective_audit: {objective_audit.get('overall_status')}")
+        audit_blocking_dimensions = objective_audit.get("blocking_dimensions") or []
+        print(
+            "objective_blocking_dimensions: "
+            f"{', '.join(audit_blocking_dimensions) if audit_blocking_dimensions else 'none'}"
+        )
     print(f"gate_issues: {len(report.get('gate_issues') or [])}")
     triage_summary = (
         report.get("real_blocker_triage_summary")
