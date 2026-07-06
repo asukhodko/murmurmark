@@ -6927,7 +6927,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var voiceProcessingMic: VoiceProcessingMicCapture?
     private var remoteWriter: AudioFileWriter?
     private var remoteInputCapture: AudioInputDeviceCapture?
-    private var liveSegments: LiveSegmentCapture?
+    private var liveSegments: AsyncLiveSegmentCapture?
     private var liveWorker: LivePipelineWorker?
     private var events: EventLog?
     private var warnings: [String] = []
@@ -7013,10 +7013,13 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 ]
             )
             if livePipelineEnabled {
-                let capture = try LiveSegmentCapture(
+                let capture = try AsyncLiveSegmentCapture(
                     sessionDirectory: outputDirectory,
                     segmentSeconds: liveSegmentSeconds,
-                    overlapSeconds: liveOverlapSeconds
+                    overlapSeconds: liveOverlapSeconds,
+                    warningHandler: { [weak self] warning in
+                        self?.appendWarning(warning)
+                    }
                 )
                 liveSegments = capture
                 try eventLog.write(
@@ -7026,6 +7029,8 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                         "overlap_sec": liveOverlapSeconds,
                         "worker_enabled": liveWorkerEnabled,
                         "finalize_enabled": liveFinalizeEnabled,
+                        "writer_mode": "async_bounded_queue",
+                        "callback_policy": "raw_write_then_nonblocking_live_enqueue",
                         "segments": "derived/live/segments.jsonl",
                     ]
                 )
@@ -7290,15 +7295,7 @@ extension SessionRecorder {
 
     private func writeLiveSegmentSafely(_ sampleBuffer: CMSampleBuffer, source: String) {
         guard let liveSegments else { return }
-        do {
-            try liveSegments.write(sampleBuffer, source: source)
-        } catch {
-            liveSegments.closeAll()
-            self.liveSegments = nil
-            stateQueue.sync {
-                warnings.append("live segment writer disabled for \(source): \(error.localizedDescription)")
-            }
-        }
+        liveSegments.enqueue(sampleBuffer, source: source)
     }
 
     func stream(_: SCStream, didStopWithError error: Error) {
@@ -8137,6 +8134,124 @@ final class AudioFileWriter {
 
     func close() {
         file = nil
+    }
+}
+
+final class AsyncLiveSegmentCapture: @unchecked Sendable {
+    private struct QueuedSample: @unchecked Sendable {
+        let sampleBuffer: CMSampleBuffer
+    }
+
+    private let writer: LiveSegmentCapture
+    private let writerQueue = DispatchQueue(label: "murmurmark.live.segment.writer")
+    private let stateQueue = DispatchQueue(label: "murmurmark.live.segment.state")
+    private let maxPendingSamples: Int
+    private let warningHandler: (String) -> Void
+
+    private var pendingSamples = 0
+    private var disabled = false
+    private var closed = false
+    private var capturedDuration: TimeInterval = 0
+
+    init(
+        sessionDirectory: URL,
+        segmentSeconds: TimeInterval,
+        overlapSeconds: TimeInterval,
+        maxPendingSamples: Int = 512,
+        warningHandler: @escaping (String) -> Void
+    ) throws {
+        writer = try LiveSegmentCapture(
+            sessionDirectory: sessionDirectory,
+            segmentSeconds: segmentSeconds,
+            overlapSeconds: overlapSeconds
+        )
+        self.maxPendingSamples = max(1, maxPendingSamples)
+        self.warningHandler = warningHandler
+    }
+
+    func enqueue(_ sampleBuffer: CMSampleBuffer, source: String) {
+        enum Decision {
+            case enqueue
+            case ignore
+            case disable(String)
+        }
+
+        let decision = stateQueue.sync { () -> Decision in
+            if closed || disabled {
+                return .ignore
+            }
+            if pendingSamples >= maxPendingSamples {
+                disabled = true
+                return .disable("live segment writer disabled for \(source): backlog exceeded \(maxPendingSamples) samples")
+            }
+            pendingSamples += 1
+            return .enqueue
+        }
+
+        switch decision {
+        case .ignore:
+            return
+        case .disable(let warning):
+            warningHandler(warning)
+            writerQueue.async { [weak self] in
+                self?.closeWriterFromWriterQueue()
+            }
+        case .enqueue:
+            let queuedSample = QueuedSample(sampleBuffer: sampleBuffer)
+            writerQueue.async { [weak self, queuedSample] in
+                guard let self else { return }
+                defer {
+                    stateQueue.sync {
+                        pendingSamples = max(0, pendingSamples - 1)
+                    }
+                }
+                let shouldWrite = stateQueue.sync { !closed && !disabled }
+                guard shouldWrite else { return }
+                do {
+                    try writer.write(queuedSample.sampleBuffer, source: source)
+                    let duration = writer.capturedDurationSeconds()
+                    stateQueue.sync {
+                        capturedDuration = max(capturedDuration, duration)
+                    }
+                } catch {
+                    stateQueue.sync {
+                        disabled = true
+                    }
+                    warningHandler("live segment writer disabled for \(source): \(error.localizedDescription)")
+                    closeWriterFromWriterQueue()
+                }
+            }
+        }
+    }
+
+    func closeAll(finalDurationSeconds: TimeInterval? = nil) {
+        writerQueue.sync {
+            let shouldClose = stateQueue.sync { !closed }
+            guard shouldClose else { return }
+            writer.closeAll(finalDurationSeconds: finalDurationSeconds)
+            let duration = writer.capturedDurationSeconds()
+            stateQueue.sync {
+                capturedDuration = max(capturedDuration, duration)
+                closed = true
+                pendingSamples = 0
+            }
+        }
+    }
+
+    func capturedDurationSeconds() -> TimeInterval {
+        stateQueue.sync { capturedDuration }
+    }
+
+    private func closeWriterFromWriterQueue() {
+        let shouldClose = stateQueue.sync { !closed }
+        guard shouldClose else { return }
+        writer.closeAll()
+        let duration = writer.capturedDurationSeconds()
+        stateQueue.sync {
+            capturedDuration = max(capturedDuration, duration)
+            closed = true
+            pendingSamples = 0
+        }
     }
 }
 

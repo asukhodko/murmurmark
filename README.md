@@ -64,8 +64,10 @@ with selected profile, verdict, review burden, export blockers and one next comm
 Chunked/Resumable Processing v1 is now complete at the ASR layer: long `windowed` whisper.cpp runs
 write validated chunk reports, interrupted `process` runs can resume from verified chunks, and
 corpus gates treat failed chunk rebuilds as hard failures. Batch processing remains authoritative.
-The live/near-realtime branch is quarantined until it is redesigned to be capture-safe. The latest audio
-milestone, ASR-Positive Echo Candidate Hardening v1, remains important but shadow-only:
+The live/near-realtime branch is still quarantined for real meetings. Its segment writer now runs
+behind an async bounded queue instead of doing derived live writes in the ScreenCaptureKit callback,
+but live promotion still requires real parity evidence. The latest audio milestone,
+ASR-Positive Echo Candidate Hardening v1, remains important but shadow-only:
 `coverage_v2_remote_gate_local_fir` improved `5/6` candidate-corpus sessions without local-recall
 regression, yet `local_fir` is still the default ASR input until promotion gates are defined and
 passed on a broader corpus.
@@ -285,14 +287,16 @@ MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 \
   murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5
 ```
 
-Do not use `--live-pipeline` for real meetings. It is currently quarantined because the Swift live
-segment writer can starve ScreenCaptureKit audio delivery and leave the raw meeting tracks mostly
-silent. The supported production path is `murmurmark record --target-bundle system` followed by
+Do not use `--live-pipeline` for real meetings. It is still quarantined: the first capture-safe
+segment handoff is implemented, but the branch has not yet passed real live-vs-batch parity gates.
+The supported production path is `murmurmark record --target-bundle system` followed by
 `murmurmark process latest`.
 
 This mode writes closed audio segments and a live draft under `derived/live/` while recording.
-Segments have a non-overlapping authoritative window plus copied overlap context around it; raw
-`audio/mic/*.caf` and `audio/remote/*.caf` are not changed. After stop it runs the existing
+The callback path writes durable raw CAF first and then does a non-blocking enqueue into an async,
+bounded live segment queue. If that queue falls behind, only live-derived segments are disabled;
+raw `audio/mic/*.caf` and `audio/remote/*.caf` must remain batch-processable. Segments have a
+non-overlapping authoritative window plus copied overlap context around it. After stop it runs the existing
 batch-grade reconcile through `murmurmark process --skip-build` and writes
 `derived/live/final_reconcile_report.json`. The normal batch result remains authoritative until
 corpus gates prove that the live branch matches it. If the live worker or derived live segment writer
@@ -773,15 +777,14 @@ Current focus:
   ASR-visible remote-token leakage, local-word recall and review burden;
 - keep `next`/`status`/`review` honest about residual risk;
 - keep near-realtime processing as a shadow/debug CLI branch, not the recommended recording path
-  during current stabilization: `record --live-pipeline` is disabled by default because the current
-  live segment writer can starve ScreenCaptureKit audio delivery; future live work must first prove
-  that it cannot corrupt raw `mic`/`remote` capture;
+  during current stabilization: `record --live-pipeline` is disabled by default while the new async
+  bounded segment queue proves that it cannot corrupt raw `mic`/`remote` capture;
 - keep live-ASR cache reuse behind strict eligibility gates; `not_eligible` is expected until
   live chunk geometry, audio prep, language and model match batch ASR expectations, and materialized
   live chunks must still pass the raw chunk rebuild check;
 - use `murmurmark corpus live` only to inspect historical/debug live evidence while live is
-  quarantined; the next live milestone is capture-safe redesign, not collecting more real live
-  sessions;
+  quarantined; the next live milestone is a capture-safety proof for the async segment queue, not
+  collecting more real live sessions;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 

@@ -289,13 +289,13 @@ flowchart LR
     transcripts;
   - verify `status` and `next` agree for successful, review-first, blocked and failed-capture
     sessions;
-- keep `--live-pipeline` disabled by default until its segment writer no longer starves raw
-  ScreenCaptureKit audio delivery.
+- keep `--live-pipeline` disabled by default until the new async bounded segment queue proves it no
+  longer starves raw ScreenCaptureKit audio delivery.
 - Near-realtime shadow pipeline follow-up, after stabilization:
-  - current segment writer during capture is quarantined: live tests showed it can starve
+  - previous inline segment writing during capture is quarantined: live tests showed it can starve
     ScreenCaptureKit audio delivery and leave raw tracks mostly silent;
-  - redesign live capture so closed segments are derived from already-written raw CAF/checkpoint
-    files or from a non-blocking queue that cannot run on the ScreenCaptureKit callback path;
+  - first redesign step is now implemented as a non-blocking async bounded queue after durable raw
+    writes; the next step is proving capture-safety under normal, overloaded and failed live paths;
   - worker queue exists as a safe shadow worker, but its v1 preprocessing is intentionally light and
     must be upgraded before it can compete with batch Echo Guard;
   - post-stop final reconcile exists; it can reuse strict-compatible live ASR cache, otherwise it

@@ -534,25 +534,24 @@ nodes:
     notes: |
       Потоковая ветка CLI: не ждать окончания встречи, а обрабатывать уже закрытые audio segments
       во время записи. Первый shadow-контур существует, но он quarantined: тесты показали, что
-      текущий live segment writer может starve ScreenCaptureKit audio delivery и оставить raw tracks
+      inline live segment writer может starve ScreenCaptureKit audio delivery и оставить raw tracks
       почти пустыми. Production route остаётся batch-first: raw CAF/session package и обычный
-      `murmurmark process` остаются source of truth. Ближайшая работа по live — не coverage, а
-      capture-safe redesign.
+      `murmurmark process` остаются source of truth. Первый async bounded segment handoff реализован;
+      ближайшая работа по live — доказать capture-safety и только потом возвращаться к real coverage.
 
   realtime-segment-writer:
     title: "Capture-safe segment writer"
     kind: task
     parent: near-realtime-pipeline
     deps: [cli-recording-reliability]
-    status: later
+    status: current
     effort: 4
     notes: |
-      Текущий `record --live-pipeline` отключён по умолчанию. Его segment writer нельзя считать
-      safe: он способен мешать ScreenCaptureKit callback path и портить raw capture. Следующая
-      реализация должна получать segments из уже закрытых raw/checkpoint файлов или через
-      неблокирующую очередь, где callback только быстро кладёт sample buffer/metadata и никогда не
-      делает тяжёлые file/ASR operations. Raw `audio/mic` и `audio/remote` должны оставаться
-      корректными даже при полном отказе live-ветки.
+      `record --live-pipeline` остаётся отключённым по умолчанию. Первый capture-safe слой теперь
+      есть: callback пишет durable raw CAF, затем делает non-blocking enqueue в async bounded live
+      segment queue. При backlog/error отключаются только live-derived artifacts. Следующий шаг —
+      лабораторно доказать, что raw `audio/mic` и `audio/remote` остаются корректными при нормальной
+      работе, перегрузе и отказе live-ветки.
 
   realtime-worker-queue:
     title: "Echo/ASR worker queue"

@@ -4255,17 +4255,21 @@ layer has nothing measurable to remove without inventing a fix.
 
 ## Near-Realtime Shadow Artifacts
 
-Near-realtime processing is a shadow branch, but the current implementation is quarantined. Tests
-showed that the live segment writer can starve ScreenCaptureKit audio delivery and leave raw capture
-mostly silent. For real meetings, do not use `--live-pipeline`; the authoritative path is:
+Near-realtime processing is a shadow branch and remains quarantined for real meetings. Earlier tests
+showed that doing derived live segment writes in the ScreenCaptureKit callback can starve audio
+delivery and leave raw capture mostly silent. The current implementation moves live segment writes
+behind an async bounded queue, but it still needs real parity evidence before the quarantine can be
+lifted. For real meetings, do not use `--live-pipeline`; the authoritative path is:
 
 ```text
 raw CAF session -> murmurmark process -> reviewed/readiness transcript
 ```
 
 The live branch writes only under `derived/live/` when explicitly enabled for lab diagnostics with
-`MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1`. It must not be used as a production recording path until
-segment production is redesigned and proven capture-safe.
+`MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1`. Segment production must be fail-open: raw CAF is the
+durable source, the callback path may only enqueue live work after raw writing, and a slow or failed
+live queue must disable live artifacts without stopping or corrupting capture. It must not be used
+as a production recording path until real live-vs-batch parity gates pass.
 
 ### Segment Manifest
 

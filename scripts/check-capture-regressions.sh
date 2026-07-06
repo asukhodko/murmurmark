@@ -49,6 +49,21 @@ assert_static_capture_contract() {
 
   grep -q 'MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE' "$source_file" \
     || fail "unsafe live pipeline must be gated away from normal recording"
+
+  grep -q 'final class AsyncLiveSegmentCapture: @unchecked Sendable' "$source_file" \
+    || fail "live segment writer must run behind an async capture-safe wrapper"
+
+  grep -q 'liveSegments.enqueue(sampleBuffer, source: source)' "$source_file" \
+    || fail "ScreenCaptureKit callback must enqueue live samples instead of writing live segments inline"
+
+  grep -q 'maxPendingSamples' "$source_file" \
+    || fail "async live segment queue must have bounded backpressure"
+
+  grep -q 'backlog exceeded' "$source_file" \
+    || fail "async live segment queue must fail open when live processing falls behind"
+
+  grep -q 'raw_write_then_nonblocking_live_enqueue' "$source_file" \
+    || fail "live pipeline prepare event must record the capture-safe callback policy"
 }
 
 assert_silent_pipeline_gate() {

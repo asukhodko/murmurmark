@@ -212,10 +212,10 @@ Completion evidence:
   `coverage_ratio: 0.28`, `chunks_completed: 146/146`;
 - `check-corpus-gates.py --no-fail` now reports `asr_chunk_cache_status: passed` with
   `asr_chunk_cache_passed_sessions: 14` and `asr_chunk_cache_coverage_ratio: 0.28`;
-- `check-corpus-gates.py --no-fail` still reports live-cache parity state, but live capture is now
-  quarantined. Diagnostic live recordings showed that the current segment writer can starve raw
-  ScreenCaptureKit audio delivery. The target coverage gate remains red until the live branch is
-  redesigned and proven not to affect raw capture;
+- `check-corpus-gates.py --no-fail` still reports live-cache parity state, but live capture is
+  quarantined. Diagnostic live recordings showed that inline segment writing can starve raw
+  ScreenCaptureKit audio delivery. The first async bounded segment queue is implemented, but the
+  target coverage gate remains red until it is proven not to affect raw capture;
 - ASR chunk-cache corpus report now separates the next coverage work: `22` sessions have old raw
   ASR without chunk reports, and `14` sessions have no raw ASR;
 - legacy top-level raw ASR caches without `raw/chunks/<track>/chunk_cache_report.json` no longer
