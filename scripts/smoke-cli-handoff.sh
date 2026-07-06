@@ -882,6 +882,7 @@ jq -e '
   and .promotion_policy.new_real_live_collection_allowed == false
   and ((.promotion_policy.required_dimensions | sort) == [
     "chunk_boundary_risks",
+    "draft_text_recall",
     "local_recall",
     "order_risk",
     "remote_leakage",
@@ -891,6 +892,7 @@ jq -e '
   ])
   and ([.parity_dimensions | keys[]] | sort) == [
     "chunk_boundary_risks",
+    "draft_text_recall",
     "local_recall",
     "order_risk",
     "remote_leakage",

@@ -435,9 +435,11 @@ nodes:
       `windowed` mode: process rebuilds chunks first, then requires rebuild parity.
       Corpus gates expose live-cache parity explicitly and separate real meeting evidence from
       diagnostic/lab sessions. Promotion checks use `real_parity_dimensions`; `_debug_*` and
-      `live-pilot-*` sessions remain useful failure evidence but do not satisfy real coverage. Current
-      evidence still keeps live `shadow_only_do_not_promote`: batch transcript is authoritative, live
-      is quarantined, and the next live step is capture-safe redesign plus real-scope parity proof.
+      `live-pilot-*` sessions remain useful failure evidence but do not satisfy real coverage.
+      `draft_text_recall` is now a separate promotion dimension, so text drift/hallucination is not
+      hidden inside artifact availability. Current evidence still keeps live `shadow_only_do_not_promote`:
+      batch transcript is authoritative, live is quarantined, and the next live step is capture-safe
+      redesign plus real-scope parity proof.
       `scripts/smoke-cli-handoff.sh` включает deterministic fake-whisper failure/resume: первый
       запуск падает после одного cached chunk, второй запуск reuse-ит этот chunk и проходит
       rebuild-check. `scripts/smoke-process-chunk-resume.sh` доказывает тот же сценарий через
@@ -620,8 +622,8 @@ nodes:
       capture, а normal `record --target-bundle system` остаётся независимым. Только после этого
       можно снова включать real live-pipeline coverage на некритичных встречах. Live cache остаётся
       shadow-only: promotion allowed sessions must stay `0` until gates cover order risk, local
-      recall, remote leakage, review burden, selected notes readiness and chunk-boundary
-      duplicates/missing speech.
+      recall, remote leakage, review burden, selected notes readiness, draft text recall and
+      chunk-boundary duplicates/missing speech.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"

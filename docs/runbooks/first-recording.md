@@ -188,7 +188,8 @@ lists the exact non-passing gates by session. `real_parity_dimensions` is the pr
 counts only date-named real meeting sessions; diagnostic `_debug_*` and `live-pilot-*` sessions stay
 visible for failure analysis but cannot satisfy real coverage. `Parity Dimensions` keeps the full
 mixed audit view by order risk, local recall, remote leakage, review burden, notes readiness and
-chunk-boundary risk.
+chunk-boundary risk. `draft_text_recall` is separate from `required_artifacts`: present live files
+are not enough if live draft text no longer matches the authoritative batch transcript.
 
 For the current live-parity coverage goal, use the strict target form after recording enough real
 live sessions. It is expected to fail until three live sessions have meaningful passing

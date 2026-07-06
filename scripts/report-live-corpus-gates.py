@@ -51,9 +51,14 @@ PARITY_DIMENSIONS: dict[str, dict[str, Any]] = {
         "gates": ["chunk_boundary_risks", "duplicate_chunks"],
         "promotion_required": True,
     },
+    "draft_text_recall": {
+        "title": "Draft text recall",
+        "gates": ["live_token_recall"],
+        "promotion_required": True,
+    },
     "required_artifacts": {
         "title": "Required artifacts",
-        "gates": ["required_artifacts", "live_token_recall", "raw_batch_authoritative"],
+        "gates": ["required_artifacts", "raw_batch_authoritative"],
         "promotion_required": True,
     },
 }

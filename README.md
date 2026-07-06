@@ -352,7 +352,9 @@ evidence and gate failures. The Markdown report has a `Gate Issues` section with
 session/gate/reason rows that currently prevent a passing comparison. Promotion checks use
 `real_parity_dimensions`: only date-named real meeting sessions count there. `_debug_*`,
 `live-pilot-*` and other lab sessions stay visible as diagnostic evidence, but they cannot satisfy
-real coverage.
+real coverage. Draft text recall is tracked separately from required artifacts: a session can have
+all files present and still fail because the live draft text does not match the authoritative batch
+transcript.
 
 The old live-coverage target remains a diagnostic report shape, not a current action item. Do not use
 this command as an instruction to collect more live meetings while live recording is quarantined:

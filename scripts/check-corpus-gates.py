@@ -792,19 +792,29 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     live_promotion_policy = live_promotion_policy if isinstance(live_promotion_policy, dict) else {}
     live_parity_dimensions = live_corpus.get("parity_dimensions") if isinstance(live_corpus, dict) else {}
     live_parity_dimensions = live_parity_dimensions if isinstance(live_parity_dimensions, dict) else {}
+    real_live_parity_dimensions = live_corpus.get("real_parity_dimensions") if isinstance(live_corpus, dict) else {}
+    real_live_parity_dimensions = real_live_parity_dimensions if isinstance(real_live_parity_dimensions, dict) else {}
     live_target_status = str(live_summary.get("target_status") or "")
     live_sessions = safe_int(live_summary.get("live_sessions"))
+    real_live_sessions = safe_int(live_summary.get("real_live_sessions"))
     live_compared_sessions = safe_int(live_summary.get("compared_sessions"))
+    real_live_compared_sessions = safe_int(live_summary.get("real_compared_sessions"))
     live_meaningful_compared_sessions = safe_int(live_summary.get("meaningful_compared_sessions"))
+    real_live_meaningful_compared_sessions = safe_int(live_summary.get("real_meaningful_compared_sessions"))
     live_passing_compared_sessions = safe_int(live_summary.get("passing_compared_sessions"))
+    real_live_passing_compared_sessions = safe_int(live_summary.get("real_passing_compared_sessions"))
     live_promotion_allowed_sessions = safe_int(live_summary.get("promotion_allowed_sessions"))
     live_speedup_supported_sessions = safe_int(live_summary.get("speedup_supported_sessions"))
     live_strict_coverage_status = str(live_summary.get("strict_coverage_status") or "")
     live_order_mismatch_count = safe_int(live_summary.get("live_order_mismatch_count"))
+    real_live_order_mismatch_count = safe_int(live_summary.get("real_live_order_mismatch_count"))
     live_missing_me_seconds = safe_float(live_summary.get("live_missing_me_seconds"))
+    real_live_missing_me_seconds = safe_float(live_summary.get("real_live_missing_me_seconds"))
     live_suspicious_batch_me_missing_seconds = safe_float(live_summary.get("live_suspicious_batch_me_missing_seconds"))
     live_remote_in_me_seconds = safe_float(live_summary.get("live_suspected_remote_leak_in_me_seconds"))
+    real_live_remote_in_me_seconds = safe_float(live_summary.get("real_live_suspected_remote_leak_in_me_seconds"))
     live_boundary_duplicate_count = safe_int(live_summary.get("adjacent_duplicate_chunk_count"))
+    real_live_boundary_duplicate_count = safe_int(live_summary.get("real_adjacent_duplicate_chunk_count"))
     required_live_dimensions = {
         "order_risk",
         "local_recall",
@@ -812,6 +822,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "review_burden",
         "selected_notes_readiness",
         "chunk_boundary_risks",
+        "draft_text_recall",
         "required_artifacts",
     }
     check(
@@ -877,22 +888,29 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     check(
         checks,
         "live_cache_parity.dimension_coverage",
-        live_corpus is None or required_live_dimensions.issubset(set(live_parity_dimensions)),
-        observed=sorted(live_parity_dimensions),
+        live_corpus is None or required_live_dimensions.issubset(set(real_live_parity_dimensions)),
+        observed=sorted(real_live_parity_dimensions),
         threshold=sorted(required_live_dimensions),
         message="live-cache parity report covers every required promotion dimension",
-        details=live_parity_dimensions,
+        details={
+            "real_parity_dimensions": real_live_parity_dimensions,
+            "all_parity_dimensions": live_parity_dimensions,
+        },
     )
     check(
         checks,
         "live_cache_parity.real_coverage_started",
-        live_sessions > 0 and live_compared_sessions > 0,
+        real_live_sessions > 0 and real_live_compared_sessions > 0,
         severity="warn",
         observed={
             "live_sessions": live_sessions,
+            "real_live_sessions": real_live_sessions,
             "compared_sessions": live_compared_sessions,
+            "real_compared_sessions": real_live_compared_sessions,
             "meaningful_compared_sessions": live_meaningful_compared_sessions,
+            "real_meaningful_compared_sessions": real_live_meaningful_compared_sessions,
             "passing_compared_sessions": live_passing_compared_sessions,
+            "real_passing_compared_sessions": real_live_passing_compared_sessions,
             "target_status": live_target_status or None,
         },
         threshold="> 0 live sessions with comparison",
@@ -902,9 +920,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     check(
         checks,
         "live_cache_parity.meaningful_coverage_started",
-        live_meaningful_compared_sessions > 0,
+        real_live_meaningful_compared_sessions > 0,
         severity="warn",
-        observed=live_meaningful_compared_sessions,
+        observed=real_live_meaningful_compared_sessions,
         threshold="> 0 compared sessions with both Me and remote evidence",
         message="live-cache parity coverage includes a meaningful two-role comparison",
         details=live_summary,
@@ -912,9 +930,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     check(
         checks,
         "live_cache_parity.passing_coverage_started",
-        live_passing_compared_sessions > 0,
+        real_live_passing_compared_sessions > 0,
         severity="warn",
-        observed=live_passing_compared_sessions,
+        observed=real_live_passing_compared_sessions,
         threshold="> 0 compared sessions with all parity gates passed",
         message="live-cache parity coverage includes at least one fully passing comparison",
         details=live_summary,
@@ -922,9 +940,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     check(
         checks,
         "live_cache_parity.no_measured_order_mismatches",
-        live_order_mismatch_count == 0,
+        real_live_order_mismatch_count == 0,
         severity="warn",
-        observed=live_order_mismatch_count,
+        observed=real_live_order_mismatch_count,
         threshold="0 live order mismatches",
         message="live-vs-batch comparison found no measured order mismatches",
         details=live_summary,
@@ -932,9 +950,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     check(
         checks,
         "live_cache_parity.no_measured_missing_me",
-        live_missing_me_seconds <= 0.0,
+        real_live_missing_me_seconds <= 0.0,
         severity="warn",
-        observed=round(live_missing_me_seconds, 3),
+        observed=round(real_live_missing_me_seconds, 3),
         threshold="0.0s missing Me speech",
         message="live-vs-batch comparison found no measured missing Me speech",
         details=live_summary,
@@ -942,9 +960,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     check(
         checks,
         "live_cache_parity.no_measured_remote_in_me",
-        live_remote_in_me_seconds <= 0.0,
+        real_live_remote_in_me_seconds <= 0.0,
         severity="warn",
-        observed=round(live_remote_in_me_seconds, 3),
+        observed=round(real_live_remote_in_me_seconds, 3),
         threshold="0.0s suspected remote-in-Me speech",
         message="live-vs-batch comparison found no measured remote-in-Me leakage",
         details=live_summary,
@@ -952,9 +970,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     check(
         checks,
         "live_cache_parity.no_boundary_duplicates",
-        live_boundary_duplicate_count == 0,
+        real_live_boundary_duplicate_count == 0,
         severity="warn",
-        observed=live_boundary_duplicate_count,
+        observed=real_live_boundary_duplicate_count,
         threshold="0 adjacent duplicate chunks",
         message="live-vs-batch comparison found no adjacent chunk duplicates",
         details=live_summary,
@@ -1477,16 +1495,24 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "live_cache_parity_status": live_target_status or None,
             "live_cache_parity_strict_coverage_status": live_strict_coverage_status or None,
             "live_cache_parity_live_sessions": live_sessions,
+            "live_cache_parity_real_live_sessions": real_live_sessions,
             "live_cache_parity_compared_sessions": live_compared_sessions,
+            "live_cache_parity_real_compared_sessions": real_live_compared_sessions,
             "live_cache_parity_meaningful_compared_sessions": live_meaningful_compared_sessions,
+            "live_cache_parity_real_meaningful_compared_sessions": real_live_meaningful_compared_sessions,
             "live_cache_parity_passing_compared_sessions": live_passing_compared_sessions,
+            "live_cache_parity_real_passing_compared_sessions": real_live_passing_compared_sessions,
             "live_cache_parity_promotion_allowed_sessions": live_promotion_allowed_sessions,
             "live_cache_parity_speedup_supported_sessions": live_speedup_supported_sessions,
             "live_cache_parity_order_mismatch_count": live_order_mismatch_count,
+            "live_cache_parity_real_order_mismatch_count": real_live_order_mismatch_count,
             "live_cache_parity_missing_me_seconds": round(live_missing_me_seconds, 3),
+            "live_cache_parity_real_missing_me_seconds": round(real_live_missing_me_seconds, 3),
             "live_cache_parity_suspicious_batch_me_missing_seconds": round(live_suspicious_batch_me_missing_seconds, 3),
             "live_cache_parity_remote_in_me_seconds": round(live_remote_in_me_seconds, 3),
+            "live_cache_parity_real_remote_in_me_seconds": round(real_live_remote_in_me_seconds, 3),
             "live_cache_parity_boundary_duplicate_count": live_boundary_duplicate_count,
+            "live_cache_parity_real_boundary_duplicate_count": real_live_boundary_duplicate_count,
             "transcript_order_audited_sessions": order_audited_sessions,
             "transcript_order_session_count": order_session_count,
             "transcript_order_missing_audits": order_missing_audits,

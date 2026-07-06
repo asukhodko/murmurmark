@@ -343,7 +343,9 @@ remote-leak, review-burden, notes-readiness and chunk-boundary gates. Current di
 coverage is separated from date-named real meeting evidence. Only real meeting sessions contribute
 to `real_parity_dimensions` and strict promotion gates; `_debug_*` and `live-pilot-*` sessions remain
 useful failure evidence but cannot make live promotion look ready. Strict parity is still not proven;
-the batch transcript remains authoritative and live promotion remains disabled in v1.
+the batch transcript remains authoritative and live promotion remains disabled in v1. Text mismatch
+between live draft and batch transcript is tracked as `draft_text_recall`, separate from missing
+comparison artifacts.
 
 Older sessions may have top-level `raw/mic.json` and `raw/remote.json` from pre-chunk runs but no
 `raw/chunks/<track>/chunk_cache_report.json`. In `windowed` mode that legacy raw cache is no longer

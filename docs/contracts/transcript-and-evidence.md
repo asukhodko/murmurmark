@@ -4815,7 +4815,9 @@ dialogue:
   speech than `Me` speech;
 - `review_burden`: reads the authoritative batch `outcome.json` review burden;
 - `selected_notes_readiness`: reads the authoritative batch readiness/outcome;
-- `chunk_boundary_risks`: detects adjacent live chunk duplicates.
+- `chunk_boundary_risks`: detects adjacent live chunk duplicates;
+- `draft_text_recall`: checks that live draft tokens mostly appear in the selected batch transcript;
+- `required_artifacts`: checks that live and batch comparison inputs exist.
 
 Even when all gates pass, `promotion_allowed` remains `false` in v1. A passing comparison only means
 the live branch is safe enough to study as an acceleration candidate; batch transcript remains
@@ -4888,6 +4890,7 @@ Schema:
       "review_burden",
       "selected_notes_readiness",
       "chunk_boundary_risks",
+      "draft_text_recall",
       "required_artifacts"
     ],
     "blocking_dimensions": [
@@ -4906,6 +4909,12 @@ Schema:
     }
   },
   "real_parity_dimensions": {
+    "draft_text_recall": {
+      "title": "Draft text recall",
+      "promotion_required": true,
+      "counts": {"passed": 1, "warning": 1},
+      "issue_sessions": ["2026-07-03_06-16-43"]
+    },
     "local_recall": {
       "title": "Local recall",
       "promotion_required": true,
@@ -4968,7 +4977,8 @@ The report also carries `gate_issues`, `recommended_next` and `next_commands`, s
 can point to failing gate evidence without weakening the gates. It must not suggest collecting more
 real live meetings while `--live-pipeline` is quarantined. `parity_dimensions` groups the per-session
 gates into the product safety dimensions required for future promotion: order risk, local recall,
-remote leakage, review burden, selected notes readiness, chunk-boundary risks and required artifacts.
+remote leakage, review burden, selected notes readiness, chunk-boundary risks, draft text recall and
+required artifacts.
 `real_parity_dimensions` is the promotion scope: date-named real meeting sessions count there, while
 `_debug_*` and `live-pilot-*` sessions remain diagnostic evidence only. `promotion_policy` is the
 machine-readable statement that batch remains authoritative and live evidence is historical/debug-only

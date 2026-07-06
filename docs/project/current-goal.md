@@ -1,36 +1,60 @@
 # Current Goal Context
 
-This file keeps the latest completed goals for context. The next recommended goal is documented in
-the roadmap as Process Observability & Run Monitor v1: keep the stable non-live production path, but
-make long `process` runs observable, resumable and unambiguous from another terminal.
+This file keeps the latest goal context and the most relevant completed goals. The stable
+production path remains non-live `record -> process`. The current live work is evidence gathering
+and gate hardening only: live output must stay shadow-only and batch transcript remains
+authoritative.
 
-## Active Goal: Process Observability & Run Monitor v1
+## Active Goal: Near-Realtime Live Parity Coverage v1
 
 Status, 2026-07-06: active.
 
 Goal:
 
 ```text
-Сделать долгий `murmurmark process SESSION` понятным и контролируемым без ручного чтения логов.
-Пользователь должен видеть, какой шаг сейчас идёт, есть ли прогресс по ASR chunks, безопасно ли
-прерывать процесс, как его возобновить и почему текущий результат ещё не готов. Нельзя добавлять
-новые repair/synthesis/audit-слои; задача только в наблюдаемости, run-state, resume-handoff и
-согласованности `process`, `status`, `next`, `sessions --all`.
+Near-Realtime Live Parity Coverage v1: получить реальные live-pipeline сессии, сравнить live
+chunks/drafts с batch output и держать live promotion заблокированным, пока parity gates не докажут
+безопасность по order risk, local recall, remote leakage, review burden, selected notes readiness и
+chunk-boundary risks. Batch transcript остаётся authoritative.
 ```
 
-Plainly: the recording path is stable again; now processing must stop feeling like a black box.
+Plainly: live can be studied only as a shadow speed-up candidate. The user-facing product path stays
+batch-first until live proves that it preserves local speech, does not introduce remote leakage or
+ordering errors, keeps review burden acceptable, produces notes-ready batch output and does not
+break on chunk boundaries.
+
+Current state:
+
+- real live sessions in the corpus: `8`;
+- diagnostic/lab live sessions kept out of promotion scope: `7`;
+- real live-vs-batch compared sessions: `6`;
+- meaningful real comparisons: `4`;
+- real passing comparisons: `1`;
+- promotion decision: `shadow_only_do_not_promote`;
+- new real live collection allowed: `false`;
+- current blocking dimensions: `local_recall`, `remote_leakage`, `review_burden`,
+  `selected_notes_readiness`, `draft_text_recall`, `required_artifacts`.
+
+Safety constraint:
+
+- do not use `--live-pipeline` for real meetings while live is quarantined;
+- use existing live artifacts and lab diagnostics to improve reports and gates;
+- new real live coverage can resume only after the capture-safe redesign proves that live work
+  cannot corrupt or starve raw `mic`/`remote` capture.
 
 Definition of done:
 
-- a running `process` writes a current run-state artifact before final `pipeline_run_report.json`;
-- `murmurmark status SESSION` and `murmurmark next SESSION` can show an in-progress/interrupted
-  process state without trusting stale readiness;
-- heartbeats include the active step, ASR chunk progress when available, resume command and safe
-  interrupt hint;
-- interrupted runs leave one obvious recovery command and do not make stale transcript/notes look
-  current;
-- docs describe how to watch, interrupt and resume long processing;
-- no change to capture, Echo Guard, ASR model, transcript profiles or review logic.
+- existing real live sessions are classified as real-vs-diagnostic in corpus reports;
+- every real live session either has a live-vs-batch comparison or a precise blocker explaining why
+  comparison is impossible;
+- promotion dimensions are separated and machine-readable: order risk, local recall, remote
+  leakage, review burden, selected notes readiness, chunk-boundary risks, draft text recall and
+  required artifacts;
+- strict gates fail while any required dimension is warning/failed/blocked/not evaluated;
+- `promotion_policy` keeps `batch_authoritative: true`, `live_quarantined: true`,
+  `new_real_live_collection_allowed: false` and `promotion_allowed_sessions: 0`;
+- README/runbooks/contracts/roadmap make clear that live is quarantined and that corpus reports are
+  evidence, not a command to collect new unsafe live meetings.
 
 ## Latest Completed Goal: Current Pipeline Stabilization v1
 
