@@ -232,6 +232,16 @@ murmurmark doctor
 murmurmark record --target-bundle system
 ```
 
+For real meetings, run recording from a logged-in desktop session with an awake display. If
+`murmurmark doctor --strict` reports `shareable displays: 0`, ScreenCaptureKit cannot currently see
+a capture source even if macOS permissions are granted. Wake the display and re-check before
+recording:
+
+```bash
+caffeinate -u -t 5
+murmurmark doctor --strict
+```
+
 Stop recording with `Ctrl-C`. Without `--duration`, recording is expected to continue until you stop
 it. On success the CLI prints:
 
@@ -856,11 +866,14 @@ Before pushing code changes:
 ```bash
 swift build
 .venv/bin/python -m py_compile scripts/*.py
-scripts/check.sh
+caffeinate -dimsu scripts/check.sh
 murmurmark self-test
 murmurmark acceptance --skip-release
 scripts/check-open-source-readiness.sh
 ```
+
+`caffeinate -dimsu` keeps the desktop session awake while the full check runs. This matters because
+`doctor --strict` deliberately fails when ScreenCaptureKit sees no shareable display.
 
 `scripts/check.sh` includes a static capture regression check. It keeps the ScreenCaptureKit system
 audio contract pinned so `remote` capture does not silently regress back to digital silence.

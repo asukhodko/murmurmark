@@ -48,9 +48,18 @@ Re-run `doctor` after changing permissions. It prints `murmurmark self-test` and
 commands when the machine is usable. Use `murmurmark doctor --strict` when a setup script should fail
 on missing required dependencies.
 
-If `doctor` reports `shareable displays: 0`, run MurmurMark from a logged-in desktop session and
-re-check before a real meeting. The CLI may have permission but still be unable to build the system
-capture filter when macOS does not expose a shareable display to the launching process.
+If `doctor` reports `shareable displays: 0`, run MurmurMark from a logged-in desktop session with an
+awake display and re-check before a real meeting. The CLI may have permission but still be unable to
+build the system capture filter when macOS does not expose a shareable display to the launching
+process. A practical check is:
+
+```bash
+caffeinate -u -t 5
+murmurmark doctor --strict
+```
+
+Use `caffeinate -dimsu ...` for long verification commands such as `scripts/check.sh` when the
+machine may otherwise dim or sleep during the run.
 
 ## Short Recording
 

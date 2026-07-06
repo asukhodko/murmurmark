@@ -8,7 +8,7 @@ existing pipeline without adding new product features or changing raw capture fi
 ## Checks Run
 
 ```bash
-scripts/check.sh
+caffeinate -dimsu scripts/check.sh
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
 murmurmark report corpus
 scripts/check-current-pipeline-stabilization.py
@@ -21,10 +21,15 @@ Result:
 - current-pipeline stabilization audit: passed.
 - capture health matrix: `mic-only`, `remote-only` and `mic+remote` pass the early capture gate;
   `silence` and `interrupted` block before ASR.
+- process resume smoke: passed; chunk resume, legacy raw-cache rebuild and interrupted process resume
+  all complete.
 - Ctrl-C recording smoke: passed in `/tmp`; `stop_reason=sigint`, `partial=false`, one mic file
   and one remote file, `inspect` reported `health: ok`.
 - fresh short non-live recording with audible content: `sessions/2026-07-06_13-12-08`.
 - fresh silent/failed capture blocker reference: `sessions/2026-07-06_11-16-22`.
+- ScreenCaptureKit display-state check: when both displays were asleep, `doctor --strict` reported
+  `shareable displays: 0` and blocked recording; after `caffeinate -u -t 5`, it saw shareable
+  displays again and passed.
 
 ## Fresh Session Handoff
 

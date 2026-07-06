@@ -46,12 +46,14 @@ Current scope:
 Definition of done:
 
 - working tree is clean, committed and pushed;
-- `scripts/check.sh` passes;
+- `caffeinate -dimsu scripts/check.sh` passes from an awake desktop session;
 - live/capture regression smoke passes, but live remains diagnostic;
 - at least one fresh short non-live recording with audible content produces a non-empty transcript;
 - at least one fresh failed/silent capture fixture blocks before ASR;
 - `murmurmark status latest` and `murmurmark next latest` give one non-conflicting next step;
 - README and runbooks describe the supported production path without stale live-first guidance.
+- `doctor --strict` blocks recording when ScreenCaptureKit sees no shareable display, including the
+  case where macOS permissions exist but the display/session is asleep.
 
 Explicit non-goals:
 
