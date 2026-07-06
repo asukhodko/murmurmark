@@ -110,6 +110,11 @@ murmurmark inspect latest
 meetings. Treat `near_realtime_shadow_gate` as lab-only: it starts with
 `MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh` and must keep live
 promotion blocked until live-vs-batch parity evidence is explicitly approved.
+For a short lab pilot after the safety probe, run:
+
+```bash
+scripts/run-live-parity-pilot.sh --duration 45
+```
 
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
 

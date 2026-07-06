@@ -4311,6 +4311,44 @@ Invariants:
 - if the live worker or derived live segment writer fails, the session must remain
   batch-processable from raw CAF.
 
+### Live Parity Pilot Report
+
+`scripts/run-live-parity-pilot.sh` is the lab-only runner for collecting near-realtime evidence
+without promoting live output. It writes:
+
+```text
+derived/live/live_parity_pilot_report.json
+```
+
+Schema:
+
+```json
+{
+  "schema": "murmurmark.live_parity_pilot_report/v1",
+  "session": "sessions/live-pilot-2026-07-06_21-00-00",
+  "created_session": true,
+  "batch_authoritative": true,
+  "promotion_must_remain_blocked": true,
+  "comparison": {
+    "path": "sessions/.../derived/live/live_batch_comparison.json",
+    "parity_status": "blocked_or_warning",
+    "promotion_allowed": false,
+    "metrics": {}
+  },
+  "corpus": {
+    "path": "sessions/_reports/live-pipeline/live_corpus_gates_report.json",
+    "promotion_policy": {
+      "status": "blocked",
+      "batch_authoritative": true,
+      "new_real_live_collection_allowed": false
+    }
+  }
+}
+```
+
+The report is evidence that a pilot was processed and compared, not a promotion artifact. Live
+promotion remains blocked until the corpus-level parity gates pass on approved real coverage.
+
 ### Live Chunk Protection Gates
 
 `derived/live/chunks.jsonl` and `derived/live/chunks/<index>/chunk.json` contain the shadow ASR text

@@ -551,7 +551,9 @@ nodes:
       есть: callback пишет durable raw CAF, затем делает non-blocking enqueue в async bounded live
       segment queue. При backlog/error отключаются только live-derived artifacts. Следующий шаг —
       лабораторно доказать, что raw `audio/mic` и `audio/remote` остаются корректными при нормальной
-      работе, перегрузе и отказе live-ветки.
+      работе, перегрузе и отказе live-ветки. Для этого добавлен `scripts/run-live-parity-pilot.sh`:
+      он запускает safety probe, lab-only live recording, batch process, live-vs-batch compare и
+      corpus live report, сохраняя live promotion blocked.
 
   realtime-worker-queue:
     title: "Echo/ASR worker queue"

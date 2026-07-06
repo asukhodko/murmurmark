@@ -93,13 +93,15 @@ run:
 
 ```bash
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
+scripts/run-live-parity-pilot.sh --duration 45
 murmurmark corpus live all
 jq '.promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json
 ```
 
 `promotion_policy.status` must remain `blocked`, `batch_authoritative` must remain `true`, and
 `new_real_live_collection_allowed` must remain `false` until live-vs-batch parity coverage is
-explicitly approved.
+explicitly approved. The pilot runner writes `derived/live/live_parity_pilot_report.json` under the
+pilot session and keeps the selected batch transcript authoritative.
 
 The manual gate passes when:
 

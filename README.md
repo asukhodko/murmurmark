@@ -306,6 +306,17 @@ only a short finalization tail for the live worker; a stuck worker is terminated
 continues. If you need only the draft and want to run batch processing manually later, use
 `--live-no-finalize`.
 
+For lab evidence, use the pilot runner instead of assembling the unsafe commands by hand:
+
+```bash
+scripts/run-live-parity-pilot.sh --duration 45
+```
+
+It first runs the local capture/live fail-open probe, then records a short lab-only live session,
+runs the normal batch pipeline, compares live output with batch output and refreshes
+`murmurmark corpus live all`. It writes `derived/live/live_parity_pilot_report.json` under the pilot
+session. Promotion must remain blocked and the batch transcript remains authoritative.
+
 The live worker is still shadow-grade, but it now has three lightweight protections before writing
 draft text: per-chunk mic echo cleanup, a role gate that suppresses mic text when it duplicates the
 same chunk's remote text, and a boundary gate that suppresses adjacent chunk repeats. These
