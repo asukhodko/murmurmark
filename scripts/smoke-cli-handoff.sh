@@ -876,6 +876,11 @@ jq -e '
   and .coverage_target.status == "needs_more_live_coverage"
   and .coverage_target.live_sessions_remaining == 2
   and .coverage_target.passing_compared_sessions_remaining == 2
+  and .recommended_next == "jq '\''.real_blocker_triage_summary'\'' sessions/_reports/live-pipeline/live_corpus_gates_report.json"
+  and ([.next_commands[] | select(contains("--min-live-sessions"))] | length) == 0
+  and .real_blocker_triage_summary.total_items == 0
+  and .real_blocker_triage_summary.real_gate_issue_count == 0
+  and .real_blocker_triage_summary.uncategorized_gate_issue_count == 0
   and .promotion_policy.status == "blocked"
   and .promotion_policy.batch_authoritative == true
   and .promotion_policy.live_quarantined == true
@@ -922,6 +927,8 @@ jq -e '
   and .promotion_policy.batch_authoritative == true
   and .strict_coverage.requested == true
   and (.strict_coverage.failures | length) == 0
+  and .recommended_next == "jq '\''.real_blocker_triage_summary'\'' sessions/_reports/live-pipeline/live_corpus_gates_report.json"
+  and ([.next_commands[] | select(contains("--min-live-sessions"))] | length) == 0
 ' "$workdir/live-report-strict/live_corpus_gates_report.json" >/dev/null
 
 "$repo_root/scripts/smoke-process-chunk-resume.sh" >/dev/null
