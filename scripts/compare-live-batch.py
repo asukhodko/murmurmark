@@ -12,7 +12,7 @@ from typing import Any
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.7.0"
+SCRIPT_VERSION = "0.8.0"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 CAPTURE_SAFETY_BLOCKERS = {"interrupted_capture", "silent_capture", "sparse_capture"}
 CAPTURE_SAFETY_WARNING_MARKERS = (
@@ -23,6 +23,7 @@ CAPTURE_SAFETY_WARNING_MARKERS = (
     "captured audio covers only",
     "track appears silent or almost silent",
 )
+BOUNDARY_ISSUE_STATUSES = {"suppressed", "failed", "warning", "blocked", "not_evaluated"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -104,6 +105,53 @@ def duplicate_adjacent_chunks(chunks: list[dict[str, Any]]) -> int:
             count += 1
         previous = current
     return count
+
+
+def live_boundary_gate_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
+    status_counts: Counter[str] = Counter()
+    reason_counts: Counter[str] = Counter()
+    issue_count = 0
+    suppressed_count = 0
+    examples: list[dict[str, Any]] = []
+    for row in chunks:
+        chunk_index = row.get("index")
+        for source in ("mic", "remote"):
+            source_row = row.get(source)
+            if not isinstance(source_row, dict):
+                continue
+            boundary_gate = source_row.get("live_boundary_gate")
+            if not isinstance(boundary_gate, dict):
+                continue
+            status = str(boundary_gate.get("status") or "unknown")
+            reason = str(boundary_gate.get("reason") or "unknown")
+            status_counts[status] += 1
+            reason_counts[reason] += 1
+            if status == "suppressed":
+                suppressed_count += 1
+            if status in BOUNDARY_ISSUE_STATUSES:
+                issue_count += 1
+                if len(examples) < 20:
+                    examples.append(
+                        {
+                            "chunk_index": chunk_index,
+                            "source": source,
+                            "status": status,
+                            "reason": reason,
+                            "duplicate_score": boundary_gate.get("duplicate_score"),
+                            "current_token_recall_in_previous": boundary_gate.get("current_token_recall_in_previous"),
+                            "previous_token_recall_in_current": boundary_gate.get("previous_token_recall_in_current"),
+                            "hard_start_sec": source_row.get("hard_start_sec"),
+                            "hard_end_sec": source_row.get("hard_end_sec"),
+                        }
+                    )
+    return {
+        "evaluated_count": sum(status_counts.values()),
+        "issue_count": issue_count,
+        "suppressed_count": suppressed_count,
+        "status_counts": dict(sorted(status_counts.items())),
+        "reason_counts": dict(sorted(reason_counts.items())),
+        "examples": examples,
+    }
 
 
 def selected_transcript_path(session: Path) -> Path | None:
@@ -477,6 +525,7 @@ def parity_gates(
     capture_safety_gate: dict[str, Any],
     blockers: list[str],
     duplicate_count: int,
+    boundary_summary: dict[str, Any],
     recall: float | None,
     batch_quality: dict[str, Any] | None,
     live_assessment: dict[str, Any],
@@ -585,9 +634,17 @@ def parity_gates(
     gates.append(
         gate(
             "chunk_boundary_risks",
-            "passed" if duplicate_count == 0 else "failed",
-            "live chunk boundaries should not introduce adjacent duplicate transcript text",
-            {"adjacent_duplicate_chunk_count": duplicate_count},
+            "passed"
+            if duplicate_count == 0 and safe_int(boundary_summary.get("issue_count")) == 0
+            else ("failed" if duplicate_count > 0 else "warning"),
+            "live chunk boundaries should not introduce duplicate or suppressed boundary text",
+            {
+                "adjacent_duplicate_chunk_count": duplicate_count,
+                "live_boundary_gate_issue_count": boundary_summary.get("issue_count"),
+                "live_boundary_gate_suppressed_count": boundary_summary.get("suppressed_count"),
+                "live_boundary_gate_status_counts": boundary_summary.get("status_counts"),
+                "live_boundary_gate_reason_counts": boundary_summary.get("reason_counts"),
+            },
         )
     )
     return gates
@@ -781,6 +838,7 @@ def main() -> int:
     final_tokens = tokens(final_text)
     recall = bag_recall(live_tokens, final_tokens)
     duplicate_count = duplicate_adjacent_chunks(chunks)
+    boundary_summary = live_boundary_gate_summary(chunks)
     live_assessment = assess_live_vs_batch(chunks, batch_utterances)
     blockers: list[str] = []
     warnings: list[str] = []
@@ -794,6 +852,8 @@ def main() -> int:
         blockers.append("batch_clean_dialogue_missing")
     if duplicate_count > 0:
         warnings.append("adjacent_live_chunk_duplicates_detected")
+    if safe_int(boundary_summary.get("issue_count")) > 0:
+        warnings.append("live_boundary_gate_issues_detected")
     if recall is not None and recall < 0.60:
         warnings.append("low_live_token_recall_in_batch")
     if safe_float((live_assessment.get("metrics") or {}).get("live_missing_me_seconds")) > 0.5:
@@ -809,6 +869,7 @@ def main() -> int:
         capture_safety_gate=capture_safety_gate,
         blockers=blockers,
         duplicate_count=duplicate_count,
+        boundary_summary=boundary_summary,
         recall=recall,
         batch_quality=batch_quality,
         live_assessment=live_assessment,
@@ -860,6 +921,9 @@ def main() -> int:
             "batch_token_count": len(final_tokens),
             "live_token_recall_in_batch": round(recall, 6) if recall is not None else None,
             "adjacent_duplicate_chunk_count": duplicate_count,
+            "live_boundary_gate_evaluated_count": boundary_summary.get("evaluated_count"),
+            "live_boundary_gate_issue_count": boundary_summary.get("issue_count"),
+            "live_boundary_gate_suppressed_count": boundary_summary.get("suppressed_count"),
             "batch_authoritative": True,
             "batch_use_gate": batch_use_gate,
             "batch_outcome": batch_outcome,
@@ -876,6 +940,7 @@ def main() -> int:
             "local_missing": (live_assessment.get("local_missing") or [])[:20],
             "local_missing_suspicious_batch_me": (live_assessment.get("local_missing_suspicious_batch_me") or [])[:20],
             "remote_leak": (live_assessment.get("remote_leak") or [])[:20],
+            "boundary_gate_issues": boundary_summary.get("examples") or [],
         },
         "parity_gates": {
             "status": "not_promotable" if gate_statuses - {"passed"} else "passed_but_shadow_locked",

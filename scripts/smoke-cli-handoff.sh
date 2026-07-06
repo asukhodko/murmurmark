@@ -854,6 +854,8 @@ jq -e '
   and .metrics.meaningful_live_comparison == true
   and .metrics.all_parity_gates_passed == true
   and .metrics.capture_safety_status == "passed"
+  and .metrics.live_boundary_gate_issue_count == 0
+  and .metrics.live_boundary_gate_suppressed_count == 0
   and ([.parity_gates.gates[] | select(.name == "capture_safety" and .status == "passed")] | length == 1)
   and ([.parity_gates.gates[] | select(.name == "order_risk" and .status == "passed")] | length == 1)
   and ([.parity_gates.gates[] | select(.name == "local_recall" and .status == "passed")] | length == 1)
@@ -862,6 +864,52 @@ jq -e '
   and ([.parity_gates.gates[] | select(.name == "selected_notes_readiness" and .status == "passed")] | length == 1)
   and ([.parity_gates.gates[] | select(.name == "chunk_boundary_risks" and .status == "passed")] | length == 1)
 ' "$live_parity_session/derived/live/live_batch_comparison.json" >/dev/null
+
+live_boundary_risk_session="$workdir/sessions/2026-07-06_00-01-00"
+mkdir -p \
+  "$live_boundary_risk_session/derived/live" \
+  "$live_boundary_risk_session/derived/transcript-simple/whisper-cpp/resolved" \
+  "$live_boundary_risk_session/derived/readiness" \
+  "$live_boundary_risk_session/derived/outcome"
+cp "$live_parity_session/session.json" "$live_boundary_risk_session/session.json"
+cp "$live_parity_session/derived/live/live_pipeline_report.json" \
+  "$live_boundary_risk_session/derived/live/live_pipeline_report.json"
+cp "$live_parity_session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v4.json" \
+  "$live_boundary_risk_session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v4.json"
+cp "$live_parity_session/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v4.md" \
+  "$live_boundary_risk_session/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v4.md"
+cp "$live_parity_session/derived/transcript-simple/whisper-cpp/resolved/quality_report.audit_cleanup_v4.json" \
+  "$live_boundary_risk_session/derived/transcript-simple/whisper-cpp/resolved/quality_report.audit_cleanup_v4.json"
+cp "$live_parity_session/derived/readiness/session_readiness.json" \
+  "$live_boundary_risk_session/derived/readiness/session_readiness.json"
+cp "$live_parity_session/derived/outcome/outcome.json" \
+  "$live_boundary_risk_session/derived/outcome/outcome.json"
+cat >"$live_boundary_risk_session/derived/live/chunks.jsonl" <<'JSONL'
+{"schema":"murmurmark.live_chunk/v1","index":1,"start_sec":0.0,"end_sec":5.0,"mic":{"text":"привет проверю задачу","hard_start_sec":0.0,"hard_end_sec":5.0},"remote":{"text":"привет обсудим план","hard_start_sec":0.0,"hard_end_sec":5.0}}
+{"schema":"murmurmark.live_chunk/v1","index":2,"start_sec":5.0,"end_sec":10.0,"mic":{"text":"","hard_start_sec":5.0,"hard_end_sec":10.0,"live_boundary_gate":{"status":"passed","reason":"too_short_for_boundary_gate"}},"remote":{"text":"","raw_text_before_boundary_gate":"привет обсудим план","hard_start_sec":5.0,"hard_end_sec":10.0,"live_boundary_gate":{"status":"suppressed","reason":"adjacent_chunk_duplicate","duplicate_score":1.0,"current_token_recall_in_previous":1.0,"previous_token_recall_in_current":1.0}}}
+JSONL
+"$eval_python" "$repo_root/scripts/compare-live-batch.py" "$live_boundary_risk_session" >/dev/null
+jq -e '
+  .promotion_allowed == false
+  and .parity_gates.status == "not_promotable"
+  and (.warnings | index("live_boundary_gate_issues_detected") != null)
+  and .metrics.live_boundary_gate_issue_count == 1
+  and .metrics.live_boundary_gate_suppressed_count == 1
+  and ([.parity_gates.gates[] | select(.name == "chunk_boundary_risks" and .status == "warning")] | length == 1)
+' "$live_boundary_risk_session/derived/live/live_batch_comparison.json" >/dev/null
+jq -e '
+  [.risk_examples.boundary_gate_issues[] | select(.source == "remote" and .status == "suppressed")]
+  | length == 1
+' "$live_boundary_risk_session/derived/live/live_batch_comparison.json" >/dev/null
+"$eval_python" "$repo_root/scripts/report-live-corpus-gates.py" "$live_boundary_risk_session" \
+  --sessions-root "$workdir/sessions" \
+  --out-dir "$workdir/live-boundary-risk-report" >/dev/null
+jq -e '
+  .summary.real_live_boundary_gate_issue_count == 1
+  and .summary.real_live_boundary_gate_suppressed_count == 1
+  and .real_parity_dimensions.chunk_boundary_risks.counts.warning == 1
+  and .real_blocker_triage_summary.by_category.chunk_boundary_risk.item_count == 1
+' "$workdir/live-boundary-risk-report/live_corpus_gates_report.json" >/dev/null
 jq -e '
   .status == "passing_shadow_locked"
   and .promotion_allowed == false

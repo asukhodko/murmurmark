@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.7.0"
+SCRIPT_VERSION = "0.8.0"
 SCHEMA_REPORT = "murmurmark.corpus_gates_report/v1"
 SCHEMA_BASELINE = "murmurmark.corpus_gates_baseline/v1"
 
@@ -830,6 +830,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     real_live_remote_in_me_seconds = safe_float(live_summary.get("real_live_suspected_remote_leak_in_me_seconds"))
     live_boundary_duplicate_count = safe_int(live_summary.get("adjacent_duplicate_chunk_count"))
     real_live_boundary_duplicate_count = safe_int(live_summary.get("real_adjacent_duplicate_chunk_count"))
+    live_boundary_gate_issue_count = safe_int(live_summary.get("live_boundary_gate_issue_count"))
+    real_live_boundary_gate_issue_count = safe_int(live_summary.get("real_live_boundary_gate_issue_count"))
     required_live_dimensions = {
         "capture_safety",
         "order_risk",
@@ -1061,6 +1063,16 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         observed=real_live_boundary_duplicate_count,
         threshold="0 adjacent duplicate chunks",
         message="live-vs-batch comparison found no adjacent chunk duplicates",
+        details=live_summary,
+    )
+    check(
+        checks,
+        "live_cache_parity.no_boundary_gate_issues",
+        real_live_boundary_gate_issue_count == 0,
+        severity="warn",
+        observed=real_live_boundary_gate_issue_count,
+        threshold="0 suppressed/failed live boundary gates",
+        message="live-vs-batch comparison found no suppressed or failed live chunk-boundary gates",
         details=live_summary,
     )
 
@@ -1599,6 +1611,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "live_cache_parity_real_remote_in_me_seconds": round(real_live_remote_in_me_seconds, 3),
             "live_cache_parity_boundary_duplicate_count": live_boundary_duplicate_count,
             "live_cache_parity_real_boundary_duplicate_count": real_live_boundary_duplicate_count,
+            "live_cache_parity_boundary_gate_issue_count": live_boundary_gate_issue_count,
+            "live_cache_parity_real_boundary_gate_issue_count": real_live_boundary_gate_issue_count,
             "transcript_order_audited_sessions": order_audited_sessions,
             "transcript_order_session_count": order_session_count,
             "transcript_order_missing_audits": order_missing_audits,

@@ -604,7 +604,8 @@ nodes:
       агрегирует их в corpus-level report. Пока live branch quarantined, эти отчёты являются
       историческим диагностическим слоем. После redesign нужно сравнить live draft/finalized output
       с batch baseline по capture safety, order risk, local recall, remote duplicate/leak, review
-      burden, transcript chunk duplicates и missing boundary speech. Promotion rule: live branch can
+      burden, transcript chunk duplicates, source-level `live_boundary_gate` suppression и missing
+      boundary speech. Promotion rule: live branch can
       shorten waiting time, but cannot become default if it grows mandatory review queue, worsens
       selected notes/readiness, or fails capture safety.
 
