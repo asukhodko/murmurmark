@@ -771,7 +771,19 @@ mkdir -p \
   "$live_parity_session/derived/readiness" \
   "$live_parity_session/derived/outcome"
 cat >"$live_parity_session/session.json" <<'JSON'
-{"schema":"murmurmark.session/v1","session_id":"live-parity-smoke","status":"completed"}
+{
+  "schema": "murmurmark.session/v1",
+  "session_id": "live-parity-smoke",
+  "status": "completed",
+  "health": {
+    "summary": "ok",
+    "partial": false,
+    "explicit_stop": true,
+    "stop_reason": "duration_elapsed",
+    "screen_capture_restart_count": 0,
+    "warnings": []
+  }
+}
 JSON
 cat >"$live_parity_session/derived/live/live_pipeline_report.json" <<'JSON'
 {
@@ -881,11 +893,13 @@ jq -e '
   and .real_blocker_triage_summary.total_items == 0
   and .real_blocker_triage_summary.real_gate_issue_count == 0
   and .real_blocker_triage_summary.uncategorized_gate_issue_count == 0
+  and .real_parity_dimensions.capture_safety.counts.passed == 1
   and .promotion_policy.status == "blocked"
   and .promotion_policy.batch_authoritative == true
   and .promotion_policy.live_quarantined == true
   and .promotion_policy.new_real_live_collection_allowed == false
   and ((.promotion_policy.required_dimensions | sort) == [
+    "capture_safety",
     "chunk_boundary_risks",
     "draft_text_recall",
     "local_recall",
@@ -896,6 +910,7 @@ jq -e '
     "selected_notes_readiness"
   ])
   and ([.parity_dimensions | keys[]] | sort) == [
+    "capture_safety",
     "chunk_boundary_risks",
     "draft_text_recall",
     "local_recall",

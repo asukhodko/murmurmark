@@ -346,9 +346,9 @@ jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_ga
 
 The expected v1 result is still `shadow_only_do_not_promote`: the report should explain which gates
 are evaluated and which remain blockers. Current live comparison checks the live draft against the
-authoritative batch transcript for order mismatch, missing `Me` speech, suspected remote-in-`Me`
-leakage, selected batch review burden, notes readiness and adjacent chunk duplicates. Passing those
-checks is still not promotion. With live quarantined, use this report only to inspect old diagnostic
+authoritative batch transcript for capture safety, order mismatch, missing `Me` speech, suspected
+remote-in-`Me` leakage, selected batch review burden, notes readiness and adjacent chunk duplicates.
+Passing those checks is still not promotion. With live quarantined, use this report only to inspect old diagnostic
 evidence and gate failures. The Markdown report has a `Gate Issues` section with the concrete
 session/gate/reason rows that currently prevent a passing comparison. Promotion checks use
 `real_parity_dimensions`: only date-named real meeting sessions count there. `_debug_*`,
@@ -358,8 +358,8 @@ all files present and still fail because the live draft text does not match the 
 transcript.
 The report also has `real_blocker_triage_summary` and a `Real Blocker Triage` Markdown section. Use
 that first when deciding what to do next: it separates batch review/readiness debt, missing artifacts,
-local recall gaps, remote leakage and live draft drift. Triage is explanatory only; it does not make
-live safe for new real meetings.
+capture safety risks, local recall gaps, remote leakage and live draft drift. Triage is explanatory
+only; it does not make live safe for new real meetings.
 While live is quarantined, `recommended_next` and `next:` point to triage and inspection commands for
 existing artifacts. They must not suggest the strict live-coverage command as the next action.
 

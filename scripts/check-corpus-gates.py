@@ -831,6 +831,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     live_boundary_duplicate_count = safe_int(live_summary.get("adjacent_duplicate_chunk_count"))
     real_live_boundary_duplicate_count = safe_int(live_summary.get("real_adjacent_duplicate_chunk_count"))
     required_live_dimensions = {
+        "capture_safety",
         "order_risk",
         "local_recall",
         "remote_leakage",
@@ -842,6 +843,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     }
     required_live_triage_categories = {
         "batch_review_required",
+        "capture_safety_risk",
         "live_local_recall_gap",
         "live_remote_leakage",
         "live_draft_text_drift",

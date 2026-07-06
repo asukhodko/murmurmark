@@ -306,7 +306,7 @@ flowchart LR
     materializes both top-level raw ASR JSON and `raw/chunks/<track>/chunk_cache_report.json`, then
     relies on the normal chunk rebuild check as the hard proof;
   - corpus-level live report exists as `murmurmark corpus live`; it keeps promotion blocked while
-    order/local-recall/remote-leak/review-burden gates are not evaluated by live outputs;
+    capture-safety/order/local-recall/remote-leak/review-burden gates are not passed by live outputs;
   - delayed transcript commit: do not finalize the last few seconds until the next segment arrives;
   - live status: captured/preprocessed/ASR seconds, current lag and current worker;
   - final reconcile after stop: batch-grade transcript remains authoritative until gates promote the

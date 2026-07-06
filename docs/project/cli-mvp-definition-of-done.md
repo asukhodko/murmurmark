@@ -98,10 +98,11 @@ murmurmark corpus live all
 jq '.promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json
 ```
 
-`promotion_policy.status` must remain `blocked`, `batch_authoritative` must remain `true`, and
-`new_real_live_collection_allowed` must remain `false` until live-vs-batch parity coverage is
-explicitly approved. The pilot runner writes `derived/live/live_parity_pilot_report.json` under the
-pilot session and keeps the selected batch transcript authoritative.
+`promotion_policy.status` must remain `blocked`, `batch_authoritative` must remain `true`,
+`new_real_live_collection_allowed` must remain `false`, and `real_parity_dimensions.capture_safety`
+must be present until capture safety plus live-vs-batch parity coverage are explicitly approved. The
+pilot runner writes `derived/live/live_parity_pilot_report.json` under the pilot session and keeps
+the selected batch transcript authoritative.
 
 The manual gate passes when:
 

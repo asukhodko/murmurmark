@@ -19,9 +19,9 @@ chunk-boundary risks. Batch transcript остаётся authoritative.
 ```
 
 Plainly: live can be studied only as a shadow speed-up candidate. The user-facing product path stays
-batch-first until live proves that it preserves local speech, does not introduce remote leakage or
-ordering errors, keeps review burden acceptable, produces notes-ready batch output and does not
-break on chunk boundaries.
+batch-first until live proves that it does not damage raw capture, preserves local speech, does not
+introduce remote leakage or ordering errors, keeps review burden acceptable, produces notes-ready
+batch output and does not break on chunk boundaries.
 
 Current state:
 
@@ -32,8 +32,8 @@ Current state:
 - real passing comparisons: `1`;
 - promotion decision: `shadow_only_do_not_promote`;
 - new real live collection allowed: `false`;
-- current blocking dimensions: `local_recall`, `remote_leakage`, `review_burden`,
-  `selected_notes_readiness`, `draft_text_recall`, `required_artifacts`.
+- current blocking dimensions: `capture_safety`, `local_recall`, `remote_leakage`,
+  `review_burden`, `selected_notes_readiness`, `draft_text_recall`, `required_artifacts`.
 
 Safety constraint:
 
@@ -47,9 +47,9 @@ Definition of done:
 - existing real live sessions are classified as real-vs-diagnostic in corpus reports;
 - every real live session either has a live-vs-batch comparison or a precise blocker explaining why
   comparison is impossible;
-- promotion dimensions are separated and machine-readable: order risk, local recall, remote
-  leakage, review burden, selected notes readiness, chunk-boundary risks, draft text recall and
-  required artifacts;
+- promotion dimensions are separated and machine-readable: capture safety, order risk, local
+  recall, remote leakage, review burden, selected notes readiness, chunk-boundary risks, draft text
+  recall and required artifacts;
 - strict gates fail while any required dimension is warning/failed/blocked/not evaluated;
 - `promotion_policy` keeps `batch_authoritative: true`, `live_quarantined: true`,
   `new_real_live_collection_allowed: false` and `promotion_allowed_sessions: 0`;

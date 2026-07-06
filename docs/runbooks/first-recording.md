@@ -178,23 +178,24 @@ jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_ga
 ```
 
 The correct v1 outcome is normally `shadow_only_not_promotable`; promotion requires future gates for
-order risk, local recall, remote leakage, review burden and boundary speech. The current comparison
-already measures the first practical version of those checks from live chunks versus the selected
-batch transcript, but `promotion_allowed` must remain `false` until real live-session coverage is
-broad enough and the corpus gates are intentionally promoted. While live is quarantined, the report
-is historical/debug evidence only: do not start new real live recordings from this command. The
-command prints `recommended_next` and `next:` lines; use them to inspect the current blocker or
-return to the normal non-live `record -> process` path. The Markdown report's `Gate Issues` section
-lists the exact non-passing gates by session. `real_parity_dimensions` is the promotion scope and
-counts only date-named real meeting sessions; diagnostic `_debug_*` and `live-pilot-*` sessions stay
-visible for failure analysis but cannot satisfy real coverage. `Parity Dimensions` keeps the full
-mixed audit view by order risk, local recall, remote leakage, review burden, notes readiness and
-chunk-boundary risk. `draft_text_recall` is separate from `required_artifacts`: present live files
-are not enough if live draft text no longer matches the authoritative batch transcript.
+capture safety, order risk, local recall, remote leakage, review burden and boundary speech. The
+current comparison already measures the first practical version of those checks from live chunks
+versus the selected batch transcript, but `promotion_allowed` must remain `false` until real
+live-session coverage is broad enough and the corpus gates are intentionally promoted. While live is
+quarantined, the report is historical/debug evidence only: do not start new real live recordings from
+this command. The command prints `recommended_next` and `next:` lines; use them to inspect the
+current blocker or return to the normal non-live `record -> process` path. The Markdown report's
+`Gate Issues` section lists the exact non-passing gates by session. `real_parity_dimensions` is the
+promotion scope and counts only date-named real meeting sessions; diagnostic `_debug_*` and
+`live-pilot-*` sessions stay visible for failure analysis but cannot satisfy real coverage.
+`Parity Dimensions` keeps the full mixed audit view by capture safety, order risk, local recall,
+remote leakage, review burden, notes readiness and chunk-boundary risk. `draft_text_recall` is
+separate from `required_artifacts`: present live files are not enough if live draft text no longer
+matches the authoritative batch transcript.
 Start with `real_blocker_triage_summary` when deciding the next action. It groups real-session
-blockers into actionable buckets such as batch review/readiness, missing artifacts, local recall gap,
-remote leakage and live draft drift. Treat it as diagnosis only: live capture stays quarantined for
-new real meetings until a capture-safe redesign exists.
+blockers into actionable buckets such as batch review/readiness, missing artifacts, capture safety
+risk, local recall gap, remote leakage and live draft drift. Treat it as diagnosis only: live capture
+stays quarantined for new real meetings until a capture-safe redesign exists.
 In quarantine, `recommended_next` and `next:` should lead to triage and inspection of existing live
 artifacts. They should not print the strict live-coverage command as the next action.
 

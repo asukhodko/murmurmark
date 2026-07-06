@@ -4808,6 +4808,8 @@ comparison; it does not promote live output.
 The first live-parity layer computes measurable evidence from live chunks and the selected batch
 dialogue:
 
+- `capture_safety`: checks `session.json` health and `pipeline_run_report.json` capture blockers
+  before any text parity can count;
 - `order_risk`: maps live turns to similar batch utterances and warns when live order contradicts
   batch order;
 - `local_recall`: checks that selected batch `Me` utterances are visible in live mic turns;
@@ -4869,6 +4871,7 @@ Schema:
     "live_evidence_mode": "historical_debug_only",
     "new_real_live_collection_allowed": false,
     "promotion_blocking_dimensions": [
+      "capture_safety",
       "local_recall",
       "review_burden",
       "selected_notes_readiness"
@@ -4884,6 +4887,7 @@ Schema:
     "diagnostic_live_sessions": 1,
     "new_real_live_collection_allowed": false,
     "required_dimensions": [
+      "capture_safety",
       "order_risk",
       "local_recall",
       "remote_leakage",
@@ -4901,6 +4905,12 @@ Schema:
     "promotion_allowed_sessions": 0
   },
   "parity_dimensions": {
+    "capture_safety": {
+      "title": "Capture safety",
+      "promotion_required": true,
+      "counts": {"passed": 1, "warning": 1},
+      "issue_sessions": ["2026-07-03_06-16-43"]
+    },
     "local_recall": {
       "title": "Local recall",
       "promotion_required": true,
@@ -4965,6 +4975,14 @@ Schema:
     "categorized_gate_issue_count": 2,
     "uncategorized_gate_issue_count": 0,
     "by_category": {
+      "capture_safety_risk": {
+        "title": "Capture safety risk",
+        "item_count": 1,
+        "session_count": 1,
+        "sessions": ["2026-07-03_06-16-43"],
+        "severities": {"warning": 1},
+        "recommended_next": "keep live quarantined; prove capture-safe segment production before any new real live collection"
+      },
       "batch_review_required": {
         "title": "Batch review/readiness required",
         "item_count": 1,
@@ -5027,12 +5045,14 @@ The report also carries `gate_issues`, `recommended_next` and `next_commands`, s
 can point to failing gate evidence without weakening the gates. It must not suggest collecting more
 real live meetings while `--live-pipeline` is quarantined. `parity_dimensions` groups the per-session
 gates into the product safety dimensions required for future promotion: order risk, local recall,
-remote leakage, review burden, selected notes readiness, chunk-boundary risks, draft text recall and
-required artifacts.
+remote leakage, review burden, selected notes readiness, chunk-boundary risks, draft text recall,
+required artifacts and capture safety. Capture safety is built from `session.json` health and
+`pipeline_run_report.json` blockers such as `interrupted_capture`, `silent_capture` and
+`sparse_capture`.
 `real_blocker_triage_summary` and `real_blocker_triage` group only real-meeting non-passing gates
 into actionable buckets. Typical categories are `batch_review_required`, `live_local_recall_gap`,
 `live_remote_leakage`, `live_draft_text_drift`, `missing_batch_artifacts`,
-`missing_live_asr_artifacts`, `chunk_boundary_risk` and `order_risk`. Triage is diagnostic evidence:
+`missing_live_asr_artifacts`, `capture_safety_risk`, `chunk_boundary_risk` and `order_risk`. Triage is diagnostic evidence:
 it explains the next safe action per blocker, but it does not relax promotion gates and does not
 allow new real live collection while live capture is quarantined.
 `real_parity_dimensions` is the promotion scope: date-named real meeting sessions count there, while
@@ -5068,6 +5088,8 @@ being evaluated as a speed-up candidate", not "live is now authoritative".
 
 - `live_cache_parity.no_promotion` is a hard invariant: live/near-realtime cache must not be promoted
   as authoritative while this branch is shadow-only;
+- `live_cache_parity.dimension_coverage` requires every promotion dimension, including
+  `capture_safety`, to be present in `real_parity_dimensions`;
 - `live_cache_parity.real_coverage_started` is a rollout warning until at least one real live
   session has both live artifacts and batch comparison;
 - `live_cache_parity.meaningful_coverage_started` is a rollout warning until at least one comparison

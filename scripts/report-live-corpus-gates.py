@@ -11,7 +11,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "0.7.0"
+SCRIPT_VERSION = "0.8.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -21,6 +21,11 @@ LIVE_QUARANTINE_REASON = (
     "and parity gates; collect no new real live meetings until those gates pass"
 )
 PARITY_DIMENSIONS: dict[str, dict[str, Any]] = {
+    "capture_safety": {
+        "title": "Capture safety",
+        "gates": ["capture_safety"],
+        "promotion_required": True,
+    },
     "order_risk": {
         "title": "Order risk",
         "gates": ["order_risk"],
@@ -69,6 +74,12 @@ TRIAGE_CATEGORY_INFO: dict[str, dict[str, str]] = {
             "finish the authoritative batch review/readiness path for this session; this is not a live-capture fix"
         ),
     },
+    "capture_safety_risk": {
+        "title": "Capture safety risk",
+        "recommended_next": (
+            "keep live quarantined; prove capture-safe segment production before any new real live collection"
+        ),
+    },
     "live_local_recall_gap": {
         "title": "Live local-recall gap",
         "recommended_next": (
@@ -108,6 +119,15 @@ TRIAGE_CATEGORY_INFO: dict[str, dict[str, str]] = {
         "recommended_next": "inspect the session live_batch_comparison.json and keep live blocked",
     },
 }
+CAPTURE_SAFETY_BLOCKERS = {"interrupted_capture", "silent_capture", "sparse_capture"}
+CAPTURE_SAFETY_WARNING_MARKERS = (
+    "no screencapturekit audio samples",
+    "capture produced no audio samples",
+    "screencapturekit stream restarted",
+    "capture finalized as partial",
+    "captured audio covers only",
+    "track appears silent or almost silent",
+)
 
 
 def dimensions_for_gate(gate_name: str) -> list[str]:
@@ -296,6 +316,72 @@ def meaningful_comparison(metrics: dict[str, Any], comparison_status: Any) -> bo
     )
 
 
+def build_capture_safety_gate(session: Path) -> dict[str, Any]:
+    session_json = read_json(session / "session.json")
+    pipeline = read_json(session / "derived/pipeline-run/pipeline_run_report.json")
+    pipeline_status = pipeline.get("status") if isinstance(pipeline, dict) else None
+    pipeline_blocker = str(pipeline.get("blocker") or "") if isinstance(pipeline, dict) else ""
+    health = session_json.get("health") if isinstance(session_json, dict) else None
+    health = health if isinstance(health, dict) else {}
+    warnings = health.get("warnings") if isinstance(health.get("warnings"), list) else []
+    warning_texts = [str(item) for item in warnings]
+    restart_count = safe_int(health.get("screen_capture_restart_count"))
+    partial = bool(health.get("partial")) or (isinstance(session_json, dict) and session_json.get("status") == "partial")
+    explicit_stop = health.get("explicit_stop")
+    health_summary = str(health.get("summary") or "")
+    stop_reason = str(health.get("stop_reason") or "")
+    safety_warnings = [
+        text for text in warning_texts if any(marker in text.lower() for marker in CAPTURE_SAFETY_WARNING_MARKERS)
+    ]
+    evidence = {
+        "pipeline_status": pipeline_status,
+        "pipeline_blocker": pipeline_blocker or None,
+        "session_status": session_json.get("status") if isinstance(session_json, dict) else None,
+        "health_summary": health_summary or None,
+        "partial": partial,
+        "explicit_stop": explicit_stop,
+        "stop_reason": stop_reason or None,
+        "screen_capture_restart_count": restart_count,
+        "warning_count": len(warning_texts),
+        "safety_warning_count": len(safety_warnings),
+        "sample_warnings": safety_warnings[:5],
+    }
+    if pipeline_status == "blocked" and pipeline_blocker in CAPTURE_SAFETY_BLOCKERS:
+        return {
+            "name": "capture_safety",
+            "status": "blocked",
+            "reason": f"batch pipeline blocked the session as {pipeline_blocker}",
+            "evidence": evidence,
+        }
+    if not isinstance(session_json, dict) or not health:
+        return {
+            "name": "capture_safety",
+            "status": "not_evaluated",
+            "reason": "session capture health is missing",
+            "evidence": evidence,
+        }
+    if partial or explicit_stop is False:
+        return {
+            "name": "capture_safety",
+            "status": "blocked",
+            "reason": "capture was partial or did not end through an explicit stop",
+            "evidence": evidence,
+        }
+    if safety_warnings or restart_count > 0 or health_summary in {"warning", "partial"}:
+        return {
+            "name": "capture_safety",
+            "status": "warning",
+            "reason": "capture completed with ScreenCaptureKit/audio health warnings",
+            "evidence": evidence,
+        }
+    return {
+        "name": "capture_safety",
+        "status": "passed",
+        "reason": "capture health is complete and warning-free",
+        "evidence": evidence,
+    }
+
+
 def evidence_scope(session: Path, root: Path) -> str:
     session_name = rel(session, root).split("/", maxsplit=1)[0]
     return "real_meeting" if REAL_SESSION_RE.match(session_name) else "diagnostic"
@@ -340,7 +426,8 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
     metrics = comparison.get("metrics") if isinstance(comparison, dict) else {}
     parity = comparison.get("parity_gates") if isinstance(comparison, dict) else {}
     comparison_status = comparison.get("status") if isinstance(comparison, dict) else None
-    gates = gate_rows(comparison)
+    capture_gate = build_capture_safety_gate(session) if live_present else None
+    gates = ([capture_gate] if capture_gate else []) + gate_rows(comparison)
     return {
         "session": rel(session, root),
         "evidence_scope": evidence_scope(session, root),
@@ -349,7 +436,7 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
         "comparison_status": comparison_status,
         "parity_status": parity.get("status") if isinstance(parity, dict) else None,
         "meaningful_compared": meaningful_comparison(metrics if isinstance(metrics, dict) else {}, comparison_status),
-        "all_parity_gates_passed": all_gates_passed(comparison),
+        "all_parity_gates_passed": bool(gates) and all(gate.get("status") == "passed" for gate in gates),
         "promotion_allowed": bool(comparison.get("promotion_allowed")) if isinstance(comparison, dict) else False,
         "promotion_blockers": comparison.get("promotion_blockers") if isinstance(comparison, dict) else blockers,
         "blockers": blockers + list(comparison.get("blockers") or []) if isinstance(comparison, dict) else blockers,
@@ -373,6 +460,17 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "batch_me_utterance_count": metrics.get("batch_me_utterance_count") if isinstance(metrics, dict) else None,
             "batch_remote_utterance_count": metrics.get("batch_remote_utterance_count") if isinstance(metrics, dict) else None,
             "batch_ready_for_notes": metrics.get("batch_ready_for_notes") if isinstance(metrics, dict) else None,
+            "capture_safety_status": capture_gate.get("status") if isinstance(capture_gate, dict) else None,
+            "screen_capture_restart_count": (
+                (capture_gate.get("evidence") or {}).get("screen_capture_restart_count")
+                if isinstance(capture_gate, dict)
+                else None
+            ),
+            "capture_safety_warning_count": (
+                (capture_gate.get("evidence") or {}).get("safety_warning_count")
+                if isinstance(capture_gate, dict)
+                else None
+            ),
         },
         "final_reconcile": {
             "status": final_reconcile.get("status") if isinstance(final_reconcile, dict) else None,
@@ -701,6 +799,8 @@ def gate_blob(row: dict[str, Any], gate: dict[str, Any]) -> str:
 
 def triage_categories_for_gate(row: dict[str, Any], gate: dict[str, Any]) -> list[str]:
     name = str(gate.get("name") or "unknown")
+    if name == "capture_safety":
+        return ["capture_safety_risk"]
     if name in {"review_burden", "selected_notes_readiness"}:
         return ["batch_review_required"]
     if name == "local_recall":

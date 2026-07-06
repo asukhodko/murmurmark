@@ -603,10 +603,10 @@ nodes:
       Первый `live_batch_comparison.json` уже пишет advisory parity gates, а `murmurmark corpus live`
       агрегирует их в corpus-level report. Пока live branch quarantined, эти отчёты являются
       историческим диагностическим слоем. После redesign нужно сравнить live draft/finalized output
-      с batch baseline по order risk, local recall, remote duplicate/leak, review burden, transcript
-      chunk duplicates и missing boundary speech. Promotion rule: live branch can shorten waiting
-      time, but cannot become default if it grows mandatory review queue or worsens selected
-      notes/readiness.
+      с batch baseline по capture safety, order risk, local recall, remote duplicate/leak, review
+      burden, transcript chunk duplicates и missing boundary speech. Promotion rule: live branch can
+      shorten waiting time, but cannot become default if it grows mandatory review queue, worsens
+      selected notes/readiness, or fails capture safety.
 
   realtime-live-parity-coverage-v1:
     title: "Near-Realtime Capture-Safe Redesign v1"
@@ -621,9 +621,9 @@ nodes:
       segment writer имеет bounded queue/backpressure и fail-open отключение live без остановки
       capture, а normal `record --target-bundle system` остаётся независимым. Только после этого
       можно снова включать real live-pipeline coverage на некритичных встречах. Live cache остаётся
-      shadow-only: promotion allowed sessions must stay `0` until gates cover order risk, local
-      recall, remote leakage, review burden, selected notes readiness, draft text recall and
-      chunk-boundary duplicates/missing speech.
+      shadow-only: promotion allowed sessions must stay `0` until gates cover capture safety, order
+      risk, local recall, remote leakage, review burden, selected notes readiness, draft text recall
+      and chunk-boundary duplicates/missing speech.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
