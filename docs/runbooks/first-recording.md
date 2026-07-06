@@ -108,21 +108,17 @@ murmurmark inspect latest
 
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
 
-Experimental live-shadow recording:
+Experimental live-shadow recording is disabled by default:
 
 ```bash
-murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5
-murmurmark status latest
-murmurmark latest
-SESSION="sessions/<printed-session>"
-less "$SESSION/derived/live/transcript.draft.md"
-murmurmark next latest
+MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 \
+  murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5
 ```
 
-During Current Pipeline Stabilization v1, do not use this as the normal meeting command. The
-supported production path is the plain recording command above plus `murmurmark process latest`.
-Live-shadow mode is diagnostic evidence for future parity work; it must not hide capture/process
-failures in the production path.
+Do not use this as the normal meeting command. The current Swift live segment writer can starve
+ScreenCaptureKit audio delivery, which can leave the raw `mic` and `remote` tracks mostly silent.
+The supported production path is the plain recording command above plus `murmurmark process latest`.
+Live-shadow mode is lab-only until it is redesigned so it cannot affect raw capture.
 
 `--live-pipeline` duplicates closed mic/remote capture windows into `derived/live/audio/`, starts a
 shadow worker and writes `derived/live/transcript.draft.md`,
@@ -196,8 +192,8 @@ murmurmark corpus live all \
 ```
 
 This command should fail whenever coverage is missing or any live parity gate is still warning,
-failed or not evaluated. A failure is useful evidence: it says why live chunks are not ready to be a
-trusted cache source.
+failed or not evaluated. At the moment this is a diagnostic report shape only: do not try to satisfy
+it by recording real meetings with `--live-pipeline`.
 
 Without `--duration`, recording continues until `Ctrl-C`. MurmurMark catches that explicit stop,
 stops capture, closes audio files and writes `session.json`.

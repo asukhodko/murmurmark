@@ -40,6 +40,15 @@ assert_static_capture_contract() {
 
   grep -q 'capture produced no ScreenCaptureKit audio samples for' "$source_file" \
     || fail "ScreenCaptureKit no-sample capture must be detected"
+
+  grep -q 'beginActivity' "$source_file" \
+    || fail "recording must hold a ProcessInfo activity while ScreenCaptureKit is active"
+
+  grep -q 'idleDisplaySleepDisabled' "$source_file" \
+    || fail "recording must prevent display sleep during ScreenCaptureKit capture"
+
+  grep -q 'MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE' "$source_file" \
+    || fail "unsafe live pipeline must be gated away from normal recording"
 }
 
 assert_silent_pipeline_gate() {
@@ -328,7 +337,34 @@ assert_capture_health_matrix() {
     || fail "sparse fixture did not write sparse_capture blocker"
 }
 
-run_live_capture_probe() {
+assert_live_pipeline_guard() {
+  local bin="${MURMURMARK_BIN:-$repo_root/.build/debug/murmurmark}"
+  if [[ ! -x "$bin" ]]; then
+    swift build >/dev/null
+  fi
+
+  local workdir
+  workdir="$(mktemp -d "${TMPDIR:-/tmp}/murmurmark-live-guard.XXXXXX")"
+  trap 'rm -rf "$workdir"' RETURN
+
+  set +e
+  "$bin" record --target-bundle system --duration 1 --live-pipeline --out "$workdir/session" >"$workdir/live-guard.log" 2>&1
+  local status=$?
+  set -e
+  [[ "$status" -ne 0 ]] || {
+    cat "$workdir/live-guard.log" >&2
+    fail "live pipeline should be disabled by default"
+  }
+  grep -q -- '--live-pipeline is disabled for real recordings' "$workdir/live-guard.log" \
+    || {
+      cat "$workdir/live-guard.log" >&2
+      fail "live pipeline guard did not explain the safe command"
+    }
+  [[ ! -e "$workdir/session/session.json" ]] \
+    || fail "disabled live pipeline should fail before creating a session manifest"
+}
+
+run_system_audio_capture_probe() {
   require_tool ffmpeg
   require_tool ffplay
   require_tool ffprobe
@@ -353,23 +389,19 @@ run_live_capture_probe() {
   "$bin" record \
     --target-bundle system \
     --duration 10 \
-    --live-pipeline \
-    --live-segment-sec 5 \
-    --live-overlap-sec 1 \
-    --live-no-finalize \
     --out "$session" >"$record_log" 2>&1
   wait
 
   [[ -s "$session/session.json" ]] || {
     cat "$record_log" >&2
-    fail "live capture probe did not create session.json"
+    fail "system-audio capture probe did not create session.json"
   }
 
   jq -e '.health.summary == "ok" and (.health.screen_capture_restart_count // 0) == 0' \
     "$session/session.json" >/dev/null || {
       cat "$record_log" >&2
       jq '.health' "$session/session.json" >&2
-      fail "live capture probe health is not ok"
+      fail "system-audio capture probe health is not ok"
     }
 
   local remote_mean
@@ -383,16 +415,17 @@ run_live_capture_probe() {
   [[ -n "$remote_mean" ]] || fail "cannot read remote mean volume"
 
   awk -v value="$remote_mean" 'BEGIN { exit(value > -60.0 ? 0 : 1) }' \
-    || fail "remote system audio is too quiet in live probe: ${remote_mean} dB"
+    || fail "remote system audio is too quiet in capture probe: ${remote_mean} dB"
 }
 
 assert_static_capture_contract
 assert_silent_pipeline_gate
 assert_capture_health_matrix
+assert_live_pipeline_guard
 
 if [[ "${MURMURMARK_RUN_LIVE_CAPTURE_TEST:-0}" == "1" ]]; then
-  run_live_capture_probe
-  echo "capture regression check ok (static + live)"
+  run_system_audio_capture_probe
+  echo "capture regression check ok (static + system-audio probe)"
 else
   echo "capture regression check ok (static)"
 fi

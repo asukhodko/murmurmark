@@ -226,9 +226,9 @@ Near-term work:
 
 - keep ASR chunk cache and rebuild checks as hard gates;
 - expand chunk-cache coverage over the real corpus;
-- collect real live-pipeline sessions with `live_batch_comparison.json`;
-- keep live pipeline as shadow acceleration, not as the source of truth;
-- compare live draft to batch output through corpus gates.
+- keep `--live-pipeline` quarantined until segment production is redesigned;
+- do not collect real live-pipeline meetings while the current writer can starve ScreenCaptureKit;
+- after redesign, compare live draft to batch output through corpus gates.
 
 Acceptance:
 
@@ -245,9 +245,9 @@ derived/run/pipeline_run.json
 Current v1 contains step ids, status, timestamps, durations, outcome, next command, session-level
 resume command, expected output checkpoints, missing output count and a basic stuck-state summary.
 Chunked/Resumable Processing v1 adds stable ASR cache metadata, verified chunk rebuilds and
-process-level failure/`Ctrl-C` resume. The remaining hardening work is broader corpus coverage and
-real live-cache parity gates before near-realtime chunks can be trusted as a batch-grade cache
-source.
+process-level failure/`Ctrl-C` resume. The remaining hardening work is broader corpus coverage and,
+later, a capture-safe near-realtime redesign before live chunks can again be studied as a batch-grade
+cache source.
 
 ## Gate Model v1
 

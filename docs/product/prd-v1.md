@@ -20,11 +20,11 @@ Working now:
 - `shadow_v2` repair profile with no-regression gates, audit artifacts and start-of-call repair;
 - local extractive synthesis with quality verdicts, review items and evidence-backed notes;
 - Markdown/Obsidian-style export bundles, JSON/audit artifacts for review, and raw retention plans.
-- first near-realtime shadow branch: `record --live-pipeline` writes overlap-aware mic/remote segment
-  copies, live worker state, a draft transcript, final-reconcile report and live-vs-batch comparison
-  artifacts under `derived/live/`.
-- live-ASR cache bridge: final reconcile attempts strict cache materialization and writes
-  `live_asr_cache_report.json`; incompatible chunks fall back to batch ASR.
+- first near-realtime shadow branch exists, but is quarantined: tests showed that the current
+  `record --live-pipeline` segment writer can starve ScreenCaptureKit audio delivery and leave raw
+  meeting tracks mostly silent. It is disabled by default and must not be used for real meetings.
+- live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
+  chunks fall back to batch ASR.
 
 Current operating point, measured by `murmurmark report corpus` on 2026-07-01:
 
@@ -45,9 +45,9 @@ Current operating point, measured by `murmurmark report corpus` on 2026-07-01:
 
 Still future:
 
-- near-realtime promotion beyond shadow: stronger per-segment Echo Guard, resumable worker state,
-  corpus parity gates and live-ASR cache reuse before it can shorten the authoritative post-meeting
-  path;
+- near-realtime redesign beyond shadow: capture-safe segment production, stronger per-segment Echo
+  Guard, resumable worker state, corpus parity gates and live-ASR cache reuse before it can shorten
+  the authoritative post-meeting path;
 - signed menubar app;
 - remote speaker diarization inside `Colleagues`;
 - heavy-local ASR stack with specialized models;
@@ -107,11 +107,11 @@ Excluded from v1 scope or not implemented yet:
 The CLI is the primary v1 product path. Any future GUI should reuse the same capture and pipeline
 contracts instead of introducing a separate workflow.
 
-The near-realtime CLI mode reuses these contracts as a shadow branch. It processes already-closed
-mic/remote segment copies while recording and writes a draft transcript with small lag, but it must
-not weaken the batch path: raw capture remains durable, final reconcile after stop runs through the
-same `murmurmark process` review/readiness checks, and batch output remains authoritative until
-corpus gates prove parity.
+The near-realtime CLI mode reuses these contracts as a future shadow branch, but the current
+implementation is disabled by default. It may be used only for lab diagnostics with an explicit
+unsafe environment flag until segment production is redesigned so it cannot affect raw
+ScreenCaptureKit capture. The normal v1 product path is batch-first: record raw `mic`/`remote`, then
+run `murmurmark process`.
 
 Required commands:
 

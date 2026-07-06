@@ -203,9 +203,9 @@ struct MurmurMark {
           audio-input remote capture and voice-processing mic capture are experimental comparison modes.
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C and finalizes the session.
-          --live-pipeline writes shadow live segments and a draft transcript under derived/live, then runs final reconcile.
-          --live-overlap-sec controls copied context around live segments; raw capture is unaffected.
-          Use --live-no-finalize to skip the post-stop batch-grade reconcile.
+          --live-pipeline is disabled by default; the current live segment writer can starve ScreenCaptureKit audio delivery.
+          Use plain `record --target-bundle system` for real meetings.
+          Use --live-no-finalize only for lab diagnostics when unsafe live mode is explicitly enabled.
           SIGTERM/SIGHUP are treated as unexpected stops and leave a partial session.
           Unexpected ScreenCaptureKit stops are restarted when possible; unrecovered stops finalize a partial session and exit with an error.
           Without --out, recording creates a unique directory under ./sessions.
@@ -432,7 +432,19 @@ enum Commands {
     }
 
     static func record(_ args: [String]) async throws {
+        if ArgumentEditing.hasHelpFlag(args) {
+            printRecordHelp()
+            return
+        }
         let options = try Options(args)
+        let livePipelineEnabled = options.flag("live-pipeline")
+        if livePipelineEnabled && ProcessInfo.processInfo.environment["MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE"] != "1" {
+            throw CLIError(
+                "--live-pipeline is disabled for real recordings because the current live segment writer can starve " +
+                    "ScreenCaptureKit audio delivery. Use `murmurmark record --target-bundle system`. " +
+                    "For lab-only diagnostics set MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1."
+            )
+        }
         let out = try SessionPaths.outputDirectory(from: options)
         let duration = try options.optionalPositiveDouble("duration")
         let targetBundle = options.string("target-bundle")
@@ -442,7 +454,6 @@ enum Commands {
         let remoteDevice = options.string("remote-device")
         let sampleRate = options.int("sample-rate") ?? 48000
         let channelCount = options.int("channels") ?? 2
-        let livePipelineEnabled = options.flag("live-pipeline")
         let liveSegmentSeconds = try options.optionalPositiveDouble("live-segment-sec") ?? 60
         let liveOverlapSeconds = try options.optionalNonNegativeDouble("live-overlap-sec") ?? 5
         let liveWorkerEnabled = livePipelineEnabled && !options.flag("live-no-worker")
@@ -479,6 +490,31 @@ enum Commands {
                     "Use `murmurmark process \(session) --allow-partial` only for debugging."
             )
         }
+    }
+
+    static func printRecordHelp() {
+        print("""
+        usage: murmurmark record [--out ./session] [--duration 60] [--target-bundle system|com.example.App]
+                                 [--mic default] [--mic-backend screencapturekit|voice-processing]
+                                 [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
+                                 [--live-pipeline] [--live-segment-sec 60] [--live-overlap-sec 5]
+                                 [--live-no-worker] [--live-no-finalize]
+
+        Records separate mic and remote CAF tracks into a session package.
+        Without --duration, recording continues until Ctrl-C.
+
+        Normal meeting path:
+          murmurmark doctor --strict
+          murmurmark record --target-bundle system
+          murmurmark process latest
+
+        The record command keeps macOS display/system idle sleep disabled while capture is active,
+        because ScreenCaptureKit needs an awake desktop capture source.
+
+        --live-pipeline is disabled by default because the current live segment writer can starve
+        ScreenCaptureKit audio delivery. Use it only in lab diagnostics with
+        MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1.
+        """)
     }
 }
 
@@ -6872,6 +6908,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var screenCaptureSampleBufferCount = 0
     private var captureSilenceWarningCount = 0
     private var captureSilenceRestartCount = 0
+    private var recordingActivity: NSObjectProtocol?
 
     init(
         outputDirectory: URL,
@@ -6910,6 +6947,10 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         let eventLog = try EventLog(url: outputDirectory.appendingPathComponent("events.jsonl"))
         events = eventLog
         do {
+            beginRecordingActivity()
+            defer {
+                endRecordingActivity()
+            }
             if microphoneBackend == .voiceProcessing, microphoneID != "default" {
                 throw CLIError("voice-processing mic backend currently supports only --mic default")
             }
@@ -6925,6 +6966,14 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                     "remote_backend": remoteBackend.rawValue,
                     "remote_device": remoteDeviceID ?? "",
                     "live_pipeline": livePipelineEnabled,
+                ]
+            )
+            try eventLog.write(
+                type: "power.activity_started",
+                fields: [
+                    "display_sleep_disabled": true,
+                    "idle_system_sleep_disabled": true,
+                    "reason": "keep ScreenCaptureKit capture source available during recording",
                 ]
             )
             if livePipelineEnabled {
@@ -7128,6 +7177,20 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 "report": "derived/live/live_pipeline_report.json",
             ]
         )
+    }
+
+    private func beginRecordingActivity() {
+        guard recordingActivity == nil else { return }
+        recordingActivity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .idleSystemSleepDisabled, .idleDisplaySleepDisabled],
+            reason: "MurmurMark recording requires an awake desktop capture session"
+        )
+    }
+
+    private func endRecordingActivity() {
+        guard let activity = recordingActivity else { return }
+        ProcessInfo.processInfo.endActivity(activity)
+        recordingActivity = nil
     }
 }
 

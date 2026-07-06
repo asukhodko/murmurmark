@@ -34,7 +34,8 @@ murmurmark finish latest
 
 Current scope:
 
-- keep `--live-pipeline` experimental/diagnostic and out of the normal meeting command;
+- keep `--live-pipeline` disabled by default and out of the normal meeting command until its segment
+  writer no longer interferes with raw ScreenCaptureKit capture;
 - prove normal capture without live writes usable mic/remote evidence or blocks early;
 - block silent, partial and interrupted captures before ASR unless `--allow-partial` is explicit;
 - make repeated `process` runs resume or explain the next command without stale readiness/outcome;
@@ -184,13 +185,10 @@ Completion evidence:
   `coverage_ratio: 0.28`, `chunks_completed: 146/146`;
 - `check-corpus-gates.py --no-fail` now reports `asr_chunk_cache_status: passed` with
   `asr_chunk_cache_passed_sessions: 14` and `asr_chunk_cache_coverage_ratio: 0.28`;
-- `check-corpus-gates.py --no-fail` now also reports live-cache parity state. Current corpus live
-  coverage is `2/52`, `live_cache_parity_promotion_allowed_sessions` remains `0`,
-  `meaningful_compared_sessions` is `2`, and `passing_compared_sessions` is `1`. The first
-  diagnostic live capture passes the minimal one-sample gate. The second live recording is negative
-  evidence: capture recovered only a short audio slice, live comparison stayed non-promotable, and
-  local recall reported `86.82s` of missing `Me` speech. The target coverage gate remains red until
-  three real live sessions have passing meaningful comparisons;
+- `check-corpus-gates.py --no-fail` still reports live-cache parity state, but live capture is now
+  quarantined. Diagnostic live recordings showed that the current segment writer can starve raw
+  ScreenCaptureKit audio delivery. The target coverage gate remains red until the live branch is
+  redesigned and proven not to affect raw capture;
 - ASR chunk-cache corpus report now separates the next coverage work: `22` sessions have old raw
   ASR without chunk reports, and `14` sessions have no raw ASR;
 - legacy top-level raw ASR caches without `raw/chunks/<track>/chunk_cache_report.json` no longer
@@ -217,11 +215,9 @@ Completion evidence:
 Follow-up hardening:
 
 - broader corpus no-regression comparison for chunked rebuild vs existing batch baseline;
-- corpus parity coverage for live-cache reuse on real sessions. Two real `record --live-pipeline`
-  samples now exist: one passing comparison and one non-passing comparison with local-recall loss
-  after severe capture stalls. `promotion_allowed_sessions` remains `0`. The next evidence step is
-  broader real live coverage: target `3` live sessions and `3` passing meaningful comparisons, not
-  promotion.
+- corpus parity coverage for live-cache reuse is paused. Do not collect more real
+  `record --live-pipeline` sessions until the live segment writer is redesigned and no longer runs
+  risky work on the ScreenCaptureKit callback path.
 
 Primary design document:
 

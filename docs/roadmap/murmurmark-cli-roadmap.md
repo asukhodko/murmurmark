@@ -21,9 +21,9 @@ MurmurMark should become a dependable local CLI transcription pipeline for sensi
 
 The current product shape is batch-first: a meeting is recorded, then processed. During Current
 Pipeline Stabilization v1, this batch-first path is the only supported production route. A future
-near-realtime path should reduce the wait after a meeting by processing already-closed audio
-segments during recording, but it stays diagnostic/shadow until the normal path is stable again and
-corpus gates prove that near-realtime drafts are no worse than batch outputs.
+near-realtime path should eventually reduce the wait after a meeting, but the current live segment
+writer is quarantined because it can starve ScreenCaptureKit audio delivery. Future near-realtime
+work must redesign segment production so it cannot affect raw capture.
 
 The optional UI/app path is deliberately late. It should not block the useful CLI product.
 
@@ -33,8 +33,8 @@ The major product route remains [Reliable Transcription Route](../project/reliab
 turn a complete recording into a truthful result without the user watching every stage.
 Outcome Contract v1 and Reliable Processing UX v1 are now implemented. The next meaningful gap is
 not another report layer. Chunked/resumable ASR processing is now implemented; the immediate gap is
-to stabilize the current production path end to end before returning to live parity, echo promotion
-or new repair layers.
+to stabilize the current production path end to end before returning to echo promotion, new repair
+layers or a redesigned live path.
 
 The target outcome is:
 
@@ -258,10 +258,10 @@ flowchart LR
   - first shadow implementation exists: `record --live-pipeline` writes durable mic/remote segment
     copies, starts an optional worker, writes `derived/live/transcript.draft.md`,
     `derived/live/live_pipeline_report.json`, post-stop final-reconcile report and advisory
-    live-vs-batch comparison;
+    live-vs-batch comparison, but it is quarantined because tests showed it can starve raw
+    ScreenCaptureKit audio delivery;
   - live segments are overlap-aware: each segment has a hard publish window and a wider ASR clip
-    window; next work is per-segment Echo Guard stronger than speech-band preprocessing, resumable
-    queue state and corpus parity gates;
+    window; next work is capture-safe segment production outside the ScreenCaptureKit callback path;
   - after stop, the existing batch-grade repair/review/readiness layers run as final reconcile and
     remain authoritative;
   - keep the existing post-recording `process` path as source of truth until corpus comparison proves
@@ -289,10 +289,13 @@ flowchart LR
     transcripts;
   - verify `status` and `next` agree for successful, review-first, blocked and failed-capture
     sessions;
-  - keep `--live-pipeline` diagnostic/later until this path is stable.
+- keep `--live-pipeline` disabled by default until its segment writer no longer starves raw
+  ScreenCaptureKit audio delivery.
 - Near-realtime shadow pipeline follow-up, after stabilization:
-  - segment writer during capture exists with hard/clip overlap windows, but still needs better queue
-    recovery;
+  - current segment writer during capture is quarantined: live tests showed it can starve
+    ScreenCaptureKit audio delivery and leave raw tracks mostly silent;
+  - redesign live capture so closed segments are derived from already-written raw CAF/checkpoint
+    files or from a non-blocking queue that cannot run on the ScreenCaptureKit callback path;
   - worker queue exists as a safe shadow worker, but its v1 preprocessing is intentionally light and
     must be upgraded before it can compete with batch Echo Guard;
   - post-stop final reconcile exists; it can reuse strict-compatible live ASR cache, otherwise it
@@ -423,10 +426,9 @@ experiments. Live parity, echo promotion and heavier validators wait behind this
 1. **Current Pipeline Stabilization v1.** Prove normal non-live record/process/status/next/finish,
    classify failed capture cleanly, keep stale derived reports from overriding newer blockers and
    make README/runbooks match the supported path.
-2. **Near-Realtime Live Parity Coverage v1.** Run real sessions through `record --live-pipeline`,
-   compare live chunks/drafts with batch output, report order/local-recall/remote-leak/review-burden
-   and boundary risks, reach the 3-session coverage target, and keep live promotion blocked until
-   gates are known and passing.
+2. **Near-Realtime Capture-Safe Redesign v1.** Redesign live segment production so it never runs
+   blocking file/ASR work on the ScreenCaptureKit callback path and cannot corrupt raw capture. Only
+   after that, restore live parity coverage on controlled non-critical sessions.
 3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth
@@ -437,9 +439,9 @@ experiments. Live parity, echo promotion and heavier validators wait behind this
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
-6. **Near-Realtime Pipeline Shadow v1.** Start processing closed audio segments while recording and
-   write a live draft transcript, but keep the current batch pipeline as final authority until corpus
-   gates prove parity.
+6. **Near-Realtime Pipeline Shadow v1.** Rebuild the live branch after the capture-safe redesign,
+   then write draft transcripts from safe derived segments while keeping the batch pipeline as final
+   authority until corpus gates prove parity.
 7. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
    close safe suggested review rows, preserve manual rows and keep status/report aligned.
 8. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only

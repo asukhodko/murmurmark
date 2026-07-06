@@ -519,25 +519,26 @@ nodes:
     effort: 16
     notes: |
       Потоковая ветка CLI: не ждать окончания встречи, а обрабатывать уже закрытые audio segments
-      во время записи. Первый shadow-контур существует, но на время Current Pipeline Stabilization
-      v1 это diagnostic/later path. Production route остаётся batch-first: raw CAF/session package
-      и обычный `murmurmark process` остаются source of truth, пока текущий путь не стабилизирован,
-      а shadow-ветка позже не докажет parity на корпусе.
+      во время записи. Первый shadow-контур существует, но он quarantined: тесты показали, что
+      текущий live segment writer может starve ScreenCaptureKit audio delivery и оставить raw tracks
+      почти пустыми. Production route остаётся batch-first: raw CAF/session package и обычный
+      `murmurmark process` остаются source of truth. Ближайшая работа по live — не coverage, а
+      capture-safe redesign.
 
   realtime-segment-writer:
-    title: "Segment writer during capture"
+    title: "Capture-safe segment writer"
     kind: task
     parent: near-realtime-pipeline
     deps: [cli-recording-reliability]
     status: later
     effort: 4
     notes: |
-      Во время `record --live-pipeline` уже пишутся durable mic/remote segment copies и manifest для
-      очереди. Каждый segment имеет hard window для публикации текста и clip window с overlap context
-      для ASR; worker/materializer обязаны публиковать только слова внутри hard window. Derived
-      segment writer best-effort: при сбое live-ветка отключается с warning, а raw capture остаётся
-      batch-processable. Оставшийся gap v1: более явная backpressure/restart модель и corpus gate на
-      отсутствие дублей на границах.
+      Текущий `record --live-pipeline` отключён по умолчанию. Его segment writer нельзя считать
+      safe: он способен мешать ScreenCaptureKit callback path и портить raw capture. Следующая
+      реализация должна получать segments из уже закрытых raw/checkpoint файлов или через
+      неблокирующую очередь, где callback только быстро кладёт sample buffer/metadata и никогда не
+      делает тяжёлые file/ASR operations. Raw `audio/mic` и `audio/remote` должны оставаться
+      корректными даже при полном отказе live-ветки.
 
   realtime-worker-queue:
     title: "Echo/ASR worker queue"
@@ -547,9 +548,9 @@ nodes:
     status: later
     effort: 5
     notes: |
-      Первый worker пишет chunk state и draft transcript под `derived/live/`. Он безопасен как
-      shadow, но пока использует лёгкую speech-band preprocessing вместо batch-grade Echo Guard.
-      Нужны backpressure, per-stage state, restartability и явный lag.
+      Worker можно возвращать только после capture-safe segment writer. Он пишет chunk state и draft
+      transcript под `derived/live/`, но не имеет права влиять на raw capture. Нужны backpressure,
+      per-stage state, restartability, явный lag и безопасный skip, если live отстаёт.
 
   realtime-live-draft:
     title: "Live draft transcript"
@@ -572,14 +573,9 @@ nodes:
     status: later
     effort: 5
     notes: |
-      После stop уже запускается batch-grade reconcile через `murmurmark process --skip-build` и
-      пишется `derived/live/final_reconcile_report.json`. Live-ASR cache bridge уже пытается строго
-      материализовать `raw/mic.json`, `raw/remote.json` и `raw/chunks/<track>/chunk_cache_report.json`,
-      если live chunks совместимы с batch ASR geometry/model/language/audio prep; иначе пишет
-      `live_asr_cache_report.json` со статусом `not_eligible` и process честно уходит в
-      `fallback_batch_asr`. Текущий gap: доказать на корпусе, что overlap-aware chunks
-      позволяют переиспользовать live ASR без ухудшения порядка реплик, local recall, remote leakage
-      и review burden.
+      После stop batch-grade reconcile должен запускать обычный `murmurmark process`; live chunks
+      могут стать только optional cache. Текущий bridge остаётся диагностическим. До capture-safe
+      redesign нельзя собирать новые real live sessions и нельзя полагаться на live cache.
 
   realtime-corpus-gates:
     title: "Realtime vs batch corpus gates"
@@ -590,35 +586,29 @@ nodes:
     effort: 4
     notes: |
       Первый `live_batch_comparison.json` уже пишет advisory parity gates, а `murmurmark corpus live`
-      агрегирует их в corpus-level report. Сейчас order/local-recall/remote-duplicate/review-burden
-      помечаются как `not_evaluated`, пока live branch не производит batch-grade profile metrics.
-      Следующий gap: сравнить live draft/finalized output с batch baseline по order risk, local
-      recall, remote duplicate/leak, review burden, transcript chunk duplicates и missing boundary
-      speech. Promotion rule: live branch can shorten waiting time, but cannot become default if it
-      grows mandatory review queue or worsens selected notes/readiness.
+      агрегирует их в corpus-level report. Пока live branch quarantined, эти отчёты являются
+      историческим диагностическим слоем. После redesign нужно сравнить live draft/finalized output
+      с batch baseline по order risk, local recall, remote duplicate/leak, review burden, transcript
+      chunk duplicates и missing boundary speech. Promotion rule: live branch can shorten waiting
+      time, but cannot become default if it grows mandatory review queue or worsens selected
+      notes/readiness.
 
   realtime-live-parity-coverage-v1:
-    title: "Near-Realtime Live Parity Coverage v1"
+    title: "Near-Realtime Capture-Safe Redesign v1"
     kind: task
     parent: near-realtime-pipeline
     deps: [chunked-resumable-processing-v1, realtime-corpus-gates]
     status: later
     effort: 6
     notes: |
-      Ближайшая крупная цель после chunked resume. Нужно получить real live-pipeline coverage, а не
-      synthetic-only proof: несколько реальных записей через `record --live-pipeline`, materialized
-      live ASR chunks, `live_batch_comparison.json`, corpus live report и corpus gates. Live cache
-      остаётся shadow-only: promotion allowed sessions must stay `0` until gates cover order risk,
-      local recall, remote leakage, review burden, selected notes readiness and chunk-boundary
-      duplicates/missing speech. Успех v1 — не включить live как default, а доказать, где live
-      chunks безопасно ускоряют final batch reconcile, а где batch должен честно пересчитать ASR.
-      Strict coverage target command: `murmurmark corpus live all --min-live-sessions 3
-      --min-compared-sessions 3 --min-meaningful-compared-sessions 3
-      --min-passing-compared-sessions 3 --max-order-mismatches 0 --max-missing-me-sec 0
-      --max-remote-in-me-sec 0 --max-boundary-duplicates 0 --require-passing-gates
-      --fail-on-promotion`. The first diagnostic live session passes the minimal one-sample gate,
-      but the v1 coverage target remains `needs_more_live_coverage` until three meaningful live
-      comparisons pass.
+      Ближайшая крупная live-цель теперь не coverage, а redesign. Нужно доказать, что live branch
+      физически не может портить raw `mic`/`remote`: callback path не делает тяжёлых операций,
+      segment writer имеет bounded queue/backpressure и fail-open отключение live без остановки
+      capture, а normal `record --target-bundle system` остаётся независимым. Только после этого
+      можно снова включать real live-pipeline coverage на некритичных встречах. Live cache остаётся
+      shadow-only: promotion allowed sessions must stay `0` until gates cover order risk, local
+      recall, remote leakage, review burden, selected notes readiness and chunk-boundary
+      duplicates/missing speech.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"

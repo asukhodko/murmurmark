@@ -459,10 +459,10 @@ def recommended_next_commands(
         "--max-order-mismatches 0 --max-missing-me-sec 0 --max-remote-in-me-sec 0 "
         "--max-boundary-duplicates 0 --require-passing-gates --fail-on-promotion"
     )
+    live_quarantine_note = "murmurmark status latest  # live pipeline is quarantined; use normal record/process for real meetings"
     if safe_int(summary.get("live_sessions")) == 0:
         return [
-            "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
-            "murmurmark process latest",
+            live_quarantine_note,
             coverage_command,
         ]
     if safe_int(summary.get("compared_sessions")) == 0:
@@ -472,14 +472,13 @@ def recommended_next_commands(
         ]
     if safe_int(summary.get("meaningful_compared_sessions")) == 0:
         return [
-            "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
-            "murmurmark process latest",
+            live_quarantine_note,
             coverage_command,
         ]
     if safe_int(summary.get("passing_compared_sessions")) == 0:
         commands = [
             "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
-            "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
+            live_quarantine_note,
             coverage_command,
         ]
         first_issue = gate_issues[0] if gate_issues else {}
@@ -506,13 +505,12 @@ def recommended_next_commands(
         ]
     if summary.get("coverage_target_status") != "passed":
         return [
-            "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
-            "murmurmark process latest",
+            live_quarantine_note,
             coverage_command,
         ]
     return [
         coverage_command,
-        "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5",
+        live_quarantine_note,
     ]
 
 

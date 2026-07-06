@@ -63,9 +63,8 @@ UX v1 are now in place: a processed session reports `ready_for_notes`, `review_f
 with selected profile, verdict, review burden, export blockers and one next command.
 Chunked/Resumable Processing v1 is now complete at the ASR layer: long `windowed` whisper.cpp runs
 write validated chunk reports, interrupted `process` runs can resume from verified chunks, and
-corpus gates treat failed chunk rebuilds as hard failures. The next significant gap is live parity:
-near-realtime chunks must be proven on real recordings before they can become a strictly gated cache
-source. Batch processing remains authoritative. The latest audio
+corpus gates treat failed chunk rebuilds as hard failures. Batch processing remains authoritative.
+The live/near-realtime branch is quarantined until it is redesigned to be capture-safe. The latest audio
 milestone, ASR-Positive Echo Candidate Hardening v1, remains important but shadow-only:
 `coverage_v2_remote_gate_local_fir` improved `5/6` candidate-corpus sessions without local-recall
 regression, yet `local_fir` is still the default ASR input until promotion gates are defined and
@@ -157,15 +156,10 @@ covers `14/50` sessions with `0` failed chunk rebuilds and `146/146` completed A
 29-minute session was interrupted during `murmurmark process`, resumed with the same command, reused
 `14` cached ASR chunks and passed the rebuild gate.
 
-Live/near-realtime cache promotion is gated separately. `murmurmark corpus live` writes the current
-live parity report, and `scripts/check-corpus-gates.py` copies the live coverage/risk counters into
-the main corpus gate report. Current diagnostic coverage has started: `2/52` sessions have
-`live_batch_comparison.json`, promotion remains `shadow_only_do_not_promote`, and only the first
-meaningful comparison currently passes the basic parity gates. The second live recording is useful
-negative evidence: capture recovered only a short audio slice and the live draft missed too much
-`Me` speech. This is coverage evidence, not a
-promotion signal. Measured live order, remote-in-`Me` leakage and adjacent chunk duplicates are
-currently clean, while local recall and authoritative batch readiness still block live promotion.
+Live/near-realtime cache promotion is gated separately and is currently quarantined. Existing
+diagnostic live sessions are negative evidence: the live segment writer can starve ScreenCaptureKit
+audio delivery and leave raw capture mostly silent. Do not collect real meetings with
+`--live-pipeline` until that branch is redesigned so it cannot affect raw `mic`/`remote` capture.
 
 ## What Is Still Out Of Scope
 
@@ -281,21 +275,17 @@ murmurmark finish latest
 If `next` or `status` prints a review command, follow that command before relying on the result for
 medium-risk work.
 
-Experimental near-realtime shadow mode:
+Experimental near-realtime shadow mode is disabled by default:
 
 ```bash
-murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5
-murmurmark status latest
-murmurmark latest
-SESSION="sessions/<printed-session>"
-less "$SESSION/derived/live/transcript.draft.md"
-murmurmark next latest
+MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 \
+  murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5
 ```
 
-Do not use `--live-pipeline` as the normal meeting path while the current stabilization goal is
-active. The supported production path is `murmurmark record --target-bundle system` followed by
-`murmurmark process latest`. Live mode remains useful for diagnostics and later parity work, but a
-live failure must not be allowed to obscure whether the batch pipeline is stable.
+Do not use `--live-pipeline` for real meetings. It is currently quarantined because the Swift live
+segment writer can starve ScreenCaptureKit audio delivery and leave the raw meeting tracks mostly
+silent. The supported production path is `murmurmark record --target-bundle system` followed by
+`murmurmark process latest`.
 
 This mode writes closed audio segments and a live draft under `derived/live/` while recording.
 Segments have a non-overlapping authoritative window plus copied overlap context around it; raw
@@ -338,13 +328,11 @@ The expected v1 result is still `shadow_only_do_not_promote`: the report should 
 are evaluated and which remain blockers. Current live comparison checks the live draft against the
 authoritative batch transcript for order mismatch, missing `Me` speech, suspected remote-in-`Me`
 leakage, selected batch review burden, notes readiness and adjacent chunk duplicates. Passing those
-checks is still not promotion: it only means the live branch is safe enough to keep studying as a
-speed-up candidate. The command also prints `recommended_next` and `next:` lines, so the report can
-point directly to failing gate evidence or the next live recording command. The Markdown report has
-a `Gate Issues` section with the concrete session/gate/reason rows that currently prevent a passing
-comparison.
+checks is still not promotion. With live quarantined, use this report only to inspect old diagnostic
+evidence and gate failures. The Markdown report has a `Gate Issues` section with the concrete
+session/gate/reason rows that currently prevent a passing comparison.
 
-To make the current live-coverage goal explicit after recording real live sessions:
+The old live-coverage target remains a diagnostic report shape, not a current action item:
 
 ```bash
 murmurmark corpus live all \
@@ -360,11 +348,8 @@ murmurmark corpus live all \
   --fail-on-promotion
 ```
 
-This target command is expected to fail until at least three real live sessions have meaningful
-comparisons and all parity gates pass. Current evidence has `2/52` live sessions, `2` meaningful
-comparisons and `1` passing comparison. `coverage_target` remains `needs_more_live_coverage` and
-`promotion_allowed_sessions` stays `0`. The next evidence step is broader real live coverage, not
-promotion.
+This target command is expected to fail. Do not try to satisfy it by recording real meetings with
+`--live-pipeline`; the next live step is implementation redesign, not broader live coverage.
 
 ## Process An Existing Session
 
@@ -783,9 +768,9 @@ Current focus:
   ASR-visible remote-token leakage, local-word recall and review burden;
 - keep `next`/`status`/`review` honest about residual risk;
 - keep near-realtime processing as a shadow/debug CLI branch, not the recommended recording path
-  during current stabilization: `record --live-pipeline` writes durable overlap-aware live segments,
-  a draft transcript and advisory live-vs-batch comparison artifacts, but the batch pipeline is still
-  authoritative and live parity work is paused behind the stable production path;
+  during current stabilization: `record --live-pipeline` is disabled by default because the current
+  live segment writer can starve ScreenCaptureKit audio delivery; future live work must first prove
+  that it cannot corrupt raw `mic`/`remote` capture;
 - keep live-ASR cache reuse behind strict eligibility gates; `not_eligible` is expected until
   live chunk geometry, audio prep, language and model match batch ASR expectations, and materialized
   live chunks must still pass the raw chunk rebuild check;
@@ -884,14 +869,15 @@ current-pipeline stabilization audit: no usable/review-first session may have an
 incomplete sessions must not expose normal notes/transcript handoff, and `status latest` must agree
 with `next latest`.
 
-When changing recording code, also run one local live probe with real system audio:
+When changing recording code, also run one local system-audio probe:
 
 ```bash
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
 ```
 
-The live probe plays a short local tone, records with `--live-pipeline`, and fails if the `remote`
-track is silent or if ScreenCaptureKit restarts.
+The probe plays a short local tone, records with the normal `record --target-bundle system` path,
+and fails if the `remote` track is silent or if ScreenCaptureKit restarts. The name of the
+environment variable is historical; the probe no longer uses `--live-pipeline`.
 
 Before trusting a pipeline change:
 

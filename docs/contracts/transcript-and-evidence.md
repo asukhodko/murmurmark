@@ -4255,14 +4255,17 @@ layer has nothing measurable to remove without inventing a fix.
 
 ## Near-Realtime Shadow Artifacts
 
-Near-realtime processing is a shadow branch. It may run during `murmurmark record --live-pipeline`,
-but it does not replace the batch transcript. The authoritative path is still:
+Near-realtime processing is a shadow branch, but the current implementation is quarantined. Tests
+showed that the live segment writer can starve ScreenCaptureKit audio delivery and leave raw capture
+mostly silent. For real meetings, do not use `--live-pipeline`; the authoritative path is:
 
 ```text
 raw CAF session -> murmurmark process -> reviewed/readiness transcript
 ```
 
-The live branch writes only under `derived/live/`.
+The live branch writes only under `derived/live/` when explicitly enabled for lab diagnostics with
+`MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1`. It must not be used as a production recording path until
+segment production is redesigned and proven capture-safe.
 
 ### Segment Manifest
 
@@ -4846,7 +4849,7 @@ Schema:
   "next_commands": [
     "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
     "jq '.parity_gates.gates[] | select(.status != \"passed\")' sessions/2026-07-03_06-16-43/derived/live/live_batch_comparison.json",
-    "murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5"
+    "murmurmark status latest  # live pipeline is quarantined; use normal record/process for real meetings"
   ]
 }
 ```
@@ -4854,8 +4857,8 @@ Schema:
 The corpus gate is deliberately conservative. Any `not_evaluated`, `blocked`, `failed` or `warning`
 gate prevents promotion. v1 is expected to remain `shadow_only_do_not_promote`.
 The report also carries `gate_issues`, `recommended_next` and `next_commands`, so a live-parity run
-can point either to the failing gate evidence or to the next real live sample command without
-weakening the gates.
+can point to failing gate evidence without weakening the gates. It must not suggest collecting more
+real live meetings while `--live-pipeline` is quarantined.
 
 Strict coverage mode is optional and is intended for the current live-parity rollout:
 
