@@ -368,6 +368,9 @@ states whether real live sessions exist, whether they were compared with batch, 
 dimensions are covered, which dimensions still block promotion, and whether batch remains
 authoritative. Its safe current state is `ready_for_live_promotion: false` and
 `new_real_live_collection_allowed: false`.
+When `capture_safety` is among blocking dimensions, `objective_audit.next_focus` must point to
+`capture_safe_redesign_before_more_live_coverage`; broader live coverage is not the next step until
+that proof exists.
 While live is quarantined, `recommended_next` and `next:` point to triage and inspection commands for
 existing artifacts. They must not suggest the strict live-coverage command as the next action.
 

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.9.0"
+SCRIPT_VERSION = "1.0.0"
 SCHEMA_REPORT = "murmurmark.corpus_gates_report/v1"
 SCHEMA_BASELINE = "murmurmark.corpus_gates_baseline/v1"
 
@@ -808,6 +808,16 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     live_objective_audit = live_corpus.get("objective_audit") if isinstance(live_corpus, dict) else {}
     live_objective_audit = live_objective_audit if isinstance(live_objective_audit, dict) else {}
     live_objective_rows = live_objective_audit.get("rows") if isinstance(live_objective_audit.get("rows"), list) else []
+    live_objective_next_focus = (
+        live_objective_audit.get("next_focus")
+        if isinstance(live_objective_audit.get("next_focus"), dict)
+        else {}
+    )
+    live_objective_blocking_dimensions = (
+        live_objective_audit.get("blocking_dimensions")
+        if isinstance(live_objective_audit.get("blocking_dimensions"), list)
+        else []
+    )
     live_objective_row_ids = {
         str(item.get("id") or "")
         for item in live_objective_rows
@@ -986,6 +996,20 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         },
         threshold="batch_authoritative=true, ready_for_live_promotion=false, new_real_live_collection_allowed=false",
         message="objective audit keeps batch authoritative and live promotion/collection blocked",
+        details=live_objective_audit,
+    )
+    check(
+        checks,
+        "live_cache_parity.objective_next_focus_safe",
+        live_corpus is None
+        or "capture_safety" not in {str(item) for item in live_objective_blocking_dimensions}
+        or live_objective_next_focus.get("action_id") == "capture_safe_redesign_before_more_live_coverage",
+        observed={
+            "blocking_dimensions": live_objective_blocking_dimensions,
+            "next_focus": live_objective_next_focus,
+        },
+        threshold="if capture_safety blocks live parity, next_focus is capture_safe_redesign_before_more_live_coverage",
+        message="objective audit points to capture-safe redesign before more real live coverage",
         details=live_objective_audit,
     )
     check(

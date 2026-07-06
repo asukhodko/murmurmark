@@ -203,6 +203,9 @@ stays quarantined for new real meetings until a capture-safe redesign exists.
 live-vs-batch comparison, required dimensions, batch-authoritative policy and promotion/collection
 blocks. During quarantine it should keep `ready_for_live_promotion` and
 `new_real_live_collection_allowed` false.
+If `capture_safety` is blocking, `objective_audit.next_focus` should be
+`capture_safe_redesign_before_more_live_coverage`; do not treat missing passing coverage as a prompt
+to collect more real live sessions.
 In quarantine, `recommended_next` and `next:` should lead to triage and inspection of existing live
 artifacts. They should not print the strict live-coverage command as the next action.
 

@@ -909,6 +909,8 @@ jq -e '
   and .summary.real_live_boundary_gate_suppressed_count == 1
   and .real_parity_dimensions.chunk_boundary_risks.counts.warning == 1
   and .real_blocker_triage_summary.by_category.chunk_boundary_risk.item_count == 1
+  and .objective_audit.overall_status == "blocked_by_parity_gates"
+  and .objective_audit.next_focus.action_id == "fix_live_chunk_boundary_risks"
 ' "$workdir/live-boundary-risk-report/live_corpus_gates_report.json" >/dev/null
 jq -e '
   .status == "passing_shadow_locked"
@@ -948,6 +950,11 @@ jq -e '
   and .promotion_policy.batch_authoritative == true
   and .promotion_policy.live_quarantined == true
   and .promotion_policy.new_real_live_collection_allowed == false
+  and .objective_audit.overall_status == "incomplete_coverage"
+  and .objective_audit.batch_authoritative == true
+  and .objective_audit.ready_for_live_promotion == false
+  and .objective_audit.new_real_live_collection_allowed == false
+  and .objective_audit.next_focus.action_id == "collect_controlled_live_parity_coverage"
   and ((.promotion_policy.required_dimensions | sort) == [
     "capture_safety",
     "chunk_boundary_risks",

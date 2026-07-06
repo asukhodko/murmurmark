@@ -609,7 +609,8 @@ nodes:
       shorten waiting time, but cannot become default if it grows mandatory review queue, worsens
       selected notes/readiness, or fails capture safety. `objective_audit` в live corpus report
       должен оставаться компактной машинной сводкой: какие части цели доказаны, какие dimensions
-      блокируют promotion, и почему new real live collection всё ещё запрещён.
+      блокируют promotion, какой `next_focus` даёт максимальный прогресс, и почему new real live
+      collection всё ещё запрещён.
 
   realtime-live-parity-coverage-v1:
     title: "Near-Realtime Capture-Safe Redesign v1"

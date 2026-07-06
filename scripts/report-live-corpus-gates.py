@@ -11,7 +11,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.0.0"
+SCRIPT_VERSION = "1.1.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -118,6 +118,66 @@ TRIAGE_CATEGORY_INFO: dict[str, dict[str, str]] = {
         "title": "Other live parity blocker",
         "recommended_next": "inspect the session live_batch_comparison.json and keep live blocked",
     },
+}
+OBJECTIVE_DIMENSION_ACTIONS: dict[str, dict[str, str]] = {
+    "capture_safety": {
+        "id": "capture_safe_redesign_before_more_live_coverage",
+        "title": "Prove capture-safe live segment production",
+        "recommended_next": (
+            "keep live quarantined; finish capture-safe redesign/fail-open proof before collecting new real live meetings"
+        ),
+    },
+    "required_artifacts": {
+        "id": "complete_required_live_and_batch_artifacts",
+        "title": "Complete required live/batch artifacts",
+        "recommended_next": "repair or exclude sessions missing live chunks, batch transcript, or clean dialogue before parity use",
+    },
+    "local_recall": {
+        "id": "fix_live_local_recall_gap",
+        "title": "Fix live local recall gaps",
+        "recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion",
+    },
+    "remote_leakage": {
+        "id": "fix_live_remote_leakage",
+        "title": "Fix live remote-in-Me leakage",
+        "recommended_next": "keep live Me output blocked until remote-forbidden evidence passes on live chunks",
+    },
+    "review_burden": {
+        "id": "reduce_authoritative_batch_review_burden",
+        "title": "Reduce selected batch review burden",
+        "recommended_next": "finish batch review/readiness work; live cannot promote above a review-heavy authoritative baseline",
+    },
+    "selected_notes_readiness": {
+        "id": "make_selected_batch_notes_ready",
+        "title": "Make selected batch output notes-ready",
+        "recommended_next": "complete authoritative batch readiness before using live parity as promotion evidence",
+    },
+    "chunk_boundary_risks": {
+        "id": "fix_live_chunk_boundary_risks",
+        "title": "Fix live chunk-boundary risks",
+        "recommended_next": "fix live chunk reconciliation and overlap dedupe; suppressed boundary repeats still block promotion",
+    },
+    "draft_text_recall": {
+        "id": "improve_live_draft_text_recall",
+        "title": "Improve live draft text recall",
+        "recommended_next": "treat live draft as orientation only until draft text reliably matches selected batch output",
+    },
+    "order_risk": {
+        "id": "fix_live_order_risk",
+        "title": "Fix live ordering risk",
+        "recommended_next": "fix live timeline ordering/reconciliation before live promotion",
+    },
+}
+OBJECTIVE_DIMENSION_PRIORITY = {
+    "capture_safety": 0,
+    "required_artifacts": 1,
+    "order_risk": 2,
+    "local_recall": 3,
+    "remote_leakage": 4,
+    "chunk_boundary_risks": 5,
+    "review_burden": 6,
+    "selected_notes_readiness": 7,
+    "draft_text_recall": 8,
 }
 CAPTURE_SAFETY_BLOCKERS = {"interrupted_capture", "silent_capture", "sparse_capture"}
 CAPTURE_SAFETY_WARNING_MARKERS = (
@@ -410,6 +470,21 @@ def objective_audit_row(row_id: str, status: str, title: str, evidence: dict[str
     }
 
 
+def dimension_issue_score(non_passing: dict[str, Any], issue_session_count: int) -> int:
+    status_weights = {
+        "blocked": 100,
+        "failed": 100,
+        "missing": 90,
+        "warning": 40,
+        "not_evaluated": 25,
+        "unknown": 10,
+    }
+    score = issue_session_count
+    for status, count in non_passing.items():
+        score += status_weights.get(str(status), 10) * safe_int(count)
+    return score
+
+
 def build_objective_audit(
     summary: dict[str, Any],
     coverage_target: dict[str, Any],
@@ -421,19 +496,62 @@ def build_objective_audit(
     missing_dimensions = sorted(required_dimensions - covered_dimensions)
     blocking_dimensions: list[str] = []
     dimension_statuses: dict[str, dict[str, Any]] = {}
+    next_actions: list[dict[str, Any]] = []
     for key in sorted(required_dimensions):
         value = real_dimensions.get(key) if isinstance(real_dimensions.get(key), dict) else {}
         counts = value.get("counts") if isinstance(value.get("counts"), dict) else {}
         non_passing = {status: count for status, count in counts.items() if status != "passed" and count}
         if not counts:
             non_passing = {"missing": 1}
+        issue_sessions = value.get("issue_sessions") if isinstance(value.get("issue_sessions"), list) else []
         if non_passing:
             blocking_dimensions.append(key)
+            action = OBJECTIVE_DIMENSION_ACTIONS.get(
+                key,
+                {
+                    "id": f"fix_{key}",
+                    "title": f"Fix {key}",
+                    "recommended_next": "inspect this live parity dimension before promotion",
+                },
+            )
+            next_actions.append(
+                {
+                    "dimension": key,
+                    "action_id": action["id"],
+                    "title": action["title"],
+                    "recommended_next": action["recommended_next"],
+                    "non_passing": non_passing,
+                    "issue_sessions": issue_sessions,
+                    "issue_session_count": len(issue_sessions),
+                    "score": dimension_issue_score(non_passing, len(issue_sessions)),
+                    "priority": OBJECTIVE_DIMENSION_PRIORITY.get(key, 100),
+                }
+            )
         dimension_statuses[key] = {
             "counts": counts,
             "non_passing": non_passing,
-            "issue_sessions": value.get("issue_sessions") if isinstance(value.get("issue_sessions"), list) else [],
+            "issue_sessions": issue_sessions,
         }
+    next_actions.sort(
+        key=lambda item: (
+            safe_int(item.get("priority")) if item.get("priority") is not None else 100,
+            -safe_int(item.get("score")),
+            str(item.get("dimension") or ""),
+        )
+    )
+    next_focus = next_actions[0] if next_actions else {
+        "dimension": None,
+        "action_id": "collect_controlled_live_parity_coverage",
+        "title": "Collect controlled live parity coverage",
+        "recommended_next": (
+            "only after capture-safety proof and all parity dimensions pass, collect controlled non-critical live evidence"
+        ),
+        "non_passing": {},
+        "issue_sessions": [],
+        "issue_session_count": 0,
+        "score": 0,
+        "priority": 999,
+    }
 
     rows = [
         objective_audit_row(
@@ -516,6 +634,8 @@ def build_objective_audit(
         "batch_authoritative": promotion_policy.get("batch_authoritative") is True,
         "new_real_live_collection_allowed": promotion_policy.get("new_real_live_collection_allowed") is True,
         "blocking_dimensions": blocking_dimensions,
+        "next_focus": next_focus,
+        "next_actions": next_actions,
         "rows": rows,
     }
 
@@ -1269,7 +1389,20 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"- batch authoritative: `{objective_audit.get('batch_authoritative')}`",
             f"- new real live collection allowed: `{objective_audit.get('new_real_live_collection_allowed')}`",
             f"- blocking dimensions: {', '.join(objective_audit.get('blocking_dimensions') or []) or 'none'}",
-            "",
+        "",
+        ]
+        next_focus = objective_audit.get("next_focus") if isinstance(objective_audit.get("next_focus"), dict) else {}
+        if next_focus:
+            lines += [
+                "### Next Focus",
+                "",
+                f"- dimension: `{next_focus.get('dimension') or 'none'}`",
+                f"- action: `{next_focus.get('action_id')}`",
+                f"- title: {next_focus.get('title')}",
+                f"- recommended next: {next_focus.get('recommended_next')}",
+                "",
+            ]
+        lines += [
             "| Check | Status | Evidence |",
             "| --- | --- | --- |",
         ]
@@ -1478,7 +1611,10 @@ def main() -> int:
         else {}
     )
     if objective_audit:
+        next_focus = objective_audit.get("next_focus") if isinstance(objective_audit.get("next_focus"), dict) else {}
         print(f"objective_audit: {objective_audit.get('overall_status')}")
+        if next_focus:
+            print(f"objective_next_focus: {next_focus.get('action_id')}")
         audit_blocking_dimensions = objective_audit.get("blocking_dimensions") or []
         print(
             "objective_blocking_dimensions: "
