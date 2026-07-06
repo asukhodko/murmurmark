@@ -853,6 +853,8 @@ jq -e '
   and .parity_gates.status == "passed_but_shadow_locked"
   and .metrics.meaningful_live_comparison == true
   and .metrics.all_parity_gates_passed == true
+  and .metrics.capture_safety_status == "passed"
+  and ([.parity_gates.gates[] | select(.name == "capture_safety" and .status == "passed")] | length == 1)
   and ([.parity_gates.gates[] | select(.name == "order_risk" and .status == "passed")] | length == 1)
   and ([.parity_gates.gates[] | select(.name == "local_recall" and .status == "passed")] | length == 1)
   and ([.parity_gates.gates[] | select(.name == "remote_duplicate_leak" and .status == "passed")] | length == 1)

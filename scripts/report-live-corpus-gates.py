@@ -426,8 +426,13 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
     metrics = comparison.get("metrics") if isinstance(comparison, dict) else {}
     parity = comparison.get("parity_gates") if isinstance(comparison, dict) else {}
     comparison_status = comparison.get("status") if isinstance(comparison, dict) else None
-    capture_gate = build_capture_safety_gate(session) if live_present else None
-    gates = ([capture_gate] if capture_gate else []) + gate_rows(comparison)
+    comparison_gates = gate_rows(comparison)
+    capture_gate = next((gate for gate in comparison_gates if gate.get("name") == "capture_safety"), None)
+    if live_present and capture_gate is None:
+        capture_gate = build_capture_safety_gate(session)
+        gates = [capture_gate] + comparison_gates
+    else:
+        gates = comparison_gates
     return {
         "session": rel(session, root),
         "evidence_scope": evidence_scope(session, root),

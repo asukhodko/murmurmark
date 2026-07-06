@@ -12,8 +12,17 @@ from typing import Any
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.6.0"
+SCRIPT_VERSION = "0.7.0"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
+CAPTURE_SAFETY_BLOCKERS = {"interrupted_capture", "silent_capture", "sparse_capture"}
+CAPTURE_SAFETY_WARNING_MARKERS = (
+    "no screencapturekit audio samples",
+    "capture produced no audio samples",
+    "screencapturekit stream restarted",
+    "capture finalized as partial",
+    "captured audio covers only",
+    "track appears silent or almost silent",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -143,6 +152,64 @@ def safe_float(value: Any, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def build_capture_safety_gate(session: Path) -> dict[str, Any]:
+    session_json = read_json(session / "session.json")
+    pipeline = read_json(session / "derived/pipeline-run/pipeline_run_report.json")
+    pipeline_status = pipeline.get("status") if isinstance(pipeline, dict) else None
+    pipeline_blocker = str(pipeline.get("blocker") or "") if isinstance(pipeline, dict) else ""
+    health = session_json.get("health") if isinstance(session_json, dict) else None
+    health = health if isinstance(health, dict) else {}
+    warnings = health.get("warnings") if isinstance(health.get("warnings"), list) else []
+    warning_texts = [str(item) for item in warnings]
+    restart_count = safe_int(health.get("screen_capture_restart_count"))
+    partial = bool(health.get("partial")) or (isinstance(session_json, dict) and session_json.get("status") == "partial")
+    explicit_stop = health.get("explicit_stop")
+    health_summary = str(health.get("summary") or "")
+    stop_reason = str(health.get("stop_reason") or "")
+    safety_warnings = [
+        text for text in warning_texts if any(marker in text.lower() for marker in CAPTURE_SAFETY_WARNING_MARKERS)
+    ]
+    evidence = {
+        "pipeline_status": pipeline_status,
+        "pipeline_blocker": pipeline_blocker or None,
+        "session_status": session_json.get("status") if isinstance(session_json, dict) else None,
+        "health_summary": health_summary or None,
+        "partial": partial,
+        "explicit_stop": explicit_stop,
+        "stop_reason": stop_reason or None,
+        "screen_capture_restart_count": restart_count,
+        "warning_count": len(warning_texts),
+        "safety_warning_count": len(safety_warnings),
+        "sample_warnings": safety_warnings[:5],
+    }
+    if pipeline_status == "blocked" and pipeline_blocker in CAPTURE_SAFETY_BLOCKERS:
+        return gate(
+            "capture_safety",
+            "blocked",
+            f"batch pipeline blocked the session as {pipeline_blocker}",
+            evidence,
+        )
+    if not isinstance(session_json, dict) or not health:
+        return gate("capture_safety", "not_evaluated", "session capture health is missing", evidence)
+    if partial or explicit_stop is False:
+        return gate("capture_safety", "blocked", "capture was partial or did not end through an explicit stop", evidence)
+    if safety_warnings or restart_count > 0 or health_summary in {"warning", "partial"}:
+        return gate(
+            "capture_safety",
+            "warning",
+            "capture completed with ScreenCaptureKit/audio health warnings",
+            evidence,
+        )
+    return gate("capture_safety", "passed", "capture health is complete and warning-free", evidence)
 
 
 def interval_overlap(start_a: float, end_a: float, start_b: float, end_b: float) -> float:
@@ -407,6 +474,7 @@ def gate(name: str, status: str, reason: str, evidence: dict[str, Any] | None = 
 
 def parity_gates(
     *,
+    capture_safety_gate: dict[str, Any],
     blockers: list[str],
     duplicate_count: int,
     recall: float | None,
@@ -416,6 +484,7 @@ def parity_gates(
     outcome: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
     gates: list[dict[str, Any]] = [
+        capture_safety_gate,
         gate(
             "raw_batch_authoritative",
             "passed",
@@ -733,7 +802,11 @@ def main() -> int:
         warnings.append("live_remote_leak_in_me_detected")
     if int((live_assessment.get("metrics") or {}).get("live_order_mismatch_count") or 0) > 0:
         warnings.append("live_order_mismatch_detected")
+    capture_safety_gate = build_capture_safety_gate(session)
+    if capture_safety_gate.get("status") != "passed":
+        warnings.append("capture_safety_not_passed")
     gates = parity_gates(
+        capture_safety_gate=capture_safety_gate,
         blockers=blockers,
         duplicate_count=duplicate_count,
         recall=recall,
@@ -793,6 +866,9 @@ def main() -> int:
             "batch_ready_for_notes": bool(batch_use_gate == "ready_for_notes" or batch_outcome == "ready_for_notes"),
             "all_parity_gates_passed": all_parity_gates_passed,
             "meaningful_live_comparison": meaningful_live_comparison,
+            "capture_safety_status": capture_safety_gate.get("status"),
+            "screen_capture_restart_count": (capture_safety_gate.get("evidence") or {}).get("screen_capture_restart_count"),
+            "capture_safety_warning_count": (capture_safety_gate.get("evidence") or {}).get("safety_warning_count"),
             **live_metrics,
         },
         "risk_examples": {
