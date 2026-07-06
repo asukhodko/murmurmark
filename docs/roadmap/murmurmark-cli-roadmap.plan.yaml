@@ -68,10 +68,10 @@ nodes:
       experimental profile: 5/6 safe improved, 1/6 not applicable, 0 local-recall regressions,
       no default promotion. Reliable Transcription Route v1, Reliable Processing UX v1 и
       Chunked/Resumable Processing v1 уже сделали outcome/next/export gate и ASR chunk-resume
-      честным пользовательским контрактом. Ближайший крупный шаг теперь — Near-Realtime Live
-      Parity Coverage v1: получить реальные live-pipeline сессии, сравнить live chunks/drafts с
-      batch output и держать promotion заблокированным, пока order, local recall, remote leakage,
-      review burden и boundary gates не доказаны.
+      честным пользовательским контрактом. Ближайший крупный шаг теперь — Current Pipeline
+      Stabilization v1: заморозить новые продуктовые ветки, оставить один production path
+      (`record --target-bundle system` без live, затем `process latest`) и доказать, что он либо
+      даёт transcript/notes, либо честно блокируется с причиной.
 
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
@@ -82,8 +82,8 @@ nodes:
         неразрушаемыми; новые echo engines сначала работают только в shadow.
       - Outcome-first: pipeline считается полезным только когда status/next/finish/report
         согласованно объясняют, можно ли использовать transcript и что делать дальше.
-      - Batch remains authoritative until proven otherwise: near-realtime processing тоже сначала
-        shadow-only и не должен ослаблять raw capture, batch processing, review gates или retention.
+      - Batch remains authoritative: near-realtime processing остаётся diagnostic/shadow и не должен
+        ослаблять raw capture, batch processing, review gates или retention.
       - Synthesis/export не пишут во внешние системы без review.
       - UI App или menu bar не являются обязательным путём к полезному продукту.
 
@@ -312,8 +312,25 @@ nodes:
       review burden, next command, export gate и retention state. Outcome Contract v1, Gate
       Evaluator, Review Plan, Next Command, Reliable Processing UX v1 и Chunked/Resumable
       Processing v1 уже закрыли пользовательский handoff и ASR chunk-resume. Следующий конкретный
-      узел внутри маршрута — Near-Realtime Live Parity Coverage v1: получить реальные live sessions
-      и доказать live-vs-batch parity, не меняя default local_fir и основной ASR.
+      узел внутри маршрута — Current Pipeline Stabilization v1: не добавлять новых возможностей,
+      а доказать один поддерживаемый production path и убрать двусмысленные состояния.
+
+  current-pipeline-stabilization-v1:
+    title: "Current Pipeline Stabilization v1"
+    kind: task
+    parent: reliable-transcription-route
+    deps: [chunked-resumable-processing-v1, cli-recording-reliability, reliable-outcome-contract]
+    status: current
+    effort: 6
+    notes: |
+      Текущая цель: стабилизировать уже существующий pipeline без новых product features.
+      Production path: `murmurmark record --target-bundle system` без `--live-pipeline`,
+      затем `murmurmark process latest`, `next`, `status`, `finish`. Live-pipeline, echo
+      experiments, new ASR models, diarization, synthesis/review layers and UI stay out of scope.
+      Done means: fresh short non-live recording with audible content produces non-empty transcript;
+      silent/partial/interrupted capture blocks before ASR; `status`/`next` never suggest review or
+      export for failed capture; stale readiness/outcome/live reports cannot override a newer
+      blocker; README/runbooks/roadmap describe this supported route.
 
   reliable-outcome-contract:
     title: "Outcome Contract v1"
@@ -498,21 +515,21 @@ nodes:
     kind: phase
     parent: murmurmark-cli
     deps: [cli-orchestration, cli-recording-reliability, corpus-regression]
-    status: current
+    status: later
     effort: 16
     notes: |
       Потоковая ветка CLI: не ждать окончания встречи, а обрабатывать уже закрытые audio segments
-      во время записи. Первый shadow-контур существует: `record --live-pipeline` пишет segment
-      copies, live draft, post-stop final reconcile report и advisory live-vs-batch comparison. Это
-      всё ещё не замена batch pipeline: raw CAF/session package и обычный `murmurmark process`
-      остаются source of truth, пока shadow-ветка не докажет parity на корпусе.
+      во время записи. Первый shadow-контур существует, но на время Current Pipeline Stabilization
+      v1 это diagnostic/later path. Production route остаётся batch-first: raw CAF/session package
+      и обычный `murmurmark process` остаются source of truth, пока текущий путь не стабилизирован,
+      а shadow-ветка позже не докажет parity на корпусе.
 
   realtime-segment-writer:
     title: "Segment writer during capture"
     kind: task
     parent: near-realtime-pipeline
     deps: [cli-recording-reliability]
-    status: current
+    status: later
     effort: 4
     notes: |
       Во время `record --live-pipeline` уже пишутся durable mic/remote segment copies и manifest для
@@ -527,7 +544,7 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [realtime-segment-writer]
-    status: current
+    status: later
     effort: 5
     notes: |
       Первый worker пишет chunk state и draft transcript под `derived/live/`. Он безопасен как
@@ -539,7 +556,7 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [realtime-worker-queue]
-    status: current
+    status: later
     effort: 4
     notes: |
       Писать `derived/live/transcript.draft.md`, `derived/live/chunks/*.jsonl` и
@@ -552,7 +569,7 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [realtime-live-draft, review-loop, quality-hardening]
-    status: current
+    status: later
     effort: 5
     notes: |
       После stop уже запускается batch-grade reconcile через `murmurmark process --skip-build` и
@@ -569,7 +586,7 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [realtime-final-reconcile, corpus-regression-gate]
-    status: current
+    status: later
     effort: 4
     notes: |
       Первый `live_batch_comparison.json` уже пишет advisory parity gates, а `murmurmark corpus live`
@@ -585,7 +602,7 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [chunked-resumable-processing-v1, realtime-corpus-gates]
-    status: current
+    status: later
     effort: 6
     notes: |
       Ближайшая крупная цель после chunked resume. Нужно получить real live-pipeline coverage, а не
@@ -1476,8 +1493,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Near-Realtime Live Parity Coverage v1: получить real live-pipeline coverage, сравнить live chunks/drafts с batch output и держать promotion заблокированным, пока parity gates не докажут безопасность."
-      success_by_next_sync: "Есть 3 real live sessions с passing live_batch_comparison.json, corpus live report показывает order/local-recall/remote-leak/review-burden/boundary risks, live cache reuse остаётся gated, а batch transcript остаётся authoritative."
+      nearest_goal: "Current Pipeline Stabilization v1: заморозить новые product features, доказать обычный record/process/status/next/finish path и блокировать silent/partial/interrupted capture до ASR."
+      success_by_next_sync: "Есть свежая non-live запись с непустым transcript, fresh failed/silent scenario blocks before ASR, `status` и `next` не конфликтуют, docs/README/runbook показывают один production path, live остаётся diagnostic/later."
     defaults:
       status_progress:
         done: 1.0
@@ -1503,8 +1520,8 @@ x:
         kind: main
         mgmt:
           health: green
-          sync_note: "CLI MVP, readiness reconciliation, Recording Reliability, Export Bundle Quality v1, Outcome Contract v1, Reliable Processing UX v1 и Chunked/Resumable Processing v1 закрыты. Пользователь уже получает честный outcome, next command и ASR chunk-resume; следующий разрыв — real live parity coverage."
-          next_sync_goal: "Сделать Near-Realtime Live Parity Coverage v1: real live sessions, live-vs-batch comparison, corpus live gates и запрет promotion без доказанной parity."
+          sync_note: "CLI MVP, readiness reconciliation, Recording Reliability, Export Bundle Quality v1, Outcome Contract v1, Reliable Processing UX v1 и Chunked/Resumable Processing v1 закрыты. После серии live/capture отказов следующий разрыв — доказать текущий production path без новых product features."
+          next_sync_goal: "Сделать Current Pipeline Stabilization v1: обычная запись без live, обработка, status/next/finish, failed-capture blockers и документация одного поддерживаемого пути."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]

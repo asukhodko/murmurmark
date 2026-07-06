@@ -508,14 +508,13 @@ echo "$report_output" | grep -q '^  status: incomplete$'
 echo "$report_output" | grep -q '^  recommended_next: murmurmark process '
 echo "$report_output" | grep -q '^  use:$'
 echo "$report_output" | grep -q '^    summary: pipeline incomplete; process before use$'
-echo "$report_output" | grep -q '^    can_read_notes: true$'
+echo "$report_output" | grep -q '^    can_read_notes: false$'
 echo "$report_output" | grep -q '^    can_export: false$'
 echo "$report_output" | grep -q '^    blocker: pipeline_incomplete$'
 echo "$report_output" | grep -q '^    minimum_step: murmurmark process '
-echo "$report_output" | grep -q '^  handoff:$'
-echo "$report_output" | grep -q '^    open_notes: less '
-echo "$report_output" | grep -q '^    open_transcript: less '
-echo "$report_output" | grep -q '^    open_verdict: less '
+! echo "$report_output" | grep -q '^  handoff:$'
+echo "$report_output" | grep -q '^  open:$'
+echo "$report_output" | grep -q 'Inspect the outcome blocker'
 echo "$report_output" | grep -q '  synthesis_review_items: '
 echo "$report_output" | grep -q '  synthesis_review_types: .*utterance_transcript_order_review=1'
 tail -1 <<<"$report_output" | grep -q '^next: murmurmark process '
@@ -526,6 +525,7 @@ echo "$status_output" | grep -q '^  status: incomplete$'
 echo "$status_output" | grep -q '^  recommended_next: murmurmark process '
 echo "$status_output" | grep -q '^  use:$'
 echo "$status_output" | grep -q '^    summary: pipeline incomplete; process before use$'
+echo "$status_output" | grep -q '^    can_read_notes: false$'
 echo "$status_output" | grep -q '^    can_export: false$'
 tail -1 <<<"$status_output" | grep -q '^next: murmurmark process '
 live_acceptance_session="$workdir/_live-acceptance-session"
@@ -576,9 +576,9 @@ jq -e '
 next_output="$("$bin" next "$session")"
 assert_no_helper_prefix "$next_output"
 echo "$next_output" | grep -q '^next:$'
-echo "$next_output" | grep -q '^  status: partial$'
+echo "$next_output" | grep -q '^  status: incomplete$'
 echo "$next_output" | grep -q '^  command: murmurmark process '
-echo "$next_output" | grep -q '^  open_first: less '
+! echo "$next_output" | grep -q '^  open_first: less '
 if blocked_export_output="$("$bin" export "$session" --out-dir "$workdir/blocked-export" 2>&1)"; then
   echo "export unexpectedly succeeded for partial outcome" >&2
   exit 1
@@ -4944,8 +4944,13 @@ PY
   echo "$latest_apply_output" | grep -q '^readiness:$'
   echo "$latest_apply_output" | grep -q '^  status: '
   echo "$latest_apply_output" | grep -q '^  recommended_next: '
-  echo "$latest_apply_output" | grep -q '^  handoff:$'
-  echo "$latest_apply_output" | grep -q '^    open_notes: less '
+  if echo "$latest_apply_output" | grep -q '^  status: incomplete$'; then
+    ! echo "$latest_apply_output" | grep -q '^  handoff:$'
+    echo "$latest_apply_output" | grep -q 'Inspect the readiness blocker'
+  else
+    echo "$latest_apply_output" | grep -q '^  handoff:$'
+    echo "$latest_apply_output" | grep -q '^    open_notes: less '
+  fi
   echo "$latest_apply_output" | grep -q '^  selected_profile: '
   echo "$latest_apply_output" | grep -q '^  next:'
   jq -e '.schema == "murmurmark.review_decisions_batch_report/v1" and .summary.session_count == 1 and .summary.failed_sessions == 0' "$latest_apply_report" >/dev/null

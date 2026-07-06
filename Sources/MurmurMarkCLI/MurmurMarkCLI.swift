@@ -10668,10 +10668,15 @@ enum ReadinessPrinter {
             ? successfulExportHandoff(session: session, explicitManifest: explicitExportManifest)
             : nil
         let outcome = try? outcomePayload(session)
+        let outcomeSummary = outcome?["summary"] as? [String: Any]
         let outcomeCommand = outcome.flatMap { string($0["next_command"]) }
         let command = exportHandoff?.command ?? outcomeCommand ?? readinessCommand
         let source = exportHandoff == nil ? (outcomeCommand == nil ? "readiness" : "outcome") : "export_manifest"
-        let displayStatus = exportHandoff == nil ? (outcome.flatMap { string($0["outcome"]) } ?? status) : status
+        let displayStatus = exportHandoff == nil
+            ? effectiveStatus(readinessStatus: status, outcome: outcome)
+            : status
+        let canReadOutputs = outcomeSummary.flatMap { bool($0["can_read_notes"]) }
+            ?? canReadOutputsForStatus(displayStatus)
 
         print("")
         print("next:")
@@ -10692,7 +10697,7 @@ enum ReadinessPrinter {
         if outcome != nil {
             print("  outcome: \(PathDisplay.display(session.appendingPathComponent("derived/outcome/outcome.json")))")
         }
-        if let firstOpen = openCommands.compactMap({ string($0["command"]) }).first {
+        if canReadOutputs, let firstOpen = openCommands.compactMap({ string($0["command"]) }).first {
             print("  open_first: \(firstOpen)")
         }
         if nextCommands.count > 1 {
@@ -10777,8 +10782,11 @@ enum ReadinessPrinter {
         let exportBlockers = strings(payload["export_blockers"])
         let reviewBlockers = strings(payload["review_blockers"])
         let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil)
-        let status = exportHandoff == nil ? readinessStatus(gate: gate, payload: payload) : "exported"
-        let outcomeCommand = (try? outcomePayload(session)).flatMap { string($0["next_command"]) }
+        let outcome = try? outcomePayload(session)
+        let status = exportHandoff == nil
+            ? effectiveStatus(readinessStatus: readinessStatus(gate: gate, payload: payload), outcome: outcome)
+            : "exported"
+        let outcomeCommand = outcome.flatMap { string($0["next_command"]) }
         let recommendedNext = exportHandoff?.command ?? outcomeCommand ?? string(payload["recommended_next"]) ?? preferredNextCommand(nextCommands)
         let reviewSeconds = double(metrics["review_burden_sec"]) ?? 0
         let reviewRatio = (double(metrics["review_burden_ratio"]) ?? 0) * 100
@@ -10814,7 +10822,8 @@ enum ReadinessPrinter {
             exportBlockers: exportBlockers,
             reviewBlockers: reviewBlockers,
             reviewSeconds: reviewSeconds,
-            recommendedNext: recommendedNext
+            recommendedNext: recommendedNext,
+            outcomeSummary: outcome?["summary"] as? [String: Any]
         ))
         print("  gate: \(gate)")
         print("  recommendation: \(recommendation)")
@@ -10829,8 +10838,22 @@ enum ReadinessPrinter {
         printStrongerAudioJudgeSummary(session)
         printSuggestedClosureSummary(session)
         printOutcomeSummary(session)
+        let canReadOutputs = (outcome?["summary"] as? [String: Any]).flatMap { bool($0["can_read_notes"]) }
+            ?? canReadOutputsForStatus(status)
         print("  open:")
-        if openCommands.isEmpty {
+        if !canReadOutputs {
+            if outcome != nil {
+                let outcomePath = PathDisplay.display(
+                    session.appendingPathComponent("derived/outcome/outcome.json")
+                )
+                print("    less \(outcomePath) — Inspect the outcome blocker.")
+            } else {
+                let readinessPath = PathDisplay.display(
+                    session.appendingPathComponent("derived/readiness/session_readiness.json")
+                )
+                print("    less \(readinessPath) — Inspect the readiness blocker.")
+            }
+        } else if openCommands.isEmpty {
             for key in ["transcript", "notes", "quality_verdict", "audio_review_report", "local_recall_review", "transcript_order_review"] {
                 if let path = outputPath(key, outputs: outputs) {
                     let target = path.hasPrefix("/") ? URL(fileURLWithPath: path) : session.appendingPathComponent(path)
@@ -11073,33 +11096,48 @@ enum ReadinessPrinter {
         let reviewBlockers: [String]
         let reviewSeconds: Double
         let recommendedNext: String?
+        let outcomeSummary: [String: Any]?
     }
 
     private static func printUseSummary(_ summaryInput: UseSummary) {
-        let canRead = outputPath("notes", outputs: summaryInput.outputs) != nil && outputPath("quality_verdict", outputs: summaryInput.outputs) != nil
-        let canExport = summaryInput.status == "exportable"
-        let summary: String
+        let fallbackCanRead = canReadOutputsForStatus(summaryInput.status)
+            && outputPath("notes", outputs: summaryInput.outputs) != nil
+            && outputPath("quality_verdict", outputs: summaryInput.outputs) != nil
+        let canRead = summaryInput.outcomeSummary.flatMap { bool($0["can_read_notes"]) } ?? fallbackCanRead
+        let canExport = summaryInput.outcomeSummary.flatMap { bool($0["can_export"]) } ?? (summaryInput.status == "exportable")
+        var summary: String
         switch summaryInput.status {
         case "exported":
             summary = "exported; plan retention/privacy next"
         case "exportable":
             summary = "ready to read and export"
+        case "ready_for_notes":
+            summary = "ready_for_notes: notes can be read; export depends on outcome gate"
+        case "review_first":
+            summary = "review_first: read with review; close review before export"
         case "notes_ready_export_blocked":
             summary = "notes ready; full transcript export still blocked"
         case "review_required":
             summary = "read with review; close review before export"
         case "non_actionable_review_blocker":
             summary = "residual review risk is documented, but there is no actionable review lane"
-        case "incomplete":
+        case "incomplete", "partial":
             summary = "pipeline incomplete; process before use"
-        case "blocked":
+        case "blocked", "pipeline_failed":
             summary = "blocked; inspect review/export blockers"
         default:
             summary = "check readiness before use"
         }
+        if summaryInput.status == "blocked",
+           !canRead,
+           let headline = summaryInput.outcomeSummary.flatMap({ string($0["headline"]) }),
+           !headline.isEmpty {
+            summary = headline
+        }
+        let outcomeExportBlockers = summaryInput.outcomeSummary.map { strings($0["export_blockers"]) } ?? []
         let blocker = firstBlocker(
             gate: summaryInput.gate,
-            exportBlockers: summaryInput.exportBlockers,
+            exportBlockers: outcomeExportBlockers.isEmpty ? summaryInput.exportBlockers : outcomeExportBlockers,
             reviewBlockers: summaryInput.reviewBlockers
         )
         print("  use:")
@@ -11361,6 +11399,32 @@ enum ReadinessPrinter {
         return item["path"] as? String
     }
 
+    private static func canReadOutputsForStatus(_ status: String) -> Bool {
+        [
+            "exported",
+            "exportable",
+            "ready_for_notes",
+            "review_first",
+            "notes_ready_export_blocked",
+            "review_required",
+            "non_actionable_review_blocker",
+        ].contains(status)
+    }
+
+    private static func effectiveStatus(readinessStatus: String, outcome: [String: Any]?) -> String {
+        guard let outcomeValue = outcome.flatMap({ string($0["outcome"]) }) else {
+            return readinessStatus
+        }
+        switch outcomeValue {
+        case "blocked", "pipeline_failed":
+            return "blocked"
+        case "partial":
+            return "incomplete"
+        default:
+            return readinessStatus
+        }
+    }
+
     private static func printHandoff(
         status: String,
         session: URL,
@@ -11368,9 +11432,12 @@ enum ReadinessPrinter {
         exportHandoff: (command: String, manifest: URL)? = nil
     ) {
         var commands: [(String, String)] = []
-        appendOpenCommand("open_notes", outputKey: "notes", session: session, outputs: outputs, to: &commands)
-        appendOpenCommand("open_transcript", outputKey: "transcript", session: session, outputs: outputs, to: &commands)
-        appendOpenCommand("open_verdict", outputKey: "quality_verdict", session: session, outputs: outputs, to: &commands)
+        let canOpenReadOutputs = canReadOutputsForStatus(status)
+        if canOpenReadOutputs {
+            appendOpenCommand("open_notes", outputKey: "notes", session: session, outputs: outputs, to: &commands)
+            appendOpenCommand("open_transcript", outputKey: "transcript", session: session, outputs: outputs, to: &commands)
+            appendOpenCommand("open_verdict", outputKey: "quality_verdict", session: session, outputs: outputs, to: &commands)
+        }
         if let exportHandoff {
             commands.append(("retention", exportHandoff.command))
         } else if status == "exportable" {

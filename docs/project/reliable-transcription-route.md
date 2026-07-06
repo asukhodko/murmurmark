@@ -1,16 +1,17 @@
 # Reliable Transcription Route
 
 Status: active product route; Outcome/Processing UX v1 and Chunked/Resumable Processing v1 complete,
-live parity coverage next
-Date: 2026-07-03
+Current Pipeline Stabilization v1 active
+Date: 2026-07-06
 
 Consultation synthesis: Gemini, GPT-Pro and Fable agreed on the same practical direction. Do not add
 another broad repair layer first. Turn the existing audits into one deterministic outcome contract,
 then use corpus-calibrated gates and review-burden telemetry to decide whether a transcript is ready,
 needs review or is blocked. Outcome Contract v1 and Reliable Processing UX v1 are now implemented.
-The next concrete reliability gap is live parity coverage: near-realtime chunks already exist as a
-shadow path, but they need real-session comparisons before they can be trusted as a batch-grade
-cache source.
+The next concrete reliability gap is simpler and more urgent than live parity: the current
+production path must be boring again. A normal recording without `--live-pipeline` must either
+produce a usable two-track session or fail explicitly before ASR. Near-realtime chunks remain a
+shadow path for later parity work.
 
 ## Why This Exists
 
@@ -67,6 +68,7 @@ honest:
 - already completed stages are reused unless `--force-*` is explicit;
 - missing optional models degrade gracefully;
 - partial recordings are marked partial and blocked by default;
+- silent captures are blocked before ASR and never become empty successful transcripts;
 - no derived profile is promoted without corpus gates;
 - raw CAF tracks are never modified by processing.
 

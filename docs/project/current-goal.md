@@ -1,8 +1,58 @@
 # Current Goal Context
 
 This file keeps the latest completed goals for context. The next recommended goal is documented in
-the roadmap as Near-Realtime Live Parity Coverage v1: prove the live/near-realtime branch on real
-sessions before any live cache can be treated as more than a shadow acceleration path.
+the roadmap as Current Pipeline Stabilization v1: freeze product work, prove one supported
+record/process/status/next/finish path, and make capture/process failures explicit instead of
+letting them become empty transcripts or stale handoffs.
+
+## Active Goal: Current Pipeline Stabilization v1
+
+Status, 2026-07-06: active.
+
+Goal:
+
+```text
+Полная стабилизация текущего MurmurMark pipeline без новых продуктовых доработок. Текущая версия
+должна надёжно выполнять основной пользовательский сценарий: записал созвон -> получил понятный
+итог, то есть транскрибацию/заметки или явный отказ с причиной. На время этой цели не добавлять
+новые модели, repair/synthesis/audit-слои, live promotion, Echo Guard experiments или UI.
+```
+
+Plainly: MurmurMark must become boring before it becomes smarter. The supported path is:
+
+```bash
+murmurmark record --target-bundle system
+murmurmark process latest
+murmurmark next latest
+murmurmark status latest
+murmurmark finish latest
+```
+
+Current scope:
+
+- keep `--live-pipeline` experimental/diagnostic and out of the normal meeting command;
+- prove normal capture without live writes usable mic/remote evidence or blocks early;
+- block silent, partial and interrupted captures before ASR unless `--allow-partial` is explicit;
+- make repeated `process` runs resume or explain the next command without stale readiness/outcome;
+- make `status` and `next` agree for successful, review-first, blocked and failed-capture sessions;
+- keep existing quality/review/export layers stable, but do not improve them during this goal;
+- classify the current real-session corpus as usable, review_first, blocked or broken_capture;
+- update README, runbooks, roadmap and opskarta around this supported route.
+
+Definition of done:
+
+- working tree is clean, committed and pushed;
+- `scripts/check.sh` passes;
+- live/capture regression smoke passes, but live remains diagnostic;
+- at least one fresh short non-live recording with audible content produces a non-empty transcript;
+- at least one fresh failed/silent capture fixture blocks before ASR;
+- `murmurmark status latest` and `murmurmark next latest` give one non-conflicting next step;
+- README and runbooks describe the supported production path without stale live-first guidance.
+
+Explicit non-goals:
+
+- full echo removal, new ASR models, diarization, new synthesis, new review profiles, Core Audio
+  Process Tap migration, UI App or any quality tuning beyond stabilizing the existing pipeline.
 
 ## Latest Completed Goal: Reliable Processing UX v1
 

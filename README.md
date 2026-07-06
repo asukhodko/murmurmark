@@ -269,7 +269,7 @@ murmurmark finish latest
 If `next` or `status` prints a review command, follow that command before relying on the result for
 medium-risk work.
 
-Optional near-realtime shadow mode:
+Experimental near-realtime shadow mode:
 
 ```bash
 murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5
@@ -279,6 +279,11 @@ SESSION="sessions/<printed-session>"
 less "$SESSION/derived/live/transcript.draft.md"
 murmurmark next latest
 ```
+
+Do not use `--live-pipeline` as the normal meeting path while the current stabilization goal is
+active. The supported production path is `murmurmark record --target-bundle system` followed by
+`murmurmark process latest`. Live mode remains useful for diagnostics and later parity work, but a
+live failure must not be allowed to obscure whether the batch pipeline is stable.
 
 This mode writes closed audio segments and a live draft under `derived/live/` while recording.
 Segments have a non-overlapping authoritative window plus copied overlap context around it; raw
@@ -751,6 +756,10 @@ rule and need corpus gates before any automatic review decision.
 
 Current focus:
 
+- stabilize the current production path first: `record --target-bundle system` without
+  `--live-pipeline`, then `process latest`, `next`, `status`, `finish`;
+- keep every failed capture explicit: silent/partial/interrupted recordings must block before ASR
+  and must not look like empty successful transcripts;
 - keep the operational corpus at `pilot_ready_with_review` or better;
 - treat `murmurmark report corpus` as the source of truth for corpus readiness;
 - keep the remaining manual queue short, explicit and explainable;
@@ -761,9 +770,10 @@ Current focus:
 - keep `local_fir` as the default Echo Guard path while shadow audio candidates are compared by
   ASR-visible remote-token leakage, local-word recall and review burden;
 - keep `next`/`status`/`review` honest about residual risk;
-- keep near-realtime processing as a shadow CLI branch: `record --live-pipeline` now writes durable
-  overlap-aware live segments, a draft transcript and advisory live-vs-batch comparison artifacts,
-  but the batch pipeline is still authoritative;
+- keep near-realtime processing as a shadow/debug CLI branch, not the recommended recording path
+  during current stabilization: `record --live-pipeline` writes durable overlap-aware live segments,
+  a draft transcript and advisory live-vs-batch comparison artifacts, but the batch pipeline is still
+  authoritative and live parity work is paused behind the stable production path;
 - keep live-ASR cache reuse behind strict eligibility gates; `not_eligible` is expected until
   live chunk geometry, audio prep, language and model match batch ASR expectations, and materialized
   live chunks must still pass the raw chunk rebuild check;
@@ -775,31 +785,33 @@ Current focus:
 
 Active goal and near-term candidates:
 
-1. Active candidate: Near-Realtime Live Parity Coverage v1: collect real live-pipeline sessions,
-   compare live chunks and drafts against batch output, keep promotion blocked until order, local
-   recall, remote leakage, review burden and chunk-boundary gates are measured and passed.
+1. Active: Current Pipeline Stabilization v1: freeze new product work, use one supported production
+   path, prove normal capture/process/status/next/finish behavior, and block silent/partial/failed
+   sessions before ASR.
 2. Completed: Chunked/Resumable Processing v1: ASR work is chunk-addressed, cacheable,
    interrupt-safe and guarded by rebuild/corpus gates. The remaining work is broader corpus
    coverage, not the v1 mechanism.
-3. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
+3. Later: Near-Realtime Live Parity Coverage v1, after the stable production path is boring and
+   repeatable again.
+4. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
-4. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
+5. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
    safe review evidence, shrink only rows with strong local proof, and keep ambiguous rows explicit.
-5. Operational Corpus Green follow-up: keep `pilot_ready_with_review` stable, reduce the remaining
+6. Operational Corpus Green follow-up: keep `pilot_ready_with_review` stable, reduce the remaining
    irreducible queue when new local evidence appears, and prevent status drift.
-6. Near-Realtime Pipeline Shadow v1 follow-up: harden the live draft worker with per-fragment Echo
+7. Near-Realtime Pipeline Shadow v1 follow-up: harden the live draft worker with per-fragment Echo
    Guard, resumable worker state and corpus parity gates.
-7. Echo Guard promotion experiment: only after the shadow candidate passes a broader operational
+8. Echo Guard promotion experiment: only after the shadow candidate passes a broader operational
    corpus, test a separate promoted profile that writes a non-default `mic_for_asr` candidate bundle.
-8. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
+9. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session
    is partial, or when ASR will take a long time.
-9. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
+10. Export readiness follow-up: keep improving the final handoff after Export Bundle Quality v1,
    especially Obsidian-vault placement and reviewed proposal exports.
-10. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
+11. Regression discipline: keep a small stable corpus gate that catches transcript/order/local-recall
    regressions before new heuristics ship.
-11. Evidence notes vNext: improve extractive notes quality while preserving citations and review
+12. Evidence notes vNext: improve extractive notes quality while preserving citations and review
    flags.
-12. Open-source release hardening: trim private fixtures, document setup, add security/contact
+13. Open-source release hardening: trim private fixtures, document setup, add security/contact
    guidance and keep generated/private artifacts ignored.
 
 Recently completed:

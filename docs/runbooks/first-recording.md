@@ -99,7 +99,7 @@ murmurmark inspect latest
 
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
 
-Optional live-shadow recording:
+Experimental live-shadow recording:
 
 ```bash
 murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5
@@ -109,6 +109,11 @@ SESSION="sessions/<printed-session>"
 less "$SESSION/derived/live/transcript.draft.md"
 murmurmark next latest
 ```
+
+During Current Pipeline Stabilization v1, do not use this as the normal meeting command. The
+supported production path is the plain recording command above plus `murmurmark process latest`.
+Live-shadow mode is diagnostic evidence for future parity work; it must not hide capture/process
+failures in the production path.
 
 `--live-pipeline` duplicates closed mic/remote capture windows into `derived/live/audio/`, starts a
 shadow worker and writes `derived/live/transcript.draft.md`,
