@@ -864,10 +864,35 @@ jq -e '
   and .summary.meaningful_compared_sessions == 1
   and .summary.passing_compared_sessions == 1
   and .summary.promotion_allowed_sessions == 0
+  and .summary.live_quarantined == true
+  and .summary.live_evidence_mode == "historical_debug_only"
+  and .summary.new_real_live_collection_allowed == false
   and .summary.target_status == "shadow_locked_needs_more_live_coverage"
   and .coverage_target.status == "needs_more_live_coverage"
   and .coverage_target.live_sessions_remaining == 2
   and .coverage_target.passing_compared_sessions_remaining == 2
+  and .promotion_policy.status == "blocked"
+  and .promotion_policy.batch_authoritative == true
+  and .promotion_policy.live_quarantined == true
+  and .promotion_policy.new_real_live_collection_allowed == false
+  and ((.promotion_policy.required_dimensions | sort) == [
+    "chunk_boundary_risks",
+    "local_recall",
+    "order_risk",
+    "remote_leakage",
+    "required_artifacts",
+    "review_burden",
+    "selected_notes_readiness"
+  ])
+  and ([.parity_dimensions | keys[]] | sort) == [
+    "chunk_boundary_risks",
+    "local_recall",
+    "order_risk",
+    "remote_leakage",
+    "required_artifacts",
+    "review_burden",
+    "selected_notes_readiness"
+  ]
 ' "$workdir/live-report/live_corpus_gates_report.json" >/dev/null
 "$eval_python" "$repo_root/scripts/report-live-corpus-gates.py" "$live_parity_session" \
   --sessions-root "$workdir/sessions" \
@@ -884,6 +909,10 @@ jq -e '
   --fail-on-promotion >/dev/null
 jq -e '
   .summary.strict_coverage_status == "passed"
+  and .summary.live_quarantined == true
+  and .summary.new_real_live_collection_allowed == false
+  and .promotion_policy.status == "blocked"
+  and .promotion_policy.batch_authoritative == true
   and .strict_coverage.requested == true
   and (.strict_coverage.failures | length) == 0
 ' "$workdir/live-report-strict/live_corpus_gates_report.json" >/dev/null

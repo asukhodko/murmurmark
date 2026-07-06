@@ -788,6 +788,10 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     asr_chunk_raw_missing = safe_int(asr_chunk_summary.get("raw_asr_missing"))
     live_summary = live_corpus.get("summary") if isinstance(live_corpus, dict) else {}
     live_summary = live_summary if isinstance(live_summary, dict) else {}
+    live_promotion_policy = live_corpus.get("promotion_policy") if isinstance(live_corpus, dict) else {}
+    live_promotion_policy = live_promotion_policy if isinstance(live_promotion_policy, dict) else {}
+    live_parity_dimensions = live_corpus.get("parity_dimensions") if isinstance(live_corpus, dict) else {}
+    live_parity_dimensions = live_parity_dimensions if isinstance(live_parity_dimensions, dict) else {}
     live_target_status = str(live_summary.get("target_status") or "")
     live_sessions = safe_int(live_summary.get("live_sessions"))
     live_compared_sessions = safe_int(live_summary.get("compared_sessions"))
@@ -801,6 +805,15 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     live_suspicious_batch_me_missing_seconds = safe_float(live_summary.get("live_suspicious_batch_me_missing_seconds"))
     live_remote_in_me_seconds = safe_float(live_summary.get("live_suspected_remote_leak_in_me_seconds"))
     live_boundary_duplicate_count = safe_int(live_summary.get("adjacent_duplicate_chunk_count"))
+    required_live_dimensions = {
+        "order_risk",
+        "local_recall",
+        "remote_leakage",
+        "review_burden",
+        "selected_notes_readiness",
+        "chunk_boundary_risks",
+        "required_artifacts",
+    }
     check(
         checks,
         "asr_chunk_cache.no_failed_rebuilds",
@@ -837,6 +850,38 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         threshold="0 promoted sessions",
         message="near-realtime/live ASR cache is not promoted as authoritative",
         details=live_summary,
+    )
+    check(
+        checks,
+        "live_cache_parity.quarantine_policy",
+        live_corpus is None
+        or (
+            live_summary.get("live_quarantined") is True
+            and live_summary.get("new_real_live_collection_allowed") is False
+            and live_promotion_policy.get("status") == "blocked"
+            and live_promotion_policy.get("batch_authoritative") is True
+            and live_promotion_policy.get("live_quarantined") is True
+            and live_promotion_policy.get("new_real_live_collection_allowed") is False
+        ),
+        observed={
+            "summary_live_quarantined": live_summary.get("live_quarantined"),
+            "summary_new_real_live_collection_allowed": live_summary.get("new_real_live_collection_allowed"),
+            "policy_status": live_promotion_policy.get("status"),
+            "policy_batch_authoritative": live_promotion_policy.get("batch_authoritative"),
+            "policy_live_quarantined": live_promotion_policy.get("live_quarantined"),
+            "policy_new_real_live_collection_allowed": live_promotion_policy.get("new_real_live_collection_allowed"),
+        },
+        threshold="blocked, batch_authoritative=true, live_quarantined=true, new_real_live_collection_allowed=false",
+        message="live-cache parity report keeps live promotion quarantined and batch authoritative",
+    )
+    check(
+        checks,
+        "live_cache_parity.dimension_coverage",
+        live_corpus is None or required_live_dimensions.issubset(set(live_parity_dimensions)),
+        observed=sorted(live_parity_dimensions),
+        threshold=sorted(required_live_dimensions),
+        message="live-cache parity report covers every required promotion dimension",
+        details=live_parity_dimensions,
     )
     check(
         checks,
