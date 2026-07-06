@@ -61,6 +61,12 @@ Print the checklist:
 murmurmark acceptance --live-checklist
 ```
 
+The checklist has two sections:
+
+- `live_recording_gate`: the production batch-first route for a real meeting;
+- `near_realtime_shadow_gate`: lab-only checks for `--live-pipeline`, including the system-audio
+  probe, live segment fail-open probe and a blocked `promotion_policy`.
+
 Run this on a machine with macOS recording permissions granted:
 
 ```bash
@@ -81,6 +87,19 @@ When the session is exportable, run:
 ```bash
 murmurmark finish latest
 ```
+
+Do not use `--live-pipeline` for this production gate. Before any near-realtime coverage attempt,
+run:
+
+```bash
+MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
+murmurmark corpus live all
+jq '.promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json
+```
+
+`promotion_policy.status` must remain `blocked`, `batch_authoritative` must remain `true`, and
+`new_real_live_collection_allowed` must remain `false` until live-vs-batch parity coverage is
+explicitly approved.
 
 The manual gate passes when:
 

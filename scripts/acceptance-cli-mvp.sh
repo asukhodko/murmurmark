@@ -155,6 +155,7 @@ fi
 if [[ "$live_checklist" == "1" ]]; then
   cat <<'EOF'
 live_recording_gate:
+  scope: production batch-first recording, not near-realtime live-pipeline
   commands:
     - murmurmark doctor
     - murmurmark self-test
@@ -176,10 +177,24 @@ live_recording_gate:
     - export is blocked while required review/export blockers exist
     - successful finish writes an export manifest and retention manifests
     - retention planning does not delete raw audio without explicit apply plus confirmation
+
+near_realtime_shadow_gate:
+  scope: lab-only proof before any real --live-pipeline coverage
+  commands:
+    - MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
+    - murmurmark corpus live all
+    - jq '.promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json
+  pass_when:
+    - system-audio capture probe passes on the normal batch-first recording path
+    - overloaded async live segment queue disables only live-derived artifacts
+    - raw mic and remote tracks survive the live fail-open probe
+    - live corpus report keeps promotion_policy.status blocked
+    - live corpus report keeps batch_authoritative true
+    - new_real_live_collection_allowed remains false until real parity coverage is explicitly approved
 EOF
-  write_report "live_checklist" "manual" "murmurmark doctor"
+  write_report "live_checklist" "manual" "MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh"
   echo "status: manual"
-  echo "next: murmurmark doctor"
+  echo "next: MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh"
   exit 0
 fi
 

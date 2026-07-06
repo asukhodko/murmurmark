@@ -3599,10 +3599,15 @@ EOF
   echo "$acceptance_help" | grep -q -- '--report PATH'
   acceptance_live="$("$bin" acceptance --live-checklist)"
   echo "$acceptance_live" | grep -q '^live_recording_gate:$'
+  echo "$acceptance_live" | grep -q '^  scope: production batch-first recording, not near-realtime live-pipeline$'
   echo "$acceptance_live" | grep -q '^    - murmurmark inspect latest$'
   echo "$acceptance_live" | grep -q '^    - murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json$'
+  echo "$acceptance_live" | grep -q '^near_realtime_shadow_gate:$'
+  echo "$acceptance_live" | grep -q '^    - MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh$'
+  echo "$acceptance_live" | grep -q '^    - murmurmark corpus live all$'
+  echo "$acceptance_live" | grep -q '^    - live corpus report keeps promotion_policy.status blocked$'
   echo "$acceptance_live" | grep -q '^status: manual$'
-  tail -1 <<<"$acceptance_live" | grep -q '^next: murmurmark doctor$'
+  tail -1 <<<"$acceptance_live" | grep -q '^next: MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh$'
   review_help="$("$bin" review --help)"
   echo "$review_help" | grep -q 'murmurmark review lane apply LANE|first'
   echo "$review_help" | grep -q 'murmurmark review progress \[--session latest|SESSION\]'
