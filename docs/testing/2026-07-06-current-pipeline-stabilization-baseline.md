@@ -21,6 +21,8 @@ Result:
 - current-pipeline stabilization audit: passed.
 - capture health matrix: `mic-only`, `remote-only` and `mic+remote` pass the early capture gate;
   `silence` and `interrupted` block before ASR.
+- Ctrl-C recording smoke: passed in `/tmp`; `stop_reason=sigint`, `partial=false`, one mic file
+  and one remote file, `inspect` reported `health: ok`.
 - fresh short non-live recording with audible content: `sessions/2026-07-06_13-12-08`.
 - fresh silent/failed capture blocker reference: `sessions/2026-07-06_11-16-22`.
 
