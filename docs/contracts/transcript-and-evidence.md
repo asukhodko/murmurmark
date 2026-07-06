@@ -5009,10 +5009,13 @@ Schema:
   "real_gate_counts": {
     "selected_notes_readiness": {"warning": 1}
   },
-  "recommended_next": "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
+  "recommended_next": "jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
   "next_commands": [
-    "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
+    "jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
+    "jq '.real_blocker_triage[] | select(.session == \"2026-07-03_06-16-43\")' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
+    "murmurmark status sessions/2026-07-03_06-16-43",
     "jq '.parity_gates.gates[] | select(.status != \"passed\")' sessions/2026-07-03_06-16-43/derived/live/live_batch_comparison.json",
+    "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
     "murmurmark status latest  # live pipeline is quarantined; use normal record/process for real meetings"
   ]
 }
@@ -5036,8 +5039,12 @@ allow new real live collection while live capture is quarantined.
 `_debug_*` and `live-pilot-*` sessions remain diagnostic evidence only. `promotion_policy` is the
 machine-readable statement that batch remains authoritative and live evidence is historical/debug-only
 until the capture-safe redesign and real parity coverage are proven.
+When `live_quarantined` is true, `recommended_next` must point to triage/inspection of existing
+artifacts. It must not print the strict coverage command as the next action, because that can be
+misread as permission to collect new real live meetings.
 
-Strict coverage mode is optional and is intended for the current live-parity rollout:
+Strict coverage mode is optional and is currently historical/diagnostic while live capture is
+quarantined:
 
 ```bash
 murmurmark corpus live all \

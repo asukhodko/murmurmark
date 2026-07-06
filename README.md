@@ -360,6 +360,8 @@ The report also has `real_blocker_triage_summary` and a `Real Blocker Triage` Ma
 that first when deciding what to do next: it separates batch review/readiness debt, missing artifacts,
 local recall gaps, remote leakage and live draft drift. Triage is explanatory only; it does not make
 live safe for new real meetings.
+While live is quarantined, `recommended_next` and `next:` point to triage and inspection commands for
+existing artifacts. They must not suggest the strict live-coverage command as the next action.
 
 The old live-coverage target remains a diagnostic report shape, not a current action item. Do not use
 this command as an instruction to collect more live meetings while live recording is quarantined:

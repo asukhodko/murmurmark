@@ -195,6 +195,8 @@ Start with `real_blocker_triage_summary` when deciding the next action. It group
 blockers into actionable buckets such as batch review/readiness, missing artifacts, local recall gap,
 remote leakage and live draft drift. Treat it as diagnosis only: live capture stays quarantined for
 new real meetings until a capture-safe redesign exists.
+In quarantine, `recommended_next` and `next:` should lead to triage and inspection of existing live
+artifacts. They should not print the strict live-coverage command as the next action.
 
 For historical live-parity diagnostics, use the strict target form against existing live artifacts.
 It is expected to fail while live capture is quarantined and until enough real sessions have

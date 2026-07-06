@@ -861,6 +861,34 @@ def recommended_next_commands(
     gate_counts: dict[str, Counter[str]],
     gate_issues: list[dict[str, Any]],
 ) -> list[str]:
+    live_quarantine_note = "murmurmark status latest  # live pipeline is quarantined; use normal record/process for real meetings"
+    if summary.get("live_quarantined") is True:
+        commands = [
+            "jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
+            "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
+            live_quarantine_note,
+        ]
+        real_issues = [
+            issue
+            for issue in gate_issues
+            if isinstance(issue, dict) and issue.get("evidence_scope") == "real_meeting"
+        ]
+        first_issue = real_issues[0] if real_issues else {}
+        session = first_issue.get("session")
+        if isinstance(session, str) and session:
+            commands.insert(
+                1,
+                f"jq '.real_blocker_triage[] | select(.session == \"{session}\")' "
+                "sessions/_reports/live-pipeline/live_corpus_gates_report.json",
+            )
+        session_path = first_issue.get("session_path")
+        if isinstance(session_path, str) and session_path:
+            commands.insert(2, f"murmurmark status {session_path}")
+        comparison = first_issue.get("comparison")
+        if isinstance(comparison, str) and comparison:
+            commands.insert(3, f"jq '.parity_gates.gates[] | select(.status != \"passed\")' {comparison}")
+        return commands
+
     target_live = max(
         1,
         safe_int(summary.get("real_live_sessions")) + safe_int(summary.get("coverage_target_live_sessions_remaining")),
@@ -876,7 +904,6 @@ def recommended_next_commands(
         "--max-order-mismatches 0 --max-missing-me-sec 0 --max-remote-in-me-sec 0 "
         "--max-boundary-duplicates 0 --require-passing-gates --fail-on-promotion"
     )
-    live_quarantine_note = "murmurmark status latest  # live pipeline is quarantined; use normal record/process for real meetings"
     if safe_int(summary.get("real_live_sessions")) == 0:
         return [
             live_quarantine_note,
