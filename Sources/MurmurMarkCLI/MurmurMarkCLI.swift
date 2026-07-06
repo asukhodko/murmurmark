@@ -1415,18 +1415,21 @@ enum SessionListPrinter {
     private static func itemPayload(_ session: URL) -> [String: Any] {
         let readiness = readReadiness(session)
         let sessionJSON = readSessionJSON(session)
-        let metrics = readiness?["metrics"] as? [String: Any] ?? [:]
+        let blocked = readPipelineBlocked(session)
+        let metrics = blocked == nil ? readiness?["metrics"] as? [String: Any] ?? [:] : [:]
         let readinessURL = session.appendingPathComponent("derived/readiness/session_readiness.json")
         let createdAt = string(sessionJSON?["created_at"]) ?? string(readiness?["created_at"])
         let endedAt = string(sessionJSON?["ended_at"]) ?? string(readiness?["ended_at"])
-        let exportHandoff = successfulExportHandoff(session: session, readiness: readiness)
+        let exportHandoff = blocked == nil ? successfulExportHandoff(session: session, readiness: readiness) : nil
+        let gate = blocked.flatMap { string($0["blocker"]) } ?? string(readiness?["use_gate"]) ?? "missing"
+        let durationSec = double(metrics["meeting_duration_sec"]) ?? sessionDurationSec(sessionJSON)
         return [
             "session": PathDisplay.display(session),
             "session_id": session.lastPathComponent,
             "label": string(readiness?["label"]) ?? string(sessionJSON?["label"]) ?? session.lastPathComponent,
             "created_at": createdAt as Any? ?? NSNull(),
             "ended_at": endedAt as Any? ?? NSNull(),
-            "duration_sec": double(metrics["meeting_duration_sec"]) as Any? ?? NSNull(),
+            "duration_sec": durationSec as Any? ?? NSNull(),
             "review_burden_sec": double(metrics["review_burden_sec"]) as Any? ?? NSNull(),
             "review_burden_ratio": double(metrics["review_burden_ratio"]) as Any? ?? NSNull(),
             "transcript_review_burden_sec": double(metrics["transcript_review_burden_sec"]) as Any? ?? NSNull(),
@@ -1434,9 +1437,9 @@ enum SessionListPrinter {
             "readiness_exists": readiness != nil,
             "readiness_path": PathDisplay.display(readinessURL),
             "status": status(for: session, readiness: readiness),
-            "gate": string(readiness?["use_gate"]) ?? "missing",
-            "profile": string(readiness?["selected_profile"]) ?? "unknown",
-            "verdict": string(readiness?["verdict"]) ?? "unknown",
+            "gate": gate,
+            "profile": blocked == nil ? string(readiness?["selected_profile"]) ?? "unknown" : "unknown",
+            "verdict": blocked == nil ? string(readiness?["verdict"]) ?? "unknown" : "capture_failed",
             "export_manifest": exportHandoff.map { PathDisplay.display($0.manifest) as Any } ?? NSNull(),
             "next": nextCommand(for: session, readiness: readiness),
         ]
@@ -1466,7 +1469,30 @@ enum SessionListPrinter {
         return try? JSONFiles.object(url)
     }
 
+    private static func readPipelineBlocked(_ session: URL) -> [String: Any]? {
+        let url = session.appendingPathComponent("derived/pipeline-run/pipeline_run_report.json")
+        guard FileManager.default.fileExists(atPath: url.path),
+              let payload = try? JSONFiles.object(url),
+              string(payload["status"]) == "blocked"
+        else {
+            return nil
+        }
+        let blocker = string(payload["blocker"]) ?? ""
+        guard blocker == "silent_capture" || blocker == "interrupted_capture" || blocker == "sparse_capture" else {
+            return nil
+        }
+        return payload
+    }
+
+    private static func sessionDurationSec(_ sessionJSON: [String: Any]?) -> Double? {
+        guard let health = sessionJSON?["health"] as? [String: Any] else { return nil }
+        return double(health["actual_duration_sec"])
+    }
+
     private static func status(for session: URL, readiness: [String: Any]?) -> String {
+        if readPipelineBlocked(session) != nil {
+            return "blocked"
+        }
         if CaptureHealthState.partialInfo(session: session) != nil {
             return "partial_capture"
         }
@@ -1493,6 +1519,16 @@ enum SessionListPrinter {
     }
 
     private static func nextCommand(for session: URL, readiness: [String: Any]?) -> String {
+        if let blocked = readPipelineBlocked(session) {
+            if let next = string(blocked["recommended_next"]), !next.isEmpty {
+                return next
+            }
+            if let commands = blocked["next_commands"] as? [[String: Any]],
+               let command = commands.compactMap({ string($0["command"]) }).first {
+                return command
+            }
+            return "murmurmark inspect \(PathDisplay.display(session))"
+        }
         if CaptureHealthState.partialInfo(session: session) != nil {
             return CaptureHealthState.preferredPartialNext(session: session)
         }

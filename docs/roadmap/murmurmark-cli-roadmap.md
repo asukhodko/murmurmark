@@ -67,8 +67,8 @@ boring and repeatable:
 4. add ASR/window-level cache and resume, with stable metadata hashes;
 5. prove normal non-live capture/process/status/next/finish on fresh sessions;
 6. prove silent/partial/interrupted captures block before ASR and never look successful;
-7. only after that, collect real live-pipeline sessions and compare live chunks/drafts with batch
-   output;
+7. only after that, redesign live segment production so it cannot affect raw capture; real
+   live-pipeline coverage returns only after that redesign is proven safe;
 8. reuse live/near-realtime chunks only when strict metadata and corpus parity gates pass;
 9. only then promote audio candidates or heavier validators.
 
