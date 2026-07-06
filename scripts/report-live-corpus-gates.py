@@ -752,6 +752,8 @@ def triage_severity(statuses: list[str]) -> str:
 
 def build_real_blocker_triage(real_live_rows: list[dict[str, Any]]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    real_gate_issue_keys: set[tuple[str, str, str, str]] = set()
+    categorized_gate_issue_keys: set[tuple[str, str, str, str]] = set()
     for row in real_live_rows:
         session = str(row.get("session") or "")
         if not session:
@@ -762,7 +764,13 @@ def build_real_blocker_triage(real_live_rows: list[dict[str, Any]]) -> tuple[dic
             if not isinstance(gate, dict):
                 continue
             gate_name = str(gate.get("name") or "unknown")
+            gate_status = str(gate.get("status") or "unknown")
+            gate_reason = str(gate.get("reason") or "")
+            gate_key = (session, gate_name, gate_status, gate_reason)
+            real_gate_issue_keys.add(gate_key)
             categories = triage_categories_for_gate(row, gate)
+            if categories:
+                categorized_gate_issue_keys.add(gate_key)
             for category in categories:
                 item = grouped.setdefault(
                     (session, category),
@@ -838,6 +846,9 @@ def build_real_blocker_triage(real_live_rows: list[dict[str, Any]]) -> tuple[dic
         "session_count": len({str(item.get("session") or "") for item in items}),
         "by_category": by_category,
         "by_severity": dict(by_severity),
+        "real_gate_issue_count": len(real_gate_issue_keys),
+        "categorized_gate_issue_count": len(categorized_gate_issue_keys),
+        "uncategorized_gate_issue_count": len(real_gate_issue_keys - categorized_gate_issue_keys),
         "promotion_scope": "real_meeting",
         "new_real_live_collection_allowed": False,
         "note": "triage is derived only from non-passing real live parity gates; diagnostic sessions are excluded",

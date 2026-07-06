@@ -4961,6 +4961,9 @@ Schema:
     "session_count": 2,
     "promotion_scope": "real_meeting",
     "new_real_live_collection_allowed": false,
+    "real_gate_issue_count": 2,
+    "categorized_gate_issue_count": 2,
+    "uncategorized_gate_issue_count": 0,
     "by_category": {
       "batch_review_required": {
         "title": "Batch review/readiness required",
@@ -5064,6 +5067,12 @@ being evaluated as a speed-up candidate", not "live is now authoritative".
   contains both `Me` and `Colleagues` evidence in live and batch outputs;
 - `live_cache_parity.passing_coverage_started` is a rollout warning until at least one meaningful
   comparison has every live parity gate passed;
+- `live_cache_parity.real_blocker_triage_present` requires machine-readable triage whenever real
+  live non-passing gates exist;
+- `live_cache_parity.real_blocker_triage_coverage` requires every real live gate issue to be
+  categorized and keeps `uncategorized_gate_issue_count` at zero;
+- `live_cache_parity.real_blocker_triage_safe_scope` requires triage to stay scoped to
+  `real_meeting`, use known categories and keep `new_real_live_collection_allowed: false`;
 - `live_cache_parity_status`, `live_cache_parity_live_sessions`,
   `live_cache_parity_compared_sessions`, `live_cache_parity_meaningful_compared_sessions`,
   `live_cache_parity_passing_compared_sessions` and `live_cache_parity_promotion_allowed_sessions`

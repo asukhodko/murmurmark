@@ -794,6 +794,21 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     live_parity_dimensions = live_parity_dimensions if isinstance(live_parity_dimensions, dict) else {}
     real_live_parity_dimensions = live_corpus.get("real_parity_dimensions") if isinstance(live_corpus, dict) else {}
     real_live_parity_dimensions = real_live_parity_dimensions if isinstance(real_live_parity_dimensions, dict) else {}
+    live_gate_issues = live_corpus.get("gate_issues") if isinstance(live_corpus, dict) else []
+    live_gate_issues = live_gate_issues if isinstance(live_gate_issues, list) else []
+    real_live_gate_issues = [
+        item
+        for item in live_gate_issues
+        if isinstance(item, dict) and item.get("evidence_scope") == "real_meeting"
+    ]
+    live_triage_summary = live_corpus.get("real_blocker_triage_summary") if isinstance(live_corpus, dict) else {}
+    live_triage_summary = live_triage_summary if isinstance(live_triage_summary, dict) else {}
+    live_triage_items = live_corpus.get("real_blocker_triage") if isinstance(live_corpus, dict) else []
+    live_triage_items = live_triage_items if isinstance(live_triage_items, list) else []
+    live_triage_total = safe_int(live_triage_summary.get("total_items"))
+    live_triage_uncategorized = safe_int(live_triage_summary.get("uncategorized_gate_issue_count"))
+    live_triage_categorized = safe_int(live_triage_summary.get("categorized_gate_issue_count"))
+    live_triage_real_gate_issues = safe_int(live_triage_summary.get("real_gate_issue_count"))
     live_target_status = str(live_summary.get("target_status") or "")
     live_sessions = safe_int(live_summary.get("live_sessions"))
     real_live_sessions = safe_int(live_summary.get("real_live_sessions"))
@@ -824,6 +839,22 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "chunk_boundary_risks",
         "draft_text_recall",
         "required_artifacts",
+    }
+    required_live_triage_categories = {
+        "batch_review_required",
+        "live_local_recall_gap",
+        "live_remote_leakage",
+        "live_draft_text_drift",
+        "missing_batch_artifacts",
+        "missing_live_asr_artifacts",
+        "chunk_boundary_risk",
+        "order_risk",
+        "other",
+    }
+    live_triage_categories = {
+        str(item.get("category") or "")
+        for item in live_triage_items
+        if isinstance(item, dict) and item.get("category")
     }
     check(
         checks,
@@ -896,6 +927,59 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "real_parity_dimensions": real_live_parity_dimensions,
             "all_parity_dimensions": live_parity_dimensions,
         },
+    )
+    check(
+        checks,
+        "live_cache_parity.real_blocker_triage_present",
+        live_corpus is None
+        or not real_live_gate_issues
+        or (live_triage_total > 0 and bool(live_triage_items)),
+        observed={
+            "real_gate_issues": len(real_live_gate_issues),
+            "triage_items": live_triage_total,
+            "triage_list_items": len(live_triage_items),
+        },
+        threshold="triage exists when real live blockers exist",
+        message="real live non-passing gates have machine-readable blocker triage",
+        details=live_triage_summary,
+    )
+    check(
+        checks,
+        "live_cache_parity.real_blocker_triage_coverage",
+        live_corpus is None
+        or not real_live_gate_issues
+        or (
+            live_triage_uncategorized == 0
+            and live_triage_categorized >= len(real_live_gate_issues)
+            and live_triage_real_gate_issues == len(real_live_gate_issues)
+        ),
+        observed={
+            "real_gate_issues": len(real_live_gate_issues),
+            "reported_real_gate_issues": live_triage_real_gate_issues,
+            "categorized": live_triage_categorized,
+            "uncategorized": live_triage_uncategorized,
+        },
+        threshold="all real live gate issues categorized",
+        message="real live blocker triage covers every real non-passing gate issue",
+        details=live_triage_summary,
+    )
+    check(
+        checks,
+        "live_cache_parity.real_blocker_triage_safe_scope",
+        live_corpus is None
+        or (
+            live_triage_summary.get("promotion_scope") == "real_meeting"
+            and live_triage_summary.get("new_real_live_collection_allowed") is False
+            and live_triage_categories.issubset(required_live_triage_categories)
+        ),
+        observed={
+            "promotion_scope": live_triage_summary.get("promotion_scope"),
+            "new_real_live_collection_allowed": live_triage_summary.get("new_real_live_collection_allowed"),
+            "categories": sorted(live_triage_categories),
+        },
+        threshold="promotion_scope=real_meeting, new_real_live_collection_allowed=false, known categories only",
+        message="real live blocker triage stays scoped to promotion evidence and does not allow new live collection",
+        details=live_triage_summary,
     )
     check(
         checks,
