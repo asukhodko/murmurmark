@@ -3605,7 +3605,7 @@ EOF
   echo "$acceptance_live" | grep -q '^near_realtime_shadow_gate:$'
   echo "$acceptance_live" | grep -q '^    - MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh$'
   echo "$acceptance_live" | grep -q '^    - scripts/run-live-parity-pilot.sh --duration 45$'
-  echo "$acceptance_live" | grep -q '^    - murmurmark corpus live all$'
+  echo "$acceptance_live" | grep -q '^    - murmurmark corpus live all --refresh$'
   echo "$acceptance_live" | grep -q '^    - pilot runner writes derived/live/live_parity_pilot_report.json$'
   echo "$acceptance_live" | grep -q '^    - live corpus report keeps promotion_policy.status blocked$'
   echo "$acceptance_live" | grep -q '^status: manual$'
