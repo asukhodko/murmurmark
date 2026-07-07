@@ -537,7 +537,8 @@ nodes:
       inline live segment writer может starve ScreenCaptureKit audio delivery и оставить raw tracks
       почти пустыми. Production route остаётся batch-first: raw CAF/session package и обычный
       `murmurmark process` остаются source of truth. Первый async bounded segment handoff реализован;
-      ближайшая работа по live — доказать capture-safety и только потом возвращаться к real coverage.
+      full fail-open proof пройден; ближайшая работа по live — controlled non-critical parity
+      pilots, пока promotion остаётся blocked и batch transcript authoritative.
 
   realtime-segment-writer:
     title: "Capture-safe segment writer"
@@ -550,11 +551,10 @@ nodes:
       `record --live-pipeline` остаётся отключённым по умолчанию. Первый capture-safe слой теперь
       есть: callback пишет durable raw CAF, затем делает non-blocking enqueue в async bounded live
       segment queue. При backlog/error отключаются только live-derived artifacts. Следующий шаг —
-      лабораторно доказать, что raw `audio/mic` и `audio/remote` остаются корректными при нормальной
-      работе, перегрузе и отказе live-ветки. `scripts/check-capture-regressions.sh` пишет
+      controlled non-critical real live parity coverage после полного proof. `scripts/check-capture-regressions.sh` пишет
       `sessions/_reports/capture-regression/capture_regression_check.json`: `static_only` фиксирует
-      статические и fixture-проверки, а `full_fail_open_proof_passed` требуется перед любым возвратом
-      к сбору real live coverage. Для пилотного контура добавлен `scripts/run-live-parity-pilot.sh`:
+      статические и fixture-проверки, а `full_fail_open_proof_passed` требуется перед любым controlled
+      live pilot. Для пилотного контура добавлен `scripts/run-live-parity-pilot.sh`:
       он запускает safety probe, lab-only live recording, batch process, live-vs-batch compare и
       corpus live report, сохраняя live promotion blocked.
 
@@ -593,7 +593,7 @@ nodes:
     notes: |
       После stop batch-grade reconcile должен запускать обычный `murmurmark process`; live chunks
       могут стать только optional cache. Текущий bridge остаётся диагностическим. До capture-safe
-      redesign нельзя собирать новые real live sessions и нельзя полагаться на live cache.
+      proof нельзя собирать controlled real live pilots и нельзя полагаться на live cache.
 
   realtime-corpus-gates:
     title: "Realtime vs batch corpus gates"
@@ -612,8 +612,8 @@ nodes:
       shorten waiting time, but cannot become default if it grows mandatory review queue, worsens
       selected notes/readiness, or fails capture safety. `objective_audit` в live corpus report
       должен оставаться компактной машинной сводкой: какие части цели доказаны, какие dimensions
-      блокируют promotion, какой `next_focus` даёт максимальный прогресс, и почему new real live
-      collection всё ещё запрещён.
+      блокируют promotion, какой `next_focus` даёт максимальный прогресс, почему broad real live
+      collection всё ещё запрещён, и когда controlled pilot collection разрешён после full proof.
 
   realtime-live-parity-coverage-v1:
     title: "Near-Realtime Capture-Safe Redesign v1"
@@ -623,11 +623,11 @@ nodes:
     status: later
     effort: 6
     notes: |
-      Ближайшая крупная live-цель теперь не coverage, а redesign. Нужно доказать, что live branch
-      физически не может портить raw `mic`/`remote`: callback path не делает тяжёлых операций,
-      segment writer имеет bounded queue/backpressure и fail-open отключение live без остановки
-      capture, а normal `record --target-bundle system` остаётся независимым. Только после этого
-      можно снова включать real live-pipeline coverage на некритичных встречах. Live cache остаётся
+      Ближайшая крупная live-цель теперь — coverage на controlled non-critical pilots. Capture-safe
+      proof уже показывает, что live branch не должен портить raw `mic`/`remote`: callback path не
+      делает тяжёлых операций, segment writer имеет bounded queue/backpressure и fail-open
+      отключение live без остановки capture, а normal `record --target-bundle system` остаётся
+      независимым. Live cache остаётся
       shadow-only: promotion allowed sessions must stay `0` until gates cover capture safety, order
       risk, local recall, remote leakage, review burden, selected notes readiness, draft text recall
       and chunk-boundary duplicates/missing speech.

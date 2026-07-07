@@ -1006,12 +1006,14 @@ jq -e '
   and .summary.live_quarantined == true
   and .summary.live_evidence_mode == "historical_debug_only"
   and .summary.new_real_live_collection_allowed == false
+  and .summary.controlled_real_live_pilot_allowed == true
   and .summary.target_status == "shadow_locked_needs_more_live_coverage"
   and .coverage_target.status == "needs_more_live_coverage"
   and .coverage_target.live_sessions_remaining == 2
   and .coverage_target.passing_compared_sessions_remaining == 2
-  and .recommended_next == "jq '\''.real_blocker_triage_summary'\'' sessions/_reports/live-pipeline/live_corpus_gates_report.json"
+  and (.recommended_next | startswith("MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 murmurmark record"))
   and ([.next_commands[] | select(contains("--min-live-sessions"))] | length) == 0
+  and ([.next_commands[] | select(contains("murmurmark corpus live all --refresh"))] | length) == 1
   and .real_blocker_triage_summary.total_items == 0
   and .real_blocker_triage_summary.real_gate_issue_count == 0
   and .real_blocker_triage_summary.uncategorized_gate_issue_count == 0
@@ -1022,15 +1024,18 @@ jq -e '
   and .promotion_policy.batch_authoritative == true
   and .promotion_policy.live_quarantined == true
   and .promotion_policy.new_real_live_collection_allowed == false
+  and .promotion_policy.controlled_real_live_pilot_allowed == true
   and .objective_audit.overall_status == "incomplete_coverage"
   and .objective_audit.batch_authoritative == true
   and .objective_audit.ready_for_live_promotion == false
   and .objective_audit.new_real_live_collection_allowed == false
+  and .objective_audit.controlled_real_live_pilot_allowed == true
   and .objective_audit.capture_safe_candidate_scope.sessions == 1
   and .objective_audit.capture_safe_candidate_scope.passing_sessions == 1
   and .objective_audit.capture_safe_candidate_scope.blocking_dimensions == []
   and .objective_audit.capture_safe_candidate_scope.next_focus == null
-  and .objective_audit.next_focus.action_id == "collect_controlled_live_parity_coverage"
+  and .objective_audit.capture_safe_candidate_scope.controlled_real_live_pilot_allowed == true
+  and .objective_audit.next_focus.action_id == "collect_controlled_capture_safe_live_pilot"
   and ((.promotion_policy.required_dimensions | sort) == [
     "capture_safety",
     "chunk_boundary_risks",
@@ -1071,12 +1076,15 @@ jq -e '
   .summary.strict_coverage_status == "passed"
   and .summary.live_quarantined == true
   and .summary.new_real_live_collection_allowed == false
+  and .summary.controlled_real_live_pilot_allowed == true
   and .promotion_policy.status == "blocked"
   and .promotion_policy.batch_authoritative == true
+  and .promotion_policy.controlled_real_live_pilot_allowed == true
   and .strict_coverage.requested == true
   and (.strict_coverage.failures | length) == 0
-  and .recommended_next == "jq '\''.real_blocker_triage_summary'\'' sessions/_reports/live-pipeline/live_corpus_gates_report.json"
+  and (.recommended_next | startswith("MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 murmurmark record"))
   and ([.next_commands[] | select(contains("--min-live-sessions"))] | length) == 0
+  and ([.next_commands[] | select(contains("murmurmark corpus live all --refresh"))] | length) == 1
 ' "$workdir/live-report-strict/live_corpus_gates_report.json" >/dev/null
 
 "$repo_root/scripts/smoke-process-chunk-resume.sh" >/dev/null

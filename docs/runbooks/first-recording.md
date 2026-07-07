@@ -195,9 +195,10 @@ suppression with possible unique-word loss; only unresolved boundary suppression
 chunk-boundary gate. Even so,
 `promotion_allowed` must remain `false` until real
 live-session coverage is broad enough and the corpus gates are intentionally promoted. While live is
-quarantined, the report is historical/debug evidence only: do not start new real live recordings from
-this command. The command prints `recommended_next` and `next:` lines; use them to inspect the
-current blocker or return to the normal non-live `record -> process` path. The Markdown report's
+quarantined, the report is evidence only. The command prints `recommended_next` and `next:` lines;
+follow them only when they point to controlled pilot collection after full fail-open proof, or use
+them to inspect the current blocker and return to the normal non-live `record -> process` path.
+The Markdown report's
 `Gate Issues` section lists the exact non-passing gates by session. `real_parity_dimensions` is the
 promotion scope and counts only date-named real meeting sessions; diagnostic `_debug_*` and
 `live-pilot-*` sessions stay visible for failure analysis but cannot satisfy real coverage.
@@ -206,22 +207,26 @@ After the full capture fail-open proof passes, also check `capture_safe_candidat
 meaningful, compared sessions whose capture safety and required artifacts already passed. It helps
 separate remaining live parity blockers from older broken-capture evidence. It is still shadow-only:
 `new_real_live_collection_allowed` must remain false until live promotion is explicitly approved.
-Use its `next_focus` to see the next blocker for the capture-safe candidate slice.
+If the full proof has passed, `controlled_real_live_pilot_allowed` may be true. That means only a
+non-critical live-pipeline pilot may be recorded to gather parity evidence, followed by normal batch
+processing and `murmurmark corpus live all --refresh`. Use `next_focus` to see whether the next step
+is a candidate blocker or a controlled pilot.
 `Parity Dimensions` keeps the full mixed audit view by capture safety, order risk, local recall,
 remote leakage, review burden, notes readiness and chunk-boundary risk. `draft_text_recall` is
 separate from `required_artifacts`: present live files are not enough if live draft text no longer
 matches the authoritative batch transcript.
 Start with `real_blocker_triage_summary` when deciding the next action. It groups real-session
 blockers into actionable buckets such as batch review/readiness, missing artifacts, capture safety
-risk, local recall gap, remote leakage and live draft drift. Treat it as diagnosis only: live capture
-stays quarantined for new real meetings until a capture-safe redesign exists.
+risk, local recall gap, remote leakage and live draft drift. Treat it as diagnosis only: it does not
+permit promotion or normal production live use.
 `objective_audit` is the compact checklist for the active near-realtime goal: real live sessions,
 live-vs-batch comparison, required dimensions, batch-authoritative policy and promotion/collection
 blocks. During quarantine it should keep `ready_for_live_promotion` and
-`new_real_live_collection_allowed` false.
+`new_real_live_collection_allowed` false. `controlled_real_live_pilot_allowed` is a separate
+evidence-collection flag and does not make live output authoritative.
 It also checks `sessions/_reports/capture-regression/capture_regression_check.json`. A static
 capture regression report proves the code shape and fixtures, but not live promotion safety. Before
-any new real live collection is allowed, run the full local proof:
+any controlled real live pilot is allowed, run the full local proof:
 
 ```bash
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh

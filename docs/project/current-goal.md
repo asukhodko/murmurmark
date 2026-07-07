@@ -32,15 +32,16 @@ Current state:
 - real passing comparisons: `1`;
 - promotion decision: `shadow_only_do_not_promote`;
 - new real live collection allowed: `false`;
+- controlled real live pilot allowed: `true` after full fail-open proof;
 - current blocking dimensions: `capture_safety`, `local_recall`, `remote_leakage`,
   `review_burden`, `selected_notes_readiness`, `draft_text_recall`, `required_artifacts`.
 
 Safety constraint:
 
-- do not use `--live-pipeline` for real meetings while live is quarantined;
+- do not use `--live-pipeline` as the normal production recording path while live is quarantined;
 - use existing live artifacts and lab diagnostics to improve reports and gates;
-- new real live coverage can resume only after the capture-safe redesign proves that live work
-  cannot corrupt or starve raw `mic`/`remote` capture.
+- controlled non-critical real live pilots can resume after full fail-open proof, but only as
+  evidence collection; batch transcript remains authoritative and promotion remains blocked.
 
 Definition of done:
 
@@ -53,6 +54,8 @@ Definition of done:
 - strict gates fail while any required dimension is warning/failed/blocked/not evaluated;
 - `promotion_policy` keeps `batch_authoritative: true`, `live_quarantined: true`,
   `new_real_live_collection_allowed: false` and `promotion_allowed_sessions: 0`;
+- after full fail-open proof, `controlled_real_live_pilot_allowed: true` may allow only
+  non-critical evidence collection; it does not allow promotion or make live output authoritative;
 - README/runbooks/contracts/roadmap make clear that live is quarantined and that corpus reports are
   evidence, not a command to collect new unsafe live meetings.
 
@@ -236,10 +239,10 @@ Completion evidence:
   `coverage_ratio: 0.28`, `chunks_completed: 146/146`;
 - `check-corpus-gates.py --no-fail` now reports `asr_chunk_cache_status: passed` with
   `asr_chunk_cache_passed_sessions: 14` and `asr_chunk_cache_coverage_ratio: 0.28`;
-- `check-corpus-gates.py --no-fail` still reports live-cache parity state, but live capture is
-  quarantined. Diagnostic live recordings showed that inline segment writing can starve raw
-  ScreenCaptureKit audio delivery. The first async bounded segment queue is implemented, but the
-  target coverage gate remains red until it is proven not to affect raw capture;
+- `check-corpus-gates.py --no-fail` still reports live-cache parity state, with promotion blocked.
+  Diagnostic live recordings showed that inline segment writing can starve raw ScreenCaptureKit
+  audio delivery. The async bounded segment queue now has full fail-open proof, but the target
+  coverage gate remains red until enough controlled non-critical live-vs-batch pilots pass;
 - ASR chunk-cache corpus report now separates the next coverage work: `22` sessions have old raw
   ASR without chunk reports, and `14` sessions have no raw ASR;
 - legacy top-level raw ASR caches without `raw/chunks/<track>/chunk_cache_report.json` no longer

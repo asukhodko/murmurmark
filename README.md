@@ -66,7 +66,8 @@ write validated chunk reports, interrupted `process` runs can resume from verifi
 corpus gates treat failed chunk rebuilds as hard failures. Batch processing remains authoritative.
 The live/near-realtime branch is still quarantined for real meetings. Its segment writer now runs
 behind an async bounded queue instead of doing derived live writes in the ScreenCaptureKit callback,
-but live promotion still requires real parity evidence. The latest audio milestone,
+and the full fail-open proof allows controlled non-critical live pilots for parity evidence, but
+live promotion still requires broader passing real coverage. The latest audio milestone,
 ASR-Positive Echo Candidate Hardening v1, remains important but shadow-only:
 `coverage_v2_remote_gate_local_fir` improved `5/6` candidate-corpus sessions without local-recall
 regression, yet `local_fir` is still the default ASR input until promotion gates are defined and
@@ -164,8 +165,10 @@ covers `14/50` sessions with `0` failed chunk rebuilds and `146/146` completed A
 Live/near-realtime cache promotion is gated separately and is currently quarantined. Existing
 diagnostic live sessions are negative evidence for the old inline writer: it could starve
 ScreenCaptureKit audio delivery and leave raw capture mostly silent. The new async bounded live
-queue still needs capture-safety and parity proof. Do not collect real meetings with
-`--live-pipeline` until those gates pass.
+queue has a full fail-open proof, so controlled non-critical live pilots may collect parity
+evidence when `murmurmark corpus live all --refresh` says
+`controlled_real_live_pilot_allowed: true`. Do not use `--live-pipeline` as the normal production
+recording path until parity gates pass and live promotion is explicitly approved.
 
 ## What Is Still Out Of Scope
 
@@ -288,10 +291,11 @@ MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 \
   murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5
 ```
 
-Do not use `--live-pipeline` for real meetings. It is still quarantined: the first capture-safe
-segment handoff is implemented, but the branch has not yet passed real live-vs-batch parity gates.
-The supported production path is `murmurmark record --target-bundle system` followed by
-`murmurmark process latest`.
+Do not use `--live-pipeline` as the normal production recording path. It is still quarantined:
+the capture-safe segment handoff is implemented, but the branch has not yet passed real
+live-vs-batch parity gates. Use it only for controlled non-critical pilots when the corpus report
+says `controlled_real_live_pilot_allowed: true`. The supported production path is
+`murmurmark record --target-bundle system` followed by `murmurmark process latest`.
 
 This mode writes closed audio segments and a live draft under `derived/live/` while recording.
 The callback path writes durable raw CAF first and then does a non-blocking enqueue into an async,
@@ -369,18 +373,22 @@ When the capture fail-open proof has passed, the same report also writes
 `capture_safe_candidate_scope` and `real_capture_safe_candidate_parity_dimensions`. This narrower
 view counts only real live sessions that were meaningfully compared, passed capture safety, and have
 the required live/batch artifacts. It is useful for seeing the remaining parity blockers without
-mixing in old broken-capture evidence. It still does not permit promotion or new real live
-collection; batch remains authoritative. Its `next_focus` points to the next candidate-level parity
-blocker after capture safety and required artifacts have passed.
+mixing in old broken-capture evidence. It still does not permit promotion or normal production
+live use; batch remains authoritative. After the full fail-open proof passes, the report may set
+`controlled_real_live_pilot_allowed: true`, which means a non-critical live-pipeline pilot can be
+recorded only to gather parity evidence. `new_real_live_collection_allowed` remains false until
+promotion is explicitly approved. Its `next_focus` points either to the next candidate-level parity
+blocker or to the next controlled pilot when the candidate slice is clean but coverage is incomplete.
 The report also has `real_blocker_triage_summary` and a `Real Blocker Triage` Markdown section. Use
 that first when deciding what to do next: it separates batch review/readiness debt, missing artifacts,
 capture safety risks, local recall gaps, remote leakage and live draft drift. Triage is explanatory
-only; it does not make live safe for new real meetings.
+only; it does not permit promotion or normal production live use.
 For the active near-realtime goal, `objective_audit` is the quickest machine-readable summary: it
 states whether real live sessions exist, whether they were compared with batch, whether required
 dimensions are covered, which dimensions still block promotion, and whether batch remains
 authoritative. Its safe current state is `ready_for_live_promotion: false` and
-`new_real_live_collection_allowed: false`.
+`new_real_live_collection_allowed: false`; `controlled_real_live_pilot_allowed` is a narrower
+evidence-collection flag and must not be read as promotion.
 It also reads the capture regression proof at
 `sessions/_reports/capture-regression/capture_regression_check.json`. A normal static run of
 `scripts/check-capture-regressions.sh` is useful, but it is only `static_only`; real live collection
@@ -393,9 +401,11 @@ MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
 Until that report says `capture_safe_proof.status == "full_fail_open_proof_passed"`, live stays
 quarantined even if old live-vs-batch comparisons look clean. If the full proof cannot run in the
 current desktop session, the report should say `status: failed` instead of leaving stale proof data.
-When `capture_safety` is among blocking dimensions, `objective_audit.next_focus` must point to
-`capture_safe_redesign_before_more_live_coverage`; broader live coverage is not the next step until
-that proof exists.
+When `capture_safety` is among blocking dimensions and the full proof is missing,
+`objective_audit.next_focus` must point to `capture_safe_redesign_before_more_live_coverage`.
+After the proof passes and the capture-safe candidate slice has no blockers, `next_focus` may point
+to `collect_controlled_capture_safe_live_pilot`; this still keeps promotion blocked and batch
+authoritative.
 While live is quarantined, `recommended_next` and `next:` point to triage and inspection commands for
 existing artifacts. They must not suggest the strict live-coverage command as the next action.
 
@@ -841,9 +851,9 @@ Current focus:
 - keep live-ASR cache reuse behind strict eligibility gates; `not_eligible` is expected until
   live chunk geometry, audio prep, language and model match batch ASR expectations, and materialized
   live chunks must still pass the raw chunk rebuild check;
-- use `murmurmark corpus live` only to inspect historical/debug live evidence while live is
-  quarantined; the next live milestone is a capture-safety proof for the async segment queue, not
-  collecting more real live sessions;
+- use `murmurmark corpus live all --refresh` to inspect historical/debug live evidence and controlled
+  pilot readiness; after full fail-open proof, the next live milestone is two more controlled
+  non-critical passing comparisons, not production promotion;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 
@@ -857,8 +867,8 @@ Active goal and near-term candidates:
 3. Completed: Chunked/Resumable Processing v1: ASR work is chunk-addressed, cacheable,
    interrupt-safe and guarded by rebuild/corpus gates. The remaining work is broader corpus
    coverage, not the v1 mechanism.
-4. Later: Near-Realtime Capture-Safe Redesign v1, after the stable production path is boring and
-   repeatable again. Only after that may live parity coverage return.
+4. Active live follow-up: Near-Realtime Live Parity Coverage v1. Capture-safe redesign proof exists;
+   next is controlled non-critical pilot coverage while batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

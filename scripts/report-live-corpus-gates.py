@@ -538,6 +538,20 @@ def blocking_dimensions_from_counts(dimension_counts: dict[str, Counter[str]]) -
     ]
 
 
+def capture_safe_proof_status(capture_regression_check: dict[str, Any] | None) -> str:
+    proof = (
+        capture_regression_check.get("capture_safe_proof")
+        if isinstance(capture_regression_check, dict)
+        and isinstance(capture_regression_check.get("capture_safe_proof"), dict)
+        else {}
+    )
+    return str(proof.get("status") or "missing")
+
+
+def controlled_real_live_pilot_allowed(capture_regression_check: dict[str, Any] | None) -> bool:
+    return capture_safe_proof_status(capture_regression_check) == "full_fail_open_proof_passed"
+
+
 def next_focus_for_dimensions(dimensions: list[str]) -> dict[str, Any] | None:
     if not dimensions:
         return None
@@ -587,6 +601,7 @@ def build_objective_audit(
     coverage_target: dict[str, Any],
     real_dimensions: dict[str, dict[str, Any]],
     promotion_policy: dict[str, Any],
+    candidate_scope: dict[str, Any],
     capture_regression_check: dict[str, Any] | None,
 ) -> dict[str, Any]:
     required_dimensions = set(PARITY_DIMENSIONS.keys())
@@ -650,12 +665,7 @@ def build_objective_audit(
         "score": 0,
         "priority": 999,
     }
-    capture_proof = (
-        capture_regression_check.get("capture_safe_proof")
-        if isinstance(capture_regression_check, dict) and isinstance(capture_regression_check.get("capture_safe_proof"), dict)
-        else {}
-    )
-    capture_proof_status = str(capture_proof.get("status") or "missing")
+    capture_proof_status = capture_safe_proof_status(capture_regression_check)
     capture_proof_row_status = (
         "passed"
         if capture_proof_status == "full_fail_open_proof_passed"
@@ -689,6 +699,32 @@ def build_objective_audit(
             }
         next_focus = {
             **next_focus,
+            "capture_regression_check": {
+                "status": capture_regression_check.get("status") if isinstance(capture_regression_check, dict) else None,
+                "mode": capture_regression_check.get("mode") if isinstance(capture_regression_check, dict) else None,
+                "capture_safe_proof_status": capture_proof_status,
+            },
+        }
+    if (
+        promotion_policy.get("controlled_real_live_pilot_allowed") is True
+        and coverage_target.get("status") != "passed"
+        and not (candidate_scope.get("blocking_dimensions") if isinstance(candidate_scope, dict) else [])
+    ):
+        next_focus = {
+            "dimension": "controlled_live_pilot_coverage",
+            "action_id": "collect_controlled_capture_safe_live_pilot",
+            "title": "Collect controlled capture-safe live parity pilots",
+            "recommended_next": (
+                "run a non-critical live-pipeline pilot only after the full fail-open proof; keep batch "
+                "authoritative and rerun `murmurmark corpus live all --refresh` after processing"
+            ),
+            "non_passing": {
+                "passing_compared_sessions_remaining": coverage_target.get("passing_compared_sessions_remaining", 0)
+            },
+            "issue_sessions": [],
+            "issue_session_count": 0,
+            "score": 10,
+            "priority": 2,
             "capture_regression_check": {
                 "status": capture_regression_check.get("status") if isinstance(capture_regression_check, dict) else None,
                 "mode": capture_regression_check.get("mode") if isinstance(capture_regression_check, dict) else None,
@@ -772,6 +808,16 @@ def build_objective_audit(
             "New real live-pipeline collection remains disabled while live is quarantined",
             {"new_real_live_collection_allowed": promotion_policy.get("new_real_live_collection_allowed")},
         ),
+        objective_audit_row(
+            "controlled_real_live_pilot_collection",
+            "passed" if promotion_policy.get("controlled_real_live_pilot_allowed") is True else "incomplete",
+            "Controlled real live-pipeline pilot collection is allowed only after full fail-open proof",
+            {
+                "controlled_real_live_pilot_allowed": promotion_policy.get("controlled_real_live_pilot_allowed"),
+                "capture_safe_proof_status": capture_proof_status,
+                "scope": "non-critical pilot evidence only; promotion remains blocked and batch authoritative",
+            },
+        ),
     ]
     statuses = {str(row.get("status")) for row in rows}
     if "blocked" in statuses:
@@ -787,6 +833,7 @@ def build_objective_audit(
         "ready_for_live_promotion": False,
         "batch_authoritative": promotion_policy.get("batch_authoritative") is True,
         "new_real_live_collection_allowed": promotion_policy.get("new_real_live_collection_allowed") is True,
+        "controlled_real_live_pilot_allowed": promotion_policy.get("controlled_real_live_pilot_allowed") is True,
         "blocking_dimensions": blocking_dimensions,
         "next_focus": next_focus,
         "next_actions": next_actions,
@@ -1038,10 +1085,20 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         promotion_blocking_dimensions = list(PARITY_DIMENSIONS.keys())
     summary["promotion_blocking_dimensions"] = promotion_blocking_dimensions
     summary["promotion_blocking_dimension_count"] = len(promotion_blocking_dimensions)
+    capture_regression_check_path = root / "_reports/capture-regression/capture_regression_check.json"
+    capture_regression_check = read_json(capture_regression_check_path)
+    pilot_allowed = controlled_real_live_pilot_allowed(capture_regression_check)
+    pilot_reason = (
+        "full fail-open proof passed; controlled non-critical live pilots may collect evidence"
+        if pilot_allowed
+        else "full fail-open proof is missing; run MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh"
+    )
     summary["live_quarantined"] = True
     summary["live_quarantine_reason"] = LIVE_QUARANTINE_REASON
     summary["live_evidence_mode"] = "historical_debug_only"
     summary["new_real_live_collection_allowed"] = False
+    summary["controlled_real_live_pilot_allowed"] = pilot_allowed
+    summary["controlled_real_live_pilot_reason"] = pilot_reason
     strict_failures: list[dict[str, Any]] = []
     def add_failure(gate_id: str, message: str, value: Any, limit: Any) -> None:
         strict_failures.append({"id": gate_id, "message": message, "value": value, "limit": limit})
@@ -1137,9 +1194,8 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["strict_coverage_status"] = "not_requested" if not strict_requested else ("failed" if strict_failures else "passed")
     gate_issues = build_gate_issues(rows)
     real_blocker_triage_summary, real_blocker_triage = build_real_blocker_triage(real_live_rows)
+    real_blocker_triage_summary["controlled_real_live_pilot_allowed"] = pilot_allowed
     next_commands = recommended_next_commands(summary, real_gate_counts, gate_issues)
-    capture_regression_check_path = root / "_reports/capture-regression/capture_regression_check.json"
-    capture_regression_check = read_json(capture_regression_check_path)
     parity_dimensions_payload = build_dimensions_payload(dimension_counts, dimension_issue_sessions)
     real_parity_dimensions_payload = build_dimensions_payload(real_dimension_counts, real_dimension_issue_sessions)
     candidate_parity_dimensions_payload = build_dimensions_payload(
@@ -1155,6 +1211,8 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "evidence_scope": "real_meeting",
         "diagnostic_live_sessions": len(diagnostic_live_rows),
         "new_real_live_collection_allowed": False,
+        "controlled_real_live_pilot_allowed": pilot_allowed,
+        "controlled_real_live_pilot_reason": pilot_reason,
         "quarantine_reason": LIVE_QUARANTINE_REASON,
         "required_dimensions": list(PARITY_DIMENSIONS.keys()),
         "blocking_dimensions": promotion_blocking_dimensions,
@@ -1172,12 +1230,14 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "next_focus": next_focus_for_dimensions(candidate_blocking_dimensions),
         "promotion_decision": "shadow_only_do_not_promote",
         "new_real_live_collection_allowed": False,
+        "controlled_real_live_pilot_allowed": pilot_allowed,
     }
     objective_audit = build_objective_audit(
         summary,
         coverage_target,
         real_parity_dimensions_payload,
         promotion_policy,
+        candidate_scope,
         capture_regression_check,
     )
     objective_audit["capture_safe_candidate_scope"] = candidate_scope
@@ -1448,6 +1508,18 @@ def recommended_next_commands(
 ) -> list[str]:
     live_quarantine_note = "murmurmark status latest  # live pipeline is quarantined; use normal record/process for real meetings"
     if summary.get("live_quarantined") is True:
+        if (
+            summary.get("controlled_real_live_pilot_allowed") is True
+            and safe_int(summary.get("coverage_target_passing_sessions_remaining")) > 0
+            and not (summary.get("real_capture_safe_candidate_blocking_dimensions") or [])
+        ):
+            return [
+                "MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5 --live-no-finalize",
+                "murmurmark process latest",
+                "murmurmark corpus live all --refresh",
+                "jq '.capture_safe_candidate_scope, .coverage_target, .promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
+                live_quarantine_note,
+            ]
         commands = [
             "jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
             "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
@@ -1596,6 +1668,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- live quarantined: `{summary.get('live_quarantined')}`",
         f"- live evidence mode: `{summary.get('live_evidence_mode')}`",
         f"- new real live collection allowed: `{summary.get('new_real_live_collection_allowed')}`",
+        f"- controlled real live pilot allowed: `{summary.get('controlled_real_live_pilot_allowed')}`",
         f"- promotion blocking dimensions: {', '.join(summary.get('promotion_blocking_dimensions') or []) or 'none'}",
         "",
         "## Promotion Policy",
@@ -1680,6 +1753,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"- passing sessions: {candidate_scope.get('passing_sessions', 0)}",
             f"- blocking dimensions: {', '.join(candidate_scope.get('blocking_dimensions') or []) or 'none'}",
             f"- new real live collection allowed: `{candidate_scope.get('new_real_live_collection_allowed')}`",
+            f"- controlled real live pilot allowed: `{candidate_scope.get('controlled_real_live_pilot_allowed')}`",
             "",
         ]
         candidate_next = (
@@ -1716,6 +1790,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"- ready for live promotion: `{objective_audit.get('ready_for_live_promotion')}`",
             f"- batch authoritative: `{objective_audit.get('batch_authoritative')}`",
             f"- new real live collection allowed: `{objective_audit.get('new_real_live_collection_allowed')}`",
+            f"- controlled real live pilot allowed: `{objective_audit.get('controlled_real_live_pilot_allowed')}`",
             f"- blocking dimensions: {', '.join(objective_audit.get('blocking_dimensions') or []) or 'none'}",
         "",
         ]
@@ -1742,6 +1817,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 f"- sessions: {candidate_scope.get('sessions', 0)}",
                 f"- passing sessions: {candidate_scope.get('passing_sessions', 0)}",
                 f"- blocking dimensions: {', '.join(candidate_scope.get('blocking_dimensions') or []) or 'none'}",
+                f"- controlled real live pilot allowed: `{candidate_scope.get('controlled_real_live_pilot_allowed')}`",
                 "",
             ]
             candidate_next = (
@@ -1972,6 +2048,7 @@ def main() -> int:
     print(f"coverage_target_passing_remaining: {summary.get('coverage_target_passing_sessions_remaining', 0)}")
     print(f"live_evidence_mode: {summary.get('live_evidence_mode')}")
     print(f"new_real_live_collection_allowed: {summary.get('new_real_live_collection_allowed')}")
+    print(f"controlled_real_live_pilot_allowed: {summary.get('controlled_real_live_pilot_allowed')}")
     blocking_dimensions = summary.get("promotion_blocking_dimensions") or []
     print(f"promotion_blocking_dimensions: {', '.join(blocking_dimensions) if blocking_dimensions else 'none'}")
     objective_audit = (

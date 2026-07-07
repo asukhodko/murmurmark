@@ -4912,6 +4912,7 @@ Schema:
     "live_quarantined": true,
     "live_evidence_mode": "historical_debug_only",
     "new_real_live_collection_allowed": false,
+    "controlled_real_live_pilot_allowed": true,
     "promotion_blocking_dimensions": [
       "capture_safety",
       "local_recall",
@@ -4928,6 +4929,7 @@ Schema:
     "evidence_scope": "real_meeting",
     "diagnostic_live_sessions": 1,
     "new_real_live_collection_allowed": false,
+    "controlled_real_live_pilot_allowed": true,
     "required_dimensions": [
       "capture_safety",
       "order_risk",
@@ -5013,7 +5015,8 @@ Schema:
       "recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion"
     },
     "promotion_decision": "shadow_only_do_not_promote",
-    "new_real_live_collection_allowed": false
+    "new_real_live_collection_allowed": false,
+    "controlled_real_live_pilot_allowed": true
   },
   "strict_coverage": {
     "requested": true,
@@ -5054,6 +5057,7 @@ Schema:
     "session_count": 2,
     "promotion_scope": "real_meeting",
     "new_real_live_collection_allowed": false,
+    "controlled_real_live_pilot_allowed": true,
     "real_gate_issue_count": 2,
     "categorized_gate_issue_count": 2,
     "uncategorized_gate_issue_count": 0,
@@ -5064,7 +5068,7 @@ Schema:
         "session_count": 1,
         "sessions": ["2026-07-03_06-16-43"],
         "severities": {"warning": 1},
-        "recommended_next": "keep live quarantined; prove capture-safe segment production before any new real live collection"
+        "recommended_next": "keep live quarantined; prove capture-safe segment production before any controlled real live pilot"
       },
       "batch_review_required": {
         "title": "Batch review/readiness required",
@@ -5163,7 +5167,7 @@ into actionable buckets. Typical categories are `batch_review_required`, `live_l
 `live_remote_leakage`, `live_draft_text_drift`, `missing_batch_artifacts`,
 `missing_live_asr_artifacts`, `capture_safety_risk`, `chunk_boundary_risk` and `order_risk`. Triage is diagnostic evidence:
 it explains the next safe action per blocker, but it does not relax promotion gates and does not
-allow new real live collection while live capture is quarantined.
+allow promotion or normal production live use while live capture is quarantined.
 `real_parity_dimensions` is the promotion scope: date-named real meeting sessions count there, while
 `_debug_*` and `live-pilot-*` sessions remain diagnostic evidence only. `promotion_policy` is the
 machine-readable statement that batch remains authoritative and live evidence is historical/debug-only
@@ -5172,12 +5176,16 @@ until the capture-safe redesign and real parity coverage are proven.
 diagnostic slice: real, meaningful, compared sessions whose `capture_safety` and `required_artifacts`
 dimensions already passed. This lets the live goal distinguish old unsafe-capture evidence from
 remaining candidate parity blockers. It is not a promotion signal, and `new_real_live_collection_allowed`
-must stay false while the live branch is quarantined. `capture_safe_candidate_scope.next_focus`
-identifies the first candidate-level parity blocker after capture safety and required artifacts have
-already passed.
+must stay false while the live branch is quarantined. `controlled_real_live_pilot_allowed` is narrower:
+it may become true only after `capture_safe_proof.status == "full_fail_open_proof_passed"` and means
+that a non-critical real live-pipeline pilot may be recorded for parity evidence, with batch output
+still authoritative. `capture_safe_candidate_scope.next_focus` identifies the first candidate-level
+parity blocker after capture safety and required artifacts have already passed, or points to
+`collect_controlled_capture_safe_live_pilot` when the candidate slice is clean and coverage is still
+incomplete.
 When `live_quarantined` is true, `recommended_next` must point to triage/inspection of existing
-artifacts. It must not print the strict coverage command as the next action, because that can be
-misread as permission to collect new real live meetings.
+artifacts or to a controlled pilot command when full fail-open proof has passed. It must not print
+the strict coverage command as the next action, because that can be misread as promotion permission.
 
 Strict coverage mode is optional and is currently historical/diagnostic while live capture is
 quarantined:

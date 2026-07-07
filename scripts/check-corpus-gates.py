@@ -883,6 +883,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "batch_authoritative",
         "live_promotion_blocked",
         "new_real_live_collection_quarantined",
+        "controlled_real_live_pilot_collection",
     }
     live_triage_categories = {
         str(item.get("category") or "")
@@ -945,6 +946,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "policy_batch_authoritative": live_promotion_policy.get("batch_authoritative"),
             "policy_live_quarantined": live_promotion_policy.get("live_quarantined"),
             "policy_new_real_live_collection_allowed": live_promotion_policy.get("new_real_live_collection_allowed"),
+            "policy_controlled_real_live_pilot_allowed": live_promotion_policy.get("controlled_real_live_pilot_allowed"),
         },
         threshold="blocked, batch_authoritative=true, live_quarantined=true, new_real_live_collection_allowed=false",
         message="live-cache parity report keeps live promotion quarantined and batch authoritative",
@@ -994,23 +996,40 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             "batch_authoritative": live_objective_audit.get("batch_authoritative"),
             "ready_for_live_promotion": live_objective_audit.get("ready_for_live_promotion"),
             "new_real_live_collection_allowed": live_objective_audit.get("new_real_live_collection_allowed"),
+            "controlled_real_live_pilot_allowed": live_objective_audit.get("controlled_real_live_pilot_allowed"),
         },
         threshold="batch_authoritative=true, ready_for_live_promotion=false, new_real_live_collection_allowed=false",
-        message="objective audit keeps batch authoritative and live promotion/collection blocked",
+        message="objective audit keeps batch authoritative and live promotion/broad collection blocked",
         details=live_objective_audit,
+    )
+    candidate_scope = (
+        live_objective_audit.get("capture_safe_candidate_scope")
+        if isinstance(live_objective_audit.get("capture_safe_candidate_scope"), dict)
+        else {}
+    )
+    controlled_pilot_next_focus_allowed = (
+        live_objective_audit.get("controlled_real_live_pilot_allowed") is True
+        and live_objective_next_focus.get("action_id") == "collect_controlled_capture_safe_live_pilot"
+        and not (candidate_scope.get("blocking_dimensions") or [])
     )
     check(
         checks,
         "live_cache_parity.objective_next_focus_safe",
         live_corpus is None
         or "capture_safety" not in {str(item) for item in live_objective_blocking_dimensions}
-        or live_objective_next_focus.get("action_id") == "capture_safe_redesign_before_more_live_coverage",
+        or live_objective_next_focus.get("action_id") == "capture_safe_redesign_before_more_live_coverage"
+        or controlled_pilot_next_focus_allowed,
         observed={
             "blocking_dimensions": live_objective_blocking_dimensions,
             "next_focus": live_objective_next_focus,
+            "controlled_real_live_pilot_allowed": live_objective_audit.get("controlled_real_live_pilot_allowed"),
+            "capture_safe_candidate_scope": candidate_scope,
         },
-        threshold="if capture_safety blocks live parity, next_focus is capture_safe_redesign_before_more_live_coverage",
-        message="objective audit points to capture-safe redesign before more real live coverage",
+        threshold=(
+            "if capture_safety blocks live parity, next_focus is capture_safe_redesign_before_more_live_coverage; "
+            "after full proof and clean candidate scope, controlled pilot coverage is allowed"
+        ),
+        message="objective audit points to capture-safe redesign or controlled pilot coverage",
         details=live_objective_audit,
     )
     check(
@@ -1060,6 +1079,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         observed={
             "promotion_scope": live_triage_summary.get("promotion_scope"),
             "new_real_live_collection_allowed": live_triage_summary.get("new_real_live_collection_allowed"),
+            "controlled_real_live_pilot_allowed": live_triage_summary.get("controlled_real_live_pilot_allowed"),
             "categories": sorted(live_triage_categories),
         },
         threshold="promotion_scope=real_meeting, new_real_live_collection_allowed=false, known categories only",

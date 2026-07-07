@@ -23,7 +23,9 @@ The current product shape is batch-first: a meeting is recorded, then processed.
 Pipeline Stabilization v1, this batch-first path is the only supported production route. A future
 near-realtime path should eventually reduce the wait after a meeting. The old inline live segment
 writer is quarantined because it can starve ScreenCaptureKit audio delivery; the new async bounded
-segment queue must prove capture-safety before real live coverage resumes.
+segment queue has a full fail-open proof. Real live promotion is still blocked, but controlled
+non-critical live pilots may now be used to collect parity evidence while the batch transcript
+remains authoritative.
 
 The optional UI/app path is deliberately late. It should not block the useful CLI product.
 
@@ -258,10 +260,11 @@ flowchart LR
   - first shadow implementation exists: `record --live-pipeline` writes durable mic/remote segment
     copies, starts an optional worker, writes `derived/live/transcript.draft.md`,
     `derived/live/live_pipeline_report.json`, post-stop final-reconcile report and advisory
-    live-vs-batch comparison, but it is quarantined because tests showed it can starve raw
-    ScreenCaptureKit audio delivery;
+    live-vs-batch comparison, but it remains quarantined as production output because older tests
+    showed inline live work can starve raw ScreenCaptureKit audio delivery;
   - live segments are overlap-aware: each segment has a hard publish window and a wider ASR clip
-    window; next work is capture-safe segment production outside the ScreenCaptureKit callback path;
+    window; the async bounded queue now has a full fail-open proof, and next work is controlled
+    non-critical live parity coverage;
   - after stop, the existing batch-grade repair/review/readiness layers run as final reconcile and
     remain authoritative;
   - keep the existing post-recording `process` path as source of truth until corpus comparison proves
@@ -295,11 +298,11 @@ flowchart LR
   - previous inline segment writing during capture is quarantined: live tests showed it can starve
     ScreenCaptureKit audio delivery and leave raw tracks mostly silent;
   - first redesign step is now implemented as a non-blocking async bounded queue after durable raw
-    writes; the next step is proving capture-safety under normal, overloaded and failed live paths;
+    writes; full fail-open proof has passed for normal, overloaded and failed live paths;
   - `scripts/check-capture-regressions.sh` now writes
     `sessions/_reports/capture-regression/capture_regression_check.json`; `static_only` is useful
-    regression evidence, while `full_fail_open_proof_passed` is required before any real live
-    collection resumes;
+    regression evidence, while `full_fail_open_proof_passed` is required before controlled
+    non-critical real live pilots;
   - `scripts/run-live-parity-pilot.sh` now wraps the lab-only evidence path: safety probe, short live
     recording, batch process, live-vs-batch compare and corpus live report;
   - worker queue exists as a safe shadow worker, but its v1 preprocessing is intentionally light and
@@ -434,9 +437,9 @@ newer run-state exists.
 1. **Process Observability & Run Monitor v1.** Write a current run-state artifact during
    `murmurmark process`, expose the active step and ASR chunk progress through `status`/`next`, keep
    interruption recovery obvious and make stale readiness harmless.
-2. **Near-Realtime Capture-Safe Redesign v1.** Redesign live segment production so it never runs
-   blocking file/ASR work on the ScreenCaptureKit callback path and cannot corrupt raw capture. Only
-   after that, restore live parity coverage on controlled non-critical sessions.
+2. **Near-Realtime Live Parity Coverage v1.** Capture-safe segment production has a full fail-open
+   proof. Restore live parity coverage on controlled non-critical sessions until there are enough
+   passing live-vs-batch comparisons; keep live promotion blocked and batch authoritative.
 3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth
@@ -447,9 +450,8 @@ newer run-state exists.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
-6. **Near-Realtime Pipeline Shadow v1.** Rebuild the live branch after the capture-safe redesign,
-   then write draft transcripts from safe derived segments while keeping the batch pipeline as final
-   authority until corpus gates prove parity.
+6. **Near-Realtime Pipeline Shadow v1.** Continue hardening draft transcripts from safe derived
+   segments while keeping the batch pipeline as final authority until corpus gates prove parity.
 7. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
    close safe suggested review rows, preserve manual rows and keep status/report aligned.
 8. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only
