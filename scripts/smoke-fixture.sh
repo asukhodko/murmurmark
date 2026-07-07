@@ -3606,6 +3606,7 @@ EOF
   echo "$acceptance_live" | grep -q '^  scope: lab proof plus controlled real parity evidence, not production live promotion$'
   echo "$acceptance_live" | grep -q '^    - MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh$'
   echo "$acceptance_live" | grep -q '^    - murmurmark live pilot --duration 45$'
+  echo "$acceptance_live" | grep -q '^    - murmurmark live status$'
   echo "$acceptance_live" | grep -q '^    - murmurmark corpus live all --refresh$'
   echo "$acceptance_live" | grep -q '^    - murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only$'
   echo "$acceptance_live" | grep -q '^    - pilot runner writes derived/live/live_parity_pilot_report.json$'

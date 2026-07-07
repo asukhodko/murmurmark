@@ -124,6 +124,7 @@ existing proof, but it does not bypass the proof requirement.
 For a non-critical real pilot after the report says `controlled_real_live_pilot_allowed: true`, run:
 
 ```bash
+murmurmark live status
 murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
 murmurmark live pilot --controlled-real --skip-safety-gate
 ```

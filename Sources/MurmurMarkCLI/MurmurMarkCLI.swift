@@ -184,6 +184,7 @@ struct MurmurMark {
           murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
+          murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--controlled-real] [--preflight-only] [--skip-safety-gate]
           murmurmark corpus report
 
@@ -5002,15 +5003,26 @@ enum LiveCommands {
         }
         let forwarded = Array(args.dropFirst())
         switch subcommand {
+        case "status", "next":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                printStatusHelp()
+                return
+            }
+            var reportArgs = forwarded
+            let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &reportArgs) ?? "sessions")
+            if reportArgs.isEmpty {
+                reportArgs = ["all", "--refresh"]
+            }
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [try script("report-live-corpus-gates.py").path] + reportArgs + ["--sessions-root", sessionsRoot.path]
+            )
         case "pilot":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 printPilotHelp()
                 return
             }
-            let script = PathURLs.fileURL("scripts/run-live-parity-pilot.sh")
-            guard FileManager.default.fileExists(atPath: script.path) else {
-                throw CLIError("live pilot script not found: \(PathDisplay.display(script))")
-            }
+            let script = try script("run-live-parity-pilot.sh")
             print("live_pilot:")
             let suffix = forwarded.isEmpty ? "" : " \(forwarded.joined(separator: " "))"
             print("  command: \(PathDisplay.display(script))\(suffix)")
@@ -5030,6 +5042,8 @@ enum LiveCommands {
     static func printHelp() {
         Swift.print("""
         usage:
+          murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
+          murmurmark live next [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--duration SEC] [--segment-sec SEC] [--overlap-sec SEC]
                                [--controlled-real] [--preflight-only] [--skip-safety-gate]
 
@@ -5063,6 +5077,25 @@ enum LiveCommands {
           murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
           murmurmark live pilot --controlled-real --skip-safety-gate
         """)
+    }
+
+    static func printStatusHelp() {
+        Swift.print("""
+        usage:
+          murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
+          murmurmark live next [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
+
+        Prints the live parity corpus gates and the recommended next command.
+        Defaults to `all --refresh`.
+        """)
+    }
+
+    private static func script(_ name: String) throws -> URL {
+        let url = PathURLs.fileURL("scripts").appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw CLIError("live script not found: \(url.path)")
+        }
+        return url
     }
 }
 

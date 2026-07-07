@@ -183,6 +183,7 @@ near_realtime_shadow_gate:
   commands:
     - MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
     - murmurmark live pilot --duration 45
+    - murmurmark live status
     - murmurmark corpus live all --refresh
     - murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
     - jq '.promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json

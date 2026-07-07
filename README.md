@@ -327,6 +327,7 @@ When `murmurmark corpus live all --refresh` reports `controlled_real_live_pilot_
 the same runner for a non-critical real pilot:
 
 ```bash
+murmurmark live status
 murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
 murmurmark live pilot --controlled-real --skip-safety-gate
 ```
