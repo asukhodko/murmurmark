@@ -155,7 +155,9 @@ OBJECTIVE_DIMENSION_ACTIONS: dict[str, dict[str, str]] = {
     "chunk_boundary_risks": {
         "id": "fix_live_chunk_boundary_risks",
         "title": "Fix live chunk-boundary risks",
-        "recommended_next": "fix live chunk reconciliation and overlap dedupe; suppressed boundary repeats still block promotion",
+        "recommended_next": (
+            "fix live chunk reconciliation and overlap dedupe; unresolved boundary suppressions still block promotion"
+        ),
     },
     "draft_text_recall": {
         "id": "improve_live_draft_text_recall",
@@ -811,6 +813,12 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "live_boundary_gate_suppressed_count": (
                 metrics.get("live_boundary_gate_suppressed_count") if isinstance(metrics, dict) else None
             ),
+            "live_boundary_gate_resolved_suppressed_count": (
+                metrics.get("live_boundary_gate_resolved_suppressed_count") if isinstance(metrics, dict) else None
+            ),
+            "live_boundary_gate_unresolved_suppressed_count": (
+                metrics.get("live_boundary_gate_unresolved_suppressed_count") if isinstance(metrics, dict) else None
+            ),
             "live_order_mismatch_count": metrics.get("live_order_mismatch_count") if isinstance(metrics, dict) else None,
             "live_missing_me_seconds": metrics.get("live_missing_me_seconds") if isinstance(metrics, dict) else None,
             "live_suspicious_batch_me_missing_seconds": (
@@ -925,6 +933,22 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_live_boundary_gate_suppressed_count": sum_int_metric(
             real_live_rows,
             "live_boundary_gate_suppressed_count",
+        ),
+        "live_boundary_gate_resolved_suppressed_count": sum_int_metric(
+            rows,
+            "live_boundary_gate_resolved_suppressed_count",
+        ),
+        "real_live_boundary_gate_resolved_suppressed_count": sum_int_metric(
+            real_live_rows,
+            "live_boundary_gate_resolved_suppressed_count",
+        ),
+        "live_boundary_gate_unresolved_suppressed_count": sum_int_metric(
+            rows,
+            "live_boundary_gate_unresolved_suppressed_count",
+        ),
+        "real_live_boundary_gate_unresolved_suppressed_count": sum_int_metric(
+            real_live_rows,
+            "live_boundary_gate_unresolved_suppressed_count",
         ),
     }
     coverage_target = {
@@ -1502,6 +1526,10 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- real live boundary-gate issues: {summary.get('real_live_boundary_gate_issue_count', 0)}",
         f"- live boundary-gate suppressed chunks: {summary.get('live_boundary_gate_suppressed_count', 0)}",
         f"- real live boundary-gate suppressed chunks: {summary.get('real_live_boundary_gate_suppressed_count', 0)}",
+        f"- live boundary-gate resolved suppressed chunks: {summary.get('live_boundary_gate_resolved_suppressed_count', 0)}",
+        f"- real live boundary-gate resolved suppressed chunks: {summary.get('real_live_boundary_gate_resolved_suppressed_count', 0)}",
+        f"- live boundary-gate unresolved suppressed chunks: {summary.get('live_boundary_gate_unresolved_suppressed_count', 0)}",
+        f"- real live boundary-gate unresolved suppressed chunks: {summary.get('real_live_boundary_gate_unresolved_suppressed_count', 0)}",
         f"- strict coverage: `{summary.get('strict_coverage_status')}`",
         f"- coverage target: `{summary.get('coverage_target_status')}`",
         f"- coverage target live remaining: {summary.get('coverage_target_live_sessions_remaining', 0)}",
@@ -1764,7 +1792,9 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"suspicious batch-Me sec `{metrics.get('live_suspicious_batch_me_missing_seconds')}`, "
             f"remote-in-Me sec `{metrics.get('live_suspected_remote_leak_in_me_seconds')}`, "
             f"boundary issues `{metrics.get('live_boundary_gate_issue_count')}`, "
-            f"boundary suppressed `{metrics.get('live_boundary_gate_suppressed_count')}`"
+            f"boundary suppressed `{metrics.get('live_boundary_gate_suppressed_count')}`, "
+            f"boundary resolved `{metrics.get('live_boundary_gate_resolved_suppressed_count')}`, "
+            f"boundary unresolved `{metrics.get('live_boundary_gate_unresolved_suppressed_count')}`"
         )
     if report.get("blockers"):
         lines += ["", "## Blockers", ""]
@@ -1836,6 +1866,14 @@ def main() -> int:
     print(f"real_live_boundary_gate_issue_count: {summary.get('real_live_boundary_gate_issue_count', 0)}")
     print(f"live_boundary_gate_suppressed_count: {summary.get('live_boundary_gate_suppressed_count', 0)}")
     print(f"real_live_boundary_gate_suppressed_count: {summary.get('real_live_boundary_gate_suppressed_count', 0)}")
+    print(
+        "real_live_boundary_gate_resolved_suppressed_count: "
+        f"{summary.get('real_live_boundary_gate_resolved_suppressed_count', 0)}"
+    )
+    print(
+        "real_live_boundary_gate_unresolved_suppressed_count: "
+        f"{summary.get('real_live_boundary_gate_unresolved_suppressed_count', 0)}"
+    )
     print(f"strict_coverage: {summary.get('strict_coverage_status')}")
     print(f"coverage_target: {summary.get('coverage_target_status')}")
     print(f"coverage_target_live_remaining: {summary.get('coverage_target_live_sessions_remaining', 0)}")

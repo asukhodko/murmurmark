@@ -339,7 +339,9 @@ scripts/check-corpus-gates.py --no-fail
 coverage is still a warning while Chunked/Resumable Processing v1 is being rolled out.
 It also reads `sessions/_reports/live-pipeline/live_corpus_gates_report.json`: live/near-realtime
 cache promotion must remain blocked. The live comparison records measurable capture-safety, order,
-local-recall, remote-leak, review-burden, notes-readiness and chunk-boundary gates. Current diagnostic live
+local-recall, remote-leak, review-burden, notes-readiness and chunk-boundary gates. Boundary
+suppression is split into resolved duplicates and unresolved suppressions, so a fully covered
+overlap repeat can pass while unique-word loss still blocks promotion. Current diagnostic live
 coverage is separated from date-named real meeting evidence. Only real meeting sessions contribute
 to `real_parity_dimensions` and strict promotion gates; `_debug_*` and `live-pilot-*` sessions remain
 useful failure evidence but cannot make live promotion look ready. Strict parity is still not proven;

@@ -186,8 +186,9 @@ The correct v1 outcome is normally `shadow_only_not_promotable`; promotion requi
 capture safety, order risk, local recall, remote leakage, review burden and boundary speech. The
 current comparison already measures the first practical version of those checks from live chunks
 versus the selected batch transcript, including source-level `live_boundary_gate` suppression at
-chunk edges. This means a session is not clean promotion evidence merely because final live text has
-no adjacent duplicate; a suppressed boundary repeat is still counted as chunk-boundary risk. Even so,
+chunk edges. Boundary suppression now distinguishes safe resolved duplicates from unresolved
+suppression with possible unique-word loss; only unresolved boundary suppression blocks the
+chunk-boundary gate. Even so,
 `promotion_allowed` must remain `false` until real
 live-session coverage is broad enough and the corpus gates are intentionally promoted. While live is
 quarantined, the report is historical/debug evidence only: do not start new real live recordings from

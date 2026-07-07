@@ -4392,6 +4392,9 @@ These gates protect only the shadow live draft/chunks:
 - `live_echo_guard` can choose a cleaned mic WAV for live ASR;
 - `live_role_gate` suppresses mic text when it duplicates same-chunk remote text;
 - `live_boundary_gate` suppresses adjacent chunk repeats caused by overlap context.
+  A suppressed boundary row is treated as resolved only when the raw suppressed tokens are fully
+  covered by the previous emitted chunk for the same source. If unique current tokens remain, the row
+  is unresolved and still blocks the chunk-boundary gate.
 
 They do not modify raw CAF, batch ASR, selected transcript profiles or export readiness.
 
@@ -4713,6 +4716,10 @@ Schema:
     "batch_token_count": 1350,
     "live_token_recall_in_batch": 0.82,
     "adjacent_duplicate_chunk_count": 0,
+    "live_boundary_gate_issue_count": 0,
+    "live_boundary_gate_suppressed_count": 1,
+    "live_boundary_gate_resolved_suppressed_count": 1,
+    "live_boundary_gate_unresolved_suppressed_count": 0,
     "batch_authoritative": true,
     "batch_ready_for_notes": true,
     "meaningful_live_comparison": true,
@@ -4730,7 +4737,20 @@ Schema:
     "order_mismatches": [],
     "local_missing": [],
     "local_missing_suspicious_batch_me": [],
-    "remote_leak": []
+    "remote_leak": [],
+    "boundary_gate_issues": [],
+    "boundary_gate_resolved": [
+      {
+        "chunk_index": 4,
+        "source": "remote",
+        "status": "suppressed",
+        "reason": "adjacent_chunk_duplicate",
+        "resolution": {
+          "resolution": "resolved_duplicate",
+          "unique_current_token_count": 0
+        }
+      }
+    ]
   },
   "parity_gates": {
     "status": "not_promotable",
@@ -4763,7 +4783,7 @@ Schema:
       {
         "name": "chunk_boundary_risks",
         "status": "passed",
-        "reason": "live chunk boundaries should not introduce adjacent duplicate transcript text"
+        "reason": "live chunk boundaries should not introduce duplicate text or unresolved boundary suppression"
       }
     ]
   },
@@ -4820,7 +4840,8 @@ dialogue:
   speech than `Me` speech;
 - `review_burden`: reads the authoritative batch `outcome.json` review burden;
 - `selected_notes_readiness`: reads the authoritative batch readiness/outcome;
-- `chunk_boundary_risks`: detects adjacent live chunk duplicates;
+- `chunk_boundary_risks`: detects adjacent live chunk duplicates and unresolved boundary
+  suppressions; fully covered suppressed repeats are counted as resolved evidence, not blockers;
 - `draft_text_recall`: checks that live draft tokens mostly appear in the selected batch transcript;
 - `required_artifacts`: checks that live and batch comparison inputs exist.
 

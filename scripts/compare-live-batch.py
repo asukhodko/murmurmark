@@ -12,7 +12,7 @@ from typing import Any
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.8.0"
+SCRIPT_VERSION = "0.9.0"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 CAPTURE_SAFETY_BLOCKERS = {"interrupted_capture", "silent_capture", "sparse_capture"}
 CAPTURE_SAFETY_WARNING_MARKERS = (
@@ -76,6 +76,10 @@ def tokens(text: str) -> list[str]:
     return [match.group(0).lower() for match in TOKEN_RE.finditer(text)]
 
 
+def clean_text(text: str) -> str:
+    return " ".join(text.split()).strip()
+
+
 def bag_recall(source_tokens: list[str], target_tokens: list[str]) -> float | None:
     if not source_tokens:
         return None
@@ -107,13 +111,62 @@ def duplicate_adjacent_chunks(chunks: list[dict[str, Any]]) -> int:
     return count
 
 
+def counter_unique_tokens(source_tokens: list[str], target_tokens: list[str]) -> list[str]:
+    source = Counter(source_tokens)
+    target = Counter(target_tokens)
+    unique: list[str] = []
+    for token, count in source.items():
+        remaining = count - target[token]
+        if remaining > 0:
+            unique.extend([token] * remaining)
+    return unique
+
+
+def classify_suppressed_boundary_duplicate(
+    previous_source: dict[str, Any] | None,
+    current_source: dict[str, Any],
+    boundary_gate: dict[str, Any],
+) -> dict[str, Any]:
+    previous_text = clean_text(str((previous_source or {}).get("text") or ""))
+    current_text = clean_text(
+        str(current_source.get("raw_text_before_boundary_gate") or current_source.get("text") or "")
+    )
+    previous_tokens = tokens(previous_text)
+    current_tokens = tokens(current_text)
+    current_in_previous = bag_recall(current_tokens, previous_tokens) or 0.0
+    previous_in_current = bag_recall(previous_tokens, current_tokens) or 0.0
+    unique_current_tokens = counter_unique_tokens(current_tokens, previous_tokens)
+    resolved = bool(
+        current_tokens
+        and previous_tokens
+        and current_in_previous >= 0.98
+        and not unique_current_tokens
+    )
+    return {
+        "resolution": "resolved_duplicate" if resolved else "unresolved_suppression",
+        "is_resolved": resolved,
+        "current_token_count": len(current_tokens),
+        "previous_token_count": len(previous_tokens),
+        "unique_current_token_count": len(unique_current_tokens),
+        "unique_current_tokens": unique_current_tokens[:12],
+        "current_token_recall_in_previous": round(current_in_previous, 6),
+        "previous_token_recall_in_current": round(previous_in_current, 6),
+        "reported_current_token_recall_in_previous": boundary_gate.get("current_token_recall_in_previous"),
+        "reported_previous_token_recall_in_current": boundary_gate.get("previous_token_recall_in_current"),
+    }
+
+
 def live_boundary_gate_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
     status_counts: Counter[str] = Counter()
     reason_counts: Counter[str] = Counter()
     issue_count = 0
     suppressed_count = 0
+    resolved_suppressed_count = 0
+    unresolved_suppressed_count = 0
     examples: list[dict[str, Any]] = []
-    for row in chunks:
+    resolved_examples: list[dict[str, Any]] = []
+    for index, row in enumerate(chunks):
+        previous = chunks[index - 1] if index > 0 else None
         chunk_index = row.get("index")
         for source in ("mic", "remote"):
             source_row = row.get(source)
@@ -126,31 +179,59 @@ def live_boundary_gate_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
             reason = str(boundary_gate.get("reason") or "unknown")
             status_counts[status] += 1
             reason_counts[reason] += 1
+            resolution: dict[str, Any] | None = None
             if status == "suppressed":
                 suppressed_count += 1
-            if status in BOUNDARY_ISSUE_STATUSES:
+                previous_source = previous.get(source) if isinstance(previous, dict) else None
+                previous_source = previous_source if isinstance(previous_source, dict) else None
+                resolution = classify_suppressed_boundary_duplicate(previous_source, source_row, boundary_gate)
+                if resolution.get("is_resolved") is True:
+                    resolved_suppressed_count += 1
+                else:
+                    unresolved_suppressed_count += 1
+            is_issue = status in BOUNDARY_ISSUE_STATUSES
+            if status == "suppressed" and resolution and resolution.get("is_resolved") is True:
+                is_issue = False
+            if is_issue:
                 issue_count += 1
                 if len(examples) < 20:
-                    examples.append(
-                        {
-                            "chunk_index": chunk_index,
-                            "source": source,
-                            "status": status,
-                            "reason": reason,
-                            "duplicate_score": boundary_gate.get("duplicate_score"),
-                            "current_token_recall_in_previous": boundary_gate.get("current_token_recall_in_previous"),
-                            "previous_token_recall_in_current": boundary_gate.get("previous_token_recall_in_current"),
-                            "hard_start_sec": source_row.get("hard_start_sec"),
-                            "hard_end_sec": source_row.get("hard_end_sec"),
-                        }
-                    )
+                    example = {
+                        "chunk_index": chunk_index,
+                        "source": source,
+                        "status": status,
+                        "reason": reason,
+                        "duplicate_score": boundary_gate.get("duplicate_score"),
+                        "current_token_recall_in_previous": boundary_gate.get("current_token_recall_in_previous"),
+                        "previous_token_recall_in_current": boundary_gate.get("previous_token_recall_in_current"),
+                        "hard_start_sec": source_row.get("hard_start_sec"),
+                        "hard_end_sec": source_row.get("hard_end_sec"),
+                    }
+                    if resolution:
+                        example["resolution"] = resolution
+                    examples.append(example)
+            elif status == "suppressed" and resolution and len(resolved_examples) < 20:
+                resolved_examples.append(
+                    {
+                        "chunk_index": chunk_index,
+                        "source": source,
+                        "status": status,
+                        "reason": reason,
+                        "duplicate_score": boundary_gate.get("duplicate_score"),
+                        "hard_start_sec": source_row.get("hard_start_sec"),
+                        "hard_end_sec": source_row.get("hard_end_sec"),
+                        "resolution": resolution,
+                    }
+                )
     return {
         "evaluated_count": sum(status_counts.values()),
         "issue_count": issue_count,
         "suppressed_count": suppressed_count,
+        "resolved_suppressed_count": resolved_suppressed_count,
+        "unresolved_suppressed_count": unresolved_suppressed_count,
         "status_counts": dict(sorted(status_counts.items())),
         "reason_counts": dict(sorted(reason_counts.items())),
         "examples": examples,
+        "resolved_examples": resolved_examples,
     }
 
 
@@ -637,11 +718,13 @@ def parity_gates(
             "passed"
             if duplicate_count == 0 and safe_int(boundary_summary.get("issue_count")) == 0
             else ("failed" if duplicate_count > 0 else "warning"),
-            "live chunk boundaries should not introduce duplicate or suppressed boundary text",
+            "live chunk boundaries should not introduce duplicate text or unresolved boundary suppression",
             {
                 "adjacent_duplicate_chunk_count": duplicate_count,
                 "live_boundary_gate_issue_count": boundary_summary.get("issue_count"),
                 "live_boundary_gate_suppressed_count": boundary_summary.get("suppressed_count"),
+                "live_boundary_gate_resolved_suppressed_count": boundary_summary.get("resolved_suppressed_count"),
+                "live_boundary_gate_unresolved_suppressed_count": boundary_summary.get("unresolved_suppressed_count"),
                 "live_boundary_gate_status_counts": boundary_summary.get("status_counts"),
                 "live_boundary_gate_reason_counts": boundary_summary.get("reason_counts"),
             },
@@ -924,6 +1007,8 @@ def main() -> int:
             "live_boundary_gate_evaluated_count": boundary_summary.get("evaluated_count"),
             "live_boundary_gate_issue_count": boundary_summary.get("issue_count"),
             "live_boundary_gate_suppressed_count": boundary_summary.get("suppressed_count"),
+            "live_boundary_gate_resolved_suppressed_count": boundary_summary.get("resolved_suppressed_count"),
+            "live_boundary_gate_unresolved_suppressed_count": boundary_summary.get("unresolved_suppressed_count"),
             "batch_authoritative": True,
             "batch_use_gate": batch_use_gate,
             "batch_outcome": batch_outcome,
@@ -941,6 +1026,7 @@ def main() -> int:
             "local_missing_suspicious_batch_me": (live_assessment.get("local_missing_suspicious_batch_me") or [])[:20],
             "remote_leak": (live_assessment.get("remote_leak") or [])[:20],
             "boundary_gate_issues": boundary_summary.get("examples") or [],
+            "boundary_gate_resolved": boundary_summary.get("resolved_examples") or [],
         },
         "parity_gates": {
             "status": "not_promotable" if gate_statuses - {"passed"} else "passed_but_shadow_locked",

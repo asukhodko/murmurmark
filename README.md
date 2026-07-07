@@ -350,9 +350,10 @@ The expected v1 result is still `shadow_only_do_not_promote`: the report should 
 are evaluated and which remain blockers. Current live comparison checks the live draft against the
 authoritative batch transcript for capture safety, order mismatch, missing `Me` speech, suspected
 remote-in-`Me` leakage, selected batch review burden, notes readiness, adjacent chunk duplicates and
-source-level `live_boundary_gate` suppression. A live draft can therefore be blocked even when the
-final draft text has no duplicate: if a boundary gate had to suppress repeated text, that still
-counts as chunk-boundary risk.
+source-level `live_boundary_gate` suppression. Boundary suppression is split into two classes:
+resolved suppression, where the suppressed words are fully covered by the previous emitted chunk, and
+unresolved suppression, where unique words may have been lost. Only unresolved boundary suppression
+blocks the chunk-boundary gate.
 Passing those checks is still not promotion. With live quarantined, use this report only to inspect old diagnostic
 evidence and gate failures. The Markdown report has a `Gate Issues` section with the concrete
 session/gate/reason rows that currently prevent a passing comparison. Promotion checks use

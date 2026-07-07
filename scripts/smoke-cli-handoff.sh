@@ -835,6 +835,7 @@ cat >"$live_parity_session/derived/live/live_pipeline_report.json" <<'JSON'
 JSON
 cat >"$live_parity_session/derived/live/chunks.jsonl" <<'JSONL'
 {"schema":"murmurmark.live_chunk/v1","index":1,"start_sec":0.0,"end_sec":10.0,"mic":{"text":"привет проверю задачу","hard_start_sec":0.0,"hard_end_sec":10.0},"remote":{"text":"привет обсудим план","hard_start_sec":0.0,"hard_end_sec":10.0}}
+{"schema":"murmurmark.live_chunk/v1","index":2,"start_sec":10.0,"end_sec":12.0,"mic":{"text":"","hard_start_sec":10.0,"hard_end_sec":12.0,"live_boundary_gate":{"status":"passed","reason":"too_short_for_boundary_gate"}},"remote":{"text":"","raw_text_before_boundary_gate":"привет обсудим план","hard_start_sec":10.0,"hard_end_sec":12.0,"live_boundary_gate":{"status":"suppressed","reason":"adjacent_chunk_duplicate","duplicate_score":1.0,"current_token_recall_in_previous":1.0,"previous_token_recall_in_current":1.0}}}
 JSONL
 cat >"$live_parity_session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v4.json" <<'JSON'
 {
@@ -894,7 +895,9 @@ jq -e '
   and .metrics.all_parity_gates_passed == true
   and .metrics.capture_safety_status == "passed"
   and .metrics.live_boundary_gate_issue_count == 0
-  and .metrics.live_boundary_gate_suppressed_count == 0
+  and .metrics.live_boundary_gate_suppressed_count == 1
+  and .metrics.live_boundary_gate_resolved_suppressed_count == 1
+  and .metrics.live_boundary_gate_unresolved_suppressed_count == 0
   and ([.parity_gates.gates[] | select(.name == "capture_safety" and .status == "passed")] | length == 1)
   and ([.parity_gates.gates[] | select(.name == "order_risk" and .status == "passed")] | length == 1)
   and ([.parity_gates.gates[] | select(.name == "local_recall" and .status == "passed")] | length == 1)
@@ -925,7 +928,7 @@ cp "$live_parity_session/derived/outcome/outcome.json" \
   "$live_boundary_risk_session/derived/outcome/outcome.json"
 cat >"$live_boundary_risk_session/derived/live/chunks.jsonl" <<'JSONL'
 {"schema":"murmurmark.live_chunk/v1","index":1,"start_sec":0.0,"end_sec":5.0,"mic":{"text":"привет проверю задачу","hard_start_sec":0.0,"hard_end_sec":5.0},"remote":{"text":"привет обсудим план","hard_start_sec":0.0,"hard_end_sec":5.0}}
-{"schema":"murmurmark.live_chunk/v1","index":2,"start_sec":5.0,"end_sec":10.0,"mic":{"text":"","hard_start_sec":5.0,"hard_end_sec":10.0,"live_boundary_gate":{"status":"passed","reason":"too_short_for_boundary_gate"}},"remote":{"text":"","raw_text_before_boundary_gate":"привет обсудим план","hard_start_sec":5.0,"hard_end_sec":10.0,"live_boundary_gate":{"status":"suppressed","reason":"adjacent_chunk_duplicate","duplicate_score":1.0,"current_token_recall_in_previous":1.0,"previous_token_recall_in_current":1.0}}}
+{"schema":"murmurmark.live_chunk/v1","index":2,"start_sec":5.0,"end_sec":10.0,"mic":{"text":"","hard_start_sec":5.0,"hard_end_sec":10.0,"live_boundary_gate":{"status":"passed","reason":"too_short_for_boundary_gate"}},"remote":{"text":"","raw_text_before_boundary_gate":"привет обсудим план новый хвост","hard_start_sec":5.0,"hard_end_sec":10.0,"live_boundary_gate":{"status":"suppressed","reason":"adjacent_chunk_duplicate","duplicate_score":0.6,"current_token_recall_in_previous":0.6,"previous_token_recall_in_current":1.0}}}
 JSONL
 "$eval_python" "$repo_root/scripts/compare-live-batch.py" "$live_boundary_risk_session" >/dev/null
 jq -e '
@@ -934,10 +937,12 @@ jq -e '
   and (.warnings | index("live_boundary_gate_issues_detected") != null)
   and .metrics.live_boundary_gate_issue_count == 1
   and .metrics.live_boundary_gate_suppressed_count == 1
+  and .metrics.live_boundary_gate_resolved_suppressed_count == 0
+  and .metrics.live_boundary_gate_unresolved_suppressed_count == 1
   and ([.parity_gates.gates[] | select(.name == "chunk_boundary_risks" and .status == "warning")] | length == 1)
 ' "$live_boundary_risk_session/derived/live/live_batch_comparison.json" >/dev/null
 jq -e '
-  [.risk_examples.boundary_gate_issues[] | select(.source == "remote" and .status == "suppressed")]
+  [.risk_examples.boundary_gate_issues[] | select(.source == "remote" and .status == "suppressed" and .resolution.unique_current_token_count == 2)]
   | length == 1
 ' "$live_boundary_risk_session/derived/live/live_batch_comparison.json" >/dev/null
 write_full_capture_regression_proof
@@ -947,6 +952,8 @@ write_full_capture_regression_proof
 jq -e '
   .summary.real_live_boundary_gate_issue_count == 1
   and .summary.real_live_boundary_gate_suppressed_count == 1
+  and .summary.real_live_boundary_gate_resolved_suppressed_count == 0
+  and .summary.real_live_boundary_gate_unresolved_suppressed_count == 1
   and .real_parity_dimensions.chunk_boundary_risks.counts.warning == 1
   and .real_blocker_triage_summary.by_category.chunk_boundary_risk.item_count == 1
   and .objective_audit.overall_status == "blocked_by_parity_gates"
@@ -980,6 +987,10 @@ jq -e '
   and .summary.real_capture_safe_candidate_sessions == 1
   and .summary.real_capture_safe_candidate_passing_sessions == 1
   and .summary.real_capture_safe_candidate_blocking_dimensions == []
+  and .summary.real_live_boundary_gate_issue_count == 0
+  and .summary.real_live_boundary_gate_suppressed_count == 1
+  and .summary.real_live_boundary_gate_resolved_suppressed_count == 1
+  and .summary.real_live_boundary_gate_unresolved_suppressed_count == 0
   and .summary.promotion_allowed_sessions == 0
   and .summary.live_quarantined == true
   and .summary.live_evidence_mode == "historical_debug_only"
