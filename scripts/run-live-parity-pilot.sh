@@ -176,10 +176,15 @@ if [[ "$record_new" == "1" && "$controlled_real" == "1" ]]; then
     and .promotion_policy.controlled_real_live_pilot_allowed == true
     and ((.coverage_target.passing_compared_sessions_remaining // 0) > 0)
     and (((.capture_safe_candidate_scope.blocking_dimensions // []) | length) == 0)
+    and .coverage_path.status == "needs_new_controlled_live_evidence"
+    and .coverage_path.batch_authoritative == true
+    and .coverage_path.new_real_live_collection_allowed == false
+    and .coverage_path.controlled_real_live_pilot_allowed == true
   ' "$corpus_report" >/dev/null || {
     jq '{
       recommended_next,
       coverage_target,
+      coverage_path,
       promotion_policy,
       capture_safe_candidate_scope
     }' "$corpus_report" >&2

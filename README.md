@@ -374,7 +374,8 @@ murmurmark transcript latest
 Evidence command records until `Ctrl-C` into a date-named session, skips live finalize during
 recording, runs the normal batch pipeline after stop and refreshes the live corpus report. Before
 recording, the runner refreshes the same corpus gates and refuses to start if controlled evidence
-collection is no longer the recommended safe next step. Its `live_parity_pilot_report.json` prints
+collection is no longer the recommended safe next step; in practice, `coverage_path.status` must be
+`needs_new_controlled_live_evidence`. Its `live_parity_pilot_report.json` prints
 `pilot_verdict`, `contributes_to_passing_coverage` and remaining passing coverage. It is evidence
 collection, not production promotion; the batch transcript remains final.
 The `experiment` commands inspect the sidecar contract and compare live-shadow artifacts with the

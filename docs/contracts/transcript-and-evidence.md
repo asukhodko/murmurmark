@@ -4320,8 +4320,9 @@ controlled Live Evidence run until `Ctrl-C`, then runs the normal batch pipeline
 `murmurmark corpus live all --refresh`. Before a controlled real recording starts, the runner
 refreshes the same corpus gates and refuses to record unless
 `controlled_real_live_pilot_allowed == true`, `new_real_live_collection_allowed == false`, passing
-coverage is still needed and the capture-safe candidate slice has no blocking dimensions. When it
-creates a new live recording, it must also have
+coverage is still needed, the capture-safe candidate slice has no blocking dimensions and
+`coverage_path.status == "needs_new_controlled_live_evidence"`. When it creates a new live recording,
+it must also have
 `capture_regression_check.json.capture_safe_proof.status == "full_fail_open_proof_passed"`.
 `--preflight-only` runs the same checks and exits before recording or processing. `--skip-safety-gate`
 reuses an existing full proof; it does not bypass this requirement. The runner writes:

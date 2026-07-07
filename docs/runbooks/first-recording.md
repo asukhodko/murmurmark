@@ -138,7 +138,8 @@ murmurmark transcript latest
 The preflight command performs the same proof and corpus-gate checks without starting capture. The
 Live Evidence command records until `Ctrl-C`, runs normal batch processing after stop and refreshes
 `murmurmark corpus live all --refresh`. Before recording, the runner refreshes the same corpus gates
-and refuses to start if controlled evidence collection is no longer the safe next step. It is still
+and refuses to start if controlled evidence collection is no longer the safe next step; in practice,
+`coverage_path.status` must be `needs_new_controlled_live_evidence`. It is still
 evidence collection: live output remains shadow-only and the batch transcript remains authoritative.
 After processing, read `derived/live/live_parity_pilot_report.json`; `pilot_verdict`,
 `contributes_to_passing_coverage` and `coverage_after.passing_compared_sessions_remaining` tell
