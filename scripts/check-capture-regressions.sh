@@ -138,6 +138,18 @@ assert_static_capture_contract() {
 
   grep -q 'MURMURMARK_LIVE_SEGMENT_WRITE_DELAY_MS' "$source_file" \
     || fail "async live segment queue must expose a lab write-delay override for fail-open tests"
+
+  grep -q 'final class RecordingProcessLock' "$source_file" \
+    || fail "recording lock must keep concurrent record processes rejected"
+
+  grep -q 'case "experiment"' "$source_file" \
+    || fail "experimental sidecar contract must have a CLI command"
+
+  [[ -f scripts/experiment-sidecar-contract.py ]] \
+    || fail "experimental sidecar contract script is missing"
+
+  grep -q 'murmurmark.experimental_sidecar_manifest/v1' scripts/experiment-sidecar-contract.py \
+    || fail "experimental sidecar manifest schema v1 is missing"
 }
 
 assert_silent_pipeline_gate() {

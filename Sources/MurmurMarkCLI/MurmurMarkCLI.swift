@@ -67,6 +67,8 @@ struct MurmurMark {
                 try CorpusCommands.corpus(args)
             case "live":
                 try LiveCommands.live(args)
+            case "experiment":
+                try ExperimentCommands.experiment(args)
             case "finish":
                 try FinishCommands.finish(args)
             case "export":
@@ -187,6 +189,7 @@ struct MurmurMark {
           murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live gate [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--controlled-real] [--preflight-only] [--skip-safety-gate]
+          murmurmark experiment status|report|compare SESSION|latest [--experiment live-shadow-v1]
           murmurmark corpus report
 
         Setup and diagnostics:
@@ -645,6 +648,7 @@ enum DoctorChecks {
             "scripts/materialize-live-asr-cache.py",
             "scripts/report-live-corpus-gates.py",
             "scripts/run-live-parity-pilot.sh",
+            "scripts/experiment-sidecar-contract.py",
             "scripts/report-asr-chunk-cache-corpus.py",
             "scripts/transcribe-simple-whispercpp.py",
             "scripts/check-asr-chunk-cache.py",
@@ -664,6 +668,7 @@ enum DoctorChecks {
             "scripts/apply-retention-policy.py",
             "scripts/build-provider-payload-manifest.py",
             "scripts/smoke-cli-handoff.sh",
+            "scripts/smoke-experimental-sidecar-contract.sh",
             "scripts/smoke-process-chunk-resume.sh",
         ] {
             let url = PathURLs.fileURL(path)
@@ -5145,6 +5150,81 @@ enum LiveCommands {
             throw CLIError("live script not found: \(url.path)")
         }
         return url
+    }
+}
+
+enum ExperimentCommands {
+    static func experiment(_ args: [String]) throws {
+        guard let subcommand = args.first else {
+            printHelp()
+            return
+        }
+        let forwarded = Array(args.dropFirst())
+        switch subcommand {
+        case "status", "report", "compare", "refresh":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                printSubcommandHelp(subcommand)
+                return
+            }
+            guard let target = forwarded.first else {
+                printSubcommandHelp(subcommand)
+                return
+            }
+            try runContract(command: subcommand, target: target, args: Array(forwarded.dropFirst()))
+        case "help", "--help", "-h":
+            printHelp()
+        default:
+            throw CLIError("unknown experiment command: \(subcommand)")
+        }
+    }
+
+    private static func runContract(command: String, target: String, args: [String]) throws {
+        var remaining = args
+        let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &remaining) ?? "sessions")
+        let experiment = ArgumentEditing.takeOption("experiment", from: &remaining) ?? "live-shadow-v1"
+        guard remaining.isEmpty else {
+            throw CLIError("unexpected experiment arguments: \(remaining.joined(separator: " "))")
+        }
+        let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+        let script = PathURLs.fileURL("scripts/experiment-sidecar-contract.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("experiment contract script not found: \(script.path)")
+        }
+        print("SESSION=\"\(PathDisplay.display(session))\"")
+        fflush(stdout)
+        try Tooling.runPath(
+            try PythonRuntime.resolve(),
+            [
+                script.path,
+                command,
+                session.path,
+                "--experiment",
+                experiment,
+                "--sessions-root",
+                sessionsRoot.path,
+            ]
+        )
+    }
+
+    private static func printHelp() {
+        Swift.print("""
+        usage:
+          murmurmark experiment status SESSION|latest [--experiment live-shadow-v1] [--sessions-root ./sessions]
+          murmurmark experiment report SESSION|latest [--experiment live-shadow-v1] [--sessions-root ./sessions]
+          murmurmark experiment compare SESSION|latest [--experiment live-shadow-v1] [--sessions-root ./sessions]
+
+        Writes and reads the experimental sidecar contract under
+        derived/experiments/<experiment-id>/. Batch transcript remains authoritative.
+        """)
+    }
+
+    private static func printSubcommandHelp(_ subcommand: String) {
+        Swift.print("""
+        usage: murmurmark experiment \(subcommand) SESSION|latest [--experiment live-shadow-v1] [--sessions-root ./sessions]
+
+        The command refreshes derived/experiments/<experiment-id>/experiment_manifest.json,
+        state.json, events.jsonl and report.json before printing the requested view.
+        """)
     }
 }
 

@@ -70,8 +70,9 @@ boring and repeatable:
 4. add ASR/window-level cache and resume, with stable metadata hashes;
 5. prove normal non-live capture/process/status/next/finish on fresh sessions;
 6. prove silent/partial/interrupted captures block before ASR and never look successful;
-7. only after that, redesign live segment production so it cannot affect raw capture; real
-   live-pipeline coverage returns only after that redesign is proven safe;
+7. keep the experimental sidecar contract as the boundary for live work:
+   `derived/experiments/live-shadow-v1` must prove fail-open behavior and raw capture isolation;
+   real live-pipeline coverage returns only through controlled pilots with that proof;
 8. reuse live/near-realtime chunks only when strict metadata and corpus parity gates pass;
 9. only then promote audio candidates or heavier validators.
 
@@ -88,6 +89,8 @@ The CLI MVP is already real:
 - `murmurmark review` handles lane packs, answer sheets, suggested decisions and reviewed profiles;
 - `murmurmark review suggested` previews and applies safe generated suggestions before manual listening;
 - `murmurmark corpus` runs the regression/readiness loop;
+- `murmurmark experiment status|report|compare` exposes sidecar manifests under
+  `derived/experiments/live-shadow-v1` while keeping batch authoritative;
 - `murmurmark finish` turns readiness, export and retention/payload manifests into one final handoff;
 - `murmurmark export` builds Export Bundle Quality v1 Markdown/Obsidian bundles with "Can I use
   this?", review burden, evidence-backed notes, transcript IDs and retention/privacy next steps;

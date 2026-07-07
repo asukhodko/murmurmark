@@ -319,6 +319,28 @@ only a short finalization tail for the live worker; a stuck worker is terminated
 continues. If you need only the draft and want to run batch processing manually later, use
 `--live-no-finalize`.
 
+Every controlled live pilot also writes an explicit experimental sidecar contract under:
+
+```text
+derived/experiments/live-shadow-v1/
+  experiment_manifest.json
+  state.json
+  events.jsonl
+  report.json
+  report.md
+```
+
+`derived/live/` remains a compatibility alias for the existing draft/chunk files. The contract is the
+machine-readable source for sidecar status: whether the experiment started, how many raw and sidecar
+seconds exist, whether backpressure disabled the sidecar, whether raw capture was affected, and which
+command recovers processing from the existing raw CAF files. Inspect it with:
+
+```bash
+murmurmark experiment status latest
+murmurmark experiment report latest
+murmurmark experiment compare latest --experiment live-shadow-v1
+```
+
 For lab evidence, use the pilot runner instead of assembling the unsafe commands by hand:
 
 ```bash
@@ -329,8 +351,9 @@ It first runs the local capture/live fail-open probe, then records a short lab-o
 runs the normal batch pipeline, compares live output with batch output and refreshes
 `murmurmark corpus live all --refresh`. `--skip-safety-gate` only reuses an existing
 `full_fail_open_proof_passed` report; it does not allow a new live recording without proof. It writes
-`derived/live/live_parity_pilot_report.json` under the pilot session. Promotion must remain blocked
-and the batch transcript remains authoritative.
+`derived/live/live_parity_pilot_report.json` plus
+`derived/experiments/live-shadow-v1/experiment_manifest.json` under the pilot session. Promotion must
+remain blocked and the batch transcript remains authoritative.
 
 When `murmurmark corpus live all --refresh` reports `controlled_real_live_pilot_allowed: true`, use
 the same runner for a non-critical real pilot:

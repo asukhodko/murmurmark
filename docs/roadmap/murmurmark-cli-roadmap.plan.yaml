@@ -540,14 +540,15 @@ nodes:
       full fail-open proof пройден; ближайшая работа по live — controlled non-critical parity
       pilots, пока promotion остаётся blocked и batch transcript authoritative. Архитектурная форма
       зафиксирована как single-capture experimental sidecar: один ScreenCaptureKit owner, raw CAF
-      first, best-effort derived artifacts отдельно от batch outputs.
+      first, best-effort derived artifacts отдельно от batch outputs. Contract v1 уже материализует
+      эту форму под `derived/experiments/live-shadow-v1`.
 
   realtime-segment-writer:
     title: "Capture-safe segment writer"
     kind: task
     parent: near-realtime-pipeline
     deps: [cli-recording-reliability]
-    status: current
+    status: done
     effort: 4
     notes: |
       `record --live-pipeline` остаётся отключённым по умолчанию. Первый capture-safe слой теперь
@@ -563,11 +564,28 @@ nodes:
       controlled non-critical real pilot, batch process, live-vs-batch compare и refreshed corpus live
       report, сохраняя live promotion blocked.
 
+  experimental-sidecar-contract-v1:
+    title: "Experimental Sidecar Contract v1"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [realtime-segment-writer]
+    status: done
+    effort: 4
+    notes: |
+      Новый контрактный слой оформляет sidecar как эксперимент, а не как набор файлов
+      `derived/live`. `murmurmark live pilot` и `murmurmark experiment status|report|compare`
+      пишут `derived/experiments/live-shadow-v1/experiment_manifest.json`, `state.json`,
+      `events.jsonl`, `report.json` и `report.md`. Manifest фиксирует `batch_authoritative: true`,
+      `promotion_allowed: false`, `raw_capture_affected`, recovery/comparison commands и ссылки на
+      chunks/draft/worker log/comparison/final reconcile. Smoke проверяет нормальный контракт и
+      fail-open backpressure: sidecar может отключиться, но raw CAF и batch process остаются
+      воспроизводимыми.
+
   realtime-worker-queue:
     title: "Echo/ASR worker queue"
     kind: task
     parent: near-realtime-pipeline
-    deps: [realtime-segment-writer]
+    deps: [experimental-sidecar-contract-v1]
     status: later
     effort: 5
     notes: |

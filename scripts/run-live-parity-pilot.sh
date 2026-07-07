@@ -29,7 +29,8 @@ Options:
   --help               Show this help.
 
 This runner is not a production recording path. It keeps live promotion blocked and batch transcript
-authoritative while collecting parity evidence.
+authoritative while collecting parity evidence. It also refreshes
+derived/experiments/live-shadow-v1/{experiment_manifest.json,state.json,events.jsonl,report.json}.
 EOF
 }
 
@@ -225,6 +226,8 @@ else
   [[ -d "$session" ]] || fail "session not found: $session"
 fi
 
+python3 scripts/experiment-sidecar-contract.py refresh "$session" --experiment live-shadow-v1 >/dev/null
+
 process_args=("$session" "--skip-build")
 if [[ "$force_asr" == "1" ]]; then
   process_args+=("--force-asr")
@@ -235,6 +238,7 @@ echo "[pilot] batch process and live compare"
 
 echo "[pilot] explicit live-vs-batch comparison"
 python3 scripts/compare-live-batch.py "$session"
+python3 scripts/experiment-sidecar-contract.py refresh "$session" --experiment live-shadow-v1 >/dev/null
 
 echo "[pilot] live corpus report"
 "$bin" corpus live all --refresh --sessions-root sessions
@@ -342,6 +346,8 @@ payload = {
 }
 out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
+
+python3 scripts/experiment-sidecar-contract.py refresh "$session" --experiment live-shadow-v1 >/dev/null
 
 echo "live_parity_pilot_report: $pilot_report"
 echo "session: $session"

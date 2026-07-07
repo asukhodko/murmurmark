@@ -78,4 +78,21 @@ grep -q '"max_pending_samples":1' "$session/events.jsonl" \
 grep -q '"artificial_write_delay_ms":250' "$session/events.jsonl" \
   || fail "live prepare event does not record lab delay setting"
 
+python3 scripts/experiment-sidecar-contract.py refresh "$session" --experiment live-shadow-v1 >/dev/null
+
+jq -e '
+  .raw_capture_affected == false
+  and .batch_authoritative == true
+  and .promotion_allowed == false
+  and .disabled_reason == "sidecar_backpressure"
+' "$session/derived/experiments/live-shadow-v1/experiment_manifest.json" >/dev/null \
+  || fail "experiment manifest does not prove fail-open backpressure behavior"
+
+jq -e '
+  .answers.backpressure_detected == true
+  and .answers.sidecar_disabled == true
+  and .answers.batch_reproducible_from_raw == true
+' "$session/derived/experiments/live-shadow-v1/state.json" >/dev/null \
+  || fail "experiment state does not prove raw/batch recovery after sidecar overload"
+
 echo "live segment fail-open smoke ok"

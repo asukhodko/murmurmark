@@ -5,9 +5,63 @@ production path remains non-live `record -> process`. The current live work is e
 and gate hardening only: live output must stay shadow-only and batch transcript remains
 authoritative.
 
-## Active Goal: Near-Realtime Live Parity Coverage v1
+## Latest Completed Goal: Experimental Sidecar Contract v1
 
-Status, 2026-07-06: active.
+Status, 2026-07-07: complete.
+
+Goal:
+
+```text
+MurmurMark Experimental Sidecar Contract v1: реализовать безопасный single-capture
+experimental sidecar-контур, где raw CAF остаётся единственным источником истины, а live/near-
+realtime артефакты пишутся отдельно, best-effort, с машинно-проверяемым доказательством, что
+эксперимент не повлиял на raw capture и batch pipeline.
+```
+
+Plainly: live work must have a passport. It may produce chunks, draft text and comparison reports,
+but it must also prove where those files are, whether it fell behind, whether it disabled itself,
+whether raw capture was affected, and how to recover batch processing from raw CAF without starting
+a new recording.
+
+Current implementation target:
+
+- `derived/experiments/live-shadow-v1/experiment_manifest.json`;
+- `derived/experiments/live-shadow-v1/state.json`;
+- `derived/experiments/live-shadow-v1/events.jsonl`;
+- `derived/experiments/live-shadow-v1/report.json`;
+- `derived/experiments/live-shadow-v1/report.md`;
+- `murmurmark experiment status|report|compare SESSION|latest`;
+- fail-open smoke: artificial sidecar backpressure disables only sidecar artifacts while raw CAF and
+  batch recovery remain valid.
+
+Batch transcript remains authoritative. Live promotion remains blocked.
+
+Definition of done:
+
+- controlled live pilot writes the experiment contract;
+- `state.json` answers raw seconds, sidecar seconds, backpressure/disabled state,
+  `raw_capture_affected` and batch reproducibility from raw CAF;
+- `murmurmark process SESSION` works from raw files even when sidecar fails;
+- smoke tests cover sidecar backpressure and contract schema;
+- docs/contracts/roadmap describe the experiment namespace and keep `derived/live` as compatibility.
+
+Completion evidence:
+
+- `murmurmark live pilot --duration 8 --segment-sec 5 --overlap-sec 1 --skip-safety-gate --out sessions/_sidecar-contract-pilot-smoke`
+  wrote `derived/experiments/live-shadow-v1/experiment_manifest.json`, `state.json`,
+  `events.jsonl`, `report.json` and `report.md`;
+- `murmurmark experiment compare sessions/_sidecar-contract-pilot-smoke --experiment live-shadow-v1`
+  refreshed comparison and contract with `raw_capture_affected: false`,
+  `batch_authoritative: true`, `promotion_allowed: false`;
+- `scripts/smoke-experimental-sidecar-contract.sh` covers normal and backpressure contract fixtures;
+- `scripts/smoke-live-segment-fail-open.sh` verifies raw capture survives overloaded sidecar queue
+  and writes fail-open contract evidence;
+- `MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh` passed;
+- `scripts/check.sh` passed.
+
+## Previous Goal: Near-Realtime Live Parity Coverage v1
+
+Status, 2026-07-07: paused behind the sidecar contract work.
 
 Goal:
 

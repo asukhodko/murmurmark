@@ -78,6 +78,37 @@ derived/experiments/live-shadow-v1/
 The existing `derived/live/` path may stay as a compatibility alias while this shape settles, but new
 code should prefer an experiment-id namespace when more than one experiment exists.
 
+Implemented v1 contract:
+
+```text
+derived/experiments/live-shadow-v1/
+  experiment_manifest.json
+  state.json
+  events.jsonl
+  report.json
+  report.md
+```
+
+`derived/live/` remains the compatibility location for the current live draft, chunks, worker log,
+comparison and final reconcile files. The experiment namespace is the contract surface. It records:
+
+- `batch_authoritative: true`;
+- `promotion_allowed: false`;
+- `raw_capture_affected: false|true|unknown`;
+- recovery and comparison commands;
+- raw seconds recorded;
+- sidecar seconds captured/preprocessed/asr;
+- whether backpressure disabled the sidecar;
+- whether batch can be reproduced from raw CAF files without sidecar artifacts.
+
+Inspect it with:
+
+```bash
+murmurmark experiment status SESSION|latest
+murmurmark experiment report SESSION|latest
+murmurmark experiment compare SESSION|latest --experiment live-shadow-v1
+```
+
 ## Lifecycle
 
 ### Preflight
@@ -280,9 +311,10 @@ run a second `record` process.
 
 - Keep the existing recording lock. It prevents the known bad two-process shape.
 - Keep the sidecar queue bounded and non-blocking.
-- Move toward experiment manifests with explicit `experiment_id`, `schema`, `config`, `inputs`,
-  `outputs`, `status`, `started_at`, `ended_at`, `disabled_reason` and `promotion_allowed: false`.
-- Add one report that answers: "Did the experiment affect raw capture?" The expected answer is
-  machine-checkable `false`.
+- Keep experiment manifests with explicit `experiment_id`, `schema`, `config`, `inputs`, `outputs`,
+  `status`, `started_at`, `ended_at`, `disabled_reason`, `raw_capture_affected` and
+  `promotion_allowed: false`.
+- Keep one report that answers: "Did the experiment affect raw capture?" The expected answer for a
+  successful fail-open run is machine-checkable `false`.
 - Treat `derived/live/` as the first concrete sidecar, then generalize only when another experiment
   needs the same machinery.

@@ -173,6 +173,29 @@ short finalization tail for the live worker; a stuck worker is terminated and ba
 continues. The derived segment writer is also best-effort: if it fails, MurmurMark disables live
 segments with a warning instead of stopping raw recording. Use `--live-no-finalize` when you only
 want to test the live draft and run `murmurmark process` manually.
+
+The supported experiment contract lives outside `derived/live`:
+
+```text
+derived/experiments/live-shadow-v1/
+  experiment_manifest.json
+  state.json
+  events.jsonl
+  report.json
+  report.md
+```
+
+`derived/live` is compatibility storage for the current draft/chunk implementation. The experiment
+contract is the stable status surface. It records `batch_authoritative: true`,
+`promotion_allowed: false`, `raw_capture_affected`, recovery and comparison commands, raw seconds,
+sidecar seconds and backpressure/disabled state. Check it after a pilot or failed sidecar run:
+
+```bash
+murmurmark experiment status "$SESSION"
+murmurmark experiment report "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
+```
+
 After batch processing, `derived/live/live_parity_session_report.md` explains whether the session can
 count as a passing live comparison and lists the exact non-passing gates.
 
