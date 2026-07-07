@@ -1562,7 +1562,10 @@ def recommended_next_commands(
     gate_counts: dict[str, Counter[str]],
     gate_issues: list[dict[str, Any]],
 ) -> list[str]:
-    live_quarantine_note = "murmurmark status latest  # live pipeline is quarantined; use normal record/process for real meetings"
+    live_quarantine_note = (
+        "murmurmark status latest  # production meetings still use normal record/process; "
+        "controlled Live Evidence uses live pilot"
+    )
     if summary.get("live_quarantined") is True:
         if (
             summary.get("controlled_real_live_pilot_allowed") is True

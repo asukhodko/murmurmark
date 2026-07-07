@@ -5175,7 +5175,7 @@ Schema:
     "murmurmark status sessions/2026-07-03_06-16-43",
     "jq '.parity_gates.gates[] | select(.status != \"passed\")' sessions/2026-07-03_06-16-43/derived/live/live_batch_comparison.json",
     "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
-    "murmurmark status latest  # live pipeline is quarantined; use normal record/process for real meetings"
+    "murmurmark status latest  # production meetings still use normal record/process; controlled Live Evidence uses live pilot"
   ]
 }
 ```
