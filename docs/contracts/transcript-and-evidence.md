@@ -4937,6 +4937,14 @@ Schema:
     "live_evidence_mode": "historical_debug_only",
     "new_real_live_collection_allowed": false,
     "controlled_real_live_pilot_allowed": true,
+    "objective_status": "blocked_by_parity_gates",
+    "objective_ready_for_live_promotion": false,
+    "objective_next_focus": "fix_live_local_recall_gap",
+    "objective_next_focus_dimension": "local_recall",
+    "objective_next_recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion",
+    "real_blocker_triage_items": 3,
+    "real_blocker_triage_sessions": 2,
+    "real_blocker_triage_uncategorized_items": 0,
     "promotion_blocking_dimensions": [
       "capture_safety",
       "local_recall",
@@ -5192,6 +5200,11 @@ into actionable buckets. Typical categories are `batch_review_required`, `live_l
 `missing_live_asr_artifacts`, `capture_safety_risk`, `chunk_boundary_risk` and `order_risk`. Triage is diagnostic evidence:
 it explains the next safe action per blocker, but it does not relax promotion gates and does not
 allow promotion or normal production live use while live capture is quarantined.
+For automation, the compact `summary` duplicates the most useful objective and triage fields:
+`objective_status`, `objective_ready_for_live_promotion`, `objective_next_focus`,
+`objective_next_focus_dimension`, `objective_next_recommended_next`, `real_blocker_triage_items`,
+`real_blocker_triage_sessions` and `real_blocker_triage_uncategorized_items`. These fields mirror
+`objective_audit` and `real_blocker_triage_summary`; they do not relax parity gates.
 `real_parity_dimensions` is the promotion scope: date-named real meeting sessions count there, while
 `_debug_*` and `live-pilot-*` sessions remain diagnostic evidence only. `promotion_policy` is the
 machine-readable statement that batch remains authoritative and live evidence is historical/debug-only

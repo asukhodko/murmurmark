@@ -1241,6 +1241,19 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         capture_regression_check,
     )
     objective_audit["capture_safe_candidate_scope"] = candidate_scope
+    objective_next_focus = objective_audit.get("next_focus") if isinstance(objective_audit, dict) else None
+    if not isinstance(objective_next_focus, dict):
+        objective_next_focus = {}
+    summary["objective_status"] = objective_audit.get("overall_status")
+    summary["objective_ready_for_live_promotion"] = bool(objective_audit.get("ready_for_live_promotion"))
+    summary["objective_next_focus"] = objective_next_focus.get("action_id")
+    summary["objective_next_focus_dimension"] = objective_next_focus.get("dimension")
+    summary["objective_next_recommended_next"] = objective_next_focus.get("recommended_next")
+    summary["real_blocker_triage_items"] = safe_int(real_blocker_triage_summary.get("total_items"))
+    summary["real_blocker_triage_sessions"] = safe_int(real_blocker_triage_summary.get("session_count"))
+    summary["real_blocker_triage_uncategorized_items"] = safe_int(
+        real_blocker_triage_summary.get("uncategorized_gate_issue_count")
+    )
     return {
         "schema": SCHEMA,
         "generator": {"name": "report-live-corpus-gates", "version": SCRIPT_VERSION},

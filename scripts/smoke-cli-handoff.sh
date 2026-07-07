@@ -996,6 +996,13 @@ jq -e '
   and .real_parity_dimensions.chunk_boundary_risks.counts.warning == 1
   and .real_blocker_triage_summary.by_category.chunk_boundary_risk.item_count == 1
   and .objective_audit.overall_status == "blocked_by_parity_gates"
+  and .summary.objective_status == "blocked_by_parity_gates"
+  and .summary.objective_ready_for_live_promotion == false
+  and .summary.objective_next_focus == "fix_live_chunk_boundary_risks"
+  and .summary.objective_next_focus_dimension == "chunk_boundary_risks"
+  and .summary.real_blocker_triage_items == 1
+  and .summary.real_blocker_triage_sessions == 1
+  and .summary.real_blocker_triage_uncategorized_items == 0
   and .summary.real_capture_safe_candidate_sessions == 1
   and .summary.real_capture_safe_candidate_passing_sessions == 0
   and .real_capture_safe_candidate_parity_dimensions.chunk_boundary_risks.counts.warning == 1
@@ -1049,6 +1056,9 @@ jq -e '
   and .real_blocker_triage_summary.total_items == 0
   and .real_blocker_triage_summary.real_gate_issue_count == 0
   and .real_blocker_triage_summary.uncategorized_gate_issue_count == 0
+  and .summary.real_blocker_triage_items == 0
+  and .summary.real_blocker_triage_sessions == 0
+  and .summary.real_blocker_triage_uncategorized_items == 0
   and .real_parity_dimensions.capture_safety.counts.passed == 1
   and .real_capture_safe_candidate_parity_dimensions.capture_safety.counts.passed == 1
   and .real_capture_safe_candidate_parity_dimensions.required_artifacts.counts.passed == 1
@@ -1058,6 +1068,10 @@ jq -e '
   and .promotion_policy.new_real_live_collection_allowed == false
   and .promotion_policy.controlled_real_live_pilot_allowed == true
   and .objective_audit.overall_status == "incomplete_coverage"
+  and .summary.objective_status == "incomplete_coverage"
+  and .summary.objective_ready_for_live_promotion == false
+  and .summary.objective_next_focus == "collect_controlled_capture_safe_live_pilot"
+  and .summary.objective_next_focus_dimension == "controlled_live_pilot_coverage"
   and .objective_audit.batch_authoritative == true
   and .objective_audit.ready_for_live_promotion == false
   and .objective_audit.new_real_live_collection_allowed == false
