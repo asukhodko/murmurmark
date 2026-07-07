@@ -194,7 +194,12 @@ fi
 
 if [[ "$preflight_only" == "1" ]]; then
   echo "preflight: ok"
-  echo "session: $session"
+  if [[ "$record_new" == "1" ]]; then
+    echo "planned_session: $session"
+    echo "session_created: false"
+  else
+    echo "session: $session"
+  fi
   echo "record_new: $record_new"
   echo "controlled_real: $controlled_real"
   if [[ "$controlled_real" == "1" ]]; then

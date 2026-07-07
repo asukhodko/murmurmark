@@ -4324,8 +4324,9 @@ coverage is still needed, the capture-safe candidate slice has no blocking dimen
 `coverage_path.status == "needs_new_controlled_live_evidence"`. When it creates a new live recording,
 it must also have
 `capture_regression_check.json.capture_safe_proof.status == "full_fail_open_proof_passed"`.
-`--preflight-only` runs the same checks and exits before recording or processing. `--skip-safety-gate`
-reuses an existing full proof; it does not bypass this requirement. The runner writes:
+`--preflight-only` runs the same checks and exits before recording or processing. For a would-be new
+recording it prints `planned_session` and `session_created: false`, not a created session.
+`--skip-safety-gate` reuses an existing full proof; it does not bypass this requirement. The runner writes:
 
 ```text
 derived/live/live_parity_pilot_report.json

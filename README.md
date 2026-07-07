@@ -370,8 +370,10 @@ murmurmark status latest
 murmurmark transcript latest
 ```
 
-`--preflight-only` performs the same proof and corpus-gate checks without starting capture. The Live
-Evidence command records until `Ctrl-C` into a date-named session, skips live finalize during
+`--preflight-only` performs the same proof and corpus-gate checks without starting capture. When it
+would create a new recording, it prints `planned_session` and `session_created: false`; do not process
+that path until the real pilot run has actually recorded it. The Live Evidence command records until
+`Ctrl-C` into a date-named session, skips live finalize during
 recording, runs the normal batch pipeline after stop and refreshes the live corpus report. Before
 recording, the runner refreshes the same corpus gates and refuses to start if controlled evidence
 collection is no longer the recommended safe next step; in practice, `coverage_path.status` must be

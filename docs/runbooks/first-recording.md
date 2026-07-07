@@ -135,8 +135,10 @@ murmurmark status latest
 murmurmark transcript latest
 ```
 
-The preflight command performs the same proof and corpus-gate checks without starting capture. The
-Live Evidence command records until `Ctrl-C`, runs normal batch processing after stop and refreshes
+The preflight command performs the same proof and corpus-gate checks without starting capture. When
+it would create a new recording, it prints `planned_session` and `session_created: false`; do not
+process that path until the real pilot run has actually recorded it. The Live Evidence command
+records until `Ctrl-C`, runs normal batch processing after stop and refreshes
 `murmurmark corpus live all --refresh`. Before recording, the runner refreshes the same corpus gates
 and refuses to start if controlled evidence collection is no longer the safe next step; in practice,
 `coverage_path.status` must be `needs_new_controlled_live_evidence`. It is still
