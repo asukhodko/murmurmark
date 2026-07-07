@@ -75,6 +75,22 @@ grep -q 'capture-safe proof is not full_fail_open_proof_passed' "$workdir/live-p
   exit 1
 }
 
+live_pilot_preflight_denied_session="$workdir/live-pilot-preflight-denied"
+if MURMURMARK_CAPTURE_REGRESSION_REPORT="$workdir/missing-capture-proof.json" \
+  "$repo_root/scripts/run-live-parity-pilot.sh" \
+    --controlled-real \
+    --preflight-only \
+    --skip-safety-gate \
+    --out "$live_pilot_preflight_denied_session" >"$workdir/live-pilot-preflight-denied.out" 2>&1; then
+  echo "expected live parity pilot preflight to reject controlled real recording without full capture proof" >&2
+  exit 1
+fi
+grep -q 'capture-safe proof is not full_fail_open_proof_passed' "$workdir/live-pilot-preflight-denied.out"
+[[ ! -e "$live_pilot_preflight_denied_session/session.json" ]] || {
+  echo "live parity pilot preflight created a session despite missing capture proof" >&2
+  exit 1
+}
+
 cd "$workdir"
 
 session="$workdir/sessions/cli-handoff"

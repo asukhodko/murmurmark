@@ -327,13 +327,15 @@ When `murmurmark corpus live all --refresh` reports `controlled_real_live_pilot_
 the same runner for a non-critical real pilot:
 
 ```bash
+scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate --preflight-only
 scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate
 ```
 
-This records until `Ctrl-C` into a date-named session, skips live finalize during recording, runs the
-normal batch pipeline after stop and refreshes the live corpus report. Before recording, the runner
-refreshes the same corpus gates and refuses to start if controlled real collection is no longer the
-recommended safe next step. It is evidence collection, not production promotion.
+`--preflight-only` performs the same proof and corpus-gate checks without starting capture. The real
+pilot command records until `Ctrl-C` into a date-named session, skips live finalize during recording,
+runs the normal batch pipeline after stop and refreshes the live corpus report. Before recording, the
+runner refreshes the same corpus gates and refuses to start if controlled real collection is no
+longer the recommended safe next step. It is evidence collection, not production promotion.
 
 The live worker is still shadow-grade, but it now has three lightweight protections before writing
 draft text: per-chunk mic echo cleanup, a role gate that suppresses mic text when it duplicates the

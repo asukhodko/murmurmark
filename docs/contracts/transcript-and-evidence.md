@@ -4322,8 +4322,8 @@ real recording starts, the runner refreshes the same corpus gates and refuses to
 coverage is still needed and the capture-safe candidate slice has no blocking dimensions. When it
 creates a new live recording, it must also have
 `capture_regression_check.json.capture_safe_proof.status == "full_fail_open_proof_passed"`.
-`--skip-safety-gate` reuses an existing full proof; it does not bypass this requirement. The runner
-writes:
+`--preflight-only` runs the same checks and exits before recording or processing. `--skip-safety-gate`
+reuses an existing full proof; it does not bypass this requirement. The runner writes:
 
 ```text
 derived/live/live_parity_pilot_report.json

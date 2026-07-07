@@ -124,10 +124,12 @@ existing proof, but it does not bypass the proof requirement.
 For a non-critical real pilot after the report says `controlled_real_live_pilot_allowed: true`, run:
 
 ```bash
+scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate --preflight-only
 scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate
 ```
 
-This records until `Ctrl-C`, runs normal batch processing after stop and refreshes
+The preflight command performs the same proof and corpus-gate checks without starting capture. The
+pilot command records until `Ctrl-C`, runs normal batch processing after stop and refreshes
 `murmurmark corpus live all --refresh`. Before recording, the runner refreshes the same corpus gates
 and refuses to start if controlled real collection is no longer the safe next step. It is still
 evidence collection: live output remains shadow-only and the batch transcript remains authoritative.

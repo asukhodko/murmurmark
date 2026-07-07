@@ -21,6 +21,7 @@ Options:
   --out SESSION        Output session path for a new pilot.
   --controlled-real    Record a date-named controlled non-critical real pilot until Ctrl-C.
                        Defaults to --segment-sec 60, --overlap-sec 5 and --live-no-finalize.
+  --preflight-only     Check safety/corpus gates and exit before recording or processing.
   --skip-safety-gate   Reuse the existing full capture proof instead of running the probe first.
   --force-asr          Force batch ASR during murmurmark process.
   --help               Show this help.
@@ -46,6 +47,7 @@ record_new=0
 skip_safety_gate=0
 force_asr=0
 controlled_real=0
+preflight_only=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -76,6 +78,10 @@ while [[ $# -gt 0 ]]; do
     --controlled-real)
       controlled_real=1
       record_new=1
+      shift
+      ;;
+    --preflight-only)
+      preflight_only=1
       shift
       ;;
     --skip-safety-gate)
@@ -177,6 +183,22 @@ if [[ "$record_new" == "1" && "$controlled_real" == "1" ]]; then
     }' "$corpus_report" >&2
     fail "controlled real pilot is not allowed by current live corpus gates"
   }
+fi
+
+if [[ "$preflight_only" == "1" ]]; then
+  echo "preflight: ok"
+  echo "session: $session"
+  echo "record_new: $record_new"
+  echo "controlled_real: $controlled_real"
+  if [[ "$controlled_real" == "1" ]]; then
+    echo "controlled_real_live_pilot_allowed: $(jq -r '.promotion_policy.controlled_real_live_pilot_allowed // false' "$corpus_report")"
+    echo "new_real_live_collection_allowed: $(jq -r '.promotion_policy.new_real_live_collection_allowed // false' "$corpus_report")"
+    echo "coverage_passing_remaining: $(jq -r '.coverage_target.passing_compared_sessions_remaining // 0' "$corpus_report")"
+    echo "next: scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate"
+  else
+    echo "next: scripts/run-live-parity-pilot.sh --duration $duration --skip-safety-gate"
+  fi
+  exit 0
 fi
 
 if [[ "$record_new" == "1" ]]; then
