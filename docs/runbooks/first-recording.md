@@ -121,6 +121,16 @@ The pilot refuses to create a new live recording unless
 `capture_safe_proof.status == "full_fail_open_proof_passed"`. `--skip-safety-gate` can reuse that
 existing proof, but it does not bypass the proof requirement.
 
+For a non-critical real pilot after the report says `controlled_real_live_pilot_allowed: true`, run:
+
+```bash
+scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate
+```
+
+This records until `Ctrl-C`, runs normal batch processing after stop and refreshes
+`murmurmark corpus live all --refresh`. It is still evidence collection: live output remains
+shadow-only and the batch transcript remains authoritative.
+
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
 
 Experimental live-shadow recording is disabled by default:
@@ -209,8 +219,10 @@ separate remaining live parity blockers from older broken-capture evidence. It i
 `new_real_live_collection_allowed` must remain false until live promotion is explicitly approved.
 If the full proof has passed, `controlled_real_live_pilot_allowed` may be true. That means only a
 non-critical live-pipeline pilot may be recorded to gather parity evidence, followed by normal batch
-processing and `murmurmark corpus live all --refresh`. Use `next_focus` to see whether the next step
-is a candidate blocker or a controlled pilot.
+processing and `murmurmark corpus live all --refresh`. Use
+`scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate` instead of assembling
+`record --live-pipeline` by hand. Use `next_focus` to see whether the next step is a candidate
+blocker or a controlled pilot.
 `Parity Dimensions` keeps the full mixed audit view by capture safety, order risk, local recall,
 remote leakage, review burden, notes readiness and chunk-boundary risk. `draft_text_recall` is
 separate from `required_artifacts`: present live files are not enough if live draft text no longer

@@ -8,7 +8,7 @@ usage() {
   cat <<'EOF'
 usage: scripts/run-live-parity-pilot.sh [SESSION] [options]
 
-Lab-only near-realtime pilot runner.
+Near-realtime pilot runner.
 
 Without SESSION, records a short unsafe live-pipeline session, then runs the batch pipeline,
 live-vs-batch comparison and live corpus report. With SESSION, skips recording and processes the
@@ -19,12 +19,14 @@ Options:
   --segment-sec SEC    Live segment length. Default: 15.
   --overlap-sec SEC    Live overlap length. Default: 3.
   --out SESSION        Output session path for a new pilot.
+  --controlled-real    Record a date-named controlled non-critical real pilot until Ctrl-C.
+                       Defaults to --segment-sec 60, --overlap-sec 5 and --live-no-finalize.
   --skip-safety-gate   Reuse the existing full capture proof instead of running the probe first.
   --force-asr          Force batch ASR during murmurmark process.
   --help               Show this help.
 
 This runner is not a production recording path. It keeps live promotion blocked and batch transcript
-authoritative while collecting lab evidence.
+authoritative while collecting parity evidence.
 EOF
 }
 
@@ -34,28 +36,35 @@ fail() {
 }
 
 duration=45
+duration_set=0
 segment_sec=15
+segment_set=0
 overlap_sec=3
+overlap_set=0
 session=""
 record_new=0
 skip_safety_gate=0
 force_asr=0
+controlled_real=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --duration)
       [[ $# -ge 2 ]] || fail "--duration requires a value"
       duration="$2"
+      duration_set=1
       shift 2
       ;;
     --segment-sec)
       [[ $# -ge 2 ]] || fail "--segment-sec requires a value"
       segment_sec="$2"
+      segment_set=1
       shift 2
       ;;
     --overlap-sec)
       [[ $# -ge 2 ]] || fail "--overlap-sec requires a value"
       overlap_sec="$2"
+      overlap_set=1
       shift 2
       ;;
     --out)
@@ -63,6 +72,11 @@ while [[ $# -gt 0 ]]; do
       session="$2"
       record_new=1
       shift 2
+      ;;
+    --controlled-real)
+      controlled_real=1
+      record_new=1
+      shift
       ;;
     --skip-safety-gate)
       skip_safety_gate=1
@@ -108,8 +122,21 @@ fi
 [[ -x "$bin" ]] || fail "murmurmark binary is not executable: $bin"
 
 if [[ -z "$session" ]]; then
-  session="sessions/live-pilot-$(date '+%Y-%m-%d_%H-%M-%S')"
+  if [[ "$controlled_real" == "1" ]]; then
+    session="sessions/$(date '+%Y-%m-%d_%H-%M-%S')"
+  else
+    session="sessions/live-pilot-$(date '+%Y-%m-%d_%H-%M-%S')"
+  fi
   record_new=1
+fi
+
+if [[ "$controlled_real" == "1" ]]; then
+  if [[ "$segment_set" != "1" ]]; then
+    segment_sec=60
+  fi
+  if [[ "$overlap_set" != "1" ]]; then
+    overlap_sec=5
+  fi
 fi
 
 if [[ "$record_new" == "1" && "$skip_safety_gate" != "1" ]]; then
@@ -131,14 +158,23 @@ fi
 
 if [[ "$record_new" == "1" ]]; then
   echo "[pilot] record live shadow session -> $session"
-  MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 \
-    "$bin" record \
-      --target-bundle system \
-      --duration "$duration" \
-      --live-pipeline \
-      --live-segment-sec "$segment_sec" \
-      --live-overlap-sec "$overlap_sec" \
-      --out "$session"
+  record_args=(
+    record
+    --target-bundle system
+    --live-pipeline
+    --live-segment-sec "$segment_sec"
+    --live-overlap-sec "$overlap_sec"
+    --out "$session"
+  )
+  if [[ "$controlled_real" == "1" ]]; then
+    record_args+=(--live-no-finalize)
+    if [[ "$duration_set" == "1" ]]; then
+      record_args+=(--duration "$duration")
+    fi
+  else
+    record_args+=(--duration "$duration")
+  fi
+  MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 "$bin" "${record_args[@]}"
 else
   [[ -d "$session" ]] || fail "session not found: $session"
 fi
@@ -155,7 +191,7 @@ echo "[pilot] explicit live-vs-batch comparison"
 python3 scripts/compare-live-batch.py "$session"
 
 echo "[pilot] live corpus report"
-"$bin" corpus live all --sessions-root sessions
+"$bin" corpus live all --refresh --sessions-root sessions
 
 comparison="$session/derived/live/live_batch_comparison.json"
 corpus_report="sessions/_reports/live-pipeline/live_corpus_gates_report.json"
@@ -174,7 +210,7 @@ jq -e '
 }
 
 mkdir -p "$(dirname "$pilot_report")"
-python3 - "$session" "$comparison" "$corpus_report" "$pilot_report" "$record_new" <<'PY'
+python3 - "$session" "$comparison" "$corpus_report" "$pilot_report" "$record_new" "$controlled_real" <<'PY'
 from __future__ import annotations
 
 import json
@@ -187,6 +223,7 @@ comparison_path = Path(sys.argv[2])
 corpus_path = Path(sys.argv[3])
 out_path = Path(sys.argv[4])
 created_session = sys.argv[5] == "1"
+controlled_real = sys.argv[6] == "1"
 
 comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
 corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
@@ -195,6 +232,7 @@ payload = {
     "generated_at": datetime.now(timezone.utc).isoformat(),
     "session": str(session),
     "created_session": created_session,
+    "controlled_real": controlled_real,
     "comparison": {
         "path": str(comparison_path),
         "parity_status": comparison.get("parity_status"),
@@ -215,4 +253,5 @@ PY
 echo "live_parity_pilot_report: $pilot_report"
 echo "session: $session"
 echo "promotion_policy: $(jq -r '.promotion_policy.status' "$corpus_report")"
+echo "controlled_real_live_pilot_allowed: $(jq -r '.promotion_policy.controlled_real_live_pilot_allowed // false' "$corpus_report")"
 echo "next: less $pilot_report"

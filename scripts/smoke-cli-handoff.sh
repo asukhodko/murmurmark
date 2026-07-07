@@ -1011,7 +1011,7 @@ jq -e '
   and .coverage_target.status == "needs_more_live_coverage"
   and .coverage_target.live_sessions_remaining == 2
   and .coverage_target.passing_compared_sessions_remaining == 2
-  and (.recommended_next | startswith("MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 murmurmark record"))
+  and .recommended_next == "scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate"
   and ([.next_commands[] | select(contains("--min-live-sessions"))] | length) == 0
   and ([.next_commands[] | select(contains("murmurmark corpus live all --refresh"))] | length) == 1
   and .real_blocker_triage_summary.total_items == 0
@@ -1082,7 +1082,7 @@ jq -e '
   and .promotion_policy.controlled_real_live_pilot_allowed == true
   and .strict_coverage.requested == true
   and (.strict_coverage.failures | length) == 0
-  and (.recommended_next | startswith("MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 murmurmark record"))
+  and .recommended_next == "scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate"
   and ([.next_commands[] | select(contains("--min-live-sessions"))] | length) == 0
   and ([.next_commands[] | select(contains("murmurmark corpus live all --refresh"))] | length) == 1
 ' "$workdir/live-report-strict/live_corpus_gates_report.json" >/dev/null

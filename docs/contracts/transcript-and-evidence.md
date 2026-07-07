@@ -4313,8 +4313,11 @@ Invariants:
 
 ### Live Parity Pilot Report
 
-`scripts/run-live-parity-pilot.sh` is the lab-only runner for collecting near-realtime evidence
-without promoting live output. When it creates a new live recording, it must first have
+`scripts/run-live-parity-pilot.sh` is the runner for collecting near-realtime evidence without
+promoting live output. Default `--duration` runs are lab evidence and use `live-pilot-*` session
+names. `--controlled-real` records a date-named non-critical real pilot until `Ctrl-C`, then runs
+the normal batch pipeline and refreshes `murmurmark corpus live all --refresh`. When it creates a
+new live recording, it must first have
 `capture_regression_check.json.capture_safe_proof.status == "full_fail_open_proof_passed"`.
 `--skip-safety-gate` reuses an existing full proof; it does not bypass this requirement. The runner
 writes:
@@ -4330,6 +4333,7 @@ Schema:
   "schema": "murmurmark.live_parity_pilot_report/v1",
   "session": "sessions/live-pilot-2026-07-06_21-00-00",
   "created_session": true,
+  "controlled_real": false,
   "batch_authoritative": true,
   "promotion_must_remain_blocked": true,
   "comparison": {
@@ -4343,7 +4347,8 @@ Schema:
     "promotion_policy": {
       "status": "blocked",
       "batch_authoritative": true,
-      "new_real_live_collection_allowed": false
+      "new_real_live_collection_allowed": false,
+      "controlled_real_live_pilot_allowed": true
     }
   }
 }
