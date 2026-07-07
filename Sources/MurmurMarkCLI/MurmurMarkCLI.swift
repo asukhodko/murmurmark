@@ -65,6 +65,8 @@ struct MurmurMark {
                 try TranscriptCommands.transcript(args)
             case "corpus":
                 try CorpusCommands.corpus(args)
+            case "live":
+                try LiveCommands.live(args)
             case "finish":
                 try FinishCommands.finish(args)
             case "export":
@@ -182,6 +184,7 @@ struct MurmurMark {
           murmurmark corpus local-recall-repair [all|latest|./session...] [--repair] [--sessions-root ./sessions]
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
+          murmurmark live pilot [SESSION] [--controlled-real] [--preflight-only] [--skip-safety-gate]
           murmurmark corpus report
 
         Setup and diagnostics:
@@ -203,7 +206,7 @@ struct MurmurMark {
           audio-input remote capture and voice-processing mic capture are experimental comparison modes.
           It writes mic.caf, remote.caf, session.json, events.jsonl and pipeline_job.json.
           Without --duration, recording runs until Ctrl-C and finalizes the session.
-          --live-pipeline is disabled by default; it remains lab-only until async live segments pass parity gates.
+          --live-pipeline is disabled by default; use `murmurmark live pilot` only for shadow evidence collection.
           Use plain `record --target-bundle system` for real meetings.
           Use --live-no-finalize only for lab diagnostics when unsafe live mode is explicitly enabled.
           SIGTERM/SIGHUP are treated as unexpected stops and leave a partial session.
@@ -4988,6 +4991,78 @@ enum SynthesisPrinter {
             return Double(value)
         }
         return nil
+    }
+}
+
+enum LiveCommands {
+    static func live(_ args: [String]) throws {
+        guard let subcommand = args.first else {
+            printHelp()
+            return
+        }
+        let forwarded = Array(args.dropFirst())
+        switch subcommand {
+        case "pilot":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                printPilotHelp()
+                return
+            }
+            let script = PathURLs.fileURL("scripts/run-live-parity-pilot.sh")
+            guard FileManager.default.fileExists(atPath: script.path) else {
+                throw CLIError("live pilot script not found: \(PathDisplay.display(script))")
+            }
+            print("live_pilot:")
+            let suffix = forwarded.isEmpty ? "" : " \(forwarded.joined(separator: " "))"
+            print("  command: \(PathDisplay.display(script))\(suffix)")
+            fflush(stdout)
+            try Tooling.runPathForwardingInterrupts(
+                URL(fileURLWithPath: "/bin/bash"),
+                [script.path] + forwarded,
+                environmentOverrides: ["MURMURMARK_BIN": ExecutablePath.current()]
+            )
+        case "help", "--help", "-h":
+            printHelp()
+        default:
+            throw CLIError("unknown live command: \(subcommand)")
+        }
+    }
+
+    static func printHelp() {
+        Swift.print("""
+        usage:
+          murmurmark live pilot [SESSION] [--duration SEC] [--segment-sec SEC] [--overlap-sec SEC]
+                               [--controlled-real] [--preflight-only] [--skip-safety-gate]
+
+        Live commands collect near-realtime shadow evidence. They do not promote live output.
+        Batch transcript remains authoritative.
+        """)
+    }
+
+    static func printPilotHelp() {
+        Swift.print("""
+        usage:
+          murmurmark live pilot [SESSION] [options]
+
+        Wraps scripts/run-live-parity-pilot.sh.
+
+        Without SESSION, records a new shadow live-pipeline pilot, then runs batch processing,
+        live-vs-batch comparison and refreshed live corpus gates. With SESSION, processes and
+        compares an existing live-pipeline session.
+
+        Options:
+          --duration SEC       Recording duration for a new lab pilot. Default: 45.
+          --segment-sec SEC    Live segment length. Default: 15, or 60 for --controlled-real.
+          --overlap-sec SEC    Live overlap length. Default: 3, or 5 for --controlled-real.
+          --out SESSION        Output session path for a new pilot.
+          --controlled-real    Record a date-named non-critical real pilot until Ctrl-C.
+          --preflight-only     Check proof/corpus gates and exit before recording or processing.
+          --skip-safety-gate   Reuse an existing full fail-open proof.
+          --force-asr          Force batch ASR during post-stop processing.
+
+        Safe current use:
+          murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
+          murmurmark live pilot --controlled-real --skip-safety-gate
+        """)
     }
 }
 
@@ -13898,6 +13973,22 @@ enum Tooling {
         }
     }
 
+    static func runPathForwardingInterrupts(
+        _ executable: URL,
+        _ arguments: [String],
+        environmentOverrides: [String: String]
+    ) throws {
+        let status = try runPathForwardingInterruptsAllowingExitCodes(
+            executable,
+            arguments,
+            allowedExitCodes: [0],
+            environmentOverrides: environmentOverrides
+        )
+        guard status == 0 else {
+            throw CLIError("\(executable.lastPathComponent) exited with \(status)")
+        }
+    }
+
     static func runPathQuiet(_ executable: URL, _ arguments: [String]) throws {
         let status = try runPathQuietAllowingExitCodes(executable, arguments, allowedExitCodes: [0])
         guard status == 0 else {
@@ -13910,6 +14001,20 @@ enum Tooling {
         _ arguments: [String],
         allowedExitCodes: Set<Int32>
     ) throws -> Int32 {
+        try runPathForwardingInterruptsAllowingExitCodes(
+            executable,
+            arguments,
+            allowedExitCodes: allowedExitCodes,
+            environmentOverrides: [:]
+        )
+    }
+
+    static func runPathForwardingInterruptsAllowingExitCodes(
+        _ executable: URL,
+        _ arguments: [String],
+        allowedExitCodes: Set<Int32>,
+        environmentOverrides: [String: String]
+    ) throws -> Int32 {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
             throw CLIError("executable not found: \(executable.path)")
         }
@@ -13917,6 +14022,13 @@ enum Tooling {
         process.executableURL = executable
         process.arguments = arguments
         process.standardInput = FileHandle.nullDevice
+        if !environmentOverrides.isEmpty {
+            var environment = ProcessInfo.processInfo.environment
+            for (key, value) in environmentOverrides {
+                environment[key] = value
+            }
+            process.environment = environment
+        }
         try process.run()
         let signalForwarder = ChildProcessSignalForwarder(process: process)
         signalForwarder.start()

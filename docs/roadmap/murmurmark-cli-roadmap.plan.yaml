@@ -554,10 +554,10 @@ nodes:
       controlled non-critical real live parity coverage после полного proof. `scripts/check-capture-regressions.sh` пишет
       `sessions/_reports/capture-regression/capture_regression_check.json`: `static_only` фиксирует
       статические и fixture-проверки, а `full_fail_open_proof_passed` требуется перед любым controlled
-      live pilot. Для пилотного контура добавлен `scripts/run-live-parity-pilot.sh`:
-      он запускает safety probe, короткую lab live recording или controlled non-critical real pilot,
-      batch process, live-vs-batch compare и refreshed corpus live report, сохраняя live promotion
-      blocked.
+      live pilot. Для пилотного контура добавлен `murmurmark live pilot` поверх
+      `scripts/run-live-parity-pilot.sh`: он запускает safety probe, короткую lab live recording или
+      controlled non-critical real pilot, batch process, live-vs-batch compare и refreshed corpus live
+      report, сохраняя live promotion blocked.
 
   realtime-worker-queue:
     title: "Echo/ASR worker queue"

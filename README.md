@@ -313,7 +313,7 @@ continues. If you need only the draft and want to run batch processing manually 
 For lab evidence, use the pilot runner instead of assembling the unsafe commands by hand:
 
 ```bash
-scripts/run-live-parity-pilot.sh --duration 45
+murmurmark live pilot --duration 45
 ```
 
 It first runs the local capture/live fail-open probe, then records a short lab-only live session,
@@ -327,8 +327,8 @@ When `murmurmark corpus live all --refresh` reports `controlled_real_live_pilot_
 the same runner for a non-critical real pilot:
 
 ```bash
-scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate --preflight-only
-scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate
+murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
+murmurmark live pilot --controlled-real --skip-safety-gate
 ```
 
 `--preflight-only` performs the same proof and corpus-gate checks without starting capture. The real

@@ -194,9 +194,9 @@ if [[ "$preflight_only" == "1" ]]; then
     echo "controlled_real_live_pilot_allowed: $(jq -r '.promotion_policy.controlled_real_live_pilot_allowed // false' "$corpus_report")"
     echo "new_real_live_collection_allowed: $(jq -r '.promotion_policy.new_real_live_collection_allowed // false' "$corpus_report")"
     echo "coverage_passing_remaining: $(jq -r '.coverage_target.passing_compared_sessions_remaining // 0' "$corpus_report")"
-    echo "next: scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate"
+    echo "next: murmurmark live pilot --controlled-real --skip-safety-gate"
   else
-    echo "next: scripts/run-live-parity-pilot.sh --duration $duration --skip-safety-gate"
+    echo "next: murmurmark live pilot --duration $duration --skip-safety-gate"
   fi
   exit 0
 fi

@@ -4313,11 +4313,12 @@ Invariants:
 
 ### Live Parity Pilot Report
 
-`scripts/run-live-parity-pilot.sh` is the runner for collecting near-realtime evidence without
-promoting live output. Default `--duration` runs are lab evidence and use `live-pilot-*` session
-names. `--controlled-real` records a date-named non-critical real pilot until `Ctrl-C`, then runs
-the normal batch pipeline and refreshes `murmurmark corpus live all --refresh`. Before a controlled
-real recording starts, the runner refreshes the same corpus gates and refuses to record unless
+`murmurmark live pilot` is the user-facing wrapper for collecting near-realtime evidence without
+promoting live output. It delegates to `scripts/run-live-parity-pilot.sh`. Default `--duration` runs
+are lab evidence and use `live-pilot-*` session names. `--controlled-real` records a date-named
+non-critical real pilot until `Ctrl-C`, then runs the normal batch pipeline and refreshes
+`murmurmark corpus live all --refresh`. Before a controlled real recording starts, the runner
+refreshes the same corpus gates and refuses to record unless
 `controlled_real_live_pilot_allowed == true`, `new_real_live_collection_allowed == false`, passing
 coverage is still needed and the capture-safe candidate slice has no blocking dimensions. When it
 creates a new live recording, it must also have

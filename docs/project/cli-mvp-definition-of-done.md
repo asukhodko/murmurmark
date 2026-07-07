@@ -93,9 +93,9 @@ run:
 
 ```bash
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
-scripts/run-live-parity-pilot.sh --duration 45
+murmurmark live pilot --duration 45
 murmurmark corpus live all --refresh
-scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate --preflight-only
+murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
 jq '.promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json
 ```
 

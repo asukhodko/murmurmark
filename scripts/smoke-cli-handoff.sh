@@ -91,6 +91,22 @@ grep -q 'capture-safe proof is not full_fail_open_proof_passed' "$workdir/live-p
   exit 1
 }
 
+cli_live_pilot_preflight_denied_session="$workdir/cli-live-pilot-preflight-denied"
+if MURMURMARK_CAPTURE_REGRESSION_REPORT="$workdir/missing-capture-proof.json" \
+  "$bin" live pilot \
+    --controlled-real \
+    --preflight-only \
+    --skip-safety-gate \
+    --out "$cli_live_pilot_preflight_denied_session" >"$workdir/cli-live-pilot-preflight-denied.out" 2>&1; then
+  echo "expected CLI live pilot preflight to reject controlled real recording without full capture proof" >&2
+  exit 1
+fi
+grep -q 'capture-safe proof is not full_fail_open_proof_passed' "$workdir/cli-live-pilot-preflight-denied.out"
+[[ ! -e "$cli_live_pilot_preflight_denied_session/session.json" ]] || {
+  echo "CLI live pilot preflight created a session despite missing capture proof" >&2
+  exit 1
+}
+
 cd "$workdir"
 
 session="$workdir/sessions/cli-handoff"
@@ -1027,7 +1043,7 @@ jq -e '
   and .coverage_target.status == "needs_more_live_coverage"
   and .coverage_target.live_sessions_remaining == 2
   and .coverage_target.passing_compared_sessions_remaining == 2
-  and .recommended_next == "scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate"
+  and .recommended_next == "murmurmark live pilot --controlled-real --skip-safety-gate"
   and ([.next_commands[] | select(contains("--min-live-sessions"))] | length) == 0
   and ([.next_commands[] | select(contains("murmurmark corpus live all --refresh"))] | length) == 1
   and .real_blocker_triage_summary.total_items == 0
@@ -1098,7 +1114,7 @@ jq -e '
   and .promotion_policy.controlled_real_live_pilot_allowed == true
   and .strict_coverage.requested == true
   and (.strict_coverage.failures | length) == 0
-  and .recommended_next == "scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate"
+  and .recommended_next == "murmurmark live pilot --controlled-real --skip-safety-gate"
   and ([.next_commands[] | select(contains("--min-live-sessions"))] | length) == 0
   and ([.next_commands[] | select(contains("murmurmark corpus live all --refresh"))] | length) == 1
 ' "$workdir/live-report-strict/live_corpus_gates_report.json" >/dev/null

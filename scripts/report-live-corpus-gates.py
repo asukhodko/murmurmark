@@ -1514,7 +1514,7 @@ def recommended_next_commands(
             and not (summary.get("real_capture_safe_candidate_blocking_dimensions") or [])
         ):
             return [
-                "scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate",
+                "murmurmark live pilot --controlled-real --skip-safety-gate",
                 "murmurmark corpus live all --refresh",
                 "jq '.capture_safe_candidate_scope, .coverage_target, .promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
                 live_quarantine_note,

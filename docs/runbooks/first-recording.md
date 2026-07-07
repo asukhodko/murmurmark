@@ -113,7 +113,7 @@ promotion blocked until live-vs-batch parity evidence is explicitly approved.
 For a short lab pilot after the safety probe, run:
 
 ```bash
-scripts/run-live-parity-pilot.sh --duration 45
+murmurmark live pilot --duration 45
 ```
 
 The pilot refuses to create a new live recording unless
@@ -124,8 +124,8 @@ existing proof, but it does not bypass the proof requirement.
 For a non-critical real pilot after the report says `controlled_real_live_pilot_allowed: true`, run:
 
 ```bash
-scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate --preflight-only
-scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate
+murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
+murmurmark live pilot --controlled-real --skip-safety-gate
 ```
 
 The preflight command performs the same proof and corpus-gate checks without starting capture. The
@@ -226,7 +226,7 @@ separate remaining live parity blockers from older broken-capture evidence. It i
 If the full proof has passed, `controlled_real_live_pilot_allowed` may be true. That means only a
 non-critical live-pipeline pilot may be recorded to gather parity evidence, followed by normal batch
 processing and `murmurmark corpus live all --refresh`. Use
-`scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate` instead of assembling
+`murmurmark live pilot --controlled-real --skip-safety-gate` instead of assembling
 `record --live-pipeline` by hand; the runner rechecks the current live corpus gates before it starts
 recording. Use `next_focus` to see whether the next step is a candidate blocker or a controlled
 pilot.
