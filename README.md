@@ -335,7 +335,9 @@ scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate
 pilot command records until `Ctrl-C` into a date-named session, skips live finalize during recording,
 runs the normal batch pipeline after stop and refreshes the live corpus report. Before recording, the
 runner refreshes the same corpus gates and refuses to start if controlled real collection is no
-longer the recommended safe next step. It is evidence collection, not production promotion.
+longer the recommended safe next step. Its `live_parity_pilot_report.json` prints `pilot_verdict`,
+`contributes_to_passing_coverage` and remaining passing coverage. It is evidence collection, not
+production promotion.
 
 The live worker is still shadow-grade, but it now has three lightweight protections before writing
 draft text: per-chunk mic echo cleanup, a role gate that suppresses mic text when it duplicates the

@@ -4337,16 +4337,27 @@ Schema:
   "session": "sessions/live-pilot-2026-07-06_21-00-00",
   "created_session": true,
   "controlled_real": false,
+  "pilot_verdict": "diagnostic_only",
+  "contributes_to_passing_coverage": false,
+  "non_passing_dimensions": [],
+  "non_passing_gates": [],
+  "coverage_after": {
+    "status": "needs_more_live_coverage",
+    "passing_compared_sessions_remaining": 2,
+    "meaningful_compared_sessions_remaining": 0,
+    "live_sessions_remaining": 0
+  },
   "batch_authoritative": true,
   "promotion_must_remain_blocked": true,
   "comparison": {
     "path": "sessions/.../derived/live/live_batch_comparison.json",
-    "parity_status": "blocked_or_warning",
+    "status": "shadow_compared",
     "promotion_allowed": false,
     "metrics": {}
   },
   "corpus": {
     "path": "sessions/_reports/live-pipeline/live_corpus_gates_report.json",
+    "session_row": {},
     "promotion_policy": {
       "status": "blocked",
       "batch_authoritative": true,
@@ -4357,7 +4368,11 @@ Schema:
 }
 ```
 
-The report is evidence that a pilot was processed and compared, not a promotion artifact. Live
+`pilot_verdict` is one of `passed_coverage`, `compared_but_not_passing`,
+`not_meaningfully_compared` or `diagnostic_only`. `contributes_to_passing_coverage == true` means a
+controlled real pilot is a real, meaningful, all-gates-passed comparison and reduces the remaining
+coverage target. The report is evidence that a pilot was processed and compared, not a promotion
+artifact. Live
 promotion remains blocked until the corpus-level parity gates pass on approved real coverage.
 
 ### Live Chunk Protection Gates

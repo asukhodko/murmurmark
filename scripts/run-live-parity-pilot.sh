@@ -271,20 +271,68 @@ controlled_real = sys.argv[6] == "1"
 
 comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
 corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
+session_keys = {str(session), session.name}
+if not str(session).startswith("sessions/"):
+    session_keys.add("sessions/" + str(session))
+
+corpus_sessions = corpus.get("sessions") if isinstance(corpus.get("sessions"), list) else []
+corpus_row = None
+for row in corpus_sessions:
+    if not isinstance(row, dict):
+        continue
+    row_session = str(row.get("session") or "")
+    if row_session in session_keys or row_session == session.name:
+        corpus_row = row
+        break
+
+parity_dimensions = corpus_row.get("parity_dimensions", {}) if isinstance(corpus_row, dict) else {}
+non_passing_dimensions = [
+    key
+    for key, value in sorted(parity_dimensions.items())
+    if isinstance(value, dict) and value.get("status") != "passed"
+]
+coverage_target = corpus.get("coverage_target") if isinstance(corpus.get("coverage_target"), dict) else {}
+contributes_to_passing_coverage = bool(
+    controlled_real
+    and isinstance(corpus_row, dict)
+    and corpus_row.get("evidence_scope") == "real_meeting"
+    and corpus_row.get("meaningful_compared") is True
+    and corpus_row.get("all_parity_gates_passed") is True
+)
+if contributes_to_passing_coverage:
+    pilot_verdict = "passed_coverage"
+elif controlled_real and isinstance(corpus_row, dict) and corpus_row.get("meaningful_compared") is True:
+    pilot_verdict = "compared_but_not_passing"
+elif controlled_real:
+    pilot_verdict = "not_meaningfully_compared"
+else:
+    pilot_verdict = "diagnostic_only"
+
 payload = {
     "schema": "murmurmark.live_parity_pilot_report/v1",
     "generated_at": datetime.now(timezone.utc).isoformat(),
     "session": str(session),
     "created_session": created_session,
     "controlled_real": controlled_real,
+    "pilot_verdict": pilot_verdict,
+    "contributes_to_passing_coverage": contributes_to_passing_coverage,
+    "non_passing_dimensions": non_passing_dimensions,
+    "non_passing_gates": corpus_row.get("non_passing_gates", []) if isinstance(corpus_row, dict) else [],
+    "coverage_after": {
+        "status": coverage_target.get("status"),
+        "passing_compared_sessions_remaining": coverage_target.get("passing_compared_sessions_remaining"),
+        "meaningful_compared_sessions_remaining": coverage_target.get("meaningful_compared_sessions_remaining"),
+        "live_sessions_remaining": coverage_target.get("live_sessions_remaining"),
+    },
     "comparison": {
         "path": str(comparison_path),
-        "parity_status": comparison.get("parity_status"),
+        "status": comparison.get("status"),
         "promotion_allowed": comparison.get("promotion_allowed"),
         "metrics": comparison.get("metrics", {}),
     },
     "corpus": {
         "path": str(corpus_path),
+        "session_row": corpus_row,
         "summary": corpus.get("summary", {}),
         "promotion_policy": corpus.get("promotion_policy", {}),
     },
@@ -296,6 +344,10 @@ PY
 
 echo "live_parity_pilot_report: $pilot_report"
 echo "session: $session"
+echo "pilot_verdict: $(jq -r '.pilot_verdict' "$pilot_report")"
+echo "contributes_to_passing_coverage: $(jq -r '.contributes_to_passing_coverage' "$pilot_report")"
+coverage_passing_remaining="$(jq -r '.coverage_after.passing_compared_sessions_remaining // "unknown"' "$pilot_report")"
+echo "coverage_passing_remaining: $coverage_passing_remaining"
 echo "promotion_policy: $(jq -r '.promotion_policy.status' "$corpus_report")"
 echo "controlled_real_live_pilot_allowed: $(jq -r '.promotion_policy.controlled_real_live_pilot_allowed // false' "$corpus_report")"
 echo "next: less $pilot_report"
