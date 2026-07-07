@@ -1232,6 +1232,43 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "new_real_live_collection_allowed": False,
         "controlled_real_live_pilot_allowed": pilot_allowed,
     }
+    candidate_session_ids = {str(row.get("session") or "") for row in capture_safe_candidate_rows}
+    historical_non_candidate_session_ids = [
+        str(row.get("session") or "")
+        for row in real_live_rows
+        if str(row.get("session") or "") not in candidate_session_ids
+    ]
+    if not pilot_allowed:
+        coverage_path_status = "blocked_until_full_fail_open_proof"
+        coverage_recommended_next = (
+            "run MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh"
+        )
+    elif candidate_blocking_dimensions:
+        coverage_path_status = "resolve_capture_safe_candidate_blockers"
+        coverage_recommended_next = next_focus_for_dimensions(candidate_blocking_dimensions).get("recommended_next")
+    elif coverage_target["passing_compared_sessions_remaining"] > 0:
+        coverage_path_status = "needs_new_controlled_live_evidence"
+        coverage_recommended_next = "murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only"
+    else:
+        coverage_path_status = "coverage_target_met_shadow_still_locked"
+        coverage_recommended_next = "murmurmark live gate"
+    coverage_path = {
+        "status": coverage_path_status,
+        "recommended_next": coverage_recommended_next,
+        "passing_compared_sessions_remaining": coverage_target["passing_compared_sessions_remaining"],
+        "capture_safe_candidate_sessions": len(capture_safe_candidate_rows),
+        "capture_safe_candidate_passing_sessions": summary["real_capture_safe_candidate_passing_sessions"],
+        "capture_safe_candidate_blocking_dimensions": candidate_blocking_dimensions,
+        "historical_non_candidate_sessions": len(historical_non_candidate_session_ids),
+        "historical_non_candidate_session_ids": historical_non_candidate_session_ids,
+        "new_real_live_collection_allowed": False,
+        "controlled_real_live_pilot_allowed": pilot_allowed,
+        "batch_authoritative": True,
+    }
+    summary["coverage_path_status"] = coverage_path_status
+    summary["coverage_path_recommended_next"] = coverage_recommended_next
+    summary["coverage_path_historical_non_candidate_sessions"] = len(historical_non_candidate_session_ids)
+    summary["coverage_path_new_controlled_evidence_required"] = coverage_path_status == "needs_new_controlled_live_evidence"
     objective_audit = build_objective_audit(
         summary,
         coverage_target,
@@ -1291,6 +1328,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_parity_dimensions": real_parity_dimensions_payload,
         "real_capture_safe_candidate_parity_dimensions": candidate_parity_dimensions_payload,
         "capture_safe_candidate_scope": candidate_scope,
+        "coverage_path": coverage_path,
         "promotion_policy": promotion_policy,
         "capture_regression_check": {
             "path": str(capture_regression_check_path),
@@ -1681,6 +1719,9 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- coverage target: `{summary.get('coverage_target_status')}`",
         f"- coverage target live remaining: {summary.get('coverage_target_live_sessions_remaining', 0)}",
         f"- coverage target passing remaining: {summary.get('coverage_target_passing_sessions_remaining', 0)}",
+        f"- coverage path: `{summary.get('coverage_path_status')}`",
+        "- coverage path historical non-candidate sessions: "
+        f"{summary.get('coverage_path_historical_non_candidate_sessions', 0)}",
         f"- live quarantined: `{summary.get('live_quarantined')}`",
         f"- live evidence mode: `{summary.get('live_evidence_mode')}`",
         f"- new real live collection allowed: `{summary.get('new_real_live_collection_allowed')}`",
@@ -2062,6 +2103,11 @@ def main() -> int:
     print(f"coverage_target: {summary.get('coverage_target_status')}")
     print(f"coverage_target_live_remaining: {summary.get('coverage_target_live_sessions_remaining', 0)}")
     print(f"coverage_target_passing_remaining: {summary.get('coverage_target_passing_sessions_remaining', 0)}")
+    print(f"coverage_path: {summary.get('coverage_path_status')}")
+    print(
+        "coverage_path_historical_non_candidate_sessions: "
+        f"{summary.get('coverage_path_historical_non_candidate_sessions', 0)}"
+    )
     print(f"live_evidence_mode: {summary.get('live_evidence_mode')}")
     print(f"new_real_live_collection_allowed: {summary.get('new_real_live_collection_allowed')}")
     print(f"controlled_real_live_pilot_allowed: {summary.get('controlled_real_live_pilot_allowed')}")

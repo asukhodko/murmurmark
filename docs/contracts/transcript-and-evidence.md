@@ -4942,6 +4942,10 @@ Schema:
     "objective_next_focus": "fix_live_local_recall_gap",
     "objective_next_focus_dimension": "local_recall",
     "objective_next_recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion",
+    "coverage_path_status": "resolve_capture_safe_candidate_blockers",
+    "coverage_path_recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion",
+    "coverage_path_historical_non_candidate_sessions": 1,
+    "coverage_path_new_controlled_evidence_required": false,
     "real_blocker_triage_items": 3,
     "real_blocker_triage_sessions": 2,
     "real_blocker_triage_uncategorized_items": 0,
@@ -5049,6 +5053,23 @@ Schema:
     "promotion_decision": "shadow_only_do_not_promote",
     "new_real_live_collection_allowed": false,
     "controlled_real_live_pilot_allowed": true
+  },
+  "coverage_path": {
+    "status": "resolve_capture_safe_candidate_blockers",
+    "recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion",
+    "passing_compared_sessions_remaining": 2,
+    "capture_safe_candidate_sessions": 1,
+    "capture_safe_candidate_passing_sessions": 0,
+    "capture_safe_candidate_blocking_dimensions": [
+      "local_recall",
+      "review_burden",
+      "selected_notes_readiness"
+    ],
+    "historical_non_candidate_sessions": 1,
+    "historical_non_candidate_session_ids": ["2026-07-03_10-15-18"],
+    "new_real_live_collection_allowed": false,
+    "controlled_real_live_pilot_allowed": true,
+    "batch_authoritative": true
   },
   "strict_coverage": {
     "requested": true,
@@ -5224,6 +5245,12 @@ still authoritative. `capture_safe_candidate_scope.next_focus` identifies the fi
 parity blocker after capture safety and required artifacts have already passed, or points to
 `collect_controlled_capture_safe_live_pilot` when the candidate slice is clean and coverage is still
 incomplete.
+`coverage_path` is the compact answer to “can old live sessions still close the coverage target?”.
+It separates capture-safe candidate sessions from historical real live sessions that remain useful
+as diagnostics but are not reliable promotion evidence. When `coverage_path.status` is
+`needs_new_controlled_live_evidence`, the next useful work is to record more controlled Live Evidence
+runs; when it is `resolve_capture_safe_candidate_blockers`, existing candidate sessions still have
+candidate-level parity blockers worth investigating.
 When `live_quarantined` is true, `recommended_next` must point to triage/inspection of existing
 artifacts or to a controlled pilot command when full fail-open proof has passed. It must not print
 the strict coverage command as the next action, because that can be misread as promotion permission.

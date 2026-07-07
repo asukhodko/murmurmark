@@ -1000,6 +1000,11 @@ jq -e '
   and .summary.objective_ready_for_live_promotion == false
   and .summary.objective_next_focus == "fix_live_chunk_boundary_risks"
   and .summary.objective_next_focus_dimension == "chunk_boundary_risks"
+  and .summary.coverage_path_status == "resolve_capture_safe_candidate_blockers"
+  and .summary.coverage_path_historical_non_candidate_sessions == 0
+  and .summary.coverage_path_new_controlled_evidence_required == false
+  and .coverage_path.status == "resolve_capture_safe_candidate_blockers"
+  and .coverage_path.capture_safe_candidate_blocking_dimensions == ["chunk_boundary_risks"]
   and .summary.real_blocker_triage_items == 1
   and .summary.real_blocker_triage_sessions == 1
   and .summary.real_blocker_triage_uncategorized_items == 0
@@ -1077,6 +1082,11 @@ jq -e '
   and .summary.objective_ready_for_live_promotion == false
   and .summary.objective_next_focus == "collect_controlled_capture_safe_live_pilot"
   and .summary.objective_next_focus_dimension == "controlled_live_pilot_coverage"
+  and .summary.coverage_path_status == "needs_new_controlled_live_evidence"
+  and .summary.coverage_path_historical_non_candidate_sessions == 0
+  and .summary.coverage_path_new_controlled_evidence_required == true
+  and .coverage_path.status == "needs_new_controlled_live_evidence"
+  and .coverage_path.passing_compared_sessions_remaining == 2
   and .objective_audit.batch_authoritative == true
   and .objective_audit.ready_for_live_promotion == false
   and .objective_audit.new_real_live_collection_allowed == false
@@ -1142,6 +1152,9 @@ jq -e '
   and .promotion_policy.controlled_real_live_pilot_allowed == true
   and .strict_coverage.requested == true
   and (.strict_coverage.failures | length) == 0
+  and .summary.coverage_path_status == "needs_new_controlled_live_evidence"
+  and .coverage_path.status == "needs_new_controlled_live_evidence"
+  and .coverage_path.controlled_real_live_pilot_allowed == true
   and .recommended_next == "murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only"
   and (.next_commands | index("murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only") != null)
   and (.next_commands | index("murmurmark live pilot --controlled-real --skip-safety-gate") != null)
