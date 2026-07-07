@@ -106,8 +106,8 @@ murmurmark record --target-bundle system
 murmurmark inspect latest
 ```
 
-`acceptance --live-checklist` intentionally prints two gates. Use `live_recording_gate` for real
-meetings. Treat `near_realtime_shadow_gate` as lab-only: it starts with
+`acceptance --live-checklist` intentionally prints two gates. Use `live_recording_gate` for normal
+real meetings. Treat `near_realtime_shadow_gate` as shadow evidence collection only: it starts with
 `MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh` and must keep live
 promotion blocked until live-vs-batch parity evidence is explicitly approved.
 For a short lab pilot after the safety probe, run:
@@ -145,8 +145,8 @@ MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 \
 
 Do not use this as the normal meeting command. Older inline live segment writing could starve
 ScreenCaptureKit audio delivery, which can leave the raw `mic` and `remote` tracks mostly silent.
-The current async bounded live queue is lab-only until capture-safety and live-vs-batch parity gates
-pass. The supported production path is the plain recording command above plus
+The current async bounded live queue is still shadow-only until live-vs-batch parity gates pass. The
+supported production path is the plain recording command above plus
 `murmurmark process latest`.
 
 `--live-pipeline` duplicates closed mic/remote capture windows into `derived/live/audio/`, starts a

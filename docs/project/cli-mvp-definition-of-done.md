@@ -64,8 +64,8 @@ murmurmark acceptance --live-checklist
 The checklist has two sections:
 
 - `live_recording_gate`: the production batch-first route for a real meeting;
-- `near_realtime_shadow_gate`: lab-only checks for `--live-pipeline`, including the system-audio
-  probe, live segment fail-open probe and a blocked `promotion_policy`.
+- `near_realtime_shadow_gate`: lab proof plus controlled real parity evidence for `--live-pipeline`,
+  including the system-audio probe, live segment fail-open probe and a blocked `promotion_policy`.
 
 Run this on a machine with macOS recording permissions granted:
 
@@ -95,6 +95,7 @@ run:
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
 scripts/run-live-parity-pilot.sh --duration 45
 murmurmark corpus live all --refresh
+scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate --preflight-only
 jq '.promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json
 ```
 

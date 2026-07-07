@@ -303,8 +303,9 @@ flowchart LR
     `sessions/_reports/capture-regression/capture_regression_check.json`; `static_only` is useful
     regression evidence, while `full_fail_open_proof_passed` is required before controlled
     non-critical real live pilots;
-  - `scripts/run-live-parity-pilot.sh` now wraps the lab-only evidence path: safety probe, short live
-    recording, batch process, live-vs-batch compare and corpus live report;
+  - `scripts/run-live-parity-pilot.sh` now wraps the evidence path: safety probe, short lab live
+    recording or controlled non-critical real pilot, batch process, live-vs-batch compare and
+    refreshed corpus live report;
   - worker queue exists as a safe shadow worker, but its v1 preprocessing is intentionally light and
     must be upgraded before it can compete with batch Echo Guard;
   - post-stop final reconcile exists; it can reuse strict-compatible live ASR cache, otherwise it
