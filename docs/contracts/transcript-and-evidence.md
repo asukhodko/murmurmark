@@ -5227,6 +5227,9 @@ into actionable buckets. Typical categories are `batch_review_required`, `live_l
 `missing_live_asr_artifacts`, `capture_safety_risk`, `chunk_boundary_risk` and `order_risk`. Triage is diagnostic evidence:
 it explains the next safe action per blocker, but it does not relax promotion gates and does not
 allow promotion or normal production live use while live capture is quarantined.
+Quarantine does not by itself forbid controlled Live Evidence collection after the full fail-open
+proof; that narrower allowance is expressed only by `coverage_path.controlled_real_live_pilot_allowed`
+and still keeps batch authoritative.
 For automation, the compact `summary` duplicates the most useful objective and triage fields:
 `objective_status`, `objective_ready_for_live_promotion`, `objective_next_focus`,
 `objective_next_focus_dimension`, `objective_next_recommended_next`, `real_blocker_triage_items`,

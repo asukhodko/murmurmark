@@ -20,7 +20,8 @@ DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
 DEFAULT_TARGET_PASSING_COMPARED_SESSIONS = 3
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
-    "and parity gates; collect no new real live meetings until those gates pass"
+    "and parity gates; do not use normal production live collection, and use coverage_path to decide "
+    "whether controlled Live Evidence collection is currently allowed"
 )
 PARITY_DIMENSIONS: dict[str, dict[str, Any]] = {
     "capture_safety": {
