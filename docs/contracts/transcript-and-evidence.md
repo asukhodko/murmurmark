@@ -5209,6 +5209,10 @@ For automation, the compact `summary` duplicates the most useful objective and t
 `_debug_*` and `live-pilot-*` sessions remain diagnostic evidence only. `promotion_policy` is the
 machine-readable statement that batch remains authoritative and live evidence is historical/debug-only
 until the capture-safe redesign and real parity coverage are proven.
+When `objective_next_focus == "collect_controlled_capture_safe_live_pilot"`, `next_commands` must
+include the safe collection sequence: preflight-only controlled Live Evidence, the actual
+`murmurmark live pilot --controlled-real --skip-safety-gate` run, `murmurmark experiment
+status|report|compare latest`, corpus refresh and a normal batch `status latest` reminder.
 `capture_safe_candidate_scope` and `real_capture_safe_candidate_parity_dimensions` are a narrower
 diagnostic slice: real, meaningful, compared sessions whose `capture_safety` and `required_artifacts`
 dimensions already passed. This lets the live goal distinguish old unsafe-capture evidence from

@@ -187,6 +187,10 @@ near_realtime_shadow_gate:
     - murmurmark live gate
     - murmurmark corpus live all --refresh
     - murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
+    - murmurmark live pilot --controlled-real --skip-safety-gate
+    - murmurmark experiment status latest
+    - murmurmark experiment report latest
+    - murmurmark experiment compare latest --experiment live-shadow-v1
     - jq '.promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json
   pass_when:
     - system-audio capture probe passes on the normal batch-first recording path

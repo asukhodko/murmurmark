@@ -1050,7 +1050,12 @@ jq -e '
   and .coverage_target.status == "needs_more_live_coverage"
   and .coverage_target.live_sessions_remaining == 2
   and .coverage_target.passing_compared_sessions_remaining == 2
-  and .recommended_next == "murmurmark live pilot --controlled-real --skip-safety-gate"
+  and .recommended_next == "murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only"
+  and (.next_commands | index("murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only") != null)
+  and (.next_commands | index("murmurmark live pilot --controlled-real --skip-safety-gate") != null)
+  and (.next_commands | index("murmurmark experiment status latest") != null)
+  and (.next_commands | index("murmurmark experiment report latest") != null)
+  and (.next_commands | index("murmurmark experiment compare latest --experiment live-shadow-v1") != null)
   and ([.next_commands[] | select(contains("--min-live-sessions"))] | length) == 0
   and ([.next_commands[] | select(contains("murmurmark corpus live all --refresh"))] | length) == 1
   and .real_blocker_triage_summary.total_items == 0
@@ -1128,7 +1133,12 @@ jq -e '
   and .promotion_policy.controlled_real_live_pilot_allowed == true
   and .strict_coverage.requested == true
   and (.strict_coverage.failures | length) == 0
-  and .recommended_next == "murmurmark live pilot --controlled-real --skip-safety-gate"
+  and .recommended_next == "murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only"
+  and (.next_commands | index("murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only") != null)
+  and (.next_commands | index("murmurmark live pilot --controlled-real --skip-safety-gate") != null)
+  and (.next_commands | index("murmurmark experiment status latest") != null)
+  and (.next_commands | index("murmurmark experiment report latest") != null)
+  and (.next_commands | index("murmurmark experiment compare latest --experiment live-shadow-v1") != null)
   and ([.next_commands[] | select(contains("--min-live-sessions"))] | length) == 0
   and ([.next_commands[] | select(contains("murmurmark corpus live all --refresh"))] | length) == 1
 ' "$workdir/live-report-strict/live_corpus_gates_report.json" >/dev/null
