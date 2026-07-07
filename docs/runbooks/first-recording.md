@@ -121,7 +121,7 @@ The pilot refuses to create a new live recording unless
 `capture_safe_proof.status == "full_fail_open_proof_passed"`. `--skip-safety-gate` can reuse that
 existing proof, but it does not bypass the proof requirement.
 
-For a non-critical real pilot after the report says `controlled_real_live_pilot_allowed: true`, run:
+For a real Live Evidence run after the report says `controlled_real_live_pilot_allowed: true`, run:
 
 ```bash
 murmurmark live status
@@ -131,9 +131,9 @@ murmurmark live pilot --controlled-real --skip-safety-gate
 ```
 
 The preflight command performs the same proof and corpus-gate checks without starting capture. The
-pilot command records until `Ctrl-C`, runs normal batch processing after stop and refreshes
+Live Evidence command records until `Ctrl-C`, runs normal batch processing after stop and refreshes
 `murmurmark corpus live all --refresh`. Before recording, the runner refreshes the same corpus gates
-and refuses to start if controlled real collection is no longer the safe next step. It is still
+and refuses to start if controlled evidence collection is no longer the safe next step. It is still
 evidence collection: live output remains shadow-only and the batch transcript remains authoritative.
 After processing, read `derived/live/live_parity_pilot_report.json`; `pilot_verdict`,
 `contributes_to_passing_coverage` and `coverage_after.passing_compared_sessions_remaining` tell
@@ -256,13 +256,13 @@ After the full capture fail-open proof passes, also check `capture_safe_candidat
 meaningful, compared sessions whose capture safety and required artifacts already passed. It helps
 separate remaining live parity blockers from older broken-capture evidence. It is still shadow-only:
 `new_real_live_collection_allowed` must remain false until live promotion is explicitly approved.
-If the full proof has passed, `controlled_real_live_pilot_allowed` may be true. That means only a
-non-critical live-pipeline pilot may be recorded to gather parity evidence, followed by normal batch
-processing and `murmurmark corpus live all --refresh`. Use
+If the full proof has passed, `controlled_real_live_pilot_allowed` may be true. That means a
+controlled Live Evidence run may be recorded on a real meeting to gather parity evidence, followed by
+normal batch processing and `murmurmark corpus live all --refresh`. Use
 `murmurmark live pilot --controlled-real --skip-safety-gate` instead of assembling
 `record --live-pipeline` by hand; the runner rechecks the current live corpus gates before it starts
 recording. Use `next_focus` to see whether the next step is a candidate blocker or a controlled
-pilot.
+evidence run.
 `Parity Dimensions` keeps the full mixed audit view by capture safety, order risk, local recall,
 remote leakage, review burden, notes readiness and chunk-boundary risk. `draft_text_recall` is
 separate from `required_artifacts`: present live files are not enough if live draft text no longer
@@ -278,7 +278,7 @@ blocks. During quarantine it should keep `ready_for_live_promotion` and
 evidence-collection flag and does not make live output authoritative.
 It also checks `sessions/_reports/capture-regression/capture_regression_check.json`. A static
 capture regression report proves the code shape and fixtures, but not live promotion safety. Before
-any controlled real live pilot is allowed, run the full local proof:
+any controlled Live Evidence run is allowed, run the full local proof:
 
 ```bash
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh

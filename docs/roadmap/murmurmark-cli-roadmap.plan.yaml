@@ -537,8 +537,8 @@ nodes:
       inline live segment writer может starve ScreenCaptureKit audio delivery и оставить raw tracks
       почти пустыми. Production route остаётся batch-first: raw CAF/session package и обычный
       `murmurmark process` остаются source of truth. Первый async bounded segment handoff реализован;
-      full fail-open proof пройден; ближайшая работа по live — controlled non-critical parity
-      pilots, пока promotion остаётся blocked и batch transcript authoritative. Архитектурная форма
+      full fail-open proof пройден; ближайшая работа по live — controlled Live Evidence parity
+      runs, пока promotion остаётся blocked и batch transcript authoritative. Архитектурная форма
       зафиксирована как single-capture experimental sidecar: один ScreenCaptureKit owner, raw CAF
       first, best-effort derived artifacts отдельно от batch outputs. Contract v1 уже материализует
       эту форму под `derived/experiments/live-shadow-v1`.
@@ -556,12 +556,12 @@ nodes:
       segment queue. При backlog/error отключаются только live-derived artifacts. Два параллельных
       `murmurmark record` процесса запрещены lock-ом: stable и experimental должны жить внутри
       одного запуска как raw capture плюс sidecar. Следующий шаг —
-      controlled non-critical real live parity coverage после полного proof. `scripts/check-capture-regressions.sh` пишет
+      controlled real Live Evidence parity coverage после полного proof. `scripts/check-capture-regressions.sh` пишет
       `sessions/_reports/capture-regression/capture_regression_check.json`: `static_only` фиксирует
       статические и fixture-проверки, а `full_fail_open_proof_passed` требуется перед любым controlled
       live pilot. Для пилотного контура добавлен `murmurmark live pilot` поверх
       `scripts/run-live-parity-pilot.sh`: он запускает safety probe, короткую lab live recording или
-      controlled non-critical real pilot, batch process, live-vs-batch compare и refreshed corpus live
+      controlled real Live Evidence run, batch process, live-vs-batch compare и refreshed corpus live
       report, сохраняя live promotion blocked.
 
   experimental-sidecar-contract-v1:
@@ -616,7 +616,7 @@ nodes:
     notes: |
       После stop batch-grade reconcile должен запускать обычный `murmurmark process`; live chunks
       могут стать только optional cache. Текущий bridge остаётся диагностическим. До capture-safe
-      proof нельзя собирать controlled real live pilots и нельзя полагаться на live cache.
+      proof нельзя собирать controlled Live Evidence runs и нельзя полагаться на live cache.
 
   realtime-corpus-gates:
     title: "Realtime vs batch corpus gates"
@@ -646,7 +646,7 @@ nodes:
     status: later
     effort: 6
     notes: |
-      Ближайшая крупная live-цель теперь — coverage на controlled non-critical pilots. Capture-safe
+      Ближайшая крупная live-цель теперь — coverage на controlled real Live Evidence runs. Capture-safe
       proof уже показывает, что live branch не должен портить raw `mic`/`remote`: callback path не
       делает тяжёлых операций, segment writer имеет bounded queue/backpressure и fail-open
       отключение live без остановки capture, а normal `record --target-bundle system` остаётся

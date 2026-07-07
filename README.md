@@ -64,10 +64,10 @@ with selected profile, verdict, review burden, export blockers and one next comm
 Chunked/Resumable Processing v1 is now complete at the ASR layer: long `windowed` whisper.cpp runs
 write validated chunk reports, interrupted `process` runs can resume from verified chunks, and
 corpus gates treat failed chunk rebuilds as hard failures. Batch processing remains authoritative.
-The live/near-realtime branch is still quarantined for real meetings. Its segment writer now runs
+The live/near-realtime branch is still quarantined as a source of truth. Its segment writer now runs
 behind an async bounded queue instead of doing derived live writes in the ScreenCaptureKit callback,
-and the full fail-open proof allows controlled non-critical live pilots for parity evidence, but
-live promotion still requires broader passing real coverage. The latest audio milestone,
+and the full fail-open proof allows controlled Live Evidence runs on real meetings, but live
+promotion still requires broader passing real coverage. The latest audio milestone,
 ASR-Positive Echo Candidate Hardening v1, remains important but shadow-only:
 `coverage_v2_remote_gate_local_fir` improved `5/6` candidate-corpus sessions without local-recall
 regression, yet `local_fir` is still the default ASR input until promotion gates are defined and
@@ -165,10 +165,10 @@ covers `14/50` sessions with `0` failed chunk rebuilds and `146/146` completed A
 Live/near-realtime cache promotion is gated separately and is currently quarantined. Existing
 diagnostic live sessions are negative evidence for the old inline writer: it could starve
 ScreenCaptureKit audio delivery and leave raw capture mostly silent. The new async bounded live
-queue has a full fail-open proof, so controlled non-critical live pilots may collect parity
-evidence when `murmurmark corpus live all --refresh` says
-`controlled_real_live_pilot_allowed: true`. Do not use `--live-pipeline` as the normal production
-recording path until parity gates pass and live promotion is explicitly approved.
+queue has a full fail-open proof, so controlled Live Evidence runs may collect parity evidence on
+real meetings when `murmurmark corpus live all --refresh` says
+`controlled_real_live_pilot_allowed: true`. Do not hand-run `--live-pipeline`; use the pilot runner
+so raw CAF plus batch output remain authoritative.
 
 ## What Is Still Out Of Scope
 
@@ -298,11 +298,11 @@ MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 \
   murmurmark record --target-bundle system --live-pipeline --live-segment-sec 60 --live-overlap-sec 5
 ```
 
-Do not use `--live-pipeline` as the normal production recording path. It is still quarantined:
-the capture-safe segment handoff is implemented, but the branch has not yet passed real
-live-vs-batch parity gates. Use it only for controlled non-critical pilots when the corpus report
-says `controlled_real_live_pilot_allowed: true`. The supported production path is
-`murmurmark record --target-bundle system` followed by `murmurmark process latest`.
+Do not hand-run `--live-pipeline` as a normal meeting command. It is still quarantined as a source
+of truth: the capture-safe segment handoff is implemented, but the branch has not yet passed real
+live-vs-batch parity gates. Use the pilot runner for controlled Live Evidence runs when the corpus
+report says `controlled_real_live_pilot_allowed: true`. The authoritative production result is still
+raw CAF plus `murmurmark process`.
 The intended architecture is one stable capture with a best-effort experimental sidecar, not two
 concurrent recordings; see [Experimental sidecar architecture](docs/architecture/experimental-sidecar.md).
 
@@ -356,7 +356,7 @@ runs the normal batch pipeline, compares live output with batch output and refre
 remain blocked and the batch transcript remains authoritative.
 
 When `murmurmark corpus live all --refresh` reports `controlled_real_live_pilot_allowed: true`, use
-the same runner for a non-critical real pilot:
+the same runner for a real Live Evidence run:
 
 ```bash
 murmurmark live status
@@ -365,13 +365,13 @@ murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
 murmurmark live pilot --controlled-real --skip-safety-gate
 ```
 
-`--preflight-only` performs the same proof and corpus-gate checks without starting capture. The real
-pilot command records until `Ctrl-C` into a date-named session, skips live finalize during recording,
-runs the normal batch pipeline after stop and refreshes the live corpus report. Before recording, the
-runner refreshes the same corpus gates and refuses to start if controlled real collection is no
-longer the recommended safe next step. Its `live_parity_pilot_report.json` prints `pilot_verdict`,
-`contributes_to_passing_coverage` and remaining passing coverage. It is evidence collection, not
-production promotion.
+`--preflight-only` performs the same proof and corpus-gate checks without starting capture. The Live
+Evidence command records until `Ctrl-C` into a date-named session, skips live finalize during
+recording, runs the normal batch pipeline after stop and refreshes the live corpus report. Before
+recording, the runner refreshes the same corpus gates and refuses to start if controlled evidence
+collection is no longer the recommended safe next step. Its `live_parity_pilot_report.json` prints
+`pilot_verdict`, `contributes_to_passing_coverage` and remaining passing coverage. It is evidence
+collection, not production promotion; the batch transcript remains final.
 
 If recording finished but post-stop processing was interrupted, resume the same evidence collection
 without starting another recording:
@@ -433,10 +433,11 @@ view counts only real live sessions that were meaningfully compared, passed capt
 the required live/batch artifacts. It is useful for seeing the remaining parity blockers without
 mixing in old broken-capture evidence. It still does not permit promotion or normal production
 live use; batch remains authoritative. After the full fail-open proof passes, the report may set
-`controlled_real_live_pilot_allowed: true`, which means a non-critical live-pipeline pilot can be
-recorded only to gather parity evidence. `new_real_live_collection_allowed` remains false until
-promotion is explicitly approved. Its `next_focus` points either to the next candidate-level parity
-blocker or to the next controlled pilot when the candidate slice is clean but coverage is incomplete.
+`controlled_real_live_pilot_allowed: true`, which means a controlled Live Evidence run can be
+recorded on a real meeting to gather parity evidence. `new_real_live_collection_allowed` remains
+false until promotion is explicitly approved. Its `next_focus` points either to the next
+candidate-level parity blocker or to the next controlled evidence run when the candidate slice is
+clean but coverage is incomplete.
 The report also has `real_blocker_triage_summary` and a `Real Blocker Triage` Markdown section. Use
 that first when deciding what to do next: it separates batch review/readiness debt, missing artifacts,
 capture safety risks, local recall gaps, remote leakage and live draft drift. Triage is explanatory
@@ -491,10 +492,11 @@ murmurmark corpus live all --refresh \
   --fail-on-promotion
 ```
 
-This gate is expected to fail until enough controlled real pilots pass all parity checks. Do not try
-to satisfy it by hand-running `record --live-pipeline`; use `murmurmark live pilot --controlled-real`
-only when `murmurmark live status` says `controlled_real_live_pilot_allowed: true`. Batch output
-remains authoritative until this gate and the surrounding promotion policy pass.
+This gate is expected to fail until enough controlled Live Evidence runs pass all parity checks. Do
+not try to satisfy it by hand-running `record --live-pipeline`; use
+`murmurmark live pilot --controlled-real` only when `murmurmark live status` says
+`controlled_real_live_pilot_allowed: true`. Batch output remains authoritative until this gate and
+the surrounding promotion policy pass.
 
 ## Process An Existing Session
 
@@ -920,8 +922,8 @@ Current focus:
   live chunk geometry, audio prep, language and model match batch ASR expectations, and materialized
   live chunks must still pass the raw chunk rebuild check;
 - use `murmurmark corpus live all --refresh` to inspect historical/debug live evidence and controlled
-  pilot readiness; after full fail-open proof, the next live milestone is two more controlled
-  non-critical passing comparisons, not production promotion;
+  evidence readiness; after full fail-open proof, the next live milestone is two more controlled
+  passing real comparisons, not production promotion;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 
@@ -936,7 +938,7 @@ Active goal and near-term candidates:
    interrupt-safe and guarded by rebuild/corpus gates. The remaining work is broader corpus
    coverage, not the v1 mechanism.
 4. Active live follow-up: Near-Realtime Live Parity Coverage v1. Capture-safe redesign proof exists;
-   next is controlled non-critical pilot coverage while batch remains authoritative.
+   next is controlled Live Evidence coverage while batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

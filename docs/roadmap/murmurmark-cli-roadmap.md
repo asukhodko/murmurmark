@@ -23,8 +23,8 @@ The current product shape is batch-first: a meeting is recorded, then processed.
 Pipeline Stabilization v1, this batch-first path is the only supported production route. A future
 near-realtime path should eventually reduce the wait after a meeting. The old inline live segment
 writer is quarantined because it can starve ScreenCaptureKit audio delivery; the new async bounded
-segment queue has a full fail-open proof. Real live promotion is still blocked, but controlled
-non-critical live pilots may now be used to collect parity evidence while the batch transcript
+segment queue has a full fail-open proof. Real live promotion is still blocked, but controlled Live
+Evidence runs may now be used on real meetings to collect parity evidence while the batch transcript
 remains authoritative. The intended shape is a single stable capture with a best-effort experimental
 sidecar, documented in [Experimental sidecar architecture](../architecture/experimental-sidecar.md).
 
@@ -72,7 +72,7 @@ boring and repeatable:
 6. prove silent/partial/interrupted captures block before ASR and never look successful;
 7. keep the experimental sidecar contract as the boundary for live work:
    `derived/experiments/live-shadow-v1` must prove fail-open behavior and raw capture isolation;
-   real live-pipeline coverage returns only through controlled pilots with that proof;
+   real live-pipeline coverage returns only through controlled Live Evidence runs with that proof;
 8. reuse live/near-realtime chunks only when strict metadata and corpus parity gates pass;
 9. only then promote audio candidates or heavier validators.
 
@@ -268,7 +268,7 @@ flowchart LR
     showed inline live work can starve raw ScreenCaptureKit audio delivery;
   - live segments are overlap-aware: each segment has a hard publish window and a wider ASR clip
     window; the async bounded queue now has a full fail-open proof, and next work is controlled
-    non-critical live parity coverage;
+    Live Evidence parity coverage;
   - the design rule is one ScreenCaptureKit owner plus derived sidecar artifacts, never two
     concurrent `record` processes;
   - after stop, the existing batch-grade repair/review/readiness layers run as final reconcile and
@@ -308,9 +308,9 @@ flowchart LR
   - `scripts/check-capture-regressions.sh` now writes
     `sessions/_reports/capture-regression/capture_regression_check.json`; `static_only` is useful
     regression evidence, while `full_fail_open_proof_passed` is required before controlled
-    non-critical real live pilots;
+    Live Evidence runs;
   - `murmurmark live pilot` now wraps the evidence path through `scripts/run-live-parity-pilot.sh`:
-    safety probe, short lab live recording or controlled non-critical real pilot, batch process,
+    safety probe, short lab live recording or controlled real Live Evidence run, batch process,
     live-vs-batch compare and refreshed corpus live report;
   - worker queue exists as a safe shadow worker, but its v1 preprocessing is intentionally light and
     must be upgraded before it can compete with batch Echo Guard;
@@ -445,7 +445,7 @@ newer run-state exists.
    `murmurmark process`, expose the active step and ASR chunk progress through `status`/`next`, keep
    interruption recovery obvious and make stale readiness harmless.
 2. **Near-Realtime Live Parity Coverage v1.** Capture-safe segment production has a full fail-open
-   proof. Restore live parity coverage on controlled non-critical sessions until there are enough
+   proof. Restore live parity coverage on controlled real Live Evidence runs until there are enough
    passing live-vs-batch comparisons; keep live promotion blocked and batch authoritative.
 3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and

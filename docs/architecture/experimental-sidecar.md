@@ -116,7 +116,7 @@ murmurmark experiment compare SESSION|latest --experiment live-shadow-v1
 Before starting an experimental sidecar:
 
 - `doctor --strict` must pass;
-- full capture fail-open proof must exist for controlled real pilots;
+- full capture fail-open proof must exist for controlled Live Evidence runs;
 - corpus gates must allow controlled evidence collection;
 - no other `murmurmark record` process may hold the recording lock;
 - experiment configuration is written to `experiment_manifest.json` before audio starts.
@@ -241,7 +241,7 @@ backpressure and parity without risking capture.
 True low-latency transcription can come later after:
 
 - capture fail-open proof stays green;
-- controlled real pilots pass;
+- controlled Live Evidence runs pass;
 - CPU and queue budgets are measured on long meetings;
 - live-vs-batch parity is good enough.
 
