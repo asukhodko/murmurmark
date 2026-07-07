@@ -129,7 +129,8 @@ OBJECTIVE_DIMENSION_ACTIONS: dict[str, dict[str, str]] = {
         "id": "capture_safe_redesign_before_more_live_coverage",
         "title": "Prove capture-safe live segment production",
         "recommended_next": (
-            "keep live quarantined; finish capture-safe redesign/fail-open proof before collecting new real live meetings"
+            "keep live quarantined for affected historical sessions; use coverage_path to decide whether "
+            "controlled Live Evidence collection is currently allowed"
         ),
     },
     "required_artifacts": {
