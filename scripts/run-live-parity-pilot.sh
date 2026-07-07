@@ -12,7 +12,8 @@ Near-realtime pilot runner.
 
 Without SESSION, records a short unsafe live-pipeline session, then runs the batch pipeline,
 live-vs-batch comparison and live corpus report. With SESSION, skips recording and processes the
-existing live-pipeline session.
+existing live-pipeline session. Use --controlled-real with SESSION to mark an existing date-named
+live pilot as controlled real evidence without starting another recording.
 
 Options:
   --duration SEC       Recording duration for a new pilot. Default: 45.
@@ -21,6 +22,7 @@ Options:
   --out SESSION        Output session path for a new pilot.
   --controlled-real    Record a date-named controlled non-critical real pilot until Ctrl-C.
                        Defaults to --segment-sec 60, --overlap-sec 5 and --live-no-finalize.
+                       With SESSION, process existing controlled real pilot evidence.
   --preflight-only     Check safety/corpus gates and exit before recording or processing.
   --skip-safety-gate   Reuse the existing full capture proof instead of running the probe first.
   --force-asr          Force batch ASR during murmurmark process.
@@ -77,7 +79,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --controlled-real)
       controlled_real=1
-      record_new=1
       shift
       ;;
     --preflight-only)

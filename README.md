@@ -341,6 +341,14 @@ longer the recommended safe next step. Its `live_parity_pilot_report.json` print
 `contributes_to_passing_coverage` and remaining passing coverage. It is evidence collection, not
 production promotion.
 
+If recording finished but post-stop processing was interrupted, resume the same evidence collection
+without starting another recording:
+
+```bash
+SESSION="sessions/<session-id>"
+murmurmark live pilot "$SESSION" --controlled-real
+```
+
 The live worker is still shadow-grade, but it now has three lightweight protections before writing
 draft text: per-chunk mic echo cleanup, a role gate that suppresses mic text when it duplicates the
 same chunk's remote text, and a boundary gate that suppresses adjacent chunk repeats. These

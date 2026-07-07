@@ -3617,6 +3617,11 @@ EOF
   echo "$acceptance_live" | grep -q '^    - live gate exits non-zero until strict parity coverage is complete$'
   echo "$acceptance_live" | grep -q '^status: manual$'
   tail -1 <<<"$acceptance_live" | grep -q '^next: MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh$'
+  live_help="$("$bin" live --help)"
+  echo "$live_help" | grep -q 'murmurmark live gate \[--sessions-root ./sessions\]'
+  live_pilot_help="$("$bin" live pilot --help)"
+  echo "$live_pilot_help" | grep -q 'murmurmark live pilot sessions/<session-id> --controlled-real'
+  echo "$live_pilot_help" | grep -q 'existing controlled real evidence when SESSION is provided'
   review_help="$("$bin" review --help)"
   echo "$review_help" | grep -q 'murmurmark review lane apply LANE|first'
   echo "$review_help" | grep -q 'murmurmark review progress \[--session latest|SESSION\]'

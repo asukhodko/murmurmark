@@ -139,6 +139,14 @@ After processing, read `derived/live/live_parity_pilot_report.json`; `pilot_verd
 `contributes_to_passing_coverage` and `coverage_after.passing_compared_sessions_remaining` tell
 whether this pilot reduced the remaining coverage target.
 
+If recording finished but post-stop processing was interrupted, resume the same evidence collection
+without starting another recording:
+
+```bash
+SESSION="sessions/<session-id>"
+murmurmark live pilot "$SESSION" --controlled-real
+```
+
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
 
 Experimental live-shadow recording is disabled by default:
