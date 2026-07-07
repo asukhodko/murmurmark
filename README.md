@@ -363,6 +363,11 @@ murmurmark live status
 murmurmark live gate
 murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
 murmurmark live pilot --controlled-real --skip-safety-gate
+murmurmark experiment status latest
+murmurmark experiment report latest
+murmurmark experiment compare latest --experiment live-shadow-v1
+murmurmark status latest
+murmurmark transcript latest
 ```
 
 `--preflight-only` performs the same proof and corpus-gate checks without starting capture. The Live
@@ -372,6 +377,8 @@ recording, the runner refreshes the same corpus gates and refuses to start if co
 collection is no longer the recommended safe next step. Its `live_parity_pilot_report.json` prints
 `pilot_verdict`, `contributes_to_passing_coverage` and remaining passing coverage. It is evidence
 collection, not production promotion; the batch transcript remains final.
+The `experiment` commands inspect the sidecar contract and compare live-shadow artifacts with the
+authoritative batch output.
 
 If recording finished but post-stop processing was interrupted, resume the same evidence collection
 without starting another recording:
@@ -379,6 +386,8 @@ without starting another recording:
 ```bash
 SESSION="sessions/<session-id>"
 murmurmark live pilot "$SESSION" --controlled-real
+murmurmark experiment status "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
 The live worker is still shadow-grade, but it now has three lightweight protections before writing

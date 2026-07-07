@@ -128,6 +128,11 @@ murmurmark live status
 murmurmark live gate
 murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
 murmurmark live pilot --controlled-real --skip-safety-gate
+murmurmark experiment status latest
+murmurmark experiment report latest
+murmurmark experiment compare latest --experiment live-shadow-v1
+murmurmark status latest
+murmurmark transcript latest
 ```
 
 The preflight command performs the same proof and corpus-gate checks without starting capture. The
@@ -138,6 +143,8 @@ evidence collection: live output remains shadow-only and the batch transcript re
 After processing, read `derived/live/live_parity_pilot_report.json`; `pilot_verdict`,
 `contributes_to_passing_coverage` and `coverage_after.passing_compared_sessions_remaining` tell
 whether this pilot reduced the remaining coverage target.
+The `experiment` commands inspect the sidecar contract and compare live-shadow artifacts with the
+authoritative batch output.
 
 If recording finished but post-stop processing was interrupted, resume the same evidence collection
 without starting another recording:
@@ -145,6 +152,8 @@ without starting another recording:
 ```bash
 SESSION="sessions/<session-id>"
 murmurmark live pilot "$SESSION" --controlled-real
+murmurmark experiment status "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
