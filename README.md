@@ -361,6 +361,13 @@ session/gate/reason rows that currently prevent a passing comparison. Promotion 
 real coverage. Draft text recall is tracked separately from required artifacts: a session can have
 all files present and still fail because the live draft text does not match the authoritative batch
 transcript.
+When the capture fail-open proof has passed, the same report also writes
+`capture_safe_candidate_scope` and `real_capture_safe_candidate_parity_dimensions`. This narrower
+view counts only real live sessions that were meaningfully compared, passed capture safety, and have
+the required live/batch artifacts. It is useful for seeing the remaining parity blockers without
+mixing in old broken-capture evidence. It still does not permit promotion or new real live
+collection; batch remains authoritative. Its `next_focus` points to the next candidate-level parity
+blocker after capture safety and required artifacts have passed.
 The report also has `real_blocker_triage_summary` and a `Real Blocker Triage` Markdown section. Use
 that first when deciding what to do next: it separates batch review/readiness debt, missing artifacts,
 capture safety risks, local recall gaps, remote leakage and live draft drift. Triage is explanatory

@@ -196,6 +196,12 @@ current blocker or return to the normal non-live `record -> process` path. The M
 `Gate Issues` section lists the exact non-passing gates by session. `real_parity_dimensions` is the
 promotion scope and counts only date-named real meeting sessions; diagnostic `_debug_*` and
 `live-pilot-*` sessions stay visible for failure analysis but cannot satisfy real coverage.
+After the full capture fail-open proof passes, also check `capture_safe_candidate_scope` and
+`real_capture_safe_candidate_parity_dimensions`. This narrower slice includes only real,
+meaningful, compared sessions whose capture safety and required artifacts already passed. It helps
+separate remaining live parity blockers from older broken-capture evidence. It is still shadow-only:
+`new_real_live_collection_allowed` must remain false until live promotion is explicitly approved.
+Use its `next_focus` to see the next blocker for the capture-safe candidate slice.
 `Parity Dimensions` keeps the full mixed audit view by capture safety, order risk, local recall,
 remote leakage, review burden, notes readiness and chunk-boundary risk. `draft_text_recall` is
 separate from `required_artifacts`: present live files are not enough if live draft text no longer

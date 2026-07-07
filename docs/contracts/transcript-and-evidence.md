@@ -4870,6 +4870,13 @@ Schema:
     "real_live_suspected_remote_leak_in_me_seconds": 0.0,
     "adjacent_duplicate_chunk_count": 0,
     "real_adjacent_duplicate_chunk_count": 0,
+    "real_capture_safe_candidate_sessions": 1,
+    "real_capture_safe_candidate_passing_sessions": 0,
+    "real_capture_safe_candidate_blocking_dimensions": [
+      "local_recall",
+      "review_burden",
+      "selected_notes_readiness"
+    ],
     "strict_coverage_status": "passed",
     "live_quarantined": true,
     "live_evidence_mode": "historical_debug_only",
@@ -4935,6 +4942,39 @@ Schema:
       "counts": {"passed": 1, "warning": 1},
       "issue_sessions": ["2026-07-03_06-16-43"]
     }
+  },
+  "real_capture_safe_candidate_parity_dimensions": {
+    "draft_text_recall": {
+      "title": "Draft text recall",
+      "promotion_required": true,
+      "counts": {"passed": 1},
+      "issue_sessions": []
+    },
+    "local_recall": {
+      "title": "Local recall",
+      "promotion_required": true,
+      "counts": {"warning": 1},
+      "issue_sessions": ["2026-07-03_06-16-43"]
+    }
+  },
+  "capture_safe_candidate_scope": {
+    "definition": "real_meeting sessions with shadow_compared, meaningful comparison, capture_safety passed and required_artifacts passed",
+    "sessions": 1,
+    "passing_sessions": 0,
+    "blocking_dimensions": [
+      "local_recall",
+      "review_burden",
+      "selected_notes_readiness"
+    ],
+    "session_ids": ["2026-07-03_06-16-43"],
+    "next_focus": {
+      "dimension": "local_recall",
+      "action_id": "fix_live_local_recall_gap",
+      "title": "Fix live local recall gaps",
+      "recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion"
+    },
+    "promotion_decision": "shadow_only_do_not_promote",
+    "new_real_live_collection_allowed": false
   },
   "strict_coverage": {
     "requested": true,
@@ -5089,6 +5129,13 @@ allow new real live collection while live capture is quarantined.
 `_debug_*` and `live-pilot-*` sessions remain diagnostic evidence only. `promotion_policy` is the
 machine-readable statement that batch remains authoritative and live evidence is historical/debug-only
 until the capture-safe redesign and real parity coverage are proven.
+`capture_safe_candidate_scope` and `real_capture_safe_candidate_parity_dimensions` are a narrower
+diagnostic slice: real, meaningful, compared sessions whose `capture_safety` and `required_artifacts`
+dimensions already passed. This lets the live goal distinguish old unsafe-capture evidence from
+remaining candidate parity blockers. It is not a promotion signal, and `new_real_live_collection_allowed`
+must stay false while the live branch is quarantined. `capture_safe_candidate_scope.next_focus`
+identifies the first candidate-level parity blocker after capture safety and required artifacts have
+already passed.
 When `live_quarantined` is true, `recommended_next` must point to triage/inspection of existing
 artifacts. It must not print the strict coverage command as the next action, because that can be
 misread as permission to collect new real live meetings.

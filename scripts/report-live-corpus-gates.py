@@ -11,7 +11,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.1.0"
+SCRIPT_VERSION = "1.2.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -461,6 +461,65 @@ def summarize_dimensions(rows: list[dict[str, Any]]) -> tuple[dict[str, Counter[
     return dimension_counts, dimension_issue_sessions
 
 
+def build_dimensions_payload(
+    dimension_counts: dict[str, Counter[str]],
+    dimension_issue_sessions: dict[str, list[str]],
+) -> dict[str, dict[str, Any]]:
+    return {
+        key: {
+            "title": spec["title"],
+            "promotion_required": bool(spec.get("promotion_required")),
+            "counts": dict(dimension_counts.get(key, Counter())),
+            "issue_sessions": dimension_issue_sessions.get(key, []),
+        }
+        for key, spec in PARITY_DIMENSIONS.items()
+    }
+
+
+def row_dimension_status(row: dict[str, Any], key: str) -> str:
+    dimensions = row.get("parity_dimensions") if isinstance(row.get("parity_dimensions"), dict) else {}
+    value = dimensions.get(key) if isinstance(dimensions, dict) else None
+    return str(value.get("status") if isinstance(value, dict) else "missing")
+
+
+def capture_safe_candidate_row(row: dict[str, Any]) -> bool:
+    return bool(
+        row.get("evidence_scope") == "real_meeting"
+        and row.get("comparison_status") == "shadow_compared"
+        and row.get("meaningful_compared") is True
+        and row_dimension_status(row, "capture_safety") == "passed"
+        and row_dimension_status(row, "required_artifacts") == "passed"
+    )
+
+
+def blocking_dimensions_from_counts(dimension_counts: dict[str, Counter[str]]) -> list[str]:
+    return [
+        key
+        for key, counts in dimension_counts.items()
+        if any(status != "passed" and count > 0 for status, count in counts.items())
+    ]
+
+
+def next_focus_for_dimensions(dimensions: list[str]) -> dict[str, Any] | None:
+    if not dimensions:
+        return None
+    dimension = sorted(dimensions, key=lambda key: OBJECTIVE_DIMENSION_PRIORITY.get(key, 100))[0]
+    action = OBJECTIVE_DIMENSION_ACTIONS.get(
+        dimension,
+        {
+            "id": f"fix_{dimension}",
+            "title": f"Fix {dimension}",
+            "recommended_next": "inspect this live parity dimension before promotion",
+        },
+    )
+    return {
+        "dimension": dimension,
+        "action_id": action["id"],
+        "title": action["title"],
+        "recommended_next": action["recommended_next"],
+    }
+
+
 def objective_audit_row(row_id: str, status: str, title: str, evidence: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": row_id,
@@ -817,6 +876,9 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             real_gate_counts[str(gate.get("name") or "unknown")][str(gate.get("status") or "unknown")] += 1
     dimension_counts, dimension_issue_sessions = summarize_dimensions(live_rows)
     real_dimension_counts, real_dimension_issue_sessions = summarize_dimensions(real_live_rows)
+    capture_safe_candidate_rows = [row for row in real_live_rows if capture_safe_candidate_row(row)]
+    candidate_dimension_counts, candidate_dimension_issue_sessions = summarize_dimensions(capture_safe_candidate_rows)
+    candidate_blocking_dimensions = blocking_dimensions_from_counts(candidate_dimension_counts)
     promotable = [row for row in rows if row.get("promotion_allowed")]
     not_promotable = [row for row in live_rows if row.get("parity_status") != "passed_but_shadow_locked"]
     summary = {
@@ -830,6 +892,11 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_meaningful_compared_sessions": sum(1 for row in real_live_rows if row.get("meaningful_compared")),
         "passing_compared_sessions": sum(1 for row in rows if row.get("all_parity_gates_passed")),
         "real_passing_compared_sessions": sum(1 for row in real_live_rows if row.get("all_parity_gates_passed")),
+        "real_capture_safe_candidate_sessions": len(capture_safe_candidate_rows),
+        "real_capture_safe_candidate_passing_sessions": sum(
+            1 for row in capture_safe_candidate_rows if row.get("all_parity_gates_passed")
+        ),
+        "real_capture_safe_candidate_blocking_dimensions": candidate_blocking_dimensions,
         "blocked_sessions": sum(1 for row in rows if row.get("comparison_status") == "blocked"),
         "promotion_allowed_sessions": len(promotable),
         "promotion_decision": "shadow_only_do_not_promote",
@@ -895,11 +962,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     else:
         target_status = "shadow_locked_after_basic_gates"
     summary["target_status"] = target_status
-    promotion_blocking_dimensions = [
-        key
-        for key, counts in real_dimension_counts.items()
-        if any(status != "passed" and count > 0 for status, count in counts.items())
-    ]
+    promotion_blocking_dimensions = blocking_dimensions_from_counts(real_dimension_counts)
     if live_rows and not real_live_rows:
         promotion_blocking_dimensions = list(PARITY_DIMENSIONS.keys())
     summary["promotion_blocking_dimensions"] = promotion_blocking_dimensions
@@ -1006,24 +1069,12 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     next_commands = recommended_next_commands(summary, real_gate_counts, gate_issues)
     capture_regression_check_path = root / "_reports/capture-regression/capture_regression_check.json"
     capture_regression_check = read_json(capture_regression_check_path)
-    parity_dimensions_payload = {
-        key: {
-            "title": spec["title"],
-            "promotion_required": bool(spec.get("promotion_required")),
-            "counts": dict(dimension_counts.get(key, Counter())),
-            "issue_sessions": dimension_issue_sessions.get(key, []),
-        }
-        for key, spec in PARITY_DIMENSIONS.items()
-    }
-    real_parity_dimensions_payload = {
-        key: {
-            "title": spec["title"],
-            "promotion_required": bool(spec.get("promotion_required")),
-            "counts": dict(real_dimension_counts.get(key, Counter())),
-            "issue_sessions": real_dimension_issue_sessions.get(key, []),
-        }
-        for key, spec in PARITY_DIMENSIONS.items()
-    }
+    parity_dimensions_payload = build_dimensions_payload(dimension_counts, dimension_issue_sessions)
+    real_parity_dimensions_payload = build_dimensions_payload(real_dimension_counts, real_dimension_issue_sessions)
+    candidate_parity_dimensions_payload = build_dimensions_payload(
+        candidate_dimension_counts,
+        candidate_dimension_issue_sessions,
+    )
     promotion_policy = {
         "status": "blocked",
         "decision": summary["promotion_decision"],
@@ -1038,6 +1089,27 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "blocking_dimensions": promotion_blocking_dimensions,
         "promotion_allowed_sessions": summary["promotion_allowed_sessions"],
     }
+    candidate_scope = {
+        "definition": (
+            "real_meeting sessions with shadow_compared, meaningful comparison, capture_safety passed "
+            "and required_artifacts passed"
+        ),
+        "sessions": len(capture_safe_candidate_rows),
+        "passing_sessions": summary["real_capture_safe_candidate_passing_sessions"],
+        "blocking_dimensions": candidate_blocking_dimensions,
+        "session_ids": [str(row.get("session") or "") for row in capture_safe_candidate_rows],
+        "next_focus": next_focus_for_dimensions(candidate_blocking_dimensions),
+        "promotion_decision": "shadow_only_do_not_promote",
+        "new_real_live_collection_allowed": False,
+    }
+    objective_audit = build_objective_audit(
+        summary,
+        coverage_target,
+        real_parity_dimensions_payload,
+        promotion_policy,
+        capture_regression_check,
+    )
+    objective_audit["capture_safe_candidate_scope"] = candidate_scope
     return {
         "schema": SCHEMA,
         "generator": {"name": "report-live-corpus-gates", "version": SCRIPT_VERSION},
@@ -1065,6 +1137,8 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "coverage_target": coverage_target,
         "parity_dimensions": parity_dimensions_payload,
         "real_parity_dimensions": real_parity_dimensions_payload,
+        "real_capture_safe_candidate_parity_dimensions": candidate_parity_dimensions_payload,
+        "capture_safe_candidate_scope": candidate_scope,
         "promotion_policy": promotion_policy,
         "capture_regression_check": {
             "path": str(capture_regression_check_path),
@@ -1078,13 +1152,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
                 else None
             ),
         },
-        "objective_audit": build_objective_audit(
-            summary,
-            coverage_target,
-            real_parity_dimensions_payload,
-            promotion_policy,
-            capture_regression_check,
-        ),
+        "objective_audit": objective_audit,
         "blockers": dict(blockers),
         "warnings": dict(warnings),
         "gate_counts": {name: dict(counts) for name, counts in sorted(gate_counts.items())},
@@ -1414,6 +1482,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- real meaningful compared sessions: {summary.get('real_meaningful_compared_sessions', 0)}",
         f"- passing compared sessions: {summary['passing_compared_sessions']}",
         f"- real passing compared sessions: {summary.get('real_passing_compared_sessions', 0)}",
+        f"- capture-safe candidate sessions: {summary.get('real_capture_safe_candidate_sessions', 0)}",
+        f"- capture-safe candidate passing sessions: {summary.get('real_capture_safe_candidate_passing_sessions', 0)}",
         f"- blocked sessions: {summary['blocked_sessions']}",
         f"- promotion allowed sessions: {summary['promotion_allowed_sessions']}",
         f"- target status: `{summary['target_status']}`",
@@ -1472,6 +1542,52 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             "- capture-safe proof: `missing`",
             "",
         ]
+    candidate_scope = (
+        report.get("capture_safe_candidate_scope")
+        if isinstance(report.get("capture_safe_candidate_scope"), dict)
+        else {}
+    )
+    candidate_dimensions = (
+        report.get("real_capture_safe_candidate_parity_dimensions")
+        if isinstance(report.get("real_capture_safe_candidate_parity_dimensions"), dict)
+        else {}
+    )
+    if candidate_scope:
+        lines += [
+            "## Capture-Safe Candidate Evidence",
+            "",
+            "This is a narrower diagnostic slice. It excludes historical live runs that failed capture safety "
+            "or required artifact checks, but it does not allow live promotion.",
+            "",
+            f"- definition: {candidate_scope.get('definition')}",
+            f"- sessions: {candidate_scope.get('sessions', 0)}",
+            f"- passing sessions: {candidate_scope.get('passing_sessions', 0)}",
+            f"- blocking dimensions: {', '.join(candidate_scope.get('blocking_dimensions') or []) or 'none'}",
+            f"- new real live collection allowed: `{candidate_scope.get('new_real_live_collection_allowed')}`",
+            "",
+        ]
+        candidate_next = (
+            candidate_scope.get("next_focus") if isinstance(candidate_scope.get("next_focus"), dict) else {}
+        )
+        if candidate_next:
+            lines += [
+                f"- next candidate focus: `{candidate_next.get('action_id')}` ({candidate_next.get('title')})",
+                "",
+            ]
+        lines += [
+            "| Dimension | Required | Counts | Issue sessions |",
+            "| --- | --- | --- | --- |",
+        ]
+        for key, value in candidate_dimensions.items():
+            if not isinstance(value, dict):
+                continue
+            counts = value.get("counts") if isinstance(value.get("counts"), dict) else {}
+            counts_text = ", ".join(f"{status}: {count}" for status, count in sorted(counts.items())) or "-"
+            issue_sessions = value.get("issue_sessions") if isinstance(value.get("issue_sessions"), list) else []
+            lines.append(
+                f"| `{key}` | `{value.get('promotion_required')}` | {counts_text} | {len(issue_sessions)} |"
+            )
+        lines.append("")
     lines += [
         "## Objective Audit",
         "",
@@ -1498,6 +1614,28 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 f"- recommended next: {next_focus.get('recommended_next')}",
                 "",
             ]
+        candidate_scope = (
+            objective_audit.get("capture_safe_candidate_scope")
+            if isinstance(objective_audit.get("capture_safe_candidate_scope"), dict)
+            else {}
+        )
+        if candidate_scope:
+            lines += [
+                "### Capture-Safe Candidate Scope",
+                "",
+                f"- sessions: {candidate_scope.get('sessions', 0)}",
+                f"- passing sessions: {candidate_scope.get('passing_sessions', 0)}",
+                f"- blocking dimensions: {', '.join(candidate_scope.get('blocking_dimensions') or []) or 'none'}",
+                "",
+            ]
+            candidate_next = (
+                candidate_scope.get("next_focus") if isinstance(candidate_scope.get("next_focus"), dict) else {}
+            )
+            if candidate_next:
+                lines += [
+                    f"- next candidate focus: `{candidate_next.get('action_id')}` ({candidate_next.get('title')})",
+                    "",
+                ]
         lines += [
             "| Check | Status | Evidence |",
             "| --- | --- | --- |",
@@ -1670,6 +1808,11 @@ def main() -> int:
     print(f"diagnostic_live_sessions: {summary.get('diagnostic_live_sessions', 0)}")
     print(f"real_meaningful_compared_sessions: {summary.get('real_meaningful_compared_sessions', 0)}")
     print(f"real_passing_compared_sessions: {summary.get('real_passing_compared_sessions', 0)}")
+    print(f"real_capture_safe_candidate_sessions: {summary.get('real_capture_safe_candidate_sessions', 0)}")
+    print(
+        "real_capture_safe_candidate_passing_sessions: "
+        f"{summary.get('real_capture_safe_candidate_passing_sessions', 0)}"
+    )
     print(f"meaningful_compared_sessions: {summary['meaningful_compared_sessions']}")
     print(f"passing_compared_sessions: {summary['passing_compared_sessions']}")
     print(f"promotion_decision: {summary['promotion_decision']}")

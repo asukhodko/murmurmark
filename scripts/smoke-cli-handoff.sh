@@ -950,6 +950,11 @@ jq -e '
   and .real_parity_dimensions.chunk_boundary_risks.counts.warning == 1
   and .real_blocker_triage_summary.by_category.chunk_boundary_risk.item_count == 1
   and .objective_audit.overall_status == "blocked_by_parity_gates"
+  and .summary.real_capture_safe_candidate_sessions == 1
+  and .summary.real_capture_safe_candidate_passing_sessions == 0
+  and .real_capture_safe_candidate_parity_dimensions.chunk_boundary_risks.counts.warning == 1
+  and .objective_audit.capture_safe_candidate_scope.blocking_dimensions == ["chunk_boundary_risks"]
+  and .objective_audit.capture_safe_candidate_scope.next_focus.action_id == "fix_live_chunk_boundary_risks"
   and .objective_audit.next_focus.action_id == "fix_live_chunk_boundary_risks"
 ' "$workdir/live-boundary-risk-report/live_corpus_gates_report.json" >/dev/null
 jq -e '
@@ -972,6 +977,9 @@ jq -e '
   and .summary.real_meaningful_compared_sessions == 1
   and .summary.passing_compared_sessions == 1
   and .summary.real_passing_compared_sessions == 1
+  and .summary.real_capture_safe_candidate_sessions == 1
+  and .summary.real_capture_safe_candidate_passing_sessions == 1
+  and .summary.real_capture_safe_candidate_blocking_dimensions == []
   and .summary.promotion_allowed_sessions == 0
   and .summary.live_quarantined == true
   and .summary.live_evidence_mode == "historical_debug_only"
@@ -986,6 +994,8 @@ jq -e '
   and .real_blocker_triage_summary.real_gate_issue_count == 0
   and .real_blocker_triage_summary.uncategorized_gate_issue_count == 0
   and .real_parity_dimensions.capture_safety.counts.passed == 1
+  and .real_capture_safe_candidate_parity_dimensions.capture_safety.counts.passed == 1
+  and .real_capture_safe_candidate_parity_dimensions.required_artifacts.counts.passed == 1
   and .promotion_policy.status == "blocked"
   and .promotion_policy.batch_authoritative == true
   and .promotion_policy.live_quarantined == true
@@ -994,6 +1004,10 @@ jq -e '
   and .objective_audit.batch_authoritative == true
   and .objective_audit.ready_for_live_promotion == false
   and .objective_audit.new_real_live_collection_allowed == false
+  and .objective_audit.capture_safe_candidate_scope.sessions == 1
+  and .objective_audit.capture_safe_candidate_scope.passing_sessions == 1
+  and .objective_audit.capture_safe_candidate_scope.blocking_dimensions == []
+  and .objective_audit.capture_safe_candidate_scope.next_focus == null
   and .objective_audit.next_focus.action_id == "collect_controlled_live_parity_coverage"
   and ((.promotion_policy.required_dimensions | sort) == [
     "capture_safety",

@@ -346,6 +346,12 @@ useful failure evidence but cannot make live promotion look ready. Strict parity
 the batch transcript remains authoritative and live promotion remains disabled in v1. Text mismatch
 between live draft and batch transcript is tracked as `draft_text_recall`, separate from missing
 comparison artifacts.
+Once the full capture fail-open proof exists, the live corpus report also writes
+`capture_safe_candidate_scope` and `real_capture_safe_candidate_parity_dimensions`. This is the
+candidate-only view for real sessions that already passed capture safety and required artifact gates.
+Use it to see which parity dimensions still block a safe live branch after old broken-capture runs
+are excluded. It is not a promotion flag: live output remains shadow-only and batch remains
+authoritative. Its `next_focus` names the next blocker inside that capture-safe candidate slice.
 
 Older sessions may have top-level `raw/mic.json` and `raw/remote.json` from pre-chunk runs but no
 `raw/chunks/<track>/chunk_cache_report.json`. In `windowed` mode that legacy raw cache is no longer
