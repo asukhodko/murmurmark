@@ -1110,6 +1110,15 @@ jq -e '
     "selected_notes_readiness"
   ]
 ' "$workdir/live-report/live_corpus_gates_report.json" >/dev/null
+if "$bin" live gate --sessions-root "$workdir/sessions" >"$workdir/live-gate.out" 2>&1; then
+  echo "expected CLI live gate to exit non-zero while strict coverage is incomplete" >&2
+  exit 1
+fi
+grep -q '^strict_coverage: failed$' "$workdir/live-gate.out"
+if grep -q '^error:' "$workdir/live-gate.out"; then
+  echo "live gate should report gate failure without wrapper error text" >&2
+  exit 1
+fi
 "$eval_python" "$repo_root/scripts/report-live-corpus-gates.py" "$live_parity_session" \
   --sessions-root "$workdir/sessions" \
   --out-dir "$workdir/live-report-strict" \

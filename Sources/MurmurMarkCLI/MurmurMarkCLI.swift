@@ -5019,7 +5019,7 @@ enum LiveCommands {
             guard gateArgs.isEmpty else {
                 throw CLIError("live gate only accepts --sessions-root")
             }
-            try Tooling.runPath(
+            let status = try Tooling.runPathAllowingExitCodes(
                 try PythonRuntime.resolve(),
                 [
                     try script("report-live-corpus-gates.py").path,
@@ -5036,8 +5036,12 @@ enum LiveCommands {
                     "--require-passing-gates",
                     "--fail-on-promotion",
                     "--sessions-root", sessionsRoot.path,
-                ]
+                ],
+                allowedExitCodes: [0, 1]
             )
+            if status != 0 {
+                Foundation.exit(status)
+            }
         case "status", "next":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 printStatusHelp()
