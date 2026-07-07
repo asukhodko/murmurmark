@@ -7136,6 +7136,10 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     }
 
     func run() async throws -> StopReason {
+        let recordingLock = try RecordingProcessLock.acquire(for: outputDirectory)
+        defer {
+            recordingLock.release()
+        }
         try prepareDirectories()
         let eventLog = try EventLog(url: outputDirectory.appendingPathComponent("events.jsonl"))
         events = eventLog
@@ -8024,6 +8028,71 @@ extension SessionRecorder {
         print("  murmurmark inspect \(session)")
         print("  murmurmark status \(session)")
         print("  murmurmark process \(session) --allow-partial  # debug only")
+    }
+}
+
+final class RecordingProcessLock {
+    private let fileDescriptor: Int32
+    private var released = false
+
+    private init(fileDescriptor: Int32) {
+        self.fileDescriptor = fileDescriptor
+    }
+
+    static func acquire(for outputDirectory: URL) throws -> RecordingProcessLock {
+        let root = outputDirectory.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let lockURL = root.appendingPathComponent(".murmurmark-recording.lock")
+        let fileDescriptor = open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+        guard fileDescriptor >= 0 else {
+            throw CLIError("cannot open recording lock: \(lockURL.path)")
+        }
+
+        guard flock(fileDescriptor, LOCK_EX | LOCK_NB) == 0 else {
+            let existing: String?
+            if let text = try? String(contentsOf: lockURL, encoding: .utf8) {
+                let trimmed = text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                existing = trimmed.isEmpty ? nil : trimmed
+            } else {
+                existing = nil
+            }
+            close(fileDescriptor)
+            var message = """
+            another MurmurMark recording is already active in \(root.path)
+            Run only one `murmurmark record` process at a time. Use the live pilot runner to collect
+            live evidence and batch output from the same raw recording.
+            """
+            if let existing {
+                message += "\ncurrent lock: \(existing)"
+            }
+            throw CLIError(message)
+        }
+
+        let lock = RecordingProcessLock(fileDescriptor: fileDescriptor)
+        lock.writeMetadata(outputDirectory: outputDirectory)
+        return lock
+    }
+
+    func release() {
+        guard !released else { return }
+        released = true
+        flock(fileDescriptor, LOCK_UN)
+        close(fileDescriptor)
+    }
+
+    deinit {
+        release()
+    }
+
+    private func writeMetadata(outputDirectory: URL) {
+        let payload = "pid=\(getpid()) session=\(outputDirectory.path) started_at=\(DateStrings.iso8601(Date()))\n"
+        _ = ftruncate(fileDescriptor, 0)
+        _ = lseek(fileDescriptor, 0, SEEK_SET)
+        let data = Data(payload.utf8)
+        data.withUnsafeBytes { buffer in
+            guard let baseAddress = buffer.baseAddress else { return }
+            _ = Darwin.write(fileDescriptor, baseAddress, data.count)
+        }
     }
 }
 

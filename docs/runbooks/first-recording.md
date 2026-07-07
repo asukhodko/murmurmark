@@ -299,6 +299,13 @@ collection is allowed. Batch output remains authoritative until the gate and pro
 
 Without `--duration`, recording continues until `Ctrl-C`. MurmurMark catches that explicit stop,
 stops capture, closes audio files and writes `session.json`.
+
+Run only one `murmurmark record` process at a time. Do not start a safe recording in one terminal and
+a live recording in another terminal for the same call: ScreenCaptureKit may hang before startup or
+leave sessions unfinalized. MurmurMark keeps a recording lock and rejects a second concurrent
+`record` before it creates another broken session. For live-vs-batch evidence, record once through
+`murmurmark live pilot --controlled-real`; the runner processes the same raw CAF files through the
+stable batch pipeline after recording stops.
 If ScreenCaptureKit stops before `Ctrl-C`, MurmurMark tries to restart the capture stream and keep
 recording into the same session. A successful restart is written to `events.jsonl` as
 `capture.restarted`.

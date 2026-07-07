@@ -259,6 +259,13 @@ a tiny amount of active audio, MurmurMark finalizes or blocks the session instea
 complete. In that case `record`, `status`, `next` and `process` point to `murmurmark inspect ...`;
 normal processing is blocked unless you explicitly pass `--allow-partial` for debugging.
 
+Run only one `murmurmark record` process at a time. ScreenCaptureKit is not treated as a reliable
+multi-client capture source for MurmurMark: starting a safe recording and a live recording in
+parallel can leave both sessions unfinalized or empty. The CLI keeps a recording lock and rejects a
+second concurrent `record` before it creates a broken session. To compare live output with the stable
+pipeline, use one controlled live pilot; it records once and runs batch processing from the same raw
+CAF files after stop.
+
 ScreenCaptureKit may skip audio buffers during silence or source inactivity. MurmurMark preserves
 the meeting timeline in raw CAF files by inserting silence for timestamp gaps instead of compressing
 the recording to only the buffers that arrived. If no ScreenCaptureKit audio samples arrive at the
