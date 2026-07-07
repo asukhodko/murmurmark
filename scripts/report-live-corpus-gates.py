@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
+import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.2.0"
+SCRIPT_VERSION = "1.3.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -205,6 +207,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("targets", nargs="*", help="all, latest or session paths. Default: all.")
     parser.add_argument("--sessions-root", type=Path, default=Path("sessions"))
     parser.add_argument("--out-dir", type=Path, default=Path("sessions/_reports/live-pipeline"))
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Run compare-live-batch.py for live sessions before aggregating the corpus report.",
+    )
     parser.add_argument("--min-live-sessions", type=int, default=0, help="Required live sessions for strict coverage checks.")
     parser.add_argument("--min-compared-sessions", type=int, default=0, help="Required live-vs-batch compared sessions for strict coverage checks.")
     parser.add_argument(
@@ -297,6 +304,35 @@ def resolve_targets(args: argparse.Namespace) -> list[Path]:
             seen.add(key)
             unique.append(path)
     return unique
+
+
+def refresh_live_comparisons(sessions: list[Path]) -> list[dict[str, Any]]:
+    script = Path(__file__).resolve().parent / "compare-live-batch.py"
+    rows: list[dict[str, Any]] = []
+    for session in sessions:
+        live_report = session / "derived/live/live_pipeline_report.json"
+        if not live_report.exists():
+            continue
+        command = [sys.executable, str(script), str(session)]
+        result = subprocess.run(
+            command,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        rows.append(
+            {
+                "session": str(session),
+                "status": "passed" if result.returncode == 0 else "failed",
+                "reason": None if result.returncode == 0 else "compare_live_batch_failed",
+                "returncode": result.returncode,
+                "stdout_tail": (result.stdout or "")[-2000:],
+                "stderr_tail": (result.stderr or "")[-2000:],
+            }
+        )
+    return rows
 
 
 def rel(path: Path, root: Path) -> str:
@@ -864,6 +900,13 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
 
 
 def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> dict[str, Any]:
+    refresh_results = refresh_live_comparisons(sessions) if args.refresh else []
+    refresh_attempted = refresh_results
+    refresh_failed = [row for row in refresh_results if row.get("status") == "failed"]
+    refresh_skipped = max(0, len(sessions) - len(refresh_attempted)) if args.refresh else 0
+    refresh_status = "not_requested"
+    if args.refresh:
+        refresh_status = "failed" if refresh_failed else "passed"
     rows = [summarize_session(session, root) for session in sessions]
     live_rows = [row for row in rows if row["live_present"]]
     real_live_rows = [row for row in live_rows if row.get("evidence_scope") == "real_meeting"]
@@ -894,6 +937,10 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_sessions": len(live_rows),
         "real_live_sessions": len(real_live_rows),
         "diagnostic_live_sessions": len(diagnostic_live_rows),
+        "live_comparison_refresh_status": refresh_status,
+        "live_comparison_refresh_attempted_sessions": len(refresh_attempted),
+        "live_comparison_refresh_failed_sessions": len(refresh_failed),
+        "live_comparison_refresh_skipped_sessions": refresh_skipped,
         "compared_sessions": sum(1 for row in rows if row.get("comparison_status") == "shadow_compared"),
         "real_compared_sessions": sum(1 for row in real_live_rows if row.get("comparison_status") == "shadow_compared"),
         "meaningful_compared_sessions": sum(1 for row in rows if row.get("meaningful_compared")),
@@ -1157,6 +1204,14 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
                 "fail_on_promotion": args.fail_on_promotion,
             },
             "failures": strict_failures,
+        },
+        "live_comparison_refresh": {
+            "requested": bool(args.refresh),
+            "status": refresh_status,
+            "attempted_sessions": len(refresh_attempted),
+            "failed_sessions": len(refresh_failed),
+            "skipped_sessions": refresh_skipped,
+            "results": refresh_results,
         },
         "coverage_target": coverage_target,
         "parity_dimensions": parity_dimensions_payload,
@@ -1500,6 +1555,10 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- live sessions: {summary['live_sessions']}",
         f"- real live sessions: {summary.get('real_live_sessions', 0)}",
         f"- diagnostic live sessions: {summary.get('diagnostic_live_sessions', 0)}",
+        f"- live comparison refresh: `{summary.get('live_comparison_refresh_status')}`",
+        f"- live comparison refresh attempted sessions: {summary.get('live_comparison_refresh_attempted_sessions', 0)}",
+        f"- live comparison refresh failed sessions: {summary.get('live_comparison_refresh_failed_sessions', 0)}",
+        f"- live comparison refresh skipped sessions: {summary.get('live_comparison_refresh_skipped_sessions', 0)}",
         f"- compared sessions: {summary['compared_sessions']}",
         f"- real compared sessions: {summary.get('real_compared_sessions', 0)}",
         f"- meaningful compared sessions: {summary['meaningful_compared_sessions']}",
@@ -1570,6 +1629,35 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             "- capture-safe proof: `missing`",
             "",
         ]
+    refresh = report.get("live_comparison_refresh") if isinstance(report.get("live_comparison_refresh"), dict) else {}
+    if refresh:
+        lines += [
+            "## Live Comparison Refresh",
+            "",
+            "`--refresh` reruns `compare-live-batch.py` from existing live and batch artifacts before "
+            "aggregating this report. It does not touch raw capture or the authoritative batch transcript.",
+            "",
+            f"- requested: `{refresh.get('requested')}`",
+            f"- status: `{refresh.get('status')}`",
+            f"- attempted sessions: {refresh.get('attempted_sessions', 0)}",
+            f"- failed sessions: {refresh.get('failed_sessions', 0)}",
+            f"- skipped sessions: {refresh.get('skipped_sessions', 0)}",
+            "",
+        ]
+        failed_refresh = [
+            row for row in refresh.get("results") or []
+            if isinstance(row, dict) and row.get("status") == "failed"
+        ]
+        if failed_refresh:
+            lines += [
+                "| Session | Reason | Return Code |",
+                "| --- | --- | ---: |",
+            ]
+            for row in failed_refresh[:20]:
+                lines.append(
+                    f"| `{row.get('session')}` | `{row.get('reason')}` | {row.get('returncode')} |"
+                )
+            lines.append("")
     candidate_scope = (
         report.get("capture_safe_candidate_scope")
         if isinstance(report.get("capture_safe_candidate_scope"), dict)
@@ -1836,6 +1924,10 @@ def main() -> int:
     print(f"live_sessions: {summary['live_sessions']}/{summary['sessions_total']}")
     print(f"real_live_sessions: {summary.get('real_live_sessions', 0)}")
     print(f"diagnostic_live_sessions: {summary.get('diagnostic_live_sessions', 0)}")
+    print(f"live_comparison_refresh: {summary.get('live_comparison_refresh_status')}")
+    print(f"live_comparison_refresh_attempted_sessions: {summary.get('live_comparison_refresh_attempted_sessions', 0)}")
+    print(f"live_comparison_refresh_failed_sessions: {summary.get('live_comparison_refresh_failed_sessions', 0)}")
+    print(f"live_comparison_refresh_skipped_sessions: {summary.get('live_comparison_refresh_skipped_sessions', 0)}")
     print(f"real_meaningful_compared_sessions: {summary.get('real_meaningful_compared_sessions', 0)}")
     print(f"real_passing_compared_sessions: {summary.get('real_passing_compared_sessions', 0)}")
     print(f"real_capture_safe_candidate_sessions: {summary.get('real_capture_safe_candidate_sessions', 0)}")

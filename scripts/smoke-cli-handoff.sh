@@ -948,12 +948,19 @@ jq -e '
 write_full_capture_regression_proof
 "$eval_python" "$repo_root/scripts/report-live-corpus-gates.py" "$live_boundary_risk_session" \
   --sessions-root "$workdir/sessions" \
-  --out-dir "$workdir/live-boundary-risk-report" >/dev/null
+  --out-dir "$workdir/live-boundary-risk-report" \
+  --refresh >/dev/null
 jq -e '
   .summary.real_live_boundary_gate_issue_count == 1
   and .summary.real_live_boundary_gate_suppressed_count == 1
   and .summary.real_live_boundary_gate_resolved_suppressed_count == 0
   and .summary.real_live_boundary_gate_unresolved_suppressed_count == 1
+  and .summary.live_comparison_refresh_status == "passed"
+  and .summary.live_comparison_refresh_attempted_sessions == 1
+  and .summary.live_comparison_refresh_failed_sessions == 0
+  and .live_comparison_refresh.requested == true
+  and .live_comparison_refresh.attempted_sessions == 1
+  and .live_comparison_refresh.failed_sessions == 0
   and .real_parity_dimensions.chunk_boundary_risks.counts.warning == 1
   and .real_blocker_triage_summary.by_category.chunk_boundary_risk.item_count == 1
   and .objective_audit.overall_status == "blocked_by_parity_gates"
@@ -973,11 +980,15 @@ jq -e '
 ' "$live_parity_session/derived/live/live_parity_session_report.json" >/dev/null
 "$eval_python" "$repo_root/scripts/report-live-corpus-gates.py" "$live_parity_session" \
   --sessions-root "$workdir/sessions" \
-  --out-dir "$workdir/live-report" >/dev/null
+  --out-dir "$workdir/live-report" \
+  --refresh >/dev/null
 jq -e '
   .summary.live_sessions == 1
   and .summary.real_live_sessions == 1
   and .summary.diagnostic_live_sessions == 0
+  and .summary.live_comparison_refresh_status == "passed"
+  and .summary.live_comparison_refresh_attempted_sessions == 1
+  and .summary.live_comparison_refresh_failed_sessions == 0
   and .summary.compared_sessions == 1
   and .summary.real_compared_sessions == 1
   and .summary.meaningful_compared_sessions == 1

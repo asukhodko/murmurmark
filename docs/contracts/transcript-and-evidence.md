@@ -4859,6 +4859,12 @@ sessions/_reports/live-pipeline/live_corpus_gates_report.md
 sessions/_reports/capture-regression/capture_regression_check.json
 ```
 
+With `--refresh`, it first reruns `scripts/compare-live-batch.py` for every target session that has
+`derived/live/live_pipeline_report.json`. Refresh reads existing derived live/batch artifacts and
+writes fresh `live_batch_comparison.json`; it does not modify raw capture, batch ASR or selected
+transcript profiles. Refresh status is reported in `summary.live_comparison_refresh_*` and the
+top-level `live_comparison_refresh` block.
+
 Schema:
 
 ```json
@@ -4870,6 +4876,10 @@ Schema:
     "live_sessions": 3,
     "real_live_sessions": 2,
     "diagnostic_live_sessions": 1,
+    "live_comparison_refresh_status": "passed",
+    "live_comparison_refresh_attempted_sessions": 3,
+    "live_comparison_refresh_failed_sessions": 0,
+    "live_comparison_refresh_skipped_sessions": 7,
     "compared_sessions": 2,
     "real_compared_sessions": 2,
     "meaningful_compared_sessions": 2,
@@ -4935,6 +4945,14 @@ Schema:
       "selected_notes_readiness"
     ],
     "promotion_allowed_sessions": 0
+  },
+  "live_comparison_refresh": {
+    "requested": true,
+    "status": "passed",
+    "attempted_sessions": 3,
+    "failed_sessions": 0,
+    "skipped_sessions": 7,
+    "results": []
   },
   "parity_dimensions": {
     "capture_safety": {
@@ -5165,7 +5183,7 @@ Strict coverage mode is optional and is currently historical/diagnostic while li
 quarantined:
 
 ```bash
-murmurmark corpus live all \
+murmurmark corpus live all --refresh \
   --min-live-sessions 3 \
   --min-compared-sessions 3 \
   --min-meaningful-compared-sessions 3 \

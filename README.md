@@ -341,7 +341,7 @@ next `check-asr-chunk-cache.py --require-chunks` must prove rebuild parity. Othe
 To inspect live parity over a local corpus:
 
 ```bash
-murmurmark corpus live all
+murmurmark corpus live all --refresh
 less sessions/_reports/live-pipeline/live_corpus_gates_report.md
 jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json
 ```
@@ -362,6 +362,9 @@ session/gate/reason rows that currently prevent a passing comparison. Promotion 
 real coverage. Draft text recall is tracked separately from required artifacts: a session can have
 all files present and still fail because the live draft text does not match the authoritative batch
 transcript.
+Use `--refresh` after live gate logic changes or after processing a session: it reruns
+`compare-live-batch.py` from existing derived live/batch artifacts before aggregation. It does not
+touch raw capture or the authoritative batch transcript.
 When the capture fail-open proof has passed, the same report also writes
 `capture_safe_candidate_scope` and `real_capture_safe_candidate_parity_dimensions`. This narrower
 view counts only real live sessions that were meaningfully compared, passed capture safety, and have
@@ -400,7 +403,7 @@ The old live-coverage target remains a diagnostic report shape, not a current ac
 this command as an instruction to collect more live meetings while live recording is quarantined:
 
 ```bash
-murmurmark corpus live all \
+murmurmark corpus live all --refresh \
   --min-live-sessions 3 \
   --min-compared-sessions 3 \
   --min-meaningful-compared-sessions 3 \

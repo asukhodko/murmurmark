@@ -177,10 +177,14 @@ useful for orientation, but the final transcript should use normal batch ASR.
 For a corpus-level live promotion check:
 
 ```bash
-murmurmark corpus live all
+murmurmark corpus live all --refresh
 less sessions/_reports/live-pipeline/live_corpus_gates_report.md
 jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json
 ```
+
+`--refresh` reruns `compare-live-batch.py` from existing derived live/batch artifacts before
+aggregation, so the corpus report does not use stale gate JSON after live-parity logic changes.
+It does not modify raw capture or the authoritative batch transcript.
 
 The correct v1 outcome is normally `shadow_only_not_promotable`; promotion requires future gates for
 capture safety, order risk, local recall, remote leakage, review burden and boundary speech. The
@@ -236,7 +240,7 @@ It is expected to fail while live capture is quarantined and until enough real s
 meaningful passing comparisons:
 
 ```bash
-murmurmark corpus live all \
+murmurmark corpus live all --refresh \
   --min-live-sessions 3 \
   --min-compared-sessions 3 \
   --min-meaningful-compared-sessions 3 \
