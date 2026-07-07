@@ -128,8 +128,9 @@ scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate
 ```
 
 This records until `Ctrl-C`, runs normal batch processing after stop and refreshes
-`murmurmark corpus live all --refresh`. It is still evidence collection: live output remains
-shadow-only and the batch transcript remains authoritative.
+`murmurmark corpus live all --refresh`. Before recording, the runner refreshes the same corpus gates
+and refuses to start if controlled real collection is no longer the safe next step. It is still
+evidence collection: live output remains shadow-only and the batch transcript remains authoritative.
 
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
 
@@ -221,8 +222,9 @@ If the full proof has passed, `controlled_real_live_pilot_allowed` may be true. 
 non-critical live-pipeline pilot may be recorded to gather parity evidence, followed by normal batch
 processing and `murmurmark corpus live all --refresh`. Use
 `scripts/run-live-parity-pilot.sh --controlled-real --skip-safety-gate` instead of assembling
-`record --live-pipeline` by hand. Use `next_focus` to see whether the next step is a candidate
-blocker or a controlled pilot.
+`record --live-pipeline` by hand; the runner rechecks the current live corpus gates before it starts
+recording. Use `next_focus` to see whether the next step is a candidate blocker or a controlled
+pilot.
 `Parity Dimensions` keeps the full mixed audit view by capture safety, order risk, local recall,
 remote leakage, review burden, notes readiness and chunk-boundary risk. `draft_text_recall` is
 separate from `required_artifacts`: present live files are not enough if live draft text no longer

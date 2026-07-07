@@ -107,6 +107,7 @@ done
 command -v jq >/dev/null 2>&1 || fail "missing jq"
 
 capture_regression_report="${MURMURMARK_CAPTURE_REGRESSION_REPORT:-sessions/_reports/capture-regression/capture_regression_check.json}"
+corpus_report="sessions/_reports/live-pipeline/live_corpus_gates_report.json"
 
 bin="${MURMURMARK_BIN:-}"
 if [[ -z "$bin" ]]; then
@@ -156,6 +157,28 @@ if [[ "$record_new" == "1" ]]; then
   fi
 fi
 
+if [[ "$record_new" == "1" && "$controlled_real" == "1" ]]; then
+  echo "[pilot] preflight: refresh live corpus gates for controlled real pilot"
+  "$bin" corpus live all --refresh --sessions-root sessions >/dev/null
+  [[ -s "$corpus_report" ]] || fail "missing live corpus report: $corpus_report"
+  jq -e '
+    .promotion_policy.status == "blocked"
+    and .promotion_policy.batch_authoritative == true
+    and .promotion_policy.new_real_live_collection_allowed == false
+    and .promotion_policy.controlled_real_live_pilot_allowed == true
+    and ((.coverage_target.passing_compared_sessions_remaining // 0) > 0)
+    and (((.capture_safe_candidate_scope.blocking_dimensions // []) | length) == 0)
+  ' "$corpus_report" >/dev/null || {
+    jq '{
+      recommended_next,
+      coverage_target,
+      promotion_policy,
+      capture_safe_candidate_scope
+    }' "$corpus_report" >&2
+    fail "controlled real pilot is not allowed by current live corpus gates"
+  }
+fi
+
 if [[ "$record_new" == "1" ]]; then
   echo "[pilot] record live shadow session -> $session"
   record_args=(
@@ -194,7 +217,6 @@ echo "[pilot] live corpus report"
 "$bin" corpus live all --refresh --sessions-root sessions
 
 comparison="$session/derived/live/live_batch_comparison.json"
-corpus_report="sessions/_reports/live-pipeline/live_corpus_gates_report.json"
 pilot_report="$session/derived/live/live_parity_pilot_report.json"
 
 [[ -s "$comparison" ]] || fail "missing live comparison: $comparison"
