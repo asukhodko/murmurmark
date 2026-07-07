@@ -5122,7 +5122,7 @@ Schema:
         "session_count": 1,
         "sessions": ["2026-07-03_06-16-43"],
         "severities": {"warning": 1},
-        "recommended_next": "keep live quarantined; prove capture-safe segment production before any controlled real live pilot"
+        "recommended_next": "keep live quarantined for this session; follow coverage_path.recommended_next to decide whether controlled Live Evidence collection is currently allowed"
       },
       "batch_review_required": {
         "title": "Batch review/readiness required",
@@ -5138,7 +5138,7 @@ Schema:
         "session_count": 1,
         "sessions": ["2026-07-03_06-16-43"],
         "severities": {"warning": 1},
-        "recommended_next": "keep live quarantined; redesign capture-safe live segmentation before collecting more real live meetings"
+        "recommended_next": "keep live quarantined for this session; collect controlled Live Evidence only when coverage_path allows it, and redesign live segmentation if new controlled evidence keeps failing local recall"
       }
     },
     "by_severity": {"warning": 2}
@@ -5159,7 +5159,7 @@ Schema:
         }
       ],
       "dimensions": ["local_recall"],
-      "recommended_next": "keep live quarantined; redesign capture-safe live segmentation before collecting more real live meetings"
+      "recommended_next": "keep live quarantined for this session; collect controlled Live Evidence only when coverage_path allows it, and redesign live segmentation if new controlled evidence keeps failing local recall"
     }
   ],
   "gate_counts": {
@@ -5190,7 +5190,9 @@ Schema:
   "live_capture_test_enabled": false,
   "capture_safe_proof": {
     "status": "static_only",
-    "required_for_real_live_collection": true
+    "required_for_real_live_collection": true,
+    "preserved_from_previous_report": false,
+    "previous_report_generated_at": null
   },
   "checks": [
     {"name": "static_capture_contract", "status": "passed", "mode": "static"},
@@ -5200,16 +5202,19 @@ Schema:
 ```
 
 Only `capture_safe_proof.status == "full_fail_open_proof_passed"` is enough for future real live
-collection. `static_only` keeps live quarantined and makes `objective_audit.next_focus` point to
-`capture_safe_redesign_before_more_live_coverage` unless a more direct capture-safety blocker is
-already present.
+collection. A static check can only create `static_only` proof, but if a previous report already had
+`full_fail_open_proof_passed`, it preserves that status and sets
+`preserved_from_previous_report: true`. `static_only` keeps live quarantined and makes
+`objective_audit.next_focus` point to `capture_safe_redesign_before_more_live_coverage` unless a more
+direct capture-safety blocker is already present.
 
 The corpus gate is deliberately conservative. Any `not_evaluated`, `blocked`, `failed` or `warning`
 gate prevents promotion. v1 is expected to remain `shadow_only_do_not_promote`.
 The Markdown report includes a `Capture Regression Proof` section with the same proof status. The
 report also carries `gate_issues`, `recommended_next` and `next_commands`, so a live-parity run can
 point to failing gate evidence without weakening the gates. It must not suggest collecting more real
-live meetings while `--live-pipeline` is quarantined. `parity_dimensions` groups the per-session gates
+live meetings while `--live-pipeline` is quarantined. A controlled Live Evidence run is allowed only
+through `coverage_path` after the full fail-open proof, and remains shadow-only. `parity_dimensions` groups the per-session gates
 into the product safety dimensions required for future promotion: order risk, local recall, remote
 leakage, review burden, selected notes readiness, chunk-boundary risks, draft text recall, required
 artifacts and capture safety. Capture safety is built from `session.json` health and

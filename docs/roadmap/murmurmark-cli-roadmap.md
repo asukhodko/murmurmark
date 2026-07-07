@@ -308,7 +308,8 @@ flowchart LR
   - `scripts/check-capture-regressions.sh` now writes
     `sessions/_reports/capture-regression/capture_regression_check.json`; `static_only` is useful
     regression evidence, while `full_fail_open_proof_passed` is required before controlled
-    Live Evidence runs;
+    Live Evidence runs; static reruns preserve an already-passed full proof instead of downgrading
+    the operator state;
   - `murmurmark live pilot` now wraps the evidence path through `scripts/run-live-parity-pilot.sh`:
     safety probe, short lab live recording or controlled real Live Evidence run, batch process,
     live-vs-batch compare and refreshed corpus live report;

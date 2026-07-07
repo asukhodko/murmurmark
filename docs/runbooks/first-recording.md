@@ -287,8 +287,10 @@ blocks. During quarantine it should keep `ready_for_live_promotion` and
 `new_real_live_collection_allowed` false. `controlled_real_live_pilot_allowed` is a separate
 evidence-collection flag and does not make live output authoritative.
 It also checks `sessions/_reports/capture-regression/capture_regression_check.json`. A static
-capture regression report proves the code shape and fixtures, but not live promotion safety. Before
-any controlled Live Evidence run is allowed, run the full local proof:
+capture regression report proves the code shape and fixtures, but it cannot create live promotion
+safety proof by itself. If full proof already exists, a later static check preserves it instead of
+downgrading the operator state. Before any controlled Live Evidence run is allowed, run the full
+local proof at least once:
 
 ```bash
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh

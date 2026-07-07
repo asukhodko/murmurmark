@@ -79,13 +79,16 @@ TRIAGE_CATEGORY_INFO: dict[str, dict[str, str]] = {
     "capture_safety_risk": {
         "title": "Capture safety risk",
         "recommended_next": (
-            "keep live quarantined; prove capture-safe segment production before any new real live collection"
+            "keep live quarantined for this session; follow coverage_path.recommended_next to decide "
+            "whether controlled Live Evidence collection is currently allowed"
         ),
     },
     "live_local_recall_gap": {
         "title": "Live local-recall gap",
         "recommended_next": (
-            "keep live quarantined; redesign capture-safe live segmentation before collecting more real live meetings"
+            "keep live quarantined for this session; collect controlled Live Evidence only when "
+            "coverage_path allows it, and redesign live segmentation if new controlled evidence keeps "
+            "failing local recall"
         ),
     },
     "live_remote_leakage": {

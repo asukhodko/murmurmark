@@ -460,16 +460,18 @@ authoritative. Its safe current state is `ready_for_live_promotion: false` and
 evidence-collection flag and must not be read as promotion.
 It also reads the capture regression proof at
 `sessions/_reports/capture-regression/capture_regression_check.json`. A normal static run of
-`scripts/check-capture-regressions.sh` is useful, but it is only `static_only`; real live collection
-requires the full local proof:
+`scripts/check-capture-regressions.sh` is useful, but it can only create `static_only` proof by
+itself. If a previous full proof already exists, static checks preserve it instead of downgrading the
+operator state. Real live collection still requires the full local proof at least once:
 
 ```bash
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
 ```
 
 Until that report says `capture_safe_proof.status == "full_fail_open_proof_passed"`, live stays
-quarantined even if old live-vs-batch comparisons look clean. If the full proof cannot run in the
-current desktop session, the report should say `status: failed` instead of leaving stale proof data.
+quarantined even if old live-vs-batch comparisons look clean. If the full proof command is run and
+fails in the current desktop session, the report should say `status: failed`; a static check may only
+preserve an already-passed proof and records that fact in `preserved_from_previous_report`.
 When `capture_safety` is among blocking dimensions and the full proof is missing,
 `objective_audit.next_focus` must point to `capture_safe_redesign_before_more_live_coverage`.
 After the proof passes and the capture-safe candidate slice has no blockers, `next_focus` may point

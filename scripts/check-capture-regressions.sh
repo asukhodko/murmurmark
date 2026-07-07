@@ -9,6 +9,13 @@ report_path="${MURMURMARK_CAPTURE_REGRESSION_REPORT:-sessions/_reports/capture-r
 checks_jsonl="$(mktemp "${TMPDIR:-/tmp}/murmurmark-capture-regression-checks.XXXXXX")"
 trap 'rm -f "$checks_jsonl"' EXIT
 
+previous_proof_status=""
+previous_proof_generated_at=""
+if [[ -f "$report_path" ]]; then
+  previous_proof_status="$(jq -r '.capture_safe_proof.status // empty' "$report_path" 2>/dev/null || true)"
+  previous_proof_generated_at="$(jq -r '.generated_at // empty' "$report_path" 2>/dev/null || true)"
+fi
+
 fail() {
   echo "capture regression check failed: $*" >&2
   exit 1
@@ -37,6 +44,8 @@ write_report() {
     --arg mode "$mode" \
     --arg status "$status" \
     --arg live_capture_test "${MURMURMARK_RUN_LIVE_CAPTURE_TEST:-0}" \
+    --arg previous_proof_status "$previous_proof_status" \
+    --arg previous_proof_generated_at "$previous_proof_generated_at" \
     '{
       schema: $schema,
       generated_at: $generated_at,
@@ -47,10 +56,24 @@ write_report() {
         status: (
           if $status != "passed" then "failed"
           elif $live_capture_test == "1" then "full_fail_open_proof_passed"
+          elif $previous_proof_status == "full_fail_open_proof_passed" then "full_fail_open_proof_passed"
           else "static_only"
           end
         ),
-        required_for_real_live_collection: true
+        required_for_real_live_collection: true,
+        preserved_from_previous_report: (
+          $status == "passed"
+          and $live_capture_test != "1"
+          and $previous_proof_status == "full_fail_open_proof_passed"
+        ),
+        previous_report_generated_at: (
+          if $status == "passed"
+            and $live_capture_test != "1"
+            and $previous_proof_status == "full_fail_open_proof_passed"
+          then $previous_proof_generated_at
+          else null
+          end
+        )
       },
       checks: .
     }' "$checks_jsonl" >"$report_path"
