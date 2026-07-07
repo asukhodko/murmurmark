@@ -657,7 +657,7 @@ def build_objective_audit(
         "action_id": "collect_controlled_live_parity_coverage",
         "title": "Collect controlled live parity coverage",
         "recommended_next": (
-            "only after capture-safety proof and all parity dimensions pass, collect controlled non-critical live evidence"
+            "only after capture-safety proof and all parity dimensions pass, collect controlled Live Evidence"
         ),
         "non_passing": {},
         "issue_sessions": [],
@@ -715,7 +715,7 @@ def build_objective_audit(
             "action_id": "collect_controlled_capture_safe_live_pilot",
             "title": "Collect controlled capture-safe live parity pilots",
             "recommended_next": (
-                "run a non-critical live-pipeline pilot only after the full fail-open proof; keep batch "
+                "run a controlled Live Evidence sidecar only after the full fail-open proof; keep batch "
                 "authoritative and rerun `murmurmark corpus live all --refresh` after processing"
             ),
             "non_passing": {
@@ -815,7 +815,7 @@ def build_objective_audit(
             {
                 "controlled_real_live_pilot_allowed": promotion_policy.get("controlled_real_live_pilot_allowed"),
                 "capture_safe_proof_status": capture_proof_status,
-                "scope": "non-critical pilot evidence only; promotion remains blocked and batch authoritative",
+                "scope": "controlled Live Evidence only; promotion remains blocked and batch authoritative",
             },
         ),
     ]
@@ -1089,7 +1089,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     capture_regression_check = read_json(capture_regression_check_path)
     pilot_allowed = controlled_real_live_pilot_allowed(capture_regression_check)
     pilot_reason = (
-        "full fail-open proof passed; controlled non-critical live pilots may collect evidence"
+        "full fail-open proof passed; controlled Live Evidence runs may collect evidence"
         if pilot_allowed
         else "full fail-open proof is missing; run MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh"
     )

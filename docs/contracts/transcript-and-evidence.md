@@ -4316,7 +4316,7 @@ Invariants:
 `murmurmark live pilot` is the user-facing wrapper for collecting near-realtime evidence without
 promoting live output. It delegates to `scripts/run-live-parity-pilot.sh`. Default `--duration` runs
 are lab evidence and use `live-pilot-*` session names. `--controlled-real` records a date-named
-non-critical real pilot until `Ctrl-C`, then runs the normal batch pipeline and refreshes
+controlled Live Evidence run until `Ctrl-C`, then runs the normal batch pipeline and refreshes
 `murmurmark corpus live all --refresh`. Before a controlled real recording starts, the runner
 refreshes the same corpus gates and refuses to record unless
 `controlled_real_live_pilot_allowed == true`, `new_real_live_collection_allowed == false`, passing
@@ -4371,7 +4371,7 @@ Schema:
 
 `pilot_verdict` is one of `passed_coverage`, `compared_but_not_passing`,
 `not_meaningfully_compared` or `diagnostic_only`. `contributes_to_passing_coverage == true` means a
-controlled real pilot is a real, meaningful, all-gates-passed comparison and reduces the remaining
+controlled Live Evidence run is a real, meaningful, all-gates-passed comparison and reduces the remaining
 coverage target. The report is evidence that a pilot was processed and compared, not a promotion
 artifact. Live
 promotion remains blocked until the corpus-level parity gates pass on approved real coverage.
@@ -5202,7 +5202,7 @@ dimensions already passed. This lets the live goal distinguish old unsafe-captur
 remaining candidate parity blockers. It is not a promotion signal, and `new_real_live_collection_allowed`
 must stay false while the live branch is quarantined. `controlled_real_live_pilot_allowed` is narrower:
 it may become true only after `capture_safe_proof.status == "full_fail_open_proof_passed"` and means
-that a non-critical real live-pipeline pilot may be recorded for parity evidence, with batch output
+that a controlled Live Evidence sidecar may be recorded on a real meeting for parity evidence, with batch output
 still authoritative. `capture_safe_candidate_scope.next_focus` identifies the first candidate-level
 parity blocker after capture safety and required artifacts have already passed, or points to
 `collect_controlled_capture_safe_live_pilot` when the candidate slice is clean and coverage is still

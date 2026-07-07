@@ -10,26 +10,26 @@ usage: scripts/run-live-parity-pilot.sh [SESSION] [options]
 
 Near-realtime pilot runner.
 
-Without SESSION, records a short unsafe live-pipeline session, then runs the batch pipeline,
+Without SESSION, records a short lab live-pipeline session, then runs the batch pipeline,
 live-vs-batch comparison and live corpus report. With SESSION, skips recording and processes the
 existing live-pipeline session. Use --controlled-real with SESSION to mark an existing date-named
-live pilot as controlled real evidence without starting another recording.
+Live Evidence run without starting another recording.
 
 Options:
   --duration SEC       Recording duration for a new pilot. Default: 45.
   --segment-sec SEC    Live segment length. Default: 15.
   --overlap-sec SEC    Live overlap length. Default: 3.
   --out SESSION        Output session path for a new pilot.
-  --controlled-real    Record a date-named controlled non-critical real pilot until Ctrl-C.
+  --controlled-real    Record a date-named controlled Live Evidence run until Ctrl-C.
                        Defaults to --segment-sec 60, --overlap-sec 5 and --live-no-finalize.
-                       With SESSION, process existing controlled real pilot evidence.
+                       With SESSION, process existing controlled Live Evidence.
   --preflight-only     Check safety/corpus gates and exit before recording or processing.
   --skip-safety-gate   Reuse the existing full capture proof instead of running the probe first.
   --force-asr          Force batch ASR during murmurmark process.
   --help               Show this help.
 
-This runner is not a production recording path. It keeps live promotion blocked and batch transcript
-authoritative while collecting parity evidence. It also refreshes
+This runner is a sidecar evidence path, not a source of final transcript truth. It keeps live
+promotion blocked and batch transcript authoritative while collecting parity evidence. It also refreshes
 derived/experiments/live-shadow-v1/{experiment_manifest.json,state.json,events.jsonl,report.json}.
 EOF
 }
@@ -166,7 +166,7 @@ if [[ "$record_new" == "1" ]]; then
 fi
 
 if [[ "$record_new" == "1" && "$controlled_real" == "1" ]]; then
-  echo "[pilot] preflight: refresh live corpus gates for controlled real pilot"
+  echo "[pilot] preflight: refresh live corpus gates for controlled Live Evidence"
   "$bin" corpus live all --refresh --sessions-root sessions >/dev/null
   [[ -s "$corpus_report" ]] || fail "missing live corpus report: $corpus_report"
   jq -e '
@@ -183,7 +183,7 @@ if [[ "$record_new" == "1" && "$controlled_real" == "1" ]]; then
       promotion_policy,
       capture_safe_candidate_scope
     }' "$corpus_report" >&2
-    fail "controlled real pilot is not allowed by current live corpus gates"
+    fail "controlled Live Evidence is not allowed by current live corpus gates"
   }
 fi
 

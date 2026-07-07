@@ -3621,7 +3621,7 @@ EOF
   echo "$live_help" | grep -q 'murmurmark live gate \[--sessions-root ./sessions\]'
   live_pilot_help="$("$bin" live pilot --help)"
   echo "$live_pilot_help" | grep -q 'murmurmark live pilot sessions/<session-id> --controlled-real'
-  echo "$live_pilot_help" | grep -q 'existing controlled real evidence when SESSION is provided'
+  echo "$live_pilot_help" | grep -q 'existing controlled Live Evidence when SESSION is provided'
   review_help="$("$bin" review --help)"
   echo "$review_help" | grep -q 'murmurmark review lane apply LANE|first'
   echo "$review_help" | grep -q 'murmurmark review progress \[--session latest|SESSION\]'

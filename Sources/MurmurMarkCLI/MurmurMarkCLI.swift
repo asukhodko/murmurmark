@@ -5098,15 +5098,15 @@ enum LiveCommands {
         Without SESSION, records a new shadow live-pipeline pilot, then runs batch processing,
         live-vs-batch comparison and refreshed live corpus gates. With SESSION, processes and
         compares an existing live-pipeline session. Use --controlled-real with SESSION to mark an
-        existing date-named live pilot as controlled real evidence without starting a new recording.
+        existing date-named Live Evidence run without starting a new recording.
 
         Options:
           --duration SEC       Recording duration for a new lab pilot. Default: 45.
           --segment-sec SEC    Live segment length. Default: 15, or 60 for --controlled-real.
           --overlap-sec SEC    Live overlap length. Default: 3, or 5 for --controlled-real.
           --out SESSION        Output session path for a new pilot.
-          --controlled-real    Record a date-named non-critical real pilot until Ctrl-C, or process
-                               existing controlled real evidence when SESSION is provided.
+          --controlled-real    Record a date-named Live Evidence run until Ctrl-C, or process
+                               existing controlled Live Evidence when SESSION is provided.
           --preflight-only     Check proof/corpus gates and exit before recording or processing.
           --skip-safety-gate   Reuse an existing full fail-open proof.
           --force-asr          Force batch ASR during post-stop processing.
