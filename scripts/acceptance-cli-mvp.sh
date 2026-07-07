@@ -184,6 +184,7 @@ near_realtime_shadow_gate:
     - MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
     - murmurmark live pilot --duration 45
     - murmurmark live status
+    - murmurmark live gate
     - murmurmark corpus live all --refresh
     - murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
     - jq '.promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json
@@ -195,6 +196,7 @@ near_realtime_shadow_gate:
     - controlled real preflight refuses to record unless corpus gates allow evidence collection
     - live corpus report keeps promotion_policy.status blocked
     - live corpus report keeps batch_authoritative true
+    - live gate exits non-zero until strict parity coverage is complete
     - new_real_live_collection_allowed remains false until real parity coverage is explicitly approved
 EOF
   write_report "live_checklist" "manual" "MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh"

@@ -328,6 +328,7 @@ the same runner for a non-critical real pilot:
 
 ```bash
 murmurmark live status
+murmurmark live gate
 murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
 murmurmark live pilot --controlled-real --skip-safety-gate
 ```
@@ -423,11 +424,18 @@ When `capture_safety` is among blocking dimensions and the full proof is missing
 After the proof passes and the capture-safe candidate slice has no blockers, `next_focus` may point
 to `collect_controlled_capture_safe_live_pilot`; this still keeps promotion blocked and batch
 authoritative.
-While live is quarantined, `recommended_next` and `next:` point to triage and inspection commands for
-existing artifacts. They must not suggest the strict live-coverage command as the next action.
+While live is quarantined, `recommended_next` and `next:` point to triage, inspection or a controlled
+pilot preflight. They must not suggest raw `record --live-pipeline` as the next action.
 
-The old live-coverage target remains a diagnostic report shape, not a current action item. Do not use
-this command as an instruction to collect more live meetings while live recording is quarantined:
+`murmurmark live gate` is the strict promotion gate for the current near-realtime objective. It
+refreshes the same corpus report and exits non-zero until the required real live-vs-batch evidence is
+complete:
+
+```bash
+murmurmark live gate
+```
+
+Under the hood it runs the strict target form:
 
 ```bash
 murmurmark corpus live all --refresh \
@@ -443,8 +451,10 @@ murmurmark corpus live all --refresh \
   --fail-on-promotion
 ```
 
-This target command is expected to fail. Do not try to satisfy it by recording real meetings with
-`--live-pipeline`; the next live step is implementation redesign, not broader live coverage.
+This gate is expected to fail until enough controlled real pilots pass all parity checks. Do not try
+to satisfy it by hand-running `record --live-pipeline`; use `murmurmark live pilot --controlled-real`
+only when `murmurmark live status` says `controlled_real_live_pilot_allowed: true`. Batch output
+remains authoritative until this gate and the surrounding promotion policy pass.
 
 ## Process An Existing Session
 

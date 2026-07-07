@@ -185,6 +185,7 @@ struct MurmurMark {
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
+          murmurmark live gate [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--controlled-real] [--preflight-only] [--skip-safety-gate]
           murmurmark corpus report
 
@@ -5003,6 +5004,35 @@ enum LiveCommands {
         }
         let forwarded = Array(args.dropFirst())
         switch subcommand {
+        case "gate":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                printGateHelp()
+                return
+            }
+            var gateArgs = forwarded
+            let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &gateArgs) ?? "sessions")
+            guard gateArgs.isEmpty else {
+                throw CLIError("live gate only accepts --sessions-root")
+            }
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [
+                    try script("report-live-corpus-gates.py").path,
+                    "all",
+                    "--refresh",
+                    "--min-live-sessions", "3",
+                    "--min-compared-sessions", "3",
+                    "--min-meaningful-compared-sessions", "3",
+                    "--min-passing-compared-sessions", "3",
+                    "--max-order-mismatches", "0",
+                    "--max-missing-me-sec", "0",
+                    "--max-remote-in-me-sec", "0",
+                    "--max-boundary-duplicates", "0",
+                    "--require-passing-gates",
+                    "--fail-on-promotion",
+                    "--sessions-root", sessionsRoot.path,
+                ]
+            )
         case "status", "next":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 printStatusHelp()
@@ -5044,6 +5074,7 @@ enum LiveCommands {
         usage:
           murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live next [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
+          murmurmark live gate [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--duration SEC] [--segment-sec SEC] [--overlap-sec SEC]
                                [--controlled-real] [--preflight-only] [--skip-safety-gate]
 
@@ -5087,6 +5118,21 @@ enum LiveCommands {
 
         Prints the live parity corpus gates and the recommended next command.
         Defaults to `all --refresh`.
+        """)
+    }
+
+    static func printGateHelp() {
+        Swift.print("""
+        usage:
+          murmurmark live gate [--sessions-root ./sessions]
+
+        Runs the strict Near-Realtime Live Parity Coverage v1 gate:
+        at least 3 live sessions, 3 compared sessions, 3 meaningful comparisons,
+        3 all-gates-passed comparisons, zero order mismatches, zero missing-Me seconds,
+        zero remote-in-Me seconds, zero boundary duplicates, all live parity gates passed,
+        and no live promotion while v1 remains quarantined.
+
+        This command exits non-zero until live promotion evidence is complete.
         """)
     }
 

@@ -125,6 +125,7 @@ For a non-critical real pilot after the report says `controlled_real_live_pilot_
 
 ```bash
 murmurmark live status
+murmurmark live gate
 murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
 murmurmark live pilot --controlled-real --skip-safety-gate
 ```
@@ -257,12 +258,17 @@ blocked.
 If `capture_safety` is blocking, `objective_audit.next_focus` should be
 `capture_safe_redesign_before_more_live_coverage`; do not treat missing passing coverage as a prompt
 to collect more real live sessions.
-In quarantine, `recommended_next` and `next:` should lead to triage and inspection of existing live
-artifacts. They should not print the strict live-coverage command as the next action.
+In quarantine, `recommended_next` and `next:` should lead to triage, inspection or a controlled pilot
+preflight. They should not print raw `record --live-pipeline` as the next action.
 
-For historical live-parity diagnostics, use the strict target form against existing live artifacts.
-It is expected to fail while live capture is quarantined and until enough real sessions have
-meaningful passing comparisons:
+For live-parity promotion diagnostics, use the explicit strict gate:
+
+```bash
+murmurmark live gate
+```
+
+It refreshes the corpus report and exits non-zero while live capture is quarantined or until enough
+real sessions have meaningful passing comparisons. Under the hood it runs:
 
 ```bash
 murmurmark corpus live all --refresh \
@@ -279,8 +285,9 @@ murmurmark corpus live all --refresh \
 ```
 
 This command should fail whenever coverage is missing or any live parity gate is still warning,
-failed or not evaluated. At the moment this is a diagnostic report shape only: do not try to satisfy
-it by recording real meetings with `--live-pipeline`.
+failed or not evaluated. Do not satisfy it by hand-running `record --live-pipeline`; use
+`murmurmark live pilot --controlled-real` only when `murmurmark live status` says controlled evidence
+collection is allowed. Batch output remains authoritative until the gate and promotion policy pass.
 
 Without `--duration`, recording continues until `Ctrl-C`. MurmurMark catches that explicit stop,
 stops capture, closes audio files and writes `session.json`.
