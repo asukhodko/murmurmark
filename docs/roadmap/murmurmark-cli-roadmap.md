@@ -25,7 +25,8 @@ near-realtime path should eventually reduce the wait after a meeting. The old in
 writer is quarantined because it can starve ScreenCaptureKit audio delivery; the new async bounded
 segment queue has a full fail-open proof. Real live promotion is still blocked, but controlled
 non-critical live pilots may now be used to collect parity evidence while the batch transcript
-remains authoritative.
+remains authoritative. The intended shape is a single stable capture with a best-effort experimental
+sidecar, documented in [Experimental sidecar architecture](../architecture/experimental-sidecar.md).
 
 The optional UI/app path is deliberately late. It should not block the useful CLI product.
 
@@ -256,7 +257,7 @@ flowchart LR
   - keep neural residual suppression as a later spike behind corpus gates.
 - Keep the final handoff readable: `finish` now opens a bundle whose `index.md` is the first working
   artifact, not a derived-file directory listing.
-- Design **Near-Realtime Pipeline Shadow v1** as a future CLI branch:
+- Continue **Near-Realtime Pipeline Shadow v1** as a single-capture sidecar:
   - first shadow implementation exists: `record --live-pipeline` writes durable mic/remote segment
     copies, starts an optional worker, writes `derived/live/transcript.draft.md`,
     `derived/live/live_pipeline_report.json`, post-stop final-reconcile report and advisory
@@ -265,6 +266,8 @@ flowchart LR
   - live segments are overlap-aware: each segment has a hard publish window and a wider ASR clip
     window; the async bounded queue now has a full fail-open proof, and next work is controlled
     non-critical live parity coverage;
+  - the design rule is one ScreenCaptureKit owner plus derived sidecar artifacts, never two
+    concurrent `record` processes;
   - after stop, the existing batch-grade repair/review/readiness layers run as final reconcile and
     remain authoritative;
   - keep the existing post-recording `process` path as source of truth until corpus comparison proves

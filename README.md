@@ -303,6 +303,8 @@ the capture-safe segment handoff is implemented, but the branch has not yet pass
 live-vs-batch parity gates. Use it only for controlled non-critical pilots when the corpus report
 says `controlled_real_live_pilot_allowed: true`. The supported production path is
 `murmurmark record --target-bundle system` followed by `murmurmark process latest`.
+The intended architecture is one stable capture with a best-effort experimental sidecar, not two
+concurrent recordings; see [Experimental sidecar architecture](docs/architecture/experimental-sidecar.md).
 
 This mode writes closed audio segments and a live draft under `derived/live/` while recording.
 The callback path writes durable raw CAF first and then does a non-blocking enqueue into an async,
@@ -862,6 +864,7 @@ rule and need corpus gates before any automatic review decision.
 - [Product requirements](docs/product/prd-v1.md)
 - [CLI roadmap](docs/roadmap/murmurmark-cli-roadmap.md)
 - [Roadmap plan, opskarta v3](docs/roadmap/murmurmark-cli-roadmap.plan.yaml)
+- [Experimental sidecar architecture](docs/architecture/experimental-sidecar.md)
 - [First recording runbook](docs/runbooks/first-recording.md)
 - [Transcription and review runbook](docs/runbooks/transcribe-simple-whispercpp.md)
 - [Transcript and evidence contracts](docs/contracts/transcript-and-evidence.md)

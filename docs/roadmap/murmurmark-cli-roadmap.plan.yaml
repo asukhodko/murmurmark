@@ -538,7 +538,9 @@ nodes:
       почти пустыми. Production route остаётся batch-first: raw CAF/session package и обычный
       `murmurmark process` остаются source of truth. Первый async bounded segment handoff реализован;
       full fail-open proof пройден; ближайшая работа по live — controlled non-critical parity
-      pilots, пока promotion остаётся blocked и batch transcript authoritative.
+      pilots, пока promotion остаётся blocked и batch transcript authoritative. Архитектурная форма
+      зафиксирована как single-capture experimental sidecar: один ScreenCaptureKit owner, raw CAF
+      first, best-effort derived artifacts отдельно от batch outputs.
 
   realtime-segment-writer:
     title: "Capture-safe segment writer"
@@ -550,7 +552,9 @@ nodes:
     notes: |
       `record --live-pipeline` остаётся отключённым по умолчанию. Первый capture-safe слой теперь
       есть: callback пишет durable raw CAF, затем делает non-blocking enqueue в async bounded live
-      segment queue. При backlog/error отключаются только live-derived artifacts. Следующий шаг —
+      segment queue. При backlog/error отключаются только live-derived artifacts. Два параллельных
+      `murmurmark record` процесса запрещены lock-ом: stable и experimental должны жить внутри
+      одного запуска как raw capture плюс sidecar. Следующий шаг —
       controlled non-critical real live parity coverage после полного proof. `scripts/check-capture-regressions.sh` пишет
       `sessions/_reports/capture-regression/capture_regression_check.json`: `static_only` фиксирует
       статические и fixture-проверки, а `full_fail_open_proof_passed` требуется перед любым controlled
@@ -628,7 +632,9 @@ nodes:
       proof уже показывает, что live branch не должен портить raw `mic`/`remote`: callback path не
       делает тяжёлых операций, segment writer имеет bounded queue/backpressure и fail-open
       отключение live без остановки capture, а normal `record --target-bundle system` остаётся
-      независимым. Live cache остаётся
+      независимым. Дизайн закреплён в `docs/architecture/experimental-sidecar.md`: эксперимент
+      может исчезнуть, отстать или быть отключён, но raw capture и batch process должны остаться
+      воспроизводимыми. Live cache остаётся
       shadow-only: promotion allowed sessions must stay `0` until gates cover capture safety, order
       risk, local recall, remote leakage, review burden, selected notes readiness, draft text recall
       and chunk-boundary duplicates/missing speech.
