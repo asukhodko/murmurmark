@@ -356,6 +356,10 @@ murmurmark experiment report latest
 murmurmark experiment compare latest --experiment live-shadow-v1
 ```
 
+`experiment compare` also resumes missing sidecar materialization from `raw_segment_commits.jsonl`.
+This is intentional: recording should stop quickly, while slower live draft recovery can happen in
+the explicit experiment step.
+
 For lab evidence, prefer the raw-commit experiment over the unsafe legacy live path:
 
 ```bash

@@ -146,6 +146,10 @@ segments from raw CAF into `derived/experiments/live-shadow-v1/audio/`, and keep
 in `derived/live/segments.jsonl`. If it cannot read open CAF files or falls behind, it waits or
 disables itself. The batch transcript from raw CAF remains authoritative.
 
+If the recording-time sidecar worker timed out before live draft completion, rerun
+`murmurmark experiment compare ...`; it resumes sidecar materialization from the raw commit log and
+then compares the draft with authoritative batch output.
+
 Existing experiment sessions can still be analyzed without starting capture:
 
 ```bash

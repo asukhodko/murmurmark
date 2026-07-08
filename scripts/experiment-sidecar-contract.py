@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -162,9 +163,17 @@ def status_from(
 ) -> str:
     if "backlog exceeded" in warnings or "live segment writer disabled" in warnings:
         return "disabled"
+    if experiment_state:
+        experiment_status = str(experiment_state.get("status") or "")
+        if experiment_status in {"waiting_for_raw_readable", "disabled_backpressure", "failed", "running"}:
+            return experiment_status
+    if not segments and not live_report and not live_state and not final_reconcile:
+        if session_manifest:
+            return "not_started"
+        return "missing_session"
     if str((final_reconcile or {}).get("status") or "") == "passed":
         return "completed"
-    if comparison:
+    if comparison and (segments or live_report or live_state):
         return "completed"
     for payload in (live_report, live_state, experiment_state):
         if not isinstance(payload, dict):
@@ -213,9 +222,9 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
     warnings = warning_text(session_manifest or {})
     status = status_from(session_manifest, live_report, live_state, existing_experiment_state, final_reconcile, comparison, warnings, segments)
     raw_seconds = round(session_duration(session_manifest or {}), 3)
+    raw_committed_seconds = max_end(raw_commits)
     sidecar_captured = max(
         max_end(segments),
-        max_end(raw_commits),
         float(((live_report or {}).get("progress") or {}).get("captured_sec") or 0.0)
         if isinstance((live_report or {}).get("progress"), dict)
         else 0.0,
@@ -269,6 +278,7 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         "answers": {
             "experiment_started": bool(segments or raw_commits or live_report or live_state or existing_experiment_state),
             "raw_seconds_recorded": raw_seconds,
+            "raw_commit_seconds": raw_committed_seconds,
             "sidecar_seconds_captured": round(sidecar_captured, 3),
             "sidecar_seconds_preprocessed": round(sidecar_processed, 3),
             "sidecar_seconds_asr": round(sidecar_processed, 3),
@@ -477,11 +487,81 @@ def print_report(contract: dict[str, Any]) -> None:
 
 
 def run_compare(session: Path) -> int:
+    materialize_status = run_raw_sidecar_worker_if_needed(session)
+    if materialize_status != 0:
+        print(f"warning: raw sidecar worker exited with {materialize_status}; comparing existing artifacts", file=sys.stderr)
     script = Path("scripts/compare-live-batch.py")
     if not script.exists():
         print(f"missing comparison script: {script}", file=sys.stderr)
         return 1
     return subprocess.call([sys.executable, str(script), str(session)])
+
+
+def ready_commit_indexes(rows: list[dict[str, Any]]) -> set[int]:
+    grouped: dict[int, set[str]] = {}
+    for row in rows:
+        if row.get("schema") != "murmurmark.raw_segment_commit/v1":
+            continue
+        if row.get("status") != "committed":
+            continue
+        source = str(row.get("source") or "")
+        if source not in {"mic", "remote"}:
+            continue
+        try:
+            index = int(row.get("index"))
+        except (TypeError, ValueError):
+            continue
+        grouped.setdefault(index, set()).add(source)
+    return {index for index, sources in grouped.items() if {"mic", "remote"} <= sources}
+
+
+def materialized_segment_indexes(rows: list[dict[str, Any]]) -> set[int]:
+    grouped: dict[int, set[str]] = {}
+    for row in rows:
+        source = str(row.get("source") or "")
+        if source not in {"mic", "remote"}:
+            continue
+        try:
+            index = int(row.get("index"))
+        except (TypeError, ValueError):
+            continue
+        grouped.setdefault(index, set()).add(source)
+    return {index for index, sources in grouped.items() if {"mic", "remote"} <= sources}
+
+
+def run_raw_sidecar_worker_if_needed(session: Path, experiment_id: str = DEFAULT_EXPERIMENT_ID) -> int:
+    experiment_dir = session / "derived" / "experiments" / experiment_id
+    raw_commits = read_jsonl(experiment_dir / "raw_segment_commits.jsonl")
+    ready_indexes = ready_commit_indexes(raw_commits)
+    if not ready_indexes:
+        return 0
+    live_dir = session / "derived" / "live"
+    segments = read_jsonl(live_dir / "segments.jsonl")
+    segment_indexes = materialized_segment_indexes(segments)
+    live_report = read_json(live_dir / "live_pipeline_report.json") or {}
+    progress = live_report.get("progress") if isinstance(live_report.get("progress"), dict) else {}
+    chunks_processed = int(progress.get("chunks_processed") or 0)
+    if ready_indexes <= segment_indexes and str(live_report.get("status") or "") == "completed" and chunks_processed >= len(ready_indexes):
+        return 0
+    script = Path("scripts/raw-sidecar-worker.py")
+    if not script.exists():
+        return 0
+    timeout = os.environ.get("MURMURMARK_RAW_SIDECAR_COMPARE_TIMEOUT_SEC", "900")
+    return subprocess.call(
+        [
+            sys.executable,
+            str(script),
+            str(session),
+            "--experiment",
+            experiment_id,
+            "--poll-sec",
+            "0.2",
+            "--idle-after-session-json-sec",
+            "0.2",
+            "--live-worker-timeout-sec",
+            timeout,
+        ]
+    )
 
 
 def parse_args() -> argparse.Namespace:

@@ -26,6 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--poll-sec", type=float, default=1.0)
     parser.add_argument("--idle-after-session-json-sec", type=float, default=8.0)
     parser.add_argument("--max-ready-backlog", type=int, default=int(os.environ.get("MURMURMARK_RAW_SIDECAR_MAX_READY_BACKLOG", "5")))
+    parser.add_argument("--ffmpeg-timeout-sec", type=float, default=float(os.environ.get("MURMURMARK_RAW_SIDECAR_FFMPEG_TIMEOUT_SEC", "4")))
     parser.add_argument("--no-live-worker", action="store_true")
     parser.add_argument("--live-worker-timeout-sec", type=float, default=45.0)
     return parser.parse_args()
@@ -83,8 +84,22 @@ def rel(path: Path, root: Path) -> str:
         return str(path)
 
 
-def run(command: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+def run(command: list[str], timeout_sec: float) -> tuple[int, str]:
+    try:
+        result = subprocess.run(
+            command,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=max(0.5, timeout_sec),
+        )
+        return result.returncode, result.stderr
+    except subprocess.TimeoutExpired as error:
+        stderr = error.stderr or ""
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", errors="replace")
+        return 124, f"timed out after {timeout_sec:.1f}s {stderr}".strip()
 
 
 def source_audio_path(session: Path, row: dict[str, Any]) -> Path:
@@ -98,7 +113,7 @@ def output_audio_path(session: Path, experiment: str, row: dict[str, Any]) -> Pa
     return session / "derived" / "experiments" / experiment / "audio" / source / f"{index:06d}.wav"
 
 
-def ffmpeg_materialize(session: Path, experiment: str, row: dict[str, Any]) -> tuple[bool, str, Path]:
+def ffmpeg_materialize(session: Path, experiment: str, row: dict[str, Any], timeout_sec: float) -> tuple[bool, str, Path]:
     source = source_audio_path(session, row)
     output = output_audio_path(session, experiment, row)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -127,16 +142,16 @@ def ffmpeg_materialize(session: Path, experiment: str, row: dict[str, Any]) -> t
         "1",
         str(output),
     ]
-    result = run(command)
-    if result.returncode == 0 and output.exists() and output.stat().st_size > 44:
+    returncode, stderr_text = run(command, timeout_sec)
+    if returncode == 0 and output.exists() and output.stat().st_size > 44:
         return True, "materialized", output
     if output.exists():
         try:
             output.unlink()
         except OSError:
             pass
-    reason = "ffmpeg_failed"
-    stderr = " ".join(result.stderr.split())
+    reason = "raw_not_readable_timeout" if returncode == 124 else "ffmpeg_failed"
+    stderr = " ".join(stderr_text.split())
     if stderr:
         reason = f"{reason}: {stderr[:240]}"
     return False, reason, output
@@ -356,7 +371,7 @@ def main() -> int:
                     rows_for_index: list[dict[str, Any]] = []
                     failed_reason = None
                     for source in ("mic", "remote"):
-                        ok, mat_reason, output = ffmpeg_materialize(session, experiment, pair[source])
+                        ok, mat_reason, output = ffmpeg_materialize(session, experiment, pair[source], args.ffmpeg_timeout_sec)
                         if not ok:
                             failed_reason = mat_reason
                             break
