@@ -985,7 +985,11 @@ Active goal and near-term candidates:
    `373.80s` missing-Me still left, `0.0s` measured remote-risk and `34` segment-level order
    mismatches still present in the current corpus. Published live `Me` also has `15.96s` suspected
    remote leakage. Rescue shadow remains candidate evidence, not normal live `Me`; full live
-   promotion remains blocked.
+   promotion remains blocked. The scoped candidate diagnostic is stricter:
+   `capture_safe_candidate` now reports `no_material_live_candidate`; the best live-implementable
+   policy recovers only `1.80s` local speech, while the batch-oracle ceiling is `13.06s`. The next
+   implementation needs stronger local-speaker evidence inside suppressed mic segments, not simply
+   enabling an existing rescue policy.
    Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.

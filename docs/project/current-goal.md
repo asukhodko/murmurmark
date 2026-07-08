@@ -179,6 +179,10 @@ Current result:
 - audio safe union policy: `50.18 sec` local / `2.58 sec` remote-risk,
   `68.42 sec` missing-Me recovered;
 - batch-oracle local ceiling: `409.50 sec` local;
+- scoped capture-safe candidate rescue status: `no_material_live_candidate`;
+- scoped capture-safe candidate best live policy: `current_text_segment_gate`
+  (`1.80 sec` local / `0.00 sec` remote-risk), below the material threshold;
+- scoped capture-safe candidate batch-oracle ceiling: `13.06 sec` local;
 - `real_live_suspected_remote_leak_in_me_seconds = 15.96`;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
 - `objective_next_focus = fix_live_local_recall_gap`.
@@ -228,7 +232,10 @@ now expose that candidate separately as `live_rescue_shadow`; in the current cor
 The shadow itself does not add measured remote-risk (`0.00s`), but it still leaves `373.80s`
 missing-Me and does not reduce the `34` segment-level order mismatches when evaluated as a combined
 draft. It remains
-shadow-only evidence, not a promotable live `Me` path.
+shadow-only evidence, not a promotable live `Me` path. The scoped candidate diagnostic is stricter:
+existing live-implementable policies do not recover a material amount of local speech in
+promotion-candidate sessions, even though the batch oracle shows recoverable `Me` content in the
+same suppressed regions.
 
 ## Latest Completed Goal: Current Pipeline Stabilization v1
 

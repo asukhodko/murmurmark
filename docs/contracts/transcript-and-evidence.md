@@ -5255,9 +5255,29 @@ Schema:
     "controlled_real_live_pilot_allowed": true,
     "batch_authoritative": true
   },
+  "live_local_recall_rescue_policy_diagnostics": {
+    "capture_safe_candidate": {
+      "schema": "murmurmark.live_rescue_policy_diagnostics/v1",
+      "scope": "capture_safe_candidate",
+      "status": "no_material_live_candidate",
+      "safe_remote_risk_threshold_sec": 3.0,
+      "safe_precision_threshold": 0.9,
+      "material_local_seconds_threshold": 5.0,
+      "recommended_policy": null,
+      "best_policy": {
+        "policy": "current_text_segment_gate",
+        "live_implementable": true,
+        "local_seconds": 1.8,
+        "remote_risk_seconds": 0.0,
+        "precision_proxy": 1.0,
+        "material_candidate": false
+      },
+      "policies": []
+    }
+  },
   "strict_coverage": {
-    "requested": true,
-    "status": "passed",
+    "requested": false,
+    "status": "not_requested",
     "requirements": {
       "min_live_sessions": 1,
       "min_compared_sessions": 1,
@@ -5410,6 +5430,12 @@ into actionable buckets. Typical categories are `batch_review_required`, `live_l
 `missing_live_asr_artifacts`, `capture_safety_risk`, `chunk_boundary_risk` and `order_risk`. Triage is diagnostic evidence:
 it explains the next safe action per blocker, but it does not relax promotion gates and does not
 allow promotion or normal production live use while live capture is quarantined.
+`live_local_recall_rescue_policy_diagnostics` compares suppressed-mic rescue policies against batch
+labels for several scopes. `batch_oracle_local_ceiling` may appear in `policies` as a ceiling, but it
+is not live-implementable and must not become `recommended_policy`. A status of
+`no_material_live_candidate` means the best live-implementable policy is safe or promising only in a
+tiny slice; the next work should add stronger local-speaker evidence rather than promote an existing
+policy.
 Quarantine currently forbids new controlled real Live Evidence recording for valuable meetings even
 if older corpus fields still say `controlled_real_live_pilot_allowed`. The runner must fail before
 capture unless the operator passes `--allow-unsafe-controlled-real-recording`; batch remains

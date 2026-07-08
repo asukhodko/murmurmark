@@ -40,6 +40,7 @@ SUPPRESSED_MIC_RESCUE_POLICY_METRICS = (
     "missing_me_seconds_after",
     "missing_me_recovered_seconds",
 )
+MATERIAL_RESCUE_LOCAL_SECONDS = 5.0
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
     "and parity gates; do not use normal production live collection, and use coverage_path to decide "
@@ -1020,6 +1021,70 @@ def add_suppressed_mic_rescue_policy_summary(summary: dict[str, Any], rows: list
         )
 
 
+def rescue_policy_diagnostics(summary: dict[str, Any], prefix: str) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    best_safe: dict[str, Any] | None = None
+    best_exploratory: dict[str, Any] | None = None
+    key_prefix = f"{prefix}_live_rescue_policy_" if prefix else "live_rescue_policy_"
+    for policy in SUPPRESSED_MIC_RESCUE_POLICIES:
+        base = f"{key_prefix}{policy}"
+        selected_seconds = safe_float(summary.get(f"{base}_selected_seconds"))
+        local_seconds = safe_float(summary.get(f"{base}_local_seconds"))
+        remote_risk_seconds = safe_float(summary.get(f"{base}_remote_risk_seconds"))
+        precision = summary.get(f"{base}_precision_proxy")
+        recall = summary.get(f"{base}_local_recall_proxy")
+        recovered = safe_float(summary.get(f"{base}_missing_me_recovered_seconds"))
+        row = {
+            "policy": policy,
+            "live_implementable": policy != "batch_oracle_local_ceiling",
+            "selected_seconds": selected_seconds,
+            "local_seconds": local_seconds,
+            "remote_risk_seconds": remote_risk_seconds,
+            "precision_proxy": precision,
+            "local_recall_proxy": recall,
+            "missing_me_recovered_seconds": recovered,
+            "safe_candidate": selected_seconds > 0 and remote_risk_seconds <= 3.0 and (precision is None or precision >= 0.90),
+            "material_candidate": local_seconds >= MATERIAL_RESCUE_LOCAL_SECONDS,
+        }
+        rows.append(row)
+        if (
+            row["live_implementable"]
+            and row["safe_candidate"]
+            and row["material_candidate"]
+            and (best_safe is None or local_seconds > safe_float(best_safe.get("local_seconds")))
+        ):
+            best_safe = row
+        if (
+            row["live_implementable"]
+            and selected_seconds > 0
+            and (best_exploratory is None or local_seconds > safe_float(best_exploratory.get("local_seconds")))
+        ):
+            best_exploratory = row
+    if best_safe:
+        status = "safe_candidate_available"
+        recommended = best_safe
+        best = best_safe
+    elif best_exploratory:
+        status = "exploratory_only" if safe_float(best_exploratory.get("local_seconds")) >= MATERIAL_RESCUE_LOCAL_SECONDS else "no_material_live_candidate"
+        recommended = None
+        best = best_exploratory
+    else:
+        status = "no_candidate"
+        recommended = None
+        best = None
+    return {
+        "schema": "murmurmark.live_rescue_policy_diagnostics/v1",
+        "scope": prefix or "all",
+        "status": status,
+        "safe_remote_risk_threshold_sec": 3.0,
+        "safe_precision_threshold": 0.90,
+        "material_local_seconds_threshold": MATERIAL_RESCUE_LOCAL_SECONDS,
+        "recommended_policy": recommended,
+        "best_policy": best,
+        "policies": rows,
+    }
+
+
 def local_recall_gap_examples(rows: list[dict[str, Any]], *, limit: int = 50) -> dict[str, Any]:
     examples: list[dict[str, Any]] = []
     for row in rows:
@@ -1786,6 +1851,13 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     }
     add_suppressed_mic_rescue_policy_summary(summary, rows, "")
     add_suppressed_mic_rescue_policy_summary(summary, real_live_rows, "real")
+    add_suppressed_mic_rescue_policy_summary(summary, capture_safe_candidate_rows, "capture_safe_candidate")
+    add_suppressed_mic_rescue_policy_summary(summary, capture_safe_evaluable_rows, "capture_safe_evaluable")
+    local_recall_rescue_policy_diagnostics = {
+        "real": rescue_policy_diagnostics(summary, "real"),
+        "capture_safe_candidate": rescue_policy_diagnostics(summary, "capture_safe_candidate"),
+        "capture_safe_evaluable": rescue_policy_diagnostics(summary, "capture_safe_evaluable"),
+    }
     coverage_target = {
         "target_live_sessions": args.target_live_sessions,
         "target_meaningful_compared_sessions": args.target_meaningful_compared_sessions,
@@ -2088,6 +2160,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_parity_dimensions": real_parity_dimensions_payload,
         "real_capture_safe_candidate_parity_dimensions": candidate_parity_dimensions_payload,
         "capture_safe_candidate_scope": candidate_scope,
+        "live_local_recall_rescue_policy_diagnostics": local_recall_rescue_policy_diagnostics,
         "live_local_recall_gap_examples": local_recall_examples,
         "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
         "capture_safe_evaluable_local_recall_gap_examples": evaluable_local_recall_examples,
@@ -2706,6 +2779,74 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 f"| `{key}` | `{value.get('promotion_required')}` | {counts_text} | {len(issue_sessions)} |"
             )
         lines.append("")
+    policy_diagnostics = (
+        report.get("live_local_recall_rescue_policy_diagnostics")
+        if isinstance(report.get("live_local_recall_rescue_policy_diagnostics"), dict)
+        else {}
+    )
+    if policy_diagnostics:
+        lines += [
+            "## Live Local Recall Rescue Policy Diagnostics",
+            "",
+            "This is diagnostic only. It compares suppressed-mic rescue policies against batch labels and "
+            "does not promote live output.",
+            "",
+            "| Scope | Status | Best live policy | Recommended policy | Local sec | Remote-risk sec | Precision | Missing-Me recovered sec |",
+            "| --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
+        ]
+        for scope in ("real", "capture_safe_candidate", "capture_safe_evaluable"):
+            payload = policy_diagnostics.get(scope) if isinstance(policy_diagnostics.get(scope), dict) else {}
+            recommended = (
+                payload.get("recommended_policy")
+                if isinstance(payload.get("recommended_policy"), dict)
+                else {}
+            )
+            best = (
+                payload.get("best_policy")
+                if isinstance(payload.get("best_policy"), dict)
+                else recommended
+            )
+            precision = best.get("precision_proxy")
+            precision_text = "-" if precision is None else f"{safe_float(precision):.3f}"
+            lines.append(
+                f"| `{scope}` | `{payload.get('status')}` | `{best.get('policy') or '-'}` "
+                f"| `{recommended.get('policy') or '-'}` "
+                f"| {safe_float(best.get('local_seconds')):.2f} "
+                f"| {safe_float(best.get('remote_risk_seconds')):.2f} "
+                f"| {precision_text} "
+                f"| {safe_float(best.get('missing_me_recovered_seconds')):.2f} |"
+            )
+        candidate_diag = (
+            policy_diagnostics.get("capture_safe_candidate")
+            if isinstance(policy_diagnostics.get("capture_safe_candidate"), dict)
+            else {}
+        )
+        candidate_policies = [
+            row for row in candidate_diag.get("policies") or []
+            if isinstance(row, dict) and safe_float(row.get("selected_seconds")) > 0.0
+        ]
+        if candidate_policies:
+            lines += [
+                "",
+                "Capture-safe candidate policy details:",
+                "",
+                "| Policy | Local sec | Remote-risk sec | Precision | Recall | Recovered sec | Safe | Material |",
+                "| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |",
+            ]
+            for row in sorted(candidate_policies, key=lambda item: safe_float(item.get("local_seconds")), reverse=True):
+                precision = row.get("precision_proxy")
+                recall = row.get("local_recall_proxy")
+                precision_text = "-" if precision is None else f"{safe_float(precision):.3f}"
+                recall_text = "-" if recall is None else f"{safe_float(recall):.3f}"
+                lines.append(
+                    f"| `{row.get('policy')}` | {safe_float(row.get('local_seconds')):.2f} "
+                    f"| {safe_float(row.get('remote_risk_seconds')):.2f} "
+                    f"| {precision_text} | {recall_text} "
+                    f"| {safe_float(row.get('missing_me_recovered_seconds')):.2f} "
+                    f"| `{row.get('safe_candidate')}` "
+                    f"| `{row.get('material_candidate')}` |"
+                )
+        lines.append("")
     candidate_gap_examples = (
         report.get("capture_safe_candidate_local_recall_gap_examples")
         if isinstance(report.get("capture_safe_candidate_local_recall_gap_examples"), dict)
@@ -3230,6 +3371,37 @@ def main() -> int:
     print(f"controlled_real_live_pilot_allowed: {summary.get('controlled_real_live_pilot_allowed')}")
     blocking_dimensions = summary.get("promotion_blocking_dimensions") or []
     print(f"promotion_blocking_dimensions: {', '.join(blocking_dimensions) if blocking_dimensions else 'none'}")
+    policy_diagnostics = (
+        report.get("live_local_recall_rescue_policy_diagnostics")
+        if isinstance(report.get("live_local_recall_rescue_policy_diagnostics"), dict)
+        else {}
+    )
+    candidate_policy_diag = (
+        policy_diagnostics.get("capture_safe_candidate")
+        if isinstance(policy_diagnostics.get("capture_safe_candidate"), dict)
+        else {}
+    )
+    recommended_policy = (
+        candidate_policy_diag.get("recommended_policy")
+        if isinstance(candidate_policy_diag.get("recommended_policy"), dict)
+        else {}
+    )
+    best_policy = (
+        candidate_policy_diag.get("best_policy")
+        if isinstance(candidate_policy_diag.get("best_policy"), dict)
+        else recommended_policy
+    )
+    if candidate_policy_diag:
+        print(f"capture_safe_candidate_rescue_policy_status: {candidate_policy_diag.get('status')}")
+        if best_policy:
+            print(
+                "capture_safe_candidate_best_live_rescue_policy: "
+                f"{best_policy.get('policy')} "
+                f"(local={safe_float(best_policy.get('local_seconds')):.2f}s, "
+                f"remote_risk={safe_float(best_policy.get('remote_risk_seconds')):.2f}s)"
+            )
+        if recommended_policy:
+            print(f"capture_safe_candidate_recommended_rescue_policy: {recommended_policy.get('policy')}")
     objective_audit = (
         report.get("objective_audit")
         if isinstance(report.get("objective_audit"), dict)
