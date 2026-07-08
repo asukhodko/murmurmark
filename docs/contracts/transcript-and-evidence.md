@@ -4402,7 +4402,17 @@ for closed live chunks. Mic chunk rows may include lightweight protection metada
     "live_role_gate": {
       "status": "suppressed",
       "reason": "mic_text_duplicates_remote_text",
-      "duplicate_score": 0.88
+      "duplicate_score": 0.88,
+      "segment_gate_status": "rescued",
+      "segment_gate_publish_policy": "diagnostic_only"
+    },
+    "live_segment_role_gate": {
+      "schema": "murmurmark.live_segment_role_gate/v1",
+      "status": "rescued",
+      "reason": "kept_low_remote_similarity_mic_segments",
+      "kept_segment_count": 1,
+      "suppressed_segment_count": 8,
+      "kept_text": "candidate local text that is not published"
     }
   },
   "remote": {
@@ -4420,6 +4430,9 @@ These gates protect only the shadow live draft/chunks:
 
 - `live_echo_guard` can choose a cleaned mic WAV for live ASR;
 - `live_role_gate` suppresses mic text when it duplicates same-chunk remote text;
+- `live_segment_role_gate` is diagnostic-only: it records possible local ASR segments inside a
+  suppressed mic chunk, but those candidates are not published into the live draft until separate
+  audio/evidence gates prove they do not reintroduce remote as `Me`;
 - `live_boundary_gate` suppresses adjacent chunk repeats caused by overlap context.
   A suppressed boundary row is treated as resolved only when the raw suppressed tokens are fully
   covered by the previous emitted chunk for the same source. If unique current tokens remain, the row
@@ -4761,6 +4774,14 @@ Schema:
     "live_order_mismatch_count": 0,
     "live_missing_me_seconds": 0.0,
     "live_suspicious_batch_me_missing_seconds": 0.0,
+    "live_missing_me_visible_in_suppressed_mic_seconds": 0.0,
+    "live_suppressed_mic_turn_count": 0,
+    "live_segment_role_gate_candidate_chunk_count": 0,
+    "live_segment_role_gate_candidate_kept_segment_count": 0,
+    "live_suppressed_mic_asr_me_dominant_segment_count": 0,
+    "live_suppressed_mic_asr_me_dominant_segment_seconds": 0.0,
+    "live_suppressed_mic_asr_mixed_segment_count": 0,
+    "live_suppressed_mic_asr_mixed_segment_seconds": 0.0,
     "live_suspected_remote_leak_in_me_seconds": 0.0,
     "live_turn_count": 18,
     "live_me_turn_count": 9,
@@ -4771,6 +4792,20 @@ Schema:
     "order_mismatches": [],
     "local_missing": [],
     "local_missing_suspicious_batch_me": [],
+    "local_missing_visible_in_suppressed_mic": [],
+    "local_missing_not_visible_in_suppressed_mic": [],
+    "suppressed_mic_asr_segments": [
+      {
+        "chunk_index": 2,
+        "start": 60.0,
+        "end": 63.18,
+        "text": "suppressed mic ASR text",
+        "batch_role_label": "me_dominant",
+        "segment_gate_status": "suppressed",
+        "publish_policy": "diagnostic_only"
+      }
+    ],
+    "segment_role_gate_candidates": [],
     "remote_leak": [],
     "boundary_gate_issues": [],
     "boundary_gate_resolved": [

@@ -963,7 +963,9 @@ Active goal and near-term candidates:
    metadata (`6` real live candidate chunks / `31` candidate segments in the current corpus) but is
    not published into the live draft, because it can reintroduce remote as `Me`. The next
    implementation target is a stronger audio/evidence gate for local speech inside suppressed mic
-   chunks. Batch remains authoritative.
+   chunks. The corpus report now also labels suppressed mic ASR segments against batch:
+   `47` Me-dominant segments / `196.26s` and `41` mixed segments / `178.32s` in real live runs.
+   Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

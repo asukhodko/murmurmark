@@ -140,6 +140,8 @@ Current result:
 - `real_live_suppressed_mic_turn_count = 30`;
 - `real_live_segment_role_gate_candidate_chunk_count = 6`;
 - `real_live_segment_role_gate_candidate_kept_segment_count = 31`;
+- `real_live_suppressed_mic_asr_me_dominant_segment_count = 47 / 196.26 sec`;
+- `real_live_suppressed_mic_asr_mixed_segment_count = 41 / 178.32 sec`;
 - `real_live_suspected_remote_leak_in_me_seconds = 0.0`;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
 - `objective_next_focus = fix_live_local_recall_gap`.
@@ -154,10 +156,12 @@ Remote leakage in live `Me` is now back to zero after tightening the full-chunk 
 Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks.
 The current live blocker is therefore primarily the coarse `live_role_gate`: it suppresses an entire
 mic chunk when the chunk looks like remote duplicate, even if the chunk also contains real local
-speech. A first text-only segment rescue found `6` real live candidate chunks / `31` kept candidate
-segments, but it stays diagnostic-only because publishing those candidates can reintroduce remote as
-`Me`. The next implementation step should use stronger audio/evidence gates to split or rescue
-local evidence inside suppressed mic chunks without publishing remote leak.
+speech. Segment-level batch comparison now shows `47` Me-dominant suppressed mic ASR segments
+(`196.26s`) and `41` mixed suppressed mic ASR segments (`178.32s`) in real live runs. A first
+text-only segment rescue found `6` real live candidate chunks / `31` kept candidate segments, but it
+stays diagnostic-only because publishing those candidates can reintroduce remote as `Me`. The next
+implementation step should use stronger audio/evidence gates to split or rescue local evidence
+inside suppressed mic chunks without publishing remote leak.
 
 ## Latest Completed Goal: Current Pipeline Stabilization v1
 

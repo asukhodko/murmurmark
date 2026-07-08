@@ -72,6 +72,15 @@ def rel(path: Path, session: Path) -> str:
         return str(path)
 
 
+def resolve_session_path(session: Path, value: Any) -> Path | None:
+    if not value:
+        return None
+    path = Path(str(value))
+    if not path.is_absolute():
+        path = session / path
+    return path if path.exists() else None
+
+
 def tokens(text: str) -> list[str]:
     return [match.group(0).lower() for match in TOKEN_RE.finditer(text)]
 
@@ -496,6 +505,164 @@ def live_segment_role_gate_summary(chunks: list[dict[str, Any]]) -> dict[str, An
     }
 
 
+def segment_role_decision_key(row: dict[str, Any]) -> tuple[float, float, str]:
+    return (
+        round(safe_float(row.get("start")), 3),
+        round(safe_float(row.get("end")), 3),
+        clean_text(str(row.get("text") or "")),
+    )
+
+
+def batch_role_label_for_interval(batch_utterances: list[dict[str, Any]], start: float, end: float) -> dict[str, Any]:
+    me_overlap = 0.0
+    remote_overlap = 0.0
+    me_ids: list[str] = []
+    remote_ids: list[str] = []
+    for row in batch_utterances:
+        row_overlap = interval_overlap(start, end, safe_float(row.get("start")), safe_float(row.get("end")))
+        if row_overlap <= 0:
+            continue
+        if row.get("role") == "Me":
+            me_overlap += row_overlap
+            me_ids.append(str(row.get("id") or ""))
+        elif row.get("role") == "Colleagues":
+            remote_overlap += row_overlap
+            remote_ids.append(str(row.get("id") or ""))
+    duration = max(0.0, end - start)
+    me_overlap_capped = min(me_overlap, duration)
+    remote_overlap_capped = min(remote_overlap, duration)
+    if me_overlap_capped <= 0.2 and remote_overlap_capped <= 0.2:
+        label = "none"
+    elif (
+        me_overlap_capped > 0.2
+        and remote_overlap_capped > 0.2
+        and min(me_overlap_capped, remote_overlap_capped) / max(me_overlap_capped, remote_overlap_capped) >= 0.75
+    ):
+        label = "mixed"
+    elif me_overlap_capped > remote_overlap_capped:
+        label = "me_dominant"
+    else:
+        label = "remote_dominant"
+    return {
+        "label": label,
+        "me_overlap_sec": round(me_overlap, 3),
+        "remote_overlap_sec": round(remote_overlap, 3),
+        "duration_sec": round(duration, 3),
+        "me_coverage_ratio": round(me_overlap_capped / duration, 6) if duration > 0 else 0.0,
+        "remote_coverage_ratio": round(remote_overlap_capped / duration, 6) if duration > 0 else 0.0,
+        "batch_me_ids": [item for item in me_ids if item],
+        "batch_remote_ids": [item for item in remote_ids if item],
+    }
+
+
+def read_suppressed_mic_asr_segment_audit(
+    session: Path,
+    chunks: list[dict[str, Any]],
+    batch_utterances: list[dict[str, Any]],
+) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    label_counts: Counter[str] = Counter()
+    label_seconds: Counter[str] = Counter()
+    candidate_label_counts: Counter[str] = Counter()
+    candidate_label_seconds: Counter[str] = Counter()
+    for chunk in chunks:
+        try:
+            index = int(chunk.get("index") or 0)
+        except (TypeError, ValueError):
+            index = 0
+        mic = chunk.get("mic")
+        if not isinstance(mic, dict):
+            continue
+        role_gate = mic.get("live_role_gate") if isinstance(mic.get("live_role_gate"), dict) else {}
+        if role_gate.get("status") != "suppressed":
+            continue
+        asr = mic.get("asr") if isinstance(mic.get("asr"), dict) else {}
+        asr_json = resolve_session_path(session, asr.get("json"))
+        if asr_json is None:
+            continue
+        data = read_json(asr_json)
+        if not isinstance(data, dict):
+            continue
+        clip_start = safe_float(mic.get("clip_start_sec"))
+        hard_start = safe_float(mic.get("hard_start_sec"))
+        hard_end = safe_float(mic.get("hard_end_sec"), hard_start)
+        segment_gate = mic.get("live_segment_role_gate") if isinstance(mic.get("live_segment_role_gate"), dict) else {}
+        decisions: dict[tuple[float, float, str], dict[str, Any]] = {}
+        for decision in list(segment_gate.get("kept_segments") or []) + list(segment_gate.get("suppressed_segments") or []):
+            if isinstance(decision, dict):
+                decisions[segment_role_decision_key(decision)] = decision
+        for item in data.get("transcription") or []:
+            if not isinstance(item, dict):
+                continue
+            offsets = item.get("offsets") if isinstance(item.get("offsets"), dict) else {}
+            local_start_ms = safe_float(offsets.get("from"))
+            local_end_ms = safe_float(offsets.get("to"), local_start_ms)
+            start = clip_start + local_start_ms / 1000.0
+            end = clip_start + local_end_ms / 1000.0
+            center = (start + end) / 2.0
+            if not (hard_start <= center < hard_end):
+                continue
+            text = clean_text(str(item.get("text") or ""))
+            if not text:
+                continue
+            role = batch_role_label_for_interval(batch_utterances, start, end)
+            decision = decisions.get((round(start, 3), round(end, 3), text), {})
+            label = str(role.get("label") or "none")
+            duration = max(0.0, end - start)
+            label_counts[label] += 1
+            label_seconds[label] += duration
+            if decision.get("status") == "kept":
+                candidate_label_counts[label] += 1
+                candidate_label_seconds[label] += duration
+            row = {
+                "chunk_index": index,
+                "start": round(start, 3),
+                "end": round(end, 3),
+                "duration_sec": round(duration, 3),
+                "text": text,
+                "token_count": len(tokens(text)),
+                "batch_role_label": label,
+                "batch_role_evidence": role,
+                "segment_gate_status": decision.get("status") or "not_evaluated",
+                "segment_gate_reason": decision.get("reason"),
+                "segment_gate_unique_token_count": decision.get("unique_token_count"),
+                "segment_gate_mic_token_recall_in_overlapping_remote": decision.get(
+                    "mic_token_recall_in_overlapping_remote"
+                ),
+                "publish_policy": role_gate.get("segment_gate_publish_policy"),
+            }
+            rows.append(row)
+    examples = [
+        row
+        for row in rows
+        if row.get("batch_role_label") in {"me_dominant", "mixed"} or row.get("segment_gate_status") == "kept"
+    ][:30]
+    return {
+        "segments": rows,
+        "examples": examples,
+        "metrics": {
+            "live_suppressed_mic_asr_segment_count": len(rows),
+            "live_suppressed_mic_asr_segment_seconds": round(sum(safe_float(row.get("duration_sec")) for row in rows), 3),
+            **{
+                f"live_suppressed_mic_asr_{label}_segment_count": label_counts[label]
+                for label in ("me_dominant", "mixed", "remote_dominant", "none")
+            },
+            **{
+                f"live_suppressed_mic_asr_{label}_segment_seconds": round(label_seconds[label], 3)
+                for label in ("me_dominant", "mixed", "remote_dominant", "none")
+            },
+            **{
+                f"live_segment_role_gate_candidate_{label}_segment_count": candidate_label_counts[label]
+                for label in ("me_dominant", "mixed", "remote_dominant", "none")
+            },
+            **{
+                f"live_segment_role_gate_candidate_{label}_segment_seconds": round(candidate_label_seconds[label], 3)
+                for label in ("me_dominant", "mixed", "remote_dominant", "none")
+            },
+        },
+    }
+
+
 def utterance_tokens_in_interval(utterances: list[dict[str, Any]], start: float, end: float, role: str | None = None) -> list[str]:
     result: list[str] = []
     for row in utterances:
@@ -588,10 +755,11 @@ def best_batch_match(turn: dict[str, Any], batch: list[dict[str, Any]]) -> dict[
     return best
 
 
-def assess_live_vs_batch(chunks: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> dict[str, Any]:
+def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> dict[str, Any]:
     turns = live_turns(chunks)
     suppressed_mic_turns = live_suppressed_mic_turns(chunks)
     segment_gate_summary = live_segment_role_gate_summary(chunks)
+    suppressed_segment_audit = read_suppressed_mic_asr_segment_audit(session, chunks, batch_utterances)
     local_missing: list[dict[str, Any]] = []
     local_missing_suspicious_batch_me: list[dict[str, Any]] = []
     local_missing_visible_in_suppressed_mic: list[dict[str, Any]] = []
@@ -685,6 +853,7 @@ def assess_live_vs_batch(chunks: list[dict[str, Any]], batch_utterances: list[di
         "remote_leak": remote_leak,
         "order_mismatches": order_mismatches,
         "segment_role_gate_candidates": segment_gate_summary.get("examples", []),
+        "suppressed_mic_asr_segment_examples": suppressed_segment_audit.get("examples", []),
         "metrics": {
             "live_turn_count": len(turns),
             "live_me_turn_count": sum(1 for turn in turns if turn.get("role") == "Me"),
@@ -714,6 +883,7 @@ def assess_live_vs_batch(chunks: list[dict[str, Any]], batch_utterances: list[di
             "live_segment_role_gate_candidate_chunk_count": segment_gate_summary.get("candidate_chunk_count"),
             "live_segment_role_gate_candidate_kept_segment_count": segment_gate_summary.get("kept_segment_count"),
             "live_segment_role_gate_candidate_suppressed_segment_count": segment_gate_summary.get("suppressed_segment_count"),
+            **(suppressed_segment_audit.get("metrics") or {}),
             "live_suspected_remote_leak_in_me_count": len(remote_leak),
             "live_suspected_remote_leak_in_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in remote_leak), 3),
         },
@@ -1051,7 +1221,7 @@ def main() -> int:
     recall = bag_recall(live_tokens, final_tokens)
     duplicate_count = duplicate_adjacent_chunks(chunks)
     boundary_summary = live_boundary_gate_summary(chunks)
-    live_assessment = assess_live_vs_batch(chunks, batch_utterances)
+    live_assessment = assess_live_vs_batch(session, chunks, batch_utterances)
     blockers: list[str] = []
     warnings: list[str] = []
     if live_report is None:
@@ -1160,6 +1330,12 @@ def main() -> int:
                 live_assessment.get("local_missing_not_visible_in_suppressed_mic") or []
             )[:20],
             "remote_leak": (live_assessment.get("remote_leak") or [])[:20],
+            "suppressed_mic_asr_segments": (
+                live_assessment.get("suppressed_mic_asr_segment_examples") or []
+            )[:30],
+            "segment_role_gate_candidates": (
+                live_assessment.get("segment_role_gate_candidates") or []
+            )[:30],
             "boundary_gate_issues": boundary_summary.get("examples") or [],
             "boundary_gate_resolved": boundary_summary.get("resolved_examples") or [],
         },
