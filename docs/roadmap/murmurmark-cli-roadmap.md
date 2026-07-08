@@ -452,8 +452,11 @@ newer run-state exists.
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth
    testing.
 4. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
-   suggestions and corpus reports: close true `Me` rows only when the local-speaker evidence is
-   strong, keep ambiguous rows explicit, and do not auto-edit transcripts.
+   suggestions, live local-recall diagnostics and corpus reports. The new live Target-Me audit shows
+   that suppressed live mic chunks contain a large recoverable local slice: `287.98s` of `295.34s`
+   audited local/mixed seconds are possible or confirmed Target-Me. The next safe step is a
+   Target-Me-gated shadow rescue policy for suppressed mic segments; ambiguous rows and sessions
+   without enough enrollment stay explicit.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

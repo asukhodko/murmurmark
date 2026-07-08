@@ -426,6 +426,20 @@ less sessions/_reports/live-pipeline/live_corpus_gates_report.md
 jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json
 ```
 
+To inspect whether suppressed live mic segments contain your voice:
+
+```bash
+jq -r '.real_blocker_triage_summary.by_category.live_local_recall_gap.sessions[]?' \
+  sessions/_reports/live-pipeline/live_corpus_gates_report.json |
+  sed 's#^#sessions/#' |
+  xargs .venv/bin/python scripts/audit-live-local-recall-target-me.py \
+    --method resemblyzer_dvector \
+    --max-items 80 \
+    --no-progress
+
+less sessions/_reports/live-local-recall-target-me/live_local_recall_target_me_corpus_report.md
+```
+
 The expected v1 result is still `shadow_only_do_not_promote`: the report should explain which gates
 are evaluated and which remain blockers. Current live comparison checks the live draft against the
 authoritative batch transcript for capture safety, order mismatch, missing `Me` speech, suspected
@@ -994,6 +1008,11 @@ Active goal and near-term candidates:
    candidate policies cover `181.20s` of it but also include `38.78s` remote-risk false positives,
    and `188.54s` still need Target-Me or stronger local-speaker evidence. In the stricter
    capture-safe candidate slice, `11.26s` still need that stronger evidence.
+   `scripts/audit-live-local-recall-target-me.py` is the new shadow check for that gap. It cuts the
+   suppressed live mic segments, compares them with the local Target-Me speaker embedding backend
+   and writes `live_local_recall_target_me_*` reports. The first corpus pass shows that Target-Me can
+   explain most of the remaining local gap (`287.98s` possible/confirmed local out of `295.34s`
+   audited local seconds), but it is still evidence only and does not publish live `Me`.
    Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.

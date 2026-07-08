@@ -5444,6 +5444,30 @@ stronger local-speaker evidence. The capture-safe variants
 `capture_safe_evaluable_live_local_recall_rescue_lab` use the same schema on narrower slices. These
 blocks are corpus-lab evidence only: they use batch labels for evaluation and do not publish live
 `Me` turns.
+
+`scripts/audit-live-local-recall-target-me.py` is the shadow Target-Me diagnostic for that remaining
+gap. It reads `risk_examples.suppressed_mic_asr_segments` from `live_batch_comparison.json`, cuts
+the corresponding live mic/remote chunk clips, builds a local Target-Me enrollment from the selected
+batch transcript profile, and writes:
+
+```text
+derived/audit/live-local-recall-target-me/live_local_recall_target_me_audit.jsonl
+derived/audit/live-local-recall-target-me/live_local_recall_target_me_summary.json
+derived/audit/live-local-recall-target-me/live_local_recall_target_me_report.md
+sessions/_reports/live-local-recall-target-me/live_local_recall_target_me_corpus_report.json
+sessions/_reports/live-local-recall-target-me/live_local_recall_target_me_corpus_report.md
+```
+
+Rows use schema `murmurmark.live_local_recall_target_me_audit/v1`. Session summaries use
+`murmurmark.live_local_recall_target_me_summary/v1`; the corpus report uses
+`murmurmark.live_local_recall_target_me_corpus_report/v1`. Labels come from the existing Target-Me
+classifier, for example `target_me_confirmed`, `target_me_possible`, `target_me_absent`,
+`target_me_absent_remote_like` and `target_me_ambiguous`.
+
+This audit is evidence only. `promotion_decision` must stay `shadow_only_do_not_promote`; rows must
+not publish live `Me`, edit batch transcripts or relax parity gates. A useful result is evidence for
+the next rescue policy design: it can show which suppressed live mic regions have local-speaker
+support and which candidate policies would need a stricter remote-risk guard.
 Quarantine currently forbids new controlled real Live Evidence recording for valuable meetings even
 if older corpus fields still say `controlled_real_live_pilot_allowed`. The runner must fail before
 capture unless the operator passes `--allow-unsafe-controlled-real-recording`; batch remains

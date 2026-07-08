@@ -689,8 +689,13 @@ nodes:
       the batch-oracle ceiling is `13.06s`. The new rescue lab makes the gap concrete: real live
       suppressed mic ASR contains `369.74s` local/mixed speech; current candidate policies cover
       `181.20s` but include `38.78s` remote-risk false positives; `188.54s` still need Target-Me or
-      stronger local-speaker evidence. The next local-recall work therefore needs stronger
-      local-speaker evidence for suppressed mic segments, not merely enabling an existing policy.
+      stronger local-speaker evidence. `scripts/audit-live-local-recall-target-me.py` is the first
+      bridge to that evidence: the current Target-Me corpus pass audited `77` suppressed live mic
+      items / `334.12s`; `295.34s` were local/mixed, and `287.98s` of that local slice were
+      possible or confirmed Target-Me. Two sessions still lack enough enrollment. The next
+      local-recall work therefore needs a Target-Me-gated shadow rescue policy for suppressed mic
+      segments, plus a later enrollment/calibration fallback, not merely enabling an existing text
+      or energy policy.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

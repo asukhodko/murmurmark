@@ -237,6 +237,25 @@ existing live-implementable policies do not recover a material amount of local s
 promotion-candidate sessions, even though the batch oracle shows recoverable `Me` content in the
 same suppressed regions.
 
+New Target-Me diagnostic, 2026-07-08:
+
+- `scripts/audit-live-local-recall-target-me.py` audits suppressed live mic ASR segments with the
+  local Target-Me speaker evidence backend;
+- current corpus run: `6` sessions, `77` audited items / `334.12s`;
+- `4` sessions had enough Target-Me enrollment, `2` reported `insufficient_enrollment`;
+- audited local/mixed seconds: `295.34s`;
+- Target-Me confirmed local seconds: `142.34s`;
+- Target-Me possible or confirmed local seconds: `287.98s`;
+- remote-risk false-positive seconds in the audited set: `38.78s`;
+- Target-Me rejected remote-risk seconds: `0.00s`.
+
+Interpretation: more new recordings are not needed to unblock the next implementation step. The
+existing corpus already contains enough suppressed live mic material to design a shadow rescue
+policy. The next work is to use Target-Me evidence as an additional gate for suppressed mic segments:
+recover local speech only where local-speaker evidence is strong enough and remote-risk evidence is
+low. Sessions with `insufficient_enrollment` point to a later calibration problem, not to a need for
+more ad-hoc live meetings now.
+
 ## Latest Completed Goal: Current Pipeline Stabilization v1
 
 Status, 2026-07-06: complete.
