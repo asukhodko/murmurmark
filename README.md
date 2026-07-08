@@ -496,6 +496,11 @@ This is also a lab-only report. Current evidence narrows the path: in the full r
 stricter capture-safe candidate scope, composite gates recover `0.00s`. So composite evidence can be
 a small shadow rescue, but it still does not close the live local-recall gap.
 
+`compare-live-batch.py` now materializes that small zero-risk slice as
+`derived/live/target-me-shadow/online_suppressed_mic_dual_target_remote_guard_v1/draft.{json,md}`.
+The profile is still diagnostic-only: current real corpus adds `47.70s`, leaves `380.17s`
+missing-Me, leaves existing live remote leak at `15.96s`, and keeps promotion blocked.
+
 To inspect whether suppressed live mic segments contain your voice:
 
 ```bash
@@ -1112,7 +1117,10 @@ Active goal and near-term candidates:
    `0.00s`. A composite gate lab gives a smaller but cleaner result: `dual_target_remote_guard_v1`
    recovers `47.70s` local/mixed speech at `0.00s` remote-risk in the full real scope, while
    `target_me_remote_guard_v1` recovers `116.10s` at `2.44s` remote-risk; the capture-safe candidate
-   scope still recovers `0.00s`. Batch remains authoritative.
+   scope still recovers `0.00s`. This zero-risk slice is now materialized as
+   `online_suppressed_mic_dual_target_remote_guard_v1`: it adds `47.70s`, leaves `380.17s`
+   missing-Me and does not remove the existing `15.96s` live remote leak. Batch remains
+   authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

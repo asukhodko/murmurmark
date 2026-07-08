@@ -498,8 +498,11 @@ newer run-state exists.
    gives the first zero-risk composite slice (`47.70s` local/mixed in the full real scope), while
    `target_me_remote_guard_v1` reaches `116.10s` local/mixed at `2.44s` remote-risk. The stricter
    capture-safe candidate scope still gets `0.00s`. The next live-local-recall work should
-   materialize only the tiny safe composite as shadow evidence, then keep building stricter
-   remote-forbidden/local-speaker gates for the remaining suppressed mic regions.
+   keep building stricter remote-forbidden/local-speaker gates for the remaining suppressed mic
+   regions. The tiny safe composite is already materialized as
+   `online_suppressed_mic_dual_target_remote_guard_v1`: it adds `47.70s`, leaves `380.17s`
+   missing-Me and leaves the existing `15.96s` live remote leak untouched, so it proves the
+   materialization mechanism but not parity.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

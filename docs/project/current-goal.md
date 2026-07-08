@@ -305,6 +305,26 @@ promotion blockers. The current target remains `fix_live_local_recall_gap`, but 
 implementation should materialize only tiny safe composites while continuing to develop stronger
 remote-forbidden/local-speaker evidence for the remaining suppressed mic regions.
 
+Materialized composite shadow profile, 2026-07-09:
+
+- `compare-live-batch.py` now writes
+  `derived/live/target-me-shadow/online_suppressed_mic_dual_target_remote_guard_v1/draft.json`
+  and `.md`;
+- the profile uses only suppressed mic segments where session-local Target-Me and persistent
+  Target-Me both pass their remote guard;
+- current real corpus result: `4` added turns / `47.70s`;
+- profile missing-Me: `380.17s`, down from ordinary live `419.16s`;
+- profile remote leak remains `15.96s` because this rescue-only profile does not remove already
+  published bad live `Me` turns;
+- profile contentful role-constrained order mismatches remain `4`;
+- profile non-passing gates: `42`, so promotion remains blocked.
+
+Conclusion: the zero-risk composite is now a real materialized shadow draft, not only a lab number.
+It proves the mechanism for publishing a tiny safe suppressed-mic subset, but it is far too small to
+satisfy live parity. The next implementation needs either remote-leak removal in the online draft or
+a stronger local-speaker/remote-forbidden judge that covers more of the `380.17s` remaining
+missing-Me.
+
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not
 `meaningful_live_comparison` because the live draft lost all `Me` turns; those sessions must remain

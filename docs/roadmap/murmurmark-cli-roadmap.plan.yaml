@@ -737,8 +737,11 @@ nodes:
       gate lab confirmed that direction: `dual_target_remote_guard_v1` is the first zero-risk
       composite slice (`47.70s` local/mixed in the full real scope), `target_me_remote_guard_v1`
       reaches `116.10s` local/mixed with `2.44s` remote-risk, and the stricter capture-safe
-      candidate scope still recovers `0.00s`. Next implementation should materialize only the tiny
-      safe composite as shadow evidence and continue stronger remote-forbidden/local-speaker work.
+      candidate scope still recovers `0.00s`. The tiny safe composite is now materialized as
+      `online_suppressed_mic_dual_target_remote_guard_v1`: it adds `47.70s`, leaves `380.17s`
+      missing-Me and leaves the existing `15.96s` live remote leak untouched. Next implementation
+      should continue stronger remote-forbidden/local-speaker work and handle existing live remote
+      leak separately from suppressed-mic rescue.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

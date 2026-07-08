@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.18.0"
+SCRIPT_VERSION = "0.19.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GENERIC_TOKENS = {
@@ -99,6 +99,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_audio_safe_union_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
+    "online_suppressed_mic_dual_target_remote_guard_v1",
 )
 TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1": (
@@ -130,6 +131,9 @@ TARGET_ME_ONLINE_SUPPRESSED_MIC_PROFILE_POLICIES = {
 }
 TARGET_ME_VISIBLE_SUPPRESSED_MIC_ORACLE_POLICIES = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
+}
+SUPPRESSED_MIC_COMPOSITE_SHADOW_PROFILE_POLICIES = {
+    "online_suppressed_mic_dual_target_remote_guard_v1",
 }
 MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 
@@ -827,6 +831,49 @@ def read_target_me_live_local_recall_rows(session: Path) -> list[dict[str, Any]]
     return read_jsonl(path)
 
 
+def read_persistent_target_me_profile_rows(session: Path) -> list[dict[str, Any]]:
+    root = session.parent.parent
+    rows: list[dict[str, Any]] = []
+    for base in (
+        root / "sessions/_reports/live-pipeline/persistent_target_me_profile_lab.real/targets",
+        root / "sessions/_reports/live-pipeline/persistent_target_me_profile_lab/targets",
+    ):
+        path = base / session.name / "persistent_target_me_profile_lab_rows.json"
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = None
+        if not isinstance(payload, list):
+            continue
+        rows.extend(row for row in payload if isinstance(row, dict))
+    return rows
+
+
+def suppressed_mic_segment_key(row: dict[str, Any]) -> tuple[int, float, float]:
+    return (
+        safe_int(row.get("chunk_index")),
+        round(safe_float(row.get("start")), 3),
+        round(safe_float(row.get("end")), 3),
+    )
+
+
+def target_me_audit_row_key(row: dict[str, Any]) -> tuple[int, float, float]:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    return (
+        safe_int(row.get("chunk_index")),
+        round(safe_float(interval.get("start")), 3),
+        round(safe_float(interval.get("end")), 3),
+    )
+
+
+def persistent_target_me_row_key(row: dict[str, Any]) -> tuple[int, float, float]:
+    return (
+        safe_int(row.get("chunk_index")),
+        round(safe_float(row.get("start")), 3),
+        round(safe_float(row.get("end")), 3),
+    )
+
+
 def target_me_shadow_turns(rows: list[dict[str, Any]], policy: str) -> list[dict[str, Any]]:
     turns: list[dict[str, Any]] = []
     source_policy = TARGET_ME_DERIVED_POLICY_BASE.get(policy, policy)
@@ -855,6 +902,70 @@ def target_me_shadow_turns(rows: list[dict[str, Any]], policy: str) -> list[dict
                 else None,
                 "target_me_confidence": (row.get("classification") or {}).get("confidence")
                 if isinstance(row.get("classification"), dict)
+                else None,
+            }
+        )
+    return sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")))
+
+
+def suppressed_mic_composite_shadow_turns(
+    *,
+    policy: str,
+    suppressed_mic_asr_segments: list[dict[str, Any]],
+    target_me_rows: list[dict[str, Any]],
+    persistent_target_me_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if policy != "online_suppressed_mic_dual_target_remote_guard_v1":
+        return []
+    target_by_key = {target_me_audit_row_key(row): row for row in target_me_rows}
+    persistent_by_key = {persistent_target_me_row_key(row): row for row in persistent_target_me_rows}
+    turns: list[dict[str, Any]] = []
+    for segment in suppressed_mic_asr_segments:
+        key = suppressed_mic_segment_key(segment)
+        target_row = target_by_key.get(key)
+        persistent_row = persistent_by_key.get(key)
+        if not target_row or not persistent_row:
+            continue
+        if "target_me_confirmed_remote_guard_v1" not in (target_row.get("target_me_rescue_policy_candidates") or []):
+            continue
+        persistent = (
+            persistent_row.get("persistent_target_me")
+            if isinstance(persistent_row.get("persistent_target_me"), dict)
+            else {}
+        )
+        if "confirmed_remote_guard" not in (persistent.get("policy_candidates") or []):
+            continue
+        start = safe_float(segment.get("start"))
+        end = safe_float(segment.get("end"), start)
+        text = clean_text(str(segment.get("text") or target_row.get("text") or ""))
+        if not text or end <= start:
+            continue
+        turns.append(
+            {
+                "id": (
+                    "live_suppressed_mic_composite_"
+                    f"{policy}_{safe_int(segment.get('chunk_index'))}_{start:.3f}_{end:.3f}"
+                ),
+                "chunk_index": segment.get("chunk_index"),
+                "source": f"mic_suppressed_mic_composite_{policy}",
+                "role": "Me",
+                "start": start,
+                "end": end,
+                "text": text,
+                "tokens": tokens(text),
+                "policy": policy,
+                "composite_policy": "dual_target_remote_guard_v1",
+                "target_me_label": (target_row.get("classification") or {}).get("label")
+                if isinstance(target_row.get("classification"), dict)
+                else None,
+                "target_me_confidence": (target_row.get("classification") or {}).get("confidence")
+                if isinstance(target_row.get("classification"), dict)
+                else None,
+                "persistent_target_me_label": (persistent.get("classification") or {}).get("label")
+                if isinstance(persistent.get("classification"), dict)
+                else None,
+                "persistent_target_me_confidence": (persistent.get("classification") or {}).get("confidence")
+                if isinstance(persistent.get("classification"), dict)
                 else None,
             }
         )
@@ -2644,11 +2755,15 @@ def target_me_shadow_profile_components(
     policy: str,
     live_turns_rows: list[dict[str, Any]],
     suppressed_mic_asr_segments: list[dict[str, Any]],
+    target_me_rows: list[dict[str, Any]],
     target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
+    persistent_target_me_rows: list[dict[str, Any]],
     batch_utterances: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     base_policy = TARGET_ME_SHADOW_PROFILE_BASE_POLICY.get(policy, policy)
-    target_turns = list(target_me_turns_by_policy.get(base_policy) or [])
+    target_turns = [] if policy in SUPPRESSED_MIC_COMPOSITE_SHADOW_PROFILE_POLICIES else list(
+        target_me_turns_by_policy.get(base_policy) or []
+    )
     live_turns = list(live_turns_rows)
     supplemental_turns: list[dict[str, Any]] = []
     rejected_supplemental_turns: list[dict[str, Any]] = []
@@ -2690,6 +2805,13 @@ def target_me_shadow_profile_components(
             suppressed_mic_asr_segments,
             TARGET_ME_ONLINE_SUPPRESSED_MIC_PROFILE_POLICIES[policy],
         )
+    elif policy in SUPPRESSED_MIC_COMPOSITE_SHADOW_PROFILE_POLICIES:
+        supplemental_turns = suppressed_mic_composite_shadow_turns(
+            policy=policy,
+            suppressed_mic_asr_segments=suppressed_mic_asr_segments,
+            target_me_rows=target_me_rows,
+            persistent_target_me_rows=persistent_target_me_rows,
+        )
     return live_turns, target_turns, supplemental_turns, removed_live_turns, rejected_supplemental_turns
 
 
@@ -2698,7 +2820,9 @@ def write_target_me_shadow_drafts(
     session: Path,
     live_turns_rows: list[dict[str, Any]],
     suppressed_mic_asr_segments: list[dict[str, Any]],
+    target_me_rows: list[dict[str, Any]],
     target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
+    persistent_target_me_rows: list[dict[str, Any]],
     batch_utterances: list[dict[str, Any]],
     metrics: dict[str, Any],
 ) -> dict[str, dict[str, str]]:
@@ -2709,7 +2833,9 @@ def write_target_me_shadow_drafts(
                 policy=policy,
                 live_turns_rows=live_turns_rows,
                 suppressed_mic_asr_segments=suppressed_mic_asr_segments,
+                target_me_rows=target_me_rows,
                 target_me_turns_by_policy=target_me_turns_by_policy,
+                persistent_target_me_rows=persistent_target_me_rows,
                 batch_utterances=batch_utterances,
             )
         )
@@ -2811,7 +2937,9 @@ def build_target_me_shadow_profiles(
     live_turns_rows: list[dict[str, Any]],
     suppressed_mic_turns: list[dict[str, Any]],
     suppressed_mic_asr_segments: list[dict[str, Any]],
+    target_me_rows: list[dict[str, Any]],
     target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
+    persistent_target_me_rows: list[dict[str, Any]],
     target_me_shadow_outputs: dict[str, dict[str, str]],
     batch_utterances: list[dict[str, Any]],
     batch_final_tokens: list[str],
@@ -2831,7 +2959,9 @@ def build_target_me_shadow_profiles(
                 policy=policy,
                 live_turns_rows=live_turns_rows,
                 suppressed_mic_asr_segments=suppressed_mic_asr_segments,
+                target_me_rows=target_me_rows,
                 target_me_turns_by_policy=target_me_turns_by_policy,
+                persistent_target_me_rows=persistent_target_me_rows,
                 batch_utterances=batch_utterances,
             )
         )
@@ -3016,11 +3146,15 @@ def main() -> int:
         and int(live_metrics.get("batch_me_utterance_count") or 0) > 0
         and int(live_metrics.get("batch_remote_utterance_count") or 0) > 0
     )
+    target_me_rows = read_target_me_live_local_recall_rows(session)
+    persistent_target_me_rows = read_persistent_target_me_profile_rows(session)
     target_me_shadow_outputs = write_target_me_shadow_drafts(
         session=session,
         live_turns_rows=live_assessment.get("live_turns") or [],
         suppressed_mic_asr_segments=live_assessment.get("suppressed_mic_asr_segments") or [],
+        target_me_rows=target_me_rows,
         target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
+        persistent_target_me_rows=persistent_target_me_rows,
         batch_utterances=batch_utterances,
         metrics=live_metrics,
     )
@@ -3028,7 +3162,9 @@ def main() -> int:
         live_turns_rows=live_assessment.get("live_turns") or [],
         suppressed_mic_turns=live_assessment.get("suppressed_mic_turns") or [],
         suppressed_mic_asr_segments=live_assessment.get("suppressed_mic_asr_segments") or [],
+        target_me_rows=target_me_rows,
         target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
+        persistent_target_me_rows=persistent_target_me_rows,
         target_me_shadow_outputs=target_me_shadow_outputs,
         batch_utterances=batch_utterances,
         batch_final_tokens=final_tokens,
