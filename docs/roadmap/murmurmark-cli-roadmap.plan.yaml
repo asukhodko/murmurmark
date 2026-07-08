@@ -747,8 +747,11 @@ nodes:
       current best live-implementable profile,
       `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1`, gets
       to `301.96s` missing-Me with `0.00s` remote leak, `4` contentful order mismatches and `41`
-      non-passing gates. Next implementation should focus on stronger local-speaker evidence and
-      order-safe live role gating, not on promotion.
+      non-passing gates. Its residual missing-Me splits into `174.33s` visible with broader
+      Target-Me evidence, `90.42s` visible without Target-Me evidence and `37.21s` not visible in
+      suppressed mic. A less strict remote-guard variant reaches `276.93s` missing-Me but raises
+      contentful order mismatches to `7`. Next implementation should focus on stronger
+      local-speaker evidence and order-safe live role gating, not on promotion.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

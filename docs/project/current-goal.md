@@ -349,11 +349,21 @@ Online remote-overlap shadow filter, 2026-07-09:
   - missing-Me: `301.96s`;
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
+- remaining missing-Me decomposition for that best live-implementable profile:
+  - visible in suppressed mic with broader Target-Me evidence: `174.33s`;
+  - visible in suppressed mic without Target-Me evidence: `90.42s`;
+  - not visible in suppressed mic: `37.21s`;
+  - not visible but with Target-Me evidence: `0.00s`.
+- less strict remote-guard variants prove the recall/order trade-off:
+  `online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1` reduces
+  missing-Me to `276.93s` and keeps measured remote leak at `0.00s`, but raises contentful
+  role-constrained order mismatches to `7`.
 
 Conclusion: the online filter closes the current measured remote-leak symptom without batch truth,
 and the best live-implementable profile improves local recall more than the dual Target-Me slice.
 The goal remains blocked by local recall, order risk, review burden and draft readiness, not by lack
-of another raw recording.
+of another raw recording. The next useful work is to improve local-speaker evidence for the
+`174.33s` visible-with-Target-Me slice without paying the remote-guard profile's order-risk cost.
 satisfy live parity. The next implementation needs either remote-leak removal in the online draft or
 a stronger local-speaker/remote-forbidden judge that covers more of the `380.17s` remaining
 missing-Me.

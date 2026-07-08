@@ -5667,6 +5667,10 @@ derived/live/target-me-shadow/online_live_me_remote_overlap_filter_v1/draft.json
 derived/live/target-me-shadow/online_live_me_remote_overlap_filter_v1/draft.md
 derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1/draft.json
 derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1/draft.md
+derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1/draft.json
+derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1/draft.md
+derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1/draft.json
+derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1/draft.md
 derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1/draft.json
 derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1/draft.md
 derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1/draft.json
@@ -5685,6 +5689,10 @@ decompose remaining local-recall gaps:
 - `live_missing_me_not_visible_in_suppressed_mic_*`;
 - `live_missing_me_with_target_me_candidate_*`;
 - `live_missing_me_without_target_me_candidate_*`.
+- `live_missing_me_visible_with_target_me_candidate_*`;
+- `live_missing_me_visible_without_target_me_candidate_*`;
+- `live_missing_me_not_visible_with_target_me_candidate_*`;
+- `live_missing_me_not_visible_without_target_me_candidate_*`.
 
 The visible-suppressed-mic oracle profile additionally writes
 `metrics.visible_suppressed_mic_added_turn_count`,
@@ -5713,8 +5721,11 @@ with the dual Target-Me suppressed-mic rescue. Current corpus evidence: the comb
 `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1` is the
 current best live-implementable profile: it combines the remote-overlap cleanup, timeline-safe
 Target-Me rescue and `audio_safe_union_v1`, reaching `301.96s` missing-Me with `0.00s` measured
-remote leak and `4` contentful order mismatches. These profiles remain diagnostic drafts and are not
-promotable.
+remote leak and `4` contentful order mismatches. The remaining missing-Me splits into `174.33s`
+visible with broader Target-Me evidence, `90.42s` visible without Target-Me evidence and `37.21s`
+not visible in suppressed mic. The less strict remote-guard audio-safe profile reaches `276.93s`
+missing-Me, but increases contentful order mismatches to `7`, so it is not the safest live
+implementable default. These profiles remain diagnostic drafts and are not promotable.
 
 Profile `risk_examples.local_missing` carries the same fields per utterance, including
 `recall_in_suppressed_mic`, `suppressed_mic_turn_ids` and `target_me_candidate_policies`. The oracle

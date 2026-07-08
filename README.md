@@ -512,7 +512,11 @@ The current best live-implementable shadow is
 the online remote-overlap cleanup, timeline-safe Target-Me rescue and the `audio_safe_union_v1`
 suppressed-mic slice. Current real corpus result: `301.96s` missing-Me, `0.00s` measured remote
 leak, `4` contentful order mismatches and `41` non-passing gates. This is the strongest non-oracle
-candidate so far, but still not promotable.
+candidate so far, but still not promotable. Its remaining missing-Me splits into `174.33s` visible
+in suppressed mic with broader Target-Me evidence, `90.42s` visible without Target-Me evidence, and
+`37.21s` not visible in suppressed mic. A less strict remote-guard profile reaches `276.93s`
+missing-Me, but raises contentful order mismatches to `7`, so timeline safety is still buying real
+protection.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1139,7 +1143,10 @@ Active goal and near-term candidates:
    mismatches. The stronger live-implementable profile
    `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1` gets to
    `301.96s` missing-Me with `0.00s` remote leak, but still has `4` contentful order mismatches and
-   `41` non-passing gates. Batch remains authoritative.
+   `41` non-passing gates. The residual gap splits into `174.33s` visible with broader Target-Me
+   evidence, `90.42s` visible without Target-Me evidence, and `37.21s` not visible in suppressed
+   mic. A less strict remote-guard variant reaches `276.93s` missing-Me but raises contentful order
+   mismatches to `7`. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

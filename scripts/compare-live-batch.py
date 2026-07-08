@@ -102,6 +102,8 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "online_suppressed_mic_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_v1",
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
 )
@@ -124,6 +126,12 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1": (
         "target_me_confirmed_remote_guard_timeline_safe_v1"
     ),
+    "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1": (
+        "target_me_confirmed_remote_guard_v1"
+    ),
+    "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1": (
+        "target_me_confirmed_remote_guard_v1"
+    ),
 }
 TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1",
@@ -141,6 +149,9 @@ TARGET_ME_ONLINE_SUPPRESSED_MIC_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1": (
         "audio_safe_union_v1"
     ),
+    "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1": (
+        "audio_safe_union_v1"
+    ),
 }
 TARGET_ME_VISIBLE_SUPPRESSED_MIC_ORACLE_POLICIES = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
@@ -152,6 +163,8 @@ SUPPRESSED_MIC_COMPOSITE_SHADOW_PROFILE_POLICIES = {
 LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_v1",
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
 }
@@ -1954,27 +1967,39 @@ def local_missing_diagnostics_for_turns(
     not_visible_rows = [row for row in rows if safe_float(row.get("recall_in_suppressed_mic")) < 0.35]
     target_me_rows = [row for row in rows if row.get("target_me_candidate_policies")]
     without_target_me_rows = [row for row in rows if not row.get("target_me_candidate_policies")]
+    visible_with_target_me_rows = [
+        row for row in visible_rows if row.get("target_me_candidate_policies")
+    ]
+    visible_without_target_me_rows = [
+        row for row in visible_rows if not row.get("target_me_candidate_policies")
+    ]
+    not_visible_with_target_me_rows = [
+        row for row in not_visible_rows if row.get("target_me_candidate_policies")
+    ]
+    not_visible_without_target_me_rows = [
+        row for row in not_visible_rows if not row.get("target_me_candidate_policies")
+    ]
+
+    def row_seconds(items: list[dict[str, Any]]) -> float:
+        return round(sum(safe_float(row.get("duration_sec")) for row in items), 3)
+
     return rows, {
         "live_missing_me_visible_in_suppressed_mic_count": len(visible_rows),
-        "live_missing_me_visible_in_suppressed_mic_seconds": round(
-            sum(safe_float(row.get("duration_sec")) for row in visible_rows),
-            3,
-        ),
+        "live_missing_me_visible_in_suppressed_mic_seconds": row_seconds(visible_rows),
         "live_missing_me_not_visible_in_suppressed_mic_count": len(not_visible_rows),
-        "live_missing_me_not_visible_in_suppressed_mic_seconds": round(
-            sum(safe_float(row.get("duration_sec")) for row in not_visible_rows),
-            3,
-        ),
+        "live_missing_me_not_visible_in_suppressed_mic_seconds": row_seconds(not_visible_rows),
         "live_missing_me_with_target_me_candidate_count": len(target_me_rows),
-        "live_missing_me_with_target_me_candidate_seconds": round(
-            sum(safe_float(row.get("duration_sec")) for row in target_me_rows),
-            3,
-        ),
+        "live_missing_me_with_target_me_candidate_seconds": row_seconds(target_me_rows),
         "live_missing_me_without_target_me_candidate_count": len(without_target_me_rows),
-        "live_missing_me_without_target_me_candidate_seconds": round(
-            sum(safe_float(row.get("duration_sec")) for row in without_target_me_rows),
-            3,
-        ),
+        "live_missing_me_without_target_me_candidate_seconds": row_seconds(without_target_me_rows),
+        "live_missing_me_visible_with_target_me_candidate_count": len(visible_with_target_me_rows),
+        "live_missing_me_visible_with_target_me_candidate_seconds": row_seconds(visible_with_target_me_rows),
+        "live_missing_me_visible_without_target_me_candidate_count": len(visible_without_target_me_rows),
+        "live_missing_me_visible_without_target_me_candidate_seconds": row_seconds(visible_without_target_me_rows),
+        "live_missing_me_not_visible_with_target_me_candidate_count": len(not_visible_with_target_me_rows),
+        "live_missing_me_not_visible_with_target_me_candidate_seconds": row_seconds(not_visible_with_target_me_rows),
+        "live_missing_me_not_visible_without_target_me_candidate_count": len(not_visible_without_target_me_rows),
+        "live_missing_me_not_visible_without_target_me_candidate_seconds": row_seconds(not_visible_without_target_me_rows),
     }
 
 
@@ -3130,6 +3155,14 @@ def build_target_me_shadow_profiles(
             "live_missing_me_with_target_me_candidate_seconds",
             "live_missing_me_without_target_me_candidate_count",
             "live_missing_me_without_target_me_candidate_seconds",
+            "live_missing_me_visible_with_target_me_candidate_count",
+            "live_missing_me_visible_with_target_me_candidate_seconds",
+            "live_missing_me_visible_without_target_me_candidate_count",
+            "live_missing_me_visible_without_target_me_candidate_seconds",
+            "live_missing_me_not_visible_with_target_me_candidate_count",
+            "live_missing_me_not_visible_with_target_me_candidate_seconds",
+            "live_missing_me_not_visible_without_target_me_candidate_count",
+            "live_missing_me_not_visible_without_target_me_candidate_seconds",
             "live_suspected_remote_leak_in_me_count",
             "live_suspected_remote_leak_in_me_seconds",
         ):
