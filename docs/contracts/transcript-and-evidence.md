@@ -5534,6 +5534,38 @@ Both modes use live-published `Me` turns and speaker-state filters to build enro
 are used only to score selected suppressed mic candidates as local/mixed or remote-risk. The report
 does not publish live `Me`, edit batch transcripts or relax parity gates.
 
+`scripts/report-persistent-target-me-profile-lab.py` tests the historical-profile fallback: whether a
+Target-Me voice profile built from already processed earlier sessions can safely rescue suppressed
+live mic segments in a held-out target session. It writes:
+
+```text
+sessions/_reports/live-pipeline/persistent_target_me_profile_lab.json
+sessions/_reports/live-pipeline/persistent_target_me_profile_lab.md
+sessions/_reports/live-pipeline/persistent_target_me_profile_lab.real.json
+sessions/_reports/live-pipeline/persistent_target_me_profile_lab.real.md
+```
+
+The JSON uses schema `murmurmark.persistent_target_me_profile_lab/v1`. The default scope is
+`capture-safe-candidate`; `--scope real` evaluates the same policy family across all real live
+sessions. The default enrollment source is `before-target`, so historical replay only uses sessions
+whose ids sort before the target session. `--enrollment-source all-other` is a non-causal ceiling and
+must not be treated as promotion evidence.
+
+Rows and summaries report:
+
+- enrollment pool size and seconds for positive `Me` clips and negative `remote` clips;
+- per-target enrollment readiness;
+- suppressed mic ASR segment seconds, split by batch local/mixed vs remote-risk labels;
+- policy metrics for `confirmed_remote_guard`, `confirmed` and `possible`;
+- examples for selected local segments and selected remote-risk segments.
+
+Batch labels are used only as offline truth for scoring selected suppressed mic candidates. The
+report does not edit live drafts, batch transcripts or parity gates. Current corpus evidence keeps
+the profile diagnostic-only: in the full real scope, the conservative remote-guard policy recovers
+some local speech but still selects remote-risk speech, and in the capture-safe candidate scope it
+recovers no safe local speech. Treat it as supporting local-speaker evidence, not as the main live
+rescue mechanism.
+
 `scripts/audit-live-local-recall-target-me.py` is the shadow Target-Me diagnostic for that remaining
 gap. It reads `risk_examples.suppressed_mic_asr_segments` from `live_batch_comparison.json`, cuts
 the corresponding live mic/remote chunk clips, builds a local Target-Me enrollment from the selected

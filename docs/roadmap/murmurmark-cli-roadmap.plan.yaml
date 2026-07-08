@@ -728,7 +728,12 @@ nodes:
       usable positive live `Me` enrollment segments; in the full real scope, prefix-live enrollment
       recovers only `9.24s` local at `0.00s` remote-risk, while full-session non-causal enrollment
       reaches `56.94s`. Target-Me remains promising, but promotion-oriented work now needs an
-      enrollment fallback/warmup or persistent local-speaker profile.
+      enrollment fallback/warmup or persistent local-speaker evidence. The persistent-profile lab has
+      now checked the historical-profile fallback: full real scope recovers `75.72s` local/mixed
+      speech but still selects `8.64s` remote-risk under the conservative remote guard, and the
+      stricter capture-safe candidate scope recovers `0.00s`. Persistent Target-Me is therefore
+      supporting evidence, not the main rescue path; the next local-recall step needs stricter
+      remote-forbidden gates and online role gating around suppressed mic segments.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

@@ -489,8 +489,13 @@ newer run-state exists.
    the full real scope, prefix/live-causal enrollment recovers only `9.24s` local at `0.00s`
    remote-risk, while full-session non-causal enrollment reaches `56.94s`. So Target-Me can help, but
    not from same-session live-published `Me` alone. The next design should add an enrollment
-   fallback/warmup or a persistent local-speaker profile before trying to promote Target-Me-based live
-   rescue.
+   fallback/warmup or persistent local-speaker evidence before trying to promote Target-Me-based live
+   rescue. The first persistent-profile lab has now tested the historical-profile variant: in the
+   full real scope it recovers `75.72s` local/mixed speech but still selects `8.64s` remote-risk
+   speech under the conservative remote guard; in the stricter capture-safe candidate scope it
+   recovers `0.00s`. That keeps persistent Target-Me as supporting evidence, not the main promotion
+   path. The next live-local-recall work should combine local-speaker evidence with stricter
+   remote-forbidden gates and keep ambiguous suppressed-mic segments out of the published live draft.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

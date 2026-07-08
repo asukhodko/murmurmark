@@ -244,6 +244,38 @@ Target-Me-based live rescue needs an enrollment fallback, warmup/calibration ste
 speaker profile, or another online speaker signal. Without that, the live path cannot recover enough
 missing `Me` speech to satisfy parity gates.
 
+Latest persistent Target-Me profile lab, 2026-07-09:
+
+```bash
+.venv/bin/python scripts/report-persistent-target-me-profile-lab.py \
+  --method resemblyzer_dvector \
+  --max-enrollment-segments 40 \
+  --max-negative-enrollment-segments 40
+.venv/bin/python scripts/report-persistent-target-me-profile-lab.py \
+  --method resemblyzer_dvector \
+  --scope real \
+  --max-enrollment-segments 40 \
+  --max-negative-enrollment-segments 40 \
+  --out sessions/_reports/live-pipeline/persistent_target_me_profile_lab.real.json
+```
+
+Current result:
+
+- capture-safe candidate scope: `2` sessions, `48` suppressed mic ASR segments / `250.28s`;
+- capture-safe candidate labels: `13.06s` local/mixed, `237.22s` remote-risk;
+- capture-safe `confirmed_remote_guard`: `0.00s` local / `0.00s` remote-risk;
+- full real scope: `10` sessions, `317` suppressed mic ASR segments / `3656.50s`;
+- full real labels: `409.50s` local/mixed, `3247.00s` remote-risk;
+- full real `confirmed_remote_guard`: `75.72s` local / `8.64s` remote-risk;
+- broader full real `possible`: `127.32s` local / `112.28s` remote-risk.
+
+Conclusion: historical persistent Target-Me evidence can help as a supporting signal, but it is not
+safe enough as the main suppressed-mic rescue path. The stricter capture-safe candidate scope gets no
+material recovery, while the full real scope already leaks remote-risk speech under the conservative
+guard. More new recordings are not the blocker for the current objective; the existing corpus already
+proves that the next implementation needs stronger remote-forbidden evidence, stricter online role
+gating, or a better calibrated local-speaker judge before live promotion can be considered.
+
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not
 `meaningful_live_comparison` because the live draft lost all `Me` turns; those sessions must remain

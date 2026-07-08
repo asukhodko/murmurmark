@@ -456,6 +456,30 @@ is not enough yet: the capture-safe candidate scope has no usable positive live 
 the full real scope recovers only a tiny causal slice. The next design needs enrollment fallback,
 warmup/calibration, or another local-speaker signal before Target-Me can be relied on in live mode.
 
+To test whether a historical persistent local-speaker profile helps suppressed-mic rescue:
+
+```bash
+.venv/bin/python scripts/report-persistent-target-me-profile-lab.py \
+  --method resemblyzer_dvector \
+  --max-enrollment-segments 40 \
+  --max-negative-enrollment-segments 40
+.venv/bin/python scripts/report-persistent-target-me-profile-lab.py \
+  --method resemblyzer_dvector \
+  --scope real \
+  --max-enrollment-segments 40 \
+  --max-negative-enrollment-segments 40 \
+  --out sessions/_reports/live-pipeline/persistent_target_me_profile_lab.real.json
+```
+
+This lab is also offline scoring only. It builds a Target-Me voice profile from earlier processed
+sessions, tests it against suppressed live mic segments and writes ignored reports under
+`sessions/_reports/live-pipeline/`. Current evidence says a persistent profile is useful as
+supporting evidence, but not safe enough as the main rescue path: in the full real scope it recovers
+`75.72s` local/mixed speech under the conservative remote guard, but still selects `8.64s`
+remote-risk speech; in the capture-safe candidate scope it recovers `0.00s`. The next design still
+needs stronger remote-forbidden evidence or a stricter online role gate before live promotion can be
+considered.
+
 To inspect whether suppressed live mic segments contain your voice:
 
 ```bash
@@ -1065,7 +1089,11 @@ Active goal and near-term candidates:
    adds safe visible suppressed mic segments and drops profile missing-Me to `140.41s` while keeping
    measured remote leak at `0.0s`. The first live-accessible attempts are not enough:
    `audio_safe_union_v1` is safe but leaves `301.96s` missing-Me, while `audio_low_corr_text_guard_v1`
-   leaves only `117.52s` missing-Me but leaks `210.10s` remote-like text. Batch remains authoritative.
+   leaves only `117.52s` missing-Me but leaks `210.10s` remote-like text. The historical persistent
+   Target-Me profile lab is also not enough as the main live rescue mechanism: in the full real
+   scope it recovers `75.72s` local/mixed speech under the conservative remote guard, but still
+   selects `8.64s` remote-risk speech; in the stricter capture-safe candidate scope it recovers
+   `0.00s`. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
