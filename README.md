@@ -989,7 +989,11 @@ Active goal and near-term candidates:
    `capture_safe_candidate` now reports `no_material_live_candidate`; the best live-implementable
    policy recovers only `1.80s` local speech, while the batch-oracle ceiling is `13.06s`. The next
    implementation needs stronger local-speaker evidence inside suppressed mic segments, not simply
-   enabling an existing rescue policy.
+   enabling an existing rescue policy. The new `live_local_recall_rescue_lab` block makes that
+   explicit: in real live runs, suppressed mic ASR contains `369.74s` local/mixed speech, current
+   candidate policies cover `181.20s` of it but also include `38.78s` remote-risk false positives,
+   and `188.54s` still need Target-Me or stronger local-speaker evidence. In the stricter
+   capture-safe candidate slice, `11.26s` still need that stronger evidence.
    Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.

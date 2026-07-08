@@ -686,7 +686,10 @@ nodes:
       the next rescue/reconciliation pass, not a promotable live output.
       Scoped candidate diagnostics now show `no_material_live_candidate`: in capture-safe promotion
       candidates, the best live-implementable rescue policy recovers only `1.80s` local speech, while
-      the batch-oracle ceiling is `13.06s`. The next local-recall work therefore needs stronger
+      the batch-oracle ceiling is `13.06s`. The new rescue lab makes the gap concrete: real live
+      suppressed mic ASR contains `369.74s` local/mixed speech; current candidate policies cover
+      `181.20s` but include `38.78s` remote-risk false positives; `188.54s` still need Target-Me or
+      stronger local-speaker evidence. The next local-recall work therefore needs stronger
       local-speaker evidence for suppressed mic segments, not merely enabling an existing policy.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted

@@ -5436,6 +5436,14 @@ is not live-implementable and must not become `recommended_policy`. A status of
 `no_material_live_candidate` means the best live-implementable policy is safe or promising only in a
 tiny slice; the next work should add stronger local-speaker evidence rather than promote an existing
 policy.
+`live_local_recall_rescue_lab` is the detailed diagnostic companion. It aggregates suppressed mic ASR
+segments, labels them with batch roles, reports how much local speech current candidate policies
+cover, how much remote-risk they would introduce, and how much local speech still needs Target-Me or
+stronger local-speaker evidence. The capture-safe variants
+`capture_safe_candidate_live_local_recall_rescue_lab` and
+`capture_safe_evaluable_live_local_recall_rescue_lab` use the same schema on narrower slices. These
+blocks are corpus-lab evidence only: they use batch labels for evaluation and do not publish live
+`Me` turns.
 Quarantine currently forbids new controlled real Live Evidence recording for valuable meetings even
 if older corpus fields still say `controlled_real_live_pilot_allowed`. The runner must fail before
 capture unless the operator passes `--allow-unsafe-controlled-real-recording`; batch remains

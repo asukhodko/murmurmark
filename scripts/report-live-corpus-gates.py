@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.5.0"
+SCRIPT_VERSION = "1.6.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -27,6 +27,9 @@ SUPPRESSED_MIC_RESCUE_POLICIES = (
     "audio_low_coherence_v1",
     "audio_safe_union_v1",
     "batch_oracle_local_ceiling",
+)
+LIVE_IMPLEMENTABLE_RESCUE_POLICIES = tuple(
+    policy for policy in SUPPRESSED_MIC_RESCUE_POLICIES if policy != "batch_oracle_local_ceiling"
 )
 SUPPRESSED_MIC_RESCUE_POLICY_METRICS = (
     "selected_segment_count",
@@ -1131,6 +1134,140 @@ def local_recall_gap_examples(rows: list[dict[str, Any]], *, limit: int = 50) ->
     }
 
 
+def local_recall_rescue_lab(rows: list[dict[str, Any]], *, limit: int = 30) -> dict[str, Any]:
+    segments: list[dict[str, Any]] = []
+    for row in rows:
+        risk_examples = row.get("risk_examples") if isinstance(row.get("risk_examples"), dict) else {}
+        inputs = row.get("inputs") if isinstance(row.get("inputs"), dict) else {}
+        for item in risk_examples.get("suppressed_mic_asr_segments") or []:
+            if not isinstance(item, dict):
+                continue
+            segment = dict(item)
+            segment["session"] = row.get("session")
+            segment["comparison"] = inputs.get("live_batch_comparison")
+            segments.append(segment)
+
+    def duration(item: dict[str, Any]) -> float:
+        return safe_float(item.get("duration_sec"))
+
+    def is_local(item: dict[str, Any]) -> bool:
+        return item.get("batch_role_label") in {"me_dominant", "mixed"}
+
+    def live_policies(item: dict[str, Any]) -> list[str]:
+        policies = item.get("rescue_policy_candidates")
+        if not isinstance(policies, list):
+            return []
+        return [str(policy) for policy in policies if str(policy) in LIVE_IMPLEMENTABLE_RESCUE_POLICIES]
+
+    def has_live_policy(item: dict[str, Any]) -> bool:
+        return bool(live_policies(item))
+
+    local_segments = [item for item in segments if is_local(item)]
+    live_selected = [item for item in segments if has_live_policy(item)]
+    live_selected_local = [item for item in live_selected if is_local(item)]
+    live_selected_remote_risk = [item for item in live_selected if not is_local(item)]
+    speaker_needed = [item for item in local_segments if not has_live_policy(item)]
+    text_duplicate_blocked_local = [
+        item for item in speaker_needed
+        if safe_float(item.get("segment_gate_mic_token_recall_in_overlapping_remote")) >= 0.70
+        or safe_int(item.get("segment_gate_unique_token_count")) <= 2
+    ]
+    high_value_unrescued = sorted(
+        speaker_needed,
+        key=lambda item: (-duration(item), str(item.get("session") or ""), safe_float(item.get("start"))),
+    )
+    false_positive_remote_risk = sorted(
+        live_selected_remote_risk,
+        key=lambda item: (-duration(item), str(item.get("session") or ""), safe_float(item.get("start"))),
+    )
+
+    by_label_seconds: dict[str, float] = {}
+    for item in segments:
+        label = str(item.get("batch_role_label") or "unknown")
+        by_label_seconds[label] = round(by_label_seconds.get(label, 0.0) + duration(item), 3)
+
+    policy_seconds: dict[str, dict[str, Any]] = {}
+    for policy in LIVE_IMPLEMENTABLE_RESCUE_POLICIES:
+        selected = [
+            item for item in segments
+            if policy in (item.get("rescue_policy_candidates") or [])
+        ]
+        selected_seconds = sum(duration(item) for item in selected)
+        local_seconds = sum(duration(item) for item in selected if is_local(item))
+        remote_risk_seconds = selected_seconds - local_seconds
+        policy_seconds[policy] = {
+            "selected_count": len(selected),
+            "selected_seconds": round(selected_seconds, 3),
+            "local_seconds": round(local_seconds, 3),
+            "remote_risk_seconds": round(remote_risk_seconds, 3),
+            "precision_proxy": round(local_seconds / selected_seconds, 6) if selected_seconds > 0 else None,
+        }
+
+    recommended_next = "no_suppressed_mic_local_recall_gap"
+    if sum(duration(item) for item in speaker_needed) >= 30.0:
+        recommended_next = "add_target_speaker_or_stronger_local_evidence_for_suppressed_mic_segments"
+    elif live_selected_remote_risk:
+        recommended_next = "tighten_live_rescue_remote_forbidden_gate"
+    elif live_selected_local:
+        recommended_next = "evaluate_shadow_rescue_policy_on_capture_safe_candidates"
+
+    def example(item: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "session": item.get("session"),
+            "chunk_index": item.get("chunk_index"),
+            "start": item.get("start"),
+            "end": item.get("end"),
+            "duration_sec": item.get("duration_sec"),
+            "batch_role_label": item.get("batch_role_label"),
+            "rescue_policy_candidates": item.get("rescue_policy_candidates") or [],
+            "token_count": item.get("token_count"),
+            "unique_token_count": item.get("segment_gate_unique_token_count"),
+            "mic_token_recall_in_overlapping_remote": item.get(
+                "segment_gate_mic_token_recall_in_overlapping_remote"
+            ),
+            "overlapping_remote_token_recall_in_mic": item.get(
+                "segment_gate_overlapping_remote_token_recall_in_mic"
+            ),
+            "audio_mic_clean_rms_db": item.get("audio_mic_clean_rms_db"),
+            "audio_remote_rms_db": item.get("audio_remote_rms_db"),
+            "audio_mic_remote_zero_lag_abs_corr": item.get("audio_mic_remote_zero_lag_abs_corr"),
+            "comparison": item.get("comparison"),
+            "text": item.get("text"),
+        }
+
+    return {
+        "schema": "murmurmark.live_local_recall_rescue_lab/v1",
+        "segment_count": len(segments),
+        "segment_seconds": round(sum(duration(item) for item in segments), 3),
+        "local_segment_count": len(local_segments),
+        "local_seconds": round(sum(duration(item) for item in local_segments), 3),
+        "by_batch_role_seconds": by_label_seconds,
+        "live_policy_selected_count": len(live_selected),
+        "live_policy_selected_seconds": round(sum(duration(item) for item in live_selected), 3),
+        "live_policy_local_seconds": round(sum(duration(item) for item in live_selected_local), 3),
+        "live_policy_remote_risk_seconds": round(sum(duration(item) for item in live_selected_remote_risk), 3),
+        "speaker_evidence_needed_count": len(speaker_needed),
+        "speaker_evidence_needed_seconds": round(sum(duration(item) for item in speaker_needed), 3),
+        "text_duplicate_blocked_local_count": len(text_duplicate_blocked_local),
+        "text_duplicate_blocked_local_seconds": round(sum(duration(item) for item in text_duplicate_blocked_local), 3),
+        "false_positive_remote_risk_count": len(false_positive_remote_risk),
+        "false_positive_remote_risk_seconds": round(sum(duration(item) for item in false_positive_remote_risk), 3),
+        "policy_seconds": policy_seconds,
+        "recommended_next": recommended_next,
+        "examples": {
+            "high_value_unrescued": [example(item) for item in high_value_unrescued[:limit]],
+            "false_positive_remote_risk": [example(item) for item in false_positive_remote_risk[:limit]],
+            "live_policy_local": [
+                example(item)
+                for item in sorted(
+                    live_selected_local,
+                    key=lambda row: (-duration(row), str(row.get("session") or ""), safe_float(row.get("start"))),
+                )[:limit]
+            ],
+        },
+    }
+
+
 def summarize_session(session: Path, root: Path) -> dict[str, Any]:
     live_report_path = session / "derived/live/live_pipeline_report.json"
     comparison_path = session / "derived/live/live_batch_comparison.json"
@@ -1858,6 +1995,9 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "capture_safe_candidate": rescue_policy_diagnostics(summary, "capture_safe_candidate"),
         "capture_safe_evaluable": rescue_policy_diagnostics(summary, "capture_safe_evaluable"),
     }
+    local_recall_rescue_lab_report = local_recall_rescue_lab(real_live_rows)
+    candidate_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_candidate_rows)
+    evaluable_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_evaluable_rows)
     for scope, diagnostics in local_recall_rescue_policy_diagnostics.items():
         best_policy = diagnostics.get("best_policy")
         recommended_policy = diagnostics.get("recommended_policy")
@@ -1874,6 +2014,18 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         summary[f"{scope}_recommended_rescue_policy"] = (
             recommended_policy.get("policy") if isinstance(recommended_policy, dict) else None
         )
+    for scope, lab in (
+        ("real", local_recall_rescue_lab_report),
+        ("capture_safe_candidate", candidate_local_recall_rescue_lab_report),
+        ("capture_safe_evaluable", evaluable_local_recall_rescue_lab_report),
+    ):
+        summary[f"{scope}_live_rescue_lab_speaker_evidence_needed_seconds"] = safe_float(
+            lab.get("speaker_evidence_needed_seconds")
+        )
+        summary[f"{scope}_live_rescue_lab_live_policy_remote_risk_seconds"] = safe_float(
+            lab.get("live_policy_remote_risk_seconds")
+        )
+        summary[f"{scope}_live_rescue_lab_recommended_next"] = lab.get("recommended_next")
     coverage_target = {
         "target_live_sessions": args.target_live_sessions,
         "target_meaningful_compared_sessions": args.target_meaningful_compared_sessions,
@@ -2177,6 +2329,9 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_capture_safe_candidate_parity_dimensions": candidate_parity_dimensions_payload,
         "capture_safe_candidate_scope": candidate_scope,
         "live_local_recall_rescue_policy_diagnostics": local_recall_rescue_policy_diagnostics,
+        "live_local_recall_rescue_lab": local_recall_rescue_lab_report,
+        "capture_safe_candidate_live_local_recall_rescue_lab": candidate_local_recall_rescue_lab_report,
+        "capture_safe_evaluable_live_local_recall_rescue_lab": evaluable_local_recall_rescue_lab_report,
         "live_local_recall_gap_examples": local_recall_examples,
         "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
         "capture_safe_evaluable_local_recall_gap_examples": evaluable_local_recall_examples,
@@ -2861,6 +3016,95 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                     f"| {safe_float(row.get('missing_me_recovered_seconds')):.2f} "
                     f"| `{row.get('safe_candidate')}` "
                     f"| `{row.get('material_candidate')}` |"
+                )
+        lines.append("")
+    rescue_lab = (
+        report.get("live_local_recall_rescue_lab")
+        if isinstance(report.get("live_local_recall_rescue_lab"), dict)
+        else {}
+    )
+    candidate_rescue_lab = (
+        report.get("capture_safe_candidate_live_local_recall_rescue_lab")
+        if isinstance(report.get("capture_safe_candidate_live_local_recall_rescue_lab"), dict)
+        else {}
+    )
+    evaluable_rescue_lab = (
+        report.get("capture_safe_evaluable_live_local_recall_rescue_lab")
+        if isinstance(report.get("capture_safe_evaluable_live_local_recall_rescue_lab"), dict)
+        else {}
+    )
+    if rescue_lab:
+        lines += [
+            "## Live Local Recall Rescue Lab",
+            "",
+            "This is diagnostic only. It ranks suppressed mic ASR segments using batch labels to show "
+            "where current candidate rescue policies help, where they would leak remote, and where stronger "
+            "local-speaker evidence is needed.",
+            "",
+            "| Scope | Segments | Local sec | Live-policy local sec | Live-policy remote-risk sec | Speaker-evidence needed sec | Recommended next |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | --- |",
+        ]
+        for scope, payload in (
+            ("real", rescue_lab),
+            ("capture_safe_candidate", candidate_rescue_lab),
+            ("capture_safe_evaluable", evaluable_rescue_lab),
+        ):
+            if not isinstance(payload, dict):
+                continue
+            lines.append(
+                f"| `{scope}` | {safe_int(payload.get('segment_count'))} "
+                f"| {safe_float(payload.get('local_seconds')):.2f} "
+                f"| {safe_float(payload.get('live_policy_local_seconds')):.2f} "
+                f"| {safe_float(payload.get('live_policy_remote_risk_seconds')):.2f} "
+                f"| {safe_float(payload.get('speaker_evidence_needed_seconds')):.2f} "
+                f"| `{payload.get('recommended_next')}` |"
+            )
+        high_value = (
+            ((rescue_lab.get("examples") or {}).get("high_value_unrescued") or [])
+            if isinstance(rescue_lab.get("examples"), dict)
+            else []
+        )
+        false_positive = (
+            ((rescue_lab.get("examples") or {}).get("false_positive_remote_risk") or [])
+            if isinstance(rescue_lab.get("examples"), dict)
+            else []
+        )
+        if high_value:
+            lines += [
+                "",
+                "Top high-value unrescued local segments:",
+                "",
+                "| Session | Time | Duration | Label | Unique tokens | Text |",
+                "| --- | ---: | ---: | --- | ---: | --- |",
+            ]
+            for item in high_value[:8]:
+                if not isinstance(item, dict):
+                    continue
+                text = str(item.get("text") or "").replace("|", "\\|")
+                lines.append(
+                    f"| `{item.get('session')}` | {safe_float(item.get('start')):.2f} "
+                    f"| {safe_float(item.get('duration_sec')):.2f} "
+                    f"| `{item.get('batch_role_label')}` "
+                    f"| {safe_int(item.get('unique_token_count'))} "
+                    f"| {text[:140]} |"
+                )
+        if false_positive:
+            lines += [
+                "",
+                "Top remote-risk false positives:",
+                "",
+                "| Session | Time | Duration | Policies | Text |",
+                "| --- | ---: | ---: | --- | --- |",
+            ]
+            for item in false_positive[:8]:
+                if not isinstance(item, dict):
+                    continue
+                policies = ", ".join(str(policy) for policy in item.get("rescue_policy_candidates") or [])
+                text = str(item.get("text") or "").replace("|", "\\|")
+                lines.append(
+                    f"| `{item.get('session')}` | {safe_float(item.get('start')):.2f} "
+                    f"| {safe_float(item.get('duration_sec')):.2f} "
+                    f"| `{policies}` | {text[:140]} |"
                 )
         lines.append("")
     candidate_gap_examples = (
