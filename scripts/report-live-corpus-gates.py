@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.6.0"
+SCRIPT_VERSION = "1.7.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -44,6 +44,11 @@ SUPPRESSED_MIC_RESCUE_POLICY_METRICS = (
     "missing_me_recovered_seconds",
 )
 MATERIAL_RESCUE_LOCAL_SECONDS = 5.0
+TARGET_ME_RESCUE_POLICIES = (
+    "target_me_confirmed_v1",
+    "target_me_confirmed_remote_guard_v1",
+    "target_me_possible_v1",
+)
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
     "and parity gates; do not use normal production live collection, and use coverage_path to decide "
@@ -1268,14 +1273,137 @@ def local_recall_rescue_lab(rows: list[dict[str, Any]], *, limit: int = 30) -> d
     }
 
 
+def target_me_policy_metrics_from_summaries(summaries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    total_local_seconds = round(sum(safe_float(row.get("local_seconds")) for row in summaries), 3)
+    result: dict[str, dict[str, Any]] = {}
+    for policy in TARGET_ME_RESCUE_POLICIES:
+        selected_count = 0
+        selected_seconds = 0.0
+        local_seconds = 0.0
+        remote_risk_seconds = 0.0
+        missing_recovered_seconds = 0.0
+        missing_after_seconds = 0.0
+        for row in summaries:
+            root = row.get("target_me_rescue_policy_metrics")
+            metrics = root.get(policy) if isinstance(root, dict) else None
+            if not isinstance(metrics, dict):
+                continue
+            selected_count += safe_int(metrics.get("selected_count"))
+            selected_seconds += safe_float(metrics.get("selected_seconds"))
+            local_seconds += safe_float(metrics.get("local_seconds"))
+            remote_risk_seconds += safe_float(metrics.get("remote_risk_seconds"))
+            missing_recovered_seconds += safe_float(metrics.get("missing_me_recovered_seconds"))
+            missing_after_seconds += safe_float(metrics.get("missing_me_seconds_after"))
+        result[policy] = {
+            "selected_count": selected_count,
+            "selected_seconds": round(selected_seconds, 3),
+            "local_seconds": round(local_seconds, 3),
+            "remote_risk_seconds": round(remote_risk_seconds, 3),
+            "precision_proxy": round(local_seconds / selected_seconds, 6) if selected_seconds > 0 else None,
+            "audited_local_recall_proxy": (
+                round(local_seconds / total_local_seconds, 6) if total_local_seconds > 0 else None
+            ),
+            "missing_me_recovered_seconds": round(missing_recovered_seconds, 3),
+            "missing_me_seconds_after": round(missing_after_seconds, 3),
+        }
+    return result
+
+
+def live_local_recall_target_me_diagnostics(rows: list[dict[str, Any]], scope: str) -> dict[str, Any]:
+    summaries = [
+        row.get("live_local_recall_target_me")
+        for row in rows
+        if isinstance(row.get("live_local_recall_target_me"), dict)
+    ]
+    summaries = [row for row in summaries if isinstance(row, dict)]
+    by_status = Counter(str(row.get("status") or "unknown") for row in summaries)
+    policy_metrics = target_me_policy_metrics_from_summaries(summaries)
+    best_policy: dict[str, Any] | None = None
+    recommended_policy: dict[str, Any] | None = None
+    for policy, metrics in policy_metrics.items():
+        row = {
+            "policy": policy,
+            **metrics,
+            "safe_candidate": (
+                safe_float(metrics.get("selected_seconds")) > 0
+                and safe_float(metrics.get("remote_risk_seconds")) <= 3.0
+                and (
+                    metrics.get("precision_proxy") is None
+                    or safe_float(metrics.get("precision_proxy")) >= 0.90
+                )
+            ),
+            "material_candidate": safe_float(metrics.get("local_seconds")) >= MATERIAL_RESCUE_LOCAL_SECONDS,
+        }
+        if (
+            safe_float(row.get("selected_seconds")) > 0
+            and (best_policy is None or safe_float(row.get("local_seconds")) > safe_float(best_policy.get("local_seconds")))
+        ):
+            best_policy = row
+        if (
+            row["safe_candidate"]
+            and row["material_candidate"]
+            and (
+                recommended_policy is None
+                or safe_float(row.get("local_seconds")) > safe_float(recommended_policy.get("local_seconds"))
+            )
+        ):
+            recommended_policy = row
+    target_me_possible_local = round(
+        sum(safe_float(row.get("target_me_possible_or_confirmed_local_seconds")) for row in summaries),
+        3,
+    )
+    status = "missing"
+    recommended_next = "run_live_local_recall_target_me_audit"
+    if summaries:
+        status = "has_shadow_evidence"
+        recommended_next = "design_target_me_gated_shadow_rescue_policy"
+    if recommended_policy:
+        status = "safe_candidate_available"
+    elif summaries and target_me_possible_local < MATERIAL_RESCUE_LOCAL_SECONDS:
+        status = "no_material_target_me_candidate"
+        recommended_next = "keep_collecting_target_me_evidence"
+    if by_status.get("insufficient_enrollment", 0) and target_me_possible_local >= MATERIAL_RESCUE_LOCAL_SECONDS:
+        recommended_next = "design_target_me_gated_shadow_rescue_policy_then_add_enrollment_fallback"
+
+    return {
+        "schema": "murmurmark.live_local_recall_target_me_diagnostics/v1",
+        "scope": scope,
+        "status": status,
+        "sessions_with_audit": len(summaries),
+        "by_status": dict(sorted(by_status.items())),
+        "items": sum(safe_int(row.get("items")) for row in summaries),
+        "total_seconds": round(sum(safe_float(row.get("total_seconds")) for row in summaries), 3),
+        "local_seconds": round(sum(safe_float(row.get("local_seconds")) for row in summaries), 3),
+        "target_me_confirmed_local_seconds": round(
+            sum(safe_float(row.get("target_me_confirmed_local_seconds")) for row in summaries),
+            3,
+        ),
+        "target_me_possible_or_confirmed_local_seconds": target_me_possible_local,
+        "remote_risk_seconds": round(sum(safe_float(row.get("remote_risk_seconds")) for row in summaries), 3),
+        "target_me_rejected_remote_risk_seconds": round(
+            sum(safe_float(row.get("target_me_rejected_remote_risk_seconds")) for row in summaries),
+            3,
+        ),
+        "target_me_rescue_policy_metrics": policy_metrics,
+        "recommended_policy": recommended_policy,
+        "best_policy": best_policy,
+        "recommended_next": recommended_next,
+        "promotion_decision": "shadow_only_do_not_promote",
+    }
+
+
 def summarize_session(session: Path, root: Path) -> dict[str, Any]:
     live_report_path = session / "derived/live/live_pipeline_report.json"
     comparison_path = session / "derived/live/live_batch_comparison.json"
     session_report_path = session / "derived/live/live_parity_session_report.json"
     final_reconcile_path = session / "derived/live/final_reconcile_report.json"
+    target_me_summary_path = (
+        session / "derived/audit/live-local-recall-target-me/live_local_recall_target_me_summary.json"
+    )
     live_report = read_json(live_report_path)
     comparison = read_json(comparison_path)
     final_reconcile = read_json(final_reconcile_path)
+    target_me_summary = read_json(target_me_summary_path)
     live_present = live_report is not None
     blockers: list[str] = []
     if not live_present:
@@ -1551,11 +1679,15 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "speedup_status": final_reconcile.get("speedup_status") if isinstance(final_reconcile, dict) else None,
             "live_cache_reuse": final_reconcile.get("live_cache_reuse") if isinstance(final_reconcile, dict) else None,
         },
+        "live_local_recall_target_me": target_me_summary if isinstance(target_me_summary, dict) else None,
         "inputs": {
             "live_report": rel(live_report_path, session) if live_report_path.exists() else None,
             "live_batch_comparison": rel(comparison_path, session) if comparison_path.exists() else None,
             "live_parity_session_report": rel(session_report_path, session) if session_report_path.exists() else None,
             "final_reconcile_report": rel(final_reconcile_path, session) if final_reconcile_path.exists() else None,
+            "live_local_recall_target_me_summary": (
+                rel(target_me_summary_path, session) if target_me_summary_path.exists() else None
+            ),
         },
         "risk_examples": {
             "local_missing": risk_examples.get("local_missing") if isinstance(risk_examples.get("local_missing"), list) else [],
@@ -1998,6 +2130,17 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     local_recall_rescue_lab_report = local_recall_rescue_lab(real_live_rows)
     candidate_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_candidate_rows)
     evaluable_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_evaluable_rows)
+    target_me_diagnostics_report = {
+        "real": live_local_recall_target_me_diagnostics(real_live_rows, "real"),
+        "capture_safe_candidate": live_local_recall_target_me_diagnostics(
+            capture_safe_candidate_rows,
+            "capture_safe_candidate",
+        ),
+        "capture_safe_evaluable": live_local_recall_target_me_diagnostics(
+            capture_safe_evaluable_rows,
+            "capture_safe_evaluable",
+        ),
+    }
     for scope, diagnostics in local_recall_rescue_policy_diagnostics.items():
         best_policy = diagnostics.get("best_policy")
         recommended_policy = diagnostics.get("recommended_policy")
@@ -2026,6 +2169,29 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             lab.get("live_policy_remote_risk_seconds")
         )
         summary[f"{scope}_live_rescue_lab_recommended_next"] = lab.get("recommended_next")
+    for scope, diagnostics in target_me_diagnostics_report.items():
+        recommended = diagnostics.get("recommended_policy")
+        best = diagnostics.get("best_policy")
+        summary[f"{scope}_live_target_me_status"] = diagnostics.get("status")
+        summary[f"{scope}_live_target_me_sessions_with_audit"] = safe_int(diagnostics.get("sessions_with_audit"))
+        summary[f"{scope}_live_target_me_possible_or_confirmed_local_seconds"] = safe_float(
+            diagnostics.get("target_me_possible_or_confirmed_local_seconds")
+        )
+        summary[f"{scope}_live_target_me_remote_risk_seconds"] = safe_float(diagnostics.get("remote_risk_seconds"))
+        summary[f"{scope}_live_target_me_recommended_policy"] = (
+            recommended.get("policy") if isinstance(recommended, dict) else None
+        )
+        summary[f"{scope}_live_target_me_recommended_policy_local_seconds"] = (
+            safe_float(recommended.get("local_seconds")) if isinstance(recommended, dict) else None
+        )
+        summary[f"{scope}_live_target_me_recommended_policy_remote_risk_seconds"] = (
+            safe_float(recommended.get("remote_risk_seconds")) if isinstance(recommended, dict) else None
+        )
+        summary[f"{scope}_live_target_me_recommended_policy_missing_me_recovered_seconds"] = (
+            safe_float(recommended.get("missing_me_recovered_seconds")) if isinstance(recommended, dict) else None
+        )
+        summary[f"{scope}_live_target_me_best_policy"] = best.get("policy") if isinstance(best, dict) else None
+        summary[f"{scope}_live_target_me_recommended_next"] = diagnostics.get("recommended_next")
     coverage_target = {
         "target_live_sessions": args.target_live_sessions,
         "target_meaningful_compared_sessions": args.target_meaningful_compared_sessions,
@@ -2332,6 +2498,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_local_recall_rescue_lab": local_recall_rescue_lab_report,
         "capture_safe_candidate_live_local_recall_rescue_lab": candidate_local_recall_rescue_lab_report,
         "capture_safe_evaluable_live_local_recall_rescue_lab": evaluable_local_recall_rescue_lab_report,
+        "live_local_recall_target_me_diagnostics": target_me_diagnostics_report,
         "live_local_recall_gap_examples": local_recall_examples,
         "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
         "capture_safe_evaluable_local_recall_gap_examples": evaluable_local_recall_examples,
@@ -2808,6 +2975,14 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"remote-risk {summary.get('real_live_rescue_policy_audio_safe_union_v1_remote_risk_seconds', 0.0)} sec, "
         f"precision {summary.get('real_live_rescue_policy_audio_safe_union_v1_precision_proxy')}, "
         f"missing-Me recovered {summary.get('real_live_rescue_policy_audio_safe_union_v1_missing_me_recovered_seconds', 0.0)} sec",
+        "- real live Target-Me local evidence: "
+        f"status `{summary.get('real_live_target_me_status')}`, "
+        f"sessions {summary.get('real_live_target_me_sessions_with_audit', 0)}, "
+        f"possible/confirmed local {summary.get('real_live_target_me_possible_or_confirmed_local_seconds', 0.0)} sec, "
+        f"remote-risk {summary.get('real_live_target_me_remote_risk_seconds', 0.0)} sec, "
+        f"recommended policy `{summary.get('real_live_target_me_recommended_policy')}`, "
+        "missing-Me recovered "
+        f"{summary.get('real_live_target_me_recommended_policy_missing_me_recovered_seconds', 0.0)} sec",
         "- real live rescue oracle local ceiling: "
         f"local {summary.get('real_live_rescue_policy_batch_oracle_local_ceiling_local_seconds', 0.0)} sec, "
         f"recall {summary.get('real_live_rescue_policy_batch_oracle_local_ceiling_local_recall_proxy')}",
@@ -3105,6 +3280,68 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                     f"| `{item.get('session')}` | {safe_float(item.get('start')):.2f} "
                     f"| {safe_float(item.get('duration_sec')):.2f} "
                     f"| `{policies}` | {text[:140]} |"
+                )
+        lines.append("")
+    target_me_diag = (
+        report.get("live_local_recall_target_me_diagnostics")
+        if isinstance(report.get("live_local_recall_target_me_diagnostics"), dict)
+        else {}
+    )
+    if target_me_diag:
+        lines += [
+            "## Live Local Recall Target-Me Diagnostics",
+            "",
+            "This is diagnostic only. It audits suppressed live mic segments with local Target-Me speaker "
+            "evidence and estimates shadow rescue policies against batch labels. It does not publish live `Me`.",
+            "",
+            "| Scope | Status | Sessions | Local sec | Possible/confirmed sec | Remote-risk sec | Recommended policy | Next |",
+            "| --- | --- | ---: | ---: | ---: | ---: | --- | --- |",
+        ]
+        for scope in ("real", "capture_safe_candidate", "capture_safe_evaluable"):
+            payload = target_me_diag.get(scope) if isinstance(target_me_diag.get(scope), dict) else {}
+            recommended = (
+                payload.get("recommended_policy")
+                if isinstance(payload.get("recommended_policy"), dict)
+                else {}
+            )
+            lines.append(
+                f"| `{scope}` | `{payload.get('status')}` "
+                f"| {safe_int(payload.get('sessions_with_audit'))} "
+                f"| {safe_float(payload.get('local_seconds')):.2f} "
+                f"| {safe_float(payload.get('target_me_possible_or_confirmed_local_seconds')):.2f} "
+                f"| {safe_float(payload.get('remote_risk_seconds')):.2f} "
+                f"| `{recommended.get('policy') or '-'}` "
+                f"| `{payload.get('recommended_next')}` |"
+            )
+        real_target_me = target_me_diag.get("real") if isinstance(target_me_diag.get("real"), dict) else {}
+        real_policy_metrics = (
+            real_target_me.get("target_me_rescue_policy_metrics")
+            if isinstance(real_target_me.get("target_me_rescue_policy_metrics"), dict)
+            else {}
+        )
+        if real_policy_metrics:
+            lines += [
+                "",
+                "Real-scope Target-Me policy details:",
+                "",
+                "| Policy | Local sec | Remote-risk sec | Precision | Audited local recall | Missing-Me recovered sec |",
+                "| --- | ---: | ---: | ---: | ---: | ---: |",
+            ]
+            for policy in TARGET_ME_RESCUE_POLICIES:
+                metrics = (
+                    real_policy_metrics.get(policy)
+                    if isinstance(real_policy_metrics.get(policy), dict)
+                    else {}
+                )
+                precision = metrics.get("precision_proxy")
+                recall = metrics.get("audited_local_recall_proxy")
+                precision_text = "-" if precision is None else f"{safe_float(precision):.3f}"
+                recall_text = "-" if recall is None else f"{safe_float(recall):.3f}"
+                lines.append(
+                    f"| `{policy}` | {safe_float(metrics.get('local_seconds')):.2f} "
+                    f"| {safe_float(metrics.get('remote_risk_seconds')):.2f} "
+                    f"| {precision_text} | {recall_text} "
+                    f"| {safe_float(metrics.get('missing_me_recovered_seconds')):.2f} |"
                 )
         lines.append("")
     candidate_gap_examples = (
@@ -3662,6 +3899,40 @@ def main() -> int:
             )
         if recommended_policy:
             print(f"capture_safe_candidate_recommended_rescue_policy: {recommended_policy.get('policy')}")
+    target_me_diagnostics = (
+        report.get("live_local_recall_target_me_diagnostics")
+        if isinstance(report.get("live_local_recall_target_me_diagnostics"), dict)
+        else {}
+    )
+    real_target_me = (
+        target_me_diagnostics.get("real")
+        if isinstance(target_me_diagnostics.get("real"), dict)
+        else {}
+    )
+    candidate_target_me = (
+        target_me_diagnostics.get("capture_safe_candidate")
+        if isinstance(target_me_diagnostics.get("capture_safe_candidate"), dict)
+        else {}
+    )
+    if real_target_me:
+        print(f"real_live_target_me_status: {real_target_me.get('status')}")
+        print(
+            "real_live_target_me_possible_or_confirmed_local_seconds: "
+            f"{safe_float(real_target_me.get('target_me_possible_or_confirmed_local_seconds'))}"
+        )
+        recommended_target_me = (
+            real_target_me.get("recommended_policy")
+            if isinstance(real_target_me.get("recommended_policy"), dict)
+            else {}
+        )
+        if recommended_target_me:
+            print(f"real_live_target_me_recommended_policy: {recommended_target_me.get('policy')}")
+            print(
+                "real_live_target_me_recommended_policy_missing_me_recovered_seconds: "
+                f"{safe_float(recommended_target_me.get('missing_me_recovered_seconds'))}"
+            )
+    if candidate_target_me:
+        print(f"capture_safe_candidate_target_me_status: {candidate_target_me.get('status')}")
     objective_audit = (
         report.get("objective_audit")
         if isinstance(report.get("objective_audit"), dict)

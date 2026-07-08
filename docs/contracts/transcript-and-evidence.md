@@ -5464,6 +5464,19 @@ Rows use schema `murmurmark.live_local_recall_target_me_audit/v1`. Session summa
 classifier, for example `target_me_confirmed`, `target_me_possible`, `target_me_absent`,
 `target_me_absent_remote_like` and `target_me_ambiguous`.
 
+Rows may include `target_me_rescue_policy_candidates`. The current policies are:
+
+- `target_me_confirmed_v1`: confirmed Target-Me match, useful but not remote-safe by itself;
+- `target_me_confirmed_remote_guard_v1`: confirmed Target-Me match with a remote guard
+  (`delta_vs_remote` and low remote-active state); this is the first safe shadow candidate;
+- `target_me_possible_v1`: confirmed or possible Target-Me evidence, high recall but allowed to be
+  unsafe and therefore diagnostic-only.
+
+Session and corpus summaries include `target_me_rescue_policy_metrics` with selected seconds, local
+seconds, remote-risk seconds, precision proxy, audited local recall proxy and counterfactual
+`missing_me_recovered_seconds` / `missing_me_seconds_after` by interval overlap. The live corpus
+report copies this into `live_local_recall_target_me_diagnostics` when the per-session audit exists.
+
 This audit is evidence only. `promotion_decision` must stay `shadow_only_do_not_promote`; rows must
 not publish live `Me`, edit batch transcripts or relax parity gates. A useful result is evidence for
 the next rescue policy design: it can show which suppressed live mic regions have local-speaker

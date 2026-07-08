@@ -248,6 +248,11 @@ New Target-Me diagnostic, 2026-07-08:
 - Target-Me possible or confirmed local seconds: `287.98s`;
 - remote-risk false-positive seconds in the audited set: `38.78s`;
 - Target-Me rejected remote-risk seconds: `0.00s`.
+- recommended shadow policy: `target_me_confirmed_remote_guard_v1`;
+- `target_me_confirmed_remote_guard_v1` selected `118.54s`, covered `116.10s` local speech,
+  introduced `2.44s` remote-risk, and would recover `94.68s` current missing-Me by interval overlap;
+- broader `target_me_possible_v1` would recover `247.24s`, but with `37.82s` remote-risk, so it is
+  too unsafe for promotion.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
 existing corpus already contains enough suppressed live mic material to design a shadow rescue

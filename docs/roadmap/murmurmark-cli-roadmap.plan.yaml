@@ -692,10 +692,12 @@ nodes:
       stronger local-speaker evidence. `scripts/audit-live-local-recall-target-me.py` is the first
       bridge to that evidence: the current Target-Me corpus pass audited `77` suppressed live mic
       items / `334.12s`; `295.34s` were local/mixed, and `287.98s` of that local slice were
-      possible or confirmed Target-Me. Two sessions still lack enough enrollment. The next
-      local-recall work therefore needs a Target-Me-gated shadow rescue policy for suppressed mic
-      segments, plus a later enrollment/calibration fallback, not merely enabling an existing text
-      or energy policy.
+      possible or confirmed Target-Me. The first safe policy candidate is
+      `target_me_confirmed_remote_guard_v1`: `94.68s` missing-Me recovered at `2.44s` remote-risk.
+      `target_me_possible_v1` is high-recall but unsafe (`247.24s` recovered / `37.82s`
+      remote-risk). Two sessions still lack enough enrollment. The next local-recall work therefore
+      needs a Target-Me-gated shadow rescue policy for suppressed mic segments, plus a later
+      enrollment/calibration fallback, not merely enabling an existing text or energy policy.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

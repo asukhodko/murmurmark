@@ -454,7 +454,9 @@ newer run-state exists.
 4. **Target-Me evidence follow-up.** Keep integrating `resemblyzer_dvector_v0` with review-lane
    suggestions, live local-recall diagnostics and corpus reports. The new live Target-Me audit shows
    that suppressed live mic chunks contain a large recoverable local slice: `287.98s` of `295.34s`
-   audited local/mixed seconds are possible or confirmed Target-Me. The next safe step is a
+   audited local/mixed seconds are possible or confirmed Target-Me. The first safe policy candidate,
+   `target_me_confirmed_remote_guard_v1`, would recover `94.68s` missing-Me at `2.44s` remote-risk.
+   The broader `target_me_possible_v1` recovers much more but is unsafe. The next safe step is a
    Target-Me-gated shadow rescue policy for suppressed mic segments; ambiguous rows and sessions
    without enough enrollment stay explicit.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,

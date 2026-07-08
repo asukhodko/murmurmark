@@ -27,6 +27,11 @@ LIVE_IMPLEMENTABLE_POLICIES = {
     "audio_low_coherence_v1",
     "audio_safe_union_v1",
 }
+TARGET_ME_RESCUE_POLICIES = (
+    "target_me_confirmed_v1",
+    "target_me_confirmed_remote_guard_v1",
+    "target_me_possible_v1",
+)
 
 
 def load_target_me_module() -> Any:
@@ -184,6 +189,28 @@ def live_policy_candidates(segment: dict[str, Any]) -> list[str]:
     return [str(value) for value in values if str(value) in LIVE_IMPLEMENTABLE_POLICIES]
 
 
+def target_me_rescue_policy_candidates(row: dict[str, Any]) -> list[str]:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    scores = classification.get("scores") if isinstance(classification.get("scores"), dict) else {}
+    label = str(classification.get("label") or "")
+    confidence = safe_float(classification.get("confidence"))
+    delta_vs_remote = safe_float(scores.get("delta_vs_remote"))
+    remote_active = safe_float(scores.get("state_remote_active_ratio"))
+    policies: list[str] = []
+    if label == "target_me_confirmed" and confidence >= 0.72:
+        policies.append("target_me_confirmed_v1")
+    if (
+        label == "target_me_confirmed"
+        and confidence >= 0.78
+        and delta_vs_remote >= 0.12
+        and remote_active <= 0.25
+    ):
+        policies.append("target_me_confirmed_remote_guard_v1")
+    if label in {"target_me_confirmed", "target_me_possible"} and confidence >= 0.55:
+        policies.append("target_me_possible_v1")
+    return policies
+
+
 def segment_priority(segment: dict[str, Any]) -> tuple[int, float, str, float]:
     label = str(segment.get("batch_role_label") or "")
     has_live_policy = bool(live_policy_candidates(segment))
@@ -335,7 +362,7 @@ def audit_segment(
         audio_review=None,
         stronger_judge=None,
     )
-    return {
+    row = {
         "schema": SCHEMA_ROW,
         "id": item_id,
         "session_id": session.name,
@@ -368,6 +395,86 @@ def audit_segment(
         "classification": classification,
         "clips": clips,
     }
+    row["target_me_rescue_policy_candidates"] = target_me_rescue_policy_candidates(row)
+    return row
+
+
+def interval_overlap(a_start: float, a_end: float, b_start: float, b_end: float) -> float:
+    return max(0.0, min(a_end, b_end) - max(a_start, b_start))
+
+
+def overlap_covered_seconds(intervals: list[tuple[float, float]], start: float, end: float) -> float:
+    clipped = sorted(
+        (max(start, left), min(end, right))
+        for left, right in intervals
+        if interval_overlap(left, right, start, end) > 0
+    )
+    if not clipped:
+        return 0.0
+    total = 0.0
+    current_left, current_right = clipped[0]
+    for left, right in clipped[1:]:
+        if left <= current_right:
+            current_right = max(current_right, right)
+        else:
+            total += max(0.0, current_right - current_left)
+            current_left, current_right = left, right
+    total += max(0.0, current_right - current_left)
+    return min(max(0.0, end - start), total)
+
+
+def missing_me_rows(comparison: dict[str, Any] | None) -> list[dict[str, Any]]:
+    risk_examples = comparison.get("risk_examples") if isinstance(comparison, dict) else {}
+    rows = risk_examples.get("local_missing") if isinstance(risk_examples, dict) else []
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def target_me_policy_metrics(
+    rows: list[dict[str, Any]],
+    comparison: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    def duration(row: dict[str, Any]) -> float:
+        return safe_float((row.get("interval") or {}).get("duration_sec"))
+
+    def is_local(row: dict[str, Any]) -> bool:
+        return row.get("batch_role_label") in LOCAL_LABELS
+
+    local_seconds = sum(duration(row) for row in rows if is_local(row))
+    missing_rows = missing_me_rows(comparison)
+    baseline_missing_seconds = sum(safe_float(row.get("duration_sec")) for row in missing_rows)
+    metrics: dict[str, Any] = {}
+    for policy in TARGET_ME_RESCUE_POLICIES:
+        selected = [row for row in rows if policy in (row.get("target_me_rescue_policy_candidates") or [])]
+        selected_seconds = sum(duration(row) for row in selected)
+        selected_local_seconds = sum(duration(row) for row in selected if is_local(row))
+        remote_risk_seconds = selected_seconds - selected_local_seconds
+        selected_intervals = [
+            (safe_float((row.get("interval") or {}).get("start")), safe_float((row.get("interval") or {}).get("end")))
+            for row in selected
+        ]
+        missing_recovered = sum(
+            overlap_covered_seconds(
+                selected_intervals,
+                safe_float(row.get("start")),
+                safe_float(row.get("end"), safe_float(row.get("start"))),
+            )
+            for row in missing_rows
+        )
+        metrics[policy] = {
+            "selected_count": len(selected),
+            "selected_seconds": round(selected_seconds, 3),
+            "local_seconds": round(selected_local_seconds, 3),
+            "remote_risk_seconds": round(remote_risk_seconds, 3),
+            "precision_proxy": round(selected_local_seconds / selected_seconds, 6) if selected_seconds > 0 else None,
+            "audited_local_recall_proxy": (
+                round(selected_local_seconds / local_seconds, 6) if local_seconds > 0 else None
+            ),
+            "missing_me_recovered_seconds": round(min(baseline_missing_seconds, missing_recovered), 3),
+            "missing_me_seconds_after": round(max(0.0, baseline_missing_seconds - missing_recovered), 3),
+        }
+    return metrics
 
 
 def summarize_session(
@@ -377,6 +484,7 @@ def summarize_session(
     out_dir: Path,
     enrollment: dict[str, Any],
     rows: list[dict[str, Any]],
+    comparison: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     by_label = Counter(str(row.get("batch_role_label") or "unknown") for row in rows)
     by_class = Counter(str((row.get("classification") or {}).get("label") or "unknown") for row in rows)
@@ -421,6 +529,7 @@ def summarize_session(
         "remote_risk_seconds": seconds(remote_rows),
         "target_me_rejected_remote_risk_items": len(rejected_remote),
         "target_me_rejected_remote_risk_seconds": seconds(rejected_remote),
+        "target_me_rescue_policy_metrics": target_me_policy_metrics(rows, comparison),
         "promotion_decision": "shadow_only_do_not_promote",
         "outputs": {
             "audit": str(out_dir / "live_local_recall_target_me_audit.jsonl"),
@@ -448,6 +557,29 @@ def write_session_report(path: Path, summary: dict[str, Any], rows: list[dict[st
         "This report is diagnostic only. Batch remains authoritative and live output is not promoted.",
         "",
     ]
+    policy_metrics = (
+        summary.get("target_me_rescue_policy_metrics")
+        if isinstance(summary.get("target_me_rescue_policy_metrics"), dict)
+        else {}
+    )
+    if policy_metrics:
+        lines += [
+            "## Shadow Rescue Policy Metrics",
+            "",
+            "| Policy | Selected sec | Local sec | Remote-risk sec | Precision proxy | Audited local recall proxy | Missing-Me recovered sec |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+        for policy in TARGET_ME_RESCUE_POLICIES:
+            metrics = policy_metrics.get(policy) if isinstance(policy_metrics.get(policy), dict) else {}
+            lines.append(
+                f"| `{policy}` | {safe_float(metrics.get('selected_seconds')):.2f} "
+                f"| {safe_float(metrics.get('local_seconds')):.2f} "
+                f"| {safe_float(metrics.get('remote_risk_seconds')):.2f} "
+                f"| {metrics.get('precision_proxy')} "
+                f"| {metrics.get('audited_local_recall_proxy')} "
+                f"| {safe_float(metrics.get('missing_me_recovered_seconds')):.2f} |"
+            )
+        lines.append("")
     if rows:
         lines += [
             "| Time | Duration | Batch label | Target-Me label | Confidence | Text |",
@@ -564,7 +696,14 @@ def audit_session(session: Path, args: argparse.Namespace) -> dict[str, Any]:
                 args=args,
             )
         )
-    summary = summarize_session(session=session, profile=profile, out_dir=out_dir, enrollment=enrollment, rows=rows)
+    summary = summarize_session(
+        session=session,
+        profile=profile,
+        out_dir=out_dir,
+        enrollment=enrollment,
+        rows=rows,
+        comparison=comparison,
+    )
     summary["embedding_backend"] = backend_status
     write_jsonl(out_dir / "live_local_recall_target_me_audit.jsonl", rows)
     write_json(out_dir / "live_local_recall_target_me_summary.json", summary)
@@ -575,6 +714,39 @@ def audit_session(session: Path, args: argparse.Namespace) -> dict[str, Any]:
 def write_corpus_report(path: Path, summaries: list[dict[str, Any]]) -> dict[str, Any]:
     def seconds(key: str) -> float:
         return round(sum(safe_float(row.get(key)) for row in summaries), 3)
+
+    policy_metrics: dict[str, dict[str, Any]] = {}
+    total_local_seconds = seconds("local_seconds")
+    for policy in TARGET_ME_RESCUE_POLICIES:
+        selected_seconds = 0.0
+        local_seconds = 0.0
+        remote_risk_seconds = 0.0
+        missing_after_seconds = 0.0
+        missing_recovered_seconds = 0.0
+        selected_count = 0
+        for row in summaries:
+            metrics_root = row.get("target_me_rescue_policy_metrics")
+            metrics = metrics_root.get(policy) if isinstance(metrics_root, dict) else None
+            if not isinstance(metrics, dict):
+                continue
+            selected_count += safe_int(metrics.get("selected_count"))
+            selected_seconds += safe_float(metrics.get("selected_seconds"))
+            local_seconds += safe_float(metrics.get("local_seconds"))
+            remote_risk_seconds += safe_float(metrics.get("remote_risk_seconds"))
+            missing_after_seconds += safe_float(metrics.get("missing_me_seconds_after"))
+            missing_recovered_seconds += safe_float(metrics.get("missing_me_recovered_seconds"))
+        policy_metrics[policy] = {
+            "selected_count": selected_count,
+            "selected_seconds": round(selected_seconds, 3),
+            "local_seconds": round(local_seconds, 3),
+            "remote_risk_seconds": round(remote_risk_seconds, 3),
+            "precision_proxy": round(local_seconds / selected_seconds, 6) if selected_seconds > 0 else None,
+            "audited_local_recall_proxy": (
+                round(local_seconds / total_local_seconds, 6) if total_local_seconds > 0 else None
+            ),
+            "missing_me_recovered_seconds": round(missing_recovered_seconds, 3),
+            "missing_me_seconds_after": round(missing_after_seconds, 3),
+        }
 
     report = {
         "schema": SCHEMA_CORPUS,
@@ -589,6 +761,7 @@ def write_corpus_report(path: Path, summaries: list[dict[str, Any]]) -> dict[str
         "target_me_possible_or_confirmed_local_seconds": seconds("target_me_possible_or_confirmed_local_seconds"),
         "remote_risk_seconds": seconds("remote_risk_seconds"),
         "target_me_rejected_remote_risk_seconds": seconds("target_me_rejected_remote_risk_seconds"),
+        "target_me_rescue_policy_metrics": policy_metrics,
         "promotion_decision": "shadow_only_do_not_promote",
         "session_summaries": summaries,
     }
@@ -605,6 +778,23 @@ def write_corpus_report(path: Path, summaries: list[dict[str, Any]]) -> dict[str
         f"- Target-Me rejected remote-risk seconds: `{report['target_me_rejected_remote_risk_seconds']}`",
         "",
         "Batch remains authoritative; this is shadow evidence only.",
+        "",
+        "## Shadow Rescue Policy Metrics",
+        "",
+        "| Policy | Selected sec | Local sec | Remote-risk sec | Precision proxy | Audited local recall proxy | Missing-Me recovered sec |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for policy in TARGET_ME_RESCUE_POLICIES:
+        metrics = policy_metrics.get(policy) or {}
+        lines.append(
+            f"| `{policy}` | {safe_float(metrics.get('selected_seconds')):.2f} "
+            f"| {safe_float(metrics.get('local_seconds')):.2f} "
+            f"| {safe_float(metrics.get('remote_risk_seconds')):.2f} "
+            f"| {metrics.get('precision_proxy')} "
+            f"| {metrics.get('audited_local_recall_proxy')} "
+            f"| {safe_float(metrics.get('missing_me_recovered_seconds')):.2f} |"
+        )
+    lines += [
         "",
         "| Session | Status | Items | Local sec | Confirmed local sec | Possible/confirmed local sec | Remote-risk rejected sec |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: |",

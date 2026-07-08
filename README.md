@@ -1012,7 +1012,9 @@ Active goal and near-term candidates:
    suppressed live mic segments, compares them with the local Target-Me speaker embedding backend
    and writes `live_local_recall_target_me_*` reports. The first corpus pass shows that Target-Me can
    explain most of the remaining local gap (`287.98s` possible/confirmed local out of `295.34s`
-   audited local seconds), but it is still evidence only and does not publish live `Me`.
+   audited local seconds). The first safe candidate is `target_me_confirmed_remote_guard_v1`: it
+   would recover `94.68s` missing-Me with `2.44s` remote-risk in the current corpus. It is still
+   evidence only and does not publish live `Me`.
    Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
