@@ -80,6 +80,7 @@ SUPPRESSED_MIC_RESCUE_POLICIES = (
     "audio_remote_quiet_v1",
     "audio_mic_dominant_v1",
     "audio_low_coherence_v1",
+    "audio_low_corr_text_guard_v1",
     "audio_safe_union_v1",
     "batch_oracle_local_ceiling",
 )
@@ -95,10 +96,18 @@ TARGET_ME_DERIVED_POLICY_BASE = {
 TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_audio_safe_union_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
 )
 TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1": (
+        "target_me_confirmed_remote_guard_timeline_safe_v1"
+    ),
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_audio_safe_union_v1": (
+        "target_me_confirmed_remote_guard_timeline_safe_v1"
+    ),
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1": (
         "target_me_confirmed_remote_guard_timeline_safe_v1"
     ),
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1": (
@@ -107,7 +116,17 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
 }
 TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_audio_safe_union_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
+}
+TARGET_ME_ONLINE_SUPPRESSED_MIC_PROFILE_POLICIES = {
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_audio_safe_union_v1": (
+        "audio_safe_union_v1"
+    ),
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1": (
+        "audio_low_corr_text_guard_v1"
+    ),
 }
 TARGET_ME_VISIBLE_SUPPRESSED_MIC_ORACLE_POLICIES = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
@@ -1125,6 +1144,8 @@ def suppressed_mic_rescue_policy_labels(row: dict[str, Any]) -> list[str]:
         and unique_count >= 2
     ):
         labels.append("audio_low_coherence_v1")
+    if token_count >= 3 and mic_db_value >= -58.0 and corr_value <= 0.08 and remote_in_mic <= 0.45:
+        labels.append("audio_low_corr_text_guard_v1")
     if "remote_silent_text_v1" in labels or "audio_mic_dominant_v1" in labels:
         labels.append("audio_safe_union_v1")
     if row.get("batch_role_label") in {"me_dominant", "mixed"}:
@@ -1802,6 +1823,33 @@ def visible_suppressed_mic_oracle_turns(segments: list[dict[str, Any]]) -> list[
                 "text": text,
                 "tokens": tokens(text),
                 "batch_role_label": row.get("batch_role_label"),
+                "rescue_policy_candidates": row.get("rescue_policy_candidates") or [],
+            }
+        )
+    return sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")))
+
+
+def online_suppressed_mic_policy_turns(segments: list[dict[str, Any]], policy: str) -> list[dict[str, Any]]:
+    turns: list[dict[str, Any]] = []
+    for index, row in enumerate(segments, start=1):
+        if policy not in (row.get("rescue_policy_candidates") or []):
+            continue
+        text = clean_text(str(row.get("text") or ""))
+        start = safe_float(row.get("start"))
+        end = safe_float(row.get("end"), start)
+        if not text or end <= start or len(tokens(text)) < 2:
+            continue
+        turns.append(
+            {
+                "id": f"live_suppressed_mic_{policy}_{safe_int(row.get('chunk_index')):06d}_{index:06d}",
+                "chunk_index": row.get("chunk_index"),
+                "source": f"mic_suppressed_{policy}",
+                "role": "Me",
+                "start": start,
+                "end": end,
+                "text": text,
+                "tokens": tokens(text),
+                "suppressed_mic_policy": policy,
                 "rescue_policy_candidates": row.get("rescue_policy_candidates") or [],
             }
         )
@@ -2636,6 +2684,11 @@ def target_me_shadow_profile_components(
             candidates=supplemental_candidates,
             base_turns=live_turns + target_turns,
             batch_utterances=batch_utterances,
+        )
+    elif policy in TARGET_ME_ONLINE_SUPPRESSED_MIC_PROFILE_POLICIES:
+        supplemental_turns = online_suppressed_mic_policy_turns(
+            suppressed_mic_asr_segments,
+            TARGET_ME_ONLINE_SUPPRESSED_MIC_PROFILE_POLICIES[policy],
         )
     return live_turns, target_turns, supplemental_turns, removed_live_turns, rejected_supplemental_turns
 

@@ -474,9 +474,12 @@ newer run-state exists.
    mic ASR, `174.33s` have a broader Target-Me candidate, and `141.01s` have no Target-Me candidate.
    The stronger visible-suppressed-mic oracle profile adds `145.54s` of safe suppressed mic segments
    and drops profile missing-Me to `140.41s` while keeping measured remote leak at `0.00s` and
-   contentful order mismatches at `4`. The next safe step is to turn this ceiling into an online
-   role-gate/fallback design that does not use batch labels, while keeping order, review/readiness and
-   capture-safe blockers explicit; ambiguous rows and sessions without enough enrollment stay explicit.
+   contentful order mismatches at `4`. First live-accessible approximations were not enough:
+   `audio_safe_union_v1` is safe but weak, while `audio_low_corr_text_guard_v1` recovers much more
+   local speech but leaks too much remote-like text. The next safe step is therefore not another simple
+   threshold tweak, but a stronger online role-gate/fallback design with local-speaker or remote-forbidden
+   evidence, while keeping order, review/readiness and capture-safe blockers explicit; ambiguous rows
+   and sessions without enough enrollment stay explicit.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

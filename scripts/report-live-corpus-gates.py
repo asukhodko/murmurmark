@@ -25,6 +25,7 @@ SUPPRESSED_MIC_RESCUE_POLICIES = (
     "audio_remote_quiet_v1",
     "audio_mic_dominant_v1",
     "audio_low_coherence_v1",
+    "audio_low_corr_text_guard_v1",
     "audio_safe_union_v1",
     "batch_oracle_local_ceiling",
 )
@@ -53,6 +54,8 @@ TARGET_ME_RESCUE_POLICIES = (
 TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_audio_safe_union_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
 )
 TARGET_ME_SHADOW_POLICY_METRICS = (

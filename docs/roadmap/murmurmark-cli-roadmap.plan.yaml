@@ -713,9 +713,12 @@ nodes:
       and `141.01s` without one. The stronger visible-suppressed-mic oracle profile adds `145.54s` of
       safe suppressed mic segments and drops profile missing-Me to `140.41s` while keeping measured
       remote leak at `0.00s` and contentful order mismatches at `4`. Two sessions still lack enough
-      enrollment. The next local-recall work therefore needs to turn this ceiling into an online
-      role-gate/fallback design that does not use batch labels, while keeping order, review/readiness
-      and capture-safe blockers explicit, plus a later enrollment/calibration fallback.
+      enrollment. First live-accessible approximations were not enough: `audio_safe_union_v1` is safe
+      but weak, while `audio_low_corr_text_guard_v1` recovers much more local speech but leaks too
+      much remote-like text. The next local-recall work therefore needs a stronger online
+      role-gate/fallback design with local-speaker or remote-forbidden evidence, not another simple
+      threshold tweak, while keeping order, review/readiness and capture-safe blockers explicit, plus
+      a later enrollment/calibration fallback.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

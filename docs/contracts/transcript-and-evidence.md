@@ -5560,6 +5560,10 @@ It also materializes a stricter ceiling diagnostic:
 ```text
 derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1/draft.json
 derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1/draft.md
+derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_audio_safe_union_v1/draft.json
+derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_audio_safe_union_v1/draft.md
+derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1/draft.json
+derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1/draft.md
 derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1/draft.json
 derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1/draft.md
 ```
@@ -5584,6 +5588,12 @@ The visible-suppressed-mic oracle profile additionally writes
 `rejected_visible_suppressed_mic_turns`. It greedily adds only suppressed mic ASR segments that batch
 labels as `Me` or `mixed`, reduce missing-Me and do not add measured remote leak or contentful order
 mismatch. This again uses batch truth and is therefore a ceiling diagnostic, not a live algorithm.
+
+The `online_suppressed_mic_*` profiles select suppressed mic ASR segments using only live-available
+audio/text rescue labels such as `audio_safe_union_v1` and `audio_low_corr_text_guard_v1`. They are
+evaluated through the same parity gates to measure whether a live-implementable rule is already safe.
+They remain `promotion_allowed: false`; passing such a profile would be evidence for a future live
+role-gate change, not automatic promotion.
 
 Profile `risk_examples.local_missing` carries the same fields per utterance, including
 `recall_in_suppressed_mic`, `suppressed_mic_turn_ids` and `target_me_candidate_policies`. The oracle

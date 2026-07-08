@@ -289,6 +289,11 @@ New Target-Me diagnostic, 2026-07-08:
   missing-Me reduced from `315.34s` to `140.41s`, remote leak stays `0.00s`, and contentful order
   mismatches stay `4`. It is still not promotable because it uses batch labels, but it proves the next
   online work should target safe suppressed-mic segment publishing.
+- Two live-accessible suppressed-mic profiles were evaluated against the same gates. `audio_safe_union_v1`
+  is safe but too weak (`301.96s` profile missing-Me remains). `audio_low_corr_text_guard_v1` recovers
+  much more (`117.52s` missing-Me remains), but leaks `210.10s` of remote-like text, so it is not a
+  viable promotion path. The next online design therefore needs stronger local-speaker or remote-forbidden
+  evidence than simple audio/text thresholds.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
 existing corpus already contains enough suppressed live mic material and enough Target-Me evidence.
