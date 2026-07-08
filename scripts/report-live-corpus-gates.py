@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.9.2"
+SCRIPT_VERSION = "1.9.3"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -3159,6 +3159,7 @@ def recommended_next_commands(
             commands.insert(1, ".venv/bin/python scripts/report-suppressed-mic-policy-lab.py")
             commands.insert(2, ".venv/bin/python scripts/report-live-target-me-enrollment-lab.py --method resemblyzer_dvector")
             commands.insert(3, ".venv/bin/python scripts/report-persistent-target-me-profile-lab.py --method resemblyzer_dvector")
+            commands.insert(4, ".venv/bin/python scripts/report-suppressed-mic-composite-gate-lab.py")
         real_issues = [
             issue
             for issue in gate_issues

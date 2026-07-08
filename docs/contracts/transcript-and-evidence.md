@@ -5566,6 +5566,34 @@ some local speech but still selects remote-risk speech, and in the capture-safe 
 recovers no safe local speech. Treat it as supporting local-speaker evidence, not as the main live
 rescue mechanism.
 
+`scripts/report-suppressed-mic-composite-gate-lab.py` combines the existing live-accessible
+suppressed-mic signals into candidate online role gates. It reads suppressed mic ASR segment
+features, session-local Target-Me rows and persistent Target-Me lab rows when present, then writes:
+
+```text
+sessions/_reports/live-pipeline/suppressed_mic_composite_gate_lab.json
+sessions/_reports/live-pipeline/suppressed_mic_composite_gate_lab.md
+sessions/_reports/live-pipeline/suppressed_mic_composite_gate_lab.real.json
+sessions/_reports/live-pipeline/suppressed_mic_composite_gate_lab.real.md
+```
+
+The JSON uses schema `murmurmark.suppressed_mic_composite_gate_lab/v1`. The default scope is
+`capture-safe-candidate`; `--scope real` evaluates the same gate family on all real live sessions.
+Policies include:
+
+- `audio_safe_union_v1`: existing safe audio/text union;
+- `target_me_remote_guard_v1`: session-local Target-Me confirmed remote guard;
+- `persistent_remote_guard_v1`: historical Target-Me confirmed remote guard;
+- `dual_target_remote_guard_v1`: both Target-Me sources agree under remote guard;
+- `speaker_plus_*_remote_forbidden_v1`: local-speaker evidence plus stricter remote-forbidden
+  text/audio conditions;
+- `composite_*`: small unions of independent local and remote-forbidden evidence.
+
+Batch labels are used only to score selected candidates as local/mixed or remote-risk. The report
+does not materialize a draft, publish `Me` turns, edit parity gates or change promotion policy. A
+zero-risk composite result is evidence for a future shadow profile; it is not promotion evidence
+until the materialized profile passes the ordinary live parity gates.
+
 `scripts/audit-live-local-recall-target-me.py` is the shadow Target-Me diagnostic for that remaining
 gap. It reads `risk_examples.suppressed_mic_asr_segments` from `live_batch_comparison.json`, cuts
 the corresponding live mic/remote chunk clips, builds a local Target-Me enrollment from the selected

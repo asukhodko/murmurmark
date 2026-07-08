@@ -480,6 +480,22 @@ remote-risk speech; in the capture-safe candidate scope it recovers `0.00s`. The
 needs stronger remote-forbidden evidence or a stricter online role gate before live promotion can be
 considered.
 
+To test composite gates that combine audio/text, session-local Target-Me and historical Target-Me
+evidence:
+
+```bash
+.venv/bin/python scripts/report-suppressed-mic-composite-gate-lab.py
+.venv/bin/python scripts/report-suppressed-mic-composite-gate-lab.py \
+  --scope real \
+  --out sessions/_reports/live-pipeline/suppressed_mic_composite_gate_lab.real.json
+```
+
+This is also a lab-only report. Current evidence narrows the path: in the full real scope,
+`dual_target_remote_guard_v1` recovers `47.70s` local/mixed speech with `0.00s` remote-risk, and
+`target_me_remote_guard_v1` recovers `116.10s` local/mixed speech with `2.44s` remote-risk. In the
+stricter capture-safe candidate scope, composite gates recover `0.00s`. So composite evidence can be
+a small shadow rescue, but it still does not close the live local-recall gap.
+
 To inspect whether suppressed live mic segments contain your voice:
 
 ```bash
@@ -1093,7 +1109,10 @@ Active goal and near-term candidates:
    Target-Me profile lab is also not enough as the main live rescue mechanism: in the full real
    scope it recovers `75.72s` local/mixed speech under the conservative remote guard, but still
    selects `8.64s` remote-risk speech; in the stricter capture-safe candidate scope it recovers
-   `0.00s`. Batch remains authoritative.
+   `0.00s`. A composite gate lab gives a smaller but cleaner result: `dual_target_remote_guard_v1`
+   recovers `47.70s` local/mixed speech at `0.00s` remote-risk in the full real scope, while
+   `target_me_remote_guard_v1` recovers `116.10s` at `2.44s` remote-risk; the capture-safe candidate
+   scope still recovers `0.00s`. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

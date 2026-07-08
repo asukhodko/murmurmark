@@ -276,6 +276,35 @@ guard. More new recordings are not the blocker for the current objective; the ex
 proves that the next implementation needs stronger remote-forbidden evidence, stricter online role
 gating, or a better calibrated local-speaker judge before live promotion can be considered.
 
+Latest suppressed mic composite gate lab, 2026-07-09:
+
+```bash
+.venv/bin/python scripts/report-suppressed-mic-composite-gate-lab.py
+.venv/bin/python scripts/report-suppressed-mic-composite-gate-lab.py \
+  --scope real \
+  --out sessions/_reports/live-pipeline/suppressed_mic_composite_gate_lab.real.json
+```
+
+Current result:
+
+- capture-safe candidate scope: `2` sessions, `48` suppressed mic ASR segments / `250.28s`;
+- capture-safe labels: `13.06s` local/mixed, `237.22s` remote-risk;
+- capture-safe best composite policy: none, `0.00s` local / `0.00s` remote-risk;
+- full real scope: `10` sessions, `317` suppressed mic ASR segments / `3656.50s`;
+- full real labels: `409.50s` local/mixed, `3247.00s` remote-risk;
+- full real best zero-risk composite: `dual_target_remote_guard_v1`, `47.70s` local /
+  `0.00s` remote-risk;
+- full real best <=3s-risk composite: `target_me_remote_guard_v1`, `116.10s` local /
+  `2.44s` remote-risk;
+- broadest composite with useful recall, `target_or_persistent_remote_guard_v1`, recovers `144.12s`
+  local but leaks `11.08s` remote-risk.
+
+Conclusion: combining existing online evidence improves precision, but not enough recall. A
+zero-risk composite shadow can be useful as a small diagnostic draft, yet it does not close the
+promotion blockers. The current target remains `fix_live_local_recall_gap`, but the next
+implementation should materialize only tiny safe composites while continuing to develop stronger
+remote-forbidden/local-speaker evidence for the remaining suppressed mic regions.
+
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not
 `meaningful_live_comparison` because the live draft lost all `Me` turns; those sessions must remain

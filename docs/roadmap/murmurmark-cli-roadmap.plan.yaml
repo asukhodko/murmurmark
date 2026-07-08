@@ -733,7 +733,12 @@ nodes:
       speech but still selects `8.64s` remote-risk under the conservative remote guard, and the
       stricter capture-safe candidate scope recovers `0.00s`. Persistent Target-Me is therefore
       supporting evidence, not the main rescue path; the next local-recall step needs stricter
-      remote-forbidden gates and online role gating around suppressed mic segments.
+      remote-forbidden gates and online role gating around suppressed mic segments. The composite
+      gate lab confirmed that direction: `dual_target_remote_guard_v1` is the first zero-risk
+      composite slice (`47.70s` local/mixed in the full real scope), `target_me_remote_guard_v1`
+      reaches `116.10s` local/mixed with `2.44s` remote-risk, and the stricter capture-safe
+      candidate scope still recovers `0.00s`. Next implementation should materialize only the tiny
+      safe composite as shadow evidence and continue stronger remote-forbidden/local-speaker work.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful
