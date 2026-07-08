@@ -1026,6 +1026,12 @@ def timeline_safe_target_me_turns(
                 {
                     "id": candidate.get("id"),
                     "reason": "would_add_suspected_remote_leak",
+                    "start": candidate.get("start"),
+                    "end": candidate.get("end"),
+                    "duration_sec": round(
+                        max(0.0, safe_float(candidate.get("end")) - safe_float(candidate.get("start"))),
+                        3,
+                    ),
                     "text": candidate.get("text"),
                     "remote_leak": remote_leak[:3],
                 }
@@ -1045,6 +1051,12 @@ def timeline_safe_target_me_turns(
                 {
                     "id": candidate.get("id"),
                     "reason": "would_add_contentful_order_mismatch",
+                    "start": candidate.get("start"),
+                    "end": candidate.get("end"),
+                    "duration_sec": round(
+                        max(0.0, safe_float(candidate.get("end")) - safe_float(candidate.get("start"))),
+                        3,
+                    ),
                     "text": candidate.get("text"),
                     "contentful_order_mismatch_count": len(contentful_order_mismatches),
                     "baseline_contentful_order_mismatch_count": baseline_contentful_role_order_mismatch_count,
@@ -1146,7 +1158,22 @@ def target_me_shadow_policy_metrics(
         examples[f"{policy}_order_mismatches"] = order_mismatches[:20]
         turns_by_policy[policy] = policy_turns
         if policy in rejected_by_policy:
-            examples[f"{policy}_rejected"] = rejected_by_policy[policy][:20]
+            rejected = rejected_by_policy[policy]
+            metrics[f"{base}_rejected_candidate_count"] = len(rejected)
+            metrics[f"{base}_rejected_candidate_seconds"] = round(
+                sum(safe_float(row.get("duration_sec")) for row in rejected),
+                3,
+            )
+            reason_counts: dict[str, int] = {}
+            reason_seconds: dict[str, float] = {}
+            for row in rejected:
+                reason = str(row.get("reason") or "unknown")
+                reason_counts[reason] = reason_counts.get(reason, 0) + 1
+                reason_seconds[reason] = reason_seconds.get(reason, 0.0) + safe_float(row.get("duration_sec"))
+            for reason, count in sorted(reason_counts.items()):
+                metrics[f"{base}_rejected_{reason}_count"] = count
+                metrics[f"{base}_rejected_{reason}_seconds"] = round(reason_seconds.get(reason, 0.0), 3)
+            examples[f"{policy}_rejected"] = rejected[:20]
     return metrics, examples, turns_by_policy
 
 

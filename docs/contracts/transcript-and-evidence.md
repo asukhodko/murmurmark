@@ -5693,6 +5693,9 @@ decompose remaining local-recall gaps:
 - `live_missing_me_visible_without_target_me_candidate_*`;
 - `live_missing_me_not_visible_with_target_me_candidate_*`;
 - `live_missing_me_not_visible_without_target_me_candidate_*`.
+- `live_target_me_shadow_policy_*_rejected_candidate_*`;
+- `live_target_me_shadow_policy_*_rejected_would_add_contentful_order_mismatch_*`;
+- `live_target_me_shadow_policy_*_rejected_would_add_suspected_remote_leak_*`.
 
 The visible-suppressed-mic oracle profile additionally writes
 `metrics.visible_suppressed_mic_added_turn_count`,
@@ -5725,7 +5728,9 @@ remote leak and `4` contentful order mismatches. The remaining missing-Me splits
 visible with broader Target-Me evidence, `90.42s` visible without Target-Me evidence and `37.21s`
 not visible in suppressed mic. The less strict remote-guard audio-safe profile reaches `276.93s`
 missing-Me, but increases contentful order mismatches to `7`, so it is not the safest live
-implementable default. These profiles remain diagnostic drafts and are not promotable.
+implementable default. The timeline-safe Target-Me policy rejects `18.30s` of candidates, all due to
+contentful order risk and `0.00s` due to suspected remote leak. These profiles remain diagnostic
+drafts and are not promotable.
 
 Profile `risk_examples.local_missing` carries the same fields per utterance, including
 `recall_in_suppressed_mic`, `suppressed_mic_turn_ids` and `target_me_candidate_policies`. The oracle

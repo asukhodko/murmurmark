@@ -511,8 +511,9 @@ newer run-state exists.
    non-passing gates. Its residual missing-Me splits into `174.33s` visible with broader Target-Me
    evidence, `90.42s` visible without Target-Me evidence and `37.21s` not visible in suppressed
    mic. A less strict remote-guard variant reaches `276.93s` missing-Me but raises contentful order
-   mismatches to `7`. This proves the materialization and online remote-forbidden mechanism, not
-   parity.
+   mismatches to `7`. The timeline-safe Target-Me policy rejects only `18.30s` candidate speech,
+   all due to contentful order risk and none due to remote leak. This proves the materialization and
+   online remote-forbidden mechanism, not parity.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

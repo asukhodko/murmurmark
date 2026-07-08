@@ -78,6 +78,12 @@ TARGET_ME_SHADOW_POLICY_METRICS = (
     "order_mismatch_delta_count",
     "role_constrained_order_mismatch_delta_count",
     "contentful_role_constrained_order_mismatch_delta_count",
+    "rejected_candidate_count",
+    "rejected_candidate_seconds",
+    "rejected_would_add_contentful_order_mismatch_count",
+    "rejected_would_add_contentful_order_mismatch_seconds",
+    "rejected_would_add_suspected_remote_leak_count",
+    "rejected_would_add_suspected_remote_leak_seconds",
 )
 TARGET_ME_SHADOW_PROFILE_METRICS = (
     "all_parity_gates_passed",
@@ -1161,6 +1167,24 @@ def add_target_me_shadow_policy_summary(summary: dict[str, Any], rows: list[dict
             rows,
             f"{base}_contentful_role_constrained_order_mismatch_delta_count",
         )
+        summary[f"{out}_rejected_candidate_count"] = sum_int_metric(rows, f"{base}_rejected_candidate_count")
+        summary[f"{out}_rejected_candidate_seconds"] = sum_metric(rows, f"{base}_rejected_candidate_seconds")
+        summary[f"{out}_rejected_would_add_contentful_order_mismatch_count"] = sum_int_metric(
+            rows,
+            f"{base}_rejected_would_add_contentful_order_mismatch_count",
+        )
+        summary[f"{out}_rejected_would_add_contentful_order_mismatch_seconds"] = sum_metric(
+            rows,
+            f"{base}_rejected_would_add_contentful_order_mismatch_seconds",
+        )
+        summary[f"{out}_rejected_would_add_suspected_remote_leak_count"] = sum_int_metric(
+            rows,
+            f"{base}_rejected_would_add_suspected_remote_leak_count",
+        )
+        summary[f"{out}_rejected_would_add_suspected_remote_leak_seconds"] = sum_metric(
+            rows,
+            f"{base}_rejected_would_add_suspected_remote_leak_seconds",
+        )
 
 
 def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dict[str, Any]], prefix: str) -> None:
@@ -1262,6 +1286,14 @@ def target_me_shadow_policy_diagnostics(summary: dict[str, Any], prefix: str) ->
             "suspected_remote_leak_in_me_seconds": remote_risk,
             "contentful_role_constrained_order_mismatch_count": order_mismatches,
             "contentful_role_constrained_order_mismatch_delta_count": order_mismatch_delta,
+            "rejected_candidate_count": safe_int(summary.get(f"{base}_rejected_candidate_count")),
+            "rejected_candidate_seconds": safe_float(summary.get(f"{base}_rejected_candidate_seconds")),
+            "rejected_would_add_contentful_order_mismatch_seconds": safe_float(
+                summary.get(f"{base}_rejected_would_add_contentful_order_mismatch_seconds")
+            ),
+            "rejected_would_add_suspected_remote_leak_seconds": safe_float(
+                summary.get(f"{base}_rejected_would_add_suspected_remote_leak_seconds")
+            ),
             "safe_candidate": candidate_seconds > 0 and recovered > 0 and remote_risk <= 3.0 and order_mismatch_delta <= 0,
         }
         rows.append(row)
@@ -4475,6 +4507,14 @@ def main() -> int:
             print(
                 "real_live_target_me_shadow_recommended_policy_order_mismatch_delta_count: "
                 f"{safe_int(recommended_target_me_shadow.get('contentful_role_constrained_order_mismatch_delta_count'))}"
+            )
+            print(
+                "real_live_target_me_shadow_recommended_policy_rejected_candidate_seconds: "
+                f"{safe_float(recommended_target_me_shadow.get('rejected_candidate_seconds'))}"
+            )
+            print(
+                "real_live_target_me_shadow_recommended_policy_rejected_order_seconds: "
+                f"{safe_float(recommended_target_me_shadow.get('rejected_would_add_contentful_order_mismatch_seconds'))}"
             )
     target_me_shadow_profile_diagnostics = (
         report.get("live_target_me_shadow_profile_diagnostics")

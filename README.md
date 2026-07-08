@@ -516,7 +516,9 @@ candidate so far, but still not promotable. Its remaining missing-Me splits into
 in suppressed mic with broader Target-Me evidence, `90.42s` visible without Target-Me evidence, and
 `37.21s` not visible in suppressed mic. A less strict remote-guard profile reaches `276.93s`
 missing-Me, but raises contentful order mismatches to `7`, so timeline safety is still buying real
-protection.
+protection. The timeline-safe Target-Me policy itself rejects only `18.30s` of candidates, all due
+to contentful order risk and `0.00s` due to remote leak, so the larger remaining gap is mostly
+speaker-evidence weakness rather than a simple timeline-safe threshold problem.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1146,7 +1148,9 @@ Active goal and near-term candidates:
    `41` non-passing gates. The residual gap splits into `174.33s` visible with broader Target-Me
    evidence, `90.42s` visible without Target-Me evidence, and `37.21s` not visible in suppressed
    mic. A less strict remote-guard variant reaches `276.93s` missing-Me but raises contentful order
-   mismatches to `7`. Batch remains authoritative.
+   mismatches to `7`. The timeline-safe Target-Me policy rejects only `18.30s` of candidates for
+   order risk, so the main remaining opportunity is better local-speaker evidence for visible
+   suppressed mic regions. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
