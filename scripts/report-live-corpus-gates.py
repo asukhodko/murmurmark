@@ -1858,6 +1858,22 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "capture_safe_candidate": rescue_policy_diagnostics(summary, "capture_safe_candidate"),
         "capture_safe_evaluable": rescue_policy_diagnostics(summary, "capture_safe_evaluable"),
     }
+    for scope, diagnostics in local_recall_rescue_policy_diagnostics.items():
+        best_policy = diagnostics.get("best_policy")
+        recommended_policy = diagnostics.get("recommended_policy")
+        summary[f"{scope}_rescue_policy_status"] = diagnostics.get("status")
+        summary[f"{scope}_best_live_rescue_policy"] = (
+            best_policy.get("policy") if isinstance(best_policy, dict) else None
+        )
+        summary[f"{scope}_best_live_rescue_policy_local_seconds"] = (
+            safe_float(best_policy.get("local_seconds")) if isinstance(best_policy, dict) else None
+        )
+        summary[f"{scope}_best_live_rescue_policy_remote_risk_seconds"] = (
+            safe_float(best_policy.get("remote_risk_seconds")) if isinstance(best_policy, dict) else None
+        )
+        summary[f"{scope}_recommended_rescue_policy"] = (
+            recommended_policy.get("policy") if isinstance(recommended_policy, dict) else None
+        )
     coverage_target = {
         "target_live_sessions": args.target_live_sessions,
         "target_meaningful_compared_sessions": args.target_meaningful_compared_sessions,
