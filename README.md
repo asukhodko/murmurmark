@@ -965,6 +965,7 @@ Active goal and near-term candidates:
    positives and `7` direct timeline-reorder cases. A stricter same-role matcher confirms `9`
    role-constrained order mismatches (`6` same-source and `3` cross-source, all inside one live
    chunk), and the contentful same-role slice narrows this to `4` actionable order-risk examples.
+   Ambiguity scoring narrows the stable contentful subset further to `2` examples.
    The corpus report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
    visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic

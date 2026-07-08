@@ -1121,6 +1121,18 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             )
             if isinstance(metrics, dict)
             else {},
+            "live_contentful_role_constrained_order_mismatch_by_ambiguity": (
+                metrics.get("live_contentful_role_constrained_order_mismatch_by_ambiguity")
+                if isinstance(metrics.get("live_contentful_role_constrained_order_mismatch_by_ambiguity"), dict)
+                else {}
+            )
+            if isinstance(metrics, dict)
+            else {},
+            "live_unambiguous_contentful_role_constrained_order_mismatch_count": (
+                metrics.get("live_unambiguous_contentful_role_constrained_order_mismatch_count")
+                if isinstance(metrics, dict)
+                else None
+            ),
             "live_missing_me_seconds": metrics.get("live_missing_me_seconds") if isinstance(metrics, dict) else None,
             "live_suspicious_batch_me_missing_seconds": (
                 metrics.get("live_suspicious_batch_me_missing_seconds") if isinstance(metrics, dict) else None
@@ -1214,6 +1226,18 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             )
             if isinstance(metrics, dict)
             else {},
+            "live_rescue_shadow_contentful_role_constrained_order_mismatch_by_ambiguity": (
+                metrics.get("live_rescue_shadow_contentful_role_constrained_order_mismatch_by_ambiguity")
+                if isinstance(metrics.get("live_rescue_shadow_contentful_role_constrained_order_mismatch_by_ambiguity"), dict)
+                else {}
+            )
+            if isinstance(metrics, dict)
+            else {},
+            "live_rescue_shadow_unambiguous_contentful_role_constrained_order_mismatch_count": (
+                metrics.get("live_rescue_shadow_unambiguous_contentful_role_constrained_order_mismatch_count")
+                if isinstance(metrics, dict)
+                else None
+            ),
             "live_rescue_shadow_suspected_remote_leak_in_me_seconds": (
                 metrics.get("live_rescue_shadow_suspected_remote_leak_in_me_seconds") if isinstance(metrics, dict) else None
             ),
@@ -1450,6 +1474,22 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             real_live_rows,
             "live_contentful_role_constrained_order_mismatch_by_confidence",
         ),
+        "live_contentful_role_constrained_order_mismatch_by_ambiguity": sum_counter_metric(
+            rows,
+            "live_contentful_role_constrained_order_mismatch_by_ambiguity",
+        ),
+        "real_live_contentful_role_constrained_order_mismatch_by_ambiguity": sum_counter_metric(
+            real_live_rows,
+            "live_contentful_role_constrained_order_mismatch_by_ambiguity",
+        ),
+        "live_unambiguous_contentful_role_constrained_order_mismatch_count": sum_int_metric(
+            rows,
+            "live_unambiguous_contentful_role_constrained_order_mismatch_count",
+        ),
+        "real_live_unambiguous_contentful_role_constrained_order_mismatch_count": sum_int_metric(
+            real_live_rows,
+            "live_unambiguous_contentful_role_constrained_order_mismatch_count",
+        ),
         "live_missing_me_seconds": sum_metric(rows, "live_missing_me_seconds"),
         "real_live_missing_me_seconds": sum_metric(real_live_rows, "live_missing_me_seconds"),
         "live_suspicious_batch_me_missing_seconds": sum_metric(rows, "live_suspicious_batch_me_missing_seconds"),
@@ -1577,6 +1617,22 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_live_rescue_shadow_contentful_role_constrained_order_mismatch_by_confidence": sum_counter_metric(
             real_live_rows,
             "live_rescue_shadow_contentful_role_constrained_order_mismatch_by_confidence",
+        ),
+        "live_rescue_shadow_contentful_role_constrained_order_mismatch_by_ambiguity": sum_counter_metric(
+            rows,
+            "live_rescue_shadow_contentful_role_constrained_order_mismatch_by_ambiguity",
+        ),
+        "real_live_rescue_shadow_contentful_role_constrained_order_mismatch_by_ambiguity": sum_counter_metric(
+            real_live_rows,
+            "live_rescue_shadow_contentful_role_constrained_order_mismatch_by_ambiguity",
+        ),
+        "live_rescue_shadow_unambiguous_contentful_role_constrained_order_mismatch_count": sum_int_metric(
+            rows,
+            "live_rescue_shadow_unambiguous_contentful_role_constrained_order_mismatch_count",
+        ),
+        "real_live_rescue_shadow_unambiguous_contentful_role_constrained_order_mismatch_count": sum_int_metric(
+            real_live_rows,
+            "live_rescue_shadow_unambiguous_contentful_role_constrained_order_mismatch_count",
         ),
         "live_rescue_shadow_suspected_remote_leak_in_me_seconds": sum_metric(
             rows,
@@ -2368,6 +2424,10 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"`{json.dumps(summary.get('real_live_contentful_role_constrained_order_mismatch_by_category', {}), ensure_ascii=False)}`",
         "- real live contentful role-constrained order mismatches by confidence: "
         f"`{json.dumps(summary.get('real_live_contentful_role_constrained_order_mismatch_by_confidence', {}), ensure_ascii=False)}`",
+        "- real live contentful role-constrained order mismatches by ambiguity: "
+        f"`{json.dumps(summary.get('real_live_contentful_role_constrained_order_mismatch_by_ambiguity', {}), ensure_ascii=False)}`",
+        "- real live unambiguous contentful role-constrained order mismatches: "
+        f"{summary.get('real_live_unambiguous_contentful_role_constrained_order_mismatch_count', 0)}",
         f"- live missing Me seconds: {summary.get('live_missing_me_seconds', 0.0)}",
         f"- real live missing Me seconds: {summary.get('real_live_missing_me_seconds', 0.0)}",
         "- real live missing Me visible in suppressed mic seconds: "
@@ -2404,6 +2464,10 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"`{json.dumps(summary.get('real_live_rescue_shadow_contentful_role_constrained_order_mismatch_by_category', {}), ensure_ascii=False)}`",
         "- real live rescue shadow contentful role-constrained order mismatches by confidence: "
         f"`{json.dumps(summary.get('real_live_rescue_shadow_contentful_role_constrained_order_mismatch_by_confidence', {}), ensure_ascii=False)}`",
+        "- real live rescue shadow contentful role-constrained order mismatches by ambiguity: "
+        f"`{json.dumps(summary.get('real_live_rescue_shadow_contentful_role_constrained_order_mismatch_by_ambiguity', {}), ensure_ascii=False)}`",
+        "- real live rescue shadow unambiguous contentful role-constrained order mismatches: "
+        f"{summary.get('real_live_rescue_shadow_unambiguous_contentful_role_constrained_order_mismatch_count', 0)}",
         "- real live suppressed mic ASR segments: "
         f"{summary.get('real_live_suppressed_mic_asr_segment_count', 0)} / "
         f"{summary.get('real_live_suppressed_mic_asr_segment_seconds', 0.0)} sec",
@@ -2904,6 +2968,14 @@ def main() -> int:
         "real_live_contentful_role_constrained_order_mismatch_by_confidence: "
         f"{json.dumps(summary.get('real_live_contentful_role_constrained_order_mismatch_by_confidence', {}), ensure_ascii=False)}"
     )
+    print(
+        "real_live_contentful_role_constrained_order_mismatch_by_ambiguity: "
+        f"{json.dumps(summary.get('real_live_contentful_role_constrained_order_mismatch_by_ambiguity', {}), ensure_ascii=False)}"
+    )
+    print(
+        "real_live_unambiguous_contentful_role_constrained_order_mismatch_count: "
+        f"{summary.get('real_live_unambiguous_contentful_role_constrained_order_mismatch_count', 0)}"
+    )
     print(f"live_missing_me_seconds: {summary.get('live_missing_me_seconds', 0.0)}")
     print(f"real_live_missing_me_seconds: {summary.get('real_live_missing_me_seconds', 0.0)}")
     print(
@@ -2961,6 +3033,14 @@ def main() -> int:
     print(
         "real_live_rescue_shadow_contentful_role_constrained_order_mismatch_by_confidence: "
         f"{json.dumps(summary.get('real_live_rescue_shadow_contentful_role_constrained_order_mismatch_by_confidence', {}), ensure_ascii=False)}"
+    )
+    print(
+        "real_live_rescue_shadow_contentful_role_constrained_order_mismatch_by_ambiguity: "
+        f"{json.dumps(summary.get('real_live_rescue_shadow_contentful_role_constrained_order_mismatch_by_ambiguity', {}), ensure_ascii=False)}"
+    )
+    print(
+        "real_live_rescue_shadow_unambiguous_contentful_role_constrained_order_mismatch_count: "
+        f"{summary.get('real_live_rescue_shadow_unambiguous_contentful_role_constrained_order_mismatch_count', 0)}"
     )
     print(
         "real_live_rescue_shadow_suspected_remote_leak_in_me_seconds: "

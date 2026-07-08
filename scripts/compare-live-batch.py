@@ -1202,7 +1202,7 @@ def best_batch_match(
         return None
     if contentful_only and not is_contentful_text(turn.get("text")):
         return None
-    best: dict[str, Any] | None = None
+    candidates: list[dict[str, Any]] = []
     for row in batch:
         if same_role_only and row.get("role") != turn.get("role"):
             continue
@@ -1232,8 +1232,28 @@ def best_batch_match(
             "turn_content_token_count": len(content_tokens(turn_tokens)),
             "batch_content_token_count": len(content_tokens(row_tokens)),
         }
-        if best is None or safe_float(candidate["score"]) > safe_float(best["score"]):
-            best = candidate
+        candidates.append(candidate)
+    if not candidates:
+        return None
+    candidates.sort(
+        key=lambda item: (
+            safe_float(item.get("score")),
+            safe_float(item.get("token_recall")),
+            -safe_float(item.get("batch_start")),
+        ),
+        reverse=True,
+    )
+    best = dict(candidates[0])
+    second_score = safe_float(candidates[1].get("score")) if len(candidates) > 1 else 0.0
+    plausible = [
+        item
+        for item in candidates
+        if safe_float(item.get("token_recall")) >= 0.25 and safe_float(item.get("score")) >= 0.35
+    ]
+    best["second_score"] = round(second_score, 6)
+    best["score_margin"] = round(safe_float(best.get("score")) - second_score, 6)
+    best["plausible_match_count"] = len(plausible)
+    best["ambiguous_match"] = bool(len(plausible) > 1 and safe_float(best.get("score_margin")) < 0.20)
     return best
 
 
@@ -1324,6 +1344,18 @@ def order_mismatch_confidence(previous: dict[str, Any], current: dict[str, Any])
     return "low"
 
 
+def order_mismatch_ambiguous_match(previous: dict[str, Any], current: dict[str, Any]) -> bool:
+    previous_match = previous.get("match") if isinstance(previous.get("match"), dict) else {}
+    current_match = current.get("match") if isinstance(current.get("match"), dict) else {}
+    return bool(previous_match.get("ambiguous_match") or current_match.get("ambiguous_match"))
+
+
+def order_mismatch_min_score_margin(previous: dict[str, Any], current: dict[str, Any]) -> float:
+    previous_match = previous.get("match") if isinstance(previous.get("match"), dict) else {}
+    current_match = current.get("match") if isinstance(current.get("match"), dict) else {}
+    return min(safe_float(previous_match.get("score_margin")), safe_float(current_match.get("score_margin")))
+
+
 def order_mismatch_turn_payload(turn: dict[str, Any]) -> dict[str, Any]:
     match = turn.get("match") if isinstance(turn.get("match"), dict) else {}
     return {
@@ -1343,6 +1375,10 @@ def order_mismatch_turn_payload(turn: dict[str, Any]) -> dict[str, Any]:
         "score": match.get("score"),
         "turn_content_token_count": match.get("turn_content_token_count"),
         "batch_content_token_count": match.get("batch_content_token_count"),
+        "score_margin": match.get("score_margin"),
+        "second_score": match.get("second_score"),
+        "plausible_match_count": match.get("plausible_match_count"),
+        "ambiguous_match": match.get("ambiguous_match"),
     }
 
 
@@ -1381,12 +1417,14 @@ def order_mismatch_rows_for_turns(
                         "category": category,
                         "primary_risk": primary_risk,
                         "confidence": confidence,
+                        "match_ambiguity": "ambiguous" if order_mismatch_ambiguous_match(previous, turn) else "unambiguous",
                         "previous_batch_start": round(previous_batch_start, 3),
                         "current_batch_start": round(current_batch_start, 3),
                         "batch_start_delta_sec": round(current_batch_start - previous_batch_start, 3),
                         "live_start_delta_sec": round(safe_float(turn.get("start")) - safe_float(previous.get("start")), 3),
                         "min_token_recall": round(order_mismatch_min_metric(previous, turn, "token_recall"), 6),
                         "min_score": round(order_mismatch_min_metric(previous, turn, "score"), 6),
+                        "min_score_margin": round(order_mismatch_min_score_margin(previous, turn), 6),
                         "same_chunk": previous.get("chunk_index") == turn.get("chunk_index"),
                         "same_source": previous.get("source") == turn.get("source"),
                         "source_pair": f"{previous.get('source')}->{turn.get('source')}",
@@ -1650,6 +1688,15 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
                 contentful_role_constrained_order_mismatches,
                 "confidence",
             ),
+            "live_contentful_role_constrained_order_mismatch_by_ambiguity": order_mismatch_field_counts(
+                contentful_role_constrained_order_mismatches,
+                "match_ambiguity",
+            ),
+            "live_unambiguous_contentful_role_constrained_order_mismatch_count": sum(
+                1
+                for row in contentful_role_constrained_order_mismatches
+                if row.get("match_ambiguity") == "unambiguous"
+            ),
             "live_missing_me_utterance_count": len(local_missing),
             "live_missing_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3),
             "live_suspicious_batch_me_missing_count": len(local_missing_suspicious_batch_me),
@@ -1701,6 +1748,15 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             "live_rescue_shadow_contentful_role_constrained_order_mismatch_by_confidence": order_mismatch_field_counts(
                 shadow_contentful_role_constrained_order_mismatches,
                 "confidence",
+            ),
+            "live_rescue_shadow_contentful_role_constrained_order_mismatch_by_ambiguity": order_mismatch_field_counts(
+                shadow_contentful_role_constrained_order_mismatches,
+                "match_ambiguity",
+            ),
+            "live_rescue_shadow_unambiguous_contentful_role_constrained_order_mismatch_count": sum(
+                1
+                for row in shadow_contentful_role_constrained_order_mismatches
+                if row.get("match_ambiguity") == "unambiguous"
             ),
             "live_rescue_shadow_suspected_remote_leak_in_me_count": len(shadow_remote_leak),
             "live_rescue_shadow_suspected_remote_leak_in_me_seconds": round(

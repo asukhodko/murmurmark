@@ -4823,6 +4823,8 @@ Schema:
     "live_contentful_role_constrained_order_mismatch_count": 0,
     "live_contentful_role_constrained_order_mismatch_by_category": {},
     "live_contentful_role_constrained_order_mismatch_by_confidence": {},
+    "live_contentful_role_constrained_order_mismatch_by_ambiguity": {},
+    "live_unambiguous_contentful_role_constrained_order_mismatch_count": 0,
     "live_missing_me_seconds": 0.0,
     "live_suspicious_batch_me_missing_seconds": 0.0,
     "live_missing_me_visible_in_suppressed_mic_seconds": 0.0,
@@ -4844,6 +4846,8 @@ Schema:
     "live_rescue_shadow_contentful_role_constrained_order_mismatch_count": 0,
     "live_rescue_shadow_contentful_role_constrained_order_mismatch_by_category": {},
     "live_rescue_shadow_contentful_role_constrained_order_mismatch_by_confidence": {},
+    "live_rescue_shadow_contentful_role_constrained_order_mismatch_by_ambiguity": {},
+    "live_rescue_shadow_unambiguous_contentful_role_constrained_order_mismatch_count": 0,
     "live_suppressed_mic_asr_me_dominant_segment_count": 0,
     "live_suppressed_mic_asr_me_dominant_segment_seconds": 0.0,
     "live_suppressed_mic_asr_mixed_segment_count": 0,
@@ -5022,8 +5026,9 @@ dialogue:
   positives. The `live_role_constrained_order_mismatch_*` metrics rerun the same check only against
   same-role batch matches with stricter text thresholds; they are diagnostic and do not relax the
   normal promotion blocker. The `live_contentful_role_constrained_order_mismatch_*` metrics further
-  filter out short/generic phrases before counting actionable same-role order risk. Current
-  categories are `same_chunk_same_source_reorder`,
+  filter out short/generic phrases before counting actionable same-role order risk. The
+  `*_by_ambiguity` and `*_unambiguous_*` fields separate repeated/ambiguous phrases from stable
+  text matches. Current categories are `same_chunk_same_source_reorder`,
   `same_chunk_cross_source_reorder`, `chunk_overlap_context_reorder` and `cross_chunk_reorder`;
 - `local_recall`: checks that selected batch `Me` utterances are visible in live mic turns;
 - `remote_duplicate_leak`: warns when live mic turns look more like selected batch `Colleagues`

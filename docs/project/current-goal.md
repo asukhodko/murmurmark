@@ -153,6 +153,9 @@ Current result:
   {"same_chunk_same_source_reorder": 2, "same_chunk_cross_source_reorder": 2}`;
 - `real_live_contentful_role_constrained_order_mismatch_by_confidence = {"high": 1,
   "medium": 3}`;
+- `real_live_contentful_role_constrained_order_mismatch_by_ambiguity = {"ambiguous": 2,
+  "unambiguous": 2}`;
+- `real_live_unambiguous_contentful_role_constrained_order_mismatch_count = 2`;
 - `real_live_missing_me_seconds = 419.16`;
 - `real_live_missing_me_visible_in_suppressed_mic_seconds = 349.77`;
 - `real_live_missing_me_not_visible_in_suppressed_mic_seconds = 37.21`;
@@ -196,8 +199,9 @@ leak, `8/34` are weak text matches that may be false positives, and only `7/34` 
 timeline reorder. A stricter same-role matcher confirms `9` role-constrained order mismatches
 (`6` same-source and `3` cross-source, all inside one live chunk); after filtering short/generic
 phrases, only `4` contentful same-role order mismatches remain. This points the next implementation
-at targeted role-constrained live reconciliation and per-chunk timeline repair, not at raw capture
-or sidecar materialization.
+at targeted role-constrained live reconciliation and per-chunk timeline repair. Ambiguity scoring
+narrows the stable contentful order-risk subset to `2` examples, so order repair should be
+targeted; raw capture and sidecar materialization are not the next bottleneck.
 Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks,
 but the live branch also has segment-level ordering drift and `15.96s` suspected remote leakage in
 published live `Me`. The current live blockers are therefore: live timeline ordering, remote leakage
