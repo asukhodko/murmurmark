@@ -144,6 +144,10 @@ Current result:
   "cross_source_timeline_reorder": 3}`;
 - `real_live_order_mismatch_by_confidence = {"role_conflict": 19, "low": 8, "high": 4,
   "medium": 3}`;
+- `real_live_role_constrained_order_mismatch_count = 9`;
+- `real_live_role_constrained_order_mismatch_by_category = {"same_chunk_same_source_reorder": 6,
+  "same_chunk_cross_source_reorder": 3}`;
+- `real_live_role_constrained_order_mismatch_by_confidence = {"high": 4, "medium": 5}`;
 - `real_live_missing_me_seconds = 419.16`;
 - `real_live_missing_me_visible_in_suppressed_mic_seconds = 349.77`;
 - `real_live_missing_me_not_visible_in_suppressed_mic_seconds = 37.21`;
@@ -184,8 +188,10 @@ Order risk is mostly local to a single live chunk: `31/34` mismatches are same-c
 `20` inside one source and `11` between mic/remote segments. Only `3/34` are cross-chunk or overlap
 context. The primary-risk split is even more useful: `19/34` are role conflict / possible remote
 leak, `8/34` are weak text matches that may be false positives, and only `7/34` look like direct
-timeline reorder. This points the next implementation at stricter segment matching, role-constrained
-live reconciliation and per-chunk timeline repair, not at raw capture or sidecar materialization.
+timeline reorder. A stricter same-role matcher confirms `9` role-constrained order mismatches
+(`6` same-source and `3` cross-source, all inside one live chunk). This points the next
+implementation at role-constrained live reconciliation and per-chunk timeline repair, not at raw
+capture or sidecar materialization.
 Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks,
 but the live branch also has segment-level ordering drift and `15.96s` suspected remote leakage in
 published live `Me`. The current live blockers are therefore: live timeline ordering, remote leakage

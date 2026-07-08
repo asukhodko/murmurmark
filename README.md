@@ -962,7 +962,9 @@ Active goal and near-term candidates:
    controlled real evidence. The order-risk split is now visible: `20` same-chunk/same-source,
    `11` same-chunk/cross-source, `2` cross-chunk and `1` overlap-context mismatches. The corpus
    also separates primary risk: `19` role-conflict/remote-leak, `8` weak-match possible false
-   positives and `7` direct timeline-reorder cases. The corpus report now lists concrete
+   positives and `7` direct timeline-reorder cases. A stricter same-role matcher confirms `9`
+   role-constrained order mismatches (`6` same-source and `3` cross-source, all inside one live
+   chunk). The corpus report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
    visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic
    metadata (`6` real live candidate chunks / `31` candidate segments in the current corpus) but is

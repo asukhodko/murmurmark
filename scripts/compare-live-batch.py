@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.14.0"
+SCRIPT_VERSION = "0.15.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 CAPTURE_SAFETY_BLOCKERS = {"interrupted_capture", "silent_capture", "sparse_capture"}
@@ -1136,12 +1136,14 @@ def suspicious_batch_me_utterance(row: dict[str, Any]) -> bool:
     )
 
 
-def best_batch_match(turn: dict[str, Any], batch: list[dict[str, Any]]) -> dict[str, Any] | None:
+def best_batch_match(turn: dict[str, Any], batch: list[dict[str, Any]], *, same_role_only: bool = False) -> dict[str, Any] | None:
     turn_tokens = turn.get("tokens") or []
     if not turn_tokens:
         return None
     best: dict[str, Any] | None = None
     for row in batch:
+        if same_role_only and row.get("role") != turn.get("role"):
+            continue
         row_tokens = row.get("tokens") or []
         if not row_tokens:
             continue
@@ -1169,11 +1171,22 @@ def best_batch_match(turn: dict[str, Any], batch: list[dict[str, Any]]) -> dict[
     return best
 
 
-def matched_turn_rows(turns: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def matched_turn_rows(
+    turns: list[dict[str, Any]],
+    batch_utterances: list[dict[str, Any]],
+    *,
+    same_role_only: bool = False,
+    min_token_recall: float = 0.25,
+    min_score: float = 0.0,
+) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for turn in sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or ""))):
-        match = best_batch_match(turn, batch_utterances)
-        if match and safe_float(match.get("token_recall")) >= 0.25:
+        match = best_batch_match(turn, batch_utterances, same_role_only=same_role_only)
+        if (
+            match
+            and safe_float(match.get("token_recall")) >= min_token_recall
+            and safe_float(match.get("score")) >= min_score
+        ):
             result.append({**turn, "match": match})
     return result
 
@@ -1259,10 +1272,24 @@ def order_mismatch_turn_payload(turn: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def order_mismatch_rows_for_turns(turns: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def order_mismatch_rows_for_turns(
+    turns: list[dict[str, Any]],
+    batch_utterances: list[dict[str, Any]],
+    *,
+    same_role_only: bool = False,
+    min_token_recall: float = 0.25,
+    min_score: float = 0.0,
+    match_mode: str = "best_overall",
+) -> list[dict[str, Any]]:
     order_mismatches: list[dict[str, Any]] = []
     previous: dict[str, Any] | None = None
-    for turn in matched_turn_rows(turns, batch_utterances):
+    for turn in matched_turn_rows(
+        turns,
+        batch_utterances,
+        same_role_only=same_role_only,
+        min_token_recall=min_token_recall,
+        min_score=min_score,
+    ):
         if previous is not None:
             previous_batch_start = safe_float((previous.get("match") or {}).get("batch_start"))
             current_batch_start = safe_float((turn.get("match") or {}).get("batch_start"))
@@ -1274,6 +1301,7 @@ def order_mismatch_rows_for_turns(turns: list[dict[str, Any]], batch_utterances:
                     {
                         "previous_live_id": previous.get("id"),
                         "current_live_id": turn.get("id"),
+                        "match_mode": match_mode,
                         "category": category,
                         "primary_risk": primary_risk,
                         "confidence": confidence,
@@ -1421,6 +1449,22 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
     shadow_remote_leak = remote_leak_rows_for_turns(rescue_shadow_turns, batch_utterances)
     order_mismatches = order_mismatch_rows_for_turns(turns, batch_utterances)
     shadow_order_mismatches = order_mismatch_rows_for_turns(turns + rescue_shadow_turns, batch_utterances)
+    role_constrained_order_mismatches = order_mismatch_rows_for_turns(
+        turns,
+        batch_utterances,
+        same_role_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode="role_constrained_strict",
+    )
+    shadow_role_constrained_order_mismatches = order_mismatch_rows_for_turns(
+        turns + rescue_shadow_turns,
+        batch_utterances,
+        same_role_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode="role_constrained_strict",
+    )
     matched_turns = matched_turn_rows(turns, batch_utterances)
     for row in batch_utterances:
         if row.get("role") != "Me" or len(row.get("tokens") or []) < 2:
@@ -1472,7 +1516,9 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         "remote_leak": remote_leak,
         "live_rescue_shadow_remote_leak": shadow_remote_leak,
         "order_mismatches": order_mismatches,
+        "role_constrained_order_mismatches": role_constrained_order_mismatches,
         "live_rescue_shadow_order_mismatches": shadow_order_mismatches,
+        "live_rescue_shadow_role_constrained_order_mismatches": shadow_role_constrained_order_mismatches,
         "segment_role_gate_candidates": segment_gate_summary.get("examples", []),
         "live_rescue_shadow_examples": rescue_shadow_summary.get("examples", []),
         "suppressed_mic_asr_segment_examples": suppressed_segment_audit.get("examples", []),
@@ -1488,6 +1534,14 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             "live_order_mismatch_by_category": order_mismatch_category_counts(order_mismatches),
             "live_order_mismatch_by_primary_risk": order_mismatch_field_counts(order_mismatches, "primary_risk"),
             "live_order_mismatch_by_confidence": order_mismatch_field_counts(order_mismatches, "confidence"),
+            "live_role_constrained_order_mismatch_count": len(role_constrained_order_mismatches),
+            "live_role_constrained_order_mismatch_by_category": order_mismatch_category_counts(
+                role_constrained_order_mismatches,
+            ),
+            "live_role_constrained_order_mismatch_by_confidence": order_mismatch_field_counts(
+                role_constrained_order_mismatches,
+                "confidence",
+            ),
             "live_missing_me_utterance_count": len(local_missing),
             "live_missing_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3),
             "live_suspicious_batch_me_missing_count": len(local_missing_suspicious_batch_me),
@@ -1518,6 +1572,16 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             ),
             "live_rescue_shadow_order_mismatch_by_confidence": order_mismatch_field_counts(
                 shadow_order_mismatches,
+                "confidence",
+            ),
+            "live_rescue_shadow_role_constrained_order_mismatch_count": len(
+                shadow_role_constrained_order_mismatches,
+            ),
+            "live_rescue_shadow_role_constrained_order_mismatch_by_category": order_mismatch_category_counts(
+                shadow_role_constrained_order_mismatches,
+            ),
+            "live_rescue_shadow_role_constrained_order_mismatch_by_confidence": order_mismatch_field_counts(
+                shadow_role_constrained_order_mismatches,
                 "confidence",
             ),
             "live_rescue_shadow_suspected_remote_leak_in_me_count": len(shadow_remote_leak),
@@ -1603,6 +1667,7 @@ def parity_gates(
         "cross_role_overlap_gt2_seconds": metric_value(batch_quality, "cross_role_overlap_gt2_seconds"),
     }
     order_mismatches = int(assessment_metrics.get("live_order_mismatch_count") or 0)
+    role_constrained_order_mismatches = int(assessment_metrics.get("live_role_constrained_order_mismatch_count") or 0)
     missing_me_seconds = safe_float(assessment_metrics.get("live_missing_me_seconds"))
     remote_leak_seconds = safe_float(assessment_metrics.get("live_suspected_remote_leak_in_me_seconds"))
     gates.append(
@@ -1610,7 +1675,12 @@ def parity_gates(
             "order_risk",
             "passed" if order_mismatches == 0 else "warning",
             "live turn order should not contradict the selected batch transcript order",
-            {"live_order_mismatch_count": order_mismatches, "batch_metrics": batch_metrics},
+            {
+                "live_order_mismatch_count": order_mismatches,
+                "live_role_constrained_order_mismatch_count": role_constrained_order_mismatches,
+                "live_order_mismatch_by_primary_risk": assessment_metrics.get("live_order_mismatch_by_primary_risk"),
+                "batch_metrics": batch_metrics,
+            },
         )
     )
     gates.append(
@@ -1974,8 +2044,14 @@ def main() -> int:
         },
         "risk_examples": {
             "order_mismatches": (live_assessment.get("order_mismatches") or [])[:20],
+            "role_constrained_order_mismatches": (
+                live_assessment.get("role_constrained_order_mismatches") or []
+            )[:20],
             "live_rescue_shadow_order_mismatches": (
                 live_assessment.get("live_rescue_shadow_order_mismatches") or []
+            )[:20],
+            "live_rescue_shadow_role_constrained_order_mismatches": (
+                live_assessment.get("live_rescue_shadow_role_constrained_order_mismatches") or []
             )[:20],
             "local_missing": (live_assessment.get("local_missing") or [])[:20],
             "local_missing_suspicious_batch_me": (live_assessment.get("local_missing_suspicious_batch_me") or [])[:20],
