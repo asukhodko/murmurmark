@@ -154,6 +154,7 @@ def status_from(
     session_manifest: dict[str, Any] | None,
     live_report: dict[str, Any] | None,
     live_state: dict[str, Any] | None,
+    experiment_state: dict[str, Any] | None,
     final_reconcile: dict[str, Any] | None,
     comparison: dict[str, Any] | None,
     warnings: str,
@@ -165,7 +166,7 @@ def status_from(
         return "completed"
     if comparison:
         return "completed"
-    for payload in (live_report, live_state):
+    for payload in (live_report, live_state, experiment_state):
         if not isinstance(payload, dict):
             continue
         status = str(payload.get("status") or "")
@@ -200,18 +201,21 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
     session_manifest = read_json(session / "session.json")
     live_report = read_json(live_dir / "live_pipeline_report.json")
     live_state = read_json(live_dir / "live_pipeline_state.json")
+    existing_experiment_state = read_json(experiment_dir / "state.json")
     final_reconcile = read_json(live_dir / "final_reconcile_report.json")
     comparison = read_json(live_dir / "live_batch_comparison.json")
     pipeline_report = read_json(session / "derived/pipeline-run/pipeline_run_report.json")
     readiness = read_json(session / "derived/readiness/session_readiness.json")
     segments = read_jsonl(live_dir / "segments.jsonl")
+    raw_commits = read_jsonl(experiment_dir / "raw_segment_commits.jsonl")
     chunks = read_jsonl(live_dir / "chunks.jsonl")
     events = read_jsonl(session / "events.jsonl")
     warnings = warning_text(session_manifest or {})
-    status = status_from(session_manifest, live_report, live_state, final_reconcile, comparison, warnings, segments)
+    status = status_from(session_manifest, live_report, live_state, existing_experiment_state, final_reconcile, comparison, warnings, segments)
     raw_seconds = round(session_duration(session_manifest or {}), 3)
     sidecar_captured = max(
         max_end(segments),
+        max_end(raw_commits),
         float(((live_report or {}).get("progress") or {}).get("captured_sec") or 0.0)
         if isinstance((live_report or {}).get("progress"), dict)
         else 0.0,
@@ -222,7 +226,12 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         if isinstance((live_report or {}).get("progress"), dict)
         else 0.0,
     )
-    backpressure = "backlog exceeded" in warnings or "live segment writer disabled" in warnings
+    existing_answers = (existing_experiment_state or {}).get("answers") if isinstance((existing_experiment_state or {}).get("answers"), dict) else {}
+    backpressure = (
+        "backlog exceeded" in warnings
+        or "live segment writer disabled" in warnings
+        or bool(existing_answers.get("backpressure_detected"))
+    )
     affected = raw_capture_affected(session_manifest)
     batch_report_status = str((pipeline_report or {}).get("status") or "missing")
     batch_reproducible = bool(
@@ -241,6 +250,7 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         "chunks": rel(live_dir / "chunks.jsonl", session),
         "draft_transcript": rel(live_dir / "transcript.draft.md", session),
         "worker_log": rel(live_dir / "live_worker.log", session),
+        "raw_segment_commits": rel(experiment_dir / "raw_segment_commits.jsonl", session),
         "live_pipeline_report": rel(live_dir / "live_pipeline_report.json", session),
         "live_batch_comparison": rel(live_dir / "live_batch_comparison.json", session),
         "final_reconcile_report": rel(live_dir / "final_reconcile_report.json", session),
@@ -257,7 +267,7 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         "status": status,
         "updated_at": utc_now(),
         "answers": {
-            "experiment_started": bool(segments or live_report or live_state),
+            "experiment_started": bool(segments or raw_commits or live_report or live_state or existing_experiment_state),
             "raw_seconds_recorded": raw_seconds,
             "sidecar_seconds_captured": round(sidecar_captured, 3),
             "sidecar_seconds_preprocessed": round(sidecar_processed, 3),
@@ -271,6 +281,7 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         },
         "counters": {
             "segments_seen": len(segments),
+            "raw_commits_seen": len(raw_commits),
             "chunks_seen": len(chunks),
             "segments_by_source_seconds": sum_by_source(segments),
             "screen_capture_restart_count": (
@@ -295,7 +306,7 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         "experiment_id": experiment_id,
         "kind": "near_realtime_shadow",
         "status": status,
-        "started_at": first_event_time(events, "live_pipeline.prepare") or first_event_time(events, "capture.prepare"),
+        "started_at": first_event_time(events, "experiment_sidecar.prepare") or first_event_time(events, "live_pipeline.prepare") or first_event_time(events, "capture.prepare"),
         "ended_at": ((session_manifest or {}).get("ended_at") if session_manifest else None),
         "config": {
             "segment_sec": value_from(live_state, live_report, "segment_sec") or value_from(live_report, live_report, "parameters.segment_sec"),

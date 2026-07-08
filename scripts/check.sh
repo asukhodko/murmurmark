@@ -10,6 +10,7 @@ python3 -m py_compile scripts/*.py
 scripts/check-open-source-readiness.sh
 scripts/check-capture-regressions.sh
 scripts/smoke-experimental-sidecar-contract.sh
+scripts/smoke-raw-sidecar-worker.sh
 scripts/smoke-process-chunk-resume.sh
 if [[ -f sessions/_reports/session-quality/session_quality_report.json ]]; then
   scripts/check-current-pipeline-stabilization.py

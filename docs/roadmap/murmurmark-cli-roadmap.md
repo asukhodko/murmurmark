@@ -261,18 +261,16 @@ flowchart LR
 - Keep the final handoff readable: `finish` now opens a bundle whose `index.md` is the first working
   artifact, not a derived-file directory listing.
 - Continue **Near-Realtime Pipeline Shadow v1** as a single-capture sidecar:
-  - first shadow implementation exists: `record --live-pipeline` writes durable mic/remote segment
-    copies, starts an optional worker, writes `derived/live/transcript.draft.md`,
-    `derived/live/live_pipeline_report.json`, post-stop final-reconcile report and advisory
-    live-vs-batch comparison, but it remains quarantined as production output because older tests
-    showed inline live work can starve raw ScreenCaptureKit audio delivery;
-  - live segments are overlap-aware: each segment has a hard publish window and a wider ASR clip
-    window; the async bounded queue now has a full fail-open proof, and next work is controlled
-    Live Evidence parity coverage;
+  - legacy `record --live-pipeline` remains quarantined because inline segment work correlated with
+    sparse raw ScreenCaptureKit audio;
+  - the current redesign is `record --experiment live-shadow-v1`: raw CAF is written first, then
+    `raw_segment_commits.jsonl` records committed intervals, and a best-effort worker materializes
+    sidecar WAVs under `derived/experiments/live-shadow-v1/audio/`;
+  - `derived/live/segments.jsonl` remains a compatibility alias pointing to those canonical
+    experiment files; live draft output is advisory only;
   - the design rule is one ScreenCaptureKit owner plus derived sidecar artifacts, never two
     concurrent `record` processes;
-  - after stop, the existing batch-grade repair/review/readiness layers run as final reconcile and
-    remain authoritative;
+  - after stop, the normal `murmurmark process` path runs separately and remains authoritative;
   - keep the existing post-recording `process` path as source of truth until corpus comparison proves
     no worse order/local-recall/remote-duplicate behavior.
 - Make the everyday path boring:
@@ -298,13 +296,13 @@ flowchart LR
     transcripts;
   - verify `status` and `next` agree for successful, review-first, blocked and failed-capture
     sessions;
-- keep `--live-pipeline` disabled by default until the new async bounded segment queue proves it no
-  longer starves raw ScreenCaptureKit audio delivery.
+- keep `--live-pipeline` disabled by default; all new evidence should go through
+  `record --experiment live-shadow-v1`.
 - Near-realtime shadow pipeline follow-up, after stabilization:
   - previous inline segment writing during capture is quarantined: live tests showed it can starve
     ScreenCaptureKit audio delivery and leave raw tracks mostly silent;
-  - first redesign step is now implemented as a non-blocking async bounded queue after durable raw
-    writes; full fail-open proof has passed for normal, overloaded and failed live paths;
+  - first redesign step is now implemented as a raw commit sidecar after durable raw writes; the
+    callback no longer writes derived live audio or passes sample buffers to the sidecar;
   - `scripts/check-capture-regressions.sh` now writes
     `sessions/_reports/capture-regression/capture_regression_check.json`; `static_only` is useful
     regression evidence, while `full_fail_open_proof_passed` is required before controlled
@@ -445,10 +443,10 @@ newer run-state exists.
 1. **Process Observability & Run Monitor v1.** Write a current run-state artifact during
    `murmurmark process`, expose the active step and ASR chunk progress through `status`/`next`, keep
    interruption recovery obvious and make stale readiness harmless.
-2. **Near-Realtime Capture Isolation v1.** Recent controlled-real evidence produced sparse raw
-   capture, so real Live Evidence recording is quarantined again. Re-prove the architecture where
-   one durable raw writer feeds a best-effort sidecar queue, and keep production on plain
-   `record -> process`.
+2. **Near-Realtime Capture Isolation v1.** Legacy controlled-real live produced sparse raw capture,
+   so `--live-pipeline` stays quarantined. Prove the new `record --experiment live-shadow-v1`
+   architecture where one durable raw writer emits raw commit events and a best-effort sidecar
+   consumes them without owning capture buffers. Keep production on plain `record -> process`.
 3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth

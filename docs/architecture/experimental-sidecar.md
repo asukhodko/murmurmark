@@ -32,10 +32,10 @@ batch transcript until separate parity gates pass.
 
 1. **Single capture owner.** Only one process owns ScreenCaptureKit capture for a session.
 2. **Raw first.** Raw `audio/mic/*.caf` and `audio/remote/*.caf` are the only capture source of truth.
-3. **Experiment after raw copy.** Sidecar work receives copied buffers or closed raw-derived segments,
-   never the only copy of incoming audio.
-4. **No blocking capture callbacks.** The ScreenCaptureKit callback may copy samples into bounded
-   queues; it must not run ASR, Echo Guard, JSON writes, transcript reconciliation or heavy logging.
+3. **Experiment after raw commit.** Sidecar work receives raw commit events or closed raw-derived
+   segments, never the incoming sample buffers themselves.
+4. **No blocking capture callbacks.** The ScreenCaptureKit callback may update lightweight counters;
+   it must not run ASR, Echo Guard, derived audio writes, transcript reconciliation or heavy logging.
 5. **Fail open.** When the sidecar queue is full, slow or broken, the sidecar disables itself and raw
    recording continues.
 6. **Separate artifacts.** Sidecar files live under a dedicated derived namespace and cannot overwrite
@@ -50,12 +50,15 @@ batch transcript until separate parity gates pass.
 ```text
 ScreenCaptureKit
   -> capture callback
-       -> raw writer queue -> audio/mic/000001.caf
-                           -> audio/remote/000001.caf
-       -> sidecar enqueue  -> derived/experiments/<experiment-id>/...
+       -> raw writer -> audio/mic/000001.caf
+                  \-> audio/remote/000001.caf
+       -> commit tracker -> raw_segment_commits.jsonl
+       -> sidecar worker reads committed raw intervals best-effort
 ```
 
-The raw writer path is mandatory. The sidecar enqueue is optional and non-blocking.
+The raw writer path is mandatory. The sidecar only sees lightweight commit events emitted after raw
+frames were accepted by the writer. It never owns capture buffers and never runs heavy work in the
+callback.
 
 Recommended v1 sidecar:
 
@@ -64,14 +67,15 @@ derived/experiments/live-shadow-v1/
   experiment_manifest.json
   state.json
   events.jsonl
+  raw_segment_commits.jsonl
   audio/
-    mic/chunk-000001.wav
-    remote/chunk-000001.wav
-  chunks.jsonl
+    mic/000001.wav
+    remote/000001.wav
+  report.json
+  report.md
   transcript.draft.md
   transcript.draft.json
   worker.log
-  final_reconcile_report.json
   live_batch_comparison.json
 ```
 
@@ -85,6 +89,7 @@ derived/experiments/live-shadow-v1/
   experiment_manifest.json
   state.json
   events.jsonl
+  raw_segment_commits.jsonl
   report.json
   report.md
 ```
@@ -97,6 +102,7 @@ comparison and final reconcile files. The experiment namespace is the contract s
 - `raw_capture_affected: false|true|unknown`;
 - recovery and comparison commands;
 - raw seconds recorded;
+- raw commit rows seen;
 - sidecar seconds captured/preprocessed/asr;
 - whether backpressure disabled the sidecar;
 - whether batch can be reproduced from raw CAF files without sidecar artifacts.
@@ -126,14 +132,17 @@ Before starting an experimental sidecar:
 The capture callback does the minimum:
 
 1. validate sample buffer timing;
-2. copy or enqueue samples to raw writer path;
-3. attempt non-blocking sidecar enqueue;
-4. increment counters and return.
+2. write samples to the durable raw CAF writer;
+3. update committed frame counters and emit tiny raw commit rows when segment boundaries are crossed;
+4. return.
 
-If sidecar pending work exceeds limits:
+It does not pass `CMSampleBuffer` objects to live segmenters, does not write derived live audio and
+does not run ASR/Echo Guard/reconciliation.
+
+If raw commit events or sidecar work exceed limits:
 
 - mark sidecar status `disabled_backpressure`;
-- stop creating new sidecar segments;
+- stop materializing new sidecar segments;
 - keep raw recording active;
 - write one warning, not one warning per callback.
 
@@ -144,8 +153,8 @@ On `Ctrl-C`:
 1. stop ScreenCaptureKit;
 2. close raw CAF files;
 3. write `session.json`;
-4. close sidecar segment writers;
-5. wait only a bounded time for sidecar worker;
+4. close the raw commit log;
+5. wait only a bounded time for the sidecar worker;
 6. terminate sidecar worker if needed;
 7. run normal batch processing if requested;
 8. compare sidecar output against batch;
@@ -155,7 +164,8 @@ If finalization is interrupted after raw files are closed, recovery must be poss
 
 ```bash
 SESSION="sessions/<session-id>"
-murmurmark live pilot "$SESSION" --controlled-real
+murmurmark process "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
 ## Known Failure Modes
@@ -165,7 +175,8 @@ murmurmark live pilot "$SESSION" --controlled-real
 Risk: sidecar file IO, JSON writes or ASR work happens too close to the ScreenCaptureKit callback and
 starves raw capture.
 
-Mitigation: raw write first, sidecar non-blocking queue, fail-open probe, artificial backpressure test.
+Mitigation: raw write first; the callback only records committed-frame progress. A separate worker
+reads `raw_segment_commits.jsonl` and materializes WAV from raw CAF.
 
 ### CPU Contention
 
@@ -234,9 +245,10 @@ capture". Two local ScreenCaptureKit clients do not improve that guarantee.
 
 ### Near-Realtime First, True Realtime Later
 
-The first useful sidecar does not need word-by-word realtime. It can write closed 60-second segments,
-produce a draft with delay and compare after stop. That is enough to prove chunking, handoff,
-backpressure and parity without risking capture.
+The first useful sidecar does not need word-by-word realtime. It can write raw commit rows for
+closed 60-second intervals, materialize WAV from raw CAF with delay, produce a draft later and
+compare after stop. That is enough to prove chunking, handoff, backpressure and parity without
+risking capture.
 
 True low-latency transcription can come later after:
 
@@ -280,40 +292,41 @@ murmurmark record --target-bundle system
 murmurmark process latest
 ```
 
-Current controlled experimental path is lab-only. Do not use it on valuable meetings while capture
-isolation is under repair:
+Current controlled experimental path:
 
 ```bash
-murmurmark live pilot --duration 45
+murmurmark record --target-bundle system --experiment live-shadow-v1
+murmurmark process latest
+murmurmark experiment status latest
+murmurmark experiment compare latest --experiment live-shadow-v1
 ```
 
 Existing live session analysis path:
 
 ```bash
 SESSION="sessions/<session-id>"
-murmurmark live pilot "$SESSION" --controlled-real
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
-Future generic sidecar path:
+Legacy unsafe lab path:
 
 ```bash
-murmurmark record --target-bundle system --experiment live-shadow-v1
-murmurmark experiment status latest
-murmurmark experiment compare latest --experiment live-shadow-v1
+MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 murmurmark record --target-bundle system --live-pipeline
 ```
 
-The future generic command should still use the same single-capture lock and must reject attempts to
-run a second `record` process.
+The generic sidecar command still uses the same single-capture lock and must reject attempts to run a
+second `record` process. Until soak/parity gates pass, use it as controlled evidence and keep plain
+`record -> process` as the production path.
 
 ## Implementation Notes
 
 - Keep the existing recording lock. It prevents the known bad two-process shape.
 - Keep the sidecar queue bounded and non-blocking.
+- Keep `raw_segment_commits.jsonl` append-only and small: it records committed intervals, not audio.
 - Keep experiment manifests with explicit `experiment_id`, `schema`, `config`, `inputs`, `outputs`,
   `status`, `started_at`, `ended_at`, `disabled_reason`, `raw_capture_affected` and
   `promotion_allowed: false`.
 - Keep one report that answers: "Did the experiment affect raw capture?" The expected answer for a
   successful fail-open run is machine-checkable `false`.
-- Treat `derived/live/` as the first concrete sidecar, then generalize only when another experiment
-  needs the same machinery.
+- Treat `derived/experiments/live-shadow-v1/` as the canonical sidecar namespace. `derived/live/`
+  remains a compatibility alias for existing draft and comparison tools.

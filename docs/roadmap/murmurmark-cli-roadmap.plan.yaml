@@ -536,35 +536,27 @@ nodes:
       во время записи. Первый shadow-контур существует, но он quarantined: тесты показали, что
       inline live segment writer может starve ScreenCaptureKit audio delivery и оставить raw tracks
       почти пустыми. Production route остаётся batch-first: raw CAF/session package и обычный
-      `murmurmark process` остаются source of truth. Первый async bounded segment handoff реализован,
-      но controlled-real запуск 2026-07-08 снова дал sparse raw capture. Поэтому новая реальная
-      live-запись quarantined; ближайшая работа по live — capture isolation proof и lab-only pilots,
-      пока promotion остаётся blocked и batch transcript authoritative. Архитектурная форма
-      зафиксирована как single-capture experimental sidecar: один ScreenCaptureKit owner, raw CAF
-      first, best-effort derived artifacts отдельно от batch outputs. Contract v1 уже материализует
-      эту форму под `derived/experiments/live-shadow-v1`.
+      `murmurmark process` остаются source of truth. Старый `--live-pipeline` quarantined. Новый
+      путь — `record --experiment live-shadow-v1`: callback пишет raw CAF, затем лёгкий tracker
+      пишет `raw_segment_commits.jsonl`, а отдельный worker материализует sidecar WAV из уже
+      committed raw intervals. Поэтому ближайшая live-работа — soak/parity gates для raw-commit
+      sidecar, пока promotion остаётся blocked и batch transcript authoritative.
 
   realtime-segment-writer:
-    title: "Capture-safe segment writer"
+    title: "Durable raw commit sidecar"
     kind: task
     parent: near-realtime-pipeline
     deps: [cli-recording-reliability]
     status: done
     effort: 4
     notes: |
-      `record --live-pipeline` остаётся отключённым по умолчанию. Первый capture-safe слой теперь
-      есть: callback пишет durable raw CAF, затем делает non-blocking enqueue в async bounded live
-      segment queue. При backlog/error отключаются только live-derived artifacts. Два параллельных
-      `murmurmark record` процесса запрещены lock-ом: stable и experimental должны жить внутри
-      одного запуска как raw capture плюс sidecar. Следующий шаг —
-      controlled real Live Evidence parity coverage после полного proof. `scripts/check-capture-regressions.sh` пишет
-      `sessions/_reports/capture-regression/capture_regression_check.json`: `static_only` фиксирует
-      статические и fixture-проверки, а `full_fail_open_proof_passed` требуется перед любым controlled
-      live pilot. Повторные static-проверки сохраняют уже доказанный full proof вместо понижения
-      операторского состояния. Для пилотного контура добавлен `murmurmark live pilot` поверх
-      `scripts/run-live-parity-pilot.sh`: сейчас он безопасно запускает короткую lab live recording
-      или анализирует existing live session. New controlled-real recording заблокирован без явного
-      unsafe escape hatch, сохраняя live promotion blocked.
+      `record --live-pipeline` остаётся отключённым по умолчанию. Новый безопасный вход:
+      `record --experiment live-shadow-v1`. Callback не пишет derived live audio и не передаёт
+      CMSampleBuffer в sidecar. После успешной raw write операции tracker пишет маленькие
+      `murmurmark.raw_segment_commit/v1` строки, а worker отдельно читает raw CAF и материализует
+      WAV-сегменты. При backlog/read failure отключается только experiment. Два параллельных
+      `murmurmark record` процесса запрещены lock-ом: stable и experimental живут внутри одного
+      запуска как raw capture плюс sidecar.
 
   experimental-sidecar-contract-v1:
     title: "Experimental Sidecar Contract v1"
@@ -575,13 +567,14 @@ nodes:
     effort: 4
     notes: |
       Новый контрактный слой оформляет sidecar как эксперимент, а не как набор файлов
-      `derived/live`. `murmurmark live pilot` и `murmurmark experiment status|report|compare`
-      пишут `derived/experiments/live-shadow-v1/experiment_manifest.json`, `state.json`,
-      `events.jsonl`, `report.json` и `report.md`. Manifest фиксирует `batch_authoritative: true`,
-      `promotion_allowed: false`, `raw_capture_affected`, recovery/comparison commands и ссылки на
-      chunks/draft/worker log/comparison/final reconcile. Smoke проверяет нормальный контракт и
-      fail-open backpressure: sidecar может отключиться, но raw CAF и batch process остаются
-      воспроизводимыми.
+      `derived/live`. `record --experiment live-shadow-v1` и
+      `murmurmark experiment status|report|compare` пишут
+      `derived/experiments/live-shadow-v1/experiment_manifest.json`, `state.json`, `events.jsonl`,
+      `raw_segment_commits.jsonl`, `report.json` и `report.md`. Manifest фиксирует
+      `batch_authoritative: true`, `promotion_allowed: false`, `raw_capture_affected`,
+      recovery/comparison commands и ссылки на raw commit log, canonical experiment audio,
+      compatibility segments and reports. Smoke проверяет materialization from raw commits:
+      sidecar может отключиться, но raw CAF и batch process остаются воспроизводимыми.
 
   realtime-worker-queue:
     title: "Echo/ASR worker queue"
@@ -591,9 +584,9 @@ nodes:
     status: later
     effort: 5
     notes: |
-      Worker можно возвращать только после capture-safe segment writer. Он пишет chunk state и draft
-      transcript под `derived/live/`, но не имеет права влиять на raw capture. Нужны backpressure,
-      per-stage state, restartability, явный lag и безопасный skip, если live отстаёт.
+      Worker теперь стартует только как best-effort consumer raw commits. Следующий слой должен
+      аккуратно подключить Echo/ASR draft поверх materialized segments, per-stage state,
+      restartability, явный lag и безопасный skip, если live отстаёт.
 
   realtime-live-draft:
     title: "Live draft transcript"
@@ -648,13 +641,13 @@ nodes:
     status: later
     effort: 6
     notes: |
-      После sparse-capture на controlled-real запуске новая реальная live-запись снова
-      quarantined. Ближайшая крупная live-цель — заново доказать изоляцию sidecar: один durable raw
-      writer, best-effort bounded queue, отключение live без влияния на raw CAF, затем только lab
-      pilots и existing-session compare. Normal `record --target-bundle system` остаётся
-      единственным production path. Дизайн закреплён в `docs/architecture/experimental-sidecar.md`:
-      эксперимент может исчезнуть, отстать или быть отключён, но raw capture и batch process должны
-      остаться воспроизводимыми. Live cache остаётся
+      После sparse-capture на controlled-real запуске legacy live остаётся quarantined. Ближайшая
+      крупная live-цель — доказать новую изоляцию sidecar: `record --experiment live-shadow-v1`
+      пишет raw CAF как source of truth, затем `raw_segment_commits.jsonl`, затем best-effort worker
+      материализует sidecar WAV. Normal `record --target-bundle system` остаётся production path.
+      Дизайн закреплён в `docs/architecture/experimental-sidecar.md`: эксперимент может исчезнуть,
+      отстать или быть отключён, но raw capture и batch process должны остаться воспроизводимыми.
+      Live cache остаётся
       shadow-only: promotion allowed sessions must stay `0` until gates cover capture safety, order
       risk, local recall, remote leakage, review burden, selected notes readiness, draft text recall
       and chunk-boundary duplicates/missing speech.

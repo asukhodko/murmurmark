@@ -446,12 +446,19 @@ enum Commands {
         }
         let options = try Options(args)
         let livePipelineEnabled = options.flag("live-pipeline")
+        let experimentID = options.string("experiment")
         if livePipelineEnabled && ProcessInfo.processInfo.environment["MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE"] != "1" {
             throw CLIError(
                 "--live-pipeline is disabled for real recordings until the async live path passes parity gates. " +
                     "Use `murmurmark record --target-bundle system`. " +
                     "For lab-only diagnostics set MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1."
             )
+        }
+        if let experimentID, experimentID != "live-shadow-v1" {
+            throw CLIError("unsupported record experiment: \(experimentID)")
+        }
+        if livePipelineEnabled && experimentID != nil {
+            throw CLIError("--experiment cannot be combined with --live-pipeline")
         }
         let out = try SessionPaths.outputDirectory(from: options)
         let duration = try options.optionalPositiveDouble("duration")
@@ -472,6 +479,9 @@ enum Commands {
         if livePipelineEnabled && (microphoneBackend != .screenCaptureKit || remoteBackend != .screenCaptureKit) {
             throw CLIError("--live-pipeline currently requires screencapturekit mic and remote backends")
         }
+        if experimentID != nil && (microphoneBackend != .screenCaptureKit || remoteBackend != .screenCaptureKit) {
+            throw CLIError("--experiment live-shadow-v1 currently requires screencapturekit mic and remote backends")
+        }
 
         let recorder = SessionRecorder(
             outputDirectory: out,
@@ -487,7 +497,8 @@ enum Commands {
             liveSegmentSeconds: liveSegmentSeconds,
             liveOverlapSeconds: liveOverlapSeconds,
             liveWorkerEnabled: liveWorkerEnabled,
-            liveFinalizeEnabled: liveFinalizeEnabled
+            liveFinalizeEnabled: liveFinalizeEnabled,
+            experimentID: experimentID
         )
         let stopReason = try await recorder.run()
         if stopReason.isUnexpectedCaptureStop {
@@ -505,6 +516,7 @@ enum Commands {
         usage: murmurmark record [--out ./session] [--duration 60] [--target-bundle system|com.example.App]
                                  [--mic default] [--mic-backend screencapturekit|voice-processing]
                                  [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
+                                 [--experiment live-shadow-v1]
                                  [--live-pipeline] [--live-segment-sec 60] [--live-overlap-sec 5]
                                  [--live-no-worker] [--live-no-finalize]
 
@@ -521,6 +533,9 @@ enum Commands {
 
         --live-pipeline is disabled by default. Use it only in lab diagnostics with
         MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 until the async live path passes parity gates.
+
+        --experiment live-shadow-v1 keeps raw CAF authoritative and starts a best-effort sidecar
+        from committed raw segments. If the sidecar fails, process the session normally.
         """)
     }
 }
@@ -644,6 +659,7 @@ enum DoctorChecks {
             "scripts/run-session-pipeline.py",
             "scripts/evaluate-outcome.py",
             "scripts/live-pipeline-shadow.py",
+            "scripts/raw-sidecar-worker.py",
             "scripts/compare-live-batch.py",
             "scripts/materialize-live-asr-cache.py",
             "scripts/report-live-corpus-gates.py",
@@ -7160,6 +7176,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     let liveOverlapSeconds: TimeInterval
     let liveWorkerEnabled: Bool
     let liveFinalizeEnabled: Bool
+    let experimentID: String?
 
     private let fileManager = FileManager.default
     private let queue = DispatchQueue(label: "murmurmark.capture.samples")
@@ -7173,6 +7190,8 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var remoteInputCapture: AudioInputDeviceCapture?
     private var liveSegments: AsyncLiveSegmentCapture?
     private var liveWorker: LivePipelineWorker?
+    private var rawSidecarCommits: RawSegmentCommitTracker?
+    private var rawSidecarWorker: RawSidecarWorker?
     private var events: EventLog?
     private var warnings: [String] = []
     private var targetDisplayName = "System Audio"
@@ -7204,7 +7223,8 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         liveSegmentSeconds: TimeInterval = 60,
         liveOverlapSeconds: TimeInterval = 5,
         liveWorkerEnabled: Bool = false,
-        liveFinalizeEnabled: Bool = false
+        liveFinalizeEnabled: Bool = false,
+        experimentID: String? = nil
     ) {
         self.outputDirectory = outputDirectory
         self.targetBundleID = targetBundleID
@@ -7220,6 +7240,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         self.liveOverlapSeconds = liveOverlapSeconds
         self.liveWorkerEnabled = liveWorkerEnabled
         self.liveFinalizeEnabled = liveFinalizeEnabled
+        self.experimentID = experimentID
     }
 
     func run() async throws -> StopReason {
@@ -7250,6 +7271,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                     "remote_backend": remoteBackend.rawValue,
                     "remote_device": remoteDeviceID ?? "",
                     "live_pipeline": livePipelineEnabled,
+                    "experiment": experimentID ?? "",
                 ]
             )
             try eventLog.write(
@@ -7286,6 +7308,31 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                         "max_pending_samples": liveSegmentMaxPendingSamples,
                         "artificial_write_delay_ms": liveSegmentWriteDelayMilliseconds,
                         "segments": "derived/live/segments.jsonl",
+                    ]
+                )
+            }
+            if let experimentID {
+                let maxPendingCommits = RawSegmentCommitTracker.resolveMaxPendingCommits()
+                let tracker = try RawSegmentCommitTracker(
+                    sessionDirectory: outputDirectory,
+                    experimentID: experimentID,
+                    segmentSeconds: liveSegmentSeconds,
+                    maxPendingCommits: maxPendingCommits,
+                    warningHandler: { [weak self] warning in
+                        self?.appendWarning(warning)
+                    }
+                )
+                rawSidecarCommits = tracker
+                try eventLog.write(
+                    type: "experiment_sidecar.prepare",
+                    fields: [
+                        "experiment_id": experimentID,
+                        "segment_sec": liveSegmentSeconds,
+                        "worker_enabled": true,
+                        "writer_mode": "raw_segment_commit_log",
+                        "callback_policy": "raw_write_then_commit_event_no_sample_buffers",
+                        "max_pending_commits": maxPendingCommits,
+                        "commits": "derived/experiments/\(experimentID)/raw_segment_commits.jsonl",
                     ]
                 )
             }
@@ -7372,6 +7419,9 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             if liveWorkerEnabled {
                 try startLiveWorker(eventLog: eventLog)
             }
+            if experimentID != nil {
+                try startRawSidecarWorker(eventLog: eventLog)
+            }
             if let duration {
                 print("recording \(String(format: "%.1f", duration))s -> \(outputDirectory.path)")
             } else {
@@ -7391,6 +7441,10 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             let actualDuration = max(0.0, (stopDate ?? Date()).timeIntervalSince(startDate))
             try padScreenCaptureWritersToDuration(actualDuration)
             liveSegments?.closeAll(finalDurationSeconds: actualDuration)
+            rawSidecarCommits?.closeAll(finalFramesBySource: [
+                "mic": micFramesWritten() ?? 0,
+                "remote": remoteFramesWritten() ?? 0,
+            ])
             let preFinishAudioCoverage = min(
                 writerCoverage(frames: micFramesWritten(), sampleRate: Double(sampleRate), actualDuration: actualDuration),
                 writerCoverage(frames: remoteFramesWritten(), sampleRate: Double(sampleRate), actualDuration: actualDuration)
@@ -7442,6 +7496,29 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                     )
                 }
             }
+            if let worker = rawSidecarWorker {
+                let exited = worker.wait(seconds: 30)
+                try? eventLog.write(
+                    type: "experiment_sidecar.worker_waited",
+                    fields: [
+                        "experiment_id": experimentID ?? "",
+                        "exited": exited,
+                        "status": worker.terminationStatus.map { Int($0) } as Any? ?? NSNull(),
+                        "timeout_sec": 30.0,
+                    ]
+                )
+                if !exited {
+                    appendWarning("experiment sidecar worker still running after finalization wait")
+                    worker.terminate()
+                    try? eventLog.write(
+                        type: "experiment_sidecar.worker_terminated",
+                        fields: [
+                            "experiment_id": experimentID ?? "",
+                            "reason": "finalization_wait_timeout",
+                        ]
+                    )
+                }
+            }
             if liveFinalizeEnabled, !finalizedAsPartial {
                 runLiveFinalReconcile(eventLog: eventLog)
             }
@@ -7455,10 +7532,12 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             return stopReason
         } catch {
             liveWorker?.terminate()
+            rawSidecarWorker?.terminate()
             await stopScreenCaptureStream()
             try? remoteInputCapture?.stop()
             try? voiceProcessingMic?.stop()
             liveSegments?.closeAll()
+            rawSidecarCommits?.closeAll(finalFramesBySource: [:])
             try? eventLog.write(type: "capture.failed", fields: ["error": error.localizedDescription])
             try? fileManager.removeItem(at: outputDirectory.appendingPathComponent("session.lock"))
             throw CaptureErrors.enrich(error)
@@ -7474,6 +7553,24 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             fields: [
                 "log": "derived/live/live_worker.log",
                 "report": "derived/live/live_pipeline_report.json",
+            ]
+        )
+    }
+
+    private func startRawSidecarWorker(eventLog: EventLog) throws {
+        guard let experimentID else { return }
+        let worker = try RawSidecarWorker(
+            sessionDirectory: outputDirectory,
+            experimentID: experimentID
+        )
+        rawSidecarWorker = worker
+        try worker.start()
+        try eventLog.write(
+            type: "experiment_sidecar.worker_started",
+            fields: [
+                "experiment_id": experimentID,
+                "log": "derived/experiments/\(experimentID)/worker.log",
+                "commits": "derived/experiments/\(experimentID)/raw_segment_commits.jsonl",
             ]
         )
     }
@@ -7563,6 +7660,7 @@ extension SessionRecorder {
         do {
             switch type {
             case .audio:
+                let format = AudioFileWriter.audioFormat(from: sampleBuffer)
                 if remoteWriter == nil {
                     remoteWriter = try AudioFileWriter(
                         url: outputDirectory.appendingPathComponent("audio/remote/000001.caf"),
@@ -7571,8 +7669,12 @@ extension SessionRecorder {
                     )
                 }
                 try remoteWriter?.write(sampleBuffer)
+                if let format, let remoteWriter {
+                    recordRawSidecarCommit(source: "remote", framesWritten: remoteWriter.framesWritten, sampleRate: format.sampleRate)
+                }
                 writeLiveSegmentSafely(sampleBuffer, source: "remote")
             case .microphone:
+                let format = AudioFileWriter.audioFormat(from: sampleBuffer)
                 if micWriter == nil {
                     micWriter = try AudioFileWriter(
                         url: outputDirectory.appendingPathComponent("audio/mic/000001.caf"),
@@ -7581,6 +7683,9 @@ extension SessionRecorder {
                     )
                 }
                 try micWriter?.write(sampleBuffer)
+                if let format, let micWriter {
+                    recordRawSidecarCommit(source: "mic", framesWritten: micWriter.framesWritten, sampleRate: format.sampleRate)
+                }
                 writeLiveSegmentSafely(sampleBuffer, source: "mic")
             default:
                 break
@@ -7595,6 +7700,10 @@ extension SessionRecorder {
     private func writeLiveSegmentSafely(_ sampleBuffer: CMSampleBuffer, source: String) {
         guard let liveSegments else { return }
         liveSegments.enqueue(sampleBuffer, source: source)
+    }
+
+    private func recordRawSidecarCommit(source: String, framesWritten: AVAudioFramePosition, sampleRate: Double) {
+        rawSidecarCommits?.recordWrite(source: source, framesWritten: framesWritten, sampleRate: sampleRate)
     }
 
     func stream(_: SCStream, didStopWithError error: Error) {
@@ -8501,6 +8610,235 @@ final class AudioFileWriter {
     }
 }
 
+final class RawSegmentCommitTracker: @unchecked Sendable {
+    private struct SourceState {
+        var index = 1
+        var nextStartFrame: AVAudioFramePosition = 0
+        var sampleRate: Double = 0
+    }
+
+    private struct CommitInterval {
+        let source: String
+        let index: Int
+        let startFrame: AVAudioFramePosition
+        let endFrame: AVAudioFramePosition
+        let sampleRate: Double
+        let final: Bool
+    }
+
+    private let sessionDirectory: URL
+    private let experimentID: String
+    private let segmentSeconds: TimeInterval
+    private let maxPendingCommits: Int
+    private let warningHandler: (String) -> Void
+    private let stateQueue = DispatchQueue(label: "murmurmark.raw.sidecar.commit.state")
+    private let writerQueue = DispatchQueue(label: "murmurmark.raw.sidecar.commit.writer")
+    private let handle: FileHandle
+
+    private var states: [String: SourceState] = [:]
+    private var pendingCommits = 0
+    private var disabled = false
+    private var closed = false
+
+    init(
+        sessionDirectory: URL,
+        experimentID: String,
+        segmentSeconds: TimeInterval,
+        maxPendingCommits: Int,
+        warningHandler: @escaping (String) -> Void
+    ) throws {
+        self.sessionDirectory = sessionDirectory
+        self.experimentID = experimentID
+        self.segmentSeconds = max(5.0, segmentSeconds)
+        self.maxPendingCommits = max(1, maxPendingCommits)
+        self.warningHandler = warningHandler
+        let experimentDirectory = sessionDirectory
+            .appendingPathComponent("derived/experiments")
+            .appendingPathComponent(experimentID)
+        try FileManager.default.createDirectory(at: experimentDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sessionDirectory.appendingPathComponent("derived/live"), withIntermediateDirectories: true)
+        let commitsURL = experimentDirectory.appendingPathComponent("raw_segment_commits.jsonl")
+        FileManager.default.createFile(atPath: commitsURL.path, contents: Data())
+        handle = try FileHandle(forWritingTo: commitsURL)
+        let startedAt = DateStrings.iso8601(Date())
+        try JSONObject.write(
+            [
+                "schema": "murmurmark.experimental_sidecar_manifest/v1",
+                "experiment_id": experimentID,
+                "kind": "near_realtime_shadow",
+                "status": "recording",
+                "started_at": startedAt,
+                "config": [
+                    "segment_sec": rounded(segmentSeconds),
+                    "handoff": "raw_segment_commits",
+                    "compatibility_alias": "derived/live",
+                ],
+                "inputs": [
+                    "raw_mic": "audio/mic/000001.caf",
+                    "raw_remote": "audio/remote/000001.caf",
+                ],
+                "outputs": [
+                    "raw_segment_commits": "derived/experiments/\(experimentID)/raw_segment_commits.jsonl",
+                    "compat_live_dir": "derived/live",
+                ],
+                "raw_capture_affected": "unknown",
+                "batch_authoritative": true,
+                "promotion_allowed": false,
+            ],
+            to: experimentDirectory.appendingPathComponent("experiment_manifest.json")
+        )
+        try JSONObject.write(
+            [
+                "schema": "murmurmark.raw_sidecar_commit_state/v1",
+                "experiment_id": experimentID,
+                "status": "recording",
+                "segment_sec": rounded(segmentSeconds),
+                "raw_segment_commits": "derived/experiments/\(experimentID)/raw_segment_commits.jsonl",
+                "updated_at": startedAt,
+            ],
+            to: experimentDirectory.appendingPathComponent("raw_commit_state.json")
+        )
+    }
+
+    static func resolveMaxPendingCommits() -> Int {
+        let env = ProcessInfo.processInfo.environment
+        guard let value = env["MURMURMARK_RAW_SIDECAR_MAX_PENDING_COMMITS"],
+              let parsed = Int(value) else {
+            return 128
+        }
+        return max(1, min(parsed, 100_000))
+    }
+
+    func recordWrite(source: String, framesWritten: AVAudioFramePosition, sampleRate: Double) {
+        let rows = stateQueue.sync {
+            rowsForWrite(source: source, framesWritten: framesWritten, sampleRate: sampleRate, final: false)
+        }
+        enqueue(rows)
+    }
+
+    func closeAll(finalFramesBySource: [String: AVAudioFramePosition]) {
+        let rows = stateQueue.sync { () -> [[String: Any]] in
+            guard !closed else { return [] }
+            var rows: [[String: Any]] = []
+            for source in ["mic", "remote"] {
+                guard let frames = finalFramesBySource[source] else { continue }
+                guard let sampleRate = states[source]?.sampleRate, sampleRate > 0 else { continue }
+                rows.append(contentsOf: rowsForWrite(source: source, framesWritten: frames, sampleRate: sampleRate, final: true))
+            }
+            closed = true
+            return rows
+        }
+        enqueue(rows)
+        writerQueue.sync {
+            try? handle.close()
+        }
+    }
+
+    private func rowsForWrite(
+        source: String,
+        framesWritten: AVAudioFramePosition,
+        sampleRate: Double,
+        final: Bool
+    ) -> [[String: Any]] {
+        guard !closed, !disabled, framesWritten > 0, sampleRate > 0 else { return [] }
+        var state = states[source] ?? SourceState()
+        if state.sampleRate <= 0 {
+            state.sampleRate = sampleRate
+        }
+        let effectiveSampleRate = state.sampleRate > 0 ? state.sampleRate : sampleRate
+        let segmentFrames = AVAudioFramePosition(max(1.0, effectiveSampleRate * segmentSeconds))
+        var rows: [[String: Any]] = []
+        while framesWritten - state.nextStartFrame >= segmentFrames {
+            let endFrame = state.nextStartFrame + segmentFrames
+            rows.append(row(CommitInterval(
+                source: source,
+                index: state.index,
+                startFrame: state.nextStartFrame,
+                endFrame: endFrame,
+                sampleRate: effectiveSampleRate,
+                final: false
+            )))
+            state.nextStartFrame = endFrame
+            state.index += 1
+        }
+        if final, framesWritten > state.nextStartFrame {
+            rows.append(row(CommitInterval(
+                source: source,
+                index: state.index,
+                startFrame: state.nextStartFrame,
+                endFrame: framesWritten,
+                sampleRate: effectiveSampleRate,
+                final: true
+            )))
+            state.nextStartFrame = framesWritten
+            state.index += 1
+        }
+        states[source] = state
+        return rows
+    }
+
+    private func row(_ interval: CommitInterval) -> [String: Any] {
+        let startSec = Double(interval.startFrame) / max(interval.sampleRate, 1.0)
+        let endSec = Double(interval.endFrame) / max(interval.sampleRate, 1.0)
+        return [
+            "schema": "murmurmark.raw_segment_commit/v1",
+            "experiment_id": experimentID,
+            "source": interval.source,
+            "index": interval.index,
+            "start_sec": rounded(startSec),
+            "end_sec": rounded(endSec),
+            "duration_sec": rounded(endSec - startSec),
+            "raw_path": rawPath(source: interval.source),
+            "frames_committed": Int64(interval.endFrame - interval.startFrame),
+            "total_frames_committed": Int64(interval.endFrame),
+            "sample_rate": Int(interval.sampleRate.rounded()),
+            "status": "committed",
+            "final": interval.final,
+            "t": DateStrings.iso8601(Date()),
+        ]
+    }
+
+    private func enqueue(_ rows: [[String: Any]]) {
+        guard !rows.isEmpty else { return }
+        let encodedRows: [Data] = rows.compactMap { try? JSONSerialization.data(withJSONObject: $0, options: [.sortedKeys]) }
+        let rowCount = encodedRows.count
+        guard rowCount > 0 else { return }
+        let shouldWrite = stateQueue.sync { () -> Bool in
+            guard !disabled else { return false }
+            if pendingCommits + rowCount > maxPendingCommits {
+                disabled = true
+                return false
+            }
+            pendingCommits += rowCount
+            return true
+        }
+        guard shouldWrite else {
+            warningHandler("raw sidecar commit tracker disabled: backlog exceeded \(maxPendingCommits) commits")
+            return
+        }
+        writerQueue.async { [weak self, encodedRows, rowCount] in
+            guard let self else { return }
+            defer {
+                stateQueue.sync {
+                    pendingCommits = max(0, pendingCommits - rowCount)
+                }
+            }
+            for data in encodedRows {
+                handle.write(data)
+                handle.write(Data("\n".utf8))
+            }
+        }
+    }
+
+    private func rawPath(source: String) -> String {
+        "audio/\(source)/000001.caf"
+    }
+
+    private func rounded(_ value: Double) -> Double {
+        Double((value * 1000).rounded() / 1000)
+    }
+}
+
 final class AsyncLiveSegmentCapture: @unchecked Sendable {
     private struct QueuedSample: @unchecked Sendable {
         let sampleBuffer: CMSampleBuffer
@@ -9004,6 +9342,86 @@ final class LivePipelineWorker {
         logHandle = handle
         process.executableURL = URL(fileURLWithPath: python)
         process.arguments = [script.path, sessionDirectory.path]
+        process.standardOutput = handle
+        process.standardError = handle
+    }
+
+    func start() throws {
+        try process.run()
+    }
+
+    func wait(seconds: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(seconds)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        if !process.isRunning {
+            try? logHandle?.close()
+            return true
+        }
+        return false
+    }
+
+    func terminate() {
+        if process.isRunning {
+            process.terminate()
+            let deadline = Date().addingTimeInterval(5)
+            while process.isRunning, Date() < deadline {
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+            if process.isRunning {
+                process.interrupt()
+            }
+        }
+        try? logHandle?.close()
+    }
+
+    var terminationStatus: Int32? {
+        process.isRunning ? nil : process.terminationStatus
+    }
+
+    private static func resolvePython() -> String {
+        let env = ProcessInfo.processInfo.environment
+        if let value = env["MURMURMARK_PYTHON"], !value.isEmpty {
+            return value
+        }
+        let venv = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(".venv/bin/python").path
+        if FileManager.default.isExecutableFile(atPath: venv) {
+            return venv
+        }
+        return Tooling.which("python3") ?? "/usr/bin/python3"
+    }
+}
+
+final class RawSidecarWorker {
+    let sessionDirectory: URL
+    let experimentID: String
+    private let process = Process()
+    private var logHandle: FileHandle?
+
+    init(sessionDirectory: URL, experimentID: String) throws {
+        self.sessionDirectory = sessionDirectory
+        self.experimentID = experimentID
+        let script = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("scripts/raw-sidecar-worker.py")
+        guard FileManager.default.fileExists(atPath: script.path) else {
+            throw CLIError("raw sidecar worker script not found: \(script.path)")
+        }
+        let experimentDirectory = sessionDirectory
+            .appendingPathComponent("derived/experiments")
+            .appendingPathComponent(experimentID)
+        let logURL = experimentDirectory.appendingPathComponent("worker.log")
+        try FileManager.default.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: logURL.path, contents: Data())
+        let handle = try FileHandle(forWritingTo: logURL)
+        logHandle = handle
+        process.executableURL = URL(fileURLWithPath: Self.resolvePython())
+        process.arguments = [
+            script.path,
+            sessionDirectory.path,
+            "--experiment",
+            experimentID,
+        ]
         process.standardOutput = handle
         process.standardError = handle
     }
@@ -11373,6 +11791,7 @@ enum ReadinessPrinter {
             print("  session: \(sessionPath)")
             print("  expected: \(PathDisplay.display(url))")
             printLivePipelineSummary(session)
+            printExperimentSidecarSummary(session)
             print("  recommended_next: murmurmark process \(sessionPath)")
             print("  next:")
             print("    murmurmark process \(sessionPath)")
@@ -11445,6 +11864,7 @@ enum ReadinessPrinter {
         }
         ReviewSummaryPrinter.printSynthesisReviewMetrics(metrics, indent: "  ")
         printLivePipelineSummary(session)
+        printExperimentSidecarSummary(session)
         printStrongerAudioJudgeSummary(session)
         printSuggestedClosureSummary(session)
         printOutcomeSummary(session)
@@ -11638,6 +12058,7 @@ enum ReadinessPrinter {
             }
         }
         printLivePipelineSummary(session)
+        printExperimentSidecarSummary(session)
         print("  open:")
         print("    less \(sessionPath)/derived/pipeline-run/pipeline_run_report.json — Inspect the blocked pipeline report.")
         print("  next:")
@@ -11734,6 +12155,40 @@ enum ReadinessPrinter {
             print(String(format: "      live_remote_in_me: %.1fs", double(metrics["live_suspected_remote_leak_in_me_seconds"]) ?? 0.0))
             print("      boundary_duplicates: \(int(metrics["adjacent_duplicate_chunk_count"]) ?? 0)")
             print("      report: \(PathDisplay.display(comparisonURL))")
+        }
+    }
+
+    private static func printExperimentSidecarSummary(_ session: URL) {
+        let root = session.appendingPathComponent("derived/experiments")
+        guard let entries = try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil),
+              !entries.isEmpty
+        else {
+            return
+        }
+        for experimentURL in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            let stateURL = experimentURL.appendingPathComponent("state.json")
+            let rawCommitStateURL = experimentURL.appendingPathComponent("raw_commit_state.json")
+            let payload = (try? JSONFiles.object(stateURL)) ?? (try? JSONFiles.object(rawCommitStateURL))
+            guard let payload else { continue }
+            let answers = payload["answers"] as? [String: Any] ?? [:]
+            let outputs = payload["outputs"] as? [String: Any] ?? [:]
+            let counters = payload["counters"] as? [String: Any] ?? [:]
+            print("  experiment \(experimentURL.lastPathComponent):")
+            print("    status: \(string(payload["status"]) ?? "unknown")")
+            print("    batch_authoritative: true")
+            if let raw = double(answers["raw_seconds_recorded"]) {
+                print(String(format: "    raw: %.1fs", raw))
+            }
+            if let sidecar = double(answers["sidecar_seconds_captured"]) {
+                print(String(format: "    sidecar: %.1fs", sidecar))
+            }
+            if let indexes = counters["processed_indexes"] as? [Any] {
+                print("    processed_indexes: \(indexes.count)")
+            }
+            if let commits = string(outputs["raw_segment_commits"]) {
+                print("    commits: \(PathDisplay.display(session.appendingPathComponent(commits)))")
+            }
+            print("    state: \(PathDisplay.display(stateURL))")
         }
     }
 

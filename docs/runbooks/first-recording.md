@@ -121,42 +121,57 @@ The pilot refuses to create a new live recording unless
 `capture_safe_proof.status == "full_fail_open_proof_passed"`. `--skip-safety-gate` can reuse that
 existing proof, but it does not bypass the proof requirement.
 
-Real Live Evidence recording is disabled for valuable meetings while the sidecar can still affect
-raw capture. Use the production path above for the next real meeting. If you need live evidence,
-run only a short lab pilot:
+Near-realtime evidence has two paths. The old inline `--live-pipeline` path remains unsafe/lab-only
+and must not be used for valuable meetings. The new controlled experiment path keeps the normal raw
+writer as the only source of truth and lets the sidecar consume committed raw intervals:
 
 ```bash
-murmurmark live pilot --duration 45
+murmurmark record --target-bundle system --duration 120 --experiment live-shadow-v1
+murmurmark process latest
+murmurmark experiment status latest
+murmurmark experiment report latest
+murmurmark experiment compare latest --experiment live-shadow-v1
 ```
 
-Existing live sessions can still be analyzed without starting capture:
+The runtime shape is:
+
+```text
+capture -> durable raw writer -> stable session
+                    |
+                    +-> best-effort sidecar queue -> live draft
+```
+
+The sidecar reads `derived/experiments/live-shadow-v1/raw_segment_commits.jsonl`, materializes WAV
+segments from raw CAF into `derived/experiments/live-shadow-v1/audio/`, and keeps compatibility rows
+in `derived/live/segments.jsonl`. If it cannot read open CAF files or falls behind, it waits or
+disables itself. The batch transcript from raw CAF remains authoritative.
+
+Existing experiment sessions can still be analyzed without starting capture:
 
 ```bash
 SESSION="sessions/<session-id>"
-murmurmark live pilot "$SESSION" --controlled-real
 murmurmark experiment status "$SESSION"
 murmurmark experiment report "$SESSION"
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
-The real-recording escape hatch is
-`--allow-unsafe-controlled-real-recording`; use it only for a meeting you are prepared to lose.
-The target architecture remains one durable raw capture feeding a best-effort sidecar queue, but
-real sidecar recording is quarantined until that isolation is proven again.
+`murmurmark live pilot --controlled-real` still blocks new real recording without the explicit
+`--allow-unsafe-controlled-real-recording` escape hatch. Keep it for old evidence and compatibility,
+not for the normal workflow.
 
 If recording finished but post-stop processing was interrupted, resume the same evidence collection
 without starting another recording:
 
 ```bash
 SESSION="sessions/<session-id>"
-murmurmark live pilot "$SESSION" --controlled-real
+murmurmark process "$SESSION"
 murmurmark experiment status "$SESSION"
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
 This is the canonical v1 path for Echo Guard work: ScreenCaptureKit writes separate `audio/mic/000001.caf` and `audio/remote/000001.caf` tracks, and later preprocessing works algorithmically from those two tracks. Do not use BlackHole, Loopback or `--remote-backend audio-input` for normal Echo Guard tests.
 
-Experimental live-shadow recording is disabled by default:
+Legacy live-shadow recording is disabled by default:
 
 ```bash
 MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 \
@@ -165,21 +180,8 @@ MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 \
 
 Do not use this as the normal meeting command. Older inline live segment writing could starve
 ScreenCaptureKit audio delivery, which can leave the raw `mic` and `remote` tracks mostly silent.
-The current async bounded live queue is still shadow-only until live-vs-batch parity gates pass. The
-supported production path is the plain recording command above plus
-`murmurmark process latest`.
-
-`--live-pipeline` duplicates closed mic/remote capture windows into `derived/live/audio/`, starts a
-shadow worker and writes `derived/live/transcript.draft.md`,
-`derived/live/live_pipeline_report.json` and `derived/live/chunks.jsonl`. After stop it runs the
-normal batch-grade reconcile and writes `derived/live/final_reconcile_report.json`; if live ASR
-cannot be safely reused yet, the report says `speedup_status: fallback_batch_asr`. The draft is not
-the final transcript. If the worker crashes or falls behind, raw capture should still finish as a
-normal session and can be processed by the batch pipeline. After `Ctrl-C`, MurmurMark waits only a
-short finalization tail for the live worker; a stuck worker is terminated and batch reconcile
-continues. The derived segment writer is also best-effort: if it fails, MurmurMark disables live
-segments with a warning instead of stopping raw recording. Use `--live-no-finalize` when you only
-want to test the live draft and run `murmurmark process` manually.
+Use `--experiment live-shadow-v1` for controlled sidecar evidence and the plain recording command
+for production.
 
 The supported experiment contract lives outside `derived/live`:
 
