@@ -164,11 +164,10 @@ covers `14/50` sessions with `0` failed chunk rebuilds and `146/146` completed A
 
 Live/near-realtime cache promotion is gated separately and is currently quarantined. Existing
 diagnostic live sessions are negative evidence for the old inline writer: it could starve
-ScreenCaptureKit audio delivery and leave raw capture mostly silent. The new async bounded live
-queue has a full fail-open proof, so controlled Live Evidence runs may collect parity evidence on
-real meetings when `murmurmark corpus live all --refresh` says
-`controlled_real_live_pilot_allowed: true`. Do not hand-run `--live-pipeline`; use the pilot runner
-so raw CAF plus batch output remain authoritative.
+ScreenCaptureKit audio delivery and leave raw capture mostly silent. A later controlled-real run also
+showed sparse raw capture, so new real Live Evidence recording is disabled again. Lab pilots and
+existing-session analysis remain useful, but valuable meetings must use the non-live production
+route until capture isolation is proven again.
 
 ## What Is Still Out Of Scope
 
@@ -262,9 +261,9 @@ normal processing is blocked unless you explicitly pass `--allow-partial` for de
 Run only one `murmurmark record` process at a time. ScreenCaptureKit is not treated as a reliable
 multi-client capture source for MurmurMark: starting a safe recording and a live recording in
 parallel can leave both sessions unfinalized or empty. The CLI keeps a recording lock and rejects a
-second concurrent `record` before it creates a broken session. To compare live output with the stable
-pipeline, use one controlled live pilot; it records once and runs batch processing from the same raw
-CAF files after stop.
+second concurrent `record` before it creates a broken session. For valuable meetings, do not attach
+the live sidecar yet. The supported production path is one durable raw capture followed by batch
+processing.
 
 ScreenCaptureKit may skip audio buffers during silence or source inactivity. MurmurMark preserves
 the meeting timeline in raw CAF files by inserting silence for timestamp gaps instead of compressing
@@ -300,9 +299,9 @@ MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 \
 
 Do not hand-run `--live-pipeline` as a normal meeting command. It is still quarantined as a source
 of truth: the capture-safe segment handoff is implemented, but the branch has not yet passed real
-live-vs-batch parity gates. Use the pilot runner for controlled Live Evidence runs when the corpus
-report says `controlled_real_live_pilot_allowed: true`. The authoritative production result is still
-raw CAF plus `murmurmark process`.
+live-vs-batch parity gates and recent controlled-real evidence showed sparse raw capture. The
+authoritative production result is still raw CAF plus `murmurmark process`; new real live recording
+requires the explicit unsafe escape hatch and should not be used for valuable meetings.
 The intended architecture is one stable capture with a best-effort experimental sidecar, not two
 concurrent recordings; see [Experimental sidecar architecture](docs/architecture/experimental-sidecar.md).
 
@@ -355,33 +354,32 @@ runs the normal batch pipeline, compares live output with batch output and refre
 `derived/experiments/live-shadow-v1/experiment_manifest.json` under the pilot session. Promotion must
 remain blocked and the batch transcript remains authoritative.
 
-When `murmurmark corpus live all --refresh` reports `controlled_real_live_pilot_allowed: true`, use
-the same runner for a real Live Evidence run:
+Real Live Evidence recording is disabled for valuable meetings while the capture isolation problem is
+open. Recent controlled-real runs proved that the current live sidecar can still correlate with
+mostly silent raw CAF output, so the only reliable next-session command sequence is the production
+one above. You may still analyze an already recorded live session or run a short lab pilot, but do
+not use `murmurmark live pilot --controlled-real` to record a meeting unless you deliberately pass
+the unsafe escape hatch.
+
+If a previous live run already exists, inspect it without starting another recording:
 
 ```bash
-murmurmark live status
-murmurmark live gate
-murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
-murmurmark live pilot --controlled-real --skip-safety-gate
-murmurmark experiment status latest
-murmurmark experiment report latest
-murmurmark experiment compare latest --experiment live-shadow-v1
-murmurmark status latest
-murmurmark transcript latest
+SESSION="sessions/<session-id>"
+murmurmark live pilot "$SESSION" --controlled-real
+murmurmark experiment status "$SESSION"
+murmurmark experiment report "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
-`--preflight-only` performs the same proof and corpus-gate checks without starting capture. When it
-would create a new recording, it prints `planned_session` and `session_created: false`; do not process
-that path until the real pilot run has actually recorded it. The Live Evidence command records until
-`Ctrl-C` into a date-named session, skips live finalize during
-recording, runs the normal batch pipeline after stop and refreshes the live corpus report. Before
-recording, the runner refreshes the same corpus gates and refuses to start if controlled evidence
-collection is no longer the recommended safe next step; in practice, `coverage_path.status` must be
-`needs_new_controlled_live_evidence`. Its `live_parity_pilot_report.json` prints
-`pilot_verdict`, `contributes_to_passing_coverage` and remaining passing coverage. It is evidence
-collection, not production promotion; the batch transcript remains final.
-The `experiment` commands inspect the sidecar contract and compare live-shadow artifacts with the
-authoritative batch output.
+The unsafe escape hatch is intentionally noisy:
+
+```bash
+murmurmark live pilot --controlled-real --skip-safety-gate --allow-unsafe-controlled-real-recording
+```
+
+Use it only for a meeting you are prepared to lose. The target architecture remains one stable
+capture feeding a best-effort sidecar queue, but real sidecar capture is quarantined until that
+isolation is proven again.
 
 If recording finished but post-stop processing was interrupted, resume the same evidence collection
 without starting another recording:
@@ -444,12 +442,10 @@ When the capture fail-open proof has passed, the same report also writes
 view counts only real live sessions that were meaningfully compared, passed capture safety, and have
 the required live/batch artifacts. It is useful for seeing the remaining parity blockers without
 mixing in old broken-capture evidence. It still does not permit promotion or normal production
-live use; batch remains authoritative. After the full fail-open proof passes, the report may set
-`controlled_real_live_pilot_allowed: true`, which means a controlled Live Evidence run can be
-recorded on a real meeting to gather parity evidence. `new_real_live_collection_allowed` remains
-false until promotion is explicitly approved. Its `next_focus` points either to the next
-candidate-level parity blocker or to the next controlled evidence run when the candidate slice is
-clean but coverage is incomplete.
+live use; batch remains authoritative. Older reports may still expose
+`controlled_real_live_pilot_allowed`, but the runner now refuses to start a new real live recording
+without `--allow-unsafe-controlled-real-recording`. Treat that flag as a lab-only escape hatch, not a
+meeting command.
 The report also has `real_blocker_triage_summary` and a `Real Blocker Triage` Markdown section. Use
 that first when deciding what to do next: it separates batch review/readiness debt, missing artifacts,
 capture safety risks, local recall gaps, remote leakage and live draft drift. Triage is explanatory
@@ -506,11 +502,10 @@ murmurmark corpus live all --refresh \
   --fail-on-promotion
 ```
 
-This gate is expected to fail until enough controlled Live Evidence runs pass all parity checks. Do
-not try to satisfy it by hand-running `record --live-pipeline`; use
-`murmurmark live pilot --controlled-real` only when `murmurmark live status` says
-`controlled_real_live_pilot_allowed: true`. Batch output remains authoritative until this gate and
-the surrounding promotion policy pass.
+This gate is expected to fail until enough safe live evidence passes all parity checks. Do not try to
+satisfy it by hand-running `record --live-pipeline`, and do not record valuable meetings through
+`murmurmark live pilot --controlled-real` while capture isolation is under repair. Batch output
+remains authoritative until this gate and the surrounding promotion policy pass.
 
 ## Process An Existing Session
 

@@ -445,9 +445,10 @@ newer run-state exists.
 1. **Process Observability & Run Monitor v1.** Write a current run-state artifact during
    `murmurmark process`, expose the active step and ASR chunk progress through `status`/`next`, keep
    interruption recovery obvious and make stale readiness harmless.
-2. **Near-Realtime Live Parity Coverage v1.** Capture-safe segment production has a full fail-open
-   proof. Restore live parity coverage on controlled real Live Evidence runs until there are enough
-   passing live-vs-batch comparisons; keep live promotion blocked and batch authoritative.
+2. **Near-Realtime Capture Isolation v1.** Recent controlled-real evidence produced sparse raw
+   capture, so real Live Evidence recording is quarantined again. Re-prove the architecture where
+   one durable raw writer feeds a best-effort sidecar queue, and keep production on plain
+   `record -> process`.
 3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth

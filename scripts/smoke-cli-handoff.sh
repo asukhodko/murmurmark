@@ -85,7 +85,7 @@ if MURMURMARK_CAPTURE_REGRESSION_REPORT="$workdir/missing-capture-proof.json" \
   echo "expected live parity pilot preflight to reject controlled real recording without full capture proof" >&2
   exit 1
 fi
-grep -q 'capture-safe proof is not full_fail_open_proof_passed' "$workdir/live-pilot-preflight-denied.out"
+grep -q 'controlled-real live recording is disabled for valuable meetings' "$workdir/live-pilot-preflight-denied.out"
 [[ ! -e "$live_pilot_preflight_denied_session/session.json" ]] || {
   echo "live parity pilot preflight created a session despite missing capture proof" >&2
   exit 1
@@ -101,7 +101,7 @@ if MURMURMARK_CAPTURE_REGRESSION_REPORT="$workdir/missing-capture-proof.json" \
   echo "expected CLI live pilot preflight to reject controlled real recording without full capture proof" >&2
   exit 1
 fi
-grep -q 'capture-safe proof is not full_fail_open_proof_passed' "$workdir/cli-live-pilot-preflight-denied.out"
+grep -q 'controlled-real live recording is disabled for valuable meetings' "$workdir/cli-live-pilot-preflight-denied.out"
 [[ ! -e "$cli_live_pilot_preflight_denied_session/session.json" ]] || {
   echo "CLI live pilot preflight created a session despite missing capture proof" >&2
   exit 1

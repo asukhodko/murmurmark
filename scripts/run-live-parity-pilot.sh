@@ -25,6 +25,9 @@ Options:
                        With SESSION, process existing controlled Live Evidence.
   --preflight-only     Check safety/corpus gates and exit before recording or processing.
   --skip-safety-gate   Reuse the existing full capture proof instead of running the probe first.
+  --allow-unsafe-controlled-real-recording
+                       Temporarily allow a new controlled-real live recording. This is unsafe
+                       while real Live Evidence can still affect raw capture.
   --force-asr          Force batch ASR during murmurmark process.
   --help               Show this help.
 
@@ -51,6 +54,7 @@ skip_safety_gate=0
 force_asr=0
 controlled_real=0
 preflight_only=0
+allow_unsafe_controlled_real_recording=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -88,6 +92,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-safety-gate)
       skip_safety_gate=1
+      shift
+      ;;
+    --allow-unsafe-controlled-real-recording)
+      allow_unsafe_controlled_real_recording=1
       shift
       ;;
     --force-asr)
@@ -146,6 +154,26 @@ if [[ "$controlled_real" == "1" ]]; then
   if [[ "$overlap_set" != "1" ]]; then
     overlap_sec=5
   fi
+fi
+
+if [[ "$record_new" == "1" && "$controlled_real" == "1" && "$allow_unsafe_controlled_real_recording" != "1" ]]; then
+  cat >&2 <<'EOF'
+live parity pilot failed: controlled-real live recording is disabled for valuable meetings.
+
+Use the reliable production path:
+  murmurmark record --target-bundle system
+  murmurmark process latest
+
+Existing live sessions can still be analyzed:
+  murmurmark live pilot sessions/<session-id> --controlled-real
+
+Short lab pilots remain available:
+  murmurmark live pilot --duration 45
+
+The unsafe real live recorder can only be used with --allow-unsafe-controlled-real-recording
+after capture isolation is redesigned and explicitly accepted.
+EOF
+  exit 1
 fi
 
 if [[ "$record_new" == "1" && "$skip_safety_gate" != "1" ]]; then

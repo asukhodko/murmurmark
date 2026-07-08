@@ -121,33 +121,28 @@ The pilot refuses to create a new live recording unless
 `capture_safe_proof.status == "full_fail_open_proof_passed"`. `--skip-safety-gate` can reuse that
 existing proof, but it does not bypass the proof requirement.
 
-For a real Live Evidence run after the report says `controlled_real_live_pilot_allowed: true`, run:
+Real Live Evidence recording is disabled for valuable meetings while the sidecar can still affect
+raw capture. Use the production path above for the next real meeting. If you need live evidence,
+run only a short lab pilot:
 
 ```bash
-murmurmark live status
-murmurmark live gate
-murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
-murmurmark live pilot --controlled-real --skip-safety-gate
-murmurmark experiment status latest
-murmurmark experiment report latest
-murmurmark experiment compare latest --experiment live-shadow-v1
-murmurmark status latest
-murmurmark transcript latest
+murmurmark live pilot --duration 45
 ```
 
-The preflight command performs the same proof and corpus-gate checks without starting capture. When
-it would create a new recording, it prints `planned_session` and `session_created: false`; do not
-process that path until the real pilot run has actually recorded it. The Live Evidence command
-records until `Ctrl-C`, runs normal batch processing after stop and refreshes
-`murmurmark corpus live all --refresh`. Before recording, the runner refreshes the same corpus gates
-and refuses to start if controlled evidence collection is no longer the safe next step; in practice,
-`coverage_path.status` must be `needs_new_controlled_live_evidence`. It is still
-evidence collection: live output remains shadow-only and the batch transcript remains authoritative.
-After processing, read `derived/live/live_parity_pilot_report.json`; `pilot_verdict`,
-`contributes_to_passing_coverage` and `coverage_after.passing_compared_sessions_remaining` tell
-whether this pilot reduced the remaining coverage target.
-The `experiment` commands inspect the sidecar contract and compare live-shadow artifacts with the
-authoritative batch output.
+Existing live sessions can still be analyzed without starting capture:
+
+```bash
+SESSION="sessions/<session-id>"
+murmurmark live pilot "$SESSION" --controlled-real
+murmurmark experiment status "$SESSION"
+murmurmark experiment report "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
+```
+
+The real-recording escape hatch is
+`--allow-unsafe-controlled-real-recording`; use it only for a meeting you are prepared to lose.
+The target architecture remains one durable raw capture feeding a best-effort sidecar queue, but
+real sidecar recording is quarantined until that isolation is proven again.
 
 If recording finished but post-stop processing was interrupted, resume the same evidence collection
 without starting another recording:
@@ -269,12 +264,10 @@ meaningful, compared sessions whose capture safety and required artifacts alread
 separate remaining live parity blockers from older broken-capture evidence. It is still shadow-only:
 `new_real_live_collection_allowed` must remain false until live promotion is explicitly approved.
 If the full proof has passed, `controlled_real_live_pilot_allowed` may be true. That means a
-controlled Live Evidence run may be recorded on a real meeting to gather parity evidence, followed by
-normal batch processing and `murmurmark corpus live all --refresh`. Use
-`murmurmark live pilot --controlled-real --skip-safety-gate` instead of assembling
-`record --live-pipeline` by hand; the runner rechecks the current live corpus gates before it starts
-recording. Use `next_focus` to see whether the next step is a candidate blocker or a controlled
-evidence run.
+future controlled Live Evidence run would be allowed only after capture isolation is proven again.
+For now the runner refuses to start a new real live recording without
+`--allow-unsafe-controlled-real-recording`; do not use that escape hatch for valuable meetings.
+Use `next_focus` to see whether the next step is a candidate blocker or lab evidence.
 `Parity Dimensions` keeps the full mixed audit view by capture safety, order risk, local recall,
 remote leakage, review burden, notes readiness and chunk-boundary risk. `draft_text_recall` is
 separate from `required_artifacts`: present live files are not enough if live draft text no longer

@@ -4315,12 +4315,15 @@ Invariants:
 
 `murmurmark live pilot` is the user-facing wrapper for collecting near-realtime evidence without
 promoting live output. It delegates to `scripts/run-live-parity-pilot.sh`. Default `--duration` runs
-are lab evidence and use `live-pilot-*` session names. `--controlled-real` records a date-named
-controlled Live Evidence run until `Ctrl-C`, then runs the normal batch pipeline and refreshes
-`murmurmark corpus live all --refresh`. Before a controlled real recording starts, the runner
-refreshes the same corpus gates and refuses to record unless
-`controlled_real_live_pilot_allowed == true`, `new_real_live_collection_allowed == false`, passing
-coverage is still needed, the capture-safe candidate slice has no blocking dimensions and
+are lab evidence and use `live-pilot-*` session names. New `--controlled-real` recordings are
+disabled for valuable meetings while capture isolation is under repair. The runner must fail before
+starting capture unless the operator passes the explicit
+`--allow-unsafe-controlled-real-recording` escape hatch. Existing `--controlled-real SESSION`
+analysis remains allowed because it does not start capture.
+Before a controlled real recording can ever be re-enabled, the runner must refresh the same corpus
+gates and refuse to record unless `controlled_real_live_pilot_allowed == true`,
+`new_real_live_collection_allowed == false`, passing coverage is still needed, the capture-safe
+candidate slice has no blocking dimensions and
 `coverage_path.status == "needs_new_controlled_live_evidence"`. When it creates a new live recording,
 it must also have
 `capture_regression_check.json.capture_safe_proof.status == "full_fail_open_proof_passed"`.
@@ -4458,6 +4461,11 @@ while recording.
 ```
 
 `batch_authoritative: true` and `promotion_allowed: false` are mandatory in v1.
+`status` is usually `running` or `completed`. If the recorder had to stop a stuck shadow worker
+after the bounded finalization wait, the report must be patched to `status: terminated`,
+`current_stage: terminated`, and include `termination_reason`, for example
+`finalization_wait_timeout`. This is not a capture failure by itself; it only means the live
+sidecar stopped producing advisory draft evidence and the batch pipeline remains authoritative.
 
 ### Live Chunks And Draft Transcript
 
@@ -5228,9 +5236,10 @@ into actionable buckets. Typical categories are `batch_review_required`, `live_l
 `missing_live_asr_artifacts`, `capture_safety_risk`, `chunk_boundary_risk` and `order_risk`. Triage is diagnostic evidence:
 it explains the next safe action per blocker, but it does not relax promotion gates and does not
 allow promotion or normal production live use while live capture is quarantined.
-Quarantine does not by itself forbid controlled Live Evidence collection after the full fail-open
-proof; that narrower allowance is expressed only by `coverage_path.controlled_real_live_pilot_allowed`
-and still keeps batch authoritative.
+Quarantine currently forbids new controlled real Live Evidence recording for valuable meetings even
+if older corpus fields still say `controlled_real_live_pilot_allowed`. The runner must fail before
+capture unless the operator passes `--allow-unsafe-controlled-real-recording`; batch remains
+authoritative.
 For automation, the compact `summary` duplicates the most useful objective and triage fields:
 `objective_status`, `objective_ready_for_live_promotion`, `objective_next_focus`,
 `objective_next_focus_dimension`, `objective_next_recommended_next`, `real_blocker_triage_items`,
@@ -5240,18 +5249,16 @@ For automation, the compact `summary` duplicates the most useful objective and t
 `_debug_*` and `live-pilot-*` sessions remain diagnostic evidence only. `promotion_policy` is the
 machine-readable statement that batch remains authoritative and live evidence is historical/debug-only
 until the capture-safe redesign and real parity coverage are proven.
-When `objective_next_focus == "collect_controlled_capture_safe_live_pilot"`, `next_commands` must
-include the safe collection sequence: preflight-only controlled Live Evidence, the actual
-`murmurmark live pilot --controlled-real --skip-safety-gate` run, `murmurmark experiment
-status|report|compare latest`, corpus refresh and a normal batch `status latest` reminder.
+When old reports produce `objective_next_focus == "collect_controlled_capture_safe_live_pilot"`,
+operators must treat it as historical planning data, not as a safe meeting command. The only
+non-unsafe live actions are short lab pilots and analysis of existing live sessions.
 `capture_safe_candidate_scope` and `real_capture_safe_candidate_parity_dimensions` are a narrower
 diagnostic slice: real, meaningful, compared sessions whose `capture_safety` and `required_artifacts`
 dimensions already passed. This lets the live goal distinguish old unsafe-capture evidence from
 remaining candidate parity blockers. It is not a promotion signal, and `new_real_live_collection_allowed`
-must stay false while the live branch is quarantined. `controlled_real_live_pilot_allowed` is narrower:
-it may become true only after `capture_safe_proof.status == "full_fail_open_proof_passed"` and means
-that a controlled Live Evidence sidecar may be recorded on a real meeting for parity evidence, with batch output
-still authoritative. `capture_safe_candidate_scope.next_focus` identifies the first candidate-level
+must stay false while the live branch is quarantined. `controlled_real_live_pilot_allowed` is narrower
+historical evidence; it is not enough to start a new real live recording while the runner-level
+quarantine is active. `capture_safe_candidate_scope.next_focus` identifies the first candidate-level
 parity blocker after capture safety and required artifacts have already passed, or points to
 `collect_controlled_capture_safe_live_pilot` when the candidate slice is clean and coverage is still
 incomplete.

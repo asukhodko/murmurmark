@@ -228,7 +228,10 @@ def run_cli_checks(bin_path: str, sessions_root: Path, errors: list[str], warnin
         if code != 0:
             errors.append(f"stale live CLI check failed for {session}")
             continue
-        if "status: stale_running_after_finalize" not in status_out:
+        if (
+            "status: stale_running_after_finalize" not in status_out
+            and "status: terminated_after_finalization_wait_timeout" not in status_out
+        ):
             errors.append(f"stale live session still looks running in status output: {session}")
 
     return details

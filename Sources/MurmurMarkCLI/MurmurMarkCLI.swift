@@ -5113,12 +5113,15 @@ enum LiveCommands {
                                existing controlled Live Evidence when SESSION is provided.
           --preflight-only     Check proof/corpus gates and exit before recording or processing.
           --skip-safety-gate   Reuse an existing full fail-open proof.
+          --allow-unsafe-controlled-real-recording
+                               Temporarily allow a new real live recording while the sidecar is
+                               unsafe for valuable meetings.
           --force-asr          Force batch ASR during post-stop processing.
 
         Safe current use:
-          murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
-          murmurmark live pilot --controlled-real --skip-safety-gate
+          murmurmark live pilot --duration 45
           murmurmark live pilot sessions/<session-id> --controlled-real
+          murmurmark record --target-bundle system
         """)
     }
 
@@ -7426,6 +7429,10 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 if !exited {
                     appendWarning("live pipeline worker still running after \(Int(workerWaitSeconds.rounded()))s finalization wait")
                     worker.terminate()
+                    markLiveWorkerTerminatedReport(
+                        reason: "finalization_wait_timeout",
+                        waitSeconds: workerWaitSeconds
+                    )
                     try? eventLog.write(
                         type: "live_pipeline.worker_terminated",
                         fields: [
@@ -7469,6 +7476,47 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 "report": "derived/live/live_pipeline_report.json",
             ]
         )
+    }
+
+    private func markLiveWorkerTerminatedReport(reason: String, waitSeconds: TimeInterval) {
+        let reportURL = outputDirectory.appendingPathComponent("derived/live/live_pipeline_report.json")
+        var payload = (try? JSONObject.readDictionary(from: reportURL)) ?? [:]
+        if payload["schema"] == nil {
+            payload["schema"] = "murmurmark.live_pipeline_report/v1"
+        }
+        if payload["mode"] == nil {
+            payload["mode"] = "near_realtime_shadow"
+        }
+        if payload["generator"] == nil {
+            payload["generator"] = ["name": "murmurmark-recorder-sidecar", "version": "0.1.0"]
+        }
+        payload["status"] = "terminated"
+        payload["current_stage"] = "terminated"
+        payload["termination_reason"] = reason
+        payload["terminated_at"] = DateStrings.iso8601(Date())
+        payload["finalization_wait_timeout_sec"] = roundedSeconds(waitSeconds)
+        payload["batch_authoritative"] = true
+        payload["promotion_allowed"] = false
+        payload["recommended_next"] = "murmurmark process \(PathDisplay.display(outputDirectory))"
+
+        var progress = payload["progress"] as? [String: Any] ?? [:]
+        if progress["captured_sec"] == nil, let captured = liveSegments?.capturedDurationSeconds() {
+            progress["captured_sec"] = roundedSeconds(captured)
+        }
+        payload["progress"] = progress
+
+        try? JSONObject.write(payload, to: reportURL)
+
+        let stateURL = outputDirectory.appendingPathComponent("derived/live/live_pipeline_state.json")
+        var state = (try? JSONObject.readDictionary(from: stateURL)) ?? [:]
+        if state["schema"] == nil {
+            state["schema"] = "murmurmark.live_pipeline_state/v1"
+        }
+        state["status"] = "terminated"
+        state["termination_reason"] = reason
+        state["updated_at"] = DateStrings.iso8601(Date())
+        state["report"] = "derived/live/live_pipeline_report.json"
+        try? JSONObject.write(state, to: stateURL)
     }
 
     private func beginRecordingActivity() {
@@ -11615,18 +11663,29 @@ enum ReadinessPrinter {
         let outputs = payload["outputs"] as? [String: Any] ?? [:]
         let finalURL = session.appendingPathComponent("derived/live/final_reconcile_report.json")
         let liveStatus = string(payload["status"]) ?? "unknown"
-        let displayLiveStatus = liveStatus == "running" && FileManager.default.fileExists(atPath: finalURL.path)
-            ? "stale_running_after_finalize"
-            : liveStatus
+        let terminationReason = liveStatus == "running"
+            ? livePipelineTerminationReason(fromEventsIn: session)
+            : string(payload["termination_reason"])
+        let displayLiveStatus: String
+        if let terminationReason, liveStatus == "running" {
+            displayLiveStatus = "terminated_after_\(terminationReason)"
+        } else if liveStatus == "running" && FileManager.default.fileExists(atPath: finalURL.path) {
+            displayLiveStatus = "stale_running_after_finalize"
+        } else {
+            displayLiveStatus = liveStatus
+        }
         print("  live_pipeline:")
         print("    mode: \(string(payload["mode"]) ?? "shadow")")
         print("    status: \(displayLiveStatus)")
+        if let terminationReason {
+            print("    termination_reason: \(terminationReason)")
+        }
         print("    batch_authoritative: \(bool(payload["batch_authoritative"]) ?? true)")
         if let worker = string(payload["current_worker"]) {
             print("    worker: \(worker)")
         }
         if let stage = string(payload["current_stage"]) {
-            print("    stage: \(stage)")
+            print("    stage: \(terminationReason == nil ? stage : "terminated")")
         }
         print(String(format: "    captured: %.1fs", double(progress["captured_sec"]) ?? 0.0))
         if let preprocessed = double(progress["preprocessed_sec"]) {
@@ -11676,6 +11735,25 @@ enum ReadinessPrinter {
             print("      boundary_duplicates: \(int(metrics["adjacent_duplicate_chunk_count"]) ?? 0)")
             print("      report: \(PathDisplay.display(comparisonURL))")
         }
+    }
+
+    private static func livePipelineTerminationReason(fromEventsIn session: URL) -> String? {
+        let eventsURL = session.appendingPathComponent("events.jsonl")
+        guard let text = try? String(contentsOf: eventsURL, encoding: .utf8) else {
+            return nil
+        }
+        var latestReason: String?
+        for line in text.split(separator: "\n") {
+            guard let data = String(line).data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  string(object["type"]) == "live_pipeline.worker_terminated"
+            else {
+                continue
+            }
+            let fields = object["fields"] as? [String: Any] ?? [:]
+            latestReason = string(fields["reason"]) ?? string(object["reason"]) ?? "terminated"
+        }
+        return latestReason
     }
 
     private static func printStrongerAudioJudgeSummary(_ session: URL) {

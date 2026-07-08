@@ -86,7 +86,9 @@ Current state:
 - real passing comparisons: `1`;
 - promotion decision: `shadow_only_do_not_promote`;
 - new real live collection allowed: `false`;
-- controlled real live pilot allowed: `true` after full fail-open proof;
+- controlled real live pilot reports may still show allowance after full fail-open proof, but new
+  real live recording is blocked by the runner unless the operator passes the explicit unsafe
+  escape hatch;
 - current blocking dimensions: `capture_safety`, `local_recall`, `remote_leakage`,
   `review_burden`, `selected_notes_readiness`, `draft_text_recall`, `required_artifacts`.
 
@@ -94,8 +96,9 @@ Safety constraint:
 
 - do not use `--live-pipeline` as the normal production recording path while live is quarantined;
 - use existing live artifacts and lab diagnostics to improve reports and gates;
-- controlled Live Evidence runs can resume after full fail-open proof, but only as sidecar
-  evidence collection; batch transcript remains authoritative and promotion remains blocked.
+- controlled Live Evidence analysis can use existing sessions, but new real live recording stays
+  quarantined until capture isolation is proven again; batch transcript remains authoritative and
+  promotion remains blocked.
 
 Definition of done:
 
@@ -108,8 +111,9 @@ Definition of done:
 - strict gates fail while any required dimension is warning/failed/blocked/not evaluated;
 - `promotion_policy` keeps `batch_authoritative: true`, `live_quarantined: true`,
   `new_real_live_collection_allowed: false` and `promotion_allowed_sessions: 0`;
-- after full fail-open proof, `controlled_real_live_pilot_allowed: true` may allow only
-  controlled Live Evidence collection; it does not allow promotion or make live output authoritative;
+- after full fail-open proof, `controlled_real_live_pilot_allowed: true` is not enough to record a
+  valuable meeting; the runner still blocks new real live capture without
+  `--allow-unsafe-controlled-real-recording`;
 - README/runbooks/contracts/roadmap make clear that live is quarantined and that corpus reports are
   evidence, not a command to collect new unsafe live meetings.
 

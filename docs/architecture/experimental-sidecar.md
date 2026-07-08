@@ -280,20 +280,19 @@ murmurmark record --target-bundle system
 murmurmark process latest
 ```
 
-Controlled experimental path:
+Current controlled experimental path is lab-only. Do not use it on valuable meetings while capture
+isolation is under repair:
 
 ```bash
-murmurmark live status
-murmurmark live gate || true
-murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
-murmurmark live pilot --controlled-real --skip-safety-gate
+murmurmark live pilot --duration 45
 ```
 
-Recovery path:
+Existing live session analysis path:
 
 ```bash
 SESSION="sessions/<session-id>"
 murmurmark live pilot "$SESSION" --controlled-real
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
 Future generic sidecar path:

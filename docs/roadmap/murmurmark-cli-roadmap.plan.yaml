@@ -536,9 +536,10 @@ nodes:
       во время записи. Первый shadow-контур существует, но он quarantined: тесты показали, что
       inline live segment writer может starve ScreenCaptureKit audio delivery и оставить raw tracks
       почти пустыми. Production route остаётся batch-first: raw CAF/session package и обычный
-      `murmurmark process` остаются source of truth. Первый async bounded segment handoff реализован;
-      full fail-open proof пройден; ближайшая работа по live — controlled Live Evidence parity
-      runs, пока promotion остаётся blocked и batch transcript authoritative. Архитектурная форма
+      `murmurmark process` остаются source of truth. Первый async bounded segment handoff реализован,
+      но controlled-real запуск 2026-07-08 снова дал sparse raw capture. Поэтому новая реальная
+      live-запись quarantined; ближайшая работа по live — capture isolation proof и lab-only pilots,
+      пока promotion остаётся blocked и batch transcript authoritative. Архитектурная форма
       зафиксирована как single-capture experimental sidecar: один ScreenCaptureKit owner, raw CAF
       first, best-effort derived artifacts отдельно от batch outputs. Contract v1 уже материализует
       эту форму под `derived/experiments/live-shadow-v1`.
@@ -561,9 +562,9 @@ nodes:
       статические и fixture-проверки, а `full_fail_open_proof_passed` требуется перед любым controlled
       live pilot. Повторные static-проверки сохраняют уже доказанный full proof вместо понижения
       операторского состояния. Для пилотного контура добавлен `murmurmark live pilot` поверх
-      `scripts/run-live-parity-pilot.sh`: он запускает safety probe, короткую lab live recording или
-      controlled real Live Evidence run, batch process, live-vs-batch compare и refreshed corpus live
-      report, сохраняя live promotion blocked.
+      `scripts/run-live-parity-pilot.sh`: сейчас он безопасно запускает короткую lab live recording
+      или анализирует existing live session. New controlled-real recording заблокирован без явного
+      unsafe escape hatch, сохраняя live promotion blocked.
 
   experimental-sidecar-contract-v1:
     title: "Experimental Sidecar Contract v1"
@@ -647,13 +648,13 @@ nodes:
     status: later
     effort: 6
     notes: |
-      Ближайшая крупная live-цель теперь — coverage на controlled real Live Evidence runs. Capture-safe
-      proof уже показывает, что live branch не должен портить raw `mic`/`remote`: callback path не
-      делает тяжёлых операций, segment writer имеет bounded queue/backpressure и fail-open
-      отключение live без остановки capture, а normal `record --target-bundle system` остаётся
-      независимым. Дизайн закреплён в `docs/architecture/experimental-sidecar.md`: эксперимент
-      может исчезнуть, отстать или быть отключён, но raw capture и batch process должны остаться
-      воспроизводимыми. Live cache остаётся
+      После sparse-capture на controlled-real запуске новая реальная live-запись снова
+      quarantined. Ближайшая крупная live-цель — заново доказать изоляцию sidecar: один durable raw
+      writer, best-effort bounded queue, отключение live без влияния на raw CAF, затем только lab
+      pilots и existing-session compare. Normal `record --target-bundle system` остаётся
+      единственным production path. Дизайн закреплён в `docs/architecture/experimental-sidecar.md`:
+      эксперимент может исчезнуть, отстать или быть отключён, но raw capture и batch process должны
+      остаться воспроизводимыми. Live cache остаётся
       shadow-only: promotion allowed sessions must stay `0` until gates cover capture safety, order
       risk, local recall, remote leakage, review burden, selected notes readiness, draft text recall
       and chunk-boundary duplicates/missing speech.

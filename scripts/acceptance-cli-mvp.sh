@@ -179,25 +179,24 @@ live_recording_gate:
     - retention planning does not delete raw audio without explicit apply plus confirmation
 
 near_realtime_shadow_gate:
-  scope: lab proof plus controlled real parity evidence, not production live promotion
+  scope: lab proof and existing-session comparison only while real sidecar capture is quarantined
   commands:
     - MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
     - murmurmark live pilot --duration 45
     - murmurmark live status
     - murmurmark live gate
     - murmurmark corpus live all --refresh
-    - murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only
-    - murmurmark live pilot --controlled-real --skip-safety-gate
-    - murmurmark experiment status latest
-    - murmurmark experiment report latest
-    - murmurmark experiment compare latest --experiment live-shadow-v1
+    - murmurmark live pilot sessions/<existing-live-session> --controlled-real
+    - murmurmark experiment status sessions/<existing-live-session>
+    - murmurmark experiment report sessions/<existing-live-session>
+    - murmurmark experiment compare sessions/<existing-live-session> --experiment live-shadow-v1
     - jq '.promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json
   pass_when:
     - system-audio capture probe passes on the normal batch-first recording path
     - overloaded async live segment queue disables only live-derived artifacts
     - raw mic and remote tracks survive the live fail-open probe
-    - pilot runner writes derived/live/live_parity_pilot_report.json
-    - controlled real preflight refuses to record unless corpus gates allow evidence collection
+    - pilot runner writes derived/live/live_parity_pilot_report.json for lab sessions
+    - controlled real recording refuses to start without --allow-unsafe-controlled-real-recording
     - live corpus report keeps promotion_policy.status blocked
     - live corpus report keeps batch_authoritative true
     - live gate exits non-zero until strict parity coverage is complete
