@@ -188,6 +188,34 @@ Current result:
 - `objective_next_focus = fix_live_local_recall_gap`.
 - `capture_safe_evaluable_local_recall_gap_examples = 12 / 47.44 sec`.
 
+Latest suppressed-mic threshold lab, 2026-07-09:
+
+```bash
+.venv/bin/python scripts/report-suppressed-mic-policy-lab.py
+.venv/bin/python scripts/report-suppressed-mic-policy-lab.py \
+  --scope real \
+  --out sessions/_reports/live-pipeline/suppressed_mic_policy_lab.real.json
+```
+
+Current result:
+
+- capture-safe candidate scope: `2` sessions, `48` suppressed mic ASR segments / `250.28s`;
+- candidate scope batch labels: `13.06s` local/mixed, `237.22s` remote-risk;
+- best zero-risk generated threshold rule: `1.80s` local recovered;
+- best <=3s remote-risk threshold rule: `1.80s` local recovered;
+- full real scope: `10` sessions, `317` suppressed mic ASR segments / `3656.50s`;
+- full real scope batch labels: `409.50s` local/mixed, `3247.00s` remote-risk;
+- best zero-risk generated threshold rule: `27.78s` local recovered;
+- best <=3s remote-risk generated threshold rule: `60.16s` local / `2.58s` remote-risk;
+- best high-recall threshold family quickly becomes unsafe: `249.56s` local / `213.94s`
+  remote-risk.
+
+Conclusion: simple live-accessible thresholds over text overlap, RMS, mic-minus-remote energy and
+zero-lag correlation are not enough as the main local-recall fix. They can supply a small safe
+shadow rescue, but closing the current goal needs stronger local-speaker evidence, remote-forbidden
+evidence, or a local judge for suppressed mic regions. New recordings are not the blocker right now;
+the current corpus is sufficient to prove this design direction.
+
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not
 `meaningful_live_comparison` because the live draft lost all `Me` turns; those sessions must remain

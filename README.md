@@ -426,6 +426,21 @@ less sessions/_reports/live-pipeline/live_corpus_gates_report.md
 jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json
 ```
 
+To test whether simple live-accessible suppressed-mic thresholds can recover lost `Me` speech:
+
+```bash
+.venv/bin/python scripts/report-suppressed-mic-policy-lab.py
+.venv/bin/python scripts/report-suppressed-mic-policy-lab.py \
+  --scope real \
+  --out sessions/_reports/live-pipeline/suppressed_mic_policy_lab.real.json
+```
+
+The lab uses batch labels only for evaluation. It does not edit live drafts, batch transcripts or
+promotion gates. Current evidence says simple audio/text thresholds are not enough as the main
+local-recall fix: they either recover only a small safe slice or quickly reintroduce remote speech as
+`Me`. Treat useful rules as shadow evidence and keep the next implementation focused on stronger
+local-speaker or remote-forbidden evidence.
+
 To inspect whether suppressed live mic segments contain your voice:
 
 ```bash

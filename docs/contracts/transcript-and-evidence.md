@@ -5499,6 +5499,22 @@ stronger local-speaker evidence. The capture-safe variants
 blocks are corpus-lab evidence only: they use batch labels for evaluation and do not publish live
 `Me` turns.
 
+`scripts/report-suppressed-mic-policy-lab.py` is the standalone threshold-search companion for that
+same evidence. It reads existing live chunks, selected batch dialogue and suppressed mic ASR segment
+features, then writes ignored corpus reports:
+
+```text
+sessions/_reports/live-pipeline/suppressed_mic_policy_lab.json
+sessions/_reports/live-pipeline/suppressed_mic_policy_lab.md
+```
+
+The JSON uses schema `murmurmark.suppressed_mic_policy_lab/v1`. The default scope is
+`capture-safe-candidate`; `--scope real` writes the same schema over all real live sessions when an
+explicit `--out` path is passed. The lab evaluates generated rules over live-accessible features:
+token count, unique token count, remote-token overlap, mic/remote RMS, mic-minus-remote RMS and
+zero-lag mic/remote correlation. Batch labels are used only as offline truth for policy search. The
+report must not edit live drafts, batch transcripts or parity gates.
+
 `scripts/audit-live-local-recall-target-me.py` is the shadow Target-Me diagnostic for that remaining
 gap. It reads `risk_examples.suppressed_mic_asr_segments` from `live_batch_comparison.json`, cuts
 the corresponding live mic/remote chunk clips, builds a local Target-Me enrollment from the selected

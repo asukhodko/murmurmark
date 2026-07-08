@@ -476,10 +476,15 @@ newer run-state exists.
    and drops profile missing-Me to `140.41s` while keeping measured remote leak at `0.00s` and
    contentful order mismatches at `4`. First live-accessible approximations were not enough:
    `audio_safe_union_v1` is safe but weak, while `audio_low_corr_text_guard_v1` recovers much more
-   local speech but leaks too much remote-like text. The next safe step is therefore not another simple
-   threshold tweak, but a stronger online role-gate/fallback design with local-speaker or remote-forbidden
-   evidence, while keeping order, review/readiness and capture-safe blockers explicit; ambiguous rows
-   and sessions without enough enrollment stay explicit.
+   local speech but leaks too much remote-like text. The dedicated suppressed-mic policy lab confirms
+   that this is not just a bad hand-picked threshold: in the full real scope, the best zero-risk
+   generated threshold recovers only `27.78s` from a `409.50s` local/mixed ceiling, the best <=3s
+   remote-risk rule recovers `60.16s`, and higher-recall rules quickly leak hundreds of seconds of
+   remote-risk text. In the capture-safe candidate scope, the best safe threshold recovers only
+   `1.80s` from `13.06s`. The next safe step is therefore not another simple threshold tweak, but a
+   stronger online role-gate/fallback design with local-speaker or remote-forbidden evidence, while
+   keeping order, review/readiness and capture-safe blockers explicit; ambiguous rows and sessions
+   without enough enrollment stay explicit.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
