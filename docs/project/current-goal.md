@@ -263,12 +263,16 @@ New Target-Me diagnostic, 2026-07-08:
   subset: it accepts only candidates that do not increase contentful role-constrained order
   mismatches and do not add measured remote leak. Current real corpus result: `103.82s` missing-Me
   recovered, `0.00s` measured remote leak, `0` contentful order-mismatch delta.
+- `compare-live-batch.py` now materializes that subset as diagnostic-only
+  `derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.json` and
+  `draft.md`. Inserted turns are marked `shadow_added: true`; promotion remains false and batch
+  remains authoritative.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
 existing corpus already contains enough suppressed live mic material and enough Target-Me evidence.
-The next work is to materialize this timeline-safe Target-Me rescue into an explicit shadow draft and
-re-run the same parity gates on that draft. Sessions with `insufficient_enrollment` point to a later
-calibration problem, not to a need for more ad-hoc live meetings now.
+The next work is to run the same parity gates on this materialized shadow draft. Sessions with
+`insufficient_enrollment` point to a later calibration problem, not to a need for more ad-hoc live
+meetings now.
 
 ## Latest Completed Goal: Current Pipeline Stabilization v1
 

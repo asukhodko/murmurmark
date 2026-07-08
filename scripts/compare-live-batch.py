@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.16.0"
+SCRIPT_VERSION = "0.17.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GENERIC_TOKENS = {
@@ -92,6 +92,7 @@ TARGET_ME_RESCUE_POLICIES = (
 TARGET_ME_DERIVED_POLICY_BASE = {
     "target_me_confirmed_remote_guard_timeline_safe_v1": "target_me_confirmed_remote_guard_v1",
 }
+MATERIALIZED_TARGET_ME_SHADOW_POLICIES = ("target_me_confirmed_remote_guard_timeline_safe_v1",)
 
 
 def parse_args() -> argparse.Namespace:
@@ -874,9 +875,10 @@ def target_me_shadow_policy_metrics(
     live_turns_rows: list[dict[str, Any]],
     target_me_rows: list[dict[str, Any]],
     baseline_missing_rows: list[dict[str, Any]],
-) -> tuple[dict[str, Any], dict[str, list[dict[str, Any]]]]:
+) -> tuple[dict[str, Any], dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
     metrics: dict[str, Any] = {}
     examples: dict[str, list[dict[str, Any]]] = {}
+    turns_by_policy: dict[str, list[dict[str, Any]]] = {}
     baseline_missing_seconds = round(sum(safe_float(row.get("duration_sec")) for row in baseline_missing_rows), 3)
     baseline_order_mismatches = order_mismatch_rows_for_turns(live_turns_rows, batch_utterances)
     baseline_role_order_mismatches = order_mismatch_rows_for_turns(
@@ -955,9 +957,10 @@ def target_me_shadow_policy_metrics(
         examples[policy] = policy_turns[:20]
         examples[f"{policy}_remote_leak"] = remote_leak[:20]
         examples[f"{policy}_order_mismatches"] = order_mismatches[:20]
+        turns_by_policy[policy] = policy_turns
         if policy in rejected_by_policy:
             examples[f"{policy}_rejected"] = rejected_by_policy[policy][:20]
-    return metrics, examples
+    return metrics, examples, turns_by_policy
 
 
 def segment_role_decision_key(row: dict[str, Any]) -> tuple[float, float, str]:
@@ -1826,7 +1829,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
     shadow_missing_after = local_missing_rows_for_turns(batch_utterances, turns + rescue_shadow_turns)
     shadow_missing_after_seconds = round(sum(safe_float(row.get("duration_sec")) for row in shadow_missing_after), 3)
     baseline_missing_seconds = round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3)
-    target_me_shadow_metrics, target_me_shadow_examples = target_me_shadow_policy_metrics(
+    target_me_shadow_metrics, target_me_shadow_examples, target_me_shadow_turns_by_policy = target_me_shadow_policy_metrics(
         batch_utterances=batch_utterances,
         live_turns_rows=turns,
         target_me_rows=target_me_rows,
@@ -1854,6 +1857,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         "suppressed_mic_asr_segment_examples": suppressed_segment_audit.get("examples", []),
         "suppressed_mic_rescue_policy_examples": suppressed_segment_audit.get("policy_examples", {}),
         "live_target_me_shadow_examples": target_me_shadow_examples,
+        "live_target_me_shadow_turns_by_policy": target_me_shadow_turns_by_policy,
         "metrics": {
             "live_turn_count": len(turns),
             "live_me_turn_count": sum(1 for turn in turns if turn.get("role") == "Me"),
@@ -2293,6 +2297,101 @@ def write_session_report_markdown(path: Path, report: dict[str, Any]) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def fmt_time(seconds: float) -> str:
+    total = max(0, int(round(seconds)))
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> dict[str, Any]:
+    return {
+        "id": turn.get("id"),
+        "role": turn.get("role"),
+        "start": safe_float(turn.get("start")),
+        "end": safe_float(turn.get("end")),
+        "text": clean_text(str(turn.get("text") or "")),
+        "source": turn.get("source"),
+        "chunk_index": turn.get("chunk_index"),
+        "segment_index": turn.get("segment_index"),
+        "shadow_added": added_by_policy is not None,
+        "shadow_policy": added_by_policy,
+    }
+
+
+def write_target_me_shadow_drafts(
+    *,
+    session: Path,
+    live_turns_rows: list[dict[str, Any]],
+    target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
+    metrics: dict[str, Any],
+) -> dict[str, dict[str, str]]:
+    outputs: dict[str, dict[str, str]] = {}
+    for policy in MATERIALIZED_TARGET_ME_SHADOW_POLICIES:
+        target_turns = target_me_turns_by_policy.get(policy) or []
+        out_dir = session / "derived/live/target-me-shadow" / policy
+        json_path = out_dir / "draft.json"
+        md_path = out_dir / "draft.md"
+        live_payload = [shadow_turn_payload(turn, None) for turn in live_turns_rows]
+        target_payload = [shadow_turn_payload(turn, policy) for turn in target_turns]
+        combined = sorted(
+            live_payload + target_payload,
+            key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+        )
+        base = f"live_target_me_shadow_policy_{policy}"
+        payload = {
+            "schema": "murmurmark.live_target_me_shadow_draft/v1",
+            "generator": {"name": "compare-live-batch", "version": SCRIPT_VERSION},
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "policy": policy,
+            "promotion_allowed": False,
+            "promotion_reason": "target_me_shadow_draft_is_diagnostic_only",
+            "batch_authoritative": True,
+            "metrics": {
+                "live_turn_count": len(live_payload),
+                "target_me_added_turn_count": len(target_payload),
+                "combined_turn_count": len(combined),
+                "target_me_added_seconds": metrics.get(f"{base}_candidate_seconds"),
+                "missing_me_recovered_seconds": metrics.get(f"{base}_missing_me_recovered_seconds"),
+                "suspected_remote_leak_in_me_seconds": metrics.get(f"{base}_suspected_remote_leak_in_me_seconds"),
+                "contentful_role_constrained_order_mismatch_delta_count": (
+                    metrics.get(f"{base}_contentful_role_constrained_order_mismatch_delta_count")
+                ),
+            },
+            "turns": combined,
+        }
+        write_json(json_path, payload)
+        lines = [
+            "# Target-Me Shadow Draft",
+            "",
+            f"- policy: `{policy}`",
+            "- promotion allowed: `false`",
+            "- batch authoritative: `true`",
+            f"- target-me added turns: `{len(target_payload)}`",
+            f"- missing-Me recovered seconds: `{payload['metrics']['missing_me_recovered_seconds']}`",
+            f"- suspected remote leak seconds: `{payload['metrics']['suspected_remote_leak_in_me_seconds']}`",
+            f"- contentful order delta: `{payload['metrics']['contentful_role_constrained_order_mismatch_delta_count']}`",
+            "",
+        ]
+        for turn in combined:
+            role = turn.get("role") or "Unknown"
+            marker = " target-me-shadow" if turn.get("shadow_added") else ""
+            text = clean_text(str(turn.get("text") or ""))
+            if not text:
+                continue
+            lines += [
+                f"## {fmt_time(safe_float(turn.get('start')))} {role}{marker}",
+                "",
+                text,
+                "",
+            ]
+        md_path.parent.mkdir(parents=True, exist_ok=True)
+        md_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+        outputs[policy] = {
+            "draft_json": rel(json_path, session),
+            "draft_markdown": rel(md_path, session),
+        }
+    return outputs
+
+
 def main() -> int:
     args = parse_args()
     session = args.session.expanduser().resolve()
@@ -2368,6 +2467,12 @@ def main() -> int:
         and int(live_metrics.get("live_remote_turn_count") or 0) > 0
         and int(live_metrics.get("batch_me_utterance_count") or 0) > 0
         and int(live_metrics.get("batch_remote_utterance_count") or 0) > 0
+    )
+    target_me_shadow_outputs = write_target_me_shadow_drafts(
+        session=session,
+        live_turns_rows=live_assessment.get("live_turns") or [],
+        target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
+        metrics=live_metrics,
     )
     promotion_blockers = [
         "shadow_v1_never_promotes_by_default",
@@ -2470,6 +2575,7 @@ def main() -> int:
         "outputs": {
             "live_parity_session_report": rel(session_report_path, session),
             "live_parity_session_report_markdown": rel(session_report_md_path, session),
+            "target_me_shadow_drafts": target_me_shadow_outputs,
         },
         "recommended_next": "murmurmark status " + str(session),
     }

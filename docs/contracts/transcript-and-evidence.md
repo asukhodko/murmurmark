@@ -4779,6 +4779,8 @@ After the normal batch pipeline runs, `scripts/compare-live-batch.py` writes:
 derived/live/live_batch_comparison.json
 derived/live/live_parity_session_report.json
 derived/live/live_parity_session_report.md
+derived/live/target-me-shadow/<policy>/draft.json
+derived/live/target-me-shadow/<policy>/draft.md
 ```
 
 Schema:
@@ -4870,10 +4872,10 @@ Schema:
     "live_rescue_policy_audio_safe_union_v1_missing_me_recovered_seconds": 0.0,
     "live_rescue_policy_audio_safe_union_v1_missing_me_seconds_after": 0.0,
     "live_rescue_policy_batch_oracle_local_ceiling_local_seconds": 0.0,
-    "live_target_me_shadow_policy_target_me_confirmed_remote_guard_v1_candidate_seconds": 0.0,
-    "live_target_me_shadow_policy_target_me_confirmed_remote_guard_v1_missing_me_recovered_seconds": 0.0,
-    "live_target_me_shadow_policy_target_me_confirmed_remote_guard_v1_suspected_remote_leak_in_me_seconds": 0.0,
-    "live_target_me_shadow_policy_target_me_confirmed_remote_guard_v1_contentful_role_constrained_order_mismatch_delta_count": 0,
+    "live_target_me_shadow_policy_target_me_confirmed_remote_guard_timeline_safe_v1_candidate_seconds": 0.0,
+    "live_target_me_shadow_policy_target_me_confirmed_remote_guard_timeline_safe_v1_missing_me_recovered_seconds": 0.0,
+    "live_target_me_shadow_policy_target_me_confirmed_remote_guard_timeline_safe_v1_suspected_remote_leak_in_me_seconds": 0.0,
+    "live_target_me_shadow_policy_target_me_confirmed_remote_guard_timeline_safe_v1_contentful_role_constrained_order_mismatch_delta_count": 0,
     "live_suspected_remote_leak_in_me_seconds": 0.0,
     "live_turn_count": 18,
     "live_me_turn_count": 9,
@@ -4917,21 +4919,21 @@ Schema:
     "live_rescue_shadow_remote_leak": [],
     "live_rescue_shadow_order_mismatches": [],
     "live_target_me_shadow": {
-      "target_me_confirmed_remote_guard_v1": [
+      "target_me_confirmed_remote_guard_timeline_safe_v1": [
         {
-          "id": "live_target_me_shadow_target_me_confirmed_remote_guard_v1_row-001",
-          "source": "mic_target_me_shadow_target_me_confirmed_remote_guard_v1",
+          "id": "live_target_me_shadow_target_me_confirmed_remote_guard_timeline_safe_v1_row-001",
+          "source": "mic_target_me_shadow_target_me_confirmed_remote_guard_timeline_safe_v1",
           "role": "Me",
           "start": 120.0,
           "end": 124.2,
           "text": "candidate Target-Me text",
-          "policy": "target_me_confirmed_remote_guard_v1",
+          "policy": "target_me_confirmed_remote_guard_timeline_safe_v1",
           "target_me_label": "target_me_confirmed",
           "target_me_confidence": 0.84
         }
       ],
-      "target_me_confirmed_remote_guard_v1_remote_leak": [],
-      "target_me_confirmed_remote_guard_v1_order_mismatches": []
+      "target_me_confirmed_remote_guard_timeline_safe_v1_remote_leak": [],
+      "target_me_confirmed_remote_guard_timeline_safe_v1_order_mismatches": []
     },
     "suppressed_mic_rescue_policies": {
       "remote_silent_text_v1": [
@@ -4996,7 +4998,13 @@ Schema:
   },
   "outputs": {
     "live_parity_session_report": "derived/live/live_parity_session_report.json",
-    "live_parity_session_report_markdown": "derived/live/live_parity_session_report.md"
+    "live_parity_session_report_markdown": "derived/live/live_parity_session_report.md",
+    "target_me_shadow_drafts": {
+      "target_me_confirmed_remote_guard_timeline_safe_v1": {
+        "draft_json": "derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.json",
+        "draft_markdown": "derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.md"
+      }
+    }
   }
 }
 ```
@@ -5513,9 +5521,20 @@ remote leak and do not increase contentful role-constrained order mismatches. Th
 result is useful but still not promotable: the stricter
 `target_me_confirmed_remote_guard_v1` counterfactual recovers local speech without measured remote
 leak, but it still increases contentful role-constrained order mismatches; the timeline-safe subset
-recovers less local speech but keeps remote leak and contentful order delta at zero. The next design
-step is materializing this as an explicit shadow draft and evaluating full parity gates, not
-collecting more ad-hoc recordings.
+recovers less local speech but keeps remote leak and contentful order delta at zero.
+
+`compare-live-batch.py` materializes the timeline-safe subset as diagnostic-only artifacts:
+
+```text
+derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.json
+derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.md
+```
+
+The JSON uses schema `murmurmark.live_target_me_shadow_draft/v1`, includes `promotion_allowed:
+false`, keeps `batch_authoritative: true`, and marks inserted Target-Me turns with
+`shadow_added: true`. These files are review and parity inputs only; they do not replace
+`derived/live/transcript.draft.md`. The next design step is evaluating full parity gates on this
+materialized shadow draft, not collecting more ad-hoc recordings.
 
 This audit is evidence only. `promotion_decision` must stay `shadow_only_do_not_promote`; rows must
 not publish live `Me`, edit batch transcripts or relax parity gates. A useful result is evidence for

@@ -1020,8 +1020,11 @@ Active goal and near-term candidates:
    contentful role-constrained order mismatches. The conservative
    `target_me_confirmed_remote_guard_timeline_safe_v1` subset avoids those regressions and now
    recovers `103.82s` missing-Me with `0.0s` measured remote leak and `0` new contentful order
-   mismatches. So the current blocker is no longer "collect more recordings"; it is materializing
-   timeline-safe Target-Me rescue/reconciliation before any live `Me` promotion.
+   mismatches. `compare-live-batch.py` materializes that subset into
+   `derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.{json,md}`
+   as diagnostic-only output. So the current blocker is no longer "collect more recordings"; it is
+   evaluating full parity gates on the materialized timeline-safe Target-Me shadow before any live
+   `Me` promotion.
    Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.

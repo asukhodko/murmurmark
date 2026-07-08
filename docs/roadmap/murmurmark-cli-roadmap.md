@@ -462,9 +462,10 @@ newer run-state exists.
    `target_me_possible_v1` recovers more but is unsafe. The conservative
    `target_me_confirmed_remote_guard_timeline_safe_v1` subset is now the first safe shadow candidate:
    it recovers `103.82s` missing-Me with `0.00s` measured remote leak and `0` contentful
-   order-mismatch delta. The next safe step is to materialize that rescue into a separate shadow
-   draft and evaluate full parity gates; ambiguous rows and sessions without enough enrollment stay
-   explicit.
+   order-mismatch delta, and is materialized as
+   `derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.{json,md}`.
+   The next safe step is to evaluate full parity gates on that materialized shadow draft; ambiguous
+   rows and sessions without enough enrollment stay explicit.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
