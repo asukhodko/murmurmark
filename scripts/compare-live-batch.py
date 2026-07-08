@@ -420,6 +420,82 @@ def live_turns(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(turns, key=lambda item: (item["start"], item["end"], item["source"]))
 
 
+def live_suppressed_mic_turns(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    turns: list[dict[str, Any]] = []
+    for row in chunks:
+        try:
+            index = int(row.get("index") or 0)
+        except (TypeError, ValueError):
+            index = 0
+        mic = row.get("mic")
+        if not isinstance(mic, dict):
+            continue
+        gate = mic.get("live_role_gate") if isinstance(mic.get("live_role_gate"), dict) else {}
+        if gate.get("status") != "suppressed":
+            continue
+        text = str(mic.get("raw_text_before_role_gate") or "").strip()
+        if not text:
+            continue
+        start = safe_float(mic.get("hard_start_sec"), safe_float(row.get("start_sec")))
+        end = safe_float(mic.get("hard_end_sec"), safe_float(row.get("end_sec"), start))
+        turns.append(
+            {
+                "id": f"live_{index:06d}_mic_suppressed",
+                "chunk_index": index,
+                "source": "mic_suppressed",
+                "role": "Me",
+                "start": start,
+                "end": max(end, start),
+                "text": text,
+                "tokens": tokens(text),
+                "role_gate": gate,
+            }
+        )
+    return sorted(turns, key=lambda item: (item["start"], item["end"], item["source"]))
+
+
+def live_segment_role_gate_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
+    candidate_count = 0
+    kept_segment_count = 0
+    suppressed_segment_count = 0
+    examples: list[dict[str, Any]] = []
+    for row in chunks:
+        try:
+            index = int(row.get("index") or 0)
+        except (TypeError, ValueError):
+            index = 0
+        mic = row.get("mic")
+        if not isinstance(mic, dict):
+            continue
+        gate = mic.get("live_segment_role_gate")
+        if not isinstance(gate, dict):
+            continue
+        kept = safe_int(gate.get("kept_segment_count"))
+        suppressed = safe_int(gate.get("suppressed_segment_count"))
+        kept_segment_count += kept
+        suppressed_segment_count += suppressed
+        if gate.get("status") == "rescued" and kept > 0:
+            candidate_count += 1
+            if len(examples) < 20:
+                examples.append(
+                    {
+                        "chunk_index": index,
+                        "kept_segment_count": kept,
+                        "suppressed_segment_count": suppressed,
+                        "publish_policy": (mic.get("live_role_gate") or {}).get("segment_gate_publish_policy")
+                        if isinstance(mic.get("live_role_gate"), dict)
+                        else None,
+                        "kept_text": gate.get("kept_text"),
+                    }
+                )
+    return {
+        "candidate_chunk_count": candidate_count,
+        "kept_segment_count": kept_segment_count,
+        "suppressed_segment_count": suppressed_segment_count,
+        "examples": examples,
+    }
+
+
 def utterance_tokens_in_interval(utterances: list[dict[str, Any]], start: float, end: float, role: str | None = None) -> list[str]:
     result: list[str] = []
     for row in utterances:
@@ -429,6 +505,17 @@ def utterance_tokens_in_interval(utterances: list[dict[str, Any]], start: float,
             continue
         result.extend(row.get("tokens") or [])
     return result
+
+
+def utterance_ids_in_interval(utterances: list[dict[str, Any]], start: float, end: float, role: str | None = None) -> list[str]:
+    result: list[str] = []
+    for row in utterances:
+        if role and row.get("role") != role:
+            continue
+        if interval_overlap(start, end, safe_float(row.get("start")), safe_float(row.get("end"))) <= 0:
+            continue
+        result.append(str(row.get("id") or ""))
+    return [item for item in result if item]
 
 
 def nested_token_probability(row: dict[str, Any]) -> float | None:
@@ -503,8 +590,12 @@ def best_batch_match(turn: dict[str, Any], batch: list[dict[str, Any]]) -> dict[
 
 def assess_live_vs_batch(chunks: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> dict[str, Any]:
     turns = live_turns(chunks)
+    suppressed_mic_turns = live_suppressed_mic_turns(chunks)
+    segment_gate_summary = live_segment_role_gate_summary(chunks)
     local_missing: list[dict[str, Any]] = []
     local_missing_suspicious_batch_me: list[dict[str, Any]] = []
+    local_missing_visible_in_suppressed_mic: list[dict[str, Any]] = []
+    local_missing_not_visible_in_suppressed_mic: list[dict[str, Any]] = []
     remote_leak: list[dict[str, Any]] = []
     order_mismatches: list[dict[str, Any]] = []
     matched_turns: list[dict[str, Any]] = []
@@ -534,14 +625,32 @@ def assess_live_vs_batch(chunks: list[dict[str, Any]], batch_utterances: list[di
         live_tokens_for_me = utterance_tokens_in_interval(turns, safe_float(row.get("start")), safe_float(row.get("end")), "Me")
         recall = bag_recall(row.get("tokens") or [], live_tokens_for_me) or 0.0
         if recall < 0.35:
+            suppressed_tokens = utterance_tokens_in_interval(
+                suppressed_mic_turns,
+                safe_float(row.get("start")),
+                safe_float(row.get("end")),
+                "Me",
+            )
+            suppressed_recall = bag_recall(row.get("tokens") or [], suppressed_tokens) or 0.0
             missing_row = {
                 "batch_id": row.get("id"),
                 "start": row.get("start"),
                 "end": row.get("end"),
                 "duration_sec": round(safe_float(row.get("end")) - safe_float(row.get("start")), 3),
                 "recall_in_live_me": round(recall, 6),
+                "recall_in_suppressed_mic": round(suppressed_recall, 6),
+                "suppressed_mic_turn_ids": utterance_ids_in_interval(
+                    suppressed_mic_turns,
+                    safe_float(row.get("start")),
+                    safe_float(row.get("end")),
+                    "Me",
+                ),
                 "text": row.get("text"),
             }
+            if suppressed_recall >= 0.35:
+                local_missing_visible_in_suppressed_mic.append(missing_row)
+            else:
+                local_missing_not_visible_in_suppressed_mic.append(missing_row)
             if suspicious_batch_me_utterance(row):
                 missing_row["reason"] = "suspicious_short_batch_me_crosses_authoritative_remote"
                 local_missing_suspicious_batch_me.append(missing_row)
@@ -571,8 +680,11 @@ def assess_live_vs_batch(chunks: list[dict[str, Any]], batch_utterances: list[di
         "matched_turns": matched_turns,
         "local_missing": local_missing,
         "local_missing_suspicious_batch_me": local_missing_suspicious_batch_me,
+        "local_missing_visible_in_suppressed_mic": local_missing_visible_in_suppressed_mic,
+        "local_missing_not_visible_in_suppressed_mic": local_missing_not_visible_in_suppressed_mic,
         "remote_leak": remote_leak,
         "order_mismatches": order_mismatches,
+        "segment_role_gate_candidates": segment_gate_summary.get("examples", []),
         "metrics": {
             "live_turn_count": len(turns),
             "live_me_turn_count": sum(1 for turn in turns if turn.get("role") == "Me"),
@@ -588,6 +700,20 @@ def assess_live_vs_batch(chunks: list[dict[str, Any]], batch_utterances: list[di
                 sum(safe_float(row.get("duration_sec")) for row in local_missing_suspicious_batch_me),
                 3,
             ),
+            "live_missing_me_visible_in_suppressed_mic_count": len(local_missing_visible_in_suppressed_mic),
+            "live_missing_me_visible_in_suppressed_mic_seconds": round(
+                sum(safe_float(row.get("duration_sec")) for row in local_missing_visible_in_suppressed_mic),
+                3,
+            ),
+            "live_missing_me_not_visible_in_suppressed_mic_count": len(local_missing_not_visible_in_suppressed_mic),
+            "live_missing_me_not_visible_in_suppressed_mic_seconds": round(
+                sum(safe_float(row.get("duration_sec")) for row in local_missing_not_visible_in_suppressed_mic),
+                3,
+            ),
+            "live_suppressed_mic_turn_count": len(suppressed_mic_turns),
+            "live_segment_role_gate_candidate_chunk_count": segment_gate_summary.get("candidate_chunk_count"),
+            "live_segment_role_gate_candidate_kept_segment_count": segment_gate_summary.get("kept_segment_count"),
+            "live_segment_role_gate_candidate_suppressed_segment_count": segment_gate_summary.get("suppressed_segment_count"),
             "live_suspected_remote_leak_in_me_count": len(remote_leak),
             "live_suspected_remote_leak_in_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in remote_leak), 3),
         },
@@ -1027,6 +1153,12 @@ def main() -> int:
             "order_mismatches": (live_assessment.get("order_mismatches") or [])[:20],
             "local_missing": (live_assessment.get("local_missing") or [])[:20],
             "local_missing_suspicious_batch_me": (live_assessment.get("local_missing_suspicious_batch_me") or [])[:20],
+            "local_missing_visible_in_suppressed_mic": (
+                live_assessment.get("local_missing_visible_in_suppressed_mic") or []
+            )[:20],
+            "local_missing_not_visible_in_suppressed_mic": (
+                live_assessment.get("local_missing_not_visible_in_suppressed_mic") or []
+            )[:20],
             "remote_leak": (live_assessment.get("remote_leak") or [])[:20],
             "boundary_gate_issues": boundary_summary.get("examples") or [],
             "boundary_gate_resolved": boundary_summary.get("resolved_examples") or [],

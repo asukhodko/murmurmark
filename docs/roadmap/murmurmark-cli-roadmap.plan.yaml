@@ -634,23 +634,33 @@ nodes:
       collection всё ещё запрещён, и когда controlled pilot collection разрешён после full proof.
 
   realtime-live-parity-coverage-v1:
-    title: "Near-Realtime Capture-Safe Redesign v1"
+    title: "Near-Realtime Live Parity Coverage v1"
     kind: task
     parent: near-realtime-pipeline
     deps: [chunked-resumable-processing-v1, realtime-corpus-gates]
-    status: later
+    status: current
     effort: 6
     notes: |
-      После sparse-capture на controlled-real запуске legacy live остаётся quarantined. Ближайшая
-      крупная live-цель — доказать новую изоляцию sidecar: `record --experiment live-shadow-v1`
-      пишет raw CAF как source of truth, затем `raw_segment_commits.jsonl`, затем best-effort worker
-      материализует sidecar WAV. Normal `record --target-bundle system` остаётся production path.
-      Дизайн закреплён в `docs/architecture/experimental-sidecar.md`: эксперимент может исчезнуть,
-      отстать или быть отключён, но raw capture и batch process должны остаться воспроизводимыми.
-      Live cache остаётся
-      shadow-only: promotion allowed sessions must stay `0` until gates cover capture safety, order
-      risk, local recall, remote leakage, review burden, selected notes readiness, draft text recall
-      and chunk-boundary duplicates/missing speech.
+      После sparse-capture на legacy live путь `--live-pipeline` остаётся quarantined. Новый
+      controlled путь `record --experiment live-shadow-v1` пишет raw CAF как source of truth, затем
+      `raw_segment_commits.jsonl`, затем best-effort worker материализует sidecar WAV. Normal
+      `record --target-bundle system` остаётся production path, batch transcript authoritative.
+      Текущий corpus report уже сравнивает real live chunks/drafts с batch output, держит
+      `promotion_allowed_sessions = 0` и покрывает dimensions capture safety, order risk, local
+      recall, remote leakage, review burden, selected notes readiness, draft text recall,
+      required artifacts and chunk-boundary risks. На 2026-07-08 capture-safe candidate scope:
+      2 real sessions, 1 passing, blockers `local_recall` and `selected_notes_readiness`.
+      Capture-safe/evaluable local-recall examples are listed in
+      `capture_safe_evaluable_local_recall_gap_examples` so the next fix has concrete target rows.
+      Remote leakage in live Me is back to zero after tightening the full-chunk duplicate gate.
+      Most missing Me seconds are visible in suppressed mic chunks. Text-only segment rescue is
+      recorded as diagnostic metadata (`6` real live candidate chunks / `31` candidate segments in
+      the current corpus), but remains diagnostic-only because publishing it can reintroduce remote
+      as Me. The next implementation target is the coarse `live_role_gate`:
+      split or rescue local evidence inside suppressed mic chunks with stronger audio/evidence
+      proof, without publishing remote leak as Me.
+      Следующий фокус: `fix_live_local_recall_gap`; live draft часто теряет Me, поэтому promotion
+      остаётся blocked.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"

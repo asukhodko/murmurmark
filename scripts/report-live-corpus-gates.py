@@ -535,6 +535,15 @@ def capture_safe_candidate_row(row: dict[str, Any]) -> bool:
     )
 
 
+def capture_safe_evaluable_row(row: dict[str, Any]) -> bool:
+    return bool(
+        row.get("evidence_scope") == "real_meeting"
+        and row.get("comparison_status") == "shadow_compared"
+        and row_dimension_status(row, "capture_safety") == "passed"
+        and row_dimension_status(row, "required_artifacts") == "passed"
+    )
+
+
 def blocking_dimensions_from_counts(dimension_counts: dict[str, Counter[str]]) -> list[str]:
     return [
         key
@@ -736,6 +745,36 @@ def build_objective_audit(
                 "capture_safe_proof_status": capture_proof_status,
             },
         }
+    candidate_next_focus = (
+        candidate_scope.get("next_focus")
+        if isinstance(candidate_scope, dict) and isinstance(candidate_scope.get("next_focus"), dict)
+        else None
+    )
+    if (
+        capture_proof_row_status == "passed"
+        and safe_int(candidate_scope.get("sessions") if isinstance(candidate_scope, dict) else 0) > 0
+        and (candidate_scope.get("blocking_dimensions") if isinstance(candidate_scope, dict) else [])
+        and candidate_next_focus
+    ):
+        next_focus = {
+            **candidate_next_focus,
+            "source": "capture_safe_candidate_scope",
+            "recommended_next": (
+                f"{candidate_next_focus.get('recommended_next')}; "
+                "historical unsafe live sessions remain negative evidence and must not be used as promotion candidates"
+            ),
+            "candidate_scope": {
+                "sessions": candidate_scope.get("sessions"),
+                "passing_sessions": candidate_scope.get("passing_sessions"),
+                "blocking_dimensions": candidate_scope.get("blocking_dimensions"),
+                "session_ids": candidate_scope.get("session_ids"),
+            },
+            "capture_regression_check": {
+                "status": capture_regression_check.get("status") if isinstance(capture_regression_check, dict) else None,
+                "mode": capture_regression_check.get("mode") if isinstance(capture_regression_check, dict) else None,
+                "capture_safe_proof_status": capture_proof_status,
+            },
+        }
 
     rows = [
         objective_audit_row(
@@ -854,6 +893,52 @@ def sum_int_metric(rows: list[dict[str, Any]], metric: str) -> int:
     return sum(int(((row.get("metrics") or {}).get(metric) or 0)) for row in rows)
 
 
+def local_recall_gap_examples(rows: list[dict[str, Any]], *, limit: int = 50) -> dict[str, Any]:
+    examples: list[dict[str, Any]] = []
+    for row in rows:
+        risk_examples = row.get("risk_examples") if isinstance(row.get("risk_examples"), dict) else {}
+        inputs = row.get("inputs") if isinstance(row.get("inputs"), dict) else {}
+        metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
+        for category in ("local_missing", "local_missing_suspicious_batch_me"):
+            for item in risk_examples.get(category) or []:
+                if not isinstance(item, dict):
+                    continue
+                examples.append(
+                    {
+                        "session": row.get("session"),
+                        "category": category,
+                        "batch_id": item.get("batch_id"),
+                        "start": item.get("start"),
+                        "end": item.get("end"),
+                        "duration_sec": item.get("duration_sec"),
+                        "recall_in_live_me": item.get("recall_in_live_me"),
+                        "recall_in_suppressed_mic": item.get("recall_in_suppressed_mic"),
+                        "suppressed_mic_turn_ids": item.get("suppressed_mic_turn_ids"),
+                        "reason": item.get("reason"),
+                        "text": item.get("text"),
+                        "comparison": inputs.get("live_batch_comparison"),
+                        "live_me_turn_count": metrics.get("live_me_turn_count"),
+                        "batch_me_utterance_count": metrics.get("batch_me_utterance_count"),
+                    }
+                )
+    examples.sort(
+        key=lambda item: (
+            -safe_float(item.get("duration_sec")),
+            str(item.get("session") or ""),
+            safe_float(item.get("start")),
+        )
+    )
+    total_seconds = round(sum(safe_float(item.get("duration_sec")) for item in examples), 3)
+    return {
+        "schema": "murmurmark.live_local_recall_gap_examples/v1",
+        "item_count": len(examples),
+        "seconds": total_seconds,
+        "examples": examples[:limit],
+        "truncated": len(examples) > limit,
+        "limit": limit,
+    }
+
+
 def summarize_session(session: Path, root: Path) -> dict[str, Any]:
     live_report_path = session / "derived/live/live_pipeline_report.json"
     comparison_path = session / "derived/live/live_batch_comparison.json"
@@ -869,6 +954,8 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
     if live_present and comparison is None:
         blockers.append("live_batch_comparison_missing")
     metrics = comparison.get("metrics") if isinstance(comparison, dict) else {}
+    risk_examples = comparison.get("risk_examples") if isinstance(comparison, dict) else {}
+    risk_examples = risk_examples if isinstance(risk_examples, dict) else {}
     parity = comparison.get("parity_gates") if isinstance(comparison, dict) else {}
     comparison_status = comparison.get("status") if isinstance(comparison, dict) else None
     comparison_gates = gate_rows(comparison)
@@ -912,6 +999,24 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "live_suspicious_batch_me_missing_seconds": (
                 metrics.get("live_suspicious_batch_me_missing_seconds") if isinstance(metrics, dict) else None
             ),
+            "live_missing_me_visible_in_suppressed_mic_seconds": (
+                metrics.get("live_missing_me_visible_in_suppressed_mic_seconds") if isinstance(metrics, dict) else None
+            ),
+            "live_missing_me_not_visible_in_suppressed_mic_seconds": (
+                metrics.get("live_missing_me_not_visible_in_suppressed_mic_seconds") if isinstance(metrics, dict) else None
+            ),
+            "live_suppressed_mic_turn_count": (
+                metrics.get("live_suppressed_mic_turn_count") if isinstance(metrics, dict) else None
+            ),
+            "live_segment_role_gate_candidate_chunk_count": (
+                metrics.get("live_segment_role_gate_candidate_chunk_count") if isinstance(metrics, dict) else None
+            ),
+            "live_segment_role_gate_candidate_kept_segment_count": (
+                metrics.get("live_segment_role_gate_candidate_kept_segment_count") if isinstance(metrics, dict) else None
+            ),
+            "live_segment_role_gate_candidate_suppressed_segment_count": (
+                metrics.get("live_segment_role_gate_candidate_suppressed_segment_count") if isinstance(metrics, dict) else None
+            ),
             "live_suspected_remote_leak_in_me_seconds": (
                 metrics.get("live_suspected_remote_leak_in_me_seconds") if isinstance(metrics, dict) else None
             ),
@@ -944,6 +1049,25 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "live_batch_comparison": rel(comparison_path, session) if comparison_path.exists() else None,
             "live_parity_session_report": rel(session_report_path, session) if session_report_path.exists() else None,
             "final_reconcile_report": rel(final_reconcile_path, session) if final_reconcile_path.exists() else None,
+        },
+        "risk_examples": {
+            "local_missing": risk_examples.get("local_missing") if isinstance(risk_examples.get("local_missing"), list) else [],
+            "local_missing_suspicious_batch_me": (
+                risk_examples.get("local_missing_suspicious_batch_me")
+                if isinstance(risk_examples.get("local_missing_suspicious_batch_me"), list)
+                else []
+            ),
+            "local_missing_visible_in_suppressed_mic": (
+                risk_examples.get("local_missing_visible_in_suppressed_mic")
+                if isinstance(risk_examples.get("local_missing_visible_in_suppressed_mic"), list)
+                else []
+            ),
+            "local_missing_not_visible_in_suppressed_mic": (
+                risk_examples.get("local_missing_not_visible_in_suppressed_mic")
+                if isinstance(risk_examples.get("local_missing_not_visible_in_suppressed_mic"), list)
+                else []
+            ),
+            "remote_leak": risk_examples.get("remote_leak") if isinstance(risk_examples.get("remote_leak"), list) else [],
         },
         "gates": gates,
         "non_passing_gates": non_passing_gate_rows(gates),
@@ -980,6 +1104,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     dimension_counts, dimension_issue_sessions = summarize_dimensions(live_rows)
     real_dimension_counts, real_dimension_issue_sessions = summarize_dimensions(real_live_rows)
     capture_safe_candidate_rows = [row for row in real_live_rows if capture_safe_candidate_row(row)]
+    capture_safe_evaluable_rows = [row for row in real_live_rows if capture_safe_evaluable_row(row)]
     candidate_dimension_counts, candidate_dimension_issue_sessions = summarize_dimensions(capture_safe_candidate_rows)
     candidate_blocking_dimensions = blocking_dimensions_from_counts(candidate_dimension_counts)
     promotable = [row for row in rows if row.get("promotion_allowed")]
@@ -1003,6 +1128,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_capture_safe_candidate_passing_sessions": sum(
             1 for row in capture_safe_candidate_rows if row.get("all_parity_gates_passed")
         ),
+        "real_capture_safe_evaluable_sessions": len(capture_safe_evaluable_rows),
         "real_capture_safe_candidate_blocking_dimensions": candidate_blocking_dimensions,
         "blocked_sessions": sum(1 for row in rows if row.get("comparison_status") == "blocked"),
         "promotion_allowed_sessions": len(promotable),
@@ -1018,6 +1144,40 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_live_suspicious_batch_me_missing_seconds": sum_metric(
             real_live_rows,
             "live_suspicious_batch_me_missing_seconds",
+        ),
+        "live_missing_me_visible_in_suppressed_mic_seconds": sum_metric(
+            rows,
+            "live_missing_me_visible_in_suppressed_mic_seconds",
+        ),
+        "real_live_missing_me_visible_in_suppressed_mic_seconds": sum_metric(
+            real_live_rows,
+            "live_missing_me_visible_in_suppressed_mic_seconds",
+        ),
+        "live_missing_me_not_visible_in_suppressed_mic_seconds": sum_metric(
+            rows,
+            "live_missing_me_not_visible_in_suppressed_mic_seconds",
+        ),
+        "real_live_missing_me_not_visible_in_suppressed_mic_seconds": sum_metric(
+            real_live_rows,
+            "live_missing_me_not_visible_in_suppressed_mic_seconds",
+        ),
+        "live_suppressed_mic_turn_count": sum_int_metric(rows, "live_suppressed_mic_turn_count"),
+        "real_live_suppressed_mic_turn_count": sum_int_metric(real_live_rows, "live_suppressed_mic_turn_count"),
+        "live_segment_role_gate_candidate_chunk_count": sum_int_metric(
+            rows,
+            "live_segment_role_gate_candidate_chunk_count",
+        ),
+        "real_live_segment_role_gate_candidate_chunk_count": sum_int_metric(
+            real_live_rows,
+            "live_segment_role_gate_candidate_chunk_count",
+        ),
+        "live_segment_role_gate_candidate_kept_segment_count": sum_int_metric(
+            rows,
+            "live_segment_role_gate_candidate_kept_segment_count",
+        ),
+        "real_live_segment_role_gate_candidate_kept_segment_count": sum_int_metric(
+            real_live_rows,
+            "live_segment_role_gate_candidate_kept_segment_count",
         ),
         "live_suspected_remote_leak_in_me_seconds": sum_metric(rows, "live_suspected_remote_leak_in_me_seconds"),
         "real_live_suspected_remote_leak_in_me_seconds": sum_metric(
@@ -1243,6 +1403,23 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         for row in real_live_rows
         if str(row.get("session") or "") not in candidate_session_ids
     ]
+    local_recall_examples = local_recall_gap_examples(real_live_rows)
+    candidate_local_recall_examples = local_recall_gap_examples(capture_safe_candidate_rows, limit=30)
+    evaluable_local_recall_examples = local_recall_gap_examples(capture_safe_evaluable_rows, limit=50)
+    summary["live_local_recall_gap_example_count"] = safe_int(local_recall_examples.get("item_count"))
+    summary["live_local_recall_gap_example_seconds"] = safe_float(local_recall_examples.get("seconds"))
+    summary["capture_safe_candidate_local_recall_gap_example_count"] = safe_int(
+        candidate_local_recall_examples.get("item_count")
+    )
+    summary["capture_safe_candidate_local_recall_gap_example_seconds"] = safe_float(
+        candidate_local_recall_examples.get("seconds")
+    )
+    summary["capture_safe_evaluable_local_recall_gap_example_count"] = safe_int(
+        evaluable_local_recall_examples.get("item_count")
+    )
+    summary["capture_safe_evaluable_local_recall_gap_example_seconds"] = safe_float(
+        evaluable_local_recall_examples.get("seconds")
+    )
     if not pilot_allowed:
         coverage_path_status = "blocked_until_full_fail_open_proof"
         coverage_recommended_next = (
@@ -1333,6 +1510,9 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_parity_dimensions": real_parity_dimensions_payload,
         "real_capture_safe_candidate_parity_dimensions": candidate_parity_dimensions_payload,
         "capture_safe_candidate_scope": candidate_scope,
+        "live_local_recall_gap_examples": local_recall_examples,
+        "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
+        "capture_safe_evaluable_local_recall_gap_examples": evaluable_local_recall_examples,
         "coverage_path": coverage_path,
         "promotion_policy": promotion_policy,
         "capture_regression_check": {
@@ -1709,6 +1889,20 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- real live order mismatches: {summary.get('real_live_order_mismatch_count', 0)}",
         f"- live missing Me seconds: {summary.get('live_missing_me_seconds', 0.0)}",
         f"- real live missing Me seconds: {summary.get('real_live_missing_me_seconds', 0.0)}",
+        "- real live missing Me visible in suppressed mic seconds: "
+        f"{summary.get('real_live_missing_me_visible_in_suppressed_mic_seconds', 0.0)}",
+        "- real live missing Me not visible in suppressed mic seconds: "
+        f"{summary.get('real_live_missing_me_not_visible_in_suppressed_mic_seconds', 0.0)}",
+        f"- real live suppressed mic turns: {summary.get('real_live_suppressed_mic_turn_count', 0)}",
+        "- real live segment-gate candidate chunks: "
+        f"{summary.get('real_live_segment_role_gate_candidate_chunk_count', 0)}",
+        "- real live segment-gate candidate kept segments: "
+        f"{summary.get('real_live_segment_role_gate_candidate_kept_segment_count', 0)}",
+        f"- real live missing Me examples: {summary.get('live_local_recall_gap_example_count', 0)}",
+        "- capture-safe candidate missing Me examples: "
+        f"{summary.get('capture_safe_candidate_local_recall_gap_example_count', 0)}",
+        "- capture-safe evaluable missing Me examples: "
+        f"{summary.get('capture_safe_evaluable_local_recall_gap_example_count', 0)}",
         f"- live suspicious batch-Me missing seconds: {summary.get('live_suspicious_batch_me_missing_seconds', 0.0)}",
         f"- real live suspicious batch-Me missing seconds: {summary.get('real_live_suspicious_batch_me_missing_seconds', 0.0)}",
         f"- live suspected remote-in-Me seconds: {summary.get('live_suspected_remote_leak_in_me_seconds', 0.0)}",
@@ -1843,6 +2037,55 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 f"| `{key}` | `{value.get('promotion_required')}` | {counts_text} | {len(issue_sessions)} |"
             )
         lines.append("")
+    candidate_gap_examples = (
+        report.get("capture_safe_candidate_local_recall_gap_examples")
+        if isinstance(report.get("capture_safe_candidate_local_recall_gap_examples"), dict)
+        else {}
+    )
+    evaluable_gap_examples = (
+        report.get("capture_safe_evaluable_local_recall_gap_examples")
+        if isinstance(report.get("capture_safe_evaluable_local_recall_gap_examples"), dict)
+        else {}
+    )
+    all_gap_examples = (
+        report.get("live_local_recall_gap_examples")
+        if isinstance(report.get("live_local_recall_gap_examples"), dict)
+        else {}
+    )
+    if candidate_gap_examples or all_gap_examples:
+        lines += [
+            "## Live Local Recall Gap Examples",
+            "",
+            "These are batch `Me` utterances that were not visible as live `Me` turns. They are the "
+            "main evidence for the current `fix_live_local_recall_gap` focus.",
+            "",
+            f"- real examples: {all_gap_examples.get('item_count', 0)} / {all_gap_examples.get('seconds', 0.0)} sec",
+            "- capture-safe candidate examples: "
+            f"{candidate_gap_examples.get('item_count', 0)} / {candidate_gap_examples.get('seconds', 0.0)} sec",
+            "- capture-safe evaluable examples: "
+            f"{evaluable_gap_examples.get('item_count', 0)} / {evaluable_gap_examples.get('seconds', 0.0)} sec",
+            "",
+        ]
+        examples_source = evaluable_gap_examples if evaluable_gap_examples else candidate_gap_examples
+        examples = examples_source.get("examples") if isinstance(examples_source.get("examples"), list) else []
+        if examples:
+            lines += [
+                "| Session | Time | Duration | Suppressed Mic Recall | Batch ID | Text |",
+                "| --- | ---: | ---: | ---: | --- | --- |",
+            ]
+            for item in examples[:12]:
+                if not isinstance(item, dict):
+                    continue
+                text = str(item.get("text") or "").replace("|", "\\|")
+                if len(text) > 110:
+                    text = text[:107].rstrip() + "..."
+                lines.append(
+                    f"| `{item.get('session')}` | {safe_float(item.get('start')):.2f}-{safe_float(item.get('end')):.2f} "
+                    f"| {safe_float(item.get('duration_sec')):.2f} "
+                    f"| {safe_float(item.get('recall_in_suppressed_mic')):.2f} "
+                    f"| `{item.get('batch_id')}` | {text} |"
+                )
+            lines.append("")
     lines += [
         "## Objective Audit",
         "",
@@ -2083,6 +2326,14 @@ def main() -> int:
     print(f"real_live_order_mismatch_count: {summary.get('real_live_order_mismatch_count', 0)}")
     print(f"live_missing_me_seconds: {summary.get('live_missing_me_seconds', 0.0)}")
     print(f"real_live_missing_me_seconds: {summary.get('real_live_missing_me_seconds', 0.0)}")
+    print(
+        "real_live_segment_role_gate_candidate_chunk_count: "
+        f"{summary.get('real_live_segment_role_gate_candidate_chunk_count', 0)}"
+    )
+    print(
+        "real_live_segment_role_gate_candidate_kept_segment_count: "
+        f"{summary.get('real_live_segment_role_gate_candidate_kept_segment_count', 0)}"
+    )
     print(f"live_suspicious_batch_me_missing_seconds: {summary.get('live_suspicious_batch_me_missing_seconds', 0.0)}")
     print(
         "real_live_suspicious_batch_me_missing_seconds: "

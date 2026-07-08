@@ -59,9 +59,9 @@ Completion evidence:
 - `MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh` passed;
 - `scripts/check.sh` passed.
 
-## Previous Goal: Near-Realtime Live Parity Coverage v1
+## Current Goal: Near-Realtime Live Parity Coverage v1
 
-Status, 2026-07-07: paused behind the sidecar contract work.
+Status, 2026-07-08: active, blocked by parity gates rather than capture loss.
 
 Goal:
 
@@ -79,26 +79,31 @@ batch output and does not break on chunk boundaries.
 
 Current state:
 
-- real live sessions in the corpus: `8`;
-- diagnostic/lab live sessions kept out of promotion scope: `7`;
-- real live-vs-batch compared sessions: `6`;
+- real live sessions in the corpus: `11`;
+- diagnostic/lab live sessions kept out of promotion scope: `9`;
+- real live-vs-batch compared sessions: `8`;
 - meaningful real comparisons: `4`;
 - real passing comparisons: `1`;
+- capture-safe candidate sessions: `2`;
+- capture-safe candidate passing sessions: `1`;
+- capture-safe evaluable sessions: `3`;
 - promotion decision: `shadow_only_do_not_promote`;
 - new real live collection allowed: `false`;
-- controlled real live pilot reports may still show allowance after full fail-open proof, but new
-  real live recording is blocked by the runner unless the operator passes the explicit unsafe
-  escape hatch;
+- controlled real live pilot collection is allowed only as evidence collection after the full
+  fail-open proof; batch remains authoritative and promotion remains blocked;
 - current blocking dimensions: `capture_safety`, `local_recall`, `remote_leakage`,
   `review_burden`, `selected_notes_readiness`, `draft_text_recall`, `required_artifacts`.
+- capture-safe candidate blocking dimensions: `local_recall`, `selected_notes_readiness`.
+- current objective next focus: `fix_live_local_recall_gap`.
 
 Safety constraint:
 
 - do not use `--live-pipeline` as the normal production recording path while live is quarantined;
-- use existing live artifacts and lab diagnostics to improve reports and gates;
-- controlled Live Evidence analysis can use existing sessions, but new real live recording stays
-  quarantined until capture isolation is proven again; batch transcript remains authoritative and
-  promotion remains blocked.
+- use `record --experiment live-shadow-v1` only as controlled Live Evidence, not as a production
+  transcript source;
+- historical unsafe live sessions remain negative evidence and must not be treated as promotion
+  candidates;
+- batch transcript remains authoritative and promotion remains blocked.
 
 Definition of done:
 
@@ -116,6 +121,43 @@ Definition of done:
   `--allow-unsafe-controlled-real-recording`;
 - README/runbooks/contracts/roadmap make clear that live is quarantined and that corpus reports are
   evidence, not a command to collect new unsafe live meetings.
+
+Latest verification:
+
+```bash
+murmurmark corpus live all --refresh
+```
+
+Current result:
+
+- `status = shadow_only_not_promotable`;
+- `promotion_decision = shadow_only_do_not_promote`;
+- `promotion_allowed_sessions = 0`;
+- `real_live_order_mismatch_count = 0`;
+- `real_live_missing_me_seconds = 386.41`;
+- `real_live_missing_me_visible_in_suppressed_mic_seconds = 349.77`;
+- `real_live_missing_me_not_visible_in_suppressed_mic_seconds = 37.21`;
+- `real_live_suppressed_mic_turn_count = 30`;
+- `real_live_segment_role_gate_candidate_chunk_count = 6`;
+- `real_live_segment_role_gate_candidate_kept_segment_count = 31`;
+- `real_live_suspected_remote_leak_in_me_seconds = 0.0`;
+- `coverage_path = resolve_capture_safe_candidate_blockers`;
+- `objective_next_focus = fix_live_local_recall_gap`.
+- `capture_safe_evaluable_local_recall_gap_examples = 12 / 47.44 sec`.
+
+The report now keeps concrete missing-Me rows under
+`capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not
+`meaningful_live_comparison` because the live draft lost all `Me` turns; those sessions must remain
+visible for the local-recall fix.
+
+Remote leakage in live `Me` is now back to zero after tightening the full-chunk duplicate gate.
+Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks.
+The current live blocker is therefore primarily the coarse `live_role_gate`: it suppresses an entire
+mic chunk when the chunk looks like remote duplicate, even if the chunk also contains real local
+speech. A first text-only segment rescue found `6` real live candidate chunks / `31` kept candidate
+segments, but it stays diagnostic-only because publishing those candidates can reintroduce remote as
+`Me`. The next implementation step should use stronger audio/evidence gates to split or rescue
+local evidence inside suppressed mic chunks without publishing remote leak.
 
 ## Latest Completed Goal: Current Pipeline Stabilization v1
 

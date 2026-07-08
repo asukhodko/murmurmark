@@ -1012,13 +1012,20 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         and live_objective_next_focus.get("action_id") == "collect_controlled_capture_safe_live_pilot"
         and not (candidate_scope.get("blocking_dimensions") or [])
     )
+    candidate_scope_next_focus_allowed = (
+        live_objective_next_focus.get("source") == "capture_safe_candidate_scope"
+        and live_objective_audit.get("controlled_real_live_pilot_allowed") is True
+        and bool(candidate_scope.get("blocking_dimensions") or [])
+        and live_objective_next_focus.get("dimension") in {str(item) for item in candidate_scope.get("blocking_dimensions") or []}
+    )
     check(
         checks,
         "live_cache_parity.objective_next_focus_safe",
         live_corpus is None
         or "capture_safety" not in {str(item) for item in live_objective_blocking_dimensions}
         or live_objective_next_focus.get("action_id") == "capture_safe_redesign_before_more_live_coverage"
-        or controlled_pilot_next_focus_allowed,
+        or controlled_pilot_next_focus_allowed
+        or candidate_scope_next_focus_allowed,
         observed={
             "blocking_dimensions": live_objective_blocking_dimensions,
             "next_focus": live_objective_next_focus,
@@ -1027,9 +1034,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         },
         threshold=(
             "if capture_safety blocks live parity, next_focus is capture_safe_redesign_before_more_live_coverage; "
-            "after full proof and clean candidate scope, controlled pilot coverage is allowed"
+            "after full proof, capture-safe candidate blockers or controlled pilot coverage are allowed"
         ),
-        message="objective audit points to capture-safe redesign or controlled pilot coverage",
+        message="objective audit points to capture-safe redesign, capture-safe candidate blockers, or controlled pilot coverage",
         details=live_objective_audit,
     )
     check(

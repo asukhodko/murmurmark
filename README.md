@@ -954,17 +954,25 @@ Active goal and near-term candidates:
 3. Completed: Chunked/Resumable Processing v1: ASR work is chunk-addressed, cacheable,
    interrupt-safe and guarded by rebuild/corpus gates. The remaining work is broader corpus
    coverage, not the v1 mechanism.
-4. Active live follow-up: Near-Realtime Live Parity Coverage v1. Capture-safe redesign proof exists;
-   next is controlled Live Evidence coverage while batch remains authoritative.
+4. Active live follow-up: Near-Realtime Live Parity Coverage v1. Capture-safe sidecar proof exists,
+   `murmurmark corpus live all --refresh` compares real live chunks/drafts with batch output, and
+   live promotion stays blocked. Current next focus is `fix_live_local_recall_gap`: live draft still
+   loses Me speech on controlled real evidence, and the corpus report now lists concrete
+   `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
+   visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic
+   metadata (`6` real live candidate chunks / `31` candidate segments in the current corpus) but is
+   not published into the live draft, because it can reintroduce remote as `Me`. The next
+   implementation target is a stronger audio/evidence gate for local speech inside suppressed mic
+   chunks. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
    safe review evidence, shrink only rows with strong local proof, and keep ambiguous rows explicit.
 7. Operational Corpus Green follow-up: keep `pilot_ready_with_review` stable, reduce the remaining
    irreducible queue when new local evidence appears, and prevent status drift.
-8. Near-Realtime Pipeline Shadow v1 follow-up: first redesign segment production so live work cannot
-   affect raw capture, then harden the live draft worker with per-fragment Echo Guard, resumable
-   worker state and corpus parity gates.
+8. Near-Realtime Pipeline Shadow v1 follow-up: raw-safe segment production exists via
+   `record --experiment live-shadow-v1`; now harden the live draft worker around Me/local recall,
+   per-fragment Echo Guard, resumable worker state and corpus parity gates.
 9. Echo Guard promotion experiment: only after the shadow candidate passes a broader operational
    corpus, test a separate promoted profile that writes a non-default `mic_for_asr` candidate bundle.
 10. Operational polish: make the happy path clearer when recording stops unexpectedly, when a session

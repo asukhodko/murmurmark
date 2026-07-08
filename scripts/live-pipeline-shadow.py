@@ -20,6 +20,7 @@ from scipy.io import wavfile
 SCHEMA = "murmurmark.live_pipeline_report/v1"
 SCRIPT_VERSION = "0.2.0"
 EPSILON = 1.0e-12
+LIVE_ROLE_DUPLICATE_THRESHOLD = 0.55
 KNOWN_HALLUCINATIONS = {
     "редактор субтитров",
     "продолжение следует",
@@ -118,9 +119,160 @@ def bag_recall(source_tokens: list[str], target_tokens: list[str]) -> float | No
     return matched / max(1, len(source_tokens))
 
 
+def counter_unique_tokens(source_tokens: list[str], target_tokens: list[str]) -> list[str]:
+    target = {}
+    for token in target_tokens:
+        target[token] = target.get(token, 0) + 1
+    unique: list[str] = []
+    for token in source_tokens:
+        if target.get(token, 0) > 0:
+            target[token] -= 1
+        else:
+            unique.append(token)
+    return unique
+
+
 def is_hallucination(text: str) -> bool:
     normalized = clean_text(text).lower().strip(".!?, ")
     return normalized in KNOWN_HALLUCINATIONS or normalized.startswith("субтитры")
+
+
+def read_asr_segments(
+    json_path: Path | None,
+    clip_start_sec: float,
+    hard_start_sec: float,
+    hard_end_sec: float,
+) -> list[dict[str, Any]]:
+    if json_path is None or not json_path.exists():
+        return []
+    try:
+        data = json.loads(json_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    segments: list[dict[str, Any]] = []
+    for row in data.get("transcription") or []:
+        if not isinstance(row, dict):
+            continue
+        offsets = row.get("offsets") or {}
+        local_start = int(offsets.get("from") or 0)
+        local_end = int(offsets.get("to") or local_start)
+        global_start = clip_start_sec + local_start / 1000.0
+        global_end = clip_start_sec + local_end / 1000.0
+        center = (global_start + global_end) / 2.0
+        if not (hard_start_sec <= center < hard_end_sec):
+            continue
+        text = clean_text(str(row.get("text") or ""))
+        if text and not is_hallucination(text):
+            segments.append(
+                {
+                    "start": round(global_start, 3),
+                    "end": round(max(global_end, global_start), 3),
+                    "text": text,
+                    "tokens": tokens(text),
+                }
+            )
+    return segments
+
+
+def segments_text(segments: list[dict[str, Any]]) -> str:
+    return clean_text(" ".join(str(row.get("text") or "") for row in segments))
+
+
+def overlapping_segment_tokens(
+    segments: list[dict[str, Any]],
+    start_sec: float,
+    end_sec: float,
+    guard_sec: float = 1.0,
+) -> list[str]:
+    start = start_sec - guard_sec
+    end = end_sec + guard_sec
+    result: list[str] = []
+    for row in segments:
+        row_start = float(row.get("start") or 0.0)
+        row_end = float(row.get("end") or row_start)
+        if min(end, row_end) - max(start, row_start) > 0.0:
+            result.extend(row.get("tokens") or [])
+    return result
+
+
+def segment_rescue_decision(mic_segment: dict[str, Any], remote_segments: list[dict[str, Any]]) -> dict[str, Any]:
+    mic_tokens = mic_segment.get("tokens") or []
+    remote_tokens = overlapping_segment_tokens(
+        remote_segments,
+        float(mic_segment.get("start") or 0.0),
+        float(mic_segment.get("end") or 0.0),
+    )
+    mic_in_remote = bag_recall(mic_tokens, remote_tokens) or 0.0
+    remote_in_mic = bag_recall(remote_tokens, mic_tokens) or 0.0
+    unique_tokens = counter_unique_tokens(mic_tokens, remote_tokens)
+    token_count = len(mic_tokens)
+    unique_count = len(unique_tokens)
+    keep = bool(
+        token_count >= 3
+        and (
+            not remote_tokens
+            or (mic_in_remote <= 0.25 and unique_count >= 2)
+            or (token_count >= 8 and unique_count >= 5 and mic_in_remote <= 0.35)
+        )
+    )
+    if keep:
+        reason = "segment_has_local_tokens_not_seen_in_overlapping_remote"
+    elif not mic_tokens:
+        reason = "empty_segment"
+    elif not remote_tokens:
+        reason = "no_overlapping_remote_but_too_short_or_weak"
+    else:
+        reason = "segment_duplicates_overlapping_remote"
+    return {
+        "status": "kept" if keep else "suppressed",
+        "reason": reason,
+        "start": mic_segment.get("start"),
+        "end": mic_segment.get("end"),
+        "text": mic_segment.get("text"),
+        "token_count": token_count,
+        "unique_token_count": unique_count,
+        "unique_tokens": unique_tokens[:12],
+        "mic_token_recall_in_overlapping_remote": round(mic_in_remote, 6),
+        "overlapping_remote_token_recall_in_mic": round(remote_in_mic, 6),
+    }
+
+
+def segment_level_role_rescue(record: dict[str, Any]) -> dict[str, Any]:
+    mic = record.get("mic") if isinstance(record.get("mic"), dict) else {}
+    remote = record.get("remote") if isinstance(record.get("remote"), dict) else {}
+    mic_asr = mic.get("asr") if isinstance(mic.get("asr"), dict) else {}
+    remote_asr = remote.get("asr") if isinstance(remote.get("asr"), dict) else {}
+    mic_json = Path(str(mic_asr.get("json"))) if mic_asr.get("json") else None
+    remote_json = Path(str(remote_asr.get("json"))) if remote_asr.get("json") else None
+    mic_segments = read_asr_segments(
+        mic_json,
+        clip_start_sec=float(mic.get("clip_start_sec") or 0.0),
+        hard_start_sec=float(mic.get("hard_start_sec") or 0.0),
+        hard_end_sec=float(mic.get("hard_end_sec") or 0.0),
+    )
+    remote_segments = read_asr_segments(
+        remote_json,
+        clip_start_sec=float(remote.get("clip_start_sec") or 0.0),
+        hard_start_sec=float(remote.get("hard_start_sec") or 0.0),
+        hard_end_sec=float(remote.get("hard_end_sec") or 0.0),
+    )
+    decisions = [segment_rescue_decision(segment, remote_segments) for segment in mic_segments]
+    kept = [row for row in decisions if row.get("status") == "kept"]
+    suppressed = [row for row in decisions if row.get("status") == "suppressed"]
+    kept_text = segments_text(kept)
+    rescued = len(tokens(kept_text)) >= 2
+    return {
+        "schema": "murmurmark.live_segment_role_gate/v1",
+        "status": "rescued" if rescued else "no_rescue",
+        "reason": "kept_low_remote_similarity_mic_segments" if rescued else "no_safe_mic_segments",
+        "mic_segment_count": len(mic_segments),
+        "remote_segment_count": len(remote_segments),
+        "kept_segment_count": len(kept),
+        "suppressed_segment_count": len(suppressed),
+        "kept_text": kept_text,
+        "kept_segments": kept[:20],
+        "suppressed_segments": suppressed[:20],
+    }
 
 
 def apply_live_role_gate(record: dict[str, Any]) -> None:
@@ -138,8 +290,10 @@ def apply_live_role_gate(record: dict[str, Any]) -> None:
     mic_in_remote = bag_recall(mic_tokens, remote_tokens) or 0.0
     remote_in_mic = bag_recall(remote_tokens, mic_tokens) or 0.0
     duplicate_score = max(mic_in_remote, remote_in_mic)
-    if duplicate_score >= 0.62:
+    if duplicate_score >= LIVE_ROLE_DUPLICATE_THRESHOLD:
         mic["raw_text_before_role_gate"] = mic_text
+        segment_gate = segment_level_role_rescue(record)
+        mic["live_segment_role_gate"] = segment_gate
         mic["text"] = ""
         mic["live_role_gate"] = {
             "status": "suppressed",
@@ -147,6 +301,10 @@ def apply_live_role_gate(record: dict[str, Any]) -> None:
             "duplicate_score": round(duplicate_score, 6),
             "mic_token_recall_in_remote": round(mic_in_remote, 6),
             "remote_token_recall_in_mic": round(remote_in_mic, 6),
+            "segment_gate_status": segment_gate.get("status"),
+            "segment_gate_publish_policy": "diagnostic_only",
+            "kept_segment_count": segment_gate.get("kept_segment_count"),
+            "suppressed_segment_count": segment_gate.get("suppressed_segment_count"),
         }
     else:
         mic["live_role_gate"] = {
