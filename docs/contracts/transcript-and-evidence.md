@@ -5667,6 +5667,10 @@ derived/live/target-me-shadow/online_live_me_remote_overlap_filter_v1/draft.json
 derived/live/target-me-shadow/online_live_me_remote_overlap_filter_v1/draft.md
 derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1/draft.json
 derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1/draft.md
+derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1/draft.json
+derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1/draft.md
+derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1/draft.json
+derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1/draft.md
 ```
 
 The JSON uses schema `murmurmark.live_target_me_shadow_draft/v1`, includes `promotion_allowed:
@@ -5706,7 +5710,11 @@ draft. `online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1` c
 with the dual Target-Me suppressed-mic rescue. Current corpus evidence: the combined profile removes
 `15.96s` remote-like live `Me`, leaves `0.00s` measured remote leak, adds `47.70s` suppressed-mic
 `Me`, but still leaves `380.17s` missing-Me and `4` contentful role-constrained order mismatches.
-It remains a diagnostic draft and is not promotable.
+`online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1` is the
+current best live-implementable profile: it combines the remote-overlap cleanup, timeline-safe
+Target-Me rescue and `audio_safe_union_v1`, reaching `301.96s` missing-Me with `0.00s` measured
+remote leak and `4` contentful order mismatches. These profiles remain diagnostic drafts and are not
+promotable.
 
 Profile `risk_examples.local_missing` carries the same fields per utterance, including
 `recall_in_suppressed_mic`, `suppressed_mic_turn_ids` and `target_me_candidate_policies`. The oracle

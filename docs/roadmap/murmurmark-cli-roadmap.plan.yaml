@@ -743,9 +743,12 @@ nodes:
       `online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1` shadow handles that
       symptom separately: it removes `15.96s` remote-like live `Me`, keeps measured remote leak at
       `0.00s`, preserves the `47.70s` suppressed-mic rescue, but still leaves `380.17s`
-      missing-Me, `4` contentful role-constrained order mismatches and `41` non-passing gates.
-      Next implementation should focus on stronger local-speaker evidence and order-safe live role
-      gating, not on promotion.
+      missing-Me, `4` contentful role-constrained order mismatches and `41` non-passing gates. The
+      current best live-implementable profile,
+      `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1`, gets
+      to `301.96s` missing-Me with `0.00s` remote leak, `4` contentful order mismatches and `41`
+      non-passing gates. Next implementation should focus on stronger local-speaker evidence and
+      order-safe live role gating, not on promotion.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

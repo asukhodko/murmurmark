@@ -102,6 +102,8 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "online_suppressed_mic_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_v1",
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
 )
 TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1": (
@@ -114,6 +116,12 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_confirmed_remote_guard_timeline_safe_v1"
     ),
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1": (
+        "target_me_confirmed_remote_guard_timeline_safe_v1"
+    ),
+    "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1": (
+        "target_me_confirmed_remote_guard_timeline_safe_v1"
+    ),
+    "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1": (
         "target_me_confirmed_remote_guard_timeline_safe_v1"
     ),
 }
@@ -130,6 +138,9 @@ TARGET_ME_ONLINE_SUPPRESSED_MIC_PROFILE_POLICIES = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1": (
         "audio_low_corr_text_guard_v1"
     ),
+    "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1": (
+        "audio_safe_union_v1"
+    ),
 }
 TARGET_ME_VISIBLE_SUPPRESSED_MIC_ORACLE_POLICIES = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
@@ -139,6 +150,12 @@ SUPPRESSED_MIC_COMPOSITE_SHADOW_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
 }
 LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
+    "online_live_me_remote_overlap_filter_v1",
+    "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
+}
+LIVE_ME_REMOTE_OVERLAP_FILTER_NO_TARGET_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_v1",
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
 }
@@ -2812,7 +2829,7 @@ def target_me_shadow_profile_components(
     target_turns = (
         []
         if policy in SUPPRESSED_MIC_COMPOSITE_SHADOW_PROFILE_POLICIES
-        or policy in LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES
+        or policy in LIVE_ME_REMOTE_OVERLAP_FILTER_NO_TARGET_PROFILE_POLICIES
         else list(target_me_turns_by_policy.get(base_policy) or [])
     )
     live_turns = list(live_turns_rows)

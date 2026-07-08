@@ -328,20 +328,30 @@ Online remote-overlap shadow filter, 2026-07-09:
 - `compare-live-batch.py` now also writes
   `derived/live/target-me-shadow/online_live_me_remote_overlap_filter_v1/draft.json` and
   `derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1/draft.json`;
+- it also writes the stronger live-implementable variants
+  `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1` and
+  `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1`;
 - the filter removes only live `Me` turns whose text strongly overlaps contemporary live
   `Colleagues` text: at least `3s`, at least `5` mic tokens, at least `5` overlapping remote tokens,
   and either `mic_token_recall_in_overlapping_remote >= 0.70` or
   `overlapping_remote_token_recall_in_mic >= 0.75`;
-- current real corpus result for the combined profile:
+- current real corpus result for `online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1`:
   - removed live `Me`: `15.96s`;
   - remaining measured remote leak: `0.00s`;
   - restored suppressed mic `Me`: `47.70s`;
   - missing-Me: `380.17s`;
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
+- current best live-implementable profile is
+  `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1`:
+  - remaining measured remote leak: `0.00s`;
+  - visible suppressed mic added: `52.76s`;
+  - missing-Me: `301.96s`;
+  - contentful role-constrained order mismatches: `4`;
+  - non-passing gates: `41`.
 
 Conclusion: the online filter closes the current measured remote-leak symptom without batch truth,
-but it does not improve local recall beyond the dual Target-Me rescue and does not clear order risk.
+and the best live-implementable profile improves local recall more than the dual Target-Me slice.
 The goal remains blocked by local recall, order risk, review burden and draft readiness, not by lack
 of another raw recording.
 satisfy live parity. The next implementation needs either remote-leak removal in the online draft or

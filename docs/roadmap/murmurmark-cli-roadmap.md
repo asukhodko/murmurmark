@@ -504,8 +504,12 @@ newer run-state exists.
    missing-Me and leaves the existing `15.96s` live remote leak untouched. The paired
    `online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1` shadow removes that
    `15.96s` remote-like live `Me`, preserves the `47.70s` rescue and keeps measured remote leak at
-   `0.00s`, but still leaves `380.17s` missing-Me and `4` contentful order mismatches. This proves
-   the materialization and online remote-forbidden mechanism, not parity.
+   `0.00s`, but still leaves `380.17s` missing-Me and `4` contentful order mismatches. The current
+   best live-implementable profile,
+   `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1`, reaches
+   `301.96s` missing-Me with `0.00s` remote leak, `4` contentful order mismatches and `41`
+   non-passing gates. This proves the materialization and online remote-forbidden mechanism, not
+   parity.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
