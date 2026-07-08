@@ -959,7 +959,9 @@ Active goal and near-term candidates:
    live promotion stays blocked. The comparison now uses ASR-segment granularity when available, with
    chunk fallback for older artifacts. Current next focus is `fix_live_order_risk`: segment-level
    parity exposes ordering drift, suspected remote leakage in live `Me`, and lost local speech on
-   controlled real evidence. The corpus report now lists concrete
+   controlled real evidence. The order-risk split is now visible: `20` same-chunk/same-source,
+   `11` same-chunk/cross-source, `2` cross-chunk and `1` overlap-context mismatches. The corpus
+   report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
    visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic
    metadata (`6` real live candidate chunks / `31` candidate segments in the current corpus) but is

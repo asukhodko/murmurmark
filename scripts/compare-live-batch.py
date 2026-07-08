@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.12.0"
+SCRIPT_VERSION = "0.13.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 CAPTURE_SAFETY_BLOCKERS = {"interrupted_capture", "silent_capture", "sparse_capture"}
@@ -1178,6 +1178,47 @@ def matched_turn_rows(turns: list[dict[str, Any]], batch_utterances: list[dict[s
     return result
 
 
+def short_text(text: Any, limit: int = 180) -> str:
+    value = clean_text(str(text or ""))
+    if len(value) <= limit:
+        return value
+    return value[: max(0, limit - 1)].rstrip() + "…"
+
+
+def order_mismatch_category(previous: dict[str, Any], current: dict[str, Any]) -> str:
+    previous_chunk = safe_int(previous.get("chunk_index"))
+    current_chunk = safe_int(current.get("chunk_index"))
+    previous_end = safe_float(previous.get("end"), safe_float(previous.get("start")))
+    current_start = safe_float(current.get("start"))
+    if previous_chunk == current_chunk:
+        if previous.get("source") == current.get("source"):
+            return "same_chunk_same_source_reorder"
+        return "same_chunk_cross_source_reorder"
+    if current_start < previous_end:
+        return "chunk_overlap_context_reorder"
+    return "cross_chunk_reorder"
+
+
+def order_mismatch_turn_payload(turn: dict[str, Any]) -> dict[str, Any]:
+    match = turn.get("match") if isinstance(turn.get("match"), dict) else {}
+    return {
+        "live_id": turn.get("id"),
+        "chunk_index": turn.get("chunk_index"),
+        "segment_index": turn.get("segment_index"),
+        "source": turn.get("source"),
+        "role": turn.get("role"),
+        "start": turn.get("start"),
+        "end": turn.get("end"),
+        "text": short_text(turn.get("text")),
+        "batch_id": match.get("batch_id"),
+        "batch_role": match.get("batch_role"),
+        "batch_start": match.get("batch_start"),
+        "batch_end": match.get("batch_end"),
+        "token_recall": match.get("token_recall"),
+        "score": match.get("score"),
+    }
+
+
 def order_mismatch_rows_for_turns(turns: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> list[dict[str, Any]]:
     order_mismatches: list[dict[str, Any]] = []
     previous: dict[str, Any] | None = None
@@ -1186,16 +1227,35 @@ def order_mismatch_rows_for_turns(turns: list[dict[str, Any]], batch_utterances:
             previous_batch_start = safe_float((previous.get("match") or {}).get("batch_start"))
             current_batch_start = safe_float((turn.get("match") or {}).get("batch_start"))
             if current_batch_start + 1.0 < previous_batch_start:
+                category = order_mismatch_category(previous, turn)
                 order_mismatches.append(
                     {
                         "previous_live_id": previous.get("id"),
                         "current_live_id": turn.get("id"),
+                        "category": category,
                         "previous_batch_start": round(previous_batch_start, 3),
                         "current_batch_start": round(current_batch_start, 3),
+                        "batch_start_delta_sec": round(current_batch_start - previous_batch_start, 3),
+                        "live_start_delta_sec": round(safe_float(turn.get("start")) - safe_float(previous.get("start")), 3),
+                        "same_chunk": previous.get("chunk_index") == turn.get("chunk_index"),
+                        "same_source": previous.get("source") == turn.get("source"),
+                        "source_pair": f"{previous.get('source')}->{turn.get('source')}",
+                        "role_pair": f"{previous.get('role')}->{turn.get('role')}",
+                        "role_mismatch_in_pair": (
+                            (previous.get("match") or {}).get("batch_role") != previous.get("role")
+                            or (turn.get("match") or {}).get("batch_role") != turn.get("role")
+                        ),
+                        "previous": order_mismatch_turn_payload(previous),
+                        "current": order_mismatch_turn_payload(turn),
                     }
                 )
         previous = turn
     return order_mismatches
+
+
+def order_mismatch_category_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    counts = Counter(str(row.get("category") or "unknown") for row in rows)
+    return dict(sorted(counts.items()))
 
 
 def remote_leak_rows_for_turns(turns: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1377,6 +1437,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             "batch_me_utterance_count": sum(1 for row in batch_utterances if row.get("role") == "Me"),
             "batch_remote_utterance_count": sum(1 for row in batch_utterances if row.get("role") == "Colleagues"),
             "live_order_mismatch_count": len(order_mismatches),
+            "live_order_mismatch_by_category": order_mismatch_category_counts(order_mismatches),
             "live_missing_me_utterance_count": len(local_missing),
             "live_missing_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3),
             "live_suspicious_batch_me_missing_count": len(local_missing_suspicious_batch_me),
@@ -1400,6 +1461,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             "live_segment_role_gate_candidate_suppressed_segment_count": segment_gate_summary.get("suppressed_segment_count"),
             **(rescue_shadow_summary.get("metrics") or {}),
             "live_rescue_shadow_order_mismatch_count": len(shadow_order_mismatches),
+            "live_rescue_shadow_order_mismatch_by_category": order_mismatch_category_counts(shadow_order_mismatches),
             "live_rescue_shadow_suspected_remote_leak_in_me_count": len(shadow_remote_leak),
             "live_rescue_shadow_suspected_remote_leak_in_me_seconds": round(
                 sum(safe_float(row.get("duration_sec")) for row in shadow_remote_leak),

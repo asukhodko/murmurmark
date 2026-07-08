@@ -4814,6 +4814,7 @@ Schema:
     "meaningful_live_comparison": true,
     "all_parity_gates_passed": false,
     "live_order_mismatch_count": 0,
+    "live_order_mismatch_by_category": {},
     "live_missing_me_seconds": 0.0,
     "live_suspicious_batch_me_missing_seconds": 0.0,
     "live_missing_me_visible_in_suppressed_mic_seconds": 0.0,
@@ -4826,6 +4827,7 @@ Schema:
     "live_rescue_shadow_missing_me_seconds_after": 0.0,
     "live_rescue_shadow_suspected_remote_leak_in_me_seconds": 0.0,
     "live_rescue_shadow_order_mismatch_count": 0,
+    "live_rescue_shadow_order_mismatch_by_category": {},
     "live_suppressed_mic_asr_me_dominant_segment_count": 0,
     "live_suppressed_mic_asr_me_dominant_segment_seconds": 0.0,
     "live_suppressed_mic_asr_mixed_segment_count": 0,
@@ -4998,7 +5000,9 @@ dialogue:
 - `capture_safety`: checks `session.json` health and `pipeline_run_report.json` capture blockers
   before any text parity can count;
 - `order_risk`: maps live turns to similar batch utterances and warns when live order contradicts
-  batch order;
+  batch order. Each mismatch includes `category`, `previous`, `current`, source/role pair and
+  batch-match fields. Current categories are `same_chunk_same_source_reorder`,
+  `same_chunk_cross_source_reorder`, `chunk_overlap_context_reorder` and `cross_chunk_reorder`;
 - `local_recall`: checks that selected batch `Me` utterances are visible in live mic turns;
 - `remote_duplicate_leak`: warns when live mic turns look more like selected batch `Colleagues`
   speech than `Me` speech;

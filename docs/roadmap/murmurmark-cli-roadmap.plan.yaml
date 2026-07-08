@@ -655,8 +655,10 @@ nodes:
       Capture-safe/evaluable local-recall examples are listed in
       `capture_safe_evaluable_local_recall_gap_examples` so the next fix has concrete target rows.
       Segment-level parity exposes `34` real live order mismatches, `419.16s` missing-Me and
-      `15.96s` suspected remote leakage in published live Me. Most missing Me seconds are visible in
-      suppressed mic chunks. Text-only segment rescue is
+      `15.96s` suspected remote leakage in published live Me. Order-risk categories are now
+      explicit: `20` same-chunk/same-source, `11` same-chunk/cross-source, `2` cross-chunk and `1`
+      overlap-context mismatch. Most missing Me seconds are visible in suppressed mic chunks.
+      Text-only segment rescue is
       recorded as diagnostic metadata (`6` real live candidate chunks / `31` candidate segments in
       the current corpus), but remains diagnostic-only because publishing it can reintroduce remote
       as Me. Segment-level comparison now labels suppressed mic ASR against batch: `49`
@@ -676,8 +678,9 @@ nodes:
       The shadow adds no measured remote-risk (`0.00s`), but still leaves `373.80s` missing-Me and
       leaves `34` order mismatches in the combined draft evaluation, so it is evidence for
       the next rescue/reconciliation pass, not a promotable live output.
-      Следующий фокус: `fix_live_order_risk`; live draft путает порядок, иногда публикует remote as
-      Me и часто теряет Me, поэтому promotion
+      Следующий фокус: `fix_live_order_risk`; сначала нужна per-chunk timeline reconciliation and
+      stricter segment matching. Live draft путает порядок, иногда публикует remote as Me и часто
+      теряет Me, поэтому promotion
       остаётся blocked.
 
   corpus-regression:

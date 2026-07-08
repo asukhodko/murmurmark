@@ -136,6 +136,9 @@ Current result:
 - `promotion_allowed_sessions = 0`;
 - live/batch comparison granularity: ASR segment when available, chunk fallback otherwise;
 - `real_live_order_mismatch_count = 34`;
+- `real_live_order_mismatch_by_category = {"same_chunk_same_source_reorder": 20,
+  "same_chunk_cross_source_reorder": 11, "cross_chunk_reorder": 2,
+  "chunk_overlap_context_reorder": 1}`;
 - `real_live_missing_me_seconds = 419.16`;
 - `real_live_missing_me_visible_in_suppressed_mic_seconds = 349.77`;
 - `real_live_missing_me_not_visible_in_suppressed_mic_seconds = 37.21`;
@@ -172,6 +175,10 @@ visible for the local-recall fix.
 The comparison now evaluates normal live turns and rescue-shadow candidates at ASR-segment
 granularity when the source ASR JSON is present, with chunk-level fallback for older artifacts. This
 exposes order and remote-leakage risks that the earlier chunk-level comparison could hide.
+Order risk is mostly local to a single live chunk: `31/34` mismatches are same-chunk reorder, with
+`20` inside one source and `11` between mic/remote segments. Only `3/34` are cross-chunk or overlap
+context. This points the next implementation at per-chunk timeline reconciliation and stricter
+segment matching, not at raw capture or sidecar materialization.
 Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks,
 but the live branch also has segment-level ordering drift and `15.96s` suspected remote leakage in
 published live `Me`. The current live blockers are therefore: live timeline ordering, remote leakage

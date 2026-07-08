@@ -929,6 +929,18 @@ def sum_int_metric(rows: list[dict[str, Any]], metric: str) -> int:
     return sum(int(((row.get("metrics") or {}).get(metric) or 0)) for row in rows)
 
 
+def sum_counter_metric(rows: list[dict[str, Any]], metric: str) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
+        value = metrics.get(metric)
+        if not isinstance(value, dict):
+            continue
+        for key, count in value.items():
+            counts[str(key)] += int(safe_float(count))
+    return dict(sorted(counts.items()))
+
+
 def add_suppressed_mic_rescue_policy_summary(summary: dict[str, Any], rows: list[dict[str, Any]], prefix: str) -> None:
     oracle_local_seconds = sum_metric(rows, "live_rescue_policy_batch_oracle_local_ceiling_local_seconds")
     for policy in SUPPRESSED_MIC_RESCUE_POLICIES:
@@ -1054,6 +1066,11 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
                 metrics.get("live_boundary_gate_unresolved_suppressed_count") if isinstance(metrics, dict) else None
             ),
             "live_order_mismatch_count": metrics.get("live_order_mismatch_count") if isinstance(metrics, dict) else None,
+            "live_order_mismatch_by_category": (
+                metrics.get("live_order_mismatch_by_category") if isinstance(metrics.get("live_order_mismatch_by_category"), dict) else {}
+            )
+            if isinstance(metrics, dict)
+            else {},
             "live_missing_me_seconds": metrics.get("live_missing_me_seconds") if isinstance(metrics, dict) else None,
             "live_suspicious_batch_me_missing_seconds": (
                 metrics.get("live_suspicious_batch_me_missing_seconds") if isinstance(metrics, dict) else None
@@ -1088,6 +1105,13 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "live_rescue_shadow_order_mismatch_count": (
                 metrics.get("live_rescue_shadow_order_mismatch_count") if isinstance(metrics, dict) else None
             ),
+            "live_rescue_shadow_order_mismatch_by_category": (
+                metrics.get("live_rescue_shadow_order_mismatch_by_category")
+                if isinstance(metrics.get("live_rescue_shadow_order_mismatch_by_category"), dict)
+                else {}
+            )
+            if isinstance(metrics, dict)
+            else {},
             "live_rescue_shadow_suspected_remote_leak_in_me_seconds": (
                 metrics.get("live_rescue_shadow_suspected_remote_leak_in_me_seconds") if isinstance(metrics, dict) else None
             ),
@@ -1267,6 +1291,8 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         ),
         "live_order_mismatch_count": sum_int_metric(rows, "live_order_mismatch_count"),
         "real_live_order_mismatch_count": sum_int_metric(real_live_rows, "live_order_mismatch_count"),
+        "live_order_mismatch_by_category": sum_counter_metric(rows, "live_order_mismatch_by_category"),
+        "real_live_order_mismatch_by_category": sum_counter_metric(real_live_rows, "live_order_mismatch_by_category"),
         "live_missing_me_seconds": sum_metric(rows, "live_missing_me_seconds"),
         "real_live_missing_me_seconds": sum_metric(real_live_rows, "live_missing_me_seconds"),
         "live_suspicious_batch_me_missing_seconds": sum_metric(rows, "live_suspicious_batch_me_missing_seconds"),
@@ -1322,6 +1348,14 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_live_rescue_shadow_order_mismatch_count": sum_int_metric(
             real_live_rows,
             "live_rescue_shadow_order_mismatch_count",
+        ),
+        "live_rescue_shadow_order_mismatch_by_category": sum_counter_metric(
+            rows,
+            "live_rescue_shadow_order_mismatch_by_category",
+        ),
+        "real_live_rescue_shadow_order_mismatch_by_category": sum_counter_metric(
+            real_live_rows,
+            "live_rescue_shadow_order_mismatch_by_category",
         ),
         "live_rescue_shadow_suspected_remote_leak_in_me_seconds": sum_metric(
             rows,
@@ -2096,6 +2130,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- promotion decision: `{summary['promotion_decision']}`",
         f"- live order mismatches: {summary.get('live_order_mismatch_count', 0)}",
         f"- real live order mismatches: {summary.get('real_live_order_mismatch_count', 0)}",
+        f"- real live order mismatches by category: `{json.dumps(summary.get('real_live_order_mismatch_by_category', {}), ensure_ascii=False)}`",
         f"- live missing Me seconds: {summary.get('live_missing_me_seconds', 0.0)}",
         f"- real live missing Me seconds: {summary.get('real_live_missing_me_seconds', 0.0)}",
         "- real live missing Me visible in suppressed mic seconds: "
@@ -2114,6 +2149,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"missing-Me after {summary.get('real_live_rescue_shadow_missing_me_seconds_after', 0.0)} sec, "
         f"remote-risk {summary.get('real_live_rescue_shadow_suspected_remote_leak_in_me_seconds', 0.0)} sec, "
         f"order mismatches {summary.get('real_live_rescue_shadow_order_mismatch_count', 0)}",
+        "- real live rescue shadow order mismatches by category: "
+        f"`{json.dumps(summary.get('real_live_rescue_shadow_order_mismatch_by_category', {}), ensure_ascii=False)}`",
         "- real live suppressed mic ASR segments: "
         f"{summary.get('real_live_suppressed_mic_asr_segment_count', 0)} / "
         f"{summary.get('real_live_suppressed_mic_asr_segment_seconds', 0.0)} sec",
@@ -2581,6 +2618,10 @@ def main() -> int:
     print(f"promotion_decision: {summary['promotion_decision']}")
     print(f"live_order_mismatch_count: {summary.get('live_order_mismatch_count', 0)}")
     print(f"real_live_order_mismatch_count: {summary.get('real_live_order_mismatch_count', 0)}")
+    print(
+        "real_live_order_mismatch_by_category: "
+        f"{json.dumps(summary.get('real_live_order_mismatch_by_category', {}), ensure_ascii=False)}"
+    )
     print(f"live_missing_me_seconds: {summary.get('live_missing_me_seconds', 0.0)}")
     print(f"real_live_missing_me_seconds: {summary.get('real_live_missing_me_seconds', 0.0)}")
     print(
@@ -2602,6 +2643,10 @@ def main() -> int:
     print(
         "real_live_rescue_shadow_order_mismatch_count: "
         f"{summary.get('real_live_rescue_shadow_order_mismatch_count', 0)}"
+    )
+    print(
+        "real_live_rescue_shadow_order_mismatch_by_category: "
+        f"{json.dumps(summary.get('real_live_rescue_shadow_order_mismatch_by_category', {}), ensure_ascii=False)}"
     )
     print(
         "real_live_rescue_shadow_suspected_remote_leak_in_me_seconds: "
