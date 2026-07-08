@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.14.0"
+SCRIPT_VERSION = "1.15.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -476,6 +476,19 @@ def safe_float(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def text_tokens(text: str) -> list[str]:
+    return [token for token in re.findall(r"[\w']+", text.lower()) if token]
+
+
+def bag_recall(source_tokens: list[str], target_tokens: list[str]) -> float:
+    if not source_tokens:
+        return 0.0
+    source_counts = Counter(source_tokens)
+    target_counts = Counter(target_tokens)
+    overlap = sum(min(count, target_counts.get(token, 0)) for token, count in source_counts.items())
+    return overlap / sum(source_counts.values())
 
 
 def suppressed_mic_rescue_policy_metric_values(metrics: dict[str, Any] | None) -> dict[str, Any]:
@@ -1905,6 +1918,117 @@ def target_me_shadow_profile_remaining_gap_examples(
     }
 
 
+def local_island_split_lab(remaining_gap: dict[str, Any], *, recall_threshold: float = 0.35) -> dict[str, Any]:
+    examples = remaining_gap.get("examples") if isinstance(remaining_gap.get("examples"), list) else []
+    rows: list[dict[str, Any]] = []
+    for item in examples:
+        if not isinstance(item, dict):
+            continue
+        actionability = item.get("actionability") if isinstance(item.get("actionability"), dict) else {}
+        segmentability = (
+            actionability.get("segmentability")
+            if isinstance(actionability.get("segmentability"), dict)
+            else {}
+        )
+        if segmentability.get("label") != "local_island_split_candidate":
+            continue
+        islands = (
+            segmentability.get("local_island_examples")
+            if isinstance(segmentability.get("local_island_examples"), list)
+            else []
+        )
+        island_text = " ".join(str(row.get("text") or "") for row in islands if isinstance(row, dict))
+        batch_tokens = text_tokens(str(item.get("text") or ""))
+        island_tokens = text_tokens(island_text)
+        token_recall = bag_recall(batch_tokens, island_tokens)
+        accepted = token_recall >= recall_threshold
+        island_seconds = safe_float(segmentability.get("local_island_seconds"))
+        row = {
+            "session": item.get("session"),
+            "batch_id": item.get("batch_id"),
+            "start": item.get("start"),
+            "end": item.get("end"),
+            "duration_sec": item.get("duration_sec"),
+            "accepted": accepted,
+            "reason": "token_recall_passed" if accepted else "token_recall_below_threshold",
+            "token_recall_from_local_islands": round(token_recall, 6),
+            "recall_threshold": recall_threshold,
+            "local_island_seconds": island_seconds,
+            "local_island_count": safe_int(segmentability.get("local_island_count")),
+            "local_island_text": island_text,
+            "batch_text": item.get("text"),
+            "local_island_examples": islands,
+        }
+        rows.append(row)
+
+    accepted_rows = [row for row in rows if row.get("accepted")]
+    rejected_rows = [row for row in rows if not row.get("accepted")]
+
+    def sum_field(items: list[dict[str, Any]], field: str) -> float:
+        return round(sum(safe_float(row.get(field)) for row in items), 3)
+
+    by_session: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        session = str(row.get("session") or "")
+        session_row = by_session.setdefault(
+            session,
+            {
+                "count": 0,
+                "batch_seconds": 0.0,
+                "accepted_count": 0,
+                "accepted_batch_seconds": 0.0,
+                "accepted_local_island_seconds": 0.0,
+            },
+        )
+        session_row["count"] += 1
+        session_row["batch_seconds"] = round(
+            safe_float(session_row.get("batch_seconds")) + safe_float(row.get("duration_sec")),
+            3,
+        )
+        if row.get("accepted"):
+            session_row["accepted_count"] += 1
+            session_row["accepted_batch_seconds"] = round(
+                safe_float(session_row.get("accepted_batch_seconds")) + safe_float(row.get("duration_sec")),
+                3,
+            )
+            session_row["accepted_local_island_seconds"] = round(
+                safe_float(session_row.get("accepted_local_island_seconds"))
+                + safe_float(row.get("local_island_seconds")),
+                3,
+            )
+
+    return {
+        "schema": "murmurmark.live_local_island_split_lab/v1",
+        "status": "ok" if rows else "no_candidates",
+        "promotion_allowed": False,
+        "interpretation": (
+            "diagnostic estimate only: rows accepted here need a real split profile and parity checks "
+            "before any live promotion"
+        ),
+        "recall_threshold": recall_threshold,
+        "candidate_count": len(rows),
+        "candidate_batch_seconds": sum_field(rows, "duration_sec"),
+        "candidate_local_island_seconds": sum_field(rows, "local_island_seconds"),
+        "accepted_count": len(accepted_rows),
+        "accepted_batch_seconds": sum_field(accepted_rows, "duration_sec"),
+        "accepted_local_island_seconds": sum_field(accepted_rows, "local_island_seconds"),
+        "rejected_count": len(rejected_rows),
+        "rejected_batch_seconds": sum_field(rejected_rows, "duration_sec"),
+        "by_session": dict(
+            sorted(by_session.items(), key=lambda pair: (-safe_float(pair[1].get("batch_seconds")), pair[0]))
+        ),
+        "examples": sorted(
+            rows,
+            key=lambda row: (
+                not bool(row.get("accepted")),
+                -safe_float(row.get("duration_sec")),
+                str(row.get("session") or ""),
+                safe_float(row.get("start")),
+            ),
+        ),
+    }
+
+
 def local_recall_rescue_lab(rows: list[dict[str, Any]], *, limit: int = 30) -> dict[str, Any]:
     segments: list[dict[str, Any]] = []
     for row in rows:
@@ -2931,6 +3055,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         root=root,
         policy=real_best_live_profile_policy,
     )
+    local_island_split_lab_report = local_island_split_lab(best_live_profile_remaining_gap)
     local_recall_rescue_lab_report = local_recall_rescue_lab(real_live_rows)
     candidate_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_candidate_rows)
     evaluable_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_evaluable_rows)
@@ -3322,6 +3447,24 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["real_live_target_me_shadow_profile_best_live_implementable_remaining_gap_seconds"] = safe_float(
         best_live_profile_remaining_gap.get("seconds")
     )
+    summary["real_live_local_island_split_lab_candidate_count"] = safe_int(
+        local_island_split_lab_report.get("candidate_count")
+    )
+    summary["real_live_local_island_split_lab_candidate_batch_seconds"] = safe_float(
+        local_island_split_lab_report.get("candidate_batch_seconds")
+    )
+    summary["real_live_local_island_split_lab_candidate_local_island_seconds"] = safe_float(
+        local_island_split_lab_report.get("candidate_local_island_seconds")
+    )
+    summary["real_live_local_island_split_lab_accepted_count"] = safe_int(
+        local_island_split_lab_report.get("accepted_count")
+    )
+    summary["real_live_local_island_split_lab_accepted_batch_seconds"] = safe_float(
+        local_island_split_lab_report.get("accepted_batch_seconds")
+    )
+    summary["real_live_local_island_split_lab_accepted_local_island_seconds"] = safe_float(
+        local_island_split_lab_report.get("accepted_local_island_seconds")
+    )
     remaining_by_bucket = (
         best_live_profile_remaining_gap.get("by_bucket")
         if isinstance(best_live_profile_remaining_gap.get("by_bucket"), dict)
@@ -3440,6 +3583,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_target_me_shadow_policy_diagnostics": target_me_shadow_diagnostics_report,
         "live_target_me_shadow_profile_diagnostics": target_me_shadow_profile_diagnostics_report,
         "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
+        "live_local_island_split_lab": local_island_split_lab_report,
         "live_local_recall_gap_examples": local_recall_examples,
         "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
         "capture_safe_evaluable_local_recall_gap_examples": evaluable_local_recall_examples,
@@ -4293,6 +4437,58 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                     f"| {safe_float(metrics.get('missing_me_recovered_seconds')):.2f} |"
                 )
         lines.append("")
+    local_island_lab = (
+        report.get("live_local_island_split_lab")
+        if isinstance(report.get("live_local_island_split_lab"), dict)
+        else {}
+    )
+    remaining_gap = (
+        report.get("live_target_me_shadow_profile_best_live_implementable_remaining_gap")
+        if isinstance(report.get("live_target_me_shadow_profile_best_live_implementable_remaining_gap"), dict)
+        else {}
+    )
+    if local_island_lab:
+        lines += [
+            "## Local Island Split Lab",
+            "",
+            "This is diagnostic only. It looks at the best live-implementable profile's remaining "
+            "`mixed` missing-Me rows and estimates whether short local-looking islands would cover enough "
+            "batch `Me` text to be worth a real split profile. It never authorizes live promotion.",
+            "",
+            f"- remaining-gap rows: {remaining_gap.get('item_count', 0)} / {remaining_gap.get('seconds', 0.0)} sec",
+            "- mixed local-island candidates: "
+            f"{local_island_lab.get('candidate_count', 0)} / "
+            f"{safe_float(local_island_lab.get('candidate_batch_seconds')):.2f} batch sec / "
+            f"{safe_float(local_island_lab.get('candidate_local_island_seconds')):.2f} island sec",
+            "- token-recall accepted: "
+            f"{local_island_lab.get('accepted_count', 0)} / "
+            f"{safe_float(local_island_lab.get('accepted_batch_seconds')):.2f} batch sec / "
+            f"{safe_float(local_island_lab.get('accepted_local_island_seconds')):.2f} island sec",
+            f"- recall threshold: {safe_float(local_island_lab.get('recall_threshold')):.2f}",
+            f"- promotion allowed: `{local_island_lab.get('promotion_allowed')}`",
+            "",
+        ]
+        examples = local_island_lab.get("examples") if isinstance(local_island_lab.get("examples"), list) else []
+        if examples:
+            lines += [
+                "| Session | Batch ID | Accepted | Batch sec | Island sec | Recall | Island text |",
+                "| --- | --- | --- | ---: | ---: | ---: | --- |",
+            ]
+            for item in examples[:8]:
+                if not isinstance(item, dict):
+                    continue
+                text = str(item.get("local_island_text") or "").replace("|", "\\|")
+                if len(text) > 120:
+                    text = text[:117].rstrip() + "..."
+                lines.append(
+                    f"| `{item.get('session')}` | `{item.get('batch_id')}` "
+                    f"| `{item.get('accepted')}` "
+                    f"| {safe_float(item.get('duration_sec')):.2f} "
+                    f"| {safe_float(item.get('local_island_seconds')):.2f} "
+                    f"| {safe_float(item.get('token_recall_from_local_islands')):.3f} "
+                    f"| {text} |"
+                )
+            lines.append("")
     candidate_gap_examples = (
         report.get("capture_safe_candidate_local_recall_gap_examples")
         if isinstance(report.get("capture_safe_candidate_local_recall_gap_examples"), dict)
@@ -5066,6 +5262,25 @@ def main() -> int:
                         f"real_live_target_me_shadow_profile_best_live_implementable_remaining_gap_{print_name}: "
                         f"{top_row[0]} ({safe_float(top_row[1].get('seconds'))}s)"
                     )
+            local_island_lab = (
+                report.get("live_local_island_split_lab")
+                if isinstance(report.get("live_local_island_split_lab"), dict)
+                else {}
+            )
+            if local_island_lab:
+                print(f"real_live_local_island_split_lab_status: {local_island_lab.get('status')}")
+                print(
+                    "real_live_local_island_split_lab_candidate_batch_seconds: "
+                    f"{safe_float(local_island_lab.get('candidate_batch_seconds'))}"
+                )
+                print(
+                    "real_live_local_island_split_lab_accepted_batch_seconds: "
+                    f"{safe_float(local_island_lab.get('accepted_batch_seconds'))}"
+                )
+                print(
+                    "real_live_local_island_split_lab_accepted_local_island_seconds: "
+                    f"{safe_float(local_island_lab.get('accepted_local_island_seconds'))}"
+                )
     if candidate_target_me:
         print(f"capture_safe_candidate_target_me_status: {candidate_target_me.get('status')}")
     objective_audit = (

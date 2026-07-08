@@ -5764,6 +5764,13 @@ Current actionability labels include
 `speaker_confirmation_candidate`. The report is diagnostic only; it does not change live drafts or
 parity gates.
 
+The same report may include `live_local_island_split_lab` with schema
+`murmurmark.live_local_island_split_lab/v1`. It is a diagnostic estimate over
+`local_island_split_candidate` rows: it joins local-island texts, computes token recall against the
+missing batch `Me` row, and records candidate/accepted batch seconds plus local-island seconds.
+`promotion_allowed` is always `false`; accepted rows still need a real split profile and normal
+parity gates before live output can use them.
+
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the
 best live-implementable profile and records `missing_me_seconds_gap`, both profile names, remote leak

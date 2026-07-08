@@ -761,8 +761,10 @@ nodes:
       mixed bucket now has a segmentability split: `27.92s` `local_island_split_candidate`,
       `22.28s` duplicate-heavy needing speaker evidence, `5.36s` needing speaker evidence,
       `3.22s` remote-dominant mixed rows and `1.64s` short low-value tails. Next implementation
-      should focus on safe local-island splitting for the `27.92s` slice and keep duplicate-heavy
-      or remote-dominant rows blocked, not collect more recordings or promote live output.
+      should focus on safe local-island splitting for the token-recall-passing slice: the lab
+      currently accepts `1` row / `17.34s` from `3.96s` of local-island evidence. Keep
+      duplicate-heavy or remote-dominant rows blocked, do not collect more recordings for this
+      blocker and do not promote live output.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

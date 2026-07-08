@@ -381,6 +381,12 @@ Online remote-overlap shadow filter, 2026-07-09:
   - `needs_speaker_evidence`: `5.36s`;
   - `remote_dominant_mixed_not_rescuable`: `3.22s`;
   - `short_low_value_tail`: `1.64s`.
+- Local-island split lab:
+  - candidate batch rows: `2 / 27.92s`;
+  - candidate local-island audio/text: `9.06s`;
+  - accepted by token recall >= `0.35`: `1 / 17.34s` batch row;
+  - accepted local-island evidence: `3.96s`;
+  - promotion allowed: `false`.
 - `target_me_possible_timeline_safe_v1` recovers `251.37s`, rejects `47.38s` of candidates
   (`31.08s` contentful order risk, `16.30s` suspected remote leak), and keeps measured remote leak at
   `0.00s`.
@@ -401,8 +407,8 @@ live-implementable profile by only `14.00s`, so the next useful work is mixed-re
 and/or a new kind of local-speaker evidence, not another broad threshold. Because the suppressed
 evidence includes many mixed/remote-dominant overlaps and a separate hallucination tail, the next
 step should prototype safe local-island splitting for the `27.92s` `local_island_split_candidate`
-slice and keep duplicate-heavy or remote-dominant mixed rows blocked until stronger speaker evidence
-exists.
+slice, starting with the single `17.34s` token-recall-passing row, and keep duplicate-heavy or
+remote-dominant mixed rows blocked until stronger speaker evidence exists.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not
