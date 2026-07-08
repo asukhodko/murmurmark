@@ -253,13 +253,19 @@ New Target-Me diagnostic, 2026-07-08:
   introduced `2.44s` remote-risk, and would recover `94.68s` current missing-Me by interval overlap;
 - broader `target_me_possible_v1` would recover `247.24s`, but with `37.82s` remote-risk, so it is
   too unsafe for promotion.
+- `compare-live-batch.py` now evaluates these Target-Me rows as actual counterfactual live-shadow
+  turns. In the real live corpus, `target_me_confirmed_remote_guard_v1` selects `118.54s`, recovers
+  `128.85s` missing-Me and adds `0.00s` measured remote leak, but also adds `3` contentful
+  role-constrained order mismatches. `target_me_confirmed_v1` recovers `169.24s` but adds `12.40s`
+  remote leak; `target_me_possible_v1` recovers `278.15s` but adds `16.30s` remote leak and `5`
+  contentful order mismatches. Therefore there is no safe Target-Me shadow policy yet.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
-existing corpus already contains enough suppressed live mic material to design a shadow rescue
-policy. The next work is to use Target-Me evidence as an additional gate for suppressed mic segments:
-recover local speech only where local-speaker evidence is strong enough and remote-risk evidence is
-low. Sessions with `insufficient_enrollment` point to a later calibration problem, not to a need for
-more ad-hoc live meetings now.
+existing corpus already contains enough suppressed live mic material and enough Target-Me evidence.
+The next work is not just stronger filtering; it is timeline-safe Target-Me rescue/reconciliation:
+recover local speech only where local-speaker evidence is strong enough, remote-risk evidence is low,
+and inserted `Me` turns do not create new ordering errors. Sessions with `insufficient_enrollment`
+point to a later calibration problem, not to a need for more ad-hoc live meetings now.
 
 ## Latest Completed Goal: Current Pipeline Stabilization v1
 

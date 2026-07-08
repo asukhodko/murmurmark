@@ -1014,7 +1014,11 @@ Active goal and near-term candidates:
    explain most of the remaining local gap (`287.98s` possible/confirmed local out of `295.34s`
    audited local seconds). The first safe candidate is `target_me_confirmed_remote_guard_v1`: it
    would recover `94.68s` missing-Me with `2.44s` remote-risk in the current corpus. It is still
-   evidence only and does not publish live `Me`.
+   evidence only and does not publish live `Me`. `compare-live-batch.py` now also evaluates these
+   policies as a counterfactual live shadow. The stricter `target_me_confirmed_remote_guard_v1`
+   shadow recovers `128.85s` missing-Me and adds `0.0s` measured remote leak, but it still adds `3`
+   contentful role-constrained order mismatches. So the current blocker is no longer "collect more
+   recordings"; it is timeline-safe Target-Me rescue/reconciliation before any live `Me` promotion.
    Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.

@@ -4870,6 +4870,10 @@ Schema:
     "live_rescue_policy_audio_safe_union_v1_missing_me_recovered_seconds": 0.0,
     "live_rescue_policy_audio_safe_union_v1_missing_me_seconds_after": 0.0,
     "live_rescue_policy_batch_oracle_local_ceiling_local_seconds": 0.0,
+    "live_target_me_shadow_policy_target_me_confirmed_remote_guard_v1_candidate_seconds": 0.0,
+    "live_target_me_shadow_policy_target_me_confirmed_remote_guard_v1_missing_me_recovered_seconds": 0.0,
+    "live_target_me_shadow_policy_target_me_confirmed_remote_guard_v1_suspected_remote_leak_in_me_seconds": 0.0,
+    "live_target_me_shadow_policy_target_me_confirmed_remote_guard_v1_contentful_role_constrained_order_mismatch_delta_count": 0,
     "live_suspected_remote_leak_in_me_seconds": 0.0,
     "live_turn_count": 18,
     "live_me_turn_count": 9,
@@ -4912,6 +4916,23 @@ Schema:
     ],
     "live_rescue_shadow_remote_leak": [],
     "live_rescue_shadow_order_mismatches": [],
+    "live_target_me_shadow": {
+      "target_me_confirmed_remote_guard_v1": [
+        {
+          "id": "live_target_me_shadow_target_me_confirmed_remote_guard_v1_row-001",
+          "source": "mic_target_me_shadow_target_me_confirmed_remote_guard_v1",
+          "role": "Me",
+          "start": 120.0,
+          "end": 124.2,
+          "text": "candidate Target-Me text",
+          "policy": "target_me_confirmed_remote_guard_v1",
+          "target_me_label": "target_me_confirmed",
+          "target_me_confidence": 0.84
+        }
+      ],
+      "target_me_confirmed_remote_guard_v1_remote_leak": [],
+      "target_me_confirmed_remote_guard_v1_order_mismatches": []
+    },
     "suppressed_mic_rescue_policies": {
       "remote_silent_text_v1": [
         {
@@ -5476,6 +5497,19 @@ Session and corpus summaries include `target_me_rescue_policy_metrics` with sele
 seconds, remote-risk seconds, precision proxy, audited local recall proxy and counterfactual
 `missing_me_recovered_seconds` / `missing_me_seconds_after` by interval overlap. The live corpus
 report copies this into `live_local_recall_target_me_diagnostics` when the per-session audit exists.
+
+When Target-Me audit rows exist, `scripts/compare-live-batch.py` also evaluates them as a
+counterfactual live shadow without changing the live draft. It writes
+`live_target_me_shadow_policy_<policy>_*` metrics into `live_batch_comparison.json`, including
+candidate seconds, missing-Me seconds after rescue, recovered seconds, suspected remote leak and
+order-mismatch delta counts. The delta counts compare the Target-Me shadow against the existing live
+turns, so pre-existing live ordering errors do not automatically fail the policy. The corpus report
+aggregates these fields under `live_target_me_shadow_policy_diagnostics`.
+
+The current real corpus result is useful but still not promotable: the stricter
+`target_me_confirmed_remote_guard_v1` counterfactual recovers local speech without measured remote
+leak, but it still increases contentful role-constrained order mismatches. The next design step is
+timeline-safe Target-Me rescue/reconciliation, not collecting more ad-hoc recordings.
 
 This audit is evidence only. `promotion_decision` must stay `shadow_only_do_not_promote`; rows must
 not publish live `Me`, edit batch transcripts or relax parity gates. A useful result is evidence for

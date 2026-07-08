@@ -83,6 +83,11 @@ SUPPRESSED_MIC_RESCUE_POLICIES = (
     "audio_safe_union_v1",
     "batch_oracle_local_ceiling",
 )
+TARGET_ME_RESCUE_POLICIES = (
+    "target_me_confirmed_v1",
+    "target_me_confirmed_remote_guard_v1",
+    "target_me_possible_v1",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -771,6 +776,125 @@ def live_rescue_shadow_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
         },
         "examples": turns[:20],
     }
+
+
+def read_target_me_live_local_recall_rows(session: Path) -> list[dict[str, Any]]:
+    path = session / "derived/audit/live-local-recall-target-me/live_local_recall_target_me_audit.jsonl"
+    return read_jsonl(path)
+
+
+def target_me_shadow_turns(rows: list[dict[str, Any]], policy: str) -> list[dict[str, Any]]:
+    turns: list[dict[str, Any]] = []
+    for row in rows:
+        if policy not in (row.get("target_me_rescue_policy_candidates") or []):
+            continue
+        interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+        start = safe_float(interval.get("start"))
+        end = safe_float(interval.get("end"), start)
+        text = clean_text(str(row.get("text") or ""))
+        if not text or end <= start:
+            continue
+        turns.append(
+            {
+                "id": f"live_target_me_shadow_{policy}_{row.get('id')}",
+                "chunk_index": row.get("chunk_index"),
+                "source": f"mic_target_me_shadow_{policy}",
+                "role": "Me",
+                "start": start,
+                "end": end,
+                "text": text,
+                "tokens": tokens(text),
+                "policy": policy,
+                "target_me_label": (row.get("classification") or {}).get("label")
+                if isinstance(row.get("classification"), dict)
+                else None,
+                "target_me_confidence": (row.get("classification") or {}).get("confidence")
+                if isinstance(row.get("classification"), dict)
+                else None,
+            }
+        )
+    return sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")))
+
+
+def target_me_shadow_policy_metrics(
+    *,
+    batch_utterances: list[dict[str, Any]],
+    live_turns_rows: list[dict[str, Any]],
+    target_me_rows: list[dict[str, Any]],
+    baseline_missing_rows: list[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, list[dict[str, Any]]]]:
+    metrics: dict[str, Any] = {}
+    examples: dict[str, list[dict[str, Any]]] = {}
+    baseline_missing_seconds = round(sum(safe_float(row.get("duration_sec")) for row in baseline_missing_rows), 3)
+    baseline_order_mismatches = order_mismatch_rows_for_turns(live_turns_rows, batch_utterances)
+    baseline_role_order_mismatches = order_mismatch_rows_for_turns(
+        live_turns_rows,
+        batch_utterances,
+        same_role_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode="target_me_shadow_baseline_role_constrained_strict",
+    )
+    baseline_contentful_role_order_mismatches = order_mismatch_rows_for_turns(
+        live_turns_rows,
+        batch_utterances,
+        same_role_only=True,
+        contentful_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode="target_me_shadow_baseline_role_constrained_contentful",
+    )
+    for policy in TARGET_ME_RESCUE_POLICIES:
+        policy_turns = target_me_shadow_turns(target_me_rows, policy)
+        policy_seconds = round(sum(safe_float(row.get("end")) - safe_float(row.get("start")) for row in policy_turns), 3)
+        missing_after = local_missing_rows_for_turns(batch_utterances, live_turns_rows + policy_turns)
+        missing_after_seconds = round(sum(safe_float(row.get("duration_sec")) for row in missing_after), 3)
+        remote_leak = remote_leak_rows_for_turns(policy_turns, batch_utterances)
+        order_mismatches = order_mismatch_rows_for_turns(live_turns_rows + policy_turns, batch_utterances)
+        role_order_mismatches = order_mismatch_rows_for_turns(
+            live_turns_rows + policy_turns,
+            batch_utterances,
+            same_role_only=True,
+            min_token_recall=0.45,
+            min_score=0.65,
+            match_mode=f"target_me_shadow_{policy}_role_constrained_strict",
+        )
+        contentful_role_order_mismatches = order_mismatch_rows_for_turns(
+            live_turns_rows + policy_turns,
+            batch_utterances,
+            same_role_only=True,
+            contentful_only=True,
+            min_token_recall=0.45,
+            min_score=0.65,
+            match_mode=f"target_me_shadow_{policy}_role_constrained_contentful",
+        )
+        base = f"live_target_me_shadow_policy_{policy}"
+        metrics[f"{base}_candidate_segment_count"] = len(policy_turns)
+        metrics[f"{base}_candidate_seconds"] = policy_seconds
+        metrics[f"{base}_missing_me_seconds_after"] = missing_after_seconds
+        metrics[f"{base}_missing_me_recovered_seconds"] = round(
+            max(0.0, baseline_missing_seconds - missing_after_seconds),
+            3,
+        )
+        metrics[f"{base}_suspected_remote_leak_in_me_count"] = len(remote_leak)
+        metrics[f"{base}_suspected_remote_leak_in_me_seconds"] = round(
+            sum(safe_float(row.get("duration_sec")) for row in remote_leak),
+            3,
+        )
+        metrics[f"{base}_order_mismatch_count"] = len(order_mismatches)
+        metrics[f"{base}_role_constrained_order_mismatch_count"] = len(role_order_mismatches)
+        metrics[f"{base}_contentful_role_constrained_order_mismatch_count"] = len(contentful_role_order_mismatches)
+        metrics[f"{base}_order_mismatch_delta_count"] = len(order_mismatches) - len(baseline_order_mismatches)
+        metrics[f"{base}_role_constrained_order_mismatch_delta_count"] = (
+            len(role_order_mismatches) - len(baseline_role_order_mismatches)
+        )
+        metrics[f"{base}_contentful_role_constrained_order_mismatch_delta_count"] = (
+            len(contentful_role_order_mismatches) - len(baseline_contentful_role_order_mismatches)
+        )
+        examples[policy] = policy_turns[:20]
+        examples[f"{policy}_remote_leak"] = remote_leak[:20]
+        examples[f"{policy}_order_mismatches"] = order_mismatches[:20]
+    return metrics, examples
 
 
 def segment_role_decision_key(row: dict[str, Any]) -> tuple[float, float, str]:
@@ -1555,6 +1679,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
     rescue_shadow_summary = live_rescue_shadow_summary(chunks)
     rescue_shadow_turns = rescue_shadow_summary.get("turns") or []
     suppressed_segment_audit = read_suppressed_mic_asr_segment_audit(session, chunks, batch_utterances)
+    target_me_rows = read_target_me_live_local_recall_rows(session)
     local_missing: list[dict[str, Any]] = []
     local_missing_suspicious_batch_me: list[dict[str, Any]] = []
     local_missing_visible_in_suppressed_mic: list[dict[str, Any]] = []
@@ -1638,6 +1763,12 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
     shadow_missing_after = local_missing_rows_for_turns(batch_utterances, turns + rescue_shadow_turns)
     shadow_missing_after_seconds = round(sum(safe_float(row.get("duration_sec")) for row in shadow_missing_after), 3)
     baseline_missing_seconds = round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3)
+    target_me_shadow_metrics, target_me_shadow_examples = target_me_shadow_policy_metrics(
+        batch_utterances=batch_utterances,
+        live_turns_rows=turns,
+        target_me_rows=target_me_rows,
+        baseline_missing_rows=local_missing,
+    )
     return {
         "live_turns": turns,
         "matched_turns": matched_turns,
@@ -1659,6 +1790,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         "live_rescue_shadow_examples": rescue_shadow_summary.get("examples", []),
         "suppressed_mic_asr_segment_examples": suppressed_segment_audit.get("examples", []),
         "suppressed_mic_rescue_policy_examples": suppressed_segment_audit.get("policy_examples", {}),
+        "live_target_me_shadow_examples": target_me_shadow_examples,
         "metrics": {
             "live_turn_count": len(turns),
             "live_me_turn_count": sum(1 for turn in turns if turn.get("role") == "Me"),
@@ -1769,6 +1901,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
                 3,
             ),
             **(suppressed_segment_audit.get("metrics") or {}),
+            **target_me_shadow_metrics,
             **rescue_policy_counterfactual_metrics(
                 batch_utterances,
                 turns,
@@ -2260,6 +2393,9 @@ def main() -> int:
             )[:30],
             "suppressed_mic_rescue_policies": (
                 live_assessment.get("suppressed_mic_rescue_policy_examples") or {}
+            ),
+            "live_target_me_shadow": (
+                live_assessment.get("live_target_me_shadow_examples") or {}
             ),
             "boundary_gate_issues": boundary_summary.get("examples") or [],
             "boundary_gate_resolved": boundary_summary.get("resolved_examples") or [],

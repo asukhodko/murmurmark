@@ -49,6 +49,20 @@ TARGET_ME_RESCUE_POLICIES = (
     "target_me_confirmed_remote_guard_v1",
     "target_me_possible_v1",
 )
+TARGET_ME_SHADOW_POLICY_METRICS = (
+    "candidate_segment_count",
+    "candidate_seconds",
+    "missing_me_seconds_after",
+    "missing_me_recovered_seconds",
+    "suspected_remote_leak_in_me_count",
+    "suspected_remote_leak_in_me_seconds",
+    "order_mismatch_count",
+    "role_constrained_order_mismatch_count",
+    "contentful_role_constrained_order_mismatch_count",
+    "order_mismatch_delta_count",
+    "role_constrained_order_mismatch_delta_count",
+    "contentful_role_constrained_order_mismatch_delta_count",
+)
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
     "and parity gates; do not use normal production live collection, and use coverage_path to decide "
@@ -413,6 +427,22 @@ def suppressed_mic_rescue_policy_metric_values(metrics: dict[str, Any] | None) -
         f"live_rescue_policy_{policy}_{metric}": metrics.get(f"live_rescue_policy_{policy}_{metric}")
         for policy in SUPPRESSED_MIC_RESCUE_POLICIES
         for metric in SUPPRESSED_MIC_RESCUE_POLICY_METRICS
+    }
+
+
+def target_me_shadow_policy_metric_values(metrics: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(metrics, dict):
+        return {
+            f"live_target_me_shadow_policy_{policy}_{metric}": None
+            for policy in TARGET_ME_RESCUE_POLICIES
+            for metric in TARGET_ME_SHADOW_POLICY_METRICS
+        }
+    return {
+        f"live_target_me_shadow_policy_{policy}_{metric}": metrics.get(
+            f"live_target_me_shadow_policy_{policy}_{metric}"
+        )
+        for policy in TARGET_ME_RESCUE_POLICIES
+        for metric in TARGET_ME_SHADOW_POLICY_METRICS
     }
 
 
@@ -1027,6 +1057,80 @@ def add_suppressed_mic_rescue_policy_summary(summary: dict[str, Any], rows: list
         summary[f"{out}_local_recall_proxy"] = (
             round(local_seconds / oracle_local_seconds, 6) if oracle_local_seconds > 0 else None
         )
+
+
+def add_target_me_shadow_policy_summary(summary: dict[str, Any], rows: list[dict[str, Any]], prefix: str) -> None:
+    for policy in TARGET_ME_RESCUE_POLICIES:
+        base = f"live_target_me_shadow_policy_{policy}"
+        out = f"{prefix}_live_target_me_shadow_policy_{policy}" if prefix else base
+        summary[f"{out}_candidate_segment_count"] = sum_int_metric(rows, f"{base}_candidate_segment_count")
+        summary[f"{out}_candidate_seconds"] = sum_metric(rows, f"{base}_candidate_seconds")
+        summary[f"{out}_missing_me_seconds_after"] = sum_metric(rows, f"{base}_missing_me_seconds_after")
+        summary[f"{out}_missing_me_recovered_seconds"] = sum_metric(rows, f"{base}_missing_me_recovered_seconds")
+        summary[f"{out}_suspected_remote_leak_in_me_count"] = sum_int_metric(
+            rows,
+            f"{base}_suspected_remote_leak_in_me_count",
+        )
+        summary[f"{out}_suspected_remote_leak_in_me_seconds"] = sum_metric(
+            rows,
+            f"{base}_suspected_remote_leak_in_me_seconds",
+        )
+        summary[f"{out}_order_mismatch_count"] = sum_int_metric(rows, f"{base}_order_mismatch_count")
+        summary[f"{out}_role_constrained_order_mismatch_count"] = sum_int_metric(
+            rows,
+            f"{base}_role_constrained_order_mismatch_count",
+        )
+        summary[f"{out}_contentful_role_constrained_order_mismatch_count"] = sum_int_metric(
+            rows,
+            f"{base}_contentful_role_constrained_order_mismatch_count",
+        )
+        summary[f"{out}_order_mismatch_delta_count"] = sum_int_metric(rows, f"{base}_order_mismatch_delta_count")
+        summary[f"{out}_role_constrained_order_mismatch_delta_count"] = sum_int_metric(
+            rows,
+            f"{base}_role_constrained_order_mismatch_delta_count",
+        )
+        summary[f"{out}_contentful_role_constrained_order_mismatch_delta_count"] = sum_int_metric(
+            rows,
+            f"{base}_contentful_role_constrained_order_mismatch_delta_count",
+        )
+
+
+def target_me_shadow_policy_diagnostics(summary: dict[str, Any], prefix: str) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    best_safe: dict[str, Any] | None = None
+    key_prefix = f"{prefix}_live_target_me_shadow_policy_" if prefix else "live_target_me_shadow_policy_"
+    for policy in TARGET_ME_RESCUE_POLICIES:
+        base = f"{key_prefix}{policy}"
+        candidate_seconds = safe_float(summary.get(f"{base}_candidate_seconds"))
+        recovered = safe_float(summary.get(f"{base}_missing_me_recovered_seconds"))
+        remote_risk = safe_float(summary.get(f"{base}_suspected_remote_leak_in_me_seconds"))
+        order_mismatches = safe_int(summary.get(f"{base}_contentful_role_constrained_order_mismatch_count"))
+        order_mismatch_delta = safe_int(summary.get(f"{base}_contentful_role_constrained_order_mismatch_delta_count"))
+        row = {
+            "policy": policy,
+            "candidate_seconds": candidate_seconds,
+            "missing_me_recovered_seconds": recovered,
+            "suspected_remote_leak_in_me_seconds": remote_risk,
+            "contentful_role_constrained_order_mismatch_count": order_mismatches,
+            "contentful_role_constrained_order_mismatch_delta_count": order_mismatch_delta,
+            "safe_candidate": candidate_seconds > 0 and recovered > 0 and remote_risk <= 3.0 and order_mismatch_delta <= 0,
+        }
+        rows.append(row)
+        if row["safe_candidate"] and (best_safe is None or recovered > safe_float(best_safe.get("missing_me_recovered_seconds"))):
+            best_safe = row
+    status = "safe_candidate_available" if best_safe else "no_safe_candidate"
+    return {
+        "schema": "murmurmark.live_target_me_shadow_policy_diagnostics/v1",
+        "scope": prefix or "all",
+        "status": status,
+        "recommended_policy": best_safe,
+        "policies": rows,
+        "recommended_next": (
+            "materialize_target_me_shadow_rescue_draft"
+            if best_safe
+            else "keep_collecting_target_me_evidence_or_add_enrollment_fallback"
+        ),
+    }
 
 
 def rescue_policy_diagnostics(summary: dict[str, Any], prefix: str) -> dict[str, Any]:
@@ -1652,6 +1756,7 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
                 metrics.get("live_suppressed_mic_asr_mixed_segment_seconds") if isinstance(metrics, dict) else None
             ),
             **suppressed_mic_rescue_policy_metric_values(metrics if isinstance(metrics, dict) else None),
+            **target_me_shadow_policy_metric_values(metrics if isinstance(metrics, dict) else None),
             "live_suspected_remote_leak_in_me_seconds": (
                 metrics.get("live_suspected_remote_leak_in_me_seconds") if isinstance(metrics, dict) else None
             ),
@@ -1735,6 +1840,11 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "suppressed_mic_rescue_policies": (
                 risk_examples.get("suppressed_mic_rescue_policies")
                 if isinstance(risk_examples.get("suppressed_mic_rescue_policies"), dict)
+                else {}
+            ),
+            "live_target_me_shadow": (
+                risk_examples.get("live_target_me_shadow")
+                if isinstance(risk_examples.get("live_target_me_shadow"), dict)
                 else {}
             ),
         },
@@ -2122,10 +2232,19 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     add_suppressed_mic_rescue_policy_summary(summary, real_live_rows, "real")
     add_suppressed_mic_rescue_policy_summary(summary, capture_safe_candidate_rows, "capture_safe_candidate")
     add_suppressed_mic_rescue_policy_summary(summary, capture_safe_evaluable_rows, "capture_safe_evaluable")
+    add_target_me_shadow_policy_summary(summary, rows, "")
+    add_target_me_shadow_policy_summary(summary, real_live_rows, "real")
+    add_target_me_shadow_policy_summary(summary, capture_safe_candidate_rows, "capture_safe_candidate")
+    add_target_me_shadow_policy_summary(summary, capture_safe_evaluable_rows, "capture_safe_evaluable")
     local_recall_rescue_policy_diagnostics = {
         "real": rescue_policy_diagnostics(summary, "real"),
         "capture_safe_candidate": rescue_policy_diagnostics(summary, "capture_safe_candidate"),
         "capture_safe_evaluable": rescue_policy_diagnostics(summary, "capture_safe_evaluable"),
+    }
+    target_me_shadow_diagnostics_report = {
+        "real": target_me_shadow_policy_diagnostics(summary, "real"),
+        "capture_safe_candidate": target_me_shadow_policy_diagnostics(summary, "capture_safe_candidate"),
+        "capture_safe_evaluable": target_me_shadow_policy_diagnostics(summary, "capture_safe_evaluable"),
     }
     local_recall_rescue_lab_report = local_recall_rescue_lab(real_live_rows)
     candidate_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_candidate_rows)
@@ -2192,6 +2311,29 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         )
         summary[f"{scope}_live_target_me_best_policy"] = best.get("policy") if isinstance(best, dict) else None
         summary[f"{scope}_live_target_me_recommended_next"] = diagnostics.get("recommended_next")
+    for scope, diagnostics in target_me_shadow_diagnostics_report.items():
+        recommended = diagnostics.get("recommended_policy")
+        summary[f"{scope}_live_target_me_shadow_status"] = diagnostics.get("status")
+        summary[f"{scope}_live_target_me_shadow_recommended_policy"] = (
+            recommended.get("policy") if isinstance(recommended, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_recommended_policy_missing_me_recovered_seconds"] = (
+            safe_float(recommended.get("missing_me_recovered_seconds")) if isinstance(recommended, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_recommended_policy_remote_risk_seconds"] = (
+            safe_float(recommended.get("suspected_remote_leak_in_me_seconds")) if isinstance(recommended, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_recommended_policy_order_mismatch_count"] = (
+            safe_int(recommended.get("contentful_role_constrained_order_mismatch_count"))
+            if isinstance(recommended, dict)
+            else None
+        )
+        summary[f"{scope}_live_target_me_shadow_recommended_policy_order_mismatch_delta_count"] = (
+            safe_int(recommended.get("contentful_role_constrained_order_mismatch_delta_count"))
+            if isinstance(recommended, dict)
+            else None
+        )
+        summary[f"{scope}_live_target_me_shadow_recommended_next"] = diagnostics.get("recommended_next")
     coverage_target = {
         "target_live_sessions": args.target_live_sessions,
         "target_meaningful_compared_sessions": args.target_meaningful_compared_sessions,
@@ -2499,6 +2641,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "capture_safe_candidate_live_local_recall_rescue_lab": candidate_local_recall_rescue_lab_report,
         "capture_safe_evaluable_live_local_recall_rescue_lab": evaluable_local_recall_rescue_lab_report,
         "live_local_recall_target_me_diagnostics": target_me_diagnostics_report,
+        "live_target_me_shadow_policy_diagnostics": target_me_shadow_diagnostics_report,
         "live_local_recall_gap_examples": local_recall_examples,
         "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
         "capture_safe_evaluable_local_recall_gap_examples": evaluable_local_recall_examples,
@@ -3930,6 +4073,44 @@ def main() -> int:
             print(
                 "real_live_target_me_recommended_policy_missing_me_recovered_seconds: "
                 f"{safe_float(recommended_target_me.get('missing_me_recovered_seconds'))}"
+            )
+    target_me_shadow_diagnostics = (
+        report.get("live_target_me_shadow_policy_diagnostics")
+        if isinstance(report.get("live_target_me_shadow_policy_diagnostics"), dict)
+        else {}
+    )
+    real_target_me_shadow = (
+        target_me_shadow_diagnostics.get("real")
+        if isinstance(target_me_shadow_diagnostics.get("real"), dict)
+        else {}
+    )
+    if real_target_me_shadow:
+        print(f"real_live_target_me_shadow_status: {real_target_me_shadow.get('status')}")
+        recommended_target_me_shadow = (
+            real_target_me_shadow.get("recommended_policy")
+            if isinstance(real_target_me_shadow.get("recommended_policy"), dict)
+            else {}
+        )
+        if recommended_target_me_shadow:
+            print(
+                "real_live_target_me_shadow_recommended_policy: "
+                f"{recommended_target_me_shadow.get('policy')}"
+            )
+            print(
+                "real_live_target_me_shadow_recommended_policy_missing_me_recovered_seconds: "
+                f"{safe_float(recommended_target_me_shadow.get('missing_me_recovered_seconds'))}"
+            )
+            print(
+                "real_live_target_me_shadow_recommended_policy_remote_risk_seconds: "
+                f"{safe_float(recommended_target_me_shadow.get('suspected_remote_leak_in_me_seconds'))}"
+            )
+            print(
+                "real_live_target_me_shadow_recommended_policy_order_mismatch_count: "
+                f"{safe_int(recommended_target_me_shadow.get('contentful_role_constrained_order_mismatch_count'))}"
+            )
+            print(
+                "real_live_target_me_shadow_recommended_policy_order_mismatch_delta_count: "
+                f"{safe_int(recommended_target_me_shadow.get('contentful_role_constrained_order_mismatch_delta_count'))}"
             )
     if candidate_target_me:
         print(f"capture_safe_candidate_target_me_status: {candidate_target_me.get('status')}")
