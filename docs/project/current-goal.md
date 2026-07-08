@@ -134,23 +134,26 @@ Current result:
 - `promotion_decision = shadow_only_do_not_promote`;
 - `promotion_allowed_sessions = 0`;
 - `real_live_order_mismatch_count = 0`;
-- `real_live_missing_me_seconds = 386.41`;
+- `real_live_missing_me_seconds = 420.28`;
 - `real_live_missing_me_visible_in_suppressed_mic_seconds = 349.77`;
 - `real_live_missing_me_not_visible_in_suppressed_mic_seconds = 37.21`;
 - `real_live_suppressed_mic_turn_count = 30`;
-- `real_live_segment_role_gate_candidate_chunk_count = 6`;
-- `real_live_segment_role_gate_candidate_kept_segment_count = 31`;
-- `real_live_suppressed_mic_asr_me_dominant_segment_count = 47 / 196.26 sec`;
-- `real_live_suppressed_mic_asr_mixed_segment_count = 41 / 178.32 sec`;
-- current text-only rescue policy: `31.36 sec` local / `53.30 sec` remote-risk;
-- strict unique-token text policy: `115.38 sec` local / `198.80 sec` remote-risk;
+- `real_live_segment_role_gate_candidate_chunk_count = 9`;
+- `real_live_segment_role_gate_candidate_kept_segment_count = 54`;
+- `real_live_rescue_shadow_candidate_chunk_count = 2`;
+- `real_live_rescue_shadow_candidate_segment_count = 9`;
+- `real_live_rescue_shadow_missing_me_recovered_seconds = 46.48`;
+- `real_live_suppressed_mic_asr_me_dominant_segment_count = 49 / 209.58 sec`;
+- `real_live_suppressed_mic_asr_mixed_segment_count = 44 / 199.92 sec`;
+- current text-only rescue policy: `152.60 sec` local / `73.62 sec` remote-risk;
+- strict unique-token text policy: `143.52 sec` local / `219.12 sec` remote-risk;
 - remote-silent text policy: `34.16 sec` local / `2.58 sec` remote-risk;
 - audio remote-quiet policy: `51.14 sec` local / `15.42 sec` remote-risk;
 - audio mic-dominant policy: `24.00 sec` local / `0.00 sec` remote-risk;
 - audio low-coherence policy: `142.06 sec` local / `172.86 sec` remote-risk;
 - audio safe union policy: `50.18 sec` local / `2.58 sec` remote-risk,
   `68.42 sec` missing-Me recovered;
-- batch-oracle local ceiling: `374.58 sec` local;
+- batch-oracle local ceiling: `409.50 sec` local;
 - `real_live_suspected_remote_leak_in_me_seconds = 0.0`;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
 - `objective_next_focus = fix_live_local_recall_gap`.
@@ -165,19 +168,22 @@ Remote leakage in live `Me` is now back to zero after tightening the full-chunk 
 Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks.
 The current live blocker is therefore primarily the coarse `live_role_gate`: it suppresses an entire
 mic chunk when the chunk looks like remote duplicate, even if the chunk also contains real local
-speech. Segment-level batch comparison now shows `47` Me-dominant suppressed mic ASR segments
-(`196.26s`) and `41` mixed suppressed mic ASR segments (`178.32s`) in real live runs. A first
-text-only segment rescue found `6` real live candidate chunks / `31` kept candidate segments, but it
-stays diagnostic-only because policy-lab metrics show it would recover only `31.36s` local speech
-while risking `53.30s` remote leakage. A stricter unique-token text rule is not better enough:
-`115.38s` local / `198.80s` remote-risk. `remote_silent_text_v1` is much safer
-(`34.16s` local / `2.58s` remote-risk), but covers only a small slice of the `374.58s` batch-oracle
+speech. Segment-level batch comparison now shows `49` Me-dominant suppressed mic ASR segments
+(`209.58s`) and `44` mixed suppressed mic ASR segments (`199.92s`) in real live runs. A first
+text-only segment rescue found `9` real live candidate chunks / `54` kept candidate segments, but it
+stays diagnostic-only because policy-lab metrics show it would recover `152.60s` local speech while
+risking `73.62s` remote leakage. A stricter unique-token text rule is not better enough:
+`143.52s` local / `219.12s` remote-risk. `remote_silent_text_v1` is much safer
+(`34.16s` local / `2.58s` remote-risk), but covers only a small slice of the `409.50s` batch-oracle
 local ceiling. The next implementation step should therefore add audio/evidence gates, not only text
 thresholds, to split or rescue local evidence inside suppressed mic chunks without publishing remote
 leak. The first audio policy lab narrows that path: `audio_mic_dominant_v1` is clean but small
 (`24.00s` local / `0.00s` remote-risk), `audio_low_coherence_v1` is unsafe
 (`142.06s` local / `172.86s` remote-risk), and `audio_safe_union_v1` is the best current shadow
-candidate (`50.18s` local / `2.58s` remote-risk, `68.42s` missing-Me recovered).
+candidate (`50.18s` local / `2.58s` remote-risk, `68.42s` missing-Me recovered). Fresh live chunks
+now expose that candidate separately as `live_rescue_shadow`; in the current corpus this appears in
+`2` real-live chunks / `9` segments and recovers `46.48s` missing-Me in actual shadow artifacts
+without publishing the text as normal live `Me`.
 
 ## Latest Completed Goal: Current Pipeline Stabilization v1
 

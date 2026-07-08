@@ -616,6 +616,51 @@ def live_segment_role_gate_summary(chunks: list[dict[str, Any]]) -> dict[str, An
     }
 
 
+def live_rescue_shadow_turns(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    turns: list[dict[str, Any]] = []
+    for row in chunks:
+        try:
+            index = int(row.get("index") or 0)
+        except (TypeError, ValueError):
+            index = 0
+        mic = row.get("mic") if isinstance(row.get("mic"), dict) else {}
+        shadow = mic.get("live_rescue_shadow") if isinstance(mic.get("live_rescue_shadow"), dict) else {}
+        text = clean_text(str(shadow.get("text") or ""))
+        if not text:
+            continue
+        start = safe_float(row.get("start_sec"))
+        end = safe_float(row.get("end_sec"), start)
+        turns.append(
+            {
+                "id": f"live_rescue_shadow_{index:06d}",
+                "chunk_index": index,
+                "source": "mic_rescue_shadow",
+                "role": "Me",
+                "start": start,
+                "end": max(end, start),
+                "text": text,
+                "tokens": tokens(text),
+                "policy": shadow.get("policy"),
+                "publish_policy": shadow.get("publish_policy"),
+                "segment_count": shadow.get("segment_count"),
+            }
+        )
+    return turns
+
+
+def live_rescue_shadow_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
+    turns = live_rescue_shadow_turns(chunks)
+    return {
+        "turns": turns,
+        "metrics": {
+            "live_rescue_shadow_candidate_chunk_count": len(turns),
+            "live_rescue_shadow_candidate_segment_count": sum(safe_int(row.get("segment_count")) for row in turns),
+            "live_rescue_shadow_candidate_token_count": sum(len(row.get("tokens") or []) for row in turns),
+        },
+        "examples": turns[:20],
+    }
+
+
 def segment_role_decision_key(row: dict[str, Any]) -> tuple[float, float, str]:
     return (
         round(safe_float(row.get("start")), 3),
@@ -1136,6 +1181,8 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
     turns = live_turns(chunks)
     suppressed_mic_turns = live_suppressed_mic_turns(chunks)
     segment_gate_summary = live_segment_role_gate_summary(chunks)
+    rescue_shadow_summary = live_rescue_shadow_summary(chunks)
+    rescue_shadow_turns = rescue_shadow_summary.get("turns") or []
     suppressed_segment_audit = read_suppressed_mic_asr_segment_audit(session, chunks, batch_utterances)
     local_missing: list[dict[str, Any]] = []
     local_missing_suspicious_batch_me: list[dict[str, Any]] = []
@@ -1220,6 +1267,9 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
                     "text": turn.get("text"),
                 }
             )
+    shadow_missing_after = local_missing_rows_for_turns(batch_utterances, turns + rescue_shadow_turns)
+    shadow_missing_after_seconds = round(sum(safe_float(row.get("duration_sec")) for row in shadow_missing_after), 3)
+    baseline_missing_seconds = round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3)
     return {
         "live_turns": turns,
         "matched_turns": matched_turns,
@@ -1230,6 +1280,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         "remote_leak": remote_leak,
         "order_mismatches": order_mismatches,
         "segment_role_gate_candidates": segment_gate_summary.get("examples", []),
+        "live_rescue_shadow_examples": rescue_shadow_summary.get("examples", []),
         "suppressed_mic_asr_segment_examples": suppressed_segment_audit.get("examples", []),
         "suppressed_mic_rescue_policy_examples": suppressed_segment_audit.get("policy_examples", {}),
         "metrics": {
@@ -1261,6 +1312,12 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             "live_segment_role_gate_candidate_chunk_count": segment_gate_summary.get("candidate_chunk_count"),
             "live_segment_role_gate_candidate_kept_segment_count": segment_gate_summary.get("kept_segment_count"),
             "live_segment_role_gate_candidate_suppressed_segment_count": segment_gate_summary.get("suppressed_segment_count"),
+            **(rescue_shadow_summary.get("metrics") or {}),
+            "live_rescue_shadow_missing_me_seconds_after": shadow_missing_after_seconds,
+            "live_rescue_shadow_missing_me_recovered_seconds": round(
+                max(0.0, baseline_missing_seconds - shadow_missing_after_seconds),
+                3,
+            ),
             **(suppressed_segment_audit.get("metrics") or {}),
             **rescue_policy_counterfactual_metrics(
                 batch_utterances,
@@ -1719,6 +1776,9 @@ def main() -> int:
             )[:30],
             "segment_role_gate_candidates": (
                 live_assessment.get("segment_role_gate_candidates") or []
+            )[:30],
+            "live_rescue_shadow": (
+                live_assessment.get("live_rescue_shadow_examples") or []
             )[:30],
             "suppressed_mic_rescue_policies": (
                 live_assessment.get("suppressed_mic_rescue_policy_examples") or {}

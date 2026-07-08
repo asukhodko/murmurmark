@@ -964,14 +964,15 @@ Active goal and near-term candidates:
    not published into the live draft, because it can reintroduce remote as `Me`. The next
    implementation target is a stronger audio/evidence gate for local speech inside suppressed mic
    chunks. The corpus report now also labels suppressed mic ASR segments against batch:
-   `47` Me-dominant segments / `196.26s` and `41` mixed segments / `178.32s` in real live runs.
+   `49` Me-dominant segments / `209.58s` and `44` mixed segments / `199.92s` in real live runs.
    A rescue policy lab is now part of the report: current text-only rescue would recover only
-   `31.36s` local speech while risking `53.3s` remote leak; strict unique-token text rescue is also
-   unsafe (`115.38s` local / `198.8s` remote-risk). `remote_silent_text_v1` is much safer
+   `152.6s` local speech while risking `73.62s` remote leak; strict unique-token text rescue is also
+   unsafe (`143.52s` local / `219.12s` remote-risk). `remote_silent_text_v1` is much safer
    (`34.16s` local / `2.58s` remote-risk) but low-recall. The first audio/evidence policy lab shows
    `audio_mic_dominant_v1` has `24.0s` local / `0.0s` remote-risk, while `audio_safe_union_v1`
-   recovers `68.42s` missing-Me at `2.58s` remote-risk. This is useful only as a shadow rescue
-   candidate; full live promotion remains blocked.
+   recovers `68.42s` missing-Me at `2.58s` remote-risk. Fresh live chunks can now expose that policy
+   as `live_rescue_shadow` (`2` real-live chunks / `9` segments in the current corpus) without
+   publishing it as normal `Me`; full live promotion remains blocked.
    Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.

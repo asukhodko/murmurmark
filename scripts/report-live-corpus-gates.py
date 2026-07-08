@@ -1076,6 +1076,21 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "live_segment_role_gate_candidate_suppressed_segment_count": (
                 metrics.get("live_segment_role_gate_candidate_suppressed_segment_count") if isinstance(metrics, dict) else None
             ),
+            "live_rescue_shadow_candidate_chunk_count": (
+                metrics.get("live_rescue_shadow_candidate_chunk_count") if isinstance(metrics, dict) else None
+            ),
+            "live_rescue_shadow_candidate_segment_count": (
+                metrics.get("live_rescue_shadow_candidate_segment_count") if isinstance(metrics, dict) else None
+            ),
+            "live_rescue_shadow_candidate_token_count": (
+                metrics.get("live_rescue_shadow_candidate_token_count") if isinstance(metrics, dict) else None
+            ),
+            "live_rescue_shadow_missing_me_seconds_after": (
+                metrics.get("live_rescue_shadow_missing_me_seconds_after") if isinstance(metrics, dict) else None
+            ),
+            "live_rescue_shadow_missing_me_recovered_seconds": (
+                metrics.get("live_rescue_shadow_missing_me_recovered_seconds") if isinstance(metrics, dict) else None
+            ),
             "live_suppressed_mic_asr_segment_count": (
                 metrics.get("live_suppressed_mic_asr_segment_count") if isinstance(metrics, dict) else None
             ),
@@ -1154,6 +1169,11 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "segment_role_gate_candidates": (
                 risk_examples.get("segment_role_gate_candidates")
                 if isinstance(risk_examples.get("segment_role_gate_candidates"), list)
+                else []
+            ),
+            "live_rescue_shadow": (
+                risk_examples.get("live_rescue_shadow")
+                if isinstance(risk_examples.get("live_rescue_shadow"), list)
                 else []
             ),
             "suppressed_mic_rescue_policies": (
@@ -1271,6 +1291,24 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_live_segment_role_gate_candidate_kept_segment_count": sum_int_metric(
             real_live_rows,
             "live_segment_role_gate_candidate_kept_segment_count",
+        ),
+        "live_rescue_shadow_candidate_chunk_count": sum_int_metric(rows, "live_rescue_shadow_candidate_chunk_count"),
+        "real_live_rescue_shadow_candidate_chunk_count": sum_int_metric(
+            real_live_rows,
+            "live_rescue_shadow_candidate_chunk_count",
+        ),
+        "live_rescue_shadow_candidate_segment_count": sum_int_metric(rows, "live_rescue_shadow_candidate_segment_count"),
+        "real_live_rescue_shadow_candidate_segment_count": sum_int_metric(
+            real_live_rows,
+            "live_rescue_shadow_candidate_segment_count",
+        ),
+        "live_rescue_shadow_missing_me_recovered_seconds": sum_metric(
+            rows,
+            "live_rescue_shadow_missing_me_recovered_seconds",
+        ),
+        "real_live_rescue_shadow_missing_me_recovered_seconds": sum_metric(
+            real_live_rows,
+            "live_rescue_shadow_missing_me_recovered_seconds",
         ),
         "live_suppressed_mic_asr_segment_count": sum_int_metric(rows, "live_suppressed_mic_asr_segment_count"),
         "real_live_suppressed_mic_asr_segment_count": sum_int_metric(
@@ -2035,6 +2073,10 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"{summary.get('real_live_segment_role_gate_candidate_chunk_count', 0)}",
         "- real live segment-gate candidate kept segments: "
         f"{summary.get('real_live_segment_role_gate_candidate_kept_segment_count', 0)}",
+        "- real live rescue shadow candidates: "
+        f"{summary.get('real_live_rescue_shadow_candidate_chunk_count', 0)} chunks / "
+        f"{summary.get('real_live_rescue_shadow_candidate_segment_count', 0)} segments, "
+        f"missing-Me recovered {summary.get('real_live_rescue_shadow_missing_me_recovered_seconds', 0.0)} sec",
         "- real live suppressed mic ASR segments: "
         f"{summary.get('real_live_suppressed_mic_asr_segment_count', 0)} / "
         f"{summary.get('real_live_suppressed_mic_asr_segment_seconds', 0.0)} sec",
@@ -2511,6 +2553,18 @@ def main() -> int:
     print(
         "real_live_segment_role_gate_candidate_kept_segment_count: "
         f"{summary.get('real_live_segment_role_gate_candidate_kept_segment_count', 0)}"
+    )
+    print(
+        "real_live_rescue_shadow_candidate_chunk_count: "
+        f"{summary.get('real_live_rescue_shadow_candidate_chunk_count', 0)}"
+    )
+    print(
+        "real_live_rescue_shadow_candidate_segment_count: "
+        f"{summary.get('real_live_rescue_shadow_candidate_segment_count', 0)}"
+    )
+    print(
+        "real_live_rescue_shadow_missing_me_recovered_seconds: "
+        f"{summary.get('real_live_rescue_shadow_missing_me_recovered_seconds', 0.0)}"
     )
     print(
         "real_live_suppressed_mic_asr_me_dominant_segment_count: "

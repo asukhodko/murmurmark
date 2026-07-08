@@ -21,6 +21,7 @@ SCHEMA = "murmurmark.live_pipeline_report/v1"
 SCRIPT_VERSION = "0.2.0"
 EPSILON = 1.0e-12
 LIVE_ROLE_DUPLICATE_THRESHOLD = 0.55
+LIVE_RESCUE_SHADOW_POLICY = "audio_safe_union_v1"
 KNOWN_HALLUCINATIONS = {
     "редактор субтитров",
     "продолжение следует",
@@ -92,6 +93,15 @@ def rel(path: Path, session: Path) -> str:
         return str(path)
 
 
+def resolve_session_path(session: Path, value: Any) -> Path | None:
+    if not value:
+        return None
+    path = Path(str(value))
+    if not path.is_absolute():
+        path = session / path
+    return path if path.exists() else None
+
+
 def fmt_time(seconds: float) -> str:
     seconds = max(0, int(seconds))
     return f"{seconds // 60:02d}:{seconds % 60:02d}"
@@ -130,6 +140,71 @@ def counter_unique_tokens(source_tokens: list[str], target_tokens: list[str]) ->
         else:
             unique.append(token)
     return unique
+
+
+def audio_slice(audio: np.ndarray | None, sample_rate: int | None, start_sec: float, end_sec: float) -> np.ndarray:
+    if audio is None or sample_rate is None:
+        return np.asarray([], dtype=np.float32)
+    start = max(0, int(round(start_sec * sample_rate)))
+    end = min(len(audio), int(round(end_sec * sample_rate)))
+    if end <= start:
+        return np.asarray([], dtype=np.float32)
+    return audio[start:end]
+
+
+def peak_db(audio: np.ndarray) -> float | None:
+    if audio.size == 0:
+        return None
+    peak = float(np.max(np.abs(audio.astype(np.float64))))
+    return round(20.0 * np.log10(peak + EPSILON), 3)
+
+
+def zero_lag_abs_corr(left: np.ndarray, right: np.ndarray) -> float | None:
+    count = min(left.size, right.size)
+    if count < 160:
+        return None
+    a = left[:count].astype(np.float64)
+    b = right[:count].astype(np.float64)
+    a -= float(np.mean(a))
+    b -= float(np.mean(b))
+    denom = float(np.sqrt(np.sum(a * a) * np.sum(b * b)))
+    if denom <= EPSILON:
+        return None
+    return round(abs(float(np.sum(a * b) / denom)), 6)
+
+
+def segment_audio_features(
+    *,
+    mic_audio: np.ndarray | None,
+    remote_audio: np.ndarray | None,
+    sample_rate: int | None,
+    clip_start_sec: float,
+    start_sec: float,
+    end_sec: float,
+) -> dict[str, Any]:
+    local_start = max(0.0, start_sec - clip_start_sec)
+    local_end = max(local_start, end_sec - clip_start_sec)
+    mic = audio_slice(mic_audio, sample_rate, local_start, local_end)
+    remote = audio_slice(remote_audio, sample_rate, local_start, local_end)
+    mic_db = round(rms_db(mic), 3) if mic.size else None
+    remote_db = round(rms_db(remote), 3) if remote.size else None
+    return {
+        "mic_clean_rms_db": mic_db,
+        "remote_rms_db": remote_db,
+        "mic_clean_peak_db": peak_db(mic),
+        "remote_peak_db": peak_db(remote),
+        "mic_minus_remote_rms_db": round(mic_db - remote_db, 3)
+        if mic_db is not None and remote_db is not None
+        else None,
+        "mic_remote_zero_lag_abs_corr": zero_lag_abs_corr(mic, remote),
+    }
+
+
+def safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def is_hallucination(text: str) -> bool:
@@ -195,7 +270,59 @@ def overlapping_segment_tokens(
     return result
 
 
-def segment_rescue_decision(mic_segment: dict[str, Any], remote_segments: list[dict[str, Any]]) -> dict[str, Any]:
+def segment_policy_candidates(
+    *,
+    token_count: int,
+    unique_count: int,
+    remote_token_count: int,
+    mic_in_remote: float,
+    remote_in_mic: float,
+    audio_features: dict[str, Any],
+) -> list[str]:
+    labels: list[str] = []
+    mic_db = audio_features.get("mic_clean_rms_db")
+    remote_db = audio_features.get("remote_rms_db")
+    mic_minus_remote_db = audio_features.get("mic_minus_remote_rms_db")
+    corr = audio_features.get("mic_remote_zero_lag_abs_corr")
+    mic_db_value = safe_float(mic_db, -120.0) if mic_db is not None else -120.0
+    remote_db_value = safe_float(remote_db, -120.0) if remote_db is not None else -120.0
+    mic_minus_remote_value = safe_float(mic_minus_remote_db, 0.0) if mic_minus_remote_db is not None else 0.0
+    corr_value = safe_float(corr, 1.0) if corr is not None else 1.0
+    if token_count >= 5 and unique_count >= 4 and mic_in_remote <= 0.35 and remote_in_mic <= 0.45:
+        labels.append("strict_text_unique_v1")
+    if token_count >= 3 and remote_token_count == 0:
+        labels.append("remote_silent_text_v1")
+    if token_count >= 3 and mic_db_value >= -58.0 and remote_db_value <= -48.0:
+        labels.append("audio_remote_quiet_v1")
+    if (
+        token_count >= 4
+        and mic_db_value >= -56.0
+        and mic_minus_remote_value >= 8.0
+        and mic_in_remote <= 0.55
+    ):
+        labels.append("audio_mic_dominant_v1")
+    if (
+        token_count >= 4
+        and mic_db_value >= -56.0
+        and corr_value <= 0.20
+        and mic_in_remote <= 0.55
+        and unique_count >= 2
+    ):
+        labels.append("audio_low_coherence_v1")
+    if "remote_silent_text_v1" in labels or "audio_mic_dominant_v1" in labels:
+        labels.append("audio_safe_union_v1")
+    return labels
+
+
+def segment_rescue_decision(
+    mic_segment: dict[str, Any],
+    remote_segments: list[dict[str, Any]],
+    *,
+    mic_audio: np.ndarray | None = None,
+    remote_audio: np.ndarray | None = None,
+    sample_rate: int | None = None,
+    clip_start_sec: float = 0.0,
+) -> dict[str, Any]:
     mic_tokens = mic_segment.get("tokens") or []
     remote_tokens = overlapping_segment_tokens(
         remote_segments,
@@ -207,6 +334,23 @@ def segment_rescue_decision(mic_segment: dict[str, Any], remote_segments: list[d
     unique_tokens = counter_unique_tokens(mic_tokens, remote_tokens)
     token_count = len(mic_tokens)
     unique_count = len(unique_tokens)
+    remote_token_count = len(remote_tokens)
+    audio_features = segment_audio_features(
+        mic_audio=mic_audio,
+        remote_audio=remote_audio,
+        sample_rate=sample_rate,
+        clip_start_sec=clip_start_sec,
+        start_sec=float(mic_segment.get("start") or 0.0),
+        end_sec=float(mic_segment.get("end") or 0.0),
+    )
+    policies = segment_policy_candidates(
+        token_count=token_count,
+        unique_count=unique_count,
+        remote_token_count=remote_token_count,
+        mic_in_remote=mic_in_remote,
+        remote_in_mic=remote_in_mic,
+        audio_features=audio_features,
+    )
     keep = bool(
         token_count >= 3
         and (
@@ -217,6 +361,7 @@ def segment_rescue_decision(mic_segment: dict[str, Any], remote_segments: list[d
     )
     if keep:
         reason = "segment_has_local_tokens_not_seen_in_overlapping_remote"
+        policies = ["current_text_segment_gate", *policies]
     elif not mic_tokens:
         reason = "empty_segment"
     elif not remote_tokens:
@@ -232,18 +377,38 @@ def segment_rescue_decision(mic_segment: dict[str, Any], remote_segments: list[d
         "token_count": token_count,
         "unique_token_count": unique_count,
         "unique_tokens": unique_tokens[:12],
+        "overlapping_remote_token_count": remote_token_count,
         "mic_token_recall_in_overlapping_remote": round(mic_in_remote, 6),
         "overlapping_remote_token_recall_in_mic": round(remote_in_mic, 6),
+        "audio": audio_features,
+        "rescue_policy_candidates": policies,
     }
 
 
-def segment_level_role_rescue(record: dict[str, Any]) -> dict[str, Any]:
+def segment_level_role_rescue(session: Path, record: dict[str, Any]) -> dict[str, Any]:
     mic = record.get("mic") if isinstance(record.get("mic"), dict) else {}
     remote = record.get("remote") if isinstance(record.get("remote"), dict) else {}
     mic_asr = mic.get("asr") if isinstance(mic.get("asr"), dict) else {}
     remote_asr = remote.get("asr") if isinstance(remote.get("asr"), dict) else {}
     mic_json = Path(str(mic_asr.get("json"))) if mic_asr.get("json") else None
     remote_json = Path(str(remote_asr.get("json"))) if remote_asr.get("json") else None
+    mic_audio: np.ndarray | None = None
+    remote_audio: np.ndarray | None = None
+    sample_rate: int | None = None
+    mic_audio_path = resolve_session_path(session, mic.get("asr_wav") or mic.get("wav") or mic.get("input"))
+    remote_audio_path = resolve_session_path(session, remote.get("wav") or remote.get("input"))
+    if mic_audio_path and remote_audio_path:
+        try:
+            mic_rate, mic_audio = read_wav_float(mic_audio_path)
+            remote_rate, remote_audio = read_wav_float(remote_audio_path)
+            if mic_rate == remote_rate:
+                sample_rate = mic_rate
+            else:
+                mic_audio = None
+                remote_audio = None
+        except (OSError, ValueError):
+            mic_audio = None
+            remote_audio = None
     mic_segments = read_asr_segments(
         mic_json,
         clip_start_sec=float(mic.get("clip_start_sec") or 0.0),
@@ -256,26 +421,48 @@ def segment_level_role_rescue(record: dict[str, Any]) -> dict[str, Any]:
         hard_start_sec=float(remote.get("hard_start_sec") or 0.0),
         hard_end_sec=float(remote.get("hard_end_sec") or 0.0),
     )
-    decisions = [segment_rescue_decision(segment, remote_segments) for segment in mic_segments]
+    decisions = [
+        segment_rescue_decision(
+            segment,
+            remote_segments,
+            mic_audio=mic_audio,
+            remote_audio=remote_audio,
+            sample_rate=sample_rate,
+            clip_start_sec=float(mic.get("clip_start_sec") or 0.0),
+        )
+        for segment in mic_segments
+    ]
     kept = [row for row in decisions if row.get("status") == "kept"]
     suppressed = [row for row in decisions if row.get("status") == "suppressed"]
+    shadow_segments = [
+        row for row in decisions if LIVE_RESCUE_SHADOW_POLICY in (row.get("rescue_policy_candidates") or [])
+    ]
     kept_text = segments_text(kept)
+    shadow_text = segments_text(shadow_segments)
     rescued = len(tokens(kept_text)) >= 2
+    shadow_rescued = len(tokens(shadow_text)) >= 2
     return {
         "schema": "murmurmark.live_segment_role_gate/v1",
         "status": "rescued" if rescued else "no_rescue",
         "reason": "kept_low_remote_similarity_mic_segments" if rescued else "no_safe_mic_segments",
+        "shadow_status": "candidate" if shadow_rescued else "no_candidate",
+        "shadow_policy": LIVE_RESCUE_SHADOW_POLICY,
+        "shadow_publish_policy": "shadow_only_not_live_me",
+        "shadow_reason": "audio_safe_union_candidate" if shadow_rescued else "no_audio_safe_union_candidate",
         "mic_segment_count": len(mic_segments),
         "remote_segment_count": len(remote_segments),
         "kept_segment_count": len(kept),
         "suppressed_segment_count": len(suppressed),
+        "shadow_segment_count": len(shadow_segments),
         "kept_text": kept_text,
+        "shadow_text": shadow_text,
         "kept_segments": kept[:20],
         "suppressed_segments": suppressed[:20],
+        "shadow_segments": shadow_segments[:20],
     }
 
 
-def apply_live_role_gate(record: dict[str, Any]) -> None:
+def apply_live_role_gate(session: Path, record: dict[str, Any]) -> None:
     mic = record.get("mic")
     remote = record.get("remote")
     if not isinstance(mic, dict) or not isinstance(remote, dict):
@@ -292,8 +479,20 @@ def apply_live_role_gate(record: dict[str, Any]) -> None:
     duplicate_score = max(mic_in_remote, remote_in_mic)
     if duplicate_score >= LIVE_ROLE_DUPLICATE_THRESHOLD:
         mic["raw_text_before_role_gate"] = mic_text
-        segment_gate = segment_level_role_rescue(record)
+        segment_gate = segment_level_role_rescue(session, record)
         mic["live_segment_role_gate"] = segment_gate
+        shadow_text = clean_text(str(segment_gate.get("shadow_text") or ""))
+        if shadow_text:
+            mic["live_rescue_shadow"] = {
+                "schema": "murmurmark.live_rescue_shadow/v1",
+                "status": "candidate",
+                "policy": segment_gate.get("shadow_policy") or LIVE_RESCUE_SHADOW_POLICY,
+                "publish_policy": segment_gate.get("shadow_publish_policy") or "shadow_only_not_live_me",
+                "reason": segment_gate.get("shadow_reason") or "audio_safe_union_candidate",
+                "text": shadow_text,
+                "segment_count": segment_gate.get("shadow_segment_count") or 0,
+                "segments": segment_gate.get("shadow_segments") or [],
+            }
         mic["text"] = ""
         mic["live_role_gate"] = {
             "status": "suppressed",
@@ -303,6 +502,10 @@ def apply_live_role_gate(record: dict[str, Any]) -> None:
             "remote_token_recall_in_mic": round(remote_in_mic, 6),
             "segment_gate_status": segment_gate.get("status"),
             "segment_gate_publish_policy": "diagnostic_only",
+            "rescue_shadow_status": segment_gate.get("shadow_status"),
+            "rescue_shadow_policy": segment_gate.get("shadow_policy"),
+            "rescue_shadow_publish_policy": segment_gate.get("shadow_publish_policy"),
+            "rescue_shadow_segment_count": segment_gate.get("shadow_segment_count"),
             "kept_segment_count": segment_gate.get("kept_segment_count"),
             "suppressed_segment_count": segment_gate.get("suppressed_segment_count"),
         }
@@ -651,13 +854,26 @@ def write_draft(session: Path, chunks: list[dict[str, Any]], commit_delay_sec: f
         marker = " provisional" if provisional else ""
         lines.append(f"## {fmt_time(float(chunk.get('start_sec') or 0.0))}{marker}")
         lines.append("")
-        mic = clean_text(str((chunk.get("mic") or {}).get("text") or ""))
+        mic_row = chunk.get("mic") if isinstance(chunk.get("mic"), dict) else {}
+        mic = clean_text(str(mic_row.get("text") or ""))
+        shadow = mic_row.get("live_rescue_shadow") if isinstance(mic_row.get("live_rescue_shadow"), dict) else {}
+        shadow_text = clean_text(str(shadow.get("text") or ""))
         remote = clean_text(str((chunk.get("remote") or {}).get("text") or ""))
         if mic:
             lines += ["**Me draft**", "", mic, ""]
+        if shadow_text:
+            policy = clean_text(str(shadow.get("policy") or LIVE_RESCUE_SHADOW_POLICY))
+            lines += [
+                "**Me rescue shadow**",
+                "",
+                f"_Candidate only: `{policy}`; batch remains authoritative._",
+                "",
+                shadow_text,
+                "",
+            ]
         if remote:
             lines += ["**Colleagues draft**", "", remote, ""]
-        if not mic and not remote:
+        if not mic and not shadow_text and not remote:
             lines += ["_No speech decoded in this segment._", ""]
     draft.parent.mkdir(parents=True, exist_ok=True)
     draft.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -726,7 +942,7 @@ def process_segment(session: Path, index: int, pair: dict[str, dict[str, Any]], 
                 hard_start_sec=float(source_record.get("hard_start_sec") or 0.0),
                 hard_end_sec=float(source_record.get("hard_end_sec") or 0.0),
             ) or asr.get("text", "")
-    apply_live_role_gate(record)
+    apply_live_role_gate(session, record)
     write_json(chunk_dir / "chunk.json", record)
     return record
 
@@ -742,9 +958,32 @@ def write_chunks(session: Path, chunks: list[dict[str, Any]]) -> None:
             write_json(session / "derived/live/chunks" / f"{index:06d}" / "chunk.json", chunk)
 
 
+def live_rescue_shadow_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
+    chunk_count = 0
+    segment_count = 0
+    token_count = 0
+    for chunk in chunks:
+        mic = chunk.get("mic") if isinstance(chunk.get("mic"), dict) else {}
+        shadow = mic.get("live_rescue_shadow") if isinstance(mic.get("live_rescue_shadow"), dict) else {}
+        text = clean_text(str(shadow.get("text") or ""))
+        if not text:
+            continue
+        chunk_count += 1
+        segment_count += int(shadow.get("segment_count") or 0)
+        token_count += len(tokens(text))
+    return {
+        "policy": LIVE_RESCUE_SHADOW_POLICY,
+        "publish_policy": "shadow_only_not_live_me",
+        "candidate_chunk_count": chunk_count,
+        "candidate_segment_count": segment_count,
+        "candidate_token_count": token_count,
+    }
+
+
 def write_report(session: Path, status: str, chunks: list[dict[str, Any]], rows: list[dict[str, Any]], args: argparse.Namespace) -> None:
     captured = max((float(row.get("end_sec") or 0.0) for row in rows), default=0.0)
     processed = max((float(row.get("end_sec") or 0.0) for row in chunks), default=0.0)
+    rescue_shadow = live_rescue_shadow_summary(chunks)
     report = {
         "schema": SCHEMA,
         "generator": {"name": "live-pipeline-shadow", "version": SCRIPT_VERSION},
@@ -761,6 +1000,7 @@ def write_report(session: Path, status: str, chunks: list[dict[str, Any]], rows:
             "language": args.language,
             "model": str(args.model),
         },
+        "live_rescue_shadow": rescue_shadow,
         "progress": {
             "captured_sec": round(captured, 3),
             "preprocessed_sec": round(processed, 3),
