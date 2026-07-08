@@ -484,7 +484,13 @@ newer run-state exists.
    `1.80s` from `13.06s`. The next safe step is therefore not another simple threshold tweak, but a
    stronger online role-gate/fallback design with local-speaker or remote-forbidden evidence, while
    keeping order, review/readiness and capture-safe blockers explicit; ambiguous rows and sessions
-   without enough enrollment stay explicit.
+   without enough enrollment stay explicit. The live Target-Me enrollment lab narrows that further:
+   in capture-safe candidate sessions there is currently no usable positive live `Me` enrollment; in
+   the full real scope, prefix/live-causal enrollment recovers only `9.24s` local at `0.00s`
+   remote-risk, while full-session non-causal enrollment reaches `56.94s`. So Target-Me can help, but
+   not from same-session live-published `Me` alone. The next design should add an enrollment
+   fallback/warmup or a persistent local-speaker profile before trying to promote Target-Me-based live
+   rescue.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

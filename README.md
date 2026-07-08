@@ -441,6 +441,21 @@ local-recall fix: they either recover only a small safe slice or quickly reintro
 `Me`. Treat useful rules as shadow evidence and keep the next implementation focused on stronger
 local-speaker or remote-forbidden evidence.
 
+To test whether already published live `Me` turns are enough to build a causal Target-Me voiceprint:
+
+```bash
+.venv/bin/python scripts/report-live-target-me-enrollment-lab.py --method resemblyzer_dvector
+.venv/bin/python scripts/report-live-target-me-enrollment-lab.py \
+  --method resemblyzer_dvector \
+  --scope real \
+  --out sessions/_reports/live-pipeline/live_target_me_enrollment_lab.real.json
+```
+
+This lab also uses batch labels only for scoring. Current evidence says same-session live enrollment
+is not enough yet: the capture-safe candidate scope has no usable positive live `Me` enrollment, and
+the full real scope recovers only a tiny causal slice. The next design needs enrollment fallback,
+warmup/calibration, or another local-speaker signal before Target-Me can be relied on in live mode.
+
 To inspect whether suppressed live mic segments contain your voice:
 
 ```bash

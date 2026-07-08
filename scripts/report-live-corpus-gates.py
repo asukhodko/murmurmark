@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.9.0"
+SCRIPT_VERSION = "1.9.1"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -3152,6 +3152,12 @@ def recommended_next_commands(
             "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
             live_quarantine_note,
         ]
+        if (
+            summary.get("objective_next_focus") == "fix_live_local_recall_gap"
+            or "local_recall" in (summary.get("real_capture_safe_candidate_blocking_dimensions") or [])
+        ):
+            commands.insert(1, ".venv/bin/python scripts/report-suppressed-mic-policy-lab.py")
+            commands.insert(2, ".venv/bin/python scripts/report-live-target-me-enrollment-lab.py --method resemblyzer_dvector")
         real_issues = [
             issue
             for issue in gate_issues

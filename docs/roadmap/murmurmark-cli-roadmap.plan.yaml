@@ -723,7 +723,12 @@ nodes:
       therefore needs a stronger online role-gate/fallback design with local-speaker or
       remote-forbidden evidence, not another simple threshold tweak, while keeping order,
       review/readiness and capture-safe blockers explicit, plus a later enrollment/calibration
-      fallback.
+      fallback. The live Target-Me enrollment lab confirms that same-session live-published `Me` is
+      not enough as the causal enrollment source yet: capture-safe candidate sessions have `0`
+      usable positive live `Me` enrollment segments; in the full real scope, prefix-live enrollment
+      recovers only `9.24s` local at `0.00s` remote-risk, while full-session non-causal enrollment
+      reaches `56.94s`. Target-Me remains promising, but promotion-oriented work now needs an
+      enrollment fallback/warmup or persistent local-speaker profile.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

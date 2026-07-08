@@ -5515,6 +5515,25 @@ token count, unique token count, remote-token overlap, mic/remote RMS, mic-minus
 zero-lag mic/remote correlation. Batch labels are used only as offline truth for policy search. The
 report must not edit live drafts, batch transcripts or parity gates.
 
+`scripts/report-live-target-me-enrollment-lab.py` tests the next question: whether the live draft has
+already published enough clean `Me` turns to build a causal Target-Me model for suppressed mic
+rescue. It writes:
+
+```text
+sessions/_reports/live-pipeline/live_target_me_enrollment_lab.json
+sessions/_reports/live-pipeline/live_target_me_enrollment_lab.md
+```
+
+The JSON uses schema `murmurmark.live_target_me_enrollment_lab/v1`. It reports two modes:
+
+- `prefix_live_enrollment`: only live `Me` turns whose end time is before the suppressed segment;
+- `full_live_enrollment`: all published live `Me` turns in the session, useful as a non-causal
+  same-session ceiling.
+
+Both modes use live-published `Me` turns and speaker-state filters to build enrollment. Batch labels
+are used only to score selected suppressed mic candidates as local/mixed or remote-risk. The report
+does not publish live `Me`, edit batch transcripts or relax parity gates.
+
 `scripts/audit-live-local-recall-target-me.py` is the shadow Target-Me diagnostic for that remaining
 gap. It reads `risk_examples.suppressed_mic_asr_segments` from `live_batch_comparison.json`, cuts
 the corresponding live mic/remote chunk clips, builds a local Target-Me enrollment from the selected

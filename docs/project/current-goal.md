@@ -216,6 +216,34 @@ shadow rescue, but closing the current goal needs stronger local-speaker evidenc
 evidence, or a local judge for suppressed mic regions. New recordings are not the blocker right now;
 the current corpus is sufficient to prove this design direction.
 
+Latest live Target-Me enrollment lab, 2026-07-09:
+
+```bash
+.venv/bin/python scripts/report-live-target-me-enrollment-lab.py --method resemblyzer_dvector
+.venv/bin/python scripts/report-live-target-me-enrollment-lab.py \
+  --method resemblyzer_dvector \
+  --scope real \
+  --out sessions/_reports/live-pipeline/live_target_me_enrollment_lab.real.json
+```
+
+Current result:
+
+- capture-safe candidate scope: `0` positive live `Me` enrollment segments; prefix and full-live
+  enrollment both recover `0.00s`;
+- full real scope: `12` positive live `Me` enrollment segments / `96.26s`, but they are concentrated
+  in one useful session for local-recall rescue;
+- prefix-live enrollment: `73.76s` local/mixed are ready for causal evaluation, but
+  `confirmed_remote_guard` recovers only `9.24s` local / `0.00s` remote-risk;
+- full-session live enrollment ceiling: `confirmed_remote_guard` recovers `56.94s` local /
+  `0.00s` remote-risk;
+- broader prefix policies become unsafe: `confirmed` gives `27.64s` local / `11.68s` remote-risk,
+  and `possible` gives `55.56s` local / `20.32s` remote-risk.
+
+Conclusion: same-session live-published `Me` is not enough as a causal enrollment source yet. A
+Target-Me-based live rescue needs an enrollment fallback, warmup/calibration step, persistent local
+speaker profile, or another online speaker signal. Without that, the live path cannot recover enough
+missing `Me` speech to satisfy parity gates.
+
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not
 `meaningful_live_comparison` because the live draft lost all `Me` turns; those sessions must remain
