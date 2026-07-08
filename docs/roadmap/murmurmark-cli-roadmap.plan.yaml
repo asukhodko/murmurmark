@@ -710,10 +710,12 @@ nodes:
       only reduces non-passing profile gates from `42` to `41`; it is a ceiling measurement, not a
       promotable live algorithm. The remaining `315.34s` missing-Me now split into `278.13s` visible
       in suppressed mic ASR, `37.21s` not visible there, `174.33s` with a broader Target-Me candidate
-      and `141.01s` without one. Two sessions still lack enough enrollment. The next local-recall work
-      therefore needs to recover visible suppressed mic speech with a stricter role gate/fallback,
-      while keeping order, review/readiness and capture-safe blockers explicit, plus a later
-      enrollment/calibration fallback.
+      and `141.01s` without one. The stronger visible-suppressed-mic oracle profile adds `145.54s` of
+      safe suppressed mic segments and drops profile missing-Me to `140.41s` while keeping measured
+      remote leak at `0.00s` and contentful order mismatches at `4`. Two sessions still lack enough
+      enrollment. The next local-recall work therefore needs to turn this ceiling into an online
+      role-gate/fallback design that does not use batch labels, while keeping order, review/readiness
+      and capture-safe blockers explicit, plus a later enrollment/calibration fallback.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

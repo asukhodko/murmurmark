@@ -282,6 +282,13 @@ New Target-Me diagnostic, 2026-07-08:
   `278.13s` of the `315.34s` missing-Me are already visible in suppressed mic ASR, `37.21s` are not
   visible there, `174.33s` have a broader Target-Me candidate, and `141.01s` do not. That points to a
   stricter live role gate / Target-Me fallback problem rather than missing raw audio.
+- `target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1`
+  is now the stronger diagnostic ceiling. It starts from the remote-forbidden oracle and greedily adds
+  only suppressed mic ASR segments that batch labels as `Me`/`mixed`, reduce missing-Me, and do not add
+  measured remote leak or contentful order mismatch. Current real corpus result: `145.54s` added,
+  missing-Me reduced from `315.34s` to `140.41s`, remote leak stays `0.00s`, and contentful order
+  mismatches stay `4`. It is still not promotable because it uses batch labels, but it proves the next
+  online work should target safe suppressed-mic segment publishing.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
 existing corpus already contains enough suppressed live mic material and enough Target-Me evidence.

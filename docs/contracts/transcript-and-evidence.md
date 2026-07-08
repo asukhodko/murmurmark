@@ -5560,6 +5560,8 @@ It also materializes a stricter ceiling diagnostic:
 ```text
 derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1/draft.json
 derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1/draft.md
+derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1/draft.json
+derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1/draft.md
 ```
 
 The JSON uses schema `murmurmark.live_target_me_shadow_draft/v1`, includes `promotion_allowed:
@@ -5574,6 +5576,14 @@ decompose remaining local-recall gaps:
 - `live_missing_me_not_visible_in_suppressed_mic_*`;
 - `live_missing_me_with_target_me_candidate_*`;
 - `live_missing_me_without_target_me_candidate_*`.
+
+The visible-suppressed-mic oracle profile additionally writes
+`metrics.visible_suppressed_mic_added_turn_count`,
+`metrics.visible_suppressed_mic_added_turn_seconds`,
+`metrics.visible_suppressed_mic_rejected_turn_count` and
+`rejected_visible_suppressed_mic_turns`. It greedily adds only suppressed mic ASR segments that batch
+labels as `Me` or `mixed`, reduce missing-Me and do not add measured remote leak or contentful order
+mismatch. This again uses batch truth and is therefore a ceiling diagnostic, not a live algorithm.
 
 Profile `risk_examples.local_missing` carries the same fields per utterance, including
 `recall_in_suppressed_mic`, `suppressed_mic_turn_ids` and `target_me_candidate_policies`. The oracle

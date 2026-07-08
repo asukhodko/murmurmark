@@ -53,6 +53,7 @@ TARGET_ME_RESCUE_POLICIES = (
 TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
 )
 TARGET_ME_SHADOW_POLICY_METRICS = (
     "candidate_segment_count",
@@ -92,6 +93,9 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "live_suspected_remote_leak_in_me_seconds",
     "removed_live_turn_count",
     "removed_live_turn_seconds",
+    "visible_suppressed_mic_added_turn_count",
+    "visible_suppressed_mic_added_turn_seconds",
+    "visible_suppressed_mic_rejected_turn_count",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -1192,6 +1196,18 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
             evaluated_rows,
             f"{base}_removed_live_turn_seconds",
         )
+        summary[f"{out}_visible_suppressed_mic_added_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_visible_suppressed_mic_added_turn_count",
+        )
+        summary[f"{out}_visible_suppressed_mic_added_turn_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_visible_suppressed_mic_added_turn_seconds",
+        )
+        summary[f"{out}_visible_suppressed_mic_rejected_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_visible_suppressed_mic_rejected_turn_count",
+        )
 
 
 def target_me_shadow_policy_diagnostics(summary: dict[str, Any], prefix: str) -> dict[str, Any]:
@@ -1267,6 +1283,15 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             ),
             "removed_live_turn_count": safe_int(summary.get(f"{base}_removed_live_turn_count")),
             "removed_live_turn_seconds": safe_float(summary.get(f"{base}_removed_live_turn_seconds")),
+            "visible_suppressed_mic_added_turn_count": safe_int(
+                summary.get(f"{base}_visible_suppressed_mic_added_turn_count")
+            ),
+            "visible_suppressed_mic_added_turn_seconds": safe_float(
+                summary.get(f"{base}_visible_suppressed_mic_added_turn_seconds")
+            ),
+            "visible_suppressed_mic_rejected_turn_count": safe_int(
+                summary.get(f"{base}_visible_suppressed_mic_rejected_turn_count")
+            ),
         }
         rows.append(row)
         if row["evaluated_session_count"] > 0 and (
@@ -2550,6 +2575,12 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         )
         summary[f"{scope}_live_target_me_shadow_profile_removed_live_turn_seconds"] = (
             safe_float(best.get("removed_live_turn_seconds")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_visible_suppressed_mic_added_turn_seconds"] = (
+            safe_float(best.get("visible_suppressed_mic_added_turn_seconds")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_visible_suppressed_mic_rejected_turn_count"] = (
+            safe_int(best.get("visible_suppressed_mic_rejected_turn_count")) if isinstance(best, dict) else None
         )
         summary[f"{scope}_live_target_me_shadow_profile_recommended_next"] = diagnostics.get("recommended_next")
     coverage_target = {
@@ -4380,6 +4411,10 @@ def main() -> int:
             print(
                 "real_live_target_me_shadow_profile_removed_live_turn_seconds: "
                 f"{safe_float(best_target_me_shadow_profile.get('removed_live_turn_seconds'))}"
+            )
+            print(
+                "real_live_target_me_shadow_profile_visible_suppressed_mic_added_turn_seconds: "
+                f"{safe_float(best_target_me_shadow_profile.get('visible_suppressed_mic_added_turn_seconds'))}"
             )
     if candidate_target_me:
         print(f"capture_safe_candidate_target_me_status: {candidate_target_me.get('status')}")

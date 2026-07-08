@@ -1030,7 +1030,10 @@ Active goal and near-term candidates:
    recordings" or "find whether remote leak exists"; it is fixing remaining local-recall, order,
    review/readiness and capture-safe live evidence gaps. The remaining missing-Me now has useful
    diagnostics: `278.13s` are already visible in suppressed mic ASR, `174.33s` have a broader
-   Target-Me candidate, and `141.01s` have no Target-Me candidate. Batch remains authoritative.
+   Target-Me candidate, and `141.01s` have no Target-Me candidate. A second diagnostic ceiling,
+   `target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1`,
+   adds safe visible suppressed mic segments and drops profile missing-Me to `140.41s` while keeping
+   measured remote leak at `0.0s`. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

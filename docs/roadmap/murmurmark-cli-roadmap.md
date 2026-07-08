@@ -472,9 +472,11 @@ newer run-state exists.
    reduces non-passing profile gates from `42` to `41`. It is not promotable because it uses batch
    truth. The remaining `315.34s` missing-Me are now decomposed: `278.13s` are visible in suppressed
    mic ASR, `174.33s` have a broader Target-Me candidate, and `141.01s` have no Target-Me candidate.
-   The next safe step is to recover visible suppressed mic speech with a stricter role gate/fallback,
-   while keeping order, review/readiness and capture-safe blockers explicit; ambiguous rows and
-   sessions without enough enrollment stay explicit.
+   The stronger visible-suppressed-mic oracle profile adds `145.54s` of safe suppressed mic segments
+   and drops profile missing-Me to `140.41s` while keeping measured remote leak at `0.00s` and
+   contentful order mismatches at `4`. The next safe step is to turn this ceiling into an online
+   role-gate/fallback design that does not use batch labels, while keeping order, review/readiness and
+   capture-safe blockers explicit; ambiguous rows and sessions without enough enrollment stay explicit.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

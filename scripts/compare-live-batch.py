@@ -95,14 +95,22 @@ TARGET_ME_DERIVED_POLICY_BASE = {
 TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
 )
 TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1": (
         "target_me_confirmed_remote_guard_timeline_safe_v1"
     ),
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1": (
+        "target_me_confirmed_remote_guard_timeline_safe_v1"
+    ),
 }
 TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
+}
+TARGET_ME_VISIBLE_SUPPRESSED_MIC_ORACLE_POLICIES = {
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
 }
 MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 
@@ -1773,6 +1781,114 @@ def local_missing_diagnostics_for_turns(
     }
 
 
+def visible_suppressed_mic_oracle_turns(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    turns: list[dict[str, Any]] = []
+    for index, row in enumerate(segments, start=1):
+        if row.get("batch_role_label") not in {"me_dominant", "mixed"}:
+            continue
+        text = clean_text(str(row.get("text") or ""))
+        start = safe_float(row.get("start"))
+        end = safe_float(row.get("end"), start)
+        if not text or end <= start or len(tokens(text)) < 2:
+            continue
+        turns.append(
+            {
+                "id": f"live_visible_suppressed_mic_oracle_{safe_int(row.get('chunk_index')):06d}_{index:06d}",
+                "chunk_index": row.get("chunk_index"),
+                "source": "mic_suppressed_visible_oracle",
+                "role": "Me",
+                "start": start,
+                "end": end,
+                "text": text,
+                "tokens": tokens(text),
+                "batch_role_label": row.get("batch_role_label"),
+                "rescue_policy_candidates": row.get("rescue_policy_candidates") or [],
+            }
+        )
+    return sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")))
+
+
+def timeline_safe_visible_suppressed_mic_turns(
+    *,
+    candidates: list[dict[str, Any]],
+    base_turns: list[dict[str, Any]],
+    batch_utterances: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    accepted: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    baseline_missing_seconds = round(
+        sum(safe_float(row.get("duration_sec")) for row in local_missing_rows_for_turns(batch_utterances, base_turns)),
+        3,
+    )
+    baseline_contentful_order_count = len(
+        order_mismatch_rows_for_turns(
+            base_turns,
+            batch_utterances,
+            same_role_only=True,
+            contentful_only=True,
+            min_token_recall=0.45,
+            min_score=0.65,
+            match_mode="visible_suppressed_mic_oracle_baseline_contentful",
+        )
+    )
+    current_missing_seconds = baseline_missing_seconds
+    for candidate in candidates:
+        trial = sorted(
+            base_turns + accepted + [candidate],
+            key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+        )
+        remote_leak = remote_leak_rows_for_turns(trial, batch_utterances)
+        if remote_leak:
+            rejected.append(
+                {
+                    "id": candidate.get("id"),
+                    "reason": "would_add_suspected_remote_leak",
+                    "text": candidate.get("text"),
+                    "remote_leak": remote_leak[:3],
+                }
+            )
+            continue
+        contentful_order_mismatches = order_mismatch_rows_for_turns(
+            trial,
+            batch_utterances,
+            same_role_only=True,
+            contentful_only=True,
+            min_token_recall=0.45,
+            min_score=0.65,
+            match_mode="visible_suppressed_mic_oracle_contentful",
+        )
+        if len(contentful_order_mismatches) > baseline_contentful_order_count:
+            rejected.append(
+                {
+                    "id": candidate.get("id"),
+                    "reason": "would_add_contentful_order_mismatch",
+                    "text": candidate.get("text"),
+                    "contentful_order_mismatch_count": len(contentful_order_mismatches),
+                    "baseline_contentful_order_mismatch_count": baseline_contentful_order_count,
+                    "examples": contentful_order_mismatches[:3],
+                }
+            )
+            continue
+        missing_after_seconds = round(
+            sum(safe_float(row.get("duration_sec")) for row in local_missing_rows_for_turns(batch_utterances, trial)),
+            3,
+        )
+        if missing_after_seconds >= current_missing_seconds:
+            rejected.append(
+                {
+                    "id": candidate.get("id"),
+                    "reason": "no_local_recall_gain",
+                    "text": candidate.get("text"),
+                    "missing_me_seconds_before": current_missing_seconds,
+                    "missing_me_seconds_after": missing_after_seconds,
+                }
+            )
+            continue
+        accepted.append(candidate)
+        current_missing_seconds = missing_after_seconds
+    return accepted, rejected
+
+
 def rescued_turns_for_policy(segments: list[dict[str, Any]], policy: str) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for index, row in enumerate(segments, start=1):
@@ -2012,6 +2128,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         "segment_role_gate_candidates": segment_gate_summary.get("examples", []),
         "live_rescue_shadow_examples": rescue_shadow_summary.get("examples", []),
         "suppressed_mic_asr_segment_examples": suppressed_segment_audit.get("examples", []),
+        "suppressed_mic_asr_segments": suppressed_segment_audit.get("segments", []),
         "suppressed_mic_rescue_policy_examples": suppressed_segment_audit.get("policy_examples", {}),
         "live_target_me_shadow_examples": target_me_shadow_examples,
         "live_target_me_shadow_turns_by_policy": target_me_shadow_turns_by_policy,
@@ -2478,70 +2595,83 @@ def target_me_shadow_profile_components(
     *,
     policy: str,
     live_turns_rows: list[dict[str, Any]],
+    suppressed_mic_asr_segments: list[dict[str, Any]],
     target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
     batch_utterances: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     base_policy = TARGET_ME_SHADOW_PROFILE_BASE_POLICY.get(policy, policy)
     target_turns = list(target_me_turns_by_policy.get(base_policy) or [])
     live_turns = list(live_turns_rows)
+    supplemental_turns: list[dict[str, Any]] = []
+    rejected_supplemental_turns: list[dict[str, Any]] = []
     removed_live_turns: list[dict[str, Any]] = []
-    if policy not in TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES:
-        return live_turns, target_turns, removed_live_turns
+    if policy in TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES:
+        remote_leak_by_id = {
+            str(row.get("live_id")): row
+            for row in remote_leak_rows_for_turns(live_turns, batch_utterances)
+            if row.get("live_id") is not None
+        }
+        if remote_leak_by_id:
+            kept_live_turns: list[dict[str, Any]] = []
+            for turn in live_turns:
+                turn_id = str(turn.get("id") or "")
+                evidence = remote_leak_by_id.get(turn_id)
+                if turn.get("role") == "Me" and evidence:
+                    payload = shadow_turn_payload(turn, None)
+                    payload.update(
+                        {
+                            "removed_by_policy": policy,
+                            "removal_reason": "batch_remote_forbidden_oracle_remote_leak",
+                            "evidence": evidence,
+                        }
+                    )
+                    removed_live_turns.append(payload)
+                else:
+                    kept_live_turns.append(turn)
+            live_turns = kept_live_turns
 
-    remote_leak_by_id = {
-        str(row.get("live_id")): row
-        for row in remote_leak_rows_for_turns(live_turns, batch_utterances)
-        if row.get("live_id") is not None
-    }
-    if not remote_leak_by_id:
-        return live_turns, target_turns, removed_live_turns
-
-    kept_live_turns: list[dict[str, Any]] = []
-    for turn in live_turns:
-        turn_id = str(turn.get("id") or "")
-        evidence = remote_leak_by_id.get(turn_id)
-        if turn.get("role") == "Me" and evidence:
-            payload = shadow_turn_payload(turn, None)
-            payload.update(
-                {
-                    "removed_by_policy": policy,
-                    "removal_reason": "batch_remote_forbidden_oracle_remote_leak",
-                    "evidence": evidence,
-                }
-            )
-            removed_live_turns.append(payload)
-        else:
-            kept_live_turns.append(turn)
-    return kept_live_turns, target_turns, removed_live_turns
+    if policy in TARGET_ME_VISIBLE_SUPPRESSED_MIC_ORACLE_POLICIES:
+        supplemental_candidates = visible_suppressed_mic_oracle_turns(suppressed_mic_asr_segments)
+        supplemental_turns, rejected_supplemental_turns = timeline_safe_visible_suppressed_mic_turns(
+            candidates=supplemental_candidates,
+            base_turns=live_turns + target_turns,
+            batch_utterances=batch_utterances,
+        )
+    return live_turns, target_turns, supplemental_turns, removed_live_turns, rejected_supplemental_turns
 
 
 def write_target_me_shadow_drafts(
     *,
     session: Path,
     live_turns_rows: list[dict[str, Any]],
+    suppressed_mic_asr_segments: list[dict[str, Any]],
     target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
     batch_utterances: list[dict[str, Any]],
     metrics: dict[str, Any],
 ) -> dict[str, dict[str, str]]:
     outputs: dict[str, dict[str, str]] = {}
     for policy in MATERIALIZED_TARGET_ME_SHADOW_POLICIES:
-        live_turns, target_turns, removed_live_turns = target_me_shadow_profile_components(
-            policy=policy,
-            live_turns_rows=live_turns_rows,
-            target_me_turns_by_policy=target_me_turns_by_policy,
-            batch_utterances=batch_utterances,
+        live_turns, target_turns, supplemental_turns, removed_live_turns, rejected_supplemental_turns = (
+            target_me_shadow_profile_components(
+                policy=policy,
+                live_turns_rows=live_turns_rows,
+                suppressed_mic_asr_segments=suppressed_mic_asr_segments,
+                target_me_turns_by_policy=target_me_turns_by_policy,
+                batch_utterances=batch_utterances,
+            )
         )
         out_dir = session / "derived/live/target-me-shadow" / policy
         json_path = out_dir / "draft.json"
         md_path = out_dir / "draft.md"
         live_payload = [shadow_turn_payload(turn, None) for turn in live_turns]
         target_payload = [shadow_turn_payload(turn, policy) for turn in target_turns]
+        supplemental_payload = [shadow_turn_payload(turn, policy) for turn in supplemental_turns]
         combined = sorted(
-            live_payload + target_payload,
+            live_payload + target_payload + supplemental_payload,
             key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
         )
         policy_metrics = parity_metrics_for_turns(
-            live_turns + target_turns,
+            live_turns + target_turns + supplemental_turns,
             batch_utterances,
             match_mode_prefix=f"target_me_shadow_draft_{policy}",
         )
@@ -2568,6 +2698,8 @@ def write_target_me_shadow_drafts(
             "metrics": {
                 "live_turn_count": len(live_payload),
                 "target_me_added_turn_count": len(target_payload),
+                "visible_suppressed_mic_added_turn_count": len(supplemental_payload),
+                "visible_suppressed_mic_rejected_turn_count": len(rejected_supplemental_turns),
                 "removed_live_turn_count": len(removed_live_turns),
                 "removed_live_turn_seconds": removed_seconds,
                 "combined_turn_count": len(combined),
@@ -2579,6 +2711,7 @@ def write_target_me_shadow_drafts(
                 ),
             },
             "removed_live_turns": removed_live_turns,
+            "rejected_visible_suppressed_mic_turns": rejected_supplemental_turns[:50],
             "turns": combined,
         }
         write_json(json_path, payload)
@@ -2591,6 +2724,8 @@ def write_target_me_shadow_drafts(
             "- promotion allowed: `false`",
             "- batch authoritative: `true`",
             f"- target-me added turns: `{len(target_payload)}`",
+            f"- visible suppressed mic added turns: `{len(supplemental_payload)}`",
+            f"- visible suppressed mic rejected turns: `{len(rejected_supplemental_turns)}`",
             f"- removed live turns: `{len(removed_live_turns)}` / `{removed_seconds}s`",
             f"- missing-Me recovered seconds: `{payload['metrics']['missing_me_recovered_seconds']}`",
             f"- suspected remote leak seconds: `{payload['metrics']['suspected_remote_leak_in_me_seconds']}`",
@@ -2622,6 +2757,7 @@ def build_target_me_shadow_profiles(
     *,
     live_turns_rows: list[dict[str, Any]],
     suppressed_mic_turns: list[dict[str, Any]],
+    suppressed_mic_asr_segments: list[dict[str, Any]],
     target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
     target_me_shadow_outputs: dict[str, dict[str, str]],
     batch_utterances: list[dict[str, Any]],
@@ -2637,15 +2773,22 @@ def build_target_me_shadow_profiles(
     profiles: dict[str, Any] = {}
     top_level_metrics: dict[str, Any] = {}
     for policy in MATERIALIZED_TARGET_ME_SHADOW_POLICIES:
-        live_turns, target_turns, removed_live_turns = target_me_shadow_profile_components(
-            policy=policy,
-            live_turns_rows=live_turns_rows,
-            target_me_turns_by_policy=target_me_turns_by_policy,
-            batch_utterances=batch_utterances,
+        live_turns, target_turns, supplemental_turns, removed_live_turns, rejected_supplemental_turns = (
+            target_me_shadow_profile_components(
+                policy=policy,
+                live_turns_rows=live_turns_rows,
+                suppressed_mic_asr_segments=suppressed_mic_asr_segments,
+                target_me_turns_by_policy=target_me_turns_by_policy,
+                batch_utterances=batch_utterances,
+            )
         )
         combined_turns = sorted(
-            live_turns + target_turns,
+            live_turns + target_turns + supplemental_turns,
             key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+        )
+        supplemental_seconds = round(
+            sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in supplemental_turns),
+            3,
         )
         removed_seconds = round(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in removed_live_turns),
@@ -2688,6 +2831,9 @@ def build_target_me_shadow_profiles(
         top_level_metrics[f"{base}_live_token_recall_in_batch"] = round(recall, 6) if recall is not None else None
         top_level_metrics[f"{base}_removed_live_turn_count"] = len(removed_live_turns)
         top_level_metrics[f"{base}_removed_live_turn_seconds"] = removed_seconds
+        top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_count"] = len(supplemental_turns)
+        top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_seconds"] = supplemental_seconds
+        top_level_metrics[f"{base}_visible_suppressed_mic_rejected_turn_count"] = len(rejected_supplemental_turns)
         for key in (
             "live_turn_count",
             "live_me_turn_count",
@@ -2723,8 +2869,12 @@ def build_target_me_shadow_profiles(
                 "all_parity_gates_passed": all_gates_passed,
                 "removed_live_turn_count": len(removed_live_turns),
                 "removed_live_turn_seconds": removed_seconds,
+                "visible_suppressed_mic_added_turn_count": len(supplemental_turns),
+                "visible_suppressed_mic_added_turn_seconds": supplemental_seconds,
+                "visible_suppressed_mic_rejected_turn_count": len(rejected_supplemental_turns),
             },
             "removed_live_turns": removed_live_turns[:50],
+            "rejected_visible_suppressed_mic_turns": rejected_supplemental_turns[:50],
             "risk_examples": {
                 "local_missing": missing_rows[:20],
                 "remote_leak": remote_leak_rows_for_turns(combined_turns, batch_utterances)[:20],
@@ -2816,6 +2966,7 @@ def main() -> int:
     target_me_shadow_outputs = write_target_me_shadow_drafts(
         session=session,
         live_turns_rows=live_assessment.get("live_turns") or [],
+        suppressed_mic_asr_segments=live_assessment.get("suppressed_mic_asr_segments") or [],
         target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
         batch_utterances=batch_utterances,
         metrics=live_metrics,
@@ -2823,6 +2974,7 @@ def main() -> int:
     target_me_shadow_profiles, target_me_shadow_profile_metrics = build_target_me_shadow_profiles(
         live_turns_rows=live_assessment.get("live_turns") or [],
         suppressed_mic_turns=live_assessment.get("suppressed_mic_turns") or [],
+        suppressed_mic_asr_segments=live_assessment.get("suppressed_mic_asr_segments") or [],
         target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
         target_me_shadow_outputs=target_me_shadow_outputs,
         batch_utterances=batch_utterances,
