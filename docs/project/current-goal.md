@@ -145,6 +145,11 @@ Current result:
 - current text-only rescue policy: `31.36 sec` local / `53.30 sec` remote-risk;
 - strict unique-token text policy: `115.38 sec` local / `198.80 sec` remote-risk;
 - remote-silent text policy: `34.16 sec` local / `2.58 sec` remote-risk;
+- audio remote-quiet policy: `51.14 sec` local / `15.42 sec` remote-risk;
+- audio mic-dominant policy: `24.00 sec` local / `0.00 sec` remote-risk;
+- audio low-coherence policy: `142.06 sec` local / `172.86 sec` remote-risk;
+- audio safe union policy: `50.18 sec` local / `2.58 sec` remote-risk,
+  `68.42 sec` missing-Me recovered;
 - batch-oracle local ceiling: `374.58 sec` local;
 - `real_live_suspected_remote_leak_in_me_seconds = 0.0`;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
@@ -169,7 +174,10 @@ while risking `53.30s` remote leakage. A stricter unique-token text rule is not 
 (`34.16s` local / `2.58s` remote-risk), but covers only a small slice of the `374.58s` batch-oracle
 local ceiling. The next implementation step should therefore add audio/evidence gates, not only text
 thresholds, to split or rescue local evidence inside suppressed mic chunks without publishing remote
-leak.
+leak. The first audio policy lab narrows that path: `audio_mic_dominant_v1` is clean but small
+(`24.00s` local / `0.00s` remote-risk), `audio_low_coherence_v1` is unsafe
+(`142.06s` local / `172.86s` remote-risk), and `audio_safe_union_v1` is the best current shadow
+candidate (`50.18s` local / `2.58s` remote-risk, `68.42s` missing-Me recovered).
 
 ## Latest Completed Goal: Current Pipeline Stabilization v1
 

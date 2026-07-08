@@ -4446,6 +4446,12 @@ batch transcript. These policy-lab fields are diagnostic only:
 - `current_text_segment_gate`: the existing text-only segment gate candidates;
 - `strict_text_unique_v1`: a stricter unique-token text rule;
 - `remote_silent_text_v1`: text segments with no overlapping remote ASR tokens;
+- `audio_remote_quiet_v1`: segment audio where remote energy is low and mic has speech energy;
+- `audio_mic_dominant_v1`: segment audio where cleaned mic energy dominates remote enough for a
+  conservative local candidate;
+- `audio_low_coherence_v1`: segment audio with low zero-lag mic/remote correlation, retained as a
+  diagnostic hypothesis because corpus evidence can still reject it;
+- `audio_safe_union_v1`: conservative union of `remote_silent_text_v1` and `audio_mic_dominant_v1`;
 - `batch_oracle_local_ceiling`: a batch-labeled upper bound, not a runtime rule.
 
 The report records local seconds, remote-risk seconds and precision/recall proxies for each policy.
@@ -4801,6 +4807,16 @@ Schema:
     "live_rescue_policy_strict_text_unique_v1_remote_risk_seconds": 0.0,
     "live_rescue_policy_remote_silent_text_v1_local_seconds": 0.0,
     "live_rescue_policy_remote_silent_text_v1_remote_risk_seconds": 0.0,
+    "live_rescue_policy_audio_remote_quiet_v1_local_seconds": 0.0,
+    "live_rescue_policy_audio_remote_quiet_v1_remote_risk_seconds": 0.0,
+    "live_rescue_policy_audio_mic_dominant_v1_local_seconds": 0.0,
+    "live_rescue_policy_audio_mic_dominant_v1_remote_risk_seconds": 0.0,
+    "live_rescue_policy_audio_low_coherence_v1_local_seconds": 0.0,
+    "live_rescue_policy_audio_low_coherence_v1_remote_risk_seconds": 0.0,
+    "live_rescue_policy_audio_safe_union_v1_local_seconds": 0.0,
+    "live_rescue_policy_audio_safe_union_v1_remote_risk_seconds": 0.0,
+    "live_rescue_policy_audio_safe_union_v1_missing_me_recovered_seconds": 0.0,
+    "live_rescue_policy_audio_safe_union_v1_missing_me_seconds_after": 0.0,
     "live_rescue_policy_batch_oracle_local_ceiling_local_seconds": 0.0,
     "live_suspected_remote_leak_in_me_seconds": 0.0,
     "live_turn_count": 18,
@@ -4822,6 +4838,11 @@ Schema:
         "text": "suppressed mic ASR text",
         "batch_role_label": "me_dominant",
         "segment_gate_status": "suppressed",
+        "audio_mic_clean_rms_db": -42.1,
+        "audio_remote_rms_db": -55.3,
+        "audio_mic_minus_remote_rms_db": 13.2,
+        "audio_mic_remote_zero_lag_abs_corr": 0.08,
+        "rescue_policy_candidates": ["audio_mic_dominant_v1", "audio_safe_union_v1"],
         "publish_policy": "diagnostic_only"
       }
     ],

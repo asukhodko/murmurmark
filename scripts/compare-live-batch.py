@@ -9,10 +9,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+from scipy.io import wavfile
+
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.10.0"
+SCRIPT_VERSION = "0.11.0"
+EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 CAPTURE_SAFETY_BLOCKERS = {"interrupted_capture", "silent_capture", "sparse_capture"}
 CAPTURE_SAFETY_WARNING_MARKERS = (
@@ -28,6 +32,10 @@ SUPPRESSED_MIC_RESCUE_POLICIES = (
     "current_text_segment_gate",
     "strict_text_unique_v1",
     "remote_silent_text_v1",
+    "audio_remote_quiet_v1",
+    "audio_mic_dominant_v1",
+    "audio_low_coherence_v1",
+    "audio_safe_union_v1",
     "batch_oracle_local_ceiling",
 )
 
@@ -87,6 +95,14 @@ def resolve_session_path(session: Path, value: Any) -> Path | None:
     return path if path.exists() else None
 
 
+def resolve_source_path(session: Path, source: dict[str, Any], keys: tuple[str, ...]) -> Path | None:
+    for key in keys:
+        path = resolve_session_path(session, source.get(key))
+        if path is not None:
+            return path
+    return None
+
+
 def tokens(text: str) -> list[str]:
     return [match.group(0).lower() for match in TOKEN_RE.finditer(text)]
 
@@ -135,6 +151,95 @@ def counter_unique_tokens(source_tokens: list[str], target_tokens: list[str]) ->
         if remaining > 0:
             unique.extend([token] * remaining)
     return unique
+
+
+def read_audio(path: Path | None, cache: dict[Path, tuple[int, np.ndarray] | None]) -> tuple[int, np.ndarray] | None:
+    if path is None:
+        return None
+    if path in cache:
+        return cache[path]
+    try:
+        sample_rate, data = wavfile.read(path)
+    except (OSError, ValueError):
+        cache[path] = None
+        return None
+    array = np.asarray(data)
+    if array.ndim > 1:
+        array = array.mean(axis=1)
+    if np.issubdtype(array.dtype, np.integer):
+        max_value = max(abs(float(np.iinfo(array.dtype).min)), float(np.iinfo(array.dtype).max))
+        array = array.astype(np.float32) / max_value
+    else:
+        array = array.astype(np.float32)
+    cache[path] = (int(sample_rate), array)
+    return cache[path]
+
+
+def rms_db(values: np.ndarray) -> float | None:
+    if values.size == 0:
+        return None
+    rms = float(np.sqrt(np.mean(np.square(values.astype(np.float64)))))
+    return round(20.0 * np.log10(rms + EPSILON), 3)
+
+
+def peak_db(values: np.ndarray) -> float | None:
+    if values.size == 0:
+        return None
+    peak = float(np.max(np.abs(values.astype(np.float64))))
+    return round(20.0 * np.log10(peak + EPSILON), 3)
+
+
+def audio_slice(audio: tuple[int, np.ndarray] | None, start_sec: float, end_sec: float) -> np.ndarray:
+    if audio is None:
+        return np.asarray([], dtype=np.float32)
+    sample_rate, data = audio
+    start = max(0, int(round(start_sec * sample_rate)))
+    end = min(len(data), int(round(end_sec * sample_rate)))
+    if end <= start:
+        return np.asarray([], dtype=np.float32)
+    return data[start:end]
+
+
+def zero_lag_abs_corr(left: np.ndarray, right: np.ndarray) -> float | None:
+    count = min(left.size, right.size)
+    if count < 160:
+        return None
+    a = left[:count].astype(np.float64)
+    b = right[:count].astype(np.float64)
+    a -= float(np.mean(a))
+    b -= float(np.mean(b))
+    denom = float(np.sqrt(np.sum(a * a) * np.sum(b * b)))
+    if denom <= EPSILON:
+        return None
+    return round(abs(float(np.sum(a * b) / denom)), 6)
+
+
+def segment_audio_features(
+    *,
+    mic_audio: tuple[int, np.ndarray] | None,
+    remote_audio: tuple[int, np.ndarray] | None,
+    clip_start_sec: float,
+    start_sec: float,
+    end_sec: float,
+) -> dict[str, Any]:
+    local_start = max(0.0, start_sec - clip_start_sec)
+    local_end = max(local_start, end_sec - clip_start_sec)
+    mic_slice = audio_slice(mic_audio, local_start, local_end)
+    remote_slice = audio_slice(remote_audio, local_start, local_end)
+    mic_db = rms_db(mic_slice)
+    remote_db = rms_db(remote_slice)
+    mic_peak = peak_db(mic_slice)
+    remote_peak = peak_db(remote_slice)
+    return {
+        "mic_clean_rms_db": mic_db,
+        "remote_rms_db": remote_db,
+        "mic_clean_peak_db": mic_peak,
+        "remote_peak_db": remote_peak,
+        "mic_minus_remote_rms_db": round(mic_db - remote_db, 3)
+        if mic_db is not None and remote_db is not None
+        else None,
+        "mic_remote_zero_lag_abs_corr": zero_lag_abs_corr(mic_slice, remote_slice),
+    }
 
 
 def classify_suppressed_boundary_duplicate(
@@ -622,12 +727,39 @@ def suppressed_mic_rescue_policy_labels(row: dict[str, Any]) -> list[str]:
     mic_in_remote = safe_float(row.get("segment_gate_mic_token_recall_in_overlapping_remote"))
     remote_in_mic = safe_float(row.get("segment_gate_overlapping_remote_token_recall_in_mic"))
     remote_token_count = safe_int(row.get("segment_gate_overlapping_remote_token_count"))
+    mic_db = row.get("audio_mic_clean_rms_db")
+    remote_db = row.get("audio_remote_rms_db")
+    mic_minus_remote_db = row.get("audio_mic_minus_remote_rms_db")
+    corr = row.get("audio_mic_remote_zero_lag_abs_corr")
+    mic_db_value = safe_float(mic_db, -120.0) if mic_db is not None else -120.0
+    remote_db_value = safe_float(remote_db, -120.0) if remote_db is not None else -120.0
+    mic_minus_remote_value = safe_float(mic_minus_remote_db, 0.0) if mic_minus_remote_db is not None else 0.0
+    corr_value = safe_float(corr, 1.0) if corr is not None else 1.0
     if row.get("segment_gate_status") == "kept":
         labels.append("current_text_segment_gate")
     if token_count >= 5 and unique_count >= 4 and mic_in_remote <= 0.35 and remote_in_mic <= 0.45:
         labels.append("strict_text_unique_v1")
     if token_count >= 3 and remote_token_count == 0:
         labels.append("remote_silent_text_v1")
+    if token_count >= 3 and mic_db_value >= -58.0 and remote_db_value <= -48.0:
+        labels.append("audio_remote_quiet_v1")
+    if (
+        token_count >= 4
+        and mic_db_value >= -56.0
+        and mic_minus_remote_value >= 8.0
+        and mic_in_remote <= 0.55
+    ):
+        labels.append("audio_mic_dominant_v1")
+    if (
+        token_count >= 4
+        and mic_db_value >= -56.0
+        and corr_value <= 0.20
+        and mic_in_remote <= 0.55
+        and unique_count >= 2
+    ):
+        labels.append("audio_low_coherence_v1")
+    if "remote_silent_text_v1" in labels or "audio_mic_dominant_v1" in labels:
+        labels.append("audio_safe_union_v1")
     if row.get("batch_role_label") in {"me_dominant", "mixed"}:
         labels.append("batch_oracle_local_ceiling")
     return labels
@@ -686,6 +818,10 @@ def summarize_suppressed_mic_rescue_policies(rows: list[dict[str, Any]]) -> dict
                     "segment_gate_overlapping_remote_token_recall_in_mic": row.get(
                         "segment_gate_overlapping_remote_token_recall_in_mic"
                     ),
+                    "audio_mic_clean_rms_db": row.get("audio_mic_clean_rms_db"),
+                    "audio_remote_rms_db": row.get("audio_remote_rms_db"),
+                    "audio_mic_minus_remote_rms_db": row.get("audio_mic_minus_remote_rms_db"),
+                    "audio_mic_remote_zero_lag_abs_corr": row.get("audio_mic_remote_zero_lag_abs_corr"),
                 }
             )
     return {"metrics": result, "examples": examples}
@@ -701,6 +837,7 @@ def read_suppressed_mic_asr_segment_audit(
     label_seconds: Counter[str] = Counter()
     candidate_label_counts: Counter[str] = Counter()
     candidate_label_seconds: Counter[str] = Counter()
+    audio_cache: dict[Path, tuple[int, np.ndarray] | None] = {}
     for chunk in chunks:
         try:
             index = int(chunk.get("index") or 0)
@@ -710,6 +847,10 @@ def read_suppressed_mic_asr_segment_audit(
         if not isinstance(mic, dict):
             continue
         remote = chunk.get("remote") if isinstance(chunk.get("remote"), dict) else {}
+        mic_audio_path = resolve_source_path(session, mic, ("asr_wav", "wav", "input"))
+        remote_audio_path = resolve_source_path(session, remote, ("wav", "input"))
+        mic_audio = read_audio(mic_audio_path, audio_cache)
+        remote_audio = read_audio(remote_audio_path, audio_cache)
         remote_segments = read_global_asr_segments(session, remote)
         role_gate = mic.get("live_role_gate") if isinstance(mic.get("live_role_gate"), dict) else {}
         if role_gate.get("status") != "suppressed":
@@ -748,6 +889,13 @@ def read_suppressed_mic_asr_segment_audit(
                 text,
                 overlapping_tokens_for_rows(remote_segments, start, end),
             )
+            computed_audio = segment_audio_features(
+                mic_audio=mic_audio,
+                remote_audio=remote_audio,
+                clip_start_sec=clip_start,
+                start_sec=start,
+                end_sec=end,
+            )
             decision = decisions.get((round(start, 3), round(end, 3), text), {})
             label = str(role.get("label") or "none")
             duration = max(0.0, end - start)
@@ -782,6 +930,12 @@ def read_suppressed_mic_asr_segment_audit(
                 )
                 if decision.get("overlapping_remote_token_recall_in_mic") is not None
                 else computed_features.get("overlapping_remote_token_recall_in_mic"),
+                "audio_mic_clean_rms_db": computed_audio.get("mic_clean_rms_db"),
+                "audio_remote_rms_db": computed_audio.get("remote_rms_db"),
+                "audio_mic_clean_peak_db": computed_audio.get("mic_clean_peak_db"),
+                "audio_remote_peak_db": computed_audio.get("remote_peak_db"),
+                "audio_mic_minus_remote_rms_db": computed_audio.get("mic_minus_remote_rms_db"),
+                "audio_mic_remote_zero_lag_abs_corr": computed_audio.get("mic_remote_zero_lag_abs_corr"),
                 "publish_policy": role_gate.get("segment_gate_publish_policy"),
             }
             row["rescue_policy_candidates"] = suppressed_mic_rescue_policy_labels(row)
@@ -910,6 +1064,72 @@ def best_batch_match(turn: dict[str, Any], batch: list[dict[str, Any]]) -> dict[
         if best is None or safe_float(candidate["score"]) > safe_float(best["score"]):
             best = candidate
     return best
+
+
+def local_missing_rows_for_turns(batch_utterances: list[dict[str, Any]], turns: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    local_missing: list[dict[str, Any]] = []
+    for row in batch_utterances:
+        if row.get("role") != "Me" or len(row.get("tokens") or []) < 2:
+            continue
+        live_tokens_for_me = utterance_tokens_in_interval(turns, safe_float(row.get("start")), safe_float(row.get("end")), "Me")
+        recall = bag_recall(row.get("tokens") or [], live_tokens_for_me) or 0.0
+        if recall < 0.35 and not suspicious_batch_me_utterance(row):
+            local_missing.append(
+                {
+                    "batch_id": row.get("id"),
+                    "start": row.get("start"),
+                    "end": row.get("end"),
+                    "duration_sec": round(safe_float(row.get("end")) - safe_float(row.get("start")), 3),
+                    "recall_in_live_me": round(recall, 6),
+                    "text": row.get("text"),
+                }
+            )
+    return local_missing
+
+
+def rescued_turns_for_policy(segments: list[dict[str, Any]], policy: str) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for index, row in enumerate(segments, start=1):
+        if policy not in (row.get("rescue_policy_candidates") or []):
+            continue
+        text = clean_text(str(row.get("text") or ""))
+        if not text:
+            continue
+        result.append(
+            {
+                "id": f"live_rescue_{policy}_{index:06d}",
+                "chunk_index": row.get("chunk_index"),
+                "source": f"mic_rescue_{policy}",
+                "role": "Me",
+                "start": row.get("start"),
+                "end": row.get("end"),
+                "text": text,
+                "tokens": tokens(text),
+            }
+        )
+    return result
+
+
+def rescue_policy_counterfactual_metrics(
+    batch_utterances: list[dict[str, Any]],
+    live_turns_rows: list[dict[str, Any]],
+    suppressed_segment_rows: list[dict[str, Any]],
+    baseline_missing_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    baseline_missing_seconds = round(sum(safe_float(row.get("duration_sec")) for row in baseline_missing_rows), 3)
+    for policy in SUPPRESSED_MIC_RESCUE_POLICIES:
+        if policy == "batch_oracle_local_ceiling":
+            continue
+        policy_turns = rescued_turns_for_policy(suppressed_segment_rows, policy)
+        missing_after = local_missing_rows_for_turns(batch_utterances, live_turns_rows + policy_turns)
+        missing_after_seconds = round(sum(safe_float(row.get("duration_sec")) for row in missing_after), 3)
+        result[f"live_rescue_policy_{policy}_missing_me_seconds_after"] = missing_after_seconds
+        result[f"live_rescue_policy_{policy}_missing_me_recovered_seconds"] = round(
+            max(0.0, baseline_missing_seconds - missing_after_seconds),
+            3,
+        )
+    return result
 
 
 def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1042,6 +1262,12 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             "live_segment_role_gate_candidate_kept_segment_count": segment_gate_summary.get("kept_segment_count"),
             "live_segment_role_gate_candidate_suppressed_segment_count": segment_gate_summary.get("suppressed_segment_count"),
             **(suppressed_segment_audit.get("metrics") or {}),
+            **rescue_policy_counterfactual_metrics(
+                batch_utterances,
+                turns,
+                suppressed_segment_audit.get("segments") or [],
+                local_missing,
+            ),
             "live_suspected_remote_leak_in_me_count": len(remote_leak),
             "live_suspected_remote_leak_in_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in remote_leak), 3),
         },

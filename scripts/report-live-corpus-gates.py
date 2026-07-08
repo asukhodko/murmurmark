@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.4.0"
+SCRIPT_VERSION = "1.5.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -22,6 +22,10 @@ SUPPRESSED_MIC_RESCUE_POLICIES = (
     "current_text_segment_gate",
     "strict_text_unique_v1",
     "remote_silent_text_v1",
+    "audio_remote_quiet_v1",
+    "audio_mic_dominant_v1",
+    "audio_low_coherence_v1",
+    "audio_safe_union_v1",
     "batch_oracle_local_ceiling",
 )
 SUPPRESSED_MIC_RESCUE_POLICY_METRICS = (
@@ -33,6 +37,8 @@ SUPPRESSED_MIC_RESCUE_POLICY_METRICS = (
     "remote_risk_seconds",
     "precision_proxy",
     "local_recall_proxy",
+    "missing_me_seconds_after",
+    "missing_me_recovered_seconds",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -932,10 +938,14 @@ def add_suppressed_mic_rescue_policy_summary(summary: dict[str, Any], rows: list
         selected_seconds = sum_metric(rows, f"{base}_selected_seconds")
         local_seconds = sum_metric(rows, f"{base}_local_seconds")
         remote_risk_seconds = sum_metric(rows, f"{base}_remote_risk_seconds")
+        missing_after_seconds = sum_metric(rows, f"{base}_missing_me_seconds_after")
+        recovered_seconds = sum_metric(rows, f"{base}_missing_me_recovered_seconds")
         summary[f"{out}_selected_segment_count"] = selected_count
         summary[f"{out}_selected_seconds"] = selected_seconds
         summary[f"{out}_local_seconds"] = local_seconds
         summary[f"{out}_remote_risk_seconds"] = remote_risk_seconds
+        summary[f"{out}_missing_me_seconds_after"] = missing_after_seconds
+        summary[f"{out}_missing_me_recovered_seconds"] = recovered_seconds
         summary[f"{out}_precision_proxy"] = round(local_seconds / selected_seconds, 6) if selected_seconds > 0 else None
         summary[f"{out}_local_recall_proxy"] = (
             round(local_seconds / oracle_local_seconds, 6) if oracle_local_seconds > 0 else None
@@ -2046,6 +2056,23 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"local {summary.get('real_live_rescue_policy_remote_silent_text_v1_local_seconds', 0.0)} sec, "
         f"remote-risk {summary.get('real_live_rescue_policy_remote_silent_text_v1_remote_risk_seconds', 0.0)} sec, "
         f"precision {summary.get('real_live_rescue_policy_remote_silent_text_v1_precision_proxy')}",
+        "- real live rescue audio remote-quiet v1: "
+        f"local {summary.get('real_live_rescue_policy_audio_remote_quiet_v1_local_seconds', 0.0)} sec, "
+        f"remote-risk {summary.get('real_live_rescue_policy_audio_remote_quiet_v1_remote_risk_seconds', 0.0)} sec, "
+        f"precision {summary.get('real_live_rescue_policy_audio_remote_quiet_v1_precision_proxy')}",
+        "- real live rescue audio mic-dominant v1: "
+        f"local {summary.get('real_live_rescue_policy_audio_mic_dominant_v1_local_seconds', 0.0)} sec, "
+        f"remote-risk {summary.get('real_live_rescue_policy_audio_mic_dominant_v1_remote_risk_seconds', 0.0)} sec, "
+        f"precision {summary.get('real_live_rescue_policy_audio_mic_dominant_v1_precision_proxy')}",
+        "- real live rescue audio low-coherence v1: "
+        f"local {summary.get('real_live_rescue_policy_audio_low_coherence_v1_local_seconds', 0.0)} sec, "
+        f"remote-risk {summary.get('real_live_rescue_policy_audio_low_coherence_v1_remote_risk_seconds', 0.0)} sec, "
+        f"precision {summary.get('real_live_rescue_policy_audio_low_coherence_v1_precision_proxy')}",
+        "- real live rescue audio safe union v1: "
+        f"local {summary.get('real_live_rescue_policy_audio_safe_union_v1_local_seconds', 0.0)} sec, "
+        f"remote-risk {summary.get('real_live_rescue_policy_audio_safe_union_v1_remote_risk_seconds', 0.0)} sec, "
+        f"precision {summary.get('real_live_rescue_policy_audio_safe_union_v1_precision_proxy')}, "
+        f"missing-Me recovered {summary.get('real_live_rescue_policy_audio_safe_union_v1_missing_me_recovered_seconds', 0.0)} sec",
         "- real live rescue oracle local ceiling: "
         f"local {summary.get('real_live_rescue_policy_batch_oracle_local_ceiling_local_seconds', 0.0)} sec, "
         f"recall {summary.get('real_live_rescue_policy_batch_oracle_local_ceiling_local_recall_proxy')}",
@@ -2524,6 +2551,42 @@ def main() -> int:
     print(
         "real_live_rescue_policy_remote_silent_text_v1_remote_risk_seconds: "
         f"{summary.get('real_live_rescue_policy_remote_silent_text_v1_remote_risk_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_audio_remote_quiet_v1_local_seconds: "
+        f"{summary.get('real_live_rescue_policy_audio_remote_quiet_v1_local_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_audio_remote_quiet_v1_remote_risk_seconds: "
+        f"{summary.get('real_live_rescue_policy_audio_remote_quiet_v1_remote_risk_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_audio_mic_dominant_v1_local_seconds: "
+        f"{summary.get('real_live_rescue_policy_audio_mic_dominant_v1_local_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_audio_mic_dominant_v1_remote_risk_seconds: "
+        f"{summary.get('real_live_rescue_policy_audio_mic_dominant_v1_remote_risk_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_audio_low_coherence_v1_local_seconds: "
+        f"{summary.get('real_live_rescue_policy_audio_low_coherence_v1_local_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_audio_low_coherence_v1_remote_risk_seconds: "
+        f"{summary.get('real_live_rescue_policy_audio_low_coherence_v1_remote_risk_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_audio_safe_union_v1_local_seconds: "
+        f"{summary.get('real_live_rescue_policy_audio_safe_union_v1_local_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_audio_safe_union_v1_remote_risk_seconds: "
+        f"{summary.get('real_live_rescue_policy_audio_safe_union_v1_remote_risk_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_audio_safe_union_v1_missing_me_recovered_seconds: "
+        f"{summary.get('real_live_rescue_policy_audio_safe_union_v1_missing_me_recovered_seconds', 0.0)}"
     )
     print(
         "real_live_rescue_policy_batch_oracle_local_ceiling_local_seconds: "
