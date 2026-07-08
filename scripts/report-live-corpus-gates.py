@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.12.0"
+SCRIPT_VERSION = "1.13.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -1574,6 +1574,85 @@ def local_recall_gap_examples(rows: list[dict[str, Any]], *, limit: int = 50) ->
     }
 
 
+def remaining_gap_evidence_label_seconds(item: dict[str, Any]) -> dict[str, float]:
+    grouped: dict[str, float] = {}
+    evidence_rows = item.get("suppressed_mic_evidence") if isinstance(item.get("suppressed_mic_evidence"), list) else []
+    for evidence in evidence_rows:
+        if not isinstance(evidence, dict):
+            continue
+        label = str(evidence.get("batch_role_label") or "(none)")
+        grouped[label] = round(grouped.get(label, 0.0) + safe_float(evidence.get("overlap_sec")), 3)
+    return dict(sorted(grouped.items(), key=lambda pair: (-pair[1], pair[0])))
+
+
+def remaining_gap_dominant_evidence_label(item: dict[str, Any]) -> str:
+    grouped = remaining_gap_evidence_label_seconds(item)
+    if not grouped:
+        return "(none)"
+    return next(iter(grouped.keys()))
+
+
+def remaining_gap_actionability(item: dict[str, Any]) -> dict[str, Any]:
+    bucket = str(item.get("bucket") or "")
+    policies = item.get("target_me_candidate_policies") if isinstance(item.get("target_me_candidate_policies"), list) else []
+    evidence_rows = item.get("suppressed_mic_evidence") if isinstance(item.get("suppressed_mic_evidence"), list) else []
+    label_seconds = remaining_gap_evidence_label_seconds(item)
+    dominant_label = remaining_gap_dominant_evidence_label(item)
+    non_hallucination_evidence = [
+        row
+        for row in evidence_rows
+        if isinstance(row, dict) and not bool(row.get("known_hallucination"))
+    ]
+    has_hallucination = any(
+        isinstance(row, dict) and bool(row.get("known_hallucination"))
+        for row in evidence_rows
+    )
+    has_local_label = any(label in label_seconds for label in ("me_dominant", "mixed"))
+    has_remote_dominant = "remote_dominant" in label_seconds
+    has_me_dominant = "me_dominant" in label_seconds
+    has_mixed = "mixed" in label_seconds
+    duplicate_seconds = sum(
+        safe_float(row.get("overlap_sec"))
+        for row in evidence_rows
+        if isinstance(row, dict) and row.get("segment_gate_reason") == "segment_duplicates_overlapping_remote"
+    )
+    if has_hallucination and not non_hallucination_evidence:
+        label = "asr_hallucination_not_rescuable"
+        reason = "only known hallucination evidence overlaps the missing batch Me row"
+    elif bucket.startswith("not_visible"):
+        label = "not_visible_needs_asr_or_boundary_repair"
+        reason = "batch Me text is not visible in suppressed mic ASR"
+    elif policies:
+        label = "target_me_visible_needs_live_materialization_or_timeline_gate"
+        reason = "broader Target-Me evidence exists but the best live-implementable profile did not recover it"
+    elif has_mixed:
+        label = "mixed_needs_segmentation_or_speaker_evidence"
+        reason = "suppressed mic evidence is mixed; publishing it whole would risk remote content"
+    elif has_me_dominant and not has_remote_dominant:
+        label = "speaker_confirmation_candidate"
+        reason = "suppressed mic evidence is me-dominant but lacks Target-Me evidence"
+    elif has_remote_dominant:
+        label = "remote_dominant_not_rescuable_without_new_evidence"
+        reason = "dominant suppressed mic evidence is remote-like"
+    elif has_local_label:
+        label = "local_label_needs_manual_or_new_evidence"
+        reason = "local-looking evidence exists but is not covered by a trusted live rule"
+    elif evidence_rows:
+        label = "suppressed_evidence_not_actionable"
+        reason = "suppressed mic evidence exists but has no trusted local signal"
+    else:
+        label = "missing_suppressed_evidence"
+        reason = "no overlapping suppressed mic evidence was found"
+    return {
+        "label": label,
+        "reason": reason,
+        "dominant_suppressed_label": dominant_label,
+        "suppressed_label_overlap_seconds": label_seconds,
+        "duplicate_overlap_seconds": round(duplicate_seconds, 3),
+        "target_me_candidate_policy_count": len(policies),
+    }
+
+
 def target_me_shadow_profile_remaining_gap_examples(
     rows: list[dict[str, Any]],
     *,
@@ -1626,25 +1705,25 @@ def target_me_shadow_profile_remaining_gap_examples(
             else:
                 bucket = "not_visible_without_target_me"
             policy_set = "+".join(str(policy_name) for policy_name in policies) if policies else "(none)"
-            examples.append(
-                {
-                    "session": session_name,
-                    "profile": policy,
-                    "bucket": bucket,
-                    "policy_set": policy_set,
-                    "batch_id": item.get("batch_id"),
-                    "start": item.get("start"),
-                    "end": item.get("end"),
-                    "duration_sec": item.get("duration_sec"),
-                    "recall_in_live_me": item.get("recall_in_live_me"),
-                    "recall_in_suppressed_mic": item.get("recall_in_suppressed_mic"),
-                    "target_me_candidate_policies": policies,
-                    "suppressed_mic_turn_ids": item.get("suppressed_mic_turn_ids"),
-                    "suppressed_mic_evidence": item.get("suppressed_mic_evidence") or [],
-                    "text": item.get("text"),
-                    "comparison": str(comparison_rel or "derived/live/live_batch_comparison.json"),
-                }
-            )
+            example = {
+                "session": session_name,
+                "profile": policy,
+                "bucket": bucket,
+                "policy_set": policy_set,
+                "batch_id": item.get("batch_id"),
+                "start": item.get("start"),
+                "end": item.get("end"),
+                "duration_sec": item.get("duration_sec"),
+                "recall_in_live_me": item.get("recall_in_live_me"),
+                "recall_in_suppressed_mic": item.get("recall_in_suppressed_mic"),
+                "target_me_candidate_policies": policies,
+                "suppressed_mic_turn_ids": item.get("suppressed_mic_turn_ids"),
+                "suppressed_mic_evidence": item.get("suppressed_mic_evidence") or [],
+                "text": item.get("text"),
+                "comparison": str(comparison_rel or "derived/live/live_batch_comparison.json"),
+            }
+            example["actionability"] = remaining_gap_actionability(example)
+            examples.append(example)
 
     def aggregate_by(key: str) -> dict[str, dict[str, Any]]:
         grouped: dict[str, dict[str, Any]] = {}
@@ -1682,6 +1761,16 @@ def target_me_shadow_profile_remaining_gap_examples(
             row["seconds"] = round(safe_float(row.get("seconds")) + safe_float(item.get("duration_sec")), 3)
         return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
 
+    def aggregate_by_actionability() -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for item in examples:
+            actionability = item.get("actionability") if isinstance(item.get("actionability"), dict) else {}
+            group = str(actionability.get("label") or "(none)")
+            row = grouped.setdefault(group, {"count": 0, "seconds": 0.0})
+            row["count"] += 1
+            row["seconds"] = round(safe_float(row.get("seconds")) + safe_float(item.get("duration_sec")), 3)
+        return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
+
     examples.sort(
         key=lambda item: (
             -safe_float(item.get("duration_sec")),
@@ -1702,6 +1791,7 @@ def target_me_shadow_profile_remaining_gap_examples(
         "by_bucket": aggregate_by("bucket"),
         "by_policy_set": aggregate_by("policy_set"),
         "by_session": aggregate_by("session"),
+        "by_actionability": aggregate_by_actionability(),
         "by_suppressed_policy_set": aggregate_suppressed_policy_set(),
         "by_suppressed_gate_reason": aggregate_top_suppressed_evidence("segment_gate_reason"),
         "by_suppressed_batch_role_label": aggregate_top_suppressed_evidence("batch_role_label"),
@@ -4857,6 +4947,7 @@ def main() -> int:
                     f"{top_policy_set[0]} ({safe_float(top_policy_set[1].get('seconds'))}s)"
                 )
             for field_name, print_name in (
+                ("by_actionability", "top_actionability"),
                 ("by_suppressed_policy_set", "top_suppressed_policy_set"),
                 ("by_suppressed_gate_reason", "top_suppressed_gate_reason"),
                 ("by_suppressed_batch_role_label", "top_suppressed_batch_role_label"),

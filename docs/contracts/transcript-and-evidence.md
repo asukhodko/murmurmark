@@ -5750,7 +5750,13 @@ of overlapping suppressed-mic ASR segments with `rescue_policy_candidates`, `seg
 Known hallucinations, such as subtitle credits, are labeled `known_hallucination` and never receive
 suppressed-mic rescue policies. The corpus block aggregates this as `by_suppressed_policy_set`,
 `by_suppressed_gate_reason` and
-`by_suppressed_batch_role_label`. The report is diagnostic only; it does not change live drafts or
+`by_suppressed_batch_role_label`. Each example also carries `actionability`, and the corpus block
+aggregates it as `by_actionability`. Current labels include
+`mixed_needs_segmentation_or_speaker_evidence`,
+`remote_dominant_not_rescuable_without_new_evidence`,
+`target_me_visible_needs_live_materialization_or_timeline_gate`,
+`asr_hallucination_not_rescuable`, `not_visible_needs_asr_or_boundary_repair` and
+`speaker_confirmation_candidate`. The report is diagnostic only; it does not change live drafts or
 parity gates.
 
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema

@@ -517,8 +517,9 @@ newer run-state exists.
    `segment_duplicates_overlapping_remote` (`73.60s`), top batch-role labels `mixed` (`56.06s`) and
    `remote_dominant` (`50.24s`), plus `known_hallucination` (`12.42s`) that is explicitly forbidden
    from rescue. The best oracle profile reaches `116.97s` missing-Me, so the remaining
-   live-implementable-to-oracle gap is `14.00s`. This proves the materialization and online
-   remote-forbidden mechanism, not parity.
+   live-implementable-to-oracle gap is `14.00s`. Actionability now points at `60.42s`
+   `mixed_needs_segmentation_or_speaker_evidence`, not a clean speaker-confirmation queue. This
+   proves the materialization and online remote-forbidden mechanism, not parity.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

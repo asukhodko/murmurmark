@@ -369,6 +369,12 @@ Online remote-overlap shadow filter, 2026-07-09:
   `segment_duplicates_overlapping_remote` (`73.60s`) by gate reason, and `mixed` (`56.06s`) /
   `remote_dominant` (`50.24s`) by suppressed batch-role label. Known live ASR hallucinations are now
   split out as `known_hallucination` (`12.42s`) and cannot become rescue candidates.
+- Remaining-gap actionability:
+  - `mixed_needs_segmentation_or_speaker_evidence`: `60.42s`;
+  - `remote_dominant_not_rescuable_without_new_evidence`: `29.68s`;
+  - `target_me_visible_needs_live_materialization_or_timeline_gate`: `26.78s`;
+  - `asr_hallucination_not_rescuable`: `12.42s`;
+  - `speaker_confirmation_candidate`: `0.32s`.
 - `target_me_possible_timeline_safe_v1` recovers `251.37s`, rejects `47.38s` of candidates
   (`31.08s` contentful order risk, `16.30s` suspected remote leak), and keeps measured remote leak at
   `0.00s`.
@@ -385,11 +391,11 @@ Conclusion: the online filter closes the current measured remote-leak symptom wi
 and the `target_me_possible_timeline_safe` profile converts most of the former broad Target-Me gap
 into order-safe live shadow material. The goal remains blocked by local recall, order risk, review
 burden and draft readiness, not by lack of another raw recording. The best oracle improves the best
-live-implementable profile by only `14.00s`, so the next useful work is to add a new kind of
-local-speaker evidence for the `90.42s` visible-without-Target-Me slice and investigate the `13.77s`
-not-visible tail. Because the suppressed evidence includes many mixed/remote-dominant overlaps and a
-separate hallucination tail, the next step should add stronger speaker evidence or segmentation
-diagnostics, not merely loosen audio/text thresholds.
+live-implementable profile by only `14.00s`, so the next useful work is mixed-region segmentation
+and/or a new kind of local-speaker evidence, not another broad threshold. Because the suppressed
+evidence includes many mixed/remote-dominant overlaps and a separate hallucination tail, the next
+step should add stronger speaker evidence or segmentation diagnostics, not merely loosen audio/text
+thresholds.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not

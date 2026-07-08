@@ -534,6 +534,10 @@ top batch-role label `mixed` (`56.06s`). A `known_hallucination` slice (`12.42s`
 separately and is never a rescue candidate. That means the remaining gap is not a simple clean local
 speech queue; many rows are short mixed/remote-dominant fragments or ASR artifacts that need better
 speaker evidence or stricter segmentation before they can be trusted.
+The actionability split makes the next step concrete: `60.42s` are
+`mixed_needs_segmentation_or_speaker_evidence`, `29.68s` are remote-dominant without new evidence,
+`26.78s` already have Target-Me evidence but need safe live materialization/timeline handling,
+`12.42s` are hallucination, and only `0.32s` is a plain speaker-confirmation candidate.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1169,7 +1173,8 @@ Active goal and near-term candidates:
    no Target-Me policy. The remaining-gap evidence also shows `56.06s` top-overlap `mixed`,
    `50.24s` `remote_dominant`, `12.42s` `known_hallucination`, and only `10.90s` `me_dominant`
    suppressed-mic labels, so the next profile should improve speaker evidence rather than just
-   loosen audio/text gates. Batch remains authoritative.
+   loosen audio/text gates. Actionability now points first to mixed-region segmentation:
+   `60.42s` `mixed_needs_segmentation_or_speaker_evidence`. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
