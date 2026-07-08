@@ -5618,6 +5618,8 @@ Rows may include `target_me_rescue_policy_candidates`. The current policies are:
 - `target_me_confirmed_v1`: confirmed Target-Me match, useful but not remote-safe by itself;
 - `target_me_confirmed_remote_guard_v1`: confirmed Target-Me match with a remote guard
   (`delta_vs_remote` and low remote-active state); useful, but it can still add timeline order risk;
+- `target_me_possible_timeline_safe_v1`: the broad `target_me_possible_v1` candidate set filtered
+  through the same shadow-only remote-leak and contentful-order checks;
 - `target_me_possible_v1`: confirmed or possible Target-Me evidence, high recall but allowed to be
   unsafe and therefore diagnostic-only.
 
@@ -5721,16 +5723,17 @@ draft. `online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1` c
 with the dual Target-Me suppressed-mic rescue. Current corpus evidence: the combined profile removes
 `15.96s` remote-like live `Me`, leaves `0.00s` measured remote leak, adds `47.70s` suppressed-mic
 `Me`, but still leaves `380.17s` missing-Me and `4` contentful role-constrained order mismatches.
-`online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1` is the
-current best live-implementable profile: it combines the remote-overlap cleanup, timeline-safe
-Target-Me rescue and `audio_safe_union_v1`, reaching `278.52s` missing-Me with `0.00s` measured
-remote leak and `4` contentful order mismatches. The remaining missing-Me splits into `174.33s`
-visible with broader Target-Me evidence, `90.42s` visible without Target-Me evidence and `13.77s`
-not visible in suppressed mic. The less strict remote-guard audio-safe profile reaches `276.93s`
-missing-Me, but increases contentful order mismatches to `7`, so it is not the safest live
-implementable default. The timeline-safe Target-Me policy rejects `18.30s` of candidates, all due to
-contentful order risk and `0.00s` due to suspected remote leak. These profiles remain diagnostic
-drafts and are not promotable.
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1` is
+the current best live-implementable profile: it combines the remote-overlap cleanup, timeline-safe
+`target_me_possible_v1` rescue and `audio_safe_union_v1`, reaching `130.97s` missing-Me with
+`0.00s` measured remote leak and `4` contentful order mismatches. The remaining missing-Me splits
+into `26.78s` visible with broader Target-Me evidence, `90.42s` visible without Target-Me evidence
+and `13.77s` not visible in suppressed mic. The underlying `target_me_possible_timeline_safe_v1`
+policy recovers `251.37s`, rejects `47.38s` of candidates (`31.08s` contentful-order risk and
+`16.30s` suspected remote leak), and keeps measured remote leak at `0.00s`. The less strict
+remote-guard audio-safe profile reaches `276.93s` missing-Me, but increases contentful order
+mismatches to `7`, so it is not the safest live implementable default. These profiles remain
+diagnostic drafts and are not promotable.
 
 The corpus report also writes
 `live_target_me_shadow_profile_best_live_implementable_remaining_gap` with schema

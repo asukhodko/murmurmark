@@ -344,20 +344,23 @@ Online remote-overlap shadow filter, 2026-07-09:
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
 - current best live-implementable profile is
-  `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1`:
+  `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1`:
   - remaining measured remote leak: `0.00s`;
   - visible suppressed mic added: `52.76s`;
-  - missing-Me: `278.52s`;
+  - missing-Me: `130.97s`;
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
 - remaining missing-Me decomposition for that best live-implementable profile:
-  - visible in suppressed mic with broader Target-Me evidence: `174.33s`;
+  - visible in suppressed mic with broader Target-Me evidence: `26.78s`;
   - visible in suppressed mic without Target-Me evidence: `90.42s`;
   - not visible in suppressed mic: `13.77s`;
   - not visible but with Target-Me evidence: `0.00s`.
 - `live_target_me_shadow_profile_best_live_implementable_remaining_gap` exposes the same residual
-  queue by bucket, policy set and session; its largest policy set is `target_me_possible_v1`
-  (`108.91s`), followed by rows with no Target-Me policy (`104.19s`).
+  queue by bucket, policy set and session; its largest policy set is now no Target-Me policy
+  (`104.19s`), followed by a much smaller `target_me_possible_v1` tail (`5.94s`).
+- `target_me_possible_timeline_safe_v1` recovers `251.37s`, rejects `47.38s` of candidates
+  (`31.08s` contentful order risk, `16.30s` suspected remote leak), and keeps measured remote leak at
+  `0.00s`.
 - less strict remote-guard variants prove the recall/order trade-off:
   `online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1` reduces
   missing-Me to `276.93s` and keeps measured remote leak at `0.00s`, but raises contentful
@@ -368,14 +371,11 @@ Online remote-overlap shadow filter, 2026-07-09:
   - rejected because of suspected remote leak: `0.00s`.
 
 Conclusion: the online filter closes the current measured remote-leak symptom without batch truth,
-and the best live-implementable profile improves local recall more than the dual Target-Me slice.
-The goal remains blocked by local recall, order risk, review burden and draft readiness, not by lack
-of another raw recording. The next useful work is to improve local-speaker evidence for the
-`174.33s` visible-with-Target-Me slice without paying the remote-guard profile's order-risk cost;
-timeline-safe itself accounts for only `18.30s` of currently rejected candidate speech.
-satisfy live parity. The next implementation needs either remote-leak removal in the online draft or
-a stronger local-speaker/remote-forbidden judge that covers more of the `380.17s` remaining
-missing-Me.
+and the `target_me_possible_timeline_safe` profile converts most of the former broad Target-Me gap
+into order-safe live shadow material. The goal remains blocked by local recall, order risk, review
+burden and draft readiness, not by lack of another raw recording. The next useful work is to improve
+local-speaker evidence for the `90.42s` visible-without-Target-Me slice and investigate the `13.77s`
+not-visible tail.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not
@@ -452,6 +452,9 @@ New Target-Me diagnostic, 2026-07-08:
   subset: it accepts only candidates that do not increase contentful role-constrained order
   mismatches and do not add measured remote leak. Current real corpus result: `103.82s` missing-Me
   recovered, `0.00s` measured remote leak, `0` contentful order-mismatch delta.
+- `target_me_possible_timeline_safe_v1` applies the same conservative checks to the broader possible
+  Target-Me set. Current real corpus result: `251.37s` missing-Me recovered, `0.00s` measured remote
+  leak, `0` contentful order-mismatch delta, with `47.38s` rejected before publication.
 - `compare-live-batch.py` now materializes that subset as diagnostic-only
   `derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.json` and
   `draft.md`. Inserted turns are marked `shadow_added: true`; promotion remains false and batch
@@ -481,8 +484,10 @@ New Target-Me diagnostic, 2026-07-08:
 - Two live-accessible suppressed-mic profiles were evaluated against the same gates. `audio_safe_union_v1`
   is safe but too weak (`278.52s` profile missing-Me remains). `audio_low_corr_text_guard_v1` recovers
   much more (`117.52s` missing-Me remains), but leaks `210.10s` of remote-like text, so it is not a
-  viable promotion path. The next online design therefore needs stronger local-speaker or remote-forbidden
-  evidence than simple audio/text thresholds.
+  viable promotion path. Combining `target_me_possible_timeline_safe_v1`, online remote-overlap
+  cleanup and `audio_safe_union_v1` gives the current best live-implementable shadow at `130.97s`
+  missing-Me. The next online design therefore needs stronger local-speaker evidence for visible
+  suppressed mic regions that still have no Target-Me policy.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
 existing corpus already contains enough suppressed live mic material and enough Target-Me evidence.

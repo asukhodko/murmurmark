@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.19.0"
+SCRIPT_VERSION = "0.20.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 KNOWN_HALLUCINATION_RE = re.compile(
@@ -100,12 +100,15 @@ TARGET_ME_RESCUE_POLICIES = (
     "target_me_confirmed_remote_guard_v1",
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_possible_v1",
+    "target_me_possible_timeline_safe_v1",
 )
 TARGET_ME_DERIVED_POLICY_BASE = {
     "target_me_confirmed_remote_guard_timeline_safe_v1": "target_me_confirmed_remote_guard_v1",
+    "target_me_possible_timeline_safe_v1": "target_me_possible_v1",
 }
 TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
+    "target_me_possible_timeline_safe_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_audio_safe_union_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1",
@@ -117,6 +120,8 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
 )
 TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1": (
@@ -136,6 +141,12 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
     ),
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1": (
         "target_me_confirmed_remote_guard_timeline_safe_v1"
+    ),
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1": (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1": (
+        "target_me_possible_timeline_safe_v1"
     ),
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1": (
         "target_me_confirmed_remote_guard_v1"
@@ -160,6 +171,9 @@ TARGET_ME_ONLINE_SUPPRESSED_MIC_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1": (
         "audio_safe_union_v1"
     ),
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1": (
+        "audio_safe_union_v1"
+    ),
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1": (
         "audio_safe_union_v1"
     ),
@@ -178,6 +192,8 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
 }
 LIVE_ME_REMOTE_OVERLAP_FILTER_NO_TARGET_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_v1",

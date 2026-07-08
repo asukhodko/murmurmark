@@ -506,15 +506,14 @@ newer run-state exists.
    `15.96s` remote-like live `Me`, preserves the `47.70s` rescue and keeps measured remote leak at
    `0.00s`, but still leaves `380.17s` missing-Me and `4` contentful order mismatches. The current
    best live-implementable profile,
-   `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1`, reaches
-   `278.52s` missing-Me with `0.00s` remote leak, `4` contentful order mismatches and `41`
-   non-passing gates. Its residual missing-Me splits into `174.33s` visible with broader Target-Me
-   evidence, `90.42s` visible without Target-Me evidence and `13.77s` not visible in suppressed
-   mic. A less strict remote-guard variant reaches `276.93s` missing-Me but raises contentful order
-   mismatches to `7`. The timeline-safe Target-Me policy rejects only `18.30s` candidate speech,
-   all due to contentful order risk and none due to remote leak. The remaining-gap report identifies
-   `target_me_possible_v1` as the largest live-actionable policy bucket (`108.91s`). This proves the
-   materialization and online remote-forbidden mechanism, not parity.
+   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1`,
+   reaches `130.97s` missing-Me with `0.00s` remote leak, `4` contentful order mismatches and `41`
+   non-passing gates. It gets there by applying timeline-safe checks to the broader
+   `target_me_possible_v1` set: `251.37s` recovered, `47.38s` rejected (`31.08s` order risk,
+   `16.30s` remote leak). The residual missing-Me splits into `26.78s` visible with broader
+   Target-Me evidence, `90.42s` visible without Target-Me evidence and `13.77s` not visible in
+   suppressed mic. The remaining-gap report now identifies no-policy rows as the largest bucket
+   (`104.19s`). This proves the materialization and online remote-forbidden mechanism, not parity.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.9.4"
+SCRIPT_VERSION = "1.10.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -50,9 +50,11 @@ TARGET_ME_RESCUE_POLICIES = (
     "target_me_confirmed_remote_guard_v1",
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_possible_v1",
+    "target_me_possible_timeline_safe_v1",
 )
 TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
+    "target_me_possible_timeline_safe_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_audio_safe_union_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1",
@@ -64,6 +66,8 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
 )
 TARGET_ME_SHADOW_POLICY_METRICS = (
     "candidate_segment_count",
