@@ -515,8 +515,8 @@ newer run-state exists.
    suppressed mic. The remaining-gap report now identifies no-policy rows as the largest bucket
    (`104.19s`) and also groups their overlapping suppressed-mic evidence: top gate reason
    `segment_duplicates_overlapping_remote` (`73.60s`), top batch-role labels `mixed` (`56.06s`) and
-   `remote_dominant` (`50.24s`). This proves the materialization and online remote-forbidden
-   mechanism, not parity.
+   `remote_dominant` (`50.24s`), plus `known_hallucination` (`12.42s`) that is explicitly forbidden
+   from rescue. This proves the materialization and online remote-forbidden mechanism, not parity.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

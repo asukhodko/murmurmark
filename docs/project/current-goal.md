@@ -359,9 +359,10 @@ Online remote-overlap shadow filter, 2026-07-09:
   queue by bucket, policy set and session; its largest policy set is now no Target-Me policy
   (`104.19s`), followed by a much smaller `target_me_possible_v1` tail (`5.94s`).
 - The same block now exposes overlapping suppressed-mic evidence. Current top groups:
-  `batch_oracle_local_ceiling` (`39.20s`) by suppressed policy set,
+  `batch_oracle_local_ceiling` (`26.78s`) by suppressed policy set,
   `segment_duplicates_overlapping_remote` (`73.60s`) by gate reason, and `mixed` (`56.06s`) /
-  `remote_dominant` (`50.24s`) by suppressed batch-role label.
+  `remote_dominant` (`50.24s`) by suppressed batch-role label. Known live ASR hallucinations are now
+  split out as `known_hallucination` (`12.42s`) and cannot become rescue candidates.
 - `target_me_possible_timeline_safe_v1` recovers `251.37s`, rejects `47.38s` of candidates
   (`31.08s` contentful order risk, `16.30s` suspected remote leak), and keeps measured remote leak at
   `0.00s`.
@@ -379,9 +380,9 @@ and the `target_me_possible_timeline_safe` profile converts most of the former b
 into order-safe live shadow material. The goal remains blocked by local recall, order risk, review
 burden and draft readiness, not by lack of another raw recording. The next useful work is to improve
 local-speaker evidence for the `90.42s` visible-without-Target-Me slice and investigate the `13.77s`
-not-visible tail. Because the suppressed evidence includes many mixed/remote-dominant overlaps, the
-next step should add stronger speaker evidence or segmentation diagnostics, not merely loosen
-audio/text thresholds.
+not-visible tail. Because the suppressed evidence includes many mixed/remote-dominant overlaps and a
+separate hallucination tail, the next step should add stronger speaker evidence or segmentation
+diagnostics, not merely loosen audio/text thresholds.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not

@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.21.0"
+SCRIPT_VERSION = "0.22.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 KNOWN_HALLUCINATION_RE = re.compile(
@@ -1351,6 +1351,8 @@ def read_global_asr_segments(session: Path, source: dict[str, Any]) -> list[dict
 
 def suppressed_mic_rescue_policy_labels(row: dict[str, Any]) -> list[str]:
     labels: list[str] = []
+    if row.get("known_hallucination"):
+        return labels
     token_count = safe_int(row.get("token_count"))
     unique_count = safe_int(row.get("segment_gate_unique_token_count"))
     mic_in_remote = safe_float(row.get("segment_gate_mic_token_recall_in_overlapping_remote"))
@@ -1515,6 +1517,7 @@ def read_suppressed_mic_asr_segment_audit(
             text = clean_text(str(item.get("text") or ""))
             if not text:
                 continue
+            known_hallucination = bool(KNOWN_HALLUCINATION_RE.search(text))
             role = batch_role_label_for_interval(batch_utterances, start, end)
             computed_features = text_features_against_remote(
                 text,
@@ -1528,7 +1531,7 @@ def read_suppressed_mic_asr_segment_audit(
                 end_sec=end,
             )
             decision = decisions.get((round(start, 3), round(end, 3), text), {})
-            label = str(role.get("label") or "none")
+            label = "known_hallucination" if known_hallucination else str(role.get("label") or "none")
             duration = max(0.0, end - start)
             label_counts[label] += 1
             label_seconds[label] += duration
@@ -1543,6 +1546,7 @@ def read_suppressed_mic_asr_segment_audit(
                 "text": text,
                 "token_count": len(tokens(text)),
                 "batch_role_label": label,
+                "known_hallucination": known_hallucination,
                 "batch_role_evidence": role,
                 "segment_gate_status": decision.get("status") or "not_evaluated",
                 "segment_gate_reason": decision.get("reason"),
@@ -1586,19 +1590,19 @@ def read_suppressed_mic_asr_segment_audit(
             "live_suppressed_mic_asr_segment_seconds": round(sum(safe_float(row.get("duration_sec")) for row in rows), 3),
             **{
                 f"live_suppressed_mic_asr_{label}_segment_count": label_counts[label]
-                for label in ("me_dominant", "mixed", "remote_dominant", "none")
+                for label in ("me_dominant", "mixed", "remote_dominant", "none", "known_hallucination")
             },
             **{
                 f"live_suppressed_mic_asr_{label}_segment_seconds": round(label_seconds[label], 3)
-                for label in ("me_dominant", "mixed", "remote_dominant", "none")
+                for label in ("me_dominant", "mixed", "remote_dominant", "none", "known_hallucination")
             },
             **{
                 f"live_segment_role_gate_candidate_{label}_segment_count": candidate_label_counts[label]
-                for label in ("me_dominant", "mixed", "remote_dominant", "none")
+                for label in ("me_dominant", "mixed", "remote_dominant", "none", "known_hallucination")
             },
             **{
                 f"live_segment_role_gate_candidate_{label}_segment_seconds": round(candidate_label_seconds[label], 3)
-                for label in ("me_dominant", "mixed", "remote_dominant", "none")
+                for label in ("me_dominant", "mixed", "remote_dominant", "none", "known_hallucination")
             },
             **(policy_summary.get("metrics") or {}),
         },
@@ -1652,6 +1656,7 @@ def suppressed_mic_evidence_for_interval(
                 "overlap_ratio": round(overlap / duration, 6) if duration > 0 else 0.0,
                 "text": segment.get("text"),
                 "batch_role_label": segment.get("batch_role_label"),
+                "known_hallucination": bool(segment.get("known_hallucination")),
                 "rescue_policy_candidates": segment.get("rescue_policy_candidates") or [],
                 "segment_gate_status": segment.get("segment_gate_status"),
                 "segment_gate_reason": segment.get("segment_gate_reason"),

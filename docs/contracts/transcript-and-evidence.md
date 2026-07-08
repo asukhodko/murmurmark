@@ -4854,6 +4854,8 @@ Schema:
     "live_suppressed_mic_asr_me_dominant_segment_seconds": 0.0,
     "live_suppressed_mic_asr_mixed_segment_count": 0,
     "live_suppressed_mic_asr_mixed_segment_seconds": 0.0,
+    "live_suppressed_mic_asr_known_hallucination_segment_count": 0,
+    "live_suppressed_mic_asr_known_hallucination_segment_seconds": 0.0,
     "live_rescue_policy_current_text_segment_gate_local_seconds": 0.0,
     "live_rescue_policy_current_text_segment_gate_remote_risk_seconds": 0.0,
     "live_rescue_policy_current_text_segment_gate_precision_proxy": null,
@@ -5744,8 +5746,10 @@ visible in suppressed mic ASR and whether it already has broader Target-Me evide
 `visible_with_target_me`, `visible_without_target_me`, `not_visible_with_target_me` and
 `not_visible_without_target_me`. Each example may include `suppressed_mic_evidence`, a compact list
 of overlapping suppressed-mic ASR segments with `rescue_policy_candidates`, `segment_gate_reason`,
-`batch_role_label`, text-recall features and basic audio features. The corpus block aggregates this
-as `by_suppressed_policy_set`, `by_suppressed_gate_reason` and
+`batch_role_label`, `known_hallucination`, text-recall features and basic audio features.
+Known hallucinations, such as subtitle credits, are labeled `known_hallucination` and never receive
+suppressed-mic rescue policies. The corpus block aggregates this as `by_suppressed_policy_set`,
+`by_suppressed_gate_reason` and
 `by_suppressed_batch_role_label`. The report is diagnostic only; it does not change live drafts or
 parity gates.
 
