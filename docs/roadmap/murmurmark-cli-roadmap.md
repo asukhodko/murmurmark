@@ -501,8 +501,11 @@ newer run-state exists.
    keep building stricter remote-forbidden/local-speaker gates for the remaining suppressed mic
    regions. The tiny safe composite is already materialized as
    `online_suppressed_mic_dual_target_remote_guard_v1`: it adds `47.70s`, leaves `380.17s`
-   missing-Me and leaves the existing `15.96s` live remote leak untouched, so it proves the
-   materialization mechanism but not parity.
+   missing-Me and leaves the existing `15.96s` live remote leak untouched. The paired
+   `online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1` shadow removes that
+   `15.96s` remote-like live `Me`, preserves the `47.70s` rescue and keeps measured remote leak at
+   `0.00s`, but still leaves `380.17s` missing-Me and `4` contentful order mismatches. This proves
+   the materialization and online remote-forbidden mechanism, not parity.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

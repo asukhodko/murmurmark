@@ -5663,6 +5663,10 @@ derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_bat
 derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1/draft.md
 derived/live/target-me-shadow/online_suppressed_mic_dual_target_remote_guard_v1/draft.json
 derived/live/target-me-shadow/online_suppressed_mic_dual_target_remote_guard_v1/draft.md
+derived/live/target-me-shadow/online_live_me_remote_overlap_filter_v1/draft.json
+derived/live/target-me-shadow/online_live_me_remote_overlap_filter_v1/draft.md
+derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1/draft.json
+derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1/draft.md
 ```
 
 The JSON uses schema `murmurmark.live_target_me_shadow_draft/v1`, includes `promotion_allowed:
@@ -5694,6 +5698,15 @@ session-local and historical Target-Me evidence agree under their remote guard. 
 evaluated through the same parity gates to measure whether a live-implementable rule is already safe.
 They remain `promotion_allowed: false`; passing such a profile would be evidence for a future live
 role-gate change, not automatic promotion.
+
+`online_live_me_remote_overlap_filter_v1` is a separate live-implementable cleanup shadow for already
+published live `Me` turns. It removes a live `Me` turn only when that turn strongly overlaps
+contemporary live `Colleagues` text using timing and token-recall evidence available inside the live
+draft. `online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1` combines that cleanup
+with the dual Target-Me suppressed-mic rescue. Current corpus evidence: the combined profile removes
+`15.96s` remote-like live `Me`, leaves `0.00s` measured remote leak, adds `47.70s` suppressed-mic
+`Me`, but still leaves `380.17s` missing-Me and `4` contentful role-constrained order mismatches.
+It remains a diagnostic draft and is not promotable.
 
 Profile `risk_examples.local_missing` carries the same fields per utterance, including
 `recall_in_suppressed_mic`, `suppressed_mic_turn_ids` and `target_me_candidate_policies`. The oracle

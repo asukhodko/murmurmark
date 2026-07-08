@@ -100,6 +100,8 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
     "online_suppressed_mic_dual_target_remote_guard_v1",
+    "online_live_me_remote_overlap_filter_v1",
+    "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
 )
 TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1": (
@@ -134,6 +136,11 @@ TARGET_ME_VISIBLE_SUPPRESSED_MIC_ORACLE_POLICIES = {
 }
 SUPPRESSED_MIC_COMPOSITE_SHADOW_PROFILE_POLICIES = {
     "online_suppressed_mic_dual_target_remote_guard_v1",
+    "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
+}
+LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
+    "online_live_me_remote_overlap_filter_v1",
+    "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
 }
 MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 
@@ -915,7 +922,7 @@ def suppressed_mic_composite_shadow_turns(
     target_me_rows: list[dict[str, Any]],
     persistent_target_me_rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    if policy != "online_suppressed_mic_dual_target_remote_guard_v1":
+    if policy not in SUPPRESSED_MIC_COMPOSITE_SHADOW_PROFILE_POLICIES:
         return []
     target_by_key = {target_me_audit_row_key(row): row for row in target_me_rows}
     persistent_by_key = {persistent_target_me_row_key(row): row for row in persistent_target_me_rows}
@@ -1185,6 +1192,47 @@ def text_features_against_remote(text: str, remote_tokens: list[str]) -> dict[st
         "unique_tokens": unique_tokens[:12],
         "mic_token_recall_in_overlapping_remote": round(bag_recall(mic_tokens, remote_tokens) or 0.0, 6),
         "overlapping_remote_token_recall_in_mic": round(bag_recall(remote_tokens, mic_tokens) or 0.0, 6),
+    }
+
+
+def live_me_remote_overlap_filter_decision(
+    turn: dict[str, Any],
+    remote_turns: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if turn.get("role") != "Me":
+        return None
+    text = clean_text(str(turn.get("text") or ""))
+    start = safe_float(turn.get("start"))
+    end = safe_float(turn.get("end"), start)
+    duration = max(0.0, end - start)
+    mic_tokens = tokens(text)
+    remote_tokens = overlapping_tokens_for_rows(remote_turns, start, end, guard_sec=1.0)
+    features = text_features_against_remote(text, remote_tokens)
+    mic_in_remote = safe_float(features.get("mic_token_recall_in_overlapping_remote"))
+    remote_in_mic = safe_float(features.get("overlapping_remote_token_recall_in_mic"))
+    should_remove = (
+        duration >= 3.0
+        and len(mic_tokens) >= 5
+        and len(remote_tokens) >= 5
+        and (mic_in_remote >= 0.70 or remote_in_mic >= 0.75)
+    )
+    if not should_remove:
+        return None
+    return {
+        "schema": "murmurmark.live_me_remote_overlap_filter_decision/v1",
+        "decision": "drop_live_me_shadow_only",
+        "reason": "live_me_text_overlaps_contemporary_live_remote",
+        "start": round(start, 3),
+        "end": round(end, 3),
+        "duration": round(duration, 3),
+        "thresholds": {
+            "min_duration_sec": 3.0,
+            "min_mic_tokens": 5,
+            "min_overlapping_remote_tokens": 5,
+            "mic_token_recall_in_overlapping_remote": 0.70,
+            "overlapping_remote_token_recall_in_mic": 0.75,
+        },
+        "features": features,
     }
 
 
@@ -2761,13 +2809,35 @@ def target_me_shadow_profile_components(
     batch_utterances: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     base_policy = TARGET_ME_SHADOW_PROFILE_BASE_POLICY.get(policy, policy)
-    target_turns = [] if policy in SUPPRESSED_MIC_COMPOSITE_SHADOW_PROFILE_POLICIES else list(
-        target_me_turns_by_policy.get(base_policy) or []
+    target_turns = (
+        []
+        if policy in SUPPRESSED_MIC_COMPOSITE_SHADOW_PROFILE_POLICIES
+        or policy in LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES
+        else list(target_me_turns_by_policy.get(base_policy) or [])
     )
     live_turns = list(live_turns_rows)
     supplemental_turns: list[dict[str, Any]] = []
     rejected_supplemental_turns: list[dict[str, Any]] = []
     removed_live_turns: list[dict[str, Any]] = []
+    if policy in LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES:
+        remote_turns = [turn for turn in live_turns if turn.get("role") == "Colleagues"]
+        kept_live_turns = []
+        for turn in live_turns:
+            evidence = live_me_remote_overlap_filter_decision(turn, remote_turns)
+            if evidence:
+                payload = shadow_turn_payload(turn, None)
+                payload.update(
+                    {
+                        "removed_by_policy": policy,
+                        "removal_reason": "online_live_me_remote_overlap_filter",
+                        "evidence": evidence,
+                    }
+                )
+                removed_live_turns.append(payload)
+            else:
+                kept_live_turns.append(turn)
+        live_turns = kept_live_turns
+
     if policy in TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES:
         remote_leak_by_id = {
             str(row.get("live_id")): row

@@ -321,6 +321,29 @@ Materialized composite shadow profile, 2026-07-09:
 
 Conclusion: the zero-risk composite is now a real materialized shadow draft, not only a lab number.
 It proves the mechanism for publishing a tiny safe suppressed-mic subset, but it is far too small to
+close parity by itself.
+
+Online remote-overlap shadow filter, 2026-07-09:
+
+- `compare-live-batch.py` now also writes
+  `derived/live/target-me-shadow/online_live_me_remote_overlap_filter_v1/draft.json` and
+  `derived/live/target-me-shadow/online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1/draft.json`;
+- the filter removes only live `Me` turns whose text strongly overlaps contemporary live
+  `Colleagues` text: at least `3s`, at least `5` mic tokens, at least `5` overlapping remote tokens,
+  and either `mic_token_recall_in_overlapping_remote >= 0.70` or
+  `overlapping_remote_token_recall_in_mic >= 0.75`;
+- current real corpus result for the combined profile:
+  - removed live `Me`: `15.96s`;
+  - remaining measured remote leak: `0.00s`;
+  - restored suppressed mic `Me`: `47.70s`;
+  - missing-Me: `380.17s`;
+  - contentful role-constrained order mismatches: `4`;
+  - non-passing gates: `41`.
+
+Conclusion: the online filter closes the current measured remote-leak symptom without batch truth,
+but it does not improve local recall beyond the dual Target-Me rescue and does not clear order risk.
+The goal remains blocked by local recall, order risk, review burden and draft readiness, not by lack
+of another raw recording.
 satisfy live parity. The next implementation needs either remote-leak removal in the online draft or
 a stronger local-speaker/remote-forbidden judge that covers more of the `380.17s` remaining
 missing-Me.

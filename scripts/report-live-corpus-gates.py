@@ -58,6 +58,8 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
     "online_suppressed_mic_dual_target_remote_guard_v1",
+    "online_live_me_remote_overlap_filter_v1",
+    "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
 )
 TARGET_ME_SHADOW_POLICY_METRICS = (
     "candidate_segment_count",

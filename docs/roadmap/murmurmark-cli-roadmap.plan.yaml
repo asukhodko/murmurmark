@@ -739,9 +739,13 @@ nodes:
       reaches `116.10s` local/mixed with `2.44s` remote-risk, and the stricter capture-safe
       candidate scope still recovers `0.00s`. The tiny safe composite is now materialized as
       `online_suppressed_mic_dual_target_remote_guard_v1`: it adds `47.70s`, leaves `380.17s`
-      missing-Me and leaves the existing `15.96s` live remote leak untouched. Next implementation
-      should continue stronger remote-forbidden/local-speaker work and handle existing live remote
-      leak separately from suppressed-mic rescue.
+      missing-Me and leaves the existing `15.96s` live remote leak untouched. The paired
+      `online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1` shadow handles that
+      symptom separately: it removes `15.96s` remote-like live `Me`, keeps measured remote leak at
+      `0.00s`, preserves the `47.70s` suppressed-mic rescue, but still leaves `380.17s`
+      missing-Me, `4` contentful role-constrained order mismatches and `41` non-passing gates.
+      Next implementation should focus on stronger local-speaker evidence and order-safe live role
+      gating, not on promotion.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful
