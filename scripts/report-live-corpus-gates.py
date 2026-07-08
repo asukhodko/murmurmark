@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.13.0"
+SCRIPT_VERSION = "1.14.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -1592,6 +1592,68 @@ def remaining_gap_dominant_evidence_label(item: dict[str, Any]) -> str:
     return next(iter(grouped.keys()))
 
 
+def remaining_gap_mixed_segmentability(
+    *,
+    evidence_rows: list[dict[str, Any]],
+    label_seconds: dict[str, float],
+    duplicate_seconds: float,
+    duration: float,
+) -> dict[str, Any]:
+    local_islands = [
+        row
+        for row in evidence_rows
+        if isinstance(row, dict)
+        and row.get("batch_role_label") in {"me_dominant", "mixed"}
+        and not bool(row.get("known_hallucination"))
+        and row.get("segment_gate_reason") == "segment_has_local_tokens_not_seen_in_overlapping_remote"
+    ]
+    local_island_seconds = round(sum(safe_float(row.get("overlap_sec")) for row in local_islands), 3)
+    mixed_seconds = safe_float(label_seconds.get("mixed"))
+    me_seconds = safe_float(label_seconds.get("me_dominant"))
+    remote_seconds = safe_float(label_seconds.get("remote_dominant"))
+    local_seconds = round(mixed_seconds + me_seconds, 3)
+    duplicate_ratio = round(duplicate_seconds / duration, 6) if duration > 0 else 0.0
+    remote_ratio = round(remote_seconds / duration, 6) if duration > 0 else 0.0
+    local_island_ratio = round(local_island_seconds / duration, 6) if duration > 0 else 0.0
+    if local_island_seconds >= 2.0 and remote_seconds <= local_seconds:
+        label = "local_island_split_candidate"
+        reason = "local-looking islands exist inside the mixed missing row"
+    elif remote_seconds > local_seconds:
+        label = "remote_dominant_mixed_not_rescuable"
+        reason = "remote-dominant evidence outweighs local-looking evidence"
+    elif duplicate_ratio >= 0.60:
+        label = "duplicate_heavy_needs_speaker_evidence"
+        reason = "most overlapping evidence is duplicate-overlapping remote"
+    elif duration <= 1.5 or local_seconds <= 1.5:
+        label = "short_low_value_tail"
+        reason = "candidate is too short for a major live rescue focus"
+    else:
+        label = "needs_speaker_evidence"
+        reason = "mixed evidence has no safe local island split signal"
+    return {
+        "label": label,
+        "reason": reason,
+        "local_island_seconds": local_island_seconds,
+        "local_island_count": len(local_islands),
+        "local_overlap_seconds": local_seconds,
+        "remote_overlap_seconds": round(remote_seconds, 3),
+        "duplicate_overlap_ratio": duplicate_ratio,
+        "remote_overlap_ratio": remote_ratio,
+        "local_island_ratio": local_island_ratio,
+        "local_island_examples": [
+            {
+                "start": row.get("start"),
+                "end": row.get("end"),
+                "overlap_sec": row.get("overlap_sec"),
+                "text": row.get("text"),
+                "audio_mic_minus_remote_rms_db": row.get("audio_mic_minus_remote_rms_db"),
+                "audio_mic_remote_zero_lag_abs_corr": row.get("audio_mic_remote_zero_lag_abs_corr"),
+            }
+            for row in local_islands[:5]
+        ],
+    }
+
+
 def remaining_gap_actionability(item: dict[str, Any]) -> dict[str, Any]:
     bucket = str(item.get("bucket") or "")
     policies = item.get("target_me_candidate_policies") if isinstance(item.get("target_me_candidate_policies"), list) else []
@@ -1616,6 +1678,7 @@ def remaining_gap_actionability(item: dict[str, Any]) -> dict[str, Any]:
         for row in evidence_rows
         if isinstance(row, dict) and row.get("segment_gate_reason") == "segment_duplicates_overlapping_remote"
     )
+    segmentability: dict[str, Any] | None = None
     if has_hallucination and not non_hallucination_evidence:
         label = "asr_hallucination_not_rescuable"
         reason = "only known hallucination evidence overlaps the missing batch Me row"
@@ -1628,6 +1691,12 @@ def remaining_gap_actionability(item: dict[str, Any]) -> dict[str, Any]:
     elif has_mixed:
         label = "mixed_needs_segmentation_or_speaker_evidence"
         reason = "suppressed mic evidence is mixed; publishing it whole would risk remote content"
+        segmentability = remaining_gap_mixed_segmentability(
+            evidence_rows=non_hallucination_evidence,
+            label_seconds=label_seconds,
+            duplicate_seconds=duplicate_seconds,
+            duration=safe_float(item.get("duration_sec")),
+        )
     elif has_me_dominant and not has_remote_dominant:
         label = "speaker_confirmation_candidate"
         reason = "suppressed mic evidence is me-dominant but lacks Target-Me evidence"
@@ -1643,7 +1712,7 @@ def remaining_gap_actionability(item: dict[str, Any]) -> dict[str, Any]:
     else:
         label = "missing_suppressed_evidence"
         reason = "no overlapping suppressed mic evidence was found"
-    return {
+    result = {
         "label": label,
         "reason": reason,
         "dominant_suppressed_label": dominant_label,
@@ -1651,6 +1720,9 @@ def remaining_gap_actionability(item: dict[str, Any]) -> dict[str, Any]:
         "duplicate_overlap_seconds": round(duplicate_seconds, 3),
         "target_me_candidate_policy_count": len(policies),
     }
+    if segmentability:
+        result["segmentability"] = segmentability
+    return result
 
 
 def target_me_shadow_profile_remaining_gap_examples(
@@ -1771,6 +1843,39 @@ def target_me_shadow_profile_remaining_gap_examples(
             row["seconds"] = round(safe_float(row.get("seconds")) + safe_float(item.get("duration_sec")), 3)
         return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
 
+    def aggregate_by_segmentability() -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for item in examples:
+            actionability = item.get("actionability") if isinstance(item.get("actionability"), dict) else {}
+            segmentability = (
+                actionability.get("segmentability")
+                if isinstance(actionability.get("segmentability"), dict)
+                else {}
+            )
+            group = str(segmentability.get("label") or "")
+            if not group:
+                continue
+            row = grouped.setdefault(
+                group,
+                {
+                    "count": 0,
+                    "seconds": 0.0,
+                    "local_island_seconds": 0.0,
+                    "local_island_count": 0,
+                },
+            )
+            row["count"] += 1
+            row["seconds"] = round(safe_float(row.get("seconds")) + safe_float(item.get("duration_sec")), 3)
+            row["local_island_seconds"] = round(
+                safe_float(row.get("local_island_seconds"))
+                + safe_float(segmentability.get("local_island_seconds")),
+                3,
+            )
+            row["local_island_count"] = safe_int(row.get("local_island_count")) + safe_int(
+                segmentability.get("local_island_count")
+            )
+        return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
+
     examples.sort(
         key=lambda item: (
             -safe_float(item.get("duration_sec")),
@@ -1792,6 +1897,7 @@ def target_me_shadow_profile_remaining_gap_examples(
         "by_policy_set": aggregate_by("policy_set"),
         "by_session": aggregate_by("session"),
         "by_actionability": aggregate_by_actionability(),
+        "by_segmentability": aggregate_by_segmentability(),
         "by_suppressed_policy_set": aggregate_suppressed_policy_set(),
         "by_suppressed_gate_reason": aggregate_top_suppressed_evidence("segment_gate_reason"),
         "by_suppressed_batch_role_label": aggregate_top_suppressed_evidence("batch_role_label"),
@@ -4948,6 +5054,7 @@ def main() -> int:
                 )
             for field_name, print_name in (
                 ("by_actionability", "top_actionability"),
+                ("by_segmentability", "top_segmentability"),
                 ("by_suppressed_policy_set", "top_suppressed_policy_set"),
                 ("by_suppressed_gate_reason", "top_suppressed_gate_reason"),
                 ("by_suppressed_batch_role_label", "top_suppressed_batch_role_label"),

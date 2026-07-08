@@ -538,6 +538,12 @@ The actionability split makes the next step concrete: `60.42s` are
 `mixed_needs_segmentation_or_speaker_evidence`, `29.68s` are remote-dominant without new evidence,
 `26.78s` already have Target-Me evidence but need safe live materialization/timeline handling,
 `12.42s` are hallucination, and only `0.32s` is a plain speaker-confirmation candidate.
+The mixed bucket is now split again by segmentability: `27.92s` are
+`local_island_split_candidate`, `22.28s` are duplicate-heavy and need stronger speaker evidence,
+`5.36s` need speaker evidence before publication, `3.22s` are remote-dominant mixed rows, and
+`1.64s` are short low-value tails. So the next implementable work does not need more recordings:
+it should prototype safe local-island splitting for those `27.92s` while leaving duplicate-heavy
+and remote-dominant rows blocked.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1174,7 +1180,9 @@ Active goal and near-term candidates:
    `50.24s` `remote_dominant`, `12.42s` `known_hallucination`, and only `10.90s` `me_dominant`
    suppressed-mic labels, so the next profile should improve speaker evidence rather than just
    loosen audio/text gates. Actionability now points first to mixed-region segmentation:
-   `60.42s` `mixed_needs_segmentation_or_speaker_evidence`. Batch remains authoritative.
+   `60.42s` `mixed_needs_segmentation_or_speaker_evidence`. The actionable subset is narrower:
+   `27.92s` are `local_island_split_candidate`; duplicate-heavy, remote-dominant and short tails
+   stay blocked until stronger evidence exists. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

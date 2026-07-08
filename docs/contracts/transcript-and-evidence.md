@@ -5751,7 +5751,12 @@ Known hallucinations, such as subtitle credits, are labeled `known_hallucination
 suppressed-mic rescue policies. The corpus block aggregates this as `by_suppressed_policy_set`,
 `by_suppressed_gate_reason` and
 `by_suppressed_batch_role_label`. Each example also carries `actionability`, and the corpus block
-aggregates it as `by_actionability`. Current labels include
+aggregates it as `by_actionability`. Mixed actionability rows may also carry
+`actionability.segmentability`, aggregated as `by_segmentability`, so the report separates rows that
+can plausibly be split from rows that need new speaker evidence or should stay blocked. Current
+segmentability labels are `local_island_split_candidate`, `duplicate_heavy_needs_speaker_evidence`,
+`needs_speaker_evidence`, `remote_dominant_mixed_not_rescuable` and `short_low_value_tail`.
+Current actionability labels include
 `mixed_needs_segmentation_or_speaker_evidence`,
 `remote_dominant_not_rescuable_without_new_evidence`,
 `target_me_visible_needs_live_materialization_or_timeline_gate`,
