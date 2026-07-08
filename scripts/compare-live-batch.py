@@ -2860,6 +2860,10 @@ def write_target_me_shadow_drafts(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in removed_live_turns),
             3,
         )
+        supplemental_seconds = round(
+            sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in supplemental_turns),
+            3,
+        )
         payload = {
             "schema": "murmurmark.live_target_me_shadow_draft/v1",
             "generator": {"name": "compare-live-batch", "version": SCRIPT_VERSION},
@@ -2878,13 +2882,18 @@ def write_target_me_shadow_drafts(
                 "live_turn_count": len(live_payload),
                 "target_me_added_turn_count": len(target_payload),
                 "visible_suppressed_mic_added_turn_count": len(supplemental_payload),
+                "visible_suppressed_mic_added_turn_seconds": supplemental_seconds,
                 "visible_suppressed_mic_rejected_turn_count": len(rejected_supplemental_turns),
                 "removed_live_turn_count": len(removed_live_turns),
                 "removed_live_turn_seconds": removed_seconds,
                 "combined_turn_count": len(combined),
                 "target_me_added_seconds": metrics.get(f"{base}_candidate_seconds"),
                 "missing_me_recovered_seconds": metrics.get(f"{base}_missing_me_recovered_seconds"),
+                "live_missing_me_seconds": policy_metrics.get("live_missing_me_seconds"),
                 "suspected_remote_leak_in_me_seconds": policy_metrics.get("live_suspected_remote_leak_in_me_seconds"),
+                "live_contentful_role_constrained_order_mismatch_count": (
+                    policy_metrics.get("live_contentful_role_constrained_order_mismatch_count")
+                ),
                 "contentful_role_constrained_order_mismatch_delta_count": (
                     metrics.get(f"{base}_contentful_role_constrained_order_mismatch_delta_count")
                 ),
