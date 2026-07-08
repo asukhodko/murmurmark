@@ -139,6 +139,11 @@ Current result:
 - `real_live_order_mismatch_by_category = {"same_chunk_same_source_reorder": 20,
   "same_chunk_cross_source_reorder": 11, "cross_chunk_reorder": 2,
   "chunk_overlap_context_reorder": 1}`;
+- `real_live_order_mismatch_by_primary_risk = {"role_conflict_or_remote_leak": 19,
+  "weak_text_match_possible_false_positive": 8, "same_source_timeline_reorder": 4,
+  "cross_source_timeline_reorder": 3}`;
+- `real_live_order_mismatch_by_confidence = {"role_conflict": 19, "low": 8, "high": 4,
+  "medium": 3}`;
 - `real_live_missing_me_seconds = 419.16`;
 - `real_live_missing_me_visible_in_suppressed_mic_seconds = 349.77`;
 - `real_live_missing_me_not_visible_in_suppressed_mic_seconds = 37.21`;
@@ -177,8 +182,10 @@ granularity when the source ASR JSON is present, with chunk-level fallback for o
 exposes order and remote-leakage risks that the earlier chunk-level comparison could hide.
 Order risk is mostly local to a single live chunk: `31/34` mismatches are same-chunk reorder, with
 `20` inside one source and `11` between mic/remote segments. Only `3/34` are cross-chunk or overlap
-context. This points the next implementation at per-chunk timeline reconciliation and stricter
-segment matching, not at raw capture or sidecar materialization.
+context. The primary-risk split is even more useful: `19/34` are role conflict / possible remote
+leak, `8/34` are weak text matches that may be false positives, and only `7/34` look like direct
+timeline reorder. This points the next implementation at stricter segment matching, role-constrained
+live reconciliation and per-chunk timeline repair, not at raw capture or sidecar materialization.
 Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks,
 but the live branch also has segment-level ordering drift and `15.96s` suspected remote leakage in
 published live `Me`. The current live blockers are therefore: live timeline ordering, remote leakage

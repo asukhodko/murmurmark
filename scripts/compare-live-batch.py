@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.13.0"
+SCRIPT_VERSION = "0.14.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 CAPTURE_SAFETY_BLOCKERS = {"interrupted_capture", "silent_capture", "sparse_capture"}
@@ -1199,6 +1199,46 @@ def order_mismatch_category(previous: dict[str, Any], current: dict[str, Any]) -
     return "cross_chunk_reorder"
 
 
+def order_mismatch_min_metric(previous: dict[str, Any], current: dict[str, Any], metric: str) -> float:
+    previous_match = previous.get("match") if isinstance(previous.get("match"), dict) else {}
+    current_match = current.get("match") if isinstance(current.get("match"), dict) else {}
+    return min(safe_float(previous_match.get(metric)), safe_float(current_match.get(metric)))
+
+
+def order_mismatch_role_conflict(previous: dict[str, Any], current: dict[str, Any]) -> bool:
+    previous_match = previous.get("match") if isinstance(previous.get("match"), dict) else {}
+    current_match = current.get("match") if isinstance(current.get("match"), dict) else {}
+    return previous_match.get("batch_role") != previous.get("role") or current_match.get("batch_role") != current.get("role")
+
+
+def order_mismatch_primary_risk(previous: dict[str, Any], current: dict[str, Any], category: str) -> str:
+    if order_mismatch_role_conflict(previous, current):
+        return "role_conflict_or_remote_leak"
+    min_recall = order_mismatch_min_metric(previous, current, "token_recall")
+    min_score = order_mismatch_min_metric(previous, current, "score")
+    if min_recall < 0.45 or min_score < 0.65:
+        return "weak_text_match_possible_false_positive"
+    if category == "same_chunk_same_source_reorder":
+        return "same_source_timeline_reorder"
+    if category == "same_chunk_cross_source_reorder":
+        return "cross_source_timeline_reorder"
+    if category == "chunk_overlap_context_reorder":
+        return "chunk_overlap_context_reorder"
+    return "cross_chunk_timeline_reorder"
+
+
+def order_mismatch_confidence(previous: dict[str, Any], current: dict[str, Any]) -> str:
+    if order_mismatch_role_conflict(previous, current):
+        return "role_conflict"
+    min_recall = order_mismatch_min_metric(previous, current, "token_recall")
+    min_score = order_mismatch_min_metric(previous, current, "score")
+    if min_recall >= 0.75 and min_score >= 0.85:
+        return "high"
+    if min_recall >= 0.45 and min_score >= 0.65:
+        return "medium"
+    return "low"
+
+
 def order_mismatch_turn_payload(turn: dict[str, Any]) -> dict[str, Any]:
     match = turn.get("match") if isinstance(turn.get("match"), dict) else {}
     return {
@@ -1228,23 +1268,26 @@ def order_mismatch_rows_for_turns(turns: list[dict[str, Any]], batch_utterances:
             current_batch_start = safe_float((turn.get("match") or {}).get("batch_start"))
             if current_batch_start + 1.0 < previous_batch_start:
                 category = order_mismatch_category(previous, turn)
+                primary_risk = order_mismatch_primary_risk(previous, turn, category)
+                confidence = order_mismatch_confidence(previous, turn)
                 order_mismatches.append(
                     {
                         "previous_live_id": previous.get("id"),
                         "current_live_id": turn.get("id"),
                         "category": category,
+                        "primary_risk": primary_risk,
+                        "confidence": confidence,
                         "previous_batch_start": round(previous_batch_start, 3),
                         "current_batch_start": round(current_batch_start, 3),
                         "batch_start_delta_sec": round(current_batch_start - previous_batch_start, 3),
                         "live_start_delta_sec": round(safe_float(turn.get("start")) - safe_float(previous.get("start")), 3),
+                        "min_token_recall": round(order_mismatch_min_metric(previous, turn, "token_recall"), 6),
+                        "min_score": round(order_mismatch_min_metric(previous, turn, "score"), 6),
                         "same_chunk": previous.get("chunk_index") == turn.get("chunk_index"),
                         "same_source": previous.get("source") == turn.get("source"),
                         "source_pair": f"{previous.get('source')}->{turn.get('source')}",
                         "role_pair": f"{previous.get('role')}->{turn.get('role')}",
-                        "role_mismatch_in_pair": (
-                            (previous.get("match") or {}).get("batch_role") != previous.get("role")
-                            or (turn.get("match") or {}).get("batch_role") != turn.get("role")
-                        ),
+                        "role_mismatch_in_pair": order_mismatch_role_conflict(previous, turn),
                         "previous": order_mismatch_turn_payload(previous),
                         "current": order_mismatch_turn_payload(turn),
                     }
@@ -1255,6 +1298,11 @@ def order_mismatch_rows_for_turns(turns: list[dict[str, Any]], batch_utterances:
 
 def order_mismatch_category_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     counts = Counter(str(row.get("category") or "unknown") for row in rows)
+    return dict(sorted(counts.items()))
+
+
+def order_mismatch_field_counts(rows: list[dict[str, Any]], field: str) -> dict[str, int]:
+    counts = Counter(str(row.get(field) or "unknown") for row in rows)
     return dict(sorted(counts.items()))
 
 
@@ -1438,6 +1486,8 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             "batch_remote_utterance_count": sum(1 for row in batch_utterances if row.get("role") == "Colleagues"),
             "live_order_mismatch_count": len(order_mismatches),
             "live_order_mismatch_by_category": order_mismatch_category_counts(order_mismatches),
+            "live_order_mismatch_by_primary_risk": order_mismatch_field_counts(order_mismatches, "primary_risk"),
+            "live_order_mismatch_by_confidence": order_mismatch_field_counts(order_mismatches, "confidence"),
             "live_missing_me_utterance_count": len(local_missing),
             "live_missing_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3),
             "live_suspicious_batch_me_missing_count": len(local_missing_suspicious_batch_me),
@@ -1462,6 +1512,14 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             **(rescue_shadow_summary.get("metrics") or {}),
             "live_rescue_shadow_order_mismatch_count": len(shadow_order_mismatches),
             "live_rescue_shadow_order_mismatch_by_category": order_mismatch_category_counts(shadow_order_mismatches),
+            "live_rescue_shadow_order_mismatch_by_primary_risk": order_mismatch_field_counts(
+                shadow_order_mismatches,
+                "primary_risk",
+            ),
+            "live_rescue_shadow_order_mismatch_by_confidence": order_mismatch_field_counts(
+                shadow_order_mismatches,
+                "confidence",
+            ),
             "live_rescue_shadow_suspected_remote_leak_in_me_count": len(shadow_remote_leak),
             "live_rescue_shadow_suspected_remote_leak_in_me_seconds": round(
                 sum(safe_float(row.get("duration_sec")) for row in shadow_remote_leak),
