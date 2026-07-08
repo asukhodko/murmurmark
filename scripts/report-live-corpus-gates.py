@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.11.0"
+SCRIPT_VERSION = "1.12.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -1412,12 +1412,49 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
         ):
             best_live_implementable = row
     status = "profile_evaluated" if best else "not_evaluated"
+    best_to_live_gap: dict[str, Any] | None = None
+    if best and best_live_implementable:
+        missing_gap = round(
+            max(
+                0.0,
+                safe_float(best_live_implementable.get("live_missing_me_seconds"))
+                - safe_float(best.get("live_missing_me_seconds")),
+            ),
+            3,
+        )
+        best_to_live_gap = {
+            "schema": "murmurmark.live_shadow_profile_oracle_gap/v1",
+            "best_profile": best.get("policy"),
+            "best_profile_live_implementable": bool(best.get("live_implementable")),
+            "best_live_implementable_profile": best_live_implementable.get("policy"),
+            "missing_me_seconds_gap": missing_gap,
+            "best_profile_missing_me_seconds": best.get("live_missing_me_seconds"),
+            "best_live_implementable_missing_me_seconds": best_live_implementable.get("live_missing_me_seconds"),
+            "best_profile_remote_leak_seconds": best.get("live_suspected_remote_leak_in_me_seconds"),
+            "best_live_implementable_remote_leak_seconds": best_live_implementable.get(
+                "live_suspected_remote_leak_in_me_seconds"
+            ),
+            "best_profile_contentful_order_mismatch_count": best.get(
+                "live_contentful_role_constrained_order_mismatch_count"
+            ),
+            "best_live_implementable_contentful_order_mismatch_count": best_live_implementable.get(
+                "live_contentful_role_constrained_order_mismatch_count"
+            ),
+            "interpretation": (
+                "best_profile_is_oracle_only"
+                if not bool(best.get("live_implementable"))
+                else "best_profile_is_live_implementable"
+            ),
+            "promotion_allowed": False,
+            "promotion_reason": "oracle_gap_is_diagnostic_and_parity_gates_still_block_promotion",
+        }
     return {
         "schema": "murmurmark.live_target_me_shadow_profile_diagnostics/v1",
         "scope": prefix or "all",
         "status": status,
         "best_profile": best,
         "best_live_implementable_profile": best_live_implementable,
+        "best_to_live_implementable_gap": best_to_live_gap,
         "profiles": rows,
         "recommended_next": (
             "fix_remaining_parity_gate_blockers_for_materialized_target_me_shadow"
@@ -4789,6 +4826,20 @@ def main() -> int:
                 "real_live_target_me_shadow_profile_best_live_implementable_not_visible_without_target_me_seconds: "
                 f"{safe_float(best_live_target_me_shadow_profile.get('live_missing_me_not_visible_without_target_me_candidate_seconds'))}"
             )
+            best_to_live_gap = (
+                real_target_me_shadow_profile.get("best_to_live_implementable_gap")
+                if isinstance(real_target_me_shadow_profile.get("best_to_live_implementable_gap"), dict)
+                else {}
+            )
+            if best_to_live_gap:
+                print(
+                    "real_live_target_me_shadow_profile_best_to_live_implementable_missing_gap_seconds: "
+                    f"{safe_float(best_to_live_gap.get('missing_me_seconds_gap'))}"
+                )
+                print(
+                    "real_live_target_me_shadow_profile_best_to_live_implementable_interpretation: "
+                    f"{best_to_live_gap.get('interpretation')}"
+                )
             remaining_gap = (
                 report.get("live_target_me_shadow_profile_best_live_implementable_remaining_gap")
                 if isinstance(report.get("live_target_me_shadow_profile_best_live_implementable_remaining_gap"), dict)

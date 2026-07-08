@@ -520,6 +520,10 @@ still buying real protection. The `target_me_possible_timeline_safe_v1` policy r
 rejects `47.38s` of candidates (`31.08s` order risk, `16.30s` remote leak), and keeps measured
 remote leak at `0.00s`. So the larger remaining gap is no longer the broad Target-Me bucket; it is
 mostly visible suppressed-mic speech without Target-Me evidence.
+The best diagnostic oracle profile reaches `116.97s` missing-Me with the same `0.00s` remote leak and
+`4` contentful order mismatches, so the current live-implementable-to-oracle gap is only `14.00s`.
+That oracle gap is diagnostic, not promotable; the larger blocker is still that parity gates do not
+prove safe promotion.
 The live corpus report also writes
 `live_target_me_shadow_profile_best_live_implementable_remaining_gap`, which groups this residual
 gap by Target-Me evidence and session. The current largest policy bucket is `(none)` at `104.19s`;

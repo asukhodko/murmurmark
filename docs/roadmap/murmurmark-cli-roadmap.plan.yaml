@@ -755,9 +755,10 @@ nodes:
       (`104.19s`) and groups their overlapping suppressed-mic evidence: top gate reason
       `segment_duplicates_overlapping_remote` (`73.60s`), top batch-role labels `mixed` (`56.06s`)
       and `remote_dominant` (`50.24s`), plus `known_hallucination` (`12.42s`) explicitly forbidden
-      from rescue. Next implementation should focus on stronger local-speaker evidence and
-      segmentation diagnostics for visible-without-Target-Me suppressed mic regions, not on
-      promotion.
+      from rescue. The best oracle profile reaches `116.97s` missing-Me, so the remaining
+      live-implementable-to-oracle gap is only `14.00s`. Next implementation should focus on
+      stronger local-speaker evidence and segmentation diagnostics for visible-without-Target-Me
+      suppressed mic regions, not on promotion.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

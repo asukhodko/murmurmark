@@ -350,6 +350,12 @@ Online remote-overlap shadow filter, 2026-07-09:
   - missing-Me: `130.97s`;
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
+- best diagnostic oracle profile is
+  `target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1`:
+  - missing-Me: `116.97s`;
+  - remaining measured remote leak: `0.00s`;
+  - contentful role-constrained order mismatches: `4`;
+  - best live-implementable to oracle gap: `14.00s`.
 - remaining missing-Me decomposition for that best live-implementable profile:
   - visible in suppressed mic with broader Target-Me evidence: `26.78s`;
   - visible in suppressed mic without Target-Me evidence: `90.42s`;
@@ -378,7 +384,8 @@ Online remote-overlap shadow filter, 2026-07-09:
 Conclusion: the online filter closes the current measured remote-leak symptom without batch truth,
 and the `target_me_possible_timeline_safe` profile converts most of the former broad Target-Me gap
 into order-safe live shadow material. The goal remains blocked by local recall, order risk, review
-burden and draft readiness, not by lack of another raw recording. The next useful work is to improve
+burden and draft readiness, not by lack of another raw recording. The best oracle improves the best
+live-implementable profile by only `14.00s`, so the next useful work is to add a new kind of
 local-speaker evidence for the `90.42s` visible-without-Target-Me slice and investigate the `13.77s`
 not-visible tail. Because the suppressed evidence includes many mixed/remote-dominant overlaps and a
 separate hallucination tail, the next step should add stronger speaker evidence or segmentation

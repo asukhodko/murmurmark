@@ -5753,6 +5753,13 @@ suppressed-mic rescue policies. The corpus block aggregates this as `by_suppress
 `by_suppressed_batch_role_label`. The report is diagnostic only; it does not change live drafts or
 parity gates.
 
+`live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
+`murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the
+best live-implementable profile and records `missing_me_seconds_gap`, both profile names, remote leak
+seconds, contentful order mismatch counts, `interpretation`, `promotion_allowed: false` and
+`promotion_reason`. This field is a convergence diagnostic: it may show that the remaining
+live-implementable/oracle gap is small, but it never authorizes live promotion.
+
 Profile `risk_examples.local_missing` carries the same fields per utterance, including
 `recall_in_suppressed_mic`, `suppressed_mic_turn_ids` and `target_me_candidate_policies`. The oracle
 profile removes live `Me` turns only when the authoritative batch transcript classifies them as
