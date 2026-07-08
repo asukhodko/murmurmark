@@ -1111,6 +1111,69 @@ def best_batch_match(turn: dict[str, Any], batch: list[dict[str, Any]]) -> dict[
     return best
 
 
+def matched_turn_rows(turns: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for turn in sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or ""))):
+        match = best_batch_match(turn, batch_utterances)
+        if match and safe_float(match.get("token_recall")) >= 0.25:
+            result.append({**turn, "match": match})
+    return result
+
+
+def order_mismatch_rows_for_turns(turns: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    order_mismatches: list[dict[str, Any]] = []
+    previous: dict[str, Any] | None = None
+    for turn in matched_turn_rows(turns, batch_utterances):
+        if previous is not None:
+            previous_batch_start = safe_float((previous.get("match") or {}).get("batch_start"))
+            current_batch_start = safe_float((turn.get("match") or {}).get("batch_start"))
+            if current_batch_start + 1.0 < previous_batch_start:
+                order_mismatches.append(
+                    {
+                        "previous_live_id": previous.get("id"),
+                        "current_live_id": turn.get("id"),
+                        "previous_batch_start": round(previous_batch_start, 3),
+                        "current_batch_start": round(current_batch_start, 3),
+                    }
+                )
+        previous = turn
+    return order_mismatches
+
+
+def remote_leak_rows_for_turns(turns: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    remote_leak: list[dict[str, Any]] = []
+    for turn in turns:
+        if turn.get("role") != "Me" or len(turn.get("tokens") or []) < 3:
+            continue
+        same_role_tokens = utterance_tokens_in_interval(
+            batch_utterances,
+            safe_float(turn.get("start")),
+            safe_float(turn.get("end")),
+            "Me",
+        )
+        remote_tokens = utterance_tokens_in_interval(
+            batch_utterances,
+            safe_float(turn.get("start")),
+            safe_float(turn.get("end")),
+            "Colleagues",
+        )
+        same_recall = bag_recall(turn.get("tokens") or [], same_role_tokens) or 0.0
+        remote_recall = bag_recall(turn.get("tokens") or [], remote_tokens) or 0.0
+        if remote_recall >= 0.55 and same_recall < 0.35:
+            remote_leak.append(
+                {
+                    "live_id": turn.get("id"),
+                    "start": turn.get("start"),
+                    "end": turn.get("end"),
+                    "duration_sec": round(safe_float(turn.get("end")) - safe_float(turn.get("start")), 3),
+                    "same_role_recall": round(same_recall, 6),
+                    "remote_role_recall": round(remote_recall, 6),
+                    "text": turn.get("text"),
+                }
+            )
+    return remote_leak
+
+
 def local_missing_rows_for_turns(batch_utterances: list[dict[str, Any]], turns: list[dict[str, Any]]) -> list[dict[str, Any]]:
     local_missing: list[dict[str, Any]] = []
     for row in batch_utterances:
@@ -1188,29 +1251,11 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
     local_missing_suspicious_batch_me: list[dict[str, Any]] = []
     local_missing_visible_in_suppressed_mic: list[dict[str, Any]] = []
     local_missing_not_visible_in_suppressed_mic: list[dict[str, Any]] = []
-    remote_leak: list[dict[str, Any]] = []
-    order_mismatches: list[dict[str, Any]] = []
-    matched_turns: list[dict[str, Any]] = []
-    for turn in turns:
-        match = best_batch_match(turn, batch_utterances)
-        if match and safe_float(match.get("token_recall")) >= 0.25:
-            matched_turn = {**turn, "match": match}
-            matched_turns.append(matched_turn)
-    previous: dict[str, Any] | None = None
-    for turn in matched_turns:
-        if previous is not None:
-            previous_batch_start = safe_float((previous.get("match") or {}).get("batch_start"))
-            current_batch_start = safe_float((turn.get("match") or {}).get("batch_start"))
-            if current_batch_start + 1.0 < previous_batch_start:
-                order_mismatches.append(
-                    {
-                        "previous_live_id": previous.get("id"),
-                        "current_live_id": turn.get("id"),
-                        "previous_batch_start": round(previous_batch_start, 3),
-                        "current_batch_start": round(current_batch_start, 3),
-                    }
-                )
-        previous = turn
+    remote_leak = remote_leak_rows_for_turns(turns, batch_utterances)
+    shadow_remote_leak = remote_leak_rows_for_turns(rescue_shadow_turns, batch_utterances)
+    order_mismatches = order_mismatch_rows_for_turns(turns, batch_utterances)
+    shadow_order_mismatches = order_mismatch_rows_for_turns(turns + rescue_shadow_turns, batch_utterances)
+    matched_turns = matched_turn_rows(turns, batch_utterances)
     for row in batch_utterances:
         if row.get("role") != "Me" or len(row.get("tokens") or []) < 2:
             continue
@@ -1248,25 +1293,6 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
                 local_missing_suspicious_batch_me.append(missing_row)
             else:
                 local_missing.append(missing_row)
-    for turn in turns:
-        if turn.get("role") != "Me" or len(turn.get("tokens") or []) < 3:
-            continue
-        same_role_tokens = utterance_tokens_in_interval(batch_utterances, safe_float(turn.get("start")), safe_float(turn.get("end")), "Me")
-        remote_tokens = utterance_tokens_in_interval(batch_utterances, safe_float(turn.get("start")), safe_float(turn.get("end")), "Colleagues")
-        same_recall = bag_recall(turn.get("tokens") or [], same_role_tokens) or 0.0
-        remote_recall = bag_recall(turn.get("tokens") or [], remote_tokens) or 0.0
-        if remote_recall >= 0.55 and same_recall < 0.35:
-            remote_leak.append(
-                {
-                    "live_id": turn.get("id"),
-                    "start": turn.get("start"),
-                    "end": turn.get("end"),
-                    "duration_sec": round(safe_float(turn.get("end")) - safe_float(turn.get("start")), 3),
-                    "same_role_recall": round(same_recall, 6),
-                    "remote_role_recall": round(remote_recall, 6),
-                    "text": turn.get("text"),
-                }
-            )
     shadow_missing_after = local_missing_rows_for_turns(batch_utterances, turns + rescue_shadow_turns)
     shadow_missing_after_seconds = round(sum(safe_float(row.get("duration_sec")) for row in shadow_missing_after), 3)
     baseline_missing_seconds = round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3)
@@ -1278,7 +1304,9 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         "local_missing_visible_in_suppressed_mic": local_missing_visible_in_suppressed_mic,
         "local_missing_not_visible_in_suppressed_mic": local_missing_not_visible_in_suppressed_mic,
         "remote_leak": remote_leak,
+        "live_rescue_shadow_remote_leak": shadow_remote_leak,
         "order_mismatches": order_mismatches,
+        "live_rescue_shadow_order_mismatches": shadow_order_mismatches,
         "segment_role_gate_candidates": segment_gate_summary.get("examples", []),
         "live_rescue_shadow_examples": rescue_shadow_summary.get("examples", []),
         "suppressed_mic_asr_segment_examples": suppressed_segment_audit.get("examples", []),
@@ -1313,6 +1341,12 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             "live_segment_role_gate_candidate_kept_segment_count": segment_gate_summary.get("kept_segment_count"),
             "live_segment_role_gate_candidate_suppressed_segment_count": segment_gate_summary.get("suppressed_segment_count"),
             **(rescue_shadow_summary.get("metrics") or {}),
+            "live_rescue_shadow_order_mismatch_count": len(shadow_order_mismatches),
+            "live_rescue_shadow_suspected_remote_leak_in_me_count": len(shadow_remote_leak),
+            "live_rescue_shadow_suspected_remote_leak_in_me_seconds": round(
+                sum(safe_float(row.get("duration_sec")) for row in shadow_remote_leak),
+                3,
+            ),
             "live_rescue_shadow_missing_me_seconds_after": shadow_missing_after_seconds,
             "live_rescue_shadow_missing_me_recovered_seconds": round(
                 max(0.0, baseline_missing_seconds - shadow_missing_after_seconds),
@@ -1762,6 +1796,9 @@ def main() -> int:
         },
         "risk_examples": {
             "order_mismatches": (live_assessment.get("order_mismatches") or [])[:20],
+            "live_rescue_shadow_order_mismatches": (
+                live_assessment.get("live_rescue_shadow_order_mismatches") or []
+            )[:20],
             "local_missing": (live_assessment.get("local_missing") or [])[:20],
             "local_missing_suspicious_batch_me": (live_assessment.get("local_missing_suspicious_batch_me") or [])[:20],
             "local_missing_visible_in_suppressed_mic": (
@@ -1771,6 +1808,9 @@ def main() -> int:
                 live_assessment.get("local_missing_not_visible_in_suppressed_mic") or []
             )[:20],
             "remote_leak": (live_assessment.get("remote_leak") or [])[:20],
+            "live_rescue_shadow_remote_leak": (
+                live_assessment.get("live_rescue_shadow_remote_leak") or []
+            )[:20],
             "suppressed_mic_asr_segments": (
                 live_assessment.get("suppressed_mic_asr_segment_examples") or []
             )[:30],

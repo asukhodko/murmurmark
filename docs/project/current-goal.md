@@ -91,8 +91,8 @@ Current state:
 - new real live collection allowed: `false`;
 - controlled real live pilot collection is allowed only as evidence collection after the full
   fail-open proof; batch remains authoritative and promotion remains blocked;
-- current blocking dimensions: `capture_safety`, `local_recall`, `remote_leakage`,
-  `review_burden`, `selected_notes_readiness`, `draft_text_recall`, `required_artifacts`.
+- current blocking dimensions: `capture_safety`, `local_recall`, `review_burden`,
+  `selected_notes_readiness`, `chunk_boundary_risks`, `draft_text_recall`, `required_artifacts`.
 - capture-safe candidate blocking dimensions: `local_recall`, `selected_notes_readiness`.
 - current objective next focus: `fix_live_local_recall_gap`.
 
@@ -143,6 +143,9 @@ Current result:
 - `real_live_rescue_shadow_candidate_chunk_count = 2`;
 - `real_live_rescue_shadow_candidate_segment_count = 9`;
 - `real_live_rescue_shadow_missing_me_recovered_seconds = 46.48`;
+- `real_live_rescue_shadow_missing_me_seconds_after = 373.80`;
+- `real_live_rescue_shadow_suspected_remote_leak_in_me_seconds = 0.00`;
+- `real_live_rescue_shadow_order_mismatch_count = 1`;
 - `real_live_suppressed_mic_asr_me_dominant_segment_count = 49 / 209.58 sec`;
 - `real_live_suppressed_mic_asr_mixed_segment_count = 44 / 199.92 sec`;
 - current text-only rescue policy: `152.60 sec` local / `73.62 sec` remote-risk;
@@ -150,7 +153,7 @@ Current result:
 - remote-silent text policy: `34.16 sec` local / `2.58 sec` remote-risk;
 - audio remote-quiet policy: `51.14 sec` local / `15.42 sec` remote-risk;
 - audio mic-dominant policy: `24.00 sec` local / `0.00 sec` remote-risk;
-- audio low-coherence policy: `142.06 sec` local / `172.86 sec` remote-risk;
+- audio low-coherence policy: `176.98 sec` local / `193.18 sec` remote-risk;
 - audio safe union policy: `50.18 sec` local / `2.58 sec` remote-risk,
   `68.42 sec` missing-Me recovered;
 - batch-oracle local ceiling: `409.50 sec` local;
@@ -179,11 +182,13 @@ local ceiling. The next implementation step should therefore add audio/evidence 
 thresholds, to split or rescue local evidence inside suppressed mic chunks without publishing remote
 leak. The first audio policy lab narrows that path: `audio_mic_dominant_v1` is clean but small
 (`24.00s` local / `0.00s` remote-risk), `audio_low_coherence_v1` is unsafe
-(`142.06s` local / `172.86s` remote-risk), and `audio_safe_union_v1` is the best current shadow
+(`176.98s` local / `193.18s` remote-risk), and `audio_safe_union_v1` is the best current shadow
 candidate (`50.18s` local / `2.58s` remote-risk, `68.42s` missing-Me recovered). Fresh live chunks
 now expose that candidate separately as `live_rescue_shadow`; in the current corpus this appears in
-`2` real-live chunks / `9` segments and recovers `46.48s` missing-Me in actual shadow artifacts
-without publishing the text as normal live `Me`.
+`2` real-live chunks / `9` segments and recovers `46.48s` missing-Me in actual shadow artifacts.
+The shadow itself does not add measured remote-risk (`0.00s`), but it still leaves `373.80s`
+missing-Me and introduces `1` order-mismatch candidate when evaluated as a combined draft. It remains
+shadow-only evidence, not a promotable live `Me` path.
 
 ## Latest Completed Goal: Current Pipeline Stabilization v1
 

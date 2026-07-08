@@ -4447,7 +4447,10 @@ These gates protect only the shadow live draft/chunks:
   suppressed mic chunk, but those candidates are not published into the live draft until separate
   audio/evidence gates prove they do not reintroduce remote as `Me`;
 - `live_rescue_shadow` is displayed separately from normal `Me draft` and remains
-  `shadow_only_not_live_me`; it is evidence for future parity work, not a promoted transcript role;
+  `shadow_only_not_live_me`; it is evidence for future parity work, not a promoted transcript role.
+  Corpus comparison measures its remaining missing-Me seconds, recovered missing-Me seconds,
+  suspected remote leakage and order mismatches as if the shadow were combined with the normal live
+  draft;
 - `live_boundary_gate` suppresses adjacent chunk repeats caused by overlap context.
   A suppressed boundary row is treated as resolved only when the raw suppressed tokens are fully
   covered by the previous emitted chunk for the same source. If unique current tokens remain, the row
@@ -4815,6 +4818,8 @@ Schema:
     "live_rescue_shadow_candidate_segment_count": 0,
     "live_rescue_shadow_missing_me_recovered_seconds": 0.0,
     "live_rescue_shadow_missing_me_seconds_after": 0.0,
+    "live_rescue_shadow_suspected_remote_leak_in_me_seconds": 0.0,
+    "live_rescue_shadow_order_mismatch_count": 0,
     "live_suppressed_mic_asr_me_dominant_segment_count": 0,
     "live_suppressed_mic_asr_me_dominant_segment_seconds": 0.0,
     "live_suppressed_mic_asr_mixed_segment_count": 0,
@@ -4877,6 +4882,8 @@ Schema:
         "publish_policy": "shadow_only_not_live_me"
       }
     ],
+    "live_rescue_shadow_remote_leak": [],
+    "live_rescue_shadow_order_mismatches": [],
     "suppressed_mic_rescue_policies": {
       "remote_silent_text_v1": [
         {

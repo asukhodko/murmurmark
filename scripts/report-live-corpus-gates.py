@@ -1085,6 +1085,12 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "live_rescue_shadow_candidate_token_count": (
                 metrics.get("live_rescue_shadow_candidate_token_count") if isinstance(metrics, dict) else None
             ),
+            "live_rescue_shadow_order_mismatch_count": (
+                metrics.get("live_rescue_shadow_order_mismatch_count") if isinstance(metrics, dict) else None
+            ),
+            "live_rescue_shadow_suspected_remote_leak_in_me_seconds": (
+                metrics.get("live_rescue_shadow_suspected_remote_leak_in_me_seconds") if isinstance(metrics, dict) else None
+            ),
             "live_rescue_shadow_missing_me_seconds_after": (
                 metrics.get("live_rescue_shadow_missing_me_seconds_after") if isinstance(metrics, dict) else None
             ),
@@ -1161,6 +1167,16 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
                 else []
             ),
             "remote_leak": risk_examples.get("remote_leak") if isinstance(risk_examples.get("remote_leak"), list) else [],
+            "live_rescue_shadow_remote_leak": (
+                risk_examples.get("live_rescue_shadow_remote_leak")
+                if isinstance(risk_examples.get("live_rescue_shadow_remote_leak"), list)
+                else []
+            ),
+            "live_rescue_shadow_order_mismatches": (
+                risk_examples.get("live_rescue_shadow_order_mismatches")
+                if isinstance(risk_examples.get("live_rescue_shadow_order_mismatches"), list)
+                else []
+            ),
             "suppressed_mic_asr_segments": (
                 risk_examples.get("suppressed_mic_asr_segments")
                 if isinstance(risk_examples.get("suppressed_mic_asr_segments"), list)
@@ -1301,6 +1317,24 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_live_rescue_shadow_candidate_segment_count": sum_int_metric(
             real_live_rows,
             "live_rescue_shadow_candidate_segment_count",
+        ),
+        "live_rescue_shadow_order_mismatch_count": sum_int_metric(rows, "live_rescue_shadow_order_mismatch_count"),
+        "real_live_rescue_shadow_order_mismatch_count": sum_int_metric(
+            real_live_rows,
+            "live_rescue_shadow_order_mismatch_count",
+        ),
+        "live_rescue_shadow_suspected_remote_leak_in_me_seconds": sum_metric(
+            rows,
+            "live_rescue_shadow_suspected_remote_leak_in_me_seconds",
+        ),
+        "real_live_rescue_shadow_suspected_remote_leak_in_me_seconds": sum_metric(
+            real_live_rows,
+            "live_rescue_shadow_suspected_remote_leak_in_me_seconds",
+        ),
+        "live_rescue_shadow_missing_me_seconds_after": sum_metric(rows, "live_rescue_shadow_missing_me_seconds_after"),
+        "real_live_rescue_shadow_missing_me_seconds_after": sum_metric(
+            real_live_rows,
+            "live_rescue_shadow_missing_me_seconds_after",
         ),
         "live_rescue_shadow_missing_me_recovered_seconds": sum_metric(
             rows,
@@ -2076,7 +2110,10 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         "- real live rescue shadow candidates: "
         f"{summary.get('real_live_rescue_shadow_candidate_chunk_count', 0)} chunks / "
         f"{summary.get('real_live_rescue_shadow_candidate_segment_count', 0)} segments, "
-        f"missing-Me recovered {summary.get('real_live_rescue_shadow_missing_me_recovered_seconds', 0.0)} sec",
+        f"missing-Me recovered {summary.get('real_live_rescue_shadow_missing_me_recovered_seconds', 0.0)} sec, "
+        f"missing-Me after {summary.get('real_live_rescue_shadow_missing_me_seconds_after', 0.0)} sec, "
+        f"remote-risk {summary.get('real_live_rescue_shadow_suspected_remote_leak_in_me_seconds', 0.0)} sec, "
+        f"order mismatches {summary.get('real_live_rescue_shadow_order_mismatch_count', 0)}",
         "- real live suppressed mic ASR segments: "
         f"{summary.get('real_live_suppressed_mic_asr_segment_count', 0)} / "
         f"{summary.get('real_live_suppressed_mic_asr_segment_seconds', 0.0)} sec",
@@ -2561,6 +2598,18 @@ def main() -> int:
     print(
         "real_live_rescue_shadow_candidate_segment_count: "
         f"{summary.get('real_live_rescue_shadow_candidate_segment_count', 0)}"
+    )
+    print(
+        "real_live_rescue_shadow_order_mismatch_count: "
+        f"{summary.get('real_live_rescue_shadow_order_mismatch_count', 0)}"
+    )
+    print(
+        "real_live_rescue_shadow_suspected_remote_leak_in_me_seconds: "
+        f"{summary.get('real_live_rescue_shadow_suspected_remote_leak_in_me_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_shadow_missing_me_seconds_after: "
+        f"{summary.get('real_live_rescue_shadow_missing_me_seconds_after', 0.0)}"
     )
     print(
         "real_live_rescue_shadow_missing_me_recovered_seconds: "

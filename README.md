@@ -971,8 +971,10 @@ Active goal and near-term candidates:
    (`34.16s` local / `2.58s` remote-risk) but low-recall. The first audio/evidence policy lab shows
    `audio_mic_dominant_v1` has `24.0s` local / `0.0s` remote-risk, while `audio_safe_union_v1`
    recovers `68.42s` missing-Me at `2.58s` remote-risk. Fresh live chunks can now expose that policy
-   as `live_rescue_shadow` (`2` real-live chunks / `9` segments in the current corpus) without
-   publishing it as normal `Me`; full live promotion remains blocked.
+   as `live_rescue_shadow`: `2` real-live chunks / `9` segments, `46.48s` missing-Me recovered,
+   `373.80s` missing-Me still left, `0.0s` measured remote-risk and `1` order-mismatch candidate in
+   the current corpus. It remains a shadow-only rescue candidate, not normal live `Me`; full live
+   promotion remains blocked.
    Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
