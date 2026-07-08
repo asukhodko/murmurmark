@@ -95,7 +95,7 @@ Current state:
   `review_burden`, `selected_notes_readiness`, `chunk_boundary_risks`, `draft_text_recall`,
   `required_artifacts`.
 - capture-safe candidate blocking dimensions: `order_risk`, `local_recall`, `selected_notes_readiness`.
-- current objective next focus: `fix_live_order_risk`.
+- current objective next focus: `fix_live_local_recall_gap`.
 
 Safety constraint:
 
@@ -157,7 +157,7 @@ Current result:
   "unambiguous": 2}`;
 - `real_live_unambiguous_contentful_role_constrained_order_mismatch_count = 2`;
 - `real_live_missing_me_seconds = 419.16`;
-- `real_live_missing_me_visible_in_suppressed_mic_seconds = 349.77`;
+- `real_live_missing_me_visible_in_suppressed_mic_seconds = 382.52`;
 - `real_live_missing_me_not_visible_in_suppressed_mic_seconds = 37.21`;
 - `real_live_suppressed_mic_turn_count = 30`;
 - `real_live_segment_role_gate_candidate_chunk_count = 9`;
@@ -181,7 +181,7 @@ Current result:
 - batch-oracle local ceiling: `409.50 sec` local;
 - `real_live_suspected_remote_leak_in_me_seconds = 15.96`;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
-- `objective_next_focus = fix_live_order_risk`.
+- `objective_next_focus = fix_live_local_recall_gap`.
 - `capture_safe_evaluable_local_recall_gap_examples = 12 / 47.44 sec`.
 
 The report now keeps concrete missing-Me rows under
@@ -201,7 +201,10 @@ timeline reorder. A stricter same-role matcher confirms `9` role-constrained ord
 phrases, only `4` contentful same-role order mismatches remain. This points the next implementation
 at targeted role-constrained live reconciliation and per-chunk timeline repair. Ambiguity scoring
 narrows the stable contentful order-risk subset to `2` examples, so order repair should be
-targeted; raw capture and sidecar materialization are not the next bottleneck.
+targeted; raw capture and sidecar materialization are not the next bottleneck. The metric-aware
+objective focus now points to `fix_live_local_recall_gap`, because stable contentful order risk is
+small while `419.16s` of batch `Me` speech are still missing from live `Me`, with `382.52s` visible
+in suppressed mic evidence.
 Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks,
 but the live branch also has segment-level ordering drift and `15.96s` suspected remote leakage in
 published live `Me`. The current live blockers are therefore: live timeline ordering, remote leakage

@@ -684,10 +684,11 @@ nodes:
       The shadow adds no measured remote-risk (`0.00s`), but still leaves `373.80s` missing-Me and
       leaves `34` order mismatches in the combined draft evaluation, so it is evidence for
       the next rescue/reconciliation pass, not a promotable live output.
-      Следующий фокус: `fix_live_order_risk`; сначала нужны targeted role-constrained
-      reconciliation, stricter segment matching and per-chunk timeline repair for the stable
-      contentful cases. Live draft иногда путает порядок, публикует remote as Me и часто теряет Me,
-      поэтому promotion остаётся blocked.
+      Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
+      но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
+      role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful
+      cases, но это не самый большой текущий источник потерь. Live draft иногда путает порядок,
+      публикует remote as Me и часто теряет Me, поэтому promotion остаётся blocked.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"

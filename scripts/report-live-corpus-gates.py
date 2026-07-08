@@ -622,6 +622,56 @@ def next_focus_for_dimensions(dimensions: list[str]) -> dict[str, Any] | None:
     }
 
 
+def metric_aware_next_focus(
+    dimensions: list[str],
+    summary: dict[str, Any],
+    base_focus: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    focus = dict(base_focus) if isinstance(base_focus, dict) else next_focus_for_dimensions(dimensions)
+    if not focus:
+        return None
+    stable_order = safe_int(summary.get("real_live_unambiguous_contentful_role_constrained_order_mismatch_count"))
+    contentful_order = safe_int(summary.get("real_live_contentful_role_constrained_order_mismatch_count"))
+    missing_me_seconds = safe_float(summary.get("real_live_missing_me_seconds"))
+    visible_missing_me_seconds = safe_float(summary.get("real_live_missing_me_visible_in_suppressed_mic_seconds"))
+    remote_leak_seconds = safe_float(summary.get("real_live_suspected_remote_leak_in_me_seconds"))
+    order_is_small_and_targeted = stable_order <= 2 and contentful_order <= 4
+    target_dimension: str | None = None
+    reason: str | None = None
+    if focus.get("dimension") == "order_risk" and order_is_small_and_targeted:
+        if "local_recall" in dimensions and missing_me_seconds >= 30.0:
+            target_dimension = "local_recall"
+            reason = (
+                "order risk is narrowed to a small stable subset, while live local recall loses "
+                "substantial Me speech"
+            )
+        elif "remote_leakage" in dimensions and remote_leak_seconds > 0.5:
+            target_dimension = "remote_leakage"
+            reason = (
+                "order risk is narrowed to a small stable subset, while live Me still contains remote leakage"
+            )
+    if not target_dimension:
+        return focus
+    action = OBJECTIVE_DIMENSION_ACTIONS[target_dimension]
+    return {
+        **focus,
+        "dimension": target_dimension,
+        "action_id": action["id"],
+        "title": action["title"],
+        "recommended_next": action["recommended_next"],
+        "source": "metric_aware_focus_override",
+        "previous_focus": focus,
+        "override_reason": reason,
+        "metric_evidence": {
+            "real_live_unambiguous_contentful_role_constrained_order_mismatch_count": stable_order,
+            "real_live_contentful_role_constrained_order_mismatch_count": contentful_order,
+            "real_live_missing_me_seconds": round(missing_me_seconds, 3),
+            "real_live_missing_me_visible_in_suppressed_mic_seconds": round(visible_missing_me_seconds, 3),
+            "real_live_suspected_remote_leak_in_me_seconds": round(remote_leak_seconds, 3),
+        },
+    }
+
+
 def objective_audit_row(row_id: str, status: str, title: str, evidence: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": row_id,
@@ -715,6 +765,7 @@ def build_objective_audit(
         "score": 0,
         "priority": 999,
     }
+    next_focus = metric_aware_next_focus(blocking_dimensions, summary, next_focus) or next_focus
     capture_proof_status = capture_safe_proof_status(capture_regression_check)
     capture_proof_row_status = (
         "passed"
@@ -792,6 +843,11 @@ def build_objective_audit(
         and (candidate_scope.get("blocking_dimensions") if isinstance(candidate_scope, dict) else [])
         and candidate_next_focus
     ):
+        candidate_next_focus = metric_aware_next_focus(
+            list(candidate_scope.get("blocking_dimensions") or []),
+            summary,
+            candidate_next_focus,
+        )
         next_focus = {
             **candidate_next_focus,
             "source": "capture_safe_candidate_scope",
@@ -1912,7 +1968,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "passing_sessions": summary["real_capture_safe_candidate_passing_sessions"],
         "blocking_dimensions": candidate_blocking_dimensions,
         "session_ids": [str(row.get("session") or "") for row in capture_safe_candidate_rows],
-        "next_focus": next_focus_for_dimensions(candidate_blocking_dimensions),
+        "next_focus": metric_aware_next_focus(candidate_blocking_dimensions, summary),
         "promotion_decision": "shadow_only_do_not_promote",
         "new_real_live_collection_allowed": False,
         "controlled_real_live_pilot_allowed": pilot_allowed,
@@ -1947,7 +2003,9 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         )
     elif candidate_blocking_dimensions:
         coverage_path_status = "resolve_capture_safe_candidate_blockers"
-        coverage_recommended_next = next_focus_for_dimensions(candidate_blocking_dimensions).get("recommended_next")
+        coverage_recommended_next = (
+            metric_aware_next_focus(candidate_blocking_dimensions, summary) or {}
+        ).get("recommended_next")
     elif coverage_target["passing_compared_sessions_remaining"] > 0:
         coverage_path_status = "needs_new_controlled_live_evidence"
         coverage_recommended_next = "murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only"

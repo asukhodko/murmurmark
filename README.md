@@ -957,9 +957,10 @@ Active goal and near-term candidates:
 4. Active live follow-up: Near-Realtime Live Parity Coverage v1. Capture-safe sidecar proof exists,
    `murmurmark corpus live all --refresh` compares real live chunks/drafts with batch output, and
    live promotion stays blocked. The comparison now uses ASR-segment granularity when available, with
-   chunk fallback for older artifacts. Current next focus is `fix_live_order_risk`: segment-level
-   parity exposes ordering drift, suspected remote leakage in live `Me`, and lost local speech on
-   controlled real evidence. The order-risk split is now visible: `20` same-chunk/same-source,
+   chunk fallback for older artifacts. Current next focus is `fix_live_local_recall_gap`: metric-aware
+   triage keeps order risk visible but points the next implementation at lost local speech and the
+   coarse live role gate. Segment-level parity still exposes ordering drift, suspected remote leakage
+   in live `Me`, and lost local speech on controlled real evidence. The order-risk split is now visible: `20` same-chunk/same-source,
    `11` same-chunk/cross-source, `2` cross-chunk and `1` overlap-context mismatches. The corpus
    also separates primary risk: `19` role-conflict/remote-leak, `8` weak-match possible false
    positives and `7` direct timeline-reorder cases. A stricter same-role matcher confirms `9`

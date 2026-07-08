@@ -5086,36 +5086,36 @@ Schema:
     "target_status": "shadow_only_not_promotable",
     "promotion_decision": "shadow_only_do_not_promote",
     "speedup_supported_sessions": 0,
-    "live_order_mismatch_count": 0,
-    "real_live_order_mismatch_count": 0,
-    "live_missing_me_seconds": 0.0,
-    "real_live_missing_me_seconds": 0.0,
+    "live_order_mismatch_count": 34,
+    "real_live_order_mismatch_count": 34,
+    "live_missing_me_seconds": 426.1,
+    "real_live_missing_me_seconds": 419.16,
     "live_suspicious_batch_me_missing_seconds": 0.0,
     "real_live_suspicious_batch_me_missing_seconds": 0.0,
-    "live_suspected_remote_leak_in_me_seconds": 0.0,
-    "real_live_suspected_remote_leak_in_me_seconds": 0.0,
+    "live_suspected_remote_leak_in_me_seconds": 15.96,
+    "real_live_suspected_remote_leak_in_me_seconds": 15.96,
     "adjacent_duplicate_chunk_count": 0,
     "real_adjacent_duplicate_chunk_count": 0,
-    "real_capture_safe_candidate_sessions": 1,
-    "real_capture_safe_candidate_passing_sessions": 0,
+    "real_capture_safe_candidate_sessions": 2,
+    "real_capture_safe_candidate_passing_sessions": 1,
     "real_capture_safe_candidate_blocking_dimensions": [
+      "order_risk",
       "local_recall",
-      "review_burden",
       "selected_notes_readiness"
     ],
-    "strict_coverage_status": "passed",
+    "strict_coverage_status": "not_requested",
     "live_quarantined": true,
     "live_evidence_mode": "historical_debug_only",
     "new_real_live_collection_allowed": false,
     "controlled_real_live_pilot_allowed": true,
     "objective_status": "blocked_by_parity_gates",
     "objective_ready_for_live_promotion": false,
-    "objective_next_focus": "fix_live_order_risk",
-    "objective_next_focus_dimension": "order_risk",
-    "objective_next_recommended_next": "fix live timeline ordering/reconciliation before live promotion",
+    "objective_next_focus": "fix_live_local_recall_gap",
+    "objective_next_focus_dimension": "local_recall",
+    "objective_next_recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion",
     "coverage_path_status": "resolve_capture_safe_candidate_blockers",
     "coverage_path_recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion",
-    "coverage_path_historical_non_candidate_sessions": 1,
+    "coverage_path_historical_non_candidate_sessions": 9,
     "coverage_path_new_controlled_evidence_required": false,
     "real_blocker_triage_items": 3,
     "real_blocker_triage_sessions": 2,
@@ -5192,34 +5192,47 @@ Schema:
     }
   },
   "real_capture_safe_candidate_parity_dimensions": {
+    "capture_safety": {
+      "title": "Capture safety",
+      "promotion_required": true,
+      "counts": {"passed": 2},
+      "issue_sessions": []
+    },
+    "order_risk": {
+      "title": "Order risk",
+      "promotion_required": true,
+      "counts": {"passed": 1, "warning": 1},
+      "issue_sessions": ["2026-07-08_16-22-42"]
+    },
     "draft_text_recall": {
       "title": "Draft text recall",
       "promotion_required": true,
-      "counts": {"passed": 1},
+      "counts": {"passed": 2},
       "issue_sessions": []
     },
     "local_recall": {
       "title": "Local recall",
       "promotion_required": true,
-      "counts": {"warning": 1},
-      "issue_sessions": ["2026-07-03_06-16-43"]
+      "counts": {"passed": 1, "warning": 1},
+      "issue_sessions": ["2026-07-08_16-22-42"]
     }
   },
   "capture_safe_candidate_scope": {
     "definition": "real_meeting sessions with shadow_compared, meaningful comparison, capture_safety passed and required_artifacts passed",
-    "sessions": 1,
-    "passing_sessions": 0,
+    "sessions": 2,
+    "passing_sessions": 1,
     "blocking_dimensions": [
+      "order_risk",
       "local_recall",
-      "review_burden",
       "selected_notes_readiness"
     ],
-    "session_ids": ["2026-07-03_06-16-43"],
+    "session_ids": ["2026-07-03_06-16-43", "2026-07-08_16-22-42"],
     "next_focus": {
       "dimension": "local_recall",
-      "action_id": "fix_live_order_risk",
-      "title": "Fix live ordering risk",
-      "recommended_next": "fix live timeline ordering/reconciliation before live promotion"
+      "action_id": "fix_live_local_recall_gap",
+      "title": "Fix live local recall gaps",
+      "recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion",
+      "source": "metric_aware_focus_override"
     },
     "promotion_decision": "shadow_only_do_not_promote",
     "new_real_live_collection_allowed": false,
@@ -5229,15 +5242,15 @@ Schema:
     "status": "resolve_capture_safe_candidate_blockers",
     "recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion",
     "passing_compared_sessions_remaining": 2,
-    "capture_safe_candidate_sessions": 1,
-    "capture_safe_candidate_passing_sessions": 0,
+    "capture_safe_candidate_sessions": 2,
+    "capture_safe_candidate_passing_sessions": 1,
     "capture_safe_candidate_blocking_dimensions": [
+      "order_risk",
       "local_recall",
-      "review_burden",
       "selected_notes_readiness"
     ],
-    "historical_non_candidate_sessions": 1,
-    "historical_non_candidate_session_ids": ["2026-07-03_10-15-18"],
+    "historical_non_candidate_sessions": 9,
+    "historical_non_candidate_session_ids": ["2026-07-03_10-15-18", "..."],
     "new_real_live_collection_allowed": false,
     "controlled_real_live_pilot_allowed": true,
     "batch_authoritative": true
