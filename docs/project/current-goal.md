@@ -267,10 +267,15 @@ New Target-Me diagnostic, 2026-07-08:
   `derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.json` and
   `draft.md`. Inserted turns are marked `shadow_added: true`; promotion remains false and batch
   remains authoritative.
+- The same `parity_gates` now run against the materialized Target-Me shadow profile. Current real
+  corpus result: `1` session passes all gates under that profile, total profile missing-Me is
+  `315.34s`, and existing live remote leak remains `15.96s`. This proves that Target-Me rescue
+  helps local recall, but it does not solve the live role/remote-leak problem by itself.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
 existing corpus already contains enough suppressed live mic material and enough Target-Me evidence.
-The next work is to run the same parity gates on this materialized shadow draft. Sessions with
+The next work is to fix the remaining gates exposed by this materialized shadow draft: especially
+existing live remote leak, remaining missing-Me and batch readiness/review gates. Sessions with
 `insufficient_enrollment` point to a later calibration problem, not to a need for more ad-hoc live
 meetings now.
 

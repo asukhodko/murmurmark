@@ -1023,8 +1023,9 @@ Active goal and near-term candidates:
    mismatches. `compare-live-batch.py` materializes that subset into
    `derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.{json,md}`
    as diagnostic-only output. So the current blocker is no longer "collect more recordings"; it is
-   evaluating full parity gates on the materialized timeline-safe Target-Me shadow before any live
-   `Me` promotion.
+   fixing the remaining gates exposed by the materialized timeline-safe Target-Me shadow. Current
+   profile gate evaluation: `1` real-live session passes all gates, corpus missing-Me drops to
+   `315.34s`, while existing live remote leak remains `15.96s`; promotion stays blocked.
    Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.

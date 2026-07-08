@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.17.0"
+SCRIPT_VERSION = "0.18.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GENERIC_TOKENS = {
@@ -1738,6 +1738,82 @@ def rescue_policy_counterfactual_metrics(
     return result
 
 
+def parity_metrics_for_turns(
+    turns: list[dict[str, Any]],
+    batch_utterances: list[dict[str, Any]],
+    *,
+    match_mode_prefix: str,
+) -> dict[str, Any]:
+    order_mismatches = order_mismatch_rows_for_turns(
+        turns,
+        batch_utterances,
+        match_mode=f"{match_mode_prefix}_best_overall",
+    )
+    role_constrained_order_mismatches = order_mismatch_rows_for_turns(
+        turns,
+        batch_utterances,
+        same_role_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode=f"{match_mode_prefix}_role_constrained_strict",
+    )
+    contentful_role_constrained_order_mismatches = order_mismatch_rows_for_turns(
+        turns,
+        batch_utterances,
+        same_role_only=True,
+        contentful_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode=f"{match_mode_prefix}_role_constrained_contentful",
+    )
+    local_missing = local_missing_rows_for_turns(batch_utterances, turns)
+    remote_leak = remote_leak_rows_for_turns(turns, batch_utterances)
+    return {
+        "live_turn_count": len(turns),
+        "live_me_turn_count": sum(1 for turn in turns if turn.get("role") == "Me"),
+        "live_remote_turn_count": sum(1 for turn in turns if turn.get("role") == "Colleagues"),
+        "batch_utterance_count": len(batch_utterances),
+        "batch_me_utterance_count": sum(1 for row in batch_utterances if row.get("role") == "Me"),
+        "batch_remote_utterance_count": sum(1 for row in batch_utterances if row.get("role") == "Colleagues"),
+        "live_order_mismatch_count": len(order_mismatches),
+        "live_order_mismatch_by_category": order_mismatch_category_counts(order_mismatches),
+        "live_order_mismatch_by_primary_risk": order_mismatch_field_counts(order_mismatches, "primary_risk"),
+        "live_order_mismatch_by_confidence": order_mismatch_field_counts(order_mismatches, "confidence"),
+        "live_role_constrained_order_mismatch_count": len(role_constrained_order_mismatches),
+        "live_role_constrained_order_mismatch_by_category": order_mismatch_category_counts(
+            role_constrained_order_mismatches,
+        ),
+        "live_role_constrained_order_mismatch_by_confidence": order_mismatch_field_counts(
+            role_constrained_order_mismatches,
+            "confidence",
+        ),
+        "live_contentful_role_constrained_order_mismatch_count": len(contentful_role_constrained_order_mismatches),
+        "live_contentful_role_constrained_order_mismatch_by_category": order_mismatch_category_counts(
+            contentful_role_constrained_order_mismatches,
+        ),
+        "live_contentful_role_constrained_order_mismatch_by_confidence": order_mismatch_field_counts(
+            contentful_role_constrained_order_mismatches,
+            "confidence",
+        ),
+        "live_contentful_role_constrained_order_mismatch_by_ambiguity": order_mismatch_field_counts(
+            contentful_role_constrained_order_mismatches,
+            "match_ambiguity",
+        ),
+        "live_unambiguous_contentful_role_constrained_order_mismatch_count": sum(
+            1
+            for row in contentful_role_constrained_order_mismatches
+            if row.get("match_ambiguity") == "unambiguous"
+        ),
+        "live_missing_me_utterance_count": len(local_missing),
+        "live_missing_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3),
+        "live_suspected_remote_leak_in_me_count": len(remote_leak),
+        "live_suspected_remote_leak_in_me_seconds": round(
+            sum(safe_float(row.get("duration_sec")) for row in remote_leak),
+            3,
+        ),
+    }
+
+
 def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> dict[str, Any]:
     turns = live_turns(session, chunks)
     suppressed_mic_turns = live_suppressed_mic_turns(chunks)
@@ -2392,6 +2468,91 @@ def write_target_me_shadow_drafts(
     return outputs
 
 
+def build_target_me_shadow_profiles(
+    *,
+    live_turns_rows: list[dict[str, Any]],
+    target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
+    target_me_shadow_outputs: dict[str, dict[str, str]],
+    batch_utterances: list[dict[str, Any]],
+    batch_final_tokens: list[str],
+    capture_safety_gate: dict[str, Any],
+    blockers: list[str],
+    duplicate_count: int,
+    boundary_summary: dict[str, Any],
+    batch_quality: dict[str, Any] | None,
+    readiness: dict[str, Any] | None,
+    outcome: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    profiles: dict[str, Any] = {}
+    top_level_metrics: dict[str, Any] = {}
+    for policy in MATERIALIZED_TARGET_ME_SHADOW_POLICIES:
+        target_turns = target_me_turns_by_policy.get(policy) or []
+        combined_turns = sorted(
+            live_turns_rows + target_turns,
+            key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+        )
+        metrics = parity_metrics_for_turns(
+            combined_turns,
+            batch_utterances,
+            match_mode_prefix=f"target_me_shadow_profile_{policy}",
+        )
+        recall = bag_recall(
+            tokens("\n".join(clean_text(str(turn.get("text") or "")) for turn in combined_turns)),
+            batch_final_tokens,
+        )
+        profile_assessment = {"metrics": metrics}
+        gates = parity_gates(
+            capture_safety_gate=capture_safety_gate,
+            blockers=blockers,
+            duplicate_count=duplicate_count,
+            boundary_summary=boundary_summary,
+            recall=recall,
+            batch_quality=batch_quality,
+            live_assessment=profile_assessment,
+            readiness=readiness,
+            outcome=outcome,
+        )
+        all_gates_passed = bool(gates) and all(row.get("status") == "passed" for row in gates)
+        gate_statuses = {str(row.get("status")) for row in gates}
+        status = "passed_but_shadow_locked" if all_gates_passed else "not_promotable"
+        base = f"live_target_me_shadow_profile_{policy}"
+        top_level_metrics[f"{base}_all_parity_gates_passed"] = all_gates_passed
+        top_level_metrics[f"{base}_non_passing_gate_count"] = sum(1 for row in gates if row.get("status") != "passed")
+        top_level_metrics[f"{base}_live_token_recall_in_batch"] = round(recall, 6) if recall is not None else None
+        for key in (
+            "live_turn_count",
+            "live_me_turn_count",
+            "live_remote_turn_count",
+            "live_order_mismatch_count",
+            "live_role_constrained_order_mismatch_count",
+            "live_contentful_role_constrained_order_mismatch_count",
+            "live_missing_me_utterance_count",
+            "live_missing_me_seconds",
+            "live_suspected_remote_leak_in_me_count",
+            "live_suspected_remote_leak_in_me_seconds",
+        ):
+            top_level_metrics[f"{base}_{key}"] = metrics.get(key)
+        profiles[policy] = {
+            "schema": "murmurmark.live_shadow_profile_parity/v1",
+            "policy": policy,
+            "status": status,
+            "promotion_allowed": False,
+            "promotion_reason": "target_me_shadow_profile_never_promotes_by_default",
+            "batch_authoritative": True,
+            "outputs": target_me_shadow_outputs.get(policy) or {},
+            "metrics": {
+                **metrics,
+                "live_token_recall_in_batch": round(recall, 6) if recall is not None else None,
+                "all_parity_gates_passed": all_gates_passed,
+            },
+            "parity_gates": {
+                "status": "not_promotable" if gate_statuses - {"passed"} else "passed_but_shadow_locked",
+                "gates": gates,
+            },
+        }
+    return profiles, top_level_metrics
+
+
 def main() -> int:
     args = parse_args()
     session = args.session.expanduser().resolve()
@@ -2474,6 +2635,20 @@ def main() -> int:
         target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
         metrics=live_metrics,
     )
+    target_me_shadow_profiles, target_me_shadow_profile_metrics = build_target_me_shadow_profiles(
+        live_turns_rows=live_assessment.get("live_turns") or [],
+        target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
+        target_me_shadow_outputs=target_me_shadow_outputs,
+        batch_utterances=batch_utterances,
+        batch_final_tokens=final_tokens,
+        capture_safety_gate=capture_safety_gate,
+        blockers=blockers,
+        duplicate_count=duplicate_count,
+        boundary_summary=boundary_summary,
+        batch_quality=batch_quality,
+        readiness=readiness,
+        outcome=outcome,
+    )
     promotion_blockers = [
         "shadow_v1_never_promotes_by_default",
         *[str(row.get("name")) for row in gates if row.get("status") in {"blocked", "failed", "warning", "not_evaluated"}],
@@ -2520,6 +2695,10 @@ def main() -> int:
             "screen_capture_restart_count": (capture_safety_gate.get("evidence") or {}).get("screen_capture_restart_count"),
             "capture_safety_warning_count": (capture_safety_gate.get("evidence") or {}).get("safety_warning_count"),
             **live_metrics,
+            **target_me_shadow_profile_metrics,
+        },
+        "shadow_profiles": {
+            "target_me": target_me_shadow_profiles,
         },
         "risk_examples": {
             "order_mismatches": (live_assessment.get("order_mismatches") or [])[:20],

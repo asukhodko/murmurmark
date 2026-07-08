@@ -4996,6 +4996,31 @@ Schema:
       }
     ]
   },
+  "shadow_profiles": {
+    "target_me": {
+      "target_me_confirmed_remote_guard_timeline_safe_v1": {
+        "schema": "murmurmark.live_shadow_profile_parity/v1",
+        "status": "not_promotable",
+        "promotion_allowed": false,
+        "promotion_reason": "target_me_shadow_profile_never_promotes_by_default",
+        "batch_authoritative": true,
+        "outputs": {
+          "draft_json": "derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.json",
+          "draft_markdown": "derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.md"
+        },
+        "metrics": {
+          "live_missing_me_seconds": 315.34,
+          "live_suspected_remote_leak_in_me_seconds": 15.96,
+          "live_contentful_role_constrained_order_mismatch_count": 4,
+          "all_parity_gates_passed": false
+        },
+        "parity_gates": {
+          "status": "not_promotable",
+          "gates": []
+        }
+      }
+    }
+  },
   "outputs": {
     "live_parity_session_report": "derived/live/live_parity_session_report.json",
     "live_parity_session_report_markdown": "derived/live/live_parity_session_report.md",
@@ -5533,8 +5558,14 @@ derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/
 The JSON uses schema `murmurmark.live_target_me_shadow_draft/v1`, includes `promotion_allowed:
 false`, keeps `batch_authoritative: true`, and marks inserted Target-Me turns with
 `shadow_added: true`. These files are review and parity inputs only; they do not replace
-`derived/live/transcript.draft.md`. The next design step is evaluating full parity gates on this
-materialized shadow draft, not collecting more ad-hoc recordings.
+`derived/live/transcript.draft.md`.
+
+`live_batch_comparison.json` also writes `shadow_profiles.target_me.<policy>` with schema
+`murmurmark.live_shadow_profile_parity/v1`. That block runs the same `parity_gates` against the
+materialized Target-Me draft. Top-level `parity_gates` still describe the ordinary live draft; profile
+gates describe the diagnostic draft only. In both cases `promotion_allowed` remains `false`. Current
+corpus evidence shows the Target-Me profile improves local recall, but remaining live remote leak,
+missing-Me and batch readiness/review gates still block promotion.
 
 This audit is evidence only. `promotion_decision` must stay `shadow_only_do_not_promote`; rows must
 not publish live `Me`, edit batch transcripts or relax parity gates. A useful result is evidence for

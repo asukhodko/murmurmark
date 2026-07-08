@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.8.0"
+SCRIPT_VERSION = "1.9.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -63,6 +63,21 @@ TARGET_ME_SHADOW_POLICY_METRICS = (
     "order_mismatch_delta_count",
     "role_constrained_order_mismatch_delta_count",
     "contentful_role_constrained_order_mismatch_delta_count",
+)
+TARGET_ME_SHADOW_PROFILE_METRICS = (
+    "all_parity_gates_passed",
+    "non_passing_gate_count",
+    "live_token_recall_in_batch",
+    "live_turn_count",
+    "live_me_turn_count",
+    "live_remote_turn_count",
+    "live_order_mismatch_count",
+    "live_role_constrained_order_mismatch_count",
+    "live_contentful_role_constrained_order_mismatch_count",
+    "live_missing_me_utterance_count",
+    "live_missing_me_seconds",
+    "live_suspected_remote_leak_in_me_count",
+    "live_suspected_remote_leak_in_me_seconds",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -444,6 +459,22 @@ def target_me_shadow_policy_metric_values(metrics: dict[str, Any] | None) -> dic
         )
         for policy in TARGET_ME_RESCUE_POLICIES
         for metric in TARGET_ME_SHADOW_POLICY_METRICS
+    }
+
+
+def target_me_shadow_profile_metric_values(metrics: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(metrics, dict):
+        return {
+            f"live_target_me_shadow_profile_{policy}_{metric}": None
+            for policy in TARGET_ME_RESCUE_POLICIES
+            for metric in TARGET_ME_SHADOW_PROFILE_METRICS
+        }
+    return {
+        f"live_target_me_shadow_profile_{policy}_{metric}": metrics.get(
+            f"live_target_me_shadow_profile_{policy}_{metric}"
+        )
+        for policy in TARGET_ME_RESCUE_POLICIES
+        for metric in TARGET_ME_SHADOW_PROFILE_METRICS
     }
 
 
@@ -1096,6 +1127,35 @@ def add_target_me_shadow_policy_summary(summary: dict[str, Any], rows: list[dict
         )
 
 
+def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dict[str, Any]], prefix: str) -> None:
+    for policy in TARGET_ME_RESCUE_POLICIES:
+        base = f"live_target_me_shadow_profile_{policy}"
+        out = f"{prefix}_live_target_me_shadow_profile_{policy}" if prefix else base
+        evaluated_rows = [
+            row
+            for row in rows
+            if (row.get("metrics") or {}).get(f"{base}_non_passing_gate_count") is not None
+        ]
+        summary[f"{out}_evaluated_session_count"] = len(evaluated_rows)
+        summary[f"{out}_all_parity_gates_passed_session_count"] = sum(
+            1 for row in evaluated_rows if (row.get("metrics") or {}).get(f"{base}_all_parity_gates_passed") is True
+        )
+        summary[f"{out}_non_passing_gate_count"] = sum_int_metric(evaluated_rows, f"{base}_non_passing_gate_count")
+        summary[f"{out}_live_missing_me_seconds"] = sum_metric(evaluated_rows, f"{base}_live_missing_me_seconds")
+        summary[f"{out}_live_suspected_remote_leak_in_me_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_live_suspected_remote_leak_in_me_seconds",
+        )
+        summary[f"{out}_live_order_mismatch_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_live_order_mismatch_count",
+        )
+        summary[f"{out}_live_contentful_role_constrained_order_mismatch_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_live_contentful_role_constrained_order_mismatch_count",
+        )
+
+
 def target_me_shadow_policy_diagnostics(summary: dict[str, Any], prefix: str) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     best_safe: dict[str, Any] | None = None
@@ -1130,6 +1190,58 @@ def target_me_shadow_policy_diagnostics(summary: dict[str, Any], prefix: str) ->
             "materialize_target_me_shadow_rescue_draft"
             if best_safe
             else "keep_collecting_target_me_evidence_or_add_enrollment_fallback"
+        ),
+    }
+
+
+def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    key_prefix = f"{prefix}_live_target_me_shadow_profile_" if prefix else "live_target_me_shadow_profile_"
+    best: dict[str, Any] | None = None
+    for policy in TARGET_ME_RESCUE_POLICIES:
+        base = f"{key_prefix}{policy}"
+        row = {
+            "policy": policy,
+            "evaluated_session_count": safe_int(summary.get(f"{base}_evaluated_session_count")),
+            "all_parity_gates_passed_session_count": safe_int(
+                summary.get(f"{base}_all_parity_gates_passed_session_count")
+            ),
+            "non_passing_gate_count": safe_int(summary.get(f"{base}_non_passing_gate_count")),
+            "live_missing_me_seconds": safe_float(summary.get(f"{base}_live_missing_me_seconds")),
+            "live_suspected_remote_leak_in_me_seconds": safe_float(
+                summary.get(f"{base}_live_suspected_remote_leak_in_me_seconds")
+            ),
+            "live_order_mismatch_count": safe_int(summary.get(f"{base}_live_order_mismatch_count")),
+            "live_contentful_role_constrained_order_mismatch_count": safe_int(
+                summary.get(f"{base}_live_contentful_role_constrained_order_mismatch_count")
+            ),
+        }
+        rows.append(row)
+        if row["evaluated_session_count"] > 0 and (
+            best is None
+            or (
+                row["all_parity_gates_passed_session_count"],
+                -row["non_passing_gate_count"],
+                -row["live_missing_me_seconds"],
+            )
+            > (
+                safe_int(best.get("all_parity_gates_passed_session_count")),
+                -safe_int(best.get("non_passing_gate_count")),
+                -safe_float(best.get("live_missing_me_seconds")),
+            )
+        ):
+            best = row
+    status = "profile_evaluated" if best else "not_evaluated"
+    return {
+        "schema": "murmurmark.live_target_me_shadow_profile_diagnostics/v1",
+        "scope": prefix or "all",
+        "status": status,
+        "best_profile": best,
+        "profiles": rows,
+        "recommended_next": (
+            "fix_remaining_parity_gate_blockers_for_materialized_target_me_shadow"
+            if best
+            else "materialize_target_me_shadow_profiles"
         ),
     }
 
@@ -1758,6 +1870,7 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             ),
             **suppressed_mic_rescue_policy_metric_values(metrics if isinstance(metrics, dict) else None),
             **target_me_shadow_policy_metric_values(metrics if isinstance(metrics, dict) else None),
+            **target_me_shadow_profile_metric_values(metrics if isinstance(metrics, dict) else None),
             "live_suspected_remote_leak_in_me_seconds": (
                 metrics.get("live_suspected_remote_leak_in_me_seconds") if isinstance(metrics, dict) else None
             ),
@@ -2237,6 +2350,10 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     add_target_me_shadow_policy_summary(summary, real_live_rows, "real")
     add_target_me_shadow_policy_summary(summary, capture_safe_candidate_rows, "capture_safe_candidate")
     add_target_me_shadow_policy_summary(summary, capture_safe_evaluable_rows, "capture_safe_evaluable")
+    add_target_me_shadow_profile_summary(summary, rows, "")
+    add_target_me_shadow_profile_summary(summary, real_live_rows, "real")
+    add_target_me_shadow_profile_summary(summary, capture_safe_candidate_rows, "capture_safe_candidate")
+    add_target_me_shadow_profile_summary(summary, capture_safe_evaluable_rows, "capture_safe_evaluable")
     local_recall_rescue_policy_diagnostics = {
         "real": rescue_policy_diagnostics(summary, "real"),
         "capture_safe_candidate": rescue_policy_diagnostics(summary, "capture_safe_candidate"),
@@ -2246,6 +2363,11 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real": target_me_shadow_policy_diagnostics(summary, "real"),
         "capture_safe_candidate": target_me_shadow_policy_diagnostics(summary, "capture_safe_candidate"),
         "capture_safe_evaluable": target_me_shadow_policy_diagnostics(summary, "capture_safe_evaluable"),
+    }
+    target_me_shadow_profile_diagnostics_report = {
+        "real": target_me_shadow_profile_diagnostics(summary, "real"),
+        "capture_safe_candidate": target_me_shadow_profile_diagnostics(summary, "capture_safe_candidate"),
+        "capture_safe_evaluable": target_me_shadow_profile_diagnostics(summary, "capture_safe_evaluable"),
     }
     local_recall_rescue_lab_report = local_recall_rescue_lab(real_live_rows)
     candidate_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_candidate_rows)
@@ -2335,6 +2457,31 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             else None
         )
         summary[f"{scope}_live_target_me_shadow_recommended_next"] = diagnostics.get("recommended_next")
+    for scope, diagnostics in target_me_shadow_profile_diagnostics_report.items():
+        best = diagnostics.get("best_profile")
+        summary[f"{scope}_live_target_me_shadow_profile_status"] = diagnostics.get("status")
+        summary[f"{scope}_live_target_me_shadow_profile_best_policy"] = (
+            best.get("policy") if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_all_parity_gates_passed_sessions"] = (
+            safe_int(best.get("all_parity_gates_passed_session_count")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_non_passing_gate_count"] = (
+            safe_int(best.get("non_passing_gate_count")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_missing_me_seconds"] = (
+            safe_float(best.get("live_missing_me_seconds")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_remote_leak_seconds"] = (
+            safe_float(best.get("live_suspected_remote_leak_in_me_seconds")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_order_mismatch_count"] = (
+            safe_int(best.get("live_order_mismatch_count")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_contentful_order_mismatch_count"] = (
+            safe_int(best.get("live_contentful_role_constrained_order_mismatch_count")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_recommended_next"] = diagnostics.get("recommended_next")
     coverage_target = {
         "target_live_sessions": args.target_live_sessions,
         "target_meaningful_compared_sessions": args.target_meaningful_compared_sessions,
@@ -2643,6 +2790,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "capture_safe_evaluable_live_local_recall_rescue_lab": evaluable_local_recall_rescue_lab_report,
         "live_local_recall_target_me_diagnostics": target_me_diagnostics_report,
         "live_target_me_shadow_policy_diagnostics": target_me_shadow_diagnostics_report,
+        "live_target_me_shadow_profile_diagnostics": target_me_shadow_profile_diagnostics_report,
         "live_local_recall_gap_examples": local_recall_examples,
         "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
         "capture_safe_evaluable_local_recall_gap_examples": evaluable_local_recall_examples,
@@ -4112,6 +4260,44 @@ def main() -> int:
             print(
                 "real_live_target_me_shadow_recommended_policy_order_mismatch_delta_count: "
                 f"{safe_int(recommended_target_me_shadow.get('contentful_role_constrained_order_mismatch_delta_count'))}"
+            )
+    target_me_shadow_profile_diagnostics = (
+        report.get("live_target_me_shadow_profile_diagnostics")
+        if isinstance(report.get("live_target_me_shadow_profile_diagnostics"), dict)
+        else {}
+    )
+    real_target_me_shadow_profile = (
+        target_me_shadow_profile_diagnostics.get("real")
+        if isinstance(target_me_shadow_profile_diagnostics.get("real"), dict)
+        else {}
+    )
+    if real_target_me_shadow_profile:
+        print(f"real_live_target_me_shadow_profile_status: {real_target_me_shadow_profile.get('status')}")
+        best_target_me_shadow_profile = (
+            real_target_me_shadow_profile.get("best_profile")
+            if isinstance(real_target_me_shadow_profile.get("best_profile"), dict)
+            else {}
+        )
+        if best_target_me_shadow_profile:
+            print(
+                "real_live_target_me_shadow_profile_best_policy: "
+                f"{best_target_me_shadow_profile.get('policy')}"
+            )
+            print(
+                "real_live_target_me_shadow_profile_all_parity_gates_passed_sessions: "
+                f"{safe_int(best_target_me_shadow_profile.get('all_parity_gates_passed_session_count'))}"
+            )
+            print(
+                "real_live_target_me_shadow_profile_non_passing_gate_count: "
+                f"{safe_int(best_target_me_shadow_profile.get('non_passing_gate_count'))}"
+            )
+            print(
+                "real_live_target_me_shadow_profile_missing_me_seconds: "
+                f"{safe_float(best_target_me_shadow_profile.get('live_missing_me_seconds'))}"
+            )
+            print(
+                "real_live_target_me_shadow_profile_remote_leak_seconds: "
+                f"{safe_float(best_target_me_shadow_profile.get('live_suspected_remote_leak_in_me_seconds'))}"
             )
     if candidate_target_me:
         print(f"capture_safe_candidate_target_me_status: {candidate_target_me.get('status')}")
