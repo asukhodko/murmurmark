@@ -965,6 +965,11 @@ Active goal and near-term candidates:
    implementation target is a stronger audio/evidence gate for local speech inside suppressed mic
    chunks. The corpus report now also labels suppressed mic ASR segments against batch:
    `47` Me-dominant segments / `196.26s` and `41` mixed segments / `178.32s` in real live runs.
+   A rescue policy lab is now part of the report: current text-only rescue would recover only
+   `31.36s` local speech while risking `53.3s` remote leak; strict unique-token text rescue is also
+   unsafe (`115.38s` local / `198.8s` remote-risk). `remote_silent_text_v1` is much safer
+   (`34.16s` local / `2.58s` remote-risk) but low-recall, so the next real fix needs audio evidence
+   in addition to text.
    Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.

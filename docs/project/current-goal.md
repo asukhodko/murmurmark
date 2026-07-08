@@ -142,6 +142,10 @@ Current result:
 - `real_live_segment_role_gate_candidate_kept_segment_count = 31`;
 - `real_live_suppressed_mic_asr_me_dominant_segment_count = 47 / 196.26 sec`;
 - `real_live_suppressed_mic_asr_mixed_segment_count = 41 / 178.32 sec`;
+- current text-only rescue policy: `31.36 sec` local / `53.30 sec` remote-risk;
+- strict unique-token text policy: `115.38 sec` local / `198.80 sec` remote-risk;
+- remote-silent text policy: `34.16 sec` local / `2.58 sec` remote-risk;
+- batch-oracle local ceiling: `374.58 sec` local;
 - `real_live_suspected_remote_leak_in_me_seconds = 0.0`;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
 - `objective_next_focus = fix_live_local_recall_gap`.
@@ -159,9 +163,13 @@ mic chunk when the chunk looks like remote duplicate, even if the chunk also con
 speech. Segment-level batch comparison now shows `47` Me-dominant suppressed mic ASR segments
 (`196.26s`) and `41` mixed suppressed mic ASR segments (`178.32s`) in real live runs. A first
 text-only segment rescue found `6` real live candidate chunks / `31` kept candidate segments, but it
-stays diagnostic-only because publishing those candidates can reintroduce remote as `Me`. The next
-implementation step should use stronger audio/evidence gates to split or rescue local evidence
-inside suppressed mic chunks without publishing remote leak.
+stays diagnostic-only because policy-lab metrics show it would recover only `31.36s` local speech
+while risking `53.30s` remote leakage. A stricter unique-token text rule is not better enough:
+`115.38s` local / `198.80s` remote-risk. `remote_silent_text_v1` is much safer
+(`34.16s` local / `2.58s` remote-risk), but covers only a small slice of the `374.58s` batch-oracle
+local ceiling. The next implementation step should therefore add audio/evidence gates, not only text
+thresholds, to split or rescue local evidence inside suppressed mic chunks without publishing remote
+leak.
 
 ## Latest Completed Goal: Current Pipeline Stabilization v1
 

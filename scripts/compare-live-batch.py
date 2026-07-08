@@ -12,7 +12,7 @@ from typing import Any
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.9.0"
+SCRIPT_VERSION = "0.10.0"
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 CAPTURE_SAFETY_BLOCKERS = {"interrupted_capture", "silent_capture", "sparse_capture"}
 CAPTURE_SAFETY_WARNING_MARKERS = (
@@ -24,6 +24,12 @@ CAPTURE_SAFETY_WARNING_MARKERS = (
     "track appears silent or almost silent",
 )
 BOUNDARY_ISSUE_STATUSES = {"suppressed", "failed", "warning", "blocked", "not_evaluated"}
+SUPPRESSED_MIC_RESCUE_POLICIES = (
+    "current_text_segment_gate",
+    "strict_text_unique_v1",
+    "remote_silent_text_v1",
+    "batch_oracle_local_ceiling",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -555,6 +561,136 @@ def batch_role_label_for_interval(batch_utterances: list[dict[str, Any]], start:
     }
 
 
+def overlapping_tokens_for_rows(rows: list[dict[str, Any]], start: float, end: float, guard_sec: float = 1.0) -> list[str]:
+    result: list[str] = []
+    guarded_start = start - guard_sec
+    guarded_end = end + guard_sec
+    for row in rows:
+        row_start = safe_float(row.get("start"))
+        row_end = safe_float(row.get("end"), row_start)
+        if interval_overlap(guarded_start, guarded_end, row_start, row_end) > 0:
+            result.extend(tokens(str(row.get("text") or "")))
+    return result
+
+
+def text_features_against_remote(text: str, remote_tokens: list[str]) -> dict[str, Any]:
+    mic_tokens = tokens(text)
+    unique_tokens = counter_unique_tokens(mic_tokens, remote_tokens)
+    return {
+        "token_count": len(mic_tokens),
+        "overlapping_remote_token_count": len(remote_tokens),
+        "unique_token_count": len(unique_tokens),
+        "unique_tokens": unique_tokens[:12],
+        "mic_token_recall_in_overlapping_remote": round(bag_recall(mic_tokens, remote_tokens) or 0.0, 6),
+        "overlapping_remote_token_recall_in_mic": round(bag_recall(remote_tokens, mic_tokens) or 0.0, 6),
+    }
+
+
+def read_global_asr_segments(session: Path, source: dict[str, Any]) -> list[dict[str, Any]]:
+    asr = source.get("asr") if isinstance(source.get("asr"), dict) else {}
+    asr_json = resolve_session_path(session, asr.get("json"))
+    if asr_json is None:
+        return []
+    data = read_json(asr_json)
+    if not isinstance(data, dict):
+        return []
+    clip_start = safe_float(source.get("clip_start_sec"))
+    hard_start = safe_float(source.get("hard_start_sec"))
+    hard_end = safe_float(source.get("hard_end_sec"), hard_start)
+    rows: list[dict[str, Any]] = []
+    for item in data.get("transcription") or []:
+        if not isinstance(item, dict):
+            continue
+        offsets = item.get("offsets") if isinstance(item.get("offsets"), dict) else {}
+        local_start_ms = safe_float(offsets.get("from"))
+        local_end_ms = safe_float(offsets.get("to"), local_start_ms)
+        start = clip_start + local_start_ms / 1000.0
+        end = clip_start + local_end_ms / 1000.0
+        center = (start + end) / 2.0
+        if not (hard_start <= center < hard_end):
+            continue
+        text = clean_text(str(item.get("text") or ""))
+        if text:
+            rows.append({"start": round(start, 3), "end": round(max(end, start), 3), "text": text})
+    return rows
+
+
+def suppressed_mic_rescue_policy_labels(row: dict[str, Any]) -> list[str]:
+    labels: list[str] = []
+    token_count = safe_int(row.get("token_count"))
+    unique_count = safe_int(row.get("segment_gate_unique_token_count"))
+    mic_in_remote = safe_float(row.get("segment_gate_mic_token_recall_in_overlapping_remote"))
+    remote_in_mic = safe_float(row.get("segment_gate_overlapping_remote_token_recall_in_mic"))
+    remote_token_count = safe_int(row.get("segment_gate_overlapping_remote_token_count"))
+    if row.get("segment_gate_status") == "kept":
+        labels.append("current_text_segment_gate")
+    if token_count >= 5 and unique_count >= 4 and mic_in_remote <= 0.35 and remote_in_mic <= 0.45:
+        labels.append("strict_text_unique_v1")
+    if token_count >= 3 and remote_token_count == 0:
+        labels.append("remote_silent_text_v1")
+    if row.get("batch_role_label") in {"me_dominant", "mixed"}:
+        labels.append("batch_oracle_local_ceiling")
+    return labels
+
+
+def summarize_suppressed_mic_rescue_policies(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    examples: dict[str, list[dict[str, Any]]] = {policy: [] for policy in SUPPRESSED_MIC_RESCUE_POLICIES}
+    total_local_seconds = sum(
+        safe_float(row.get("duration_sec"))
+        for row in rows
+        if row.get("batch_role_label") in {"me_dominant", "mixed"}
+    )
+    for policy in SUPPRESSED_MIC_RESCUE_POLICIES:
+        selected = [row for row in rows if policy in (row.get("rescue_policy_candidates") or [])]
+        selected_seconds = sum(safe_float(row.get("duration_sec")) for row in selected)
+        me_seconds = sum(
+            safe_float(row.get("duration_sec")) for row in selected if row.get("batch_role_label") == "me_dominant"
+        )
+        mixed_seconds = sum(
+            safe_float(row.get("duration_sec")) for row in selected if row.get("batch_role_label") == "mixed"
+        )
+        remote_seconds = sum(
+            safe_float(row.get("duration_sec")) for row in selected if row.get("batch_role_label") == "remote_dominant"
+        )
+        none_seconds = sum(
+            safe_float(row.get("duration_sec")) for row in selected if row.get("batch_role_label") == "none"
+        )
+        local_seconds = me_seconds + mixed_seconds
+        remote_risk_seconds = remote_seconds + none_seconds
+        result[f"live_rescue_policy_{policy}_selected_segment_count"] = len(selected)
+        result[f"live_rescue_policy_{policy}_selected_seconds"] = round(selected_seconds, 3)
+        result[f"live_rescue_policy_{policy}_local_seconds"] = round(local_seconds, 3)
+        result[f"live_rescue_policy_{policy}_me_dominant_seconds"] = round(me_seconds, 3)
+        result[f"live_rescue_policy_{policy}_mixed_seconds"] = round(mixed_seconds, 3)
+        result[f"live_rescue_policy_{policy}_remote_risk_seconds"] = round(remote_risk_seconds, 3)
+        result[f"live_rescue_policy_{policy}_precision_proxy"] = (
+            round(local_seconds / selected_seconds, 6) if selected_seconds > 0 else None
+        )
+        result[f"live_rescue_policy_{policy}_local_recall_proxy"] = (
+            round(local_seconds / total_local_seconds, 6) if total_local_seconds > 0 else None
+        )
+        for row in selected[:10]:
+            examples[policy].append(
+                {
+                    "chunk_index": row.get("chunk_index"),
+                    "start": row.get("start"),
+                    "end": row.get("end"),
+                    "duration_sec": row.get("duration_sec"),
+                    "text": row.get("text"),
+                    "batch_role_label": row.get("batch_role_label"),
+                    "segment_gate_unique_token_count": row.get("segment_gate_unique_token_count"),
+                    "segment_gate_mic_token_recall_in_overlapping_remote": row.get(
+                        "segment_gate_mic_token_recall_in_overlapping_remote"
+                    ),
+                    "segment_gate_overlapping_remote_token_recall_in_mic": row.get(
+                        "segment_gate_overlapping_remote_token_recall_in_mic"
+                    ),
+                }
+            )
+    return {"metrics": result, "examples": examples}
+
+
 def read_suppressed_mic_asr_segment_audit(
     session: Path,
     chunks: list[dict[str, Any]],
@@ -573,6 +709,8 @@ def read_suppressed_mic_asr_segment_audit(
         mic = chunk.get("mic")
         if not isinstance(mic, dict):
             continue
+        remote = chunk.get("remote") if isinstance(chunk.get("remote"), dict) else {}
+        remote_segments = read_global_asr_segments(session, remote)
         role_gate = mic.get("live_role_gate") if isinstance(mic.get("live_role_gate"), dict) else {}
         if role_gate.get("status") != "suppressed":
             continue
@@ -606,6 +744,10 @@ def read_suppressed_mic_asr_segment_audit(
             if not text:
                 continue
             role = batch_role_label_for_interval(batch_utterances, start, end)
+            computed_features = text_features_against_remote(
+                text,
+                overlapping_tokens_for_rows(remote_segments, start, end),
+            )
             decision = decisions.get((round(start, 3), round(end, 3), text), {})
             label = str(role.get("label") or "none")
             duration = max(0.0, end - start)
@@ -625,21 +767,35 @@ def read_suppressed_mic_asr_segment_audit(
                 "batch_role_evidence": role,
                 "segment_gate_status": decision.get("status") or "not_evaluated",
                 "segment_gate_reason": decision.get("reason"),
-                "segment_gate_unique_token_count": decision.get("unique_token_count"),
+                "segment_gate_unique_token_count": decision.get("unique_token_count")
+                if decision.get("unique_token_count") is not None
+                else computed_features.get("unique_token_count"),
+                "segment_gate_unique_tokens": decision.get("unique_tokens") or computed_features.get("unique_tokens"),
+                "segment_gate_overlapping_remote_token_count": computed_features.get("overlapping_remote_token_count"),
                 "segment_gate_mic_token_recall_in_overlapping_remote": decision.get(
                     "mic_token_recall_in_overlapping_remote"
-                ),
+                )
+                if decision.get("mic_token_recall_in_overlapping_remote") is not None
+                else computed_features.get("mic_token_recall_in_overlapping_remote"),
+                "segment_gate_overlapping_remote_token_recall_in_mic": decision.get(
+                    "overlapping_remote_token_recall_in_mic"
+                )
+                if decision.get("overlapping_remote_token_recall_in_mic") is not None
+                else computed_features.get("overlapping_remote_token_recall_in_mic"),
                 "publish_policy": role_gate.get("segment_gate_publish_policy"),
             }
+            row["rescue_policy_candidates"] = suppressed_mic_rescue_policy_labels(row)
             rows.append(row)
     examples = [
         row
         for row in rows
         if row.get("batch_role_label") in {"me_dominant", "mixed"} or row.get("segment_gate_status") == "kept"
     ][:30]
+    policy_summary = summarize_suppressed_mic_rescue_policies(rows)
     return {
         "segments": rows,
         "examples": examples,
+        "policy_examples": policy_summary.get("examples") or {},
         "metrics": {
             "live_suppressed_mic_asr_segment_count": len(rows),
             "live_suppressed_mic_asr_segment_seconds": round(sum(safe_float(row.get("duration_sec")) for row in rows), 3),
@@ -659,6 +815,7 @@ def read_suppressed_mic_asr_segment_audit(
                 f"live_segment_role_gate_candidate_{label}_segment_seconds": round(candidate_label_seconds[label], 3)
                 for label in ("me_dominant", "mixed", "remote_dominant", "none")
             },
+            **(policy_summary.get("metrics") or {}),
         },
     }
 
@@ -854,6 +1011,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         "order_mismatches": order_mismatches,
         "segment_role_gate_candidates": segment_gate_summary.get("examples", []),
         "suppressed_mic_asr_segment_examples": suppressed_segment_audit.get("examples", []),
+        "suppressed_mic_rescue_policy_examples": suppressed_segment_audit.get("policy_examples", {}),
         "metrics": {
             "live_turn_count": len(turns),
             "live_me_turn_count": sum(1 for turn in turns if turn.get("role") == "Me"),
@@ -1336,6 +1494,9 @@ def main() -> int:
             "segment_role_gate_candidates": (
                 live_assessment.get("segment_role_gate_candidates") or []
             )[:30],
+            "suppressed_mic_rescue_policies": (
+                live_assessment.get("suppressed_mic_rescue_policy_examples") or {}
+            ),
             "boundary_gate_issues": boundary_summary.get("examples") or [],
             "boundary_gate_resolved": boundary_summary.get("resolved_examples") or [],
         },

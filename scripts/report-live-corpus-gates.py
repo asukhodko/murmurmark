@@ -13,11 +13,27 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.3.0"
+SCRIPT_VERSION = "1.4.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
 DEFAULT_TARGET_PASSING_COMPARED_SESSIONS = 3
+SUPPRESSED_MIC_RESCUE_POLICIES = (
+    "current_text_segment_gate",
+    "strict_text_unique_v1",
+    "remote_silent_text_v1",
+    "batch_oracle_local_ceiling",
+)
+SUPPRESSED_MIC_RESCUE_POLICY_METRICS = (
+    "selected_segment_count",
+    "selected_seconds",
+    "local_seconds",
+    "me_dominant_seconds",
+    "mixed_seconds",
+    "remote_risk_seconds",
+    "precision_proxy",
+    "local_recall_proxy",
+)
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
     "and parity gates; do not use normal production live collection, and use coverage_path to decide "
@@ -369,6 +385,20 @@ def safe_float(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def suppressed_mic_rescue_policy_metric_values(metrics: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(metrics, dict):
+        return {
+            f"live_rescue_policy_{policy}_{metric}": None
+            for policy in SUPPRESSED_MIC_RESCUE_POLICIES
+            for metric in SUPPRESSED_MIC_RESCUE_POLICY_METRICS
+        }
+    return {
+        f"live_rescue_policy_{policy}_{metric}": metrics.get(f"live_rescue_policy_{policy}_{metric}")
+        for policy in SUPPRESSED_MIC_RESCUE_POLICIES
+        for metric in SUPPRESSED_MIC_RESCUE_POLICY_METRICS
+    }
 
 
 def all_gates_passed(comparison: dict[str, Any] | None) -> bool:
@@ -893,6 +923,25 @@ def sum_int_metric(rows: list[dict[str, Any]], metric: str) -> int:
     return sum(int(((row.get("metrics") or {}).get(metric) or 0)) for row in rows)
 
 
+def add_suppressed_mic_rescue_policy_summary(summary: dict[str, Any], rows: list[dict[str, Any]], prefix: str) -> None:
+    oracle_local_seconds = sum_metric(rows, "live_rescue_policy_batch_oracle_local_ceiling_local_seconds")
+    for policy in SUPPRESSED_MIC_RESCUE_POLICIES:
+        base = f"live_rescue_policy_{policy}"
+        out = f"{prefix}_live_rescue_policy_{policy}" if prefix else base
+        selected_count = sum_int_metric(rows, f"{base}_selected_segment_count")
+        selected_seconds = sum_metric(rows, f"{base}_selected_seconds")
+        local_seconds = sum_metric(rows, f"{base}_local_seconds")
+        remote_risk_seconds = sum_metric(rows, f"{base}_remote_risk_seconds")
+        summary[f"{out}_selected_segment_count"] = selected_count
+        summary[f"{out}_selected_seconds"] = selected_seconds
+        summary[f"{out}_local_seconds"] = local_seconds
+        summary[f"{out}_remote_risk_seconds"] = remote_risk_seconds
+        summary[f"{out}_precision_proxy"] = round(local_seconds / selected_seconds, 6) if selected_seconds > 0 else None
+        summary[f"{out}_local_recall_proxy"] = (
+            round(local_seconds / oracle_local_seconds, 6) if oracle_local_seconds > 0 else None
+        )
+
+
 def local_recall_gap_examples(rows: list[dict[str, Any]], *, limit: int = 50) -> dict[str, Any]:
     examples: list[dict[str, Any]] = []
     for row in rows:
@@ -1035,6 +1084,7 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "live_suppressed_mic_asr_mixed_segment_seconds": (
                 metrics.get("live_suppressed_mic_asr_mixed_segment_seconds") if isinstance(metrics, dict) else None
             ),
+            **suppressed_mic_rescue_policy_metric_values(metrics if isinstance(metrics, dict) else None),
             "live_suspected_remote_leak_in_me_seconds": (
                 metrics.get("live_suspected_remote_leak_in_me_seconds") if isinstance(metrics, dict) else None
             ),
@@ -1095,6 +1145,11 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
                 risk_examples.get("segment_role_gate_candidates")
                 if isinstance(risk_examples.get("segment_role_gate_candidates"), list)
                 else []
+            ),
+            "suppressed_mic_rescue_policies": (
+                risk_examples.get("suppressed_mic_rescue_policies")
+                if isinstance(risk_examples.get("suppressed_mic_rescue_policies"), dict)
+                else {}
             ),
         },
         "gates": gates,
@@ -1280,6 +1335,8 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             "live_boundary_gate_unresolved_suppressed_count",
         ),
     }
+    add_suppressed_mic_rescue_policy_summary(summary, rows, "")
+    add_suppressed_mic_rescue_policy_summary(summary, real_live_rows, "real")
     coverage_target = {
         "target_live_sessions": args.target_live_sessions,
         "target_meaningful_compared_sessions": args.target_meaningful_compared_sessions,
@@ -1977,6 +2034,21 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         "- real live suppressed mic ASR mixed segments: "
         f"{summary.get('real_live_suppressed_mic_asr_mixed_segment_count', 0)} / "
         f"{summary.get('real_live_suppressed_mic_asr_mixed_segment_seconds', 0.0)} sec",
+        "- real live rescue current text gate: "
+        f"local {summary.get('real_live_rescue_policy_current_text_segment_gate_local_seconds', 0.0)} sec, "
+        f"remote-risk {summary.get('real_live_rescue_policy_current_text_segment_gate_remote_risk_seconds', 0.0)} sec, "
+        f"precision {summary.get('real_live_rescue_policy_current_text_segment_gate_precision_proxy')}",
+        "- real live rescue strict text unique v1: "
+        f"local {summary.get('real_live_rescue_policy_strict_text_unique_v1_local_seconds', 0.0)} sec, "
+        f"remote-risk {summary.get('real_live_rescue_policy_strict_text_unique_v1_remote_risk_seconds', 0.0)} sec, "
+        f"precision {summary.get('real_live_rescue_policy_strict_text_unique_v1_precision_proxy')}",
+        "- real live rescue remote-silent text v1: "
+        f"local {summary.get('real_live_rescue_policy_remote_silent_text_v1_local_seconds', 0.0)} sec, "
+        f"remote-risk {summary.get('real_live_rescue_policy_remote_silent_text_v1_remote_risk_seconds', 0.0)} sec, "
+        f"precision {summary.get('real_live_rescue_policy_remote_silent_text_v1_precision_proxy')}",
+        "- real live rescue oracle local ceiling: "
+        f"local {summary.get('real_live_rescue_policy_batch_oracle_local_ceiling_local_seconds', 0.0)} sec, "
+        f"recall {summary.get('real_live_rescue_policy_batch_oracle_local_ceiling_local_recall_proxy')}",
         f"- real live missing Me examples: {summary.get('live_local_recall_gap_example_count', 0)}",
         "- capture-safe candidate missing Me examples: "
         f"{summary.get('capture_safe_candidate_local_recall_gap_example_count', 0)}",
@@ -2428,6 +2500,34 @@ def main() -> int:
     print(
         "real_live_suppressed_mic_asr_mixed_segment_seconds: "
         f"{summary.get('real_live_suppressed_mic_asr_mixed_segment_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_current_text_segment_gate_local_seconds: "
+        f"{summary.get('real_live_rescue_policy_current_text_segment_gate_local_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_current_text_segment_gate_remote_risk_seconds: "
+        f"{summary.get('real_live_rescue_policy_current_text_segment_gate_remote_risk_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_strict_text_unique_v1_local_seconds: "
+        f"{summary.get('real_live_rescue_policy_strict_text_unique_v1_local_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_strict_text_unique_v1_remote_risk_seconds: "
+        f"{summary.get('real_live_rescue_policy_strict_text_unique_v1_remote_risk_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_remote_silent_text_v1_local_seconds: "
+        f"{summary.get('real_live_rescue_policy_remote_silent_text_v1_local_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_remote_silent_text_v1_remote_risk_seconds: "
+        f"{summary.get('real_live_rescue_policy_remote_silent_text_v1_remote_risk_seconds', 0.0)}"
+    )
+    print(
+        "real_live_rescue_policy_batch_oracle_local_ceiling_local_seconds: "
+        f"{summary.get('real_live_rescue_policy_batch_oracle_local_ceiling_local_seconds', 0.0)}"
     )
     print(f"live_suspicious_batch_me_missing_seconds: {summary.get('live_suspicious_batch_me_missing_seconds', 0.0)}")
     print(

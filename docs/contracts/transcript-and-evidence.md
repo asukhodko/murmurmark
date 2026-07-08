@@ -4440,6 +4440,18 @@ These gates protect only the shadow live draft/chunks:
 
 They do not modify raw CAF, batch ASR, selected transcript profiles or export readiness.
 
+`compare-live-batch.py` also evaluates suppressed-mic rescue policies against the authoritative
+batch transcript. These policy-lab fields are diagnostic only:
+
+- `current_text_segment_gate`: the existing text-only segment gate candidates;
+- `strict_text_unique_v1`: a stricter unique-token text rule;
+- `remote_silent_text_v1`: text segments with no overlapping remote ASR tokens;
+- `batch_oracle_local_ceiling`: a batch-labeled upper bound, not a runtime rule.
+
+The report records local seconds, remote-risk seconds and precision/recall proxies for each policy.
+No policy is promoted from these numbers alone; they exist to prove whether the next rescue gate
+needs additional audio evidence.
+
 ### Worker State And Report
 
 `derived/live/live_pipeline_state.json` is the small mutable progress file. It is allowed to change
@@ -4782,6 +4794,14 @@ Schema:
     "live_suppressed_mic_asr_me_dominant_segment_seconds": 0.0,
     "live_suppressed_mic_asr_mixed_segment_count": 0,
     "live_suppressed_mic_asr_mixed_segment_seconds": 0.0,
+    "live_rescue_policy_current_text_segment_gate_local_seconds": 0.0,
+    "live_rescue_policy_current_text_segment_gate_remote_risk_seconds": 0.0,
+    "live_rescue_policy_current_text_segment_gate_precision_proxy": null,
+    "live_rescue_policy_strict_text_unique_v1_local_seconds": 0.0,
+    "live_rescue_policy_strict_text_unique_v1_remote_risk_seconds": 0.0,
+    "live_rescue_policy_remote_silent_text_v1_local_seconds": 0.0,
+    "live_rescue_policy_remote_silent_text_v1_remote_risk_seconds": 0.0,
+    "live_rescue_policy_batch_oracle_local_ceiling_local_seconds": 0.0,
     "live_suspected_remote_leak_in_me_seconds": 0.0,
     "live_turn_count": 18,
     "live_me_turn_count": 9,
@@ -4806,6 +4826,17 @@ Schema:
       }
     ],
     "segment_role_gate_candidates": [],
+    "suppressed_mic_rescue_policies": {
+      "remote_silent_text_v1": [
+        {
+          "chunk_index": 2,
+          "start": 60.0,
+          "end": 63.18,
+          "text": "candidate text",
+          "batch_role_label": "me_dominant"
+        }
+      ]
+    },
     "remote_leak": [],
     "boundary_gate_issues": [],
     "boundary_gate_resolved": [
