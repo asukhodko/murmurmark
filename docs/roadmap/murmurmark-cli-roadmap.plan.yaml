@@ -752,8 +752,11 @@ nodes:
       `16.30s` remote leak). Its residual missing-Me splits into `26.78s` visible with broader
       Target-Me evidence, `90.42s` visible without Target-Me evidence and `13.77s` not visible in
       suppressed mic. The remaining-gap report now identifies no-policy rows as the largest bucket
-      (`104.19s`). Next implementation should focus on stronger local-speaker evidence for
-      visible-without-Target-Me suppressed mic regions, not on promotion.
+      (`104.19s`) and groups their overlapping suppressed-mic evidence: top gate reason
+      `segment_duplicates_overlapping_remote` (`73.60s`), top batch-role labels `mixed` (`56.06s`)
+      and `remote_dominant` (`50.24s`). Next implementation should focus on stronger local-speaker
+      evidence and segmentation diagnostics for visible-without-Target-Me suppressed mic regions,
+      not on promotion.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

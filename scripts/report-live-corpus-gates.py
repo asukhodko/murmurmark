@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.10.0"
+SCRIPT_VERSION = "1.11.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -1603,6 +1603,7 @@ def target_me_shadow_profile_remaining_gap_examples(
                     "recall_in_suppressed_mic": item.get("recall_in_suppressed_mic"),
                     "target_me_candidate_policies": policies,
                     "suppressed_mic_turn_ids": item.get("suppressed_mic_turn_ids"),
+                    "suppressed_mic_evidence": item.get("suppressed_mic_evidence") or [],
                     "text": item.get("text"),
                     "comparison": str(comparison_rel or "derived/live/live_batch_comparison.json"),
                 }
@@ -1612,6 +1613,33 @@ def target_me_shadow_profile_remaining_gap_examples(
         grouped: dict[str, dict[str, Any]] = {}
         for item in examples:
             group = str(item.get(key) or "")
+            row = grouped.setdefault(group, {"count": 0, "seconds": 0.0})
+            row["count"] += 1
+            row["seconds"] = round(safe_float(row.get("seconds")) + safe_float(item.get("duration_sec")), 3)
+        return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
+
+    def aggregate_suppressed_policy_set() -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for item in examples:
+            evidence_rows = item.get("suppressed_mic_evidence") if isinstance(item.get("suppressed_mic_evidence"), list) else []
+            policies: set[str] = set()
+            for evidence in evidence_rows:
+                if not isinstance(evidence, dict):
+                    continue
+                for policy_name in evidence.get("rescue_policy_candidates") or []:
+                    policies.add(str(policy_name))
+            group = "+".join(sorted(policies)) if policies else "(none)"
+            row = grouped.setdefault(group, {"count": 0, "seconds": 0.0})
+            row["count"] += 1
+            row["seconds"] = round(safe_float(row.get("seconds")) + safe_float(item.get("duration_sec")), 3)
+        return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
+
+    def aggregate_top_suppressed_evidence(field: str) -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for item in examples:
+            evidence_rows = item.get("suppressed_mic_evidence") if isinstance(item.get("suppressed_mic_evidence"), list) else []
+            top = evidence_rows[0] if evidence_rows and isinstance(evidence_rows[0], dict) else {}
+            group = str(top.get(field) or "(none)")
             row = grouped.setdefault(group, {"count": 0, "seconds": 0.0})
             row["count"] += 1
             row["seconds"] = round(safe_float(row.get("seconds")) + safe_float(item.get("duration_sec")), 3)
@@ -1637,6 +1665,9 @@ def target_me_shadow_profile_remaining_gap_examples(
         "by_bucket": aggregate_by("bucket"),
         "by_policy_set": aggregate_by("policy_set"),
         "by_session": aggregate_by("session"),
+        "by_suppressed_policy_set": aggregate_suppressed_policy_set(),
+        "by_suppressed_gate_reason": aggregate_top_suppressed_evidence("segment_gate_reason"),
+        "by_suppressed_batch_role_label": aggregate_top_suppressed_evidence("batch_role_label"),
         "missing_inputs": missing_inputs,
     }
 
@@ -4774,6 +4805,18 @@ def main() -> int:
                     "real_live_target_me_shadow_profile_best_live_implementable_remaining_gap_top_policy_set: "
                     f"{top_policy_set[0]} ({safe_float(top_policy_set[1].get('seconds'))}s)"
                 )
+            for field_name, print_name in (
+                ("by_suppressed_policy_set", "top_suppressed_policy_set"),
+                ("by_suppressed_gate_reason", "top_suppressed_gate_reason"),
+                ("by_suppressed_batch_role_label", "top_suppressed_batch_role_label"),
+            ):
+                grouped = remaining_gap.get(field_name) if isinstance(remaining_gap.get(field_name), dict) else {}
+                top_row = next(iter(grouped.items()), None)
+                if top_row:
+                    print(
+                        f"real_live_target_me_shadow_profile_best_live_implementable_remaining_gap_{print_name}: "
+                        f"{top_row[0]} ({safe_float(top_row[1].get('seconds'))}s)"
+                    )
     if candidate_target_me:
         print(f"capture_safe_candidate_target_me_status: {candidate_target_me.get('status')}")
     objective_audit = (

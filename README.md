@@ -524,6 +524,11 @@ The live corpus report also writes
 `live_target_me_shadow_profile_best_live_implementable_remaining_gap`, which groups this residual
 gap by Target-Me evidence and session. The current largest policy bucket is `(none)` at `104.19s`;
 the next useful work is to build local-speaker evidence for those visible-without-Target-Me regions.
+The same block now includes suppressed-mic evidence slices. Current top suppressed evidence groups:
+`batch_oracle_local_ceiling` (`39.20s`), `segment_duplicates_overlapping_remote` (`73.60s`) and
+top batch-role label `mixed` (`56.06s`). That means the remaining gap is not a simple clean local
+speech queue; many rows are short mixed/remote-dominant fragments that need better speaker evidence
+or stricter segmentation before they can be trusted.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1156,7 +1161,9 @@ Active goal and near-term candidates:
    mismatches. Its residual gap splits into `26.78s` visible with broader Target-Me evidence,
    `90.42s` visible without Target-Me evidence, and `13.77s` not visible in suppressed mic. The main
    remaining opportunity is now local-speaker evidence for visible suppressed mic regions that have
-   no Target-Me policy. Batch remains authoritative.
+   no Target-Me policy. The remaining-gap evidence also shows `56.06s` top-overlap `mixed` and
+   `50.24s` `remote_dominant` suppressed-mic labels, so the next profile should improve speaker
+   evidence rather than just loosen audio/text gates. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

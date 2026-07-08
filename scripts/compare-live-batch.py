@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.20.0"
+SCRIPT_VERSION = "0.21.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 KNOWN_HALLUCINATION_RE = re.compile(
@@ -1627,6 +1627,57 @@ def utterance_ids_in_interval(utterances: list[dict[str, Any]], start: float, en
     return [item for item in result if item]
 
 
+def suppressed_mic_evidence_for_interval(
+    segments: list[dict[str, Any]],
+    start: float,
+    end: float,
+    *,
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    duration = max(0.0, end - start)
+    for segment in segments:
+        segment_start = safe_float(segment.get("start"))
+        segment_end = safe_float(segment.get("end"), segment_start)
+        overlap = interval_overlap(start, end, segment_start, segment_end)
+        if overlap <= 0.2:
+            continue
+        rows.append(
+            {
+                "chunk_index": segment.get("chunk_index"),
+                "start": segment.get("start"),
+                "end": segment.get("end"),
+                "duration_sec": segment.get("duration_sec"),
+                "overlap_sec": round(overlap, 3),
+                "overlap_ratio": round(overlap / duration, 6) if duration > 0 else 0.0,
+                "text": segment.get("text"),
+                "batch_role_label": segment.get("batch_role_label"),
+                "rescue_policy_candidates": segment.get("rescue_policy_candidates") or [],
+                "segment_gate_status": segment.get("segment_gate_status"),
+                "segment_gate_reason": segment.get("segment_gate_reason"),
+                "unique_token_count": segment.get("segment_gate_unique_token_count"),
+                "mic_token_recall_in_overlapping_remote": segment.get(
+                    "segment_gate_mic_token_recall_in_overlapping_remote"
+                ),
+                "overlapping_remote_token_recall_in_mic": segment.get(
+                    "segment_gate_overlapping_remote_token_recall_in_mic"
+                ),
+                "audio_mic_clean_rms_db": segment.get("audio_mic_clean_rms_db"),
+                "audio_remote_rms_db": segment.get("audio_remote_rms_db"),
+                "audio_mic_minus_remote_rms_db": segment.get("audio_mic_minus_remote_rms_db"),
+                "audio_mic_remote_zero_lag_abs_corr": segment.get("audio_mic_remote_zero_lag_abs_corr"),
+            }
+        )
+    rows.sort(
+        key=lambda item: (
+            -safe_float(item.get("overlap_sec")),
+            safe_float(item.get("start")),
+            str(item.get("text") or ""),
+        )
+    )
+    return rows[:limit]
+
+
 def nested_token_probability(row: dict[str, Any]) -> float | None:
     quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
     repair = quality.get("repair") if isinstance(quality.get("repair"), dict) else {}
@@ -1985,6 +2036,7 @@ def local_missing_diagnostics_for_turns(
     batch_utterances: list[dict[str, Any]],
     turns: list[dict[str, Any]],
     suppressed_mic_turns: list[dict[str, Any]],
+    suppressed_mic_asr_segments: list[dict[str, Any]],
     target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows: list[dict[str, Any]] = []
@@ -2016,6 +2068,11 @@ def local_missing_diagnostics_for_turns(
                 "recall_in_suppressed_mic": round(suppressed_recall, 6),
                 "suppressed_mic_turn_ids": utterance_ids_in_interval(suppressed_mic_turns, start, end, "Me"),
                 "target_me_candidate_policies": target_me_candidate_policies,
+                "suppressed_mic_evidence": suppressed_mic_evidence_for_interval(
+                    suppressed_mic_asr_segments,
+                    start,
+                    end,
+                ),
                 "text": batch_row.get("text"),
             }
         )
@@ -3164,6 +3221,7 @@ def build_target_me_shadow_profiles(
             batch_utterances=batch_utterances,
             turns=combined_turns,
             suppressed_mic_turns=suppressed_mic_turns,
+            suppressed_mic_asr_segments=suppressed_mic_asr_segments,
             target_me_turns_by_policy=target_me_turns_by_policy,
         )
         metrics.update(missing_diagnostics)

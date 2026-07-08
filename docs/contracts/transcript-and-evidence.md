@@ -5742,7 +5742,11 @@ live-implementable profile's `risk_examples.local_missing` rows and groups the r
 `bucket`, `policy_set` and `session`. Buckets distinguish whether the missing batch `Me` text is
 visible in suppressed mic ASR and whether it already has broader Target-Me evidence:
 `visible_with_target_me`, `visible_without_target_me`, `not_visible_with_target_me` and
-`not_visible_without_target_me`. The report is diagnostic only; it does not change live drafts or
+`not_visible_without_target_me`. Each example may include `suppressed_mic_evidence`, a compact list
+of overlapping suppressed-mic ASR segments with `rescue_policy_candidates`, `segment_gate_reason`,
+`batch_role_label`, text-recall features and basic audio features. The corpus block aggregates this
+as `by_suppressed_policy_set`, `by_suppressed_gate_reason` and
+`by_suppressed_batch_role_label`. The report is diagnostic only; it does not change live drafts or
 parity gates.
 
 Profile `risk_examples.local_missing` carries the same fields per utterance, including
