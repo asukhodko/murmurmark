@@ -1705,6 +1705,74 @@ def local_missing_rows_for_turns(batch_utterances: list[dict[str, Any]], turns: 
     return local_missing
 
 
+def local_missing_diagnostics_for_turns(
+    *,
+    batch_utterances: list[dict[str, Any]],
+    turns: list[dict[str, Any]],
+    suppressed_mic_turns: list[dict[str, Any]],
+    target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for batch_row in batch_utterances:
+        if batch_row.get("role") != "Me" or len(batch_row.get("tokens") or []) < 2:
+            continue
+        if suspicious_batch_me_utterance(batch_row):
+            continue
+        start = safe_float(batch_row.get("start"))
+        end = safe_float(batch_row.get("end"), start)
+        live_tokens_for_me = utterance_tokens_in_interval(turns, start, end, "Me")
+        live_recall = bag_recall(batch_row.get("tokens") or [], live_tokens_for_me) or 0.0
+        if live_recall >= 0.35:
+            continue
+        suppressed_tokens = utterance_tokens_in_interval(suppressed_mic_turns, start, end, "Me")
+        suppressed_recall = bag_recall(batch_row.get("tokens") or [], suppressed_tokens) or 0.0
+        target_me_candidate_policies: list[str] = []
+        for policy, policy_turns in sorted(target_me_turns_by_policy.items()):
+            policy_tokens = utterance_tokens_in_interval(policy_turns, start, end, "Me")
+            if (bag_recall(batch_row.get("tokens") or [], policy_tokens) or 0.0) >= 0.35:
+                target_me_candidate_policies.append(policy)
+        rows.append(
+            {
+                "batch_id": batch_row.get("id"),
+                "start": batch_row.get("start"),
+                "end": batch_row.get("end"),
+                "duration_sec": round(max(0.0, end - start), 3),
+                "recall_in_live_me": round(live_recall, 6),
+                "recall_in_suppressed_mic": round(suppressed_recall, 6),
+                "suppressed_mic_turn_ids": utterance_ids_in_interval(suppressed_mic_turns, start, end, "Me"),
+                "target_me_candidate_policies": target_me_candidate_policies,
+                "text": batch_row.get("text"),
+            }
+        )
+
+    visible_rows = [row for row in rows if safe_float(row.get("recall_in_suppressed_mic")) >= 0.35]
+    not_visible_rows = [row for row in rows if safe_float(row.get("recall_in_suppressed_mic")) < 0.35]
+    target_me_rows = [row for row in rows if row.get("target_me_candidate_policies")]
+    without_target_me_rows = [row for row in rows if not row.get("target_me_candidate_policies")]
+    return rows, {
+        "live_missing_me_visible_in_suppressed_mic_count": len(visible_rows),
+        "live_missing_me_visible_in_suppressed_mic_seconds": round(
+            sum(safe_float(row.get("duration_sec")) for row in visible_rows),
+            3,
+        ),
+        "live_missing_me_not_visible_in_suppressed_mic_count": len(not_visible_rows),
+        "live_missing_me_not_visible_in_suppressed_mic_seconds": round(
+            sum(safe_float(row.get("duration_sec")) for row in not_visible_rows),
+            3,
+        ),
+        "live_missing_me_with_target_me_candidate_count": len(target_me_rows),
+        "live_missing_me_with_target_me_candidate_seconds": round(
+            sum(safe_float(row.get("duration_sec")) for row in target_me_rows),
+            3,
+        ),
+        "live_missing_me_without_target_me_candidate_count": len(without_target_me_rows),
+        "live_missing_me_without_target_me_candidate_seconds": round(
+            sum(safe_float(row.get("duration_sec")) for row in without_target_me_rows),
+            3,
+        ),
+    }
+
+
 def rescued_turns_for_policy(segments: list[dict[str, Any]], policy: str) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for index, row in enumerate(segments, start=1):
@@ -1925,6 +1993,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
     )
     return {
         "live_turns": turns,
+        "suppressed_mic_turns": suppressed_mic_turns,
         "matched_turns": matched_turns,
         "local_missing": local_missing,
         "local_missing_suspicious_batch_me": local_missing_suspicious_batch_me,
@@ -2552,6 +2621,7 @@ def write_target_me_shadow_drafts(
 def build_target_me_shadow_profiles(
     *,
     live_turns_rows: list[dict[str, Any]],
+    suppressed_mic_turns: list[dict[str, Any]],
     target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
     target_me_shadow_outputs: dict[str, dict[str, str]],
     batch_utterances: list[dict[str, Any]],
@@ -2586,6 +2656,13 @@ def build_target_me_shadow_profiles(
             batch_utterances,
             match_mode_prefix=f"target_me_shadow_profile_{policy}",
         )
+        missing_rows, missing_diagnostics = local_missing_diagnostics_for_turns(
+            batch_utterances=batch_utterances,
+            turns=combined_turns,
+            suppressed_mic_turns=suppressed_mic_turns,
+            target_me_turns_by_policy=target_me_turns_by_policy,
+        )
+        metrics.update(missing_diagnostics)
         recall = bag_recall(
             tokens("\n".join(clean_text(str(turn.get("text") or "")) for turn in combined_turns)),
             batch_final_tokens,
@@ -2620,6 +2697,14 @@ def build_target_me_shadow_profiles(
             "live_contentful_role_constrained_order_mismatch_count",
             "live_missing_me_utterance_count",
             "live_missing_me_seconds",
+            "live_missing_me_visible_in_suppressed_mic_count",
+            "live_missing_me_visible_in_suppressed_mic_seconds",
+            "live_missing_me_not_visible_in_suppressed_mic_count",
+            "live_missing_me_not_visible_in_suppressed_mic_seconds",
+            "live_missing_me_with_target_me_candidate_count",
+            "live_missing_me_with_target_me_candidate_seconds",
+            "live_missing_me_without_target_me_candidate_count",
+            "live_missing_me_without_target_me_candidate_seconds",
             "live_suspected_remote_leak_in_me_count",
             "live_suspected_remote_leak_in_me_seconds",
         ):
@@ -2640,6 +2725,10 @@ def build_target_me_shadow_profiles(
                 "removed_live_turn_seconds": removed_seconds,
             },
             "removed_live_turns": removed_live_turns[:50],
+            "risk_examples": {
+                "local_missing": missing_rows[:20],
+                "remote_leak": remote_leak_rows_for_turns(combined_turns, batch_utterances)[:20],
+            },
             "parity_gates": {
                 "status": "not_promotable" if gate_statuses - {"passed"} else "passed_but_shadow_locked",
                 "gates": gates,
@@ -2733,6 +2822,7 @@ def main() -> int:
     )
     target_me_shadow_profiles, target_me_shadow_profile_metrics = build_target_me_shadow_profiles(
         live_turns_rows=live_assessment.get("live_turns") or [],
+        suppressed_mic_turns=live_assessment.get("suppressed_mic_turns") or [],
         target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
         target_me_shadow_outputs=target_me_shadow_outputs,
         batch_utterances=batch_utterances,

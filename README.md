@@ -1028,7 +1028,9 @@ Active goal and near-term candidates:
    live remote leak from `15.96s` to `0.0s`, but non-passing profile gates only improve from `42` to
    `41` and missing-Me remains `315.34s`. So the current blocker is no longer "collect more
    recordings" or "find whether remote leak exists"; it is fixing remaining local-recall, order,
-   review/readiness and capture-safe live evidence gaps. Batch remains authoritative.
+   review/readiness and capture-safe live evidence gaps. The remaining missing-Me now has useful
+   diagnostics: `278.13s` are already visible in suppressed mic ASR, `174.33s` have a broader
+   Target-Me candidate, and `141.01s` have no Target-Me candidate. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

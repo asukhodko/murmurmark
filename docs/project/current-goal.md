@@ -278,6 +278,10 @@ New Target-Me diagnostic, 2026-07-08:
   non-passing profile gates only drop from `42` to `41`. This profile is not promotable because it
   uses batch truth, but it proves that remote leak is bounded and that the next dominant blocker is
   live local recall / draft readiness.
+- Profile diagnostics now decompose the remaining local-recall gap. In the same real corpus,
+  `278.13s` of the `315.34s` missing-Me are already visible in suppressed mic ASR, `37.21s` are not
+  visible there, `174.33s` have a broader Target-Me candidate, and `141.01s` do not. That points to a
+  stricter live role gate / Target-Me fallback problem rather than missing raw audio.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
 existing corpus already contains enough suppressed live mic material and enough Target-Me evidence.

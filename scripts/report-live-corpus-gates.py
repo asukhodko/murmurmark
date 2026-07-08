@@ -80,6 +80,14 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "live_contentful_role_constrained_order_mismatch_count",
     "live_missing_me_utterance_count",
     "live_missing_me_seconds",
+    "live_missing_me_visible_in_suppressed_mic_count",
+    "live_missing_me_visible_in_suppressed_mic_seconds",
+    "live_missing_me_not_visible_in_suppressed_mic_count",
+    "live_missing_me_not_visible_in_suppressed_mic_seconds",
+    "live_missing_me_with_target_me_candidate_count",
+    "live_missing_me_with_target_me_candidate_seconds",
+    "live_missing_me_without_target_me_candidate_count",
+    "live_missing_me_without_target_me_candidate_seconds",
     "live_suspected_remote_leak_in_me_count",
     "live_suspected_remote_leak_in_me_seconds",
     "removed_live_turn_count",
@@ -1148,6 +1156,22 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
         )
         summary[f"{out}_non_passing_gate_count"] = sum_int_metric(evaluated_rows, f"{base}_non_passing_gate_count")
         summary[f"{out}_live_missing_me_seconds"] = sum_metric(evaluated_rows, f"{base}_live_missing_me_seconds")
+        summary[f"{out}_live_missing_me_visible_in_suppressed_mic_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_live_missing_me_visible_in_suppressed_mic_seconds",
+        )
+        summary[f"{out}_live_missing_me_not_visible_in_suppressed_mic_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_live_missing_me_not_visible_in_suppressed_mic_seconds",
+        )
+        summary[f"{out}_live_missing_me_with_target_me_candidate_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_live_missing_me_with_target_me_candidate_seconds",
+        )
+        summary[f"{out}_live_missing_me_without_target_me_candidate_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_live_missing_me_without_target_me_candidate_seconds",
+        )
         summary[f"{out}_live_suspected_remote_leak_in_me_seconds"] = sum_metric(
             evaluated_rows,
             f"{base}_live_suspected_remote_leak_in_me_seconds",
@@ -1222,6 +1246,18 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             ),
             "non_passing_gate_count": safe_int(summary.get(f"{base}_non_passing_gate_count")),
             "live_missing_me_seconds": safe_float(summary.get(f"{base}_live_missing_me_seconds")),
+            "live_missing_me_visible_in_suppressed_mic_seconds": safe_float(
+                summary.get(f"{base}_live_missing_me_visible_in_suppressed_mic_seconds")
+            ),
+            "live_missing_me_not_visible_in_suppressed_mic_seconds": safe_float(
+                summary.get(f"{base}_live_missing_me_not_visible_in_suppressed_mic_seconds")
+            ),
+            "live_missing_me_with_target_me_candidate_seconds": safe_float(
+                summary.get(f"{base}_live_missing_me_with_target_me_candidate_seconds")
+            ),
+            "live_missing_me_without_target_me_candidate_seconds": safe_float(
+                summary.get(f"{base}_live_missing_me_without_target_me_candidate_seconds")
+            ),
             "live_suspected_remote_leak_in_me_seconds": safe_float(
                 summary.get(f"{base}_live_suspected_remote_leak_in_me_seconds")
             ),
@@ -2487,6 +2523,18 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         )
         summary[f"{scope}_live_target_me_shadow_profile_missing_me_seconds"] = (
             safe_float(best.get("live_missing_me_seconds")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_missing_me_visible_in_suppressed_mic_seconds"] = (
+            safe_float(best.get("live_missing_me_visible_in_suppressed_mic_seconds")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_missing_me_not_visible_in_suppressed_mic_seconds"] = (
+            safe_float(best.get("live_missing_me_not_visible_in_suppressed_mic_seconds")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_missing_me_with_target_me_candidate_seconds"] = (
+            safe_float(best.get("live_missing_me_with_target_me_candidate_seconds")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_missing_me_without_target_me_candidate_seconds"] = (
+            safe_float(best.get("live_missing_me_without_target_me_candidate_seconds")) if isinstance(best, dict) else None
         )
         summary[f"{scope}_live_target_me_shadow_profile_remote_leak_seconds"] = (
             safe_float(best.get("live_suspected_remote_leak_in_me_seconds")) if isinstance(best, dict) else None
@@ -4316,6 +4364,14 @@ def main() -> int:
             print(
                 "real_live_target_me_shadow_profile_missing_me_seconds: "
                 f"{safe_float(best_target_me_shadow_profile.get('live_missing_me_seconds'))}"
+            )
+            print(
+                "real_live_target_me_shadow_profile_missing_me_visible_in_suppressed_mic_seconds: "
+                f"{safe_float(best_target_me_shadow_profile.get('live_missing_me_visible_in_suppressed_mic_seconds'))}"
+            )
+            print(
+                "real_live_target_me_shadow_profile_missing_me_with_target_me_candidate_seconds: "
+                f"{safe_float(best_target_me_shadow_profile.get('live_missing_me_with_target_me_candidate_seconds'))}"
             )
             print(
                 "real_live_target_me_shadow_profile_remote_leak_seconds: "

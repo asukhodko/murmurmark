@@ -5567,10 +5567,19 @@ false`, keeps `batch_authoritative: true`, and marks inserted Target-Me turns wi
 `shadow_added: true`. The batch-remote-forbidden oracle profile additionally sets
 `diagnostic_oracle: true`, records `base_policy:
 target_me_confirmed_remote_guard_timeline_safe_v1`, and writes `removed_live_turns` plus
-`metrics.removed_live_turn_count` / `metrics.removed_live_turn_seconds`. It removes live `Me` turns
-only when the authoritative batch transcript classifies them as remote-like, so it is a ceiling
-measurement rather than an online algorithm. These files are review and parity inputs only; they do
-not replace `derived/live/transcript.draft.md`.
+`metrics.removed_live_turn_count` / `metrics.removed_live_turn_seconds`. Profile metrics also
+decompose remaining local-recall gaps:
+
+- `live_missing_me_visible_in_suppressed_mic_*`;
+- `live_missing_me_not_visible_in_suppressed_mic_*`;
+- `live_missing_me_with_target_me_candidate_*`;
+- `live_missing_me_without_target_me_candidate_*`.
+
+Profile `risk_examples.local_missing` carries the same fields per utterance, including
+`recall_in_suppressed_mic`, `suppressed_mic_turn_ids` and `target_me_candidate_policies`. The oracle
+profile removes live `Me` turns only when the authoritative batch transcript classifies them as
+remote-like, so it is a ceiling measurement rather than an online algorithm. These files are review
+and parity inputs only; they do not replace `derived/live/transcript.draft.md`.
 
 `live_batch_comparison.json` also writes `shadow_profiles.target_me.<policy>` with schema
 `murmurmark.live_shadow_profile_parity/v1`. That block runs the same `parity_gates` against the

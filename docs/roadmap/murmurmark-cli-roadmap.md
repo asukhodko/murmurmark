@@ -470,9 +470,11 @@ newer run-state exists.
    `target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1`, removes those
    `15.96s` of remote-like live `Me` turns and leaves `0.00s` measured remote leak, but it only
    reduces non-passing profile gates from `42` to `41`. It is not promotable because it uses batch
-   truth. The next safe step is to fix the remaining missing-Me, order, review/readiness and
-   capture-safe live evidence blockers on top of this profile; ambiguous rows and sessions without
-   enough enrollment stay explicit.
+   truth. The remaining `315.34s` missing-Me are now decomposed: `278.13s` are visible in suppressed
+   mic ASR, `174.33s` have a broader Target-Me candidate, and `141.01s` have no Target-Me candidate.
+   The next safe step is to recover visible suppressed mic speech with a stricter role gate/fallback,
+   while keeping order, review/readiness and capture-safe blockers explicit; ambiguous rows and
+   sessions without enough enrollment stay explicit.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
