@@ -271,11 +271,19 @@ New Target-Me diagnostic, 2026-07-08:
   corpus result: `1` session passes all gates under that profile, total profile missing-Me is
   `315.34s`, and existing live remote leak remains `15.96s`. This proves that Target-Me rescue
   helps local recall, but it does not solve the live role/remote-leak problem by itself.
+- `target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1` is now available
+  as a diagnostic-only profile. It starts from the timeline-safe Target-Me shadow and removes live
+  `Me` turns that the authoritative batch transcript classifies as remote-like. Current real corpus
+  result: `15.96s` of remote leak are removed (`0.00s` remaining), `315.34s` missing-Me remain, and
+  non-passing profile gates only drop from `42` to `41`. This profile is not promotable because it
+  uses batch truth, but it proves that remote leak is bounded and that the next dominant blocker is
+  live local recall / draft readiness.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
 existing corpus already contains enough suppressed live mic material and enough Target-Me evidence.
 The next work is to fix the remaining gates exposed by this materialized shadow draft: especially
-existing live remote leak, remaining missing-Me and batch readiness/review gates. Sessions with
+remaining missing-Me, order risk, batch readiness/review gates and capture-safe live evidence.
+Sessions with
 `insufficient_enrollment` point to a later calibration problem, not to a need for more ad-hoc live
 meetings now.
 

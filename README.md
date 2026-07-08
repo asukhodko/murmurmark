@@ -1022,11 +1022,13 @@ Active goal and near-term candidates:
    recovers `103.82s` missing-Me with `0.0s` measured remote leak and `0` new contentful order
    mismatches. `compare-live-batch.py` materializes that subset into
    `derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.{json,md}`
-   as diagnostic-only output. So the current blocker is no longer "collect more recordings"; it is
-   fixing the remaining gates exposed by the materialized timeline-safe Target-Me shadow. Current
-   profile gate evaluation: `1` real-live session passes all gates, corpus missing-Me drops to
-   `315.34s`, while existing live remote leak remains `15.96s`; promotion stays blocked.
-   Batch remains authoritative.
+   as diagnostic-only output. A stricter batch-oracle diagnostic,
+   `target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1`, removes live
+   `Me` turns that the authoritative batch transcript classifies as remote-like. It drops measured
+   live remote leak from `15.96s` to `0.0s`, but non-passing profile gates only improve from `42` to
+   `41` and missing-Me remains `315.34s`. So the current blocker is no longer "collect more
+   recordings" or "find whether remote leak exists"; it is fixing remaining local-recall, order,
+   review/readiness and capture-safe live evidence gaps. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

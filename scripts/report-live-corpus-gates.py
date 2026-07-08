@@ -50,6 +50,10 @@ TARGET_ME_RESCUE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_possible_v1",
 )
+TARGET_ME_SHADOW_PROFILE_POLICIES = (
+    "target_me_confirmed_remote_guard_timeline_safe_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1",
+)
 TARGET_ME_SHADOW_POLICY_METRICS = (
     "candidate_segment_count",
     "candidate_seconds",
@@ -78,6 +82,8 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "live_missing_me_seconds",
     "live_suspected_remote_leak_in_me_count",
     "live_suspected_remote_leak_in_me_seconds",
+    "removed_live_turn_count",
+    "removed_live_turn_seconds",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -466,14 +472,14 @@ def target_me_shadow_profile_metric_values(metrics: dict[str, Any] | None) -> di
     if not isinstance(metrics, dict):
         return {
             f"live_target_me_shadow_profile_{policy}_{metric}": None
-            for policy in TARGET_ME_RESCUE_POLICIES
+            for policy in TARGET_ME_SHADOW_PROFILE_POLICIES
             for metric in TARGET_ME_SHADOW_PROFILE_METRICS
         }
     return {
         f"live_target_me_shadow_profile_{policy}_{metric}": metrics.get(
             f"live_target_me_shadow_profile_{policy}_{metric}"
         )
-        for policy in TARGET_ME_RESCUE_POLICIES
+        for policy in TARGET_ME_SHADOW_PROFILE_POLICIES
         for metric in TARGET_ME_SHADOW_PROFILE_METRICS
     }
 
@@ -1128,7 +1134,7 @@ def add_target_me_shadow_policy_summary(summary: dict[str, Any], rows: list[dict
 
 
 def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dict[str, Any]], prefix: str) -> None:
-    for policy in TARGET_ME_RESCUE_POLICIES:
+    for policy in TARGET_ME_SHADOW_PROFILE_POLICIES:
         base = f"live_target_me_shadow_profile_{policy}"
         out = f"{prefix}_live_target_me_shadow_profile_{policy}" if prefix else base
         evaluated_rows = [
@@ -1153,6 +1159,14 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
         summary[f"{out}_live_contentful_role_constrained_order_mismatch_count"] = sum_int_metric(
             evaluated_rows,
             f"{base}_live_contentful_role_constrained_order_mismatch_count",
+        )
+        summary[f"{out}_removed_live_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_removed_live_turn_count",
+        )
+        summary[f"{out}_removed_live_turn_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_removed_live_turn_seconds",
         )
 
 
@@ -1198,7 +1212,7 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
     rows: list[dict[str, Any]] = []
     key_prefix = f"{prefix}_live_target_me_shadow_profile_" if prefix else "live_target_me_shadow_profile_"
     best: dict[str, Any] | None = None
-    for policy in TARGET_ME_RESCUE_POLICIES:
+    for policy in TARGET_ME_SHADOW_PROFILE_POLICIES:
         base = f"{key_prefix}{policy}"
         row = {
             "policy": policy,
@@ -1215,6 +1229,8 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             "live_contentful_role_constrained_order_mismatch_count": safe_int(
                 summary.get(f"{base}_live_contentful_role_constrained_order_mismatch_count")
             ),
+            "removed_live_turn_count": safe_int(summary.get(f"{base}_removed_live_turn_count")),
+            "removed_live_turn_seconds": safe_float(summary.get(f"{base}_removed_live_turn_seconds")),
         }
         rows.append(row)
         if row["evaluated_session_count"] > 0 and (
@@ -2480,6 +2496,12 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         )
         summary[f"{scope}_live_target_me_shadow_profile_contentful_order_mismatch_count"] = (
             safe_int(best.get("live_contentful_role_constrained_order_mismatch_count")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_removed_live_turn_count"] = (
+            safe_int(best.get("removed_live_turn_count")) if isinstance(best, dict) else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_removed_live_turn_seconds"] = (
+            safe_float(best.get("removed_live_turn_seconds")) if isinstance(best, dict) else None
         )
         summary[f"{scope}_live_target_me_shadow_profile_recommended_next"] = diagnostics.get("recommended_next")
     coverage_target = {
@@ -4298,6 +4320,10 @@ def main() -> int:
             print(
                 "real_live_target_me_shadow_profile_remote_leak_seconds: "
                 f"{safe_float(best_target_me_shadow_profile.get('live_suspected_remote_leak_in_me_seconds'))}"
+            )
+            print(
+                "real_live_target_me_shadow_profile_removed_live_turn_seconds: "
+                f"{safe_float(best_target_me_shadow_profile.get('removed_live_turn_seconds'))}"
             )
     if candidate_target_me:
         print(f"capture_safe_candidate_target_me_status: {candidate_target_me.get('status')}")

@@ -92,7 +92,19 @@ TARGET_ME_RESCUE_POLICIES = (
 TARGET_ME_DERIVED_POLICY_BASE = {
     "target_me_confirmed_remote_guard_timeline_safe_v1": "target_me_confirmed_remote_guard_v1",
 }
-MATERIALIZED_TARGET_ME_SHADOW_POLICIES = ("target_me_confirmed_remote_guard_timeline_safe_v1",)
+TARGET_ME_SHADOW_PROFILE_POLICIES = (
+    "target_me_confirmed_remote_guard_timeline_safe_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1",
+)
+TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1": (
+        "target_me_confirmed_remote_guard_timeline_safe_v1"
+    ),
+}
+TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES = {
+    "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1",
+}
+MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 
 
 def parse_args() -> argparse.Namespace:
@@ -2393,45 +2405,111 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
     }
 
 
+def target_me_shadow_profile_components(
+    *,
+    policy: str,
+    live_turns_rows: list[dict[str, Any]],
+    target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
+    batch_utterances: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    base_policy = TARGET_ME_SHADOW_PROFILE_BASE_POLICY.get(policy, policy)
+    target_turns = list(target_me_turns_by_policy.get(base_policy) or [])
+    live_turns = list(live_turns_rows)
+    removed_live_turns: list[dict[str, Any]] = []
+    if policy not in TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES:
+        return live_turns, target_turns, removed_live_turns
+
+    remote_leak_by_id = {
+        str(row.get("live_id")): row
+        for row in remote_leak_rows_for_turns(live_turns, batch_utterances)
+        if row.get("live_id") is not None
+    }
+    if not remote_leak_by_id:
+        return live_turns, target_turns, removed_live_turns
+
+    kept_live_turns: list[dict[str, Any]] = []
+    for turn in live_turns:
+        turn_id = str(turn.get("id") or "")
+        evidence = remote_leak_by_id.get(turn_id)
+        if turn.get("role") == "Me" and evidence:
+            payload = shadow_turn_payload(turn, None)
+            payload.update(
+                {
+                    "removed_by_policy": policy,
+                    "removal_reason": "batch_remote_forbidden_oracle_remote_leak",
+                    "evidence": evidence,
+                }
+            )
+            removed_live_turns.append(payload)
+        else:
+            kept_live_turns.append(turn)
+    return kept_live_turns, target_turns, removed_live_turns
+
+
 def write_target_me_shadow_drafts(
     *,
     session: Path,
     live_turns_rows: list[dict[str, Any]],
     target_me_turns_by_policy: dict[str, list[dict[str, Any]]],
+    batch_utterances: list[dict[str, Any]],
     metrics: dict[str, Any],
 ) -> dict[str, dict[str, str]]:
     outputs: dict[str, dict[str, str]] = {}
     for policy in MATERIALIZED_TARGET_ME_SHADOW_POLICIES:
-        target_turns = target_me_turns_by_policy.get(policy) or []
+        live_turns, target_turns, removed_live_turns = target_me_shadow_profile_components(
+            policy=policy,
+            live_turns_rows=live_turns_rows,
+            target_me_turns_by_policy=target_me_turns_by_policy,
+            batch_utterances=batch_utterances,
+        )
         out_dir = session / "derived/live/target-me-shadow" / policy
         json_path = out_dir / "draft.json"
         md_path = out_dir / "draft.md"
-        live_payload = [shadow_turn_payload(turn, None) for turn in live_turns_rows]
+        live_payload = [shadow_turn_payload(turn, None) for turn in live_turns]
         target_payload = [shadow_turn_payload(turn, policy) for turn in target_turns]
         combined = sorted(
             live_payload + target_payload,
             key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
         )
-        base = f"live_target_me_shadow_policy_{policy}"
+        policy_metrics = parity_metrics_for_turns(
+            live_turns + target_turns,
+            batch_utterances,
+            match_mode_prefix=f"target_me_shadow_draft_{policy}",
+        )
+        base_policy = TARGET_ME_SHADOW_PROFILE_BASE_POLICY.get(policy, policy)
+        base = f"live_target_me_shadow_policy_{base_policy}"
+        removed_seconds = round(
+            sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in removed_live_turns),
+            3,
+        )
         payload = {
             "schema": "murmurmark.live_target_me_shadow_draft/v1",
             "generator": {"name": "compare-live-batch", "version": SCRIPT_VERSION},
             "created_at": datetime.now(timezone.utc).isoformat(),
             "policy": policy,
+            "base_policy": base_policy,
+            "diagnostic_oracle": policy in TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES,
             "promotion_allowed": False,
-            "promotion_reason": "target_me_shadow_draft_is_diagnostic_only",
+            "promotion_reason": (
+                "batch_remote_forbidden_oracle_is_not_live_promotable"
+                if policy in TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES
+                else "target_me_shadow_draft_is_diagnostic_only"
+            ),
             "batch_authoritative": True,
             "metrics": {
                 "live_turn_count": len(live_payload),
                 "target_me_added_turn_count": len(target_payload),
+                "removed_live_turn_count": len(removed_live_turns),
+                "removed_live_turn_seconds": removed_seconds,
                 "combined_turn_count": len(combined),
                 "target_me_added_seconds": metrics.get(f"{base}_candidate_seconds"),
                 "missing_me_recovered_seconds": metrics.get(f"{base}_missing_me_recovered_seconds"),
-                "suspected_remote_leak_in_me_seconds": metrics.get(f"{base}_suspected_remote_leak_in_me_seconds"),
+                "suspected_remote_leak_in_me_seconds": policy_metrics.get("live_suspected_remote_leak_in_me_seconds"),
                 "contentful_role_constrained_order_mismatch_delta_count": (
                     metrics.get(f"{base}_contentful_role_constrained_order_mismatch_delta_count")
                 ),
             },
+            "removed_live_turns": removed_live_turns,
             "turns": combined,
         }
         write_json(json_path, payload)
@@ -2439,9 +2517,12 @@ def write_target_me_shadow_drafts(
             "# Target-Me Shadow Draft",
             "",
             f"- policy: `{policy}`",
+            f"- base policy: `{base_policy}`",
+            f"- diagnostic oracle: `{str(payload['diagnostic_oracle']).lower()}`",
             "- promotion allowed: `false`",
             "- batch authoritative: `true`",
             f"- target-me added turns: `{len(target_payload)}`",
+            f"- removed live turns: `{len(removed_live_turns)}` / `{removed_seconds}s`",
             f"- missing-Me recovered seconds: `{payload['metrics']['missing_me_recovered_seconds']}`",
             f"- suspected remote leak seconds: `{payload['metrics']['suspected_remote_leak_in_me_seconds']}`",
             f"- contentful order delta: `{payload['metrics']['contentful_role_constrained_order_mismatch_delta_count']}`",
@@ -2486,10 +2567,19 @@ def build_target_me_shadow_profiles(
     profiles: dict[str, Any] = {}
     top_level_metrics: dict[str, Any] = {}
     for policy in MATERIALIZED_TARGET_ME_SHADOW_POLICIES:
-        target_turns = target_me_turns_by_policy.get(policy) or []
+        live_turns, target_turns, removed_live_turns = target_me_shadow_profile_components(
+            policy=policy,
+            live_turns_rows=live_turns_rows,
+            target_me_turns_by_policy=target_me_turns_by_policy,
+            batch_utterances=batch_utterances,
+        )
         combined_turns = sorted(
-            live_turns_rows + target_turns,
+            live_turns + target_turns,
             key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+        )
+        removed_seconds = round(
+            sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in removed_live_turns),
+            3,
         )
         metrics = parity_metrics_for_turns(
             combined_turns,
@@ -2519,6 +2609,8 @@ def build_target_me_shadow_profiles(
         top_level_metrics[f"{base}_all_parity_gates_passed"] = all_gates_passed
         top_level_metrics[f"{base}_non_passing_gate_count"] = sum(1 for row in gates if row.get("status") != "passed")
         top_level_metrics[f"{base}_live_token_recall_in_batch"] = round(recall, 6) if recall is not None else None
+        top_level_metrics[f"{base}_removed_live_turn_count"] = len(removed_live_turns)
+        top_level_metrics[f"{base}_removed_live_turn_seconds"] = removed_seconds
         for key in (
             "live_turn_count",
             "live_me_turn_count",
@@ -2544,7 +2636,10 @@ def build_target_me_shadow_profiles(
                 **metrics,
                 "live_token_recall_in_batch": round(recall, 6) if recall is not None else None,
                 "all_parity_gates_passed": all_gates_passed,
+                "removed_live_turn_count": len(removed_live_turns),
+                "removed_live_turn_seconds": removed_seconds,
             },
+            "removed_live_turns": removed_live_turns[:50],
             "parity_gates": {
                 "status": "not_promotable" if gate_statuses - {"passed"} else "passed_but_shadow_locked",
                 "gates": gates,
@@ -2633,6 +2728,7 @@ def main() -> int:
         session=session,
         live_turns_rows=live_assessment.get("live_turns") or [],
         target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
+        batch_utterances=batch_utterances,
         metrics=live_metrics,
     )
     target_me_shadow_profiles, target_me_shadow_profile_metrics = build_target_me_shadow_profiles(

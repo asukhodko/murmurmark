@@ -5555,17 +5555,30 @@ derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/
 derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.md
 ```
 
+It also materializes a stricter ceiling diagnostic:
+
+```text
+derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1/draft.json
+derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1/draft.md
+```
+
 The JSON uses schema `murmurmark.live_target_me_shadow_draft/v1`, includes `promotion_allowed:
 false`, keeps `batch_authoritative: true`, and marks inserted Target-Me turns with
-`shadow_added: true`. These files are review and parity inputs only; they do not replace
-`derived/live/transcript.draft.md`.
+`shadow_added: true`. The batch-remote-forbidden oracle profile additionally sets
+`diagnostic_oracle: true`, records `base_policy:
+target_me_confirmed_remote_guard_timeline_safe_v1`, and writes `removed_live_turns` plus
+`metrics.removed_live_turn_count` / `metrics.removed_live_turn_seconds`. It removes live `Me` turns
+only when the authoritative batch transcript classifies them as remote-like, so it is a ceiling
+measurement rather than an online algorithm. These files are review and parity inputs only; they do
+not replace `derived/live/transcript.draft.md`.
 
 `live_batch_comparison.json` also writes `shadow_profiles.target_me.<policy>` with schema
 `murmurmark.live_shadow_profile_parity/v1`. That block runs the same `parity_gates` against the
 materialized Target-Me draft. Top-level `parity_gates` still describe the ordinary live draft; profile
 gates describe the diagnostic draft only. In both cases `promotion_allowed` remains `false`. Current
-corpus evidence shows the Target-Me profile improves local recall, but remaining live remote leak,
-missing-Me and batch readiness/review gates still block promotion.
+corpus evidence shows the Target-Me profile improves local recall. The batch-oracle profile can
+reduce measured remote leak to zero in the current real-live corpus, but missing-Me and
+batch-readiness/review gates still block promotion.
 
 This audit is evidence only. `promotion_decision` must stay `shadow_only_do_not_promote`; rows must
 not publish live `Me`, edit batch transcripts or relax parity gates. A useful result is evidence for

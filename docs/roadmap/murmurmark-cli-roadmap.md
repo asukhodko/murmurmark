@@ -465,9 +465,14 @@ newer run-state exists.
    order-mismatch delta, and is materialized as
    `derived/live/target-me-shadow/target_me_confirmed_remote_guard_timeline_safe_v1/draft.{json,md}`.
    The same `parity_gates` now evaluate that materialized profile: `1` real-live session passes all
-   gates, profile missing-Me is `315.34s`, and existing live remote leak remains `15.96s`. The next
-   safe step is to fix the remaining live role/remote-leak and missing-Me blockers on top of this
-   profile; ambiguous rows and sessions without enough enrollment stay explicit.
+   gates, profile missing-Me is `315.34s`, and existing live remote leak remains `15.96s`. A
+   diagnostic batch-oracle profile,
+   `target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1`, removes those
+   `15.96s` of remote-like live `Me` turns and leaves `0.00s` measured remote leak, but it only
+   reduces non-passing profile gates from `42` to `41`. It is not promotable because it uses batch
+   truth. The next safe step is to fix the remaining missing-Me, order, review/readiness and
+   capture-safe live evidence blockers on top of this profile; ambiguous rows and sessions without
+   enough enrollment stay explicit.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
