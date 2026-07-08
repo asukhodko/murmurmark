@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.7.0"
+SCRIPT_VERSION = "1.8.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -47,6 +47,7 @@ MATERIAL_RESCUE_LOCAL_SECONDS = 5.0
 TARGET_ME_RESCUE_POLICIES = (
     "target_me_confirmed_v1",
     "target_me_confirmed_remote_guard_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_possible_v1",
 )
 TARGET_ME_SHADOW_POLICY_METRICS = (

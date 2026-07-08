@@ -5489,7 +5489,7 @@ Rows may include `target_me_rescue_policy_candidates`. The current policies are:
 
 - `target_me_confirmed_v1`: confirmed Target-Me match, useful but not remote-safe by itself;
 - `target_me_confirmed_remote_guard_v1`: confirmed Target-Me match with a remote guard
-  (`delta_vs_remote` and low remote-active state); this is the first safe shadow candidate;
+  (`delta_vs_remote` and low remote-active state); useful, but it can still add timeline order risk;
 - `target_me_possible_v1`: confirmed or possible Target-Me evidence, high recall but allowed to be
   unsafe and therefore diagnostic-only.
 
@@ -5506,10 +5506,16 @@ order-mismatch delta counts. The delta counts compare the Target-Me shadow again
 turns, so pre-existing live ordering errors do not automatically fail the policy. The corpus report
 aggregates these fields under `live_target_me_shadow_policy_diagnostics`.
 
-The current real corpus result is useful but still not promotable: the stricter
+`target_me_confirmed_remote_guard_timeline_safe_v1` is a derived counterfactual policy produced by
+`compare-live-batch.py`, not by the Target-Me audit itself. It starts from
+`target_me_confirmed_remote_guard_v1` and greedily keeps only candidates that do not add measured
+remote leak and do not increase contentful role-constrained order mismatches. The current real corpus
+result is useful but still not promotable: the stricter
 `target_me_confirmed_remote_guard_v1` counterfactual recovers local speech without measured remote
-leak, but it still increases contentful role-constrained order mismatches. The next design step is
-timeline-safe Target-Me rescue/reconciliation, not collecting more ad-hoc recordings.
+leak, but it still increases contentful role-constrained order mismatches; the timeline-safe subset
+recovers less local speech but keeps remote leak and contentful order delta at zero. The next design
+step is materializing this as an explicit shadow draft and evaluating full parity gates, not
+collecting more ad-hoc recordings.
 
 This audit is evidence only. `promotion_decision` must stay `shadow_only_do_not_promote`; rows must
 not publish live `Me`, edit batch transcripts or relax parity gates. A useful result is evidence for

@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.15.0"
+SCRIPT_VERSION = "0.16.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 GENERIC_TOKENS = {
@@ -86,8 +86,12 @@ SUPPRESSED_MIC_RESCUE_POLICIES = (
 TARGET_ME_RESCUE_POLICIES = (
     "target_me_confirmed_v1",
     "target_me_confirmed_remote_guard_v1",
+    "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_possible_v1",
 )
+TARGET_ME_DERIVED_POLICY_BASE = {
+    "target_me_confirmed_remote_guard_timeline_safe_v1": "target_me_confirmed_remote_guard_v1",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -785,8 +789,9 @@ def read_target_me_live_local_recall_rows(session: Path) -> list[dict[str, Any]]
 
 def target_me_shadow_turns(rows: list[dict[str, Any]], policy: str) -> list[dict[str, Any]]:
     turns: list[dict[str, Any]] = []
+    source_policy = TARGET_ME_DERIVED_POLICY_BASE.get(policy, policy)
     for row in rows:
-        if policy not in (row.get("target_me_rescue_policy_candidates") or []):
+        if source_policy not in (row.get("target_me_rescue_policy_candidates") or []):
             continue
         interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
         start = safe_float(interval.get("start"))
@@ -814,6 +819,53 @@ def target_me_shadow_turns(rows: list[dict[str, Any]], policy: str) -> list[dict
             }
         )
     return sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")))
+
+
+def timeline_safe_target_me_turns(
+    *,
+    candidates: list[dict[str, Any]],
+    live_turns_rows: list[dict[str, Any]],
+    batch_utterances: list[dict[str, Any]],
+    baseline_contentful_role_order_mismatch_count: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    accepted: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for candidate in candidates:
+        trial = accepted + [candidate]
+        remote_leak = remote_leak_rows_for_turns(trial, batch_utterances)
+        if remote_leak:
+            rejected.append(
+                {
+                    "id": candidate.get("id"),
+                    "reason": "would_add_suspected_remote_leak",
+                    "text": candidate.get("text"),
+                    "remote_leak": remote_leak[:3],
+                }
+            )
+            continue
+        contentful_order_mismatches = order_mismatch_rows_for_turns(
+            live_turns_rows + trial,
+            batch_utterances,
+            same_role_only=True,
+            contentful_only=True,
+            min_token_recall=0.45,
+            min_score=0.65,
+            match_mode="target_me_timeline_safe_candidate",
+        )
+        if len(contentful_order_mismatches) > baseline_contentful_role_order_mismatch_count:
+            rejected.append(
+                {
+                    "id": candidate.get("id"),
+                    "reason": "would_add_contentful_order_mismatch",
+                    "text": candidate.get("text"),
+                    "contentful_order_mismatch_count": len(contentful_order_mismatches),
+                    "baseline_contentful_order_mismatch_count": baseline_contentful_role_order_mismatch_count,
+                    "examples": contentful_order_mismatches[:3],
+                }
+            )
+            continue
+        accepted.append(candidate)
+    return accepted, rejected
 
 
 def target_me_shadow_policy_metrics(
@@ -844,8 +896,17 @@ def target_me_shadow_policy_metrics(
         min_score=0.65,
         match_mode="target_me_shadow_baseline_role_constrained_contentful",
     )
+    rejected_by_policy: dict[str, list[dict[str, Any]]] = {}
     for policy in TARGET_ME_RESCUE_POLICIES:
         policy_turns = target_me_shadow_turns(target_me_rows, policy)
+        if policy in TARGET_ME_DERIVED_POLICY_BASE:
+            policy_turns, rejected = timeline_safe_target_me_turns(
+                candidates=policy_turns,
+                live_turns_rows=live_turns_rows,
+                batch_utterances=batch_utterances,
+                baseline_contentful_role_order_mismatch_count=len(baseline_contentful_role_order_mismatches),
+            )
+            rejected_by_policy[policy] = rejected
         policy_seconds = round(sum(safe_float(row.get("end")) - safe_float(row.get("start")) for row in policy_turns), 3)
         missing_after = local_missing_rows_for_turns(batch_utterances, live_turns_rows + policy_turns)
         missing_after_seconds = round(sum(safe_float(row.get("duration_sec")) for row in missing_after), 3)
@@ -894,6 +955,8 @@ def target_me_shadow_policy_metrics(
         examples[policy] = policy_turns[:20]
         examples[f"{policy}_remote_leak"] = remote_leak[:20]
         examples[f"{policy}_order_mismatches"] = order_mismatches[:20]
+        if policy in rejected_by_policy:
+            examples[f"{policy}_rejected"] = rejected_by_policy[policy][:20]
     return metrics, examples
 
 

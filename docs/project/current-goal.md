@@ -258,14 +258,17 @@ New Target-Me diagnostic, 2026-07-08:
   `128.85s` missing-Me and adds `0.00s` measured remote leak, but also adds `3` contentful
   role-constrained order mismatches. `target_me_confirmed_v1` recovers `169.24s` but adds `12.40s`
   remote leak; `target_me_possible_v1` recovers `278.15s` but adds `16.30s` remote leak and `5`
-  contentful order mismatches. Therefore there is no safe Target-Me shadow policy yet.
+  contentful order mismatches.
+- `target_me_confirmed_remote_guard_timeline_safe_v1` is the first conservative Target-Me shadow
+  subset: it accepts only candidates that do not increase contentful role-constrained order
+  mismatches and do not add measured remote leak. Current real corpus result: `103.82s` missing-Me
+  recovered, `0.00s` measured remote leak, `0` contentful order-mismatch delta.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
 existing corpus already contains enough suppressed live mic material and enough Target-Me evidence.
-The next work is not just stronger filtering; it is timeline-safe Target-Me rescue/reconciliation:
-recover local speech only where local-speaker evidence is strong enough, remote-risk evidence is low,
-and inserted `Me` turns do not create new ordering errors. Sessions with `insufficient_enrollment`
-point to a later calibration problem, not to a need for more ad-hoc live meetings now.
+The next work is to materialize this timeline-safe Target-Me rescue into an explicit shadow draft and
+re-run the same parity gates on that draft. Sessions with `insufficient_enrollment` point to a later
+calibration problem, not to a need for more ad-hoc live meetings now.
 
 ## Latest Completed Goal: Current Pipeline Stabilization v1
 

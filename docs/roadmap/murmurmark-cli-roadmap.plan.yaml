@@ -698,9 +698,12 @@ nodes:
       stricter: the same policy recovers `128.85s` missing-Me with `0.00s` measured remote leak, but
       adds `3` contentful role-constrained order mismatches. `target_me_possible_v1` recovers more
       but remains unsafe (`278.15s` recovered / `16.30s` remote leak / `5` contentful order
-      mismatches). Two sessions still lack enough enrollment. The next local-recall work therefore
-      needs timeline-safe Target-Me rescue/reconciliation for suppressed mic segments, plus a later
-      enrollment/calibration fallback, not merely enabling an existing text, energy or speaker policy.
+      mismatches). The first conservative timeline-safe subset,
+      `target_me_confirmed_remote_guard_timeline_safe_v1`, recovers `103.82s` missing-Me with
+      `0.00s` measured remote leak and `0` contentful order-mismatch delta. Two sessions still lack
+      enough enrollment. The next local-recall work therefore needs to materialize this
+      timeline-safe Target-Me rescue into a separate shadow draft and evaluate full parity gates on
+      that draft, plus a later enrollment/calibration fallback.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful
