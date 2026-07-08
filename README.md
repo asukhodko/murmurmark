@@ -956,8 +956,10 @@ Active goal and near-term candidates:
    coverage, not the v1 mechanism.
 4. Active live follow-up: Near-Realtime Live Parity Coverage v1. Capture-safe sidecar proof exists,
    `murmurmark corpus live all --refresh` compares real live chunks/drafts with batch output, and
-   live promotion stays blocked. Current next focus is `fix_live_local_recall_gap`: live draft still
-   loses Me speech on controlled real evidence, and the corpus report now lists concrete
+   live promotion stays blocked. The comparison now uses ASR-segment granularity when available, with
+   chunk fallback for older artifacts. Current next focus is `fix_live_order_risk`: segment-level
+   parity exposes ordering drift, suspected remote leakage in live `Me`, and lost local speech on
+   controlled real evidence. The corpus report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
    visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic
    metadata (`6` real live candidate chunks / `31` candidate segments in the current corpus) but is
@@ -971,9 +973,10 @@ Active goal and near-term candidates:
    (`34.16s` local / `2.58s` remote-risk) but low-recall. The first audio/evidence policy lab shows
    `audio_mic_dominant_v1` has `24.0s` local / `0.0s` remote-risk, while `audio_safe_union_v1`
    recovers `68.42s` missing-Me at `2.58s` remote-risk. Fresh live chunks can now expose that policy
-   as `live_rescue_shadow`: `2` real-live chunks / `9` segments, `46.48s` missing-Me recovered,
-   `373.80s` missing-Me still left, `0.0s` measured remote-risk and `1` order-mismatch candidate in
-   the current corpus. It remains a shadow-only rescue candidate, not normal live `Me`; full live
+   as `live_rescue_shadow`: `2` real-live chunks / `9` segments, `45.36s` missing-Me recovered,
+   `373.80s` missing-Me still left, `0.0s` measured remote-risk and `34` segment-level order
+   mismatches still present in the current corpus. Published live `Me` also has `15.96s` suspected
+   remote leakage. Rescue shadow remains candidate evidence, not normal live `Me`; full live
    promotion remains blocked.
    Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen

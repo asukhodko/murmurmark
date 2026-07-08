@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.11.0"
+SCRIPT_VERSION = "0.12.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 CAPTURE_SAFETY_BLOCKERS = {"interrupted_capture", "silent_capture", "sparse_capture"}
@@ -509,7 +509,7 @@ def selected_clean_dialogue_path(session: Path, profile: str | None) -> Path | N
     return next((path for path in candidates if path.exists()), None)
 
 
-def live_turns(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def live_turns(session: Path, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     turns: list[dict[str, Any]] = []
     for row in chunks:
         try:
@@ -522,6 +522,32 @@ def live_turns(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 continue
             text = str(source_row.get("text") or "").strip()
             if not text:
+                continue
+            source_tokens = tokens(text)
+            segment_turns: list[dict[str, Any]] = []
+            for segment_index, segment in enumerate(read_global_asr_segments(session, source_row), start=1):
+                segment_text = clean_text(str(segment.get("text") or ""))
+                segment_tokens = tokens(segment_text)
+                if not segment_tokens:
+                    continue
+                segment_recall = bag_recall(segment_tokens, source_tokens) or 0.0
+                if segment_recall < 0.60 and segment_text not in clean_text(text):
+                    continue
+                segment_turns.append(
+                    {
+                        "id": f"live_{index:06d}_{source}_{segment_index:03d}",
+                        "chunk_index": index,
+                        "segment_index": segment_index,
+                        "source": f"{source}_segment",
+                        "role": role,
+                        "start": safe_float(segment.get("start")),
+                        "end": safe_float(segment.get("end"), safe_float(segment.get("start"))),
+                        "text": segment_text,
+                        "tokens": segment_tokens,
+                    }
+                )
+            if segment_turns:
+                turns.extend(segment_turns)
                 continue
             start = safe_float(source_row.get("hard_start_sec"), safe_float(row.get("start_sec")))
             end = safe_float(source_row.get("hard_end_sec"), safe_float(row.get("end_sec"), start))
@@ -625,6 +651,37 @@ def live_rescue_shadow_turns(chunks: list[dict[str, Any]]) -> list[dict[str, Any
             index = 0
         mic = row.get("mic") if isinstance(row.get("mic"), dict) else {}
         shadow = mic.get("live_rescue_shadow") if isinstance(mic.get("live_rescue_shadow"), dict) else {}
+        segments = shadow.get("segments") if isinstance(shadow.get("segments"), list) else []
+        segment_turns: list[dict[str, Any]] = []
+        for segment_index, segment in enumerate(segments, start=1):
+            if not isinstance(segment, dict):
+                continue
+            text = clean_text(str(segment.get("text") or ""))
+            if not text:
+                continue
+            start = safe_float(segment.get("start"), safe_float(row.get("start_sec")))
+            end = safe_float(segment.get("end"), start)
+            segment_turns.append(
+                {
+                    "id": f"live_rescue_shadow_{index:06d}_{segment_index:03d}",
+                    "chunk_index": index,
+                    "segment_index": segment_index,
+                    "source": "mic_rescue_shadow_segment",
+                    "role": "Me",
+                    "start": start,
+                    "end": max(end, start),
+                    "text": text,
+                    "tokens": tokens(text),
+                    "policy": shadow.get("policy"),
+                    "publish_policy": shadow.get("publish_policy"),
+                    "segment_count": 1,
+                    "rescue_policy_candidates": segment.get("rescue_policy_candidates") or [],
+                    "audio": segment.get("audio") if isinstance(segment.get("audio"), dict) else {},
+                }
+            )
+        if segment_turns:
+            turns.extend(segment_turns)
+            continue
         text = clean_text(str(shadow.get("text") or ""))
         if not text:
             continue
@@ -634,7 +691,7 @@ def live_rescue_shadow_turns(chunks: list[dict[str, Any]]) -> list[dict[str, Any
             {
                 "id": f"live_rescue_shadow_{index:06d}",
                 "chunk_index": index,
-                "source": "mic_rescue_shadow",
+                "source": "mic_rescue_shadow_chunk_fallback",
                 "role": "Me",
                 "start": start,
                 "end": max(end, start),
@@ -642,18 +699,19 @@ def live_rescue_shadow_turns(chunks: list[dict[str, Any]]) -> list[dict[str, Any
                 "tokens": tokens(text),
                 "policy": shadow.get("policy"),
                 "publish_policy": shadow.get("publish_policy"),
-                "segment_count": shadow.get("segment_count"),
+                "segment_count": safe_int(shadow.get("segment_count")),
             }
         )
-    return turns
+    return sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")))
 
 
 def live_rescue_shadow_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
     turns = live_rescue_shadow_turns(chunks)
+    chunk_ids = {safe_int(row.get("chunk_index")) for row in turns}
     return {
         "turns": turns,
         "metrics": {
-            "live_rescue_shadow_candidate_chunk_count": len(turns),
+            "live_rescue_shadow_candidate_chunk_count": len(chunk_ids),
             "live_rescue_shadow_candidate_segment_count": sum(safe_int(row.get("segment_count")) for row in turns),
             "live_rescue_shadow_candidate_token_count": sum(len(row.get("tokens") or []) for row in turns),
         },
@@ -1241,7 +1299,7 @@ def rescue_policy_counterfactual_metrics(
 
 
 def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> dict[str, Any]:
-    turns = live_turns(chunks)
+    turns = live_turns(session, chunks)
     suppressed_mic_turns = live_suppressed_mic_turns(chunks)
     segment_gate_summary = live_segment_role_gate_summary(chunks)
     rescue_shadow_summary = live_rescue_shadow_summary(chunks)

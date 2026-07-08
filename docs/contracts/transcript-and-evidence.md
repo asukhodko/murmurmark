@@ -4458,6 +4458,12 @@ These gates protect only the shadow live draft/chunks:
 
 They do not modify raw CAF, batch ASR, selected transcript profiles or export readiness.
 
+For live-vs-batch parity, published live `mic` and `remote` text is evaluated at ASR-segment
+granularity when the source ASR JSON exists and the segment text is confirmed by the filtered
+published source text. Older or incomplete artifacts fall back to chunk-level turns. This makes
+`order_risk` and `remote_duplicate_leak` stricter than the visible Markdown draft: hidden
+within-chunk ordering drift or remote text inside `Me` can still block promotion.
+
 `compare-live-batch.py` also evaluates suppressed-mic rescue policies against the authoritative
 batch transcript. These policy-lab fields are diagnostic only:
 
@@ -5073,9 +5079,9 @@ Schema:
     "controlled_real_live_pilot_allowed": true,
     "objective_status": "blocked_by_parity_gates",
     "objective_ready_for_live_promotion": false,
-    "objective_next_focus": "fix_live_local_recall_gap",
-    "objective_next_focus_dimension": "local_recall",
-    "objective_next_recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion",
+    "objective_next_focus": "fix_live_order_risk",
+    "objective_next_focus_dimension": "order_risk",
+    "objective_next_recommended_next": "fix live timeline ordering/reconciliation before live promotion",
     "coverage_path_status": "resolve_capture_safe_candidate_blockers",
     "coverage_path_recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion",
     "coverage_path_historical_non_candidate_sessions": 1,
@@ -5180,9 +5186,9 @@ Schema:
     "session_ids": ["2026-07-03_06-16-43"],
     "next_focus": {
       "dimension": "local_recall",
-      "action_id": "fix_live_local_recall_gap",
-      "title": "Fix live local recall gaps",
-      "recommended_next": "inspect missing Me examples and improve live mic role/echo/boundary handling before promotion"
+      "action_id": "fix_live_order_risk",
+      "title": "Fix live ordering risk",
+      "recommended_next": "fix live timeline ordering/reconciliation before live promotion"
     },
     "promotion_decision": "shadow_only_do_not_promote",
     "new_real_live_collection_allowed": false,

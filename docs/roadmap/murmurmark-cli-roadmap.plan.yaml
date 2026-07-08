@@ -648,12 +648,15 @@ nodes:
       Текущий corpus report уже сравнивает real live chunks/drafts с batch output, держит
       `promotion_allowed_sessions = 0` и покрывает dimensions capture safety, order risk, local
       recall, remote leakage, review burden, selected notes readiness, draft text recall,
-      required artifacts and chunk-boundary risks. На 2026-07-08 capture-safe candidate scope:
-      2 real sessions, 1 passing, blockers `local_recall` and `selected_notes_readiness`.
+      required artifacts and chunk-boundary risks. The comparison now uses ASR-segment granularity
+      when live source ASR JSON is present, with chunk fallback for older artifacts. На 2026-07-08
+      capture-safe candidate scope: 2 real sessions, 1 passing, blockers `order_risk`,
+      `local_recall` and `selected_notes_readiness`.
       Capture-safe/evaluable local-recall examples are listed in
       `capture_safe_evaluable_local_recall_gap_examples` so the next fix has concrete target rows.
-      Remote leakage in live Me is back to zero after tightening the full-chunk duplicate gate.
-      Most missing Me seconds are visible in suppressed mic chunks. Text-only segment rescue is
+      Segment-level parity exposes `34` real live order mismatches, `419.16s` missing-Me and
+      `15.96s` suspected remote leakage in published live Me. Most missing Me seconds are visible in
+      suppressed mic chunks. Text-only segment rescue is
       recorded as diagnostic metadata (`6` real live candidate chunks / `31` candidate segments in
       the current corpus), but remains diagnostic-only because publishing it can reintroduce remote
       as Me. Segment-level comparison now labels suppressed mic ASR against batch: `49`
@@ -669,11 +672,12 @@ nodes:
       and `audio_safe_union_v1` is the best current shadow candidate (`50.18s` local / `2.58s`
       remote-risk, `68.42s` missing-Me recovered). Fresh chunks can expose this candidate as
       `live_rescue_shadow`; current corpus has `2` real-live shadow chunks / `9` segments, recovering
-      `46.48s` missing-Me in actual shadow artifacts while keeping normal live Me unchanged.
+      `45.36s` missing-Me in actual shadow artifacts while keeping normal live Me unchanged.
       The shadow adds no measured remote-risk (`0.00s`), but still leaves `373.80s` missing-Me and
-      produces `1` order-mismatch candidate in the combined draft evaluation, so it is evidence for
+      leaves `34` order mismatches in the combined draft evaluation, so it is evidence for
       the next rescue/reconciliation pass, not a promotable live output.
-      Следующий фокус: `fix_live_local_recall_gap`; live draft часто теряет Me, поэтому promotion
+      Следующий фокус: `fix_live_order_risk`; live draft путает порядок, иногда публикует remote as
+      Me и часто теряет Me, поэтому promotion
       остаётся blocked.
 
   corpus-regression:

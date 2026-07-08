@@ -91,10 +91,11 @@ Current state:
 - new real live collection allowed: `false`;
 - controlled real live pilot collection is allowed only as evidence collection after the full
   fail-open proof; batch remains authoritative and promotion remains blocked;
-- current blocking dimensions: `capture_safety`, `local_recall`, `review_burden`,
-  `selected_notes_readiness`, `chunk_boundary_risks`, `draft_text_recall`, `required_artifacts`.
-- capture-safe candidate blocking dimensions: `local_recall`, `selected_notes_readiness`.
-- current objective next focus: `fix_live_local_recall_gap`.
+- current blocking dimensions: `capture_safety`, `order_risk`, `local_recall`, `remote_leakage`,
+  `review_burden`, `selected_notes_readiness`, `chunk_boundary_risks`, `draft_text_recall`,
+  `required_artifacts`.
+- capture-safe candidate blocking dimensions: `order_risk`, `local_recall`, `selected_notes_readiness`.
+- current objective next focus: `fix_live_order_risk`.
 
 Safety constraint:
 
@@ -133,8 +134,9 @@ Current result:
 - `status = shadow_only_not_promotable`;
 - `promotion_decision = shadow_only_do_not_promote`;
 - `promotion_allowed_sessions = 0`;
-- `real_live_order_mismatch_count = 0`;
-- `real_live_missing_me_seconds = 420.28`;
+- live/batch comparison granularity: ASR segment when available, chunk fallback otherwise;
+- `real_live_order_mismatch_count = 34`;
+- `real_live_missing_me_seconds = 419.16`;
 - `real_live_missing_me_visible_in_suppressed_mic_seconds = 349.77`;
 - `real_live_missing_me_not_visible_in_suppressed_mic_seconds = 37.21`;
 - `real_live_suppressed_mic_turn_count = 30`;
@@ -142,10 +144,10 @@ Current result:
 - `real_live_segment_role_gate_candidate_kept_segment_count = 54`;
 - `real_live_rescue_shadow_candidate_chunk_count = 2`;
 - `real_live_rescue_shadow_candidate_segment_count = 9`;
-- `real_live_rescue_shadow_missing_me_recovered_seconds = 46.48`;
+- `real_live_rescue_shadow_missing_me_recovered_seconds = 45.36`;
 - `real_live_rescue_shadow_missing_me_seconds_after = 373.80`;
 - `real_live_rescue_shadow_suspected_remote_leak_in_me_seconds = 0.00`;
-- `real_live_rescue_shadow_order_mismatch_count = 1`;
+- `real_live_rescue_shadow_order_mismatch_count = 34`;
 - `real_live_suppressed_mic_asr_me_dominant_segment_count = 49 / 209.58 sec`;
 - `real_live_suppressed_mic_asr_mixed_segment_count = 44 / 199.92 sec`;
 - current text-only rescue policy: `152.60 sec` local / `73.62 sec` remote-risk;
@@ -157,9 +159,9 @@ Current result:
 - audio safe union policy: `50.18 sec` local / `2.58 sec` remote-risk,
   `68.42 sec` missing-Me recovered;
 - batch-oracle local ceiling: `409.50 sec` local;
-- `real_live_suspected_remote_leak_in_me_seconds = 0.0`;
+- `real_live_suspected_remote_leak_in_me_seconds = 15.96`;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
-- `objective_next_focus = fix_live_local_recall_gap`.
+- `objective_next_focus = fix_live_order_risk`.
 - `capture_safe_evaluable_local_recall_gap_examples = 12 / 47.44 sec`.
 
 The report now keeps concrete missing-Me rows under
@@ -167,11 +169,15 @@ The report now keeps concrete missing-Me rows under
 `meaningful_live_comparison` because the live draft lost all `Me` turns; those sessions must remain
 visible for the local-recall fix.
 
-Remote leakage in live `Me` is now back to zero after tightening the full-chunk duplicate gate.
-Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks.
-The current live blocker is therefore primarily the coarse `live_role_gate`: it suppresses an entire
-mic chunk when the chunk looks like remote duplicate, even if the chunk also contains real local
-speech. Segment-level batch comparison now shows `49` Me-dominant suppressed mic ASR segments
+The comparison now evaluates normal live turns and rescue-shadow candidates at ASR-segment
+granularity when the source ASR JSON is present, with chunk-level fallback for older artifacts. This
+exposes order and remote-leakage risks that the earlier chunk-level comparison could hide.
+Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks,
+but the live branch also has segment-level ordering drift and `15.96s` suspected remote leakage in
+published live `Me`. The current live blockers are therefore: live timeline ordering, remote leakage
+and the coarse `live_role_gate`, which suppresses an entire mic chunk when the chunk looks like
+remote duplicate even if it also contains real local speech. Segment-level batch comparison now
+shows `49` Me-dominant suppressed mic ASR segments
 (`209.58s`) and `44` mixed suppressed mic ASR segments (`199.92s`) in real live runs. A first
 text-only segment rescue found `9` real live candidate chunks / `54` kept candidate segments, but it
 stays diagnostic-only because policy-lab metrics show it would recover `152.60s` local speech while
@@ -185,9 +191,10 @@ leak. The first audio policy lab narrows that path: `audio_mic_dominant_v1` is c
 (`176.98s` local / `193.18s` remote-risk), and `audio_safe_union_v1` is the best current shadow
 candidate (`50.18s` local / `2.58s` remote-risk, `68.42s` missing-Me recovered). Fresh live chunks
 now expose that candidate separately as `live_rescue_shadow`; in the current corpus this appears in
-`2` real-live chunks / `9` segments and recovers `46.48s` missing-Me in actual shadow artifacts.
+`2` real-live chunks / `9` segments and recovers `45.36s` missing-Me in actual shadow artifacts.
 The shadow itself does not add measured remote-risk (`0.00s`), but it still leaves `373.80s`
-missing-Me and introduces `1` order-mismatch candidate when evaluated as a combined draft. It remains
+missing-Me and does not reduce the `34` segment-level order mismatches when evaluated as a combined
+draft. It remains
 shadow-only evidence, not a promotable live `Me` path.
 
 ## Latest Completed Goal: Current Pipeline Stabilization v1
