@@ -156,9 +156,10 @@ Current result:
 - `real_live_contentful_role_constrained_order_mismatch_by_ambiguity = {"ambiguous": 2,
   "unambiguous": 2}`;
 - `real_live_unambiguous_contentful_role_constrained_order_mismatch_count = 2`;
-- `real_live_missing_me_seconds = 419.16`;
+- `real_live_missing_me_seconds = 395.72`;
 - `real_live_missing_me_visible_in_suppressed_mic_seconds = 382.52`;
 - `real_live_missing_me_not_visible_in_suppressed_mic_seconds = 37.21`;
+- `real_live_suspicious_batch_me_missing_seconds = 24.01`;
 - `real_live_suppressed_mic_turn_count = 30`;
 - `real_live_segment_role_gate_candidate_chunk_count = 9`;
 - `real_live_segment_role_gate_candidate_kept_segment_count = 54`;
@@ -346,14 +347,17 @@ Online remote-overlap shadow filter, 2026-07-09:
   `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1`:
   - remaining measured remote leak: `0.00s`;
   - visible suppressed mic added: `52.76s`;
-  - missing-Me: `301.96s`;
+  - missing-Me: `278.52s`;
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
 - remaining missing-Me decomposition for that best live-implementable profile:
   - visible in suppressed mic with broader Target-Me evidence: `174.33s`;
   - visible in suppressed mic without Target-Me evidence: `90.42s`;
-  - not visible in suppressed mic: `37.21s`;
+  - not visible in suppressed mic: `13.77s`;
   - not visible but with Target-Me evidence: `0.00s`.
+- `live_target_me_shadow_profile_best_live_implementable_remaining_gap` exposes the same residual
+  queue by bucket, policy set and session; its largest policy set is `target_me_possible_v1`
+  (`108.91s`), followed by rows with no Target-Me policy (`104.19s`).
 - less strict remote-guard variants prove the recall/order trade-off:
   `online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1` reduces
   missing-Me to `276.93s` and keeps measured remote leak at `0.00s`, but raises contentful
@@ -475,7 +479,7 @@ New Target-Me diagnostic, 2026-07-08:
   mismatches stay `4`. It is still not promotable because it uses batch labels, but it proves the next
   online work should target safe suppressed-mic segment publishing.
 - Two live-accessible suppressed-mic profiles were evaluated against the same gates. `audio_safe_union_v1`
-  is safe but too weak (`301.96s` profile missing-Me remains). `audio_low_corr_text_guard_v1` recovers
+  is safe but too weak (`278.52s` profile missing-Me remains). `audio_low_corr_text_guard_v1` recovers
   much more (`117.52s` missing-Me remains), but leaks `210.10s` of remote-like text, so it is not a
   viable promotion path. The next online design therefore needs stronger local-speaker or remote-forbidden
   evidence than simple audio/text thresholds.

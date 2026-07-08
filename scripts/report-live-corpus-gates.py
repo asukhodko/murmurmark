@@ -1533,6 +1533,110 @@ def local_recall_gap_examples(rows: list[dict[str, Any]], *, limit: int = 50) ->
     }
 
 
+def target_me_shadow_profile_remaining_gap_examples(
+    rows: list[dict[str, Any]],
+    *,
+    root: Path,
+    policy: str | None,
+    limit: int = 80,
+) -> dict[str, Any]:
+    examples: list[dict[str, Any]] = []
+    missing_inputs: list[str] = []
+    if not policy:
+        return {
+            "schema": "murmurmark.live_target_me_shadow_profile_remaining_gap/v1",
+            "status": "no_profile",
+            "profile": None,
+            "item_count": 0,
+            "seconds": 0.0,
+            "examples": [],
+            "truncated": False,
+            "limit": limit,
+            "by_bucket": {},
+            "by_policy_set": {},
+            "by_session": {},
+            "missing_inputs": [],
+        }
+
+    for row in rows:
+        session_name = str(row.get("session") or "")
+        inputs = row.get("inputs") if isinstance(row.get("inputs"), dict) else {}
+        comparison_rel = inputs.get("live_batch_comparison")
+        comparison_path = root / session_name / str(comparison_rel or "derived/live/live_batch_comparison.json")
+        comparison = read_json(comparison_path)
+        if not isinstance(comparison, dict):
+            missing_inputs.append(session_name)
+            continue
+        shadow_profiles = comparison.get("shadow_profiles") if isinstance(comparison.get("shadow_profiles"), dict) else {}
+        target_profiles = shadow_profiles.get("target_me") if isinstance(shadow_profiles.get("target_me"), dict) else {}
+        profile = target_profiles.get(policy) if isinstance(target_profiles.get(policy), dict) else {}
+        risk_examples = profile.get("risk_examples") if isinstance(profile.get("risk_examples"), dict) else {}
+        for item in risk_examples.get("local_missing") or []:
+            if not isinstance(item, dict):
+                continue
+            suppressed_recall = safe_float(item.get("recall_in_suppressed_mic"))
+            policies = item.get("target_me_candidate_policies") if isinstance(item.get("target_me_candidate_policies"), list) else []
+            if suppressed_recall >= 0.35 and policies:
+                bucket = "visible_with_target_me"
+            elif suppressed_recall >= 0.35:
+                bucket = "visible_without_target_me"
+            elif policies:
+                bucket = "not_visible_with_target_me"
+            else:
+                bucket = "not_visible_without_target_me"
+            policy_set = "+".join(str(policy_name) for policy_name in policies) if policies else "(none)"
+            examples.append(
+                {
+                    "session": session_name,
+                    "profile": policy,
+                    "bucket": bucket,
+                    "policy_set": policy_set,
+                    "batch_id": item.get("batch_id"),
+                    "start": item.get("start"),
+                    "end": item.get("end"),
+                    "duration_sec": item.get("duration_sec"),
+                    "recall_in_live_me": item.get("recall_in_live_me"),
+                    "recall_in_suppressed_mic": item.get("recall_in_suppressed_mic"),
+                    "target_me_candidate_policies": policies,
+                    "suppressed_mic_turn_ids": item.get("suppressed_mic_turn_ids"),
+                    "text": item.get("text"),
+                    "comparison": str(comparison_rel or "derived/live/live_batch_comparison.json"),
+                }
+            )
+
+    def aggregate_by(key: str) -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for item in examples:
+            group = str(item.get(key) or "")
+            row = grouped.setdefault(group, {"count": 0, "seconds": 0.0})
+            row["count"] += 1
+            row["seconds"] = round(safe_float(row.get("seconds")) + safe_float(item.get("duration_sec")), 3)
+        return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
+
+    examples.sort(
+        key=lambda item: (
+            -safe_float(item.get("duration_sec")),
+            str(item.get("session") or ""),
+            safe_float(item.get("start")),
+        )
+    )
+    total_seconds = round(sum(safe_float(item.get("duration_sec")) for item in examples), 3)
+    return {
+        "schema": "murmurmark.live_target_me_shadow_profile_remaining_gap/v1",
+        "status": "ok",
+        "profile": policy,
+        "item_count": len(examples),
+        "seconds": total_seconds,
+        "examples": examples[:limit],
+        "truncated": len(examples) > limit,
+        "limit": limit,
+        "by_bucket": aggregate_by("bucket"),
+        "by_policy_set": aggregate_by("policy_set"),
+        "by_session": aggregate_by("session"),
+        "missing_inputs": missing_inputs,
+    }
+
+
 def local_recall_rescue_lab(rows: list[dict[str, Any]], *, limit: int = 30) -> dict[str, Any]:
     segments: list[dict[str, Any]] = []
     for row in rows:
@@ -2546,6 +2650,19 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "capture_safe_candidate": target_me_shadow_profile_diagnostics(summary, "capture_safe_candidate"),
         "capture_safe_evaluable": target_me_shadow_profile_diagnostics(summary, "capture_safe_evaluable"),
     }
+    real_best_live_profile = (
+        (target_me_shadow_profile_diagnostics_report.get("real") or {}).get("best_live_implementable_profile")
+        if isinstance(target_me_shadow_profile_diagnostics_report.get("real"), dict)
+        else None
+    )
+    real_best_live_profile_policy = (
+        real_best_live_profile.get("policy") if isinstance(real_best_live_profile, dict) else None
+    )
+    best_live_profile_remaining_gap = target_me_shadow_profile_remaining_gap_examples(
+        real_live_rows,
+        root=root,
+        policy=real_best_live_profile_policy,
+    )
     local_recall_rescue_lab_report = local_recall_rescue_lab(real_live_rows)
     candidate_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_candidate_rows)
     evaluable_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_evaluable_rows)
@@ -2931,6 +3048,30 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["capture_safe_evaluable_local_recall_gap_example_seconds"] = safe_float(
         evaluable_local_recall_examples.get("seconds")
     )
+    summary["real_live_target_me_shadow_profile_best_live_implementable_remaining_gap_count"] = safe_int(
+        best_live_profile_remaining_gap.get("item_count")
+    )
+    summary["real_live_target_me_shadow_profile_best_live_implementable_remaining_gap_seconds"] = safe_float(
+        best_live_profile_remaining_gap.get("seconds")
+    )
+    remaining_by_bucket = (
+        best_live_profile_remaining_gap.get("by_bucket")
+        if isinstance(best_live_profile_remaining_gap.get("by_bucket"), dict)
+        else {}
+    )
+    for bucket in (
+        "visible_with_target_me",
+        "visible_without_target_me",
+        "not_visible_with_target_me",
+        "not_visible_without_target_me",
+    ):
+        bucket_row = remaining_by_bucket.get(bucket) if isinstance(remaining_by_bucket.get(bucket), dict) else {}
+        summary[f"real_live_target_me_shadow_profile_best_live_implementable_remaining_gap_{bucket}_seconds"] = (
+            safe_float(bucket_row.get("seconds"))
+        )
+        summary[f"real_live_target_me_shadow_profile_best_live_implementable_remaining_gap_{bucket}_count"] = (
+            safe_int(bucket_row.get("count"))
+        )
     if not pilot_allowed:
         coverage_path_status = "blocked_until_full_fail_open_proof"
         coverage_recommended_next = (
@@ -3030,6 +3171,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_local_recall_target_me_diagnostics": target_me_diagnostics_report,
         "live_target_me_shadow_policy_diagnostics": target_me_shadow_diagnostics_report,
         "live_target_me_shadow_profile_diagnostics": target_me_shadow_profile_diagnostics_report,
+        "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
         "live_local_recall_gap_examples": local_recall_examples,
         "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
         "capture_safe_evaluable_local_recall_gap_examples": evaluable_local_recall_examples,
@@ -4612,6 +4754,22 @@ def main() -> int:
                 "real_live_target_me_shadow_profile_best_live_implementable_not_visible_without_target_me_seconds: "
                 f"{safe_float(best_live_target_me_shadow_profile.get('live_missing_me_not_visible_without_target_me_candidate_seconds'))}"
             )
+            remaining_gap = (
+                report.get("live_target_me_shadow_profile_best_live_implementable_remaining_gap")
+                if isinstance(report.get("live_target_me_shadow_profile_best_live_implementable_remaining_gap"), dict)
+                else {}
+            )
+            by_policy_set = (
+                remaining_gap.get("by_policy_set")
+                if isinstance(remaining_gap.get("by_policy_set"), dict)
+                else {}
+            )
+            top_policy_set = next(iter(by_policy_set.items()), None)
+            if top_policy_set:
+                print(
+                    "real_live_target_me_shadow_profile_best_live_implementable_remaining_gap_top_policy_set: "
+                    f"{top_policy_set[0]} ({safe_float(top_policy_set[1].get('seconds'))}s)"
+                )
     if candidate_target_me:
         print(f"capture_safe_candidate_target_me_status: {candidate_target_me.get('status')}")
     objective_audit = (

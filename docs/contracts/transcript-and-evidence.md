@@ -5723,14 +5723,24 @@ with the dual Target-Me suppressed-mic rescue. Current corpus evidence: the comb
 `Me`, but still leaves `380.17s` missing-Me and `4` contentful role-constrained order mismatches.
 `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1` is the
 current best live-implementable profile: it combines the remote-overlap cleanup, timeline-safe
-Target-Me rescue and `audio_safe_union_v1`, reaching `301.96s` missing-Me with `0.00s` measured
+Target-Me rescue and `audio_safe_union_v1`, reaching `278.52s` missing-Me with `0.00s` measured
 remote leak and `4` contentful order mismatches. The remaining missing-Me splits into `174.33s`
-visible with broader Target-Me evidence, `90.42s` visible without Target-Me evidence and `37.21s`
+visible with broader Target-Me evidence, `90.42s` visible without Target-Me evidence and `13.77s`
 not visible in suppressed mic. The less strict remote-guard audio-safe profile reaches `276.93s`
 missing-Me, but increases contentful order mismatches to `7`, so it is not the safest live
 implementable default. The timeline-safe Target-Me policy rejects `18.30s` of candidates, all due to
 contentful order risk and `0.00s` due to suspected remote leak. These profiles remain diagnostic
 drafts and are not promotable.
+
+The corpus report also writes
+`live_target_me_shadow_profile_best_live_implementable_remaining_gap` with schema
+`murmurmark.live_target_me_shadow_profile_remaining_gap/v1`. It re-reads the best
+live-implementable profile's `risk_examples.local_missing` rows and groups the residual gap by
+`bucket`, `policy_set` and `session`. Buckets distinguish whether the missing batch `Me` text is
+visible in suppressed mic ASR and whether it already has broader Target-Me evidence:
+`visible_with_target_me`, `visible_without_target_me`, `not_visible_with_target_me` and
+`not_visible_without_target_me`. The report is diagnostic only; it does not change live drafts or
+parity gates.
 
 Profile `risk_examples.local_missing` carries the same fields per utterance, including
 `recall_in_suppressed_mic`, `suppressed_mic_turn_ids` and `target_me_candidate_policies`. The oracle

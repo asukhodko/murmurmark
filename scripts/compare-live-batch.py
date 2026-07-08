@@ -18,6 +18,17 @@ SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
 SCRIPT_VERSION = "0.19.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
+KNOWN_HALLUCINATION_RE = re.compile(
+    r"("
+    r"редактор\s+субтитров"
+    r"|корректор\s+[а-яa-z]\."
+    r"|спасибо\s+за\s+субтитр(?:ы|ов|ами)?"
+    r"|субтитр(?:ы|ов|ами)?\s+(?:создавал|сделал|подготовил)"
+    r"|продолжение\s+следует"
+    r"|dimatorzok"
+    r")",
+    re.IGNORECASE,
+)
 GENERIC_TOKENS = {
     "а",
     "ага",
@@ -1625,6 +1636,9 @@ def suspicious_batch_me_utterance(row: dict[str, Any]) -> bool:
     reason = str(quality.get("decision_reason") or repair.get("reason") or "")
     matched_remote = repair.get("matched_remote_candidate_ids") if isinstance(repair, dict) else None
     token_prob = nested_token_probability(row)
+    text = clean_text(str(row.get("text") or ""))
+    if row.get("role") == "Me" and KNOWN_HALLUCINATION_RE.search(text):
+        return True
     return bool(
         row.get("role") == "Me"
         and duration <= 1.2

@@ -510,15 +510,19 @@ suppressed-mic rescue. This closes the current remote-leak symptom in shadow, bu
 The current best live-implementable shadow is
 `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1`: it combines
 the online remote-overlap cleanup, timeline-safe Target-Me rescue and the `audio_safe_union_v1`
-suppressed-mic slice. Current real corpus result: `301.96s` missing-Me, `0.00s` measured remote
+suppressed-mic slice. Current real corpus result: `278.52s` missing-Me, `0.00s` measured remote
 leak, `4` contentful order mismatches and `41` non-passing gates. This is the strongest non-oracle
 candidate so far, but still not promotable. Its remaining missing-Me splits into `174.33s` visible
 in suppressed mic with broader Target-Me evidence, `90.42s` visible without Target-Me evidence, and
-`37.21s` not visible in suppressed mic. A less strict remote-guard profile reaches `276.93s`
+`13.77s` not visible in suppressed mic. A less strict remote-guard profile reaches `276.93s`
 missing-Me, but raises contentful order mismatches to `7`, so timeline safety is still buying real
 protection. The timeline-safe Target-Me policy itself rejects only `18.30s` of candidates, all due
 to contentful order risk and `0.00s` due to remote leak, so the larger remaining gap is mostly
 speaker-evidence weakness rather than a simple timeline-safe threshold problem.
+The live corpus report also writes
+`live_target_me_shadow_profile_best_live_implementable_remaining_gap`, which groups this residual
+gap by Target-Me evidence and session. The current largest policy bucket is `target_me_possible_v1`
+at `108.91s`; the next useful work is to convert that evidence into an order-safe online role gate.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1128,7 +1132,7 @@ Active goal and near-term candidates:
    `target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1`,
    adds safe visible suppressed mic segments and drops profile missing-Me to `140.41s` while keeping
    measured remote leak at `0.0s`. The first live-accessible attempts are not enough:
-   `audio_safe_union_v1` is safe but leaves `301.96s` missing-Me, while `audio_low_corr_text_guard_v1`
+   `audio_safe_union_v1` is safe but leaves `278.52s` missing-Me, while `audio_low_corr_text_guard_v1`
    leaves only `117.52s` missing-Me but leaks `210.10s` remote-like text. The historical persistent
    Target-Me profile lab is also not enough as the main live rescue mechanism: in the full real
    scope it recovers `75.72s` local/mixed speech under the conservative remote guard, but still
@@ -1144,9 +1148,9 @@ Active goal and near-term candidates:
    suppressed-mic rescue, but it still leaves `380.17s` missing-Me and `4` contentful order
    mismatches. The stronger live-implementable profile
    `online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1` gets to
-   `301.96s` missing-Me with `0.00s` remote leak, but still has `4` contentful order mismatches and
+   `278.52s` missing-Me with `0.00s` remote leak, but still has `4` contentful order mismatches and
    `41` non-passing gates. The residual gap splits into `174.33s` visible with broader Target-Me
-   evidence, `90.42s` visible without Target-Me evidence, and `37.21s` not visible in suppressed
+   evidence, `90.42s` visible without Target-Me evidence, and `13.77s` not visible in suppressed
    mic. A less strict remote-guard variant reaches `276.93s` missing-Me but raises contentful order
    mismatches to `7`. The timeline-safe Target-Me policy rejects only `18.30s` of candidates for
    order risk, so the main remaining opportunity is better local-speaker evidence for visible
