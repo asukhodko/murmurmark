@@ -18,6 +18,51 @@ SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
 SCRIPT_VERSION = "0.15.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
+GENERIC_TOKENS = {
+    "а",
+    "ага",
+    "будет",
+    "бы",
+    "в",
+    "во",
+    "вот",
+    "все",
+    "да",
+    "для",
+    "же",
+    "и",
+    "из",
+    "или",
+    "как",
+    "когда",
+    "либо",
+    "мне",
+    "мы",
+    "на",
+    "не",
+    "но",
+    "ну",
+    "ок",
+    "окей",
+    "он",
+    "она",
+    "они",
+    "оно",
+    "по",
+    "просто",
+    "с",
+    "со",
+    "так",
+    "там",
+    "те",
+    "то",
+    "тут",
+    "ты",
+    "у",
+    "это",
+    "этот",
+    "я",
+}
 CAPTURE_SAFETY_BLOCKERS = {"interrupted_capture", "silent_capture", "sparse_capture"}
 CAPTURE_SAFETY_WARNING_MARKERS = (
     "no screencapturekit audio samples",
@@ -105,6 +150,15 @@ def resolve_source_path(session: Path, source: dict[str, Any], keys: tuple[str, 
 
 def tokens(text: str) -> list[str]:
     return [match.group(0).lower() for match in TOKEN_RE.finditer(text)]
+
+
+def content_tokens(value: str | list[str]) -> list[str]:
+    source = tokens(value) if isinstance(value, str) else value
+    return [token for token in source if len(token) >= 3 and token not in GENERIC_TOKENS]
+
+
+def is_contentful_text(text: Any) -> bool:
+    return len(content_tokens(str(text or ""))) >= 2
 
 
 def clean_text(text: str) -> str:
@@ -1136,13 +1190,23 @@ def suspicious_batch_me_utterance(row: dict[str, Any]) -> bool:
     )
 
 
-def best_batch_match(turn: dict[str, Any], batch: list[dict[str, Any]], *, same_role_only: bool = False) -> dict[str, Any] | None:
+def best_batch_match(
+    turn: dict[str, Any],
+    batch: list[dict[str, Any]],
+    *,
+    same_role_only: bool = False,
+    contentful_only: bool = False,
+) -> dict[str, Any] | None:
     turn_tokens = turn.get("tokens") or []
     if not turn_tokens:
+        return None
+    if contentful_only and not is_contentful_text(turn.get("text")):
         return None
     best: dict[str, Any] | None = None
     for row in batch:
         if same_role_only and row.get("role") != turn.get("role"):
+            continue
+        if contentful_only and not is_contentful_text(row.get("text")):
             continue
         row_tokens = row.get("tokens") or []
         if not row_tokens:
@@ -1165,6 +1229,8 @@ def best_batch_match(turn: dict[str, Any], batch: list[dict[str, Any]], *, same_
             "batch_role": row.get("role"),
             "score": round(score, 6),
             "token_recall": round(bag_recall(turn_tokens, row_tokens) or 0.0, 6),
+            "turn_content_token_count": len(content_tokens(turn_tokens)),
+            "batch_content_token_count": len(content_tokens(row_tokens)),
         }
         if best is None or safe_float(candidate["score"]) > safe_float(best["score"]):
             best = candidate
@@ -1176,12 +1242,18 @@ def matched_turn_rows(
     batch_utterances: list[dict[str, Any]],
     *,
     same_role_only: bool = False,
+    contentful_only: bool = False,
     min_token_recall: float = 0.25,
     min_score: float = 0.0,
 ) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for turn in sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or ""))):
-        match = best_batch_match(turn, batch_utterances, same_role_only=same_role_only)
+        match = best_batch_match(
+            turn,
+            batch_utterances,
+            same_role_only=same_role_only,
+            contentful_only=contentful_only,
+        )
         if (
             match
             and safe_float(match.get("token_recall")) >= min_token_recall
@@ -1269,6 +1341,8 @@ def order_mismatch_turn_payload(turn: dict[str, Any]) -> dict[str, Any]:
         "batch_end": match.get("batch_end"),
         "token_recall": match.get("token_recall"),
         "score": match.get("score"),
+        "turn_content_token_count": match.get("turn_content_token_count"),
+        "batch_content_token_count": match.get("batch_content_token_count"),
     }
 
 
@@ -1277,6 +1351,7 @@ def order_mismatch_rows_for_turns(
     batch_utterances: list[dict[str, Any]],
     *,
     same_role_only: bool = False,
+    contentful_only: bool = False,
     min_token_recall: float = 0.25,
     min_score: float = 0.0,
     match_mode: str = "best_overall",
@@ -1287,6 +1362,7 @@ def order_mismatch_rows_for_turns(
         turns,
         batch_utterances,
         same_role_only=same_role_only,
+        contentful_only=contentful_only,
         min_token_recall=min_token_recall,
         min_score=min_score,
     ):
@@ -1457,6 +1533,15 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         min_score=0.65,
         match_mode="role_constrained_strict",
     )
+    contentful_role_constrained_order_mismatches = order_mismatch_rows_for_turns(
+        turns,
+        batch_utterances,
+        same_role_only=True,
+        contentful_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode="role_constrained_contentful",
+    )
     shadow_role_constrained_order_mismatches = order_mismatch_rows_for_turns(
         turns + rescue_shadow_turns,
         batch_utterances,
@@ -1464,6 +1549,15 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         min_token_recall=0.45,
         min_score=0.65,
         match_mode="role_constrained_strict",
+    )
+    shadow_contentful_role_constrained_order_mismatches = order_mismatch_rows_for_turns(
+        turns + rescue_shadow_turns,
+        batch_utterances,
+        same_role_only=True,
+        contentful_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode="role_constrained_contentful",
     )
     matched_turns = matched_turn_rows(turns, batch_utterances)
     for row in batch_utterances:
@@ -1517,8 +1611,12 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         "live_rescue_shadow_remote_leak": shadow_remote_leak,
         "order_mismatches": order_mismatches,
         "role_constrained_order_mismatches": role_constrained_order_mismatches,
+        "contentful_role_constrained_order_mismatches": contentful_role_constrained_order_mismatches,
         "live_rescue_shadow_order_mismatches": shadow_order_mismatches,
         "live_rescue_shadow_role_constrained_order_mismatches": shadow_role_constrained_order_mismatches,
+        "live_rescue_shadow_contentful_role_constrained_order_mismatches": (
+            shadow_contentful_role_constrained_order_mismatches
+        ),
         "segment_role_gate_candidates": segment_gate_summary.get("examples", []),
         "live_rescue_shadow_examples": rescue_shadow_summary.get("examples", []),
         "suppressed_mic_asr_segment_examples": suppressed_segment_audit.get("examples", []),
@@ -1540,6 +1638,16 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             ),
             "live_role_constrained_order_mismatch_by_confidence": order_mismatch_field_counts(
                 role_constrained_order_mismatches,
+                "confidence",
+            ),
+            "live_contentful_role_constrained_order_mismatch_count": len(
+                contentful_role_constrained_order_mismatches,
+            ),
+            "live_contentful_role_constrained_order_mismatch_by_category": order_mismatch_category_counts(
+                contentful_role_constrained_order_mismatches,
+            ),
+            "live_contentful_role_constrained_order_mismatch_by_confidence": order_mismatch_field_counts(
+                contentful_role_constrained_order_mismatches,
                 "confidence",
             ),
             "live_missing_me_utterance_count": len(local_missing),
@@ -1582,6 +1690,16 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             ),
             "live_rescue_shadow_role_constrained_order_mismatch_by_confidence": order_mismatch_field_counts(
                 shadow_role_constrained_order_mismatches,
+                "confidence",
+            ),
+            "live_rescue_shadow_contentful_role_constrained_order_mismatch_count": len(
+                shadow_contentful_role_constrained_order_mismatches,
+            ),
+            "live_rescue_shadow_contentful_role_constrained_order_mismatch_by_category": order_mismatch_category_counts(
+                shadow_contentful_role_constrained_order_mismatches,
+            ),
+            "live_rescue_shadow_contentful_role_constrained_order_mismatch_by_confidence": order_mismatch_field_counts(
+                shadow_contentful_role_constrained_order_mismatches,
                 "confidence",
             ),
             "live_rescue_shadow_suspected_remote_leak_in_me_count": len(shadow_remote_leak),
@@ -1668,6 +1786,9 @@ def parity_gates(
     }
     order_mismatches = int(assessment_metrics.get("live_order_mismatch_count") or 0)
     role_constrained_order_mismatches = int(assessment_metrics.get("live_role_constrained_order_mismatch_count") or 0)
+    contentful_role_constrained_order_mismatches = int(
+        assessment_metrics.get("live_contentful_role_constrained_order_mismatch_count") or 0
+    )
     missing_me_seconds = safe_float(assessment_metrics.get("live_missing_me_seconds"))
     remote_leak_seconds = safe_float(assessment_metrics.get("live_suspected_remote_leak_in_me_seconds"))
     gates.append(
@@ -1678,6 +1799,7 @@ def parity_gates(
             {
                 "live_order_mismatch_count": order_mismatches,
                 "live_role_constrained_order_mismatch_count": role_constrained_order_mismatches,
+                "live_contentful_role_constrained_order_mismatch_count": contentful_role_constrained_order_mismatches,
                 "live_order_mismatch_by_primary_risk": assessment_metrics.get("live_order_mismatch_by_primary_risk"),
                 "batch_metrics": batch_metrics,
             },
@@ -2047,11 +2169,17 @@ def main() -> int:
             "role_constrained_order_mismatches": (
                 live_assessment.get("role_constrained_order_mismatches") or []
             )[:20],
+            "contentful_role_constrained_order_mismatches": (
+                live_assessment.get("contentful_role_constrained_order_mismatches") or []
+            )[:20],
             "live_rescue_shadow_order_mismatches": (
                 live_assessment.get("live_rescue_shadow_order_mismatches") or []
             )[:20],
             "live_rescue_shadow_role_constrained_order_mismatches": (
                 live_assessment.get("live_rescue_shadow_role_constrained_order_mismatches") or []
+            )[:20],
+            "live_rescue_shadow_contentful_role_constrained_order_mismatches": (
+                live_assessment.get("live_rescue_shadow_contentful_role_constrained_order_mismatches") or []
             )[:20],
             "local_missing": (live_assessment.get("local_missing") or [])[:20],
             "local_missing_suspicious_batch_me": (live_assessment.get("local_missing_suspicious_batch_me") or [])[:20],

@@ -660,7 +660,8 @@ nodes:
       overlap-context mismatch. Primary-risk split narrows the work further: `19`
       role-conflict/remote-leak, `8` weak-match possible false positives and only `7` direct
       timeline-reorder cases. A stricter same-role matcher confirms `9` role-constrained order
-      mismatches: `6` same-source and `3` cross-source, all inside one live chunk. Most missing Me
+      mismatches: `6` same-source and `3` cross-source, all inside one live chunk. Filtering
+      short/generic phrases leaves `4` contentful same-role order-risk examples. Most missing Me
       seconds are visible in suppressed mic chunks.
       Text-only segment rescue is
       recorded as diagnostic metadata (`6` real live candidate chunks / `31` candidate segments in
@@ -682,9 +683,9 @@ nodes:
       The shadow adds no measured remote-risk (`0.00s`), but still leaves `373.80s` missing-Me and
       leaves `34` order mismatches in the combined draft evaluation, so it is evidence for
       the next rescue/reconciliation pass, not a promotable live output.
-      Следующий фокус: `fix_live_order_risk`; сначала нужны role-constrained reconciliation,
-      stricter segment matching and per-chunk timeline repair. Live draft путает порядок, иногда
-      публикует remote as Me и часто теряет Me, поэтому promotion остаётся blocked.
+      Следующий фокус: `fix_live_order_risk`; сначала нужны targeted role-constrained
+      reconciliation, stricter segment matching and per-chunk timeline repair. Live draft иногда
+      путает порядок, публикует remote as Me и часто теряет Me, поэтому promotion остаётся blocked.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
