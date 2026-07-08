@@ -5052,6 +5052,7 @@ enum LiveCommands {
                     "--require-passing-gates",
                     "--fail-on-promotion",
                     "--sessions-root", sessionsRoot.path,
+                    "--out-dir", liveCorpusOutDir(sessionsRoot: sessionsRoot).path,
                 ],
                 allowedExitCodes: [0, 1]
             )
@@ -5068,6 +5069,7 @@ enum LiveCommands {
             if reportArgs.isEmpty {
                 reportArgs = ["all", "--refresh"]
             }
+            reportArgs = addDefaultLiveCorpusOutDir(reportArgs, sessionsRoot: sessionsRoot)
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
                 [try script("report-live-corpus-gates.py").path] + reportArgs + ["--sessions-root", sessionsRoot.path]
@@ -5092,6 +5094,17 @@ enum LiveCommands {
         default:
             throw CLIError("unknown live command: \(subcommand)")
         }
+    }
+
+    static func liveCorpusOutDir(sessionsRoot: URL) -> URL {
+        sessionsRoot.appendingPathComponent("_reports/live-pipeline")
+    }
+
+    static func addDefaultLiveCorpusOutDir(_ args: [String], sessionsRoot: URL) -> [String] {
+        if ArgumentEditing.hasOption("out-dir", in: args) {
+            return args
+        }
+        return args + ["--out-dir", liveCorpusOutDir(sessionsRoot: sessionsRoot).path]
     }
 
     static func printHelp() {
@@ -5392,6 +5405,7 @@ enum CorpusCommands {
                 try Tooling.runPath(try PythonRuntime.resolve(), [try script("report-live-corpus-gates.py").path] + forwarded)
                 return
             }
+            forwarded = LiveCommands.addDefaultLiveCorpusOutDir(forwarded, sessionsRoot: sessionsRoot)
             try Tooling.runPath(
                 try PythonRuntime.resolve(),
                 [try script("report-live-corpus-gates.py").path] + forwarded + ["--sessions-root", sessionsRoot.path]
