@@ -403,16 +403,23 @@ To inspect the duplicate-heavy blocker named by the live corpus report, run:
 
 ```bash
 scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source live-duplicate-heavy \
+  --source-scope live
+
+less sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_live_candidates_lab.md
+
+scripts/report-live-boundary-island-micro-asr-lab.py \
   --candidate-source blocker-analysis \
   --source-scope live
 
 less sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_lab.md
 ```
 
-This mode reads `capture_safe_candidate_local_recall_blocker_analysis`, writes
-`live_duplicate_heavy_micro_asr_lab.*`, and stays diagnostic-only because the candidate list is
-chosen from batch-informed blocker labels. Use it to see whether micro-ASR can split useful local
-speech out of duplicate-heavy mixed intervals before designing a live-only selector.
+`live-duplicate-heavy` uses only live-available suppressed-mic segment features and writes
+`live_duplicate_heavy_micro_asr_live_candidates_lab.*`. `blocker-analysis` reads
+`capture_safe_candidate_local_recall_blocker_analysis`, writes `live_duplicate_heavy_micro_asr_lab.*`,
+and stays batch-informed. Use both to compare the live-only selector with the batch-informed ceiling.
+Neither report changes live drafts or promotion gates.
 
 Older sessions may have top-level `raw/mic.json` and `raw/remote.json` from pre-chunk runs but no
 `raw/chunks/<track>/chunk_cache_report.json`. In `windowed` mode that legacy raw cache is no longer

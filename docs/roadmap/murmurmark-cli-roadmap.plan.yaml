@@ -827,6 +827,9 @@ nodes:
       The blocker-analysis micro-ASR lab now targets the capture-safe duplicate-heavy rows directly:
       `2` rows yield `4` local-island probes, `3` probes / `9.16s` are split candidates, and
       `promotion_allowed` remains false because selection still uses batch blocker labels.
+      The paired live-only selector `live-duplicate-heavy` now selects the same problem shape from
+      suppressed mic rows with duplicate-heavy text and low-correlation audio evidence: `4` selected
+      rows, `3` split candidates / `12.00s`, still diagnostic-only.
       Keep duplicate-heavy or remote-dominant rows blocked; the next
       implementation target is online timing anchors / remote-forbidden evidence for still-uncovered
       local islands, not more recordings, broader rescue or live promotion. The

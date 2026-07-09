@@ -495,18 +495,29 @@ The same lab now has a `blocker-analysis` candidate source for the capture-safe 
 
 ```bash
 scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source live-duplicate-heavy \
+  --source-scope live
+
+scripts/report-live-boundary-island-micro-asr-lab.py \
   --candidate-source blocker-analysis \
   --source-scope live
 ```
 
-It reads `capture_safe_candidate_local_recall_blocker_analysis`, selects only
+`live-duplicate-heavy` is the first live-only selector for this shape. It reads suppressed live mic
+segments with `segment_duplicates_overlapping_remote` plus low-correlation audio evidence, without
+batch labels. Current result: `4` selected rows, `3` micro-ASR split candidates / `12.00s`,
+`promotion_allowed = false`. The selected rows include the key `2026-07-08_16-22-42` duplicate-heavy
+case where micro-ASR recovers "Я бы, наверное, Алексею хотел тоже добавить..." from live chunk mic
+audio.
+
+`blocker-analysis` reads `capture_safe_candidate_local_recall_blocker_analysis`, selects only
 `duplicate_heavy_mixed_needs_token_split` rows, and probes the overlapping suppressed-mic local
 islands from live chunk audio. Current result: `2` duplicate-heavy rows yield `4` probes; `3`
 probes / `9.16s` are micro-ASR split candidates. One example recovers the local phrase beginning
 with "Я бы, наверное, Алексею хотел тоже добавить..." from inside a duplicate-heavy batch `Me`
 block. This is still batch-informed and diagnostic-only: `promotion_allowed = false`, no live draft
-is modified, and the next implementation task remains a live-only selector/token split that can
-reach the same kind of islands without batch labels.
+is modified, and the next implementation task is to turn the live-only selector into a materialized
+shadow split profile that still passes remote-forbidden parity gates.
 
 The corpus report now adds `live_mixed_speaker_boundary_voice_coverage_lab/v1` to check whether
 the current mixed/speaker blocker is already covered by Target-Me voice evidence. The Target-Me

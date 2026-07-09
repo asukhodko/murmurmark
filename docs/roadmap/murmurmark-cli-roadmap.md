@@ -53,8 +53,9 @@ roadmap point it means:
 - near-realtime chunks remain diagnostic/shadow-only and are not the normal meeting command during
   current stabilization;
 - live local-recall work is currently narrowed to duplicate-heavy mixed intervals: the
-  `blocker-analysis` micro-ASR lab proves useful local speech can be recovered from existing live
-  chunks, but the selector still uses batch blocker labels and must stay diagnostic-only;
+  `live-duplicate-heavy` micro-ASR lab now selects those rows from live-only features, while
+  `blocker-analysis` remains the batch-informed ceiling check; both are diagnostic-only until a
+  materialized shadow split profile passes parity gates;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;

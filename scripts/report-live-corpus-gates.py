@@ -8186,6 +8186,11 @@ def recommended_next_commands(
             commands.insert(
                 6,
                 ".venv/bin/python scripts/report-live-boundary-island-micro-asr-lab.py "
+                "--candidate-source live-duplicate-heavy --source-scope live",
+            )
+            commands.insert(
+                7,
+                ".venv/bin/python scripts/report-live-boundary-island-micro-asr-lab.py "
                 "--candidate-source blocker-analysis --source-scope live",
             )
         real_issues = [

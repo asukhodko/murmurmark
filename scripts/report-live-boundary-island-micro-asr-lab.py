@@ -36,11 +36,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-candidates", type=int, default=10)
     parser.add_argument(
         "--candidate-source",
-        choices=("design-lab", "live-only", "blocker-analysis"),
+        choices=("design-lab", "live-only", "live-duplicate-heavy", "blocker-analysis"),
         default="design-lab",
         help=(
             "design-lab uses batch-informed design examples; live-only selects candidates "
-            "from live comparison rows using only live/audio evidence; blocker-analysis uses "
+            "from live comparison rows using only live/audio evidence; live-duplicate-heavy "
+            "selects live-only duplicate-heavy suppressed mic rows; blocker-analysis uses "
             "capture-safe local recall blocker rows from the live corpus report."
         ),
     )
@@ -57,6 +58,8 @@ def parse_args() -> argparse.Namespace:
 def output_paths(out_dir: Path, candidate_source: str) -> dict[str, Path]:
     if candidate_source == "live-only":
         stem = "live_boundary_micro_asr_live_candidates_lab"
+    elif candidate_source == "live-duplicate-heavy":
+        stem = "live_duplicate_heavy_micro_asr_live_candidates_lab"
     elif candidate_source == "blocker-analysis":
         stem = "live_duplicate_heavy_micro_asr_lab"
     else:
@@ -346,10 +349,47 @@ def is_live_only_candidate(features: dict[str, Any]) -> tuple[bool, list[str]]:
     return not reasons, reasons
 
 
-def select_live_only_candidates(sessions_root: Path, max_candidates: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def is_live_duplicate_heavy_candidate(features: dict[str, Any]) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    if features["known_hallucination"]:
+        reasons.append("known_hallucination")
+    if features["segment_gate_reason"] != "segment_duplicates_overlapping_remote":
+        reasons.append("segment_gate_reason_not_duplicate_heavy")
+    if features["token_count"] < 4:
+        reasons.append("too_few_text_tokens")
+    if not (1.0 <= features["duration_sec"] <= 9.0):
+        reasons.append("duration_outside_duplicate_heavy_range")
+    if features["segment_gate_mic_token_recall_in_overlapping_remote"] < 0.70:
+        reasons.append("mic_tokens_not_duplicate_heavy_enough")
+    if features["segment_gate_unique_token_count"] > 2:
+        reasons.append("too_many_unique_tokens_for_duplicate_heavy_split")
+    if features["audio_mic_remote_zero_lag_abs_corr"] > 0.045:
+        reasons.append("mic_remote_corr_too_high")
+    if features["audio_mic_minus_remote_rms_db"] > -10.0:
+        reasons.append("mic_not_quiet_enough_vs_remote_for_duplicate_heavy")
+    policies = set(features["rescue_policy_candidates"])
+    if "audio_low_corr_text_guard_v1" not in policies:
+        reasons.append("missing_audio_low_corr_text_guard")
+    return not reasons, reasons
+
+
+def select_live_segment_candidates(
+    sessions_root: Path,
+    max_candidates: int,
+    *,
+    candidate_source: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     candidates: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
     comparison_paths = sorted(sessions_root.glob("20??-??-??_*/derived/live/live_batch_comparison.json"))
+    if candidate_source == "live-only":
+        accept = is_live_only_candidate
+        priority = 50
+    elif candidate_source == "live-duplicate-heavy":
+        accept = is_live_duplicate_heavy_candidate
+        priority = 60
+    else:
+        raise ValueError(f"unsupported live segment candidate source: {candidate_source}")
     for comparison_path in comparison_paths:
         session = comparison_path.parents[2]
         report = read_json(comparison_path)
@@ -363,9 +403,9 @@ def select_live_only_candidates(sessions_root: Path, max_candidates: int) -> tup
             if not isinstance(row, dict):
                 continue
             features = live_only_candidate_features(row)
-            accepted, reject_reasons = is_live_only_candidate(features)
+            accepted, reject_reasons = accept(features)
             context = {
-                "candidate_source": "live-only",
+                "candidate_source": candidate_source,
                 "used_batch_fields_for_selection": False,
                 "session": session.name,
                 "source_comparison": str(comparison_path),
@@ -382,7 +422,7 @@ def select_live_only_candidates(sessions_root: Path, max_candidates: int) -> tup
             candidates.append(
                 {
                     **context,
-                    "priority": 50,
+                    "priority": priority,
                     "batch_id": None,
                     "start": round(start_sec, 3),
                     "end": round(end_sec, 3),
@@ -404,7 +444,9 @@ def select_live_only_candidates(sessions_root: Path, max_candidates: int) -> tup
             )
     candidates.sort(
         key=lambda row: (
+            str(row.get("candidate_source") or ""),
             -safe_float((row.get("selection_features") or {}).get("segment_gate_unique_token_count")),
+            -safe_float((row.get("selection_features") or {}).get("segment_gate_mic_token_recall_in_overlapping_remote")),
             -safe_float(row.get("duration_sec")),
             str(row.get("session") or ""),
             safe_float(row.get("start")),
@@ -761,6 +803,60 @@ def classify_best_live_only_attempt(
     }
 
 
+def classify_best_live_duplicate_heavy_attempt(
+    *,
+    best: dict[str, Any] | None,
+    source_text: str,
+    remote_text: str,
+    bridge: Any,
+) -> dict[str, Any]:
+    if not best or best.get("status") != "ok":
+        return {
+            "label": "no_micro_asr_candidate",
+            "publication_ready": False,
+            "reason": "no successful non-empty live duplicate-heavy micro-ASR attempt",
+        }
+    text = str(best.get("text") or "")
+    source_recall = bag_recall(tokens(source_text), tokens(text))
+    micro_source_recall = bag_recall(tokens(text), tokens(source_text))
+    remote_recall = bag_recall(tokens(remote_text), tokens(text)) if remote_text else 0.0
+    remote_similarity = float(best.get("remote_similarity") or 0.0)
+    source_remote_similarity = float(bridge.text_similarity(source_text, remote_text)) if remote_text else 0.0
+    similarity_improvement = source_remote_similarity - remote_similarity
+    score = safe_float(best.get("score"))
+    local_alignment_ok = source_recall >= 0.55 or micro_source_recall >= 0.55
+    remote_separation_ok = (
+        remote_similarity <= 0.22
+        or remote_recall <= 0.15
+        or (similarity_improvement >= 0.10 and remote_similarity <= 0.68)
+    )
+    if score < 0.68:
+        label = "blocked_low_micro_score"
+        reason = "micro-ASR score is below live duplicate-heavy threshold"
+    elif not local_alignment_ok:
+        label = "blocked_low_live_source_alignment"
+        reason = "micro-ASR text does not align enough with the live suppressed-mic source"
+    elif not remote_separation_ok:
+        label = "blocked_still_remote_similar"
+        reason = "micro-ASR text remains too similar to overlapping remote text"
+    else:
+        label = "micro_asr_live_duplicate_heavy_split_candidate"
+        reason = "live-only duplicate-heavy micro-ASR has local-source support and remote separation evidence"
+    return {
+        "label": label,
+        "publication_ready": False,
+        "reason": reason,
+        "used_batch_fields_for_selection": False,
+        "source_text_token_recall": round(source_recall, 6),
+        "micro_text_token_recall_in_source": round(micro_source_recall, 6),
+        "remote_text_recall_in_micro": round(remote_recall, 6),
+        "remote_similarity": round(remote_similarity, 6),
+        "source_remote_similarity": round(source_remote_similarity, 6),
+        "remote_similarity_improvement": round(similarity_improvement, 6),
+        "score": round(score, 6),
+    }
+
+
 def classify_best_blocker_attempt(
     *,
     best: dict[str, Any] | None,
@@ -871,8 +967,12 @@ def main() -> int:
     bridge = load_transcribe_bridge()
     corpus_report = read_json(report_path) if report_path.exists() else {}
     rejected_candidates: list[dict[str, Any]] = []
-    if args.candidate_source == "live-only":
-        candidates, rejected_candidates = select_live_only_candidates(args.sessions_root, args.max_candidates)
+    if args.candidate_source in {"live-only", "live-duplicate-heavy"}:
+        candidates, rejected_candidates = select_live_segment_candidates(
+            args.sessions_root,
+            args.max_candidates,
+            candidate_source=args.candidate_source,
+        )
     elif args.candidate_source == "blocker-analysis":
         candidates = select_blocker_analysis_candidates(corpus_report, args.max_candidates)
     else:
@@ -882,7 +982,7 @@ def main() -> int:
     attempts_jsonl = paths["attempts_jsonl"]
     report_json = paths["report_json"]
     report_md = paths["report_md"]
-    effective_source_scope = "live" if args.candidate_source == "live-only" else args.source_scope
+    effective_source_scope = "live" if args.candidate_source in {"live-only", "live-duplicate-heavy"} else args.source_scope
 
     windows = [
         ("tight", 0.3, 0.3),
@@ -977,6 +1077,13 @@ def main() -> int:
                     remote_text=remote_text,
                     bridge=bridge,
                 )
+            elif args.candidate_source == "live-duplicate-heavy":
+                decision = classify_best_live_duplicate_heavy_attempt(
+                    best=best,
+                    source_text=island_text or batch_text,
+                    remote_text=remote_text,
+                    bridge=bridge,
+                )
             elif args.candidate_source == "blocker-analysis":
                 decision = classify_best_blocker_attempt(
                     best=best,
@@ -997,7 +1104,10 @@ def main() -> int:
                 {
                     "schema": "murmurmark.live_boundary_island_micro_asr_item/v1",
                     "candidate_source": args.candidate_source,
-                    "used_batch_fields_for_selection": args.candidate_source != "live-only",
+                    "used_batch_fields_for_selection": args.candidate_source not in {
+                        "live-only",
+                        "live-duplicate-heavy",
+                    },
                     "selection_features": candidate.get("selection_features"),
                     "candidate_index": candidate_index,
                     "island_index": island_index,
@@ -1023,6 +1133,7 @@ def main() -> int:
         and row["decision"].get("label") in {
             "micro_asr_alignment_candidate",
             "micro_asr_live_only_alignment_candidate",
+            "micro_asr_live_duplicate_heavy_split_candidate",
             "micro_asr_duplicate_heavy_split_candidate",
         }
     ]
@@ -1039,7 +1150,7 @@ def main() -> int:
         "source_scope": args.source_scope,
         "effective_source_scope": effective_source_scope,
         "rejected_candidate_count": len(rejected_candidates),
-        "used_batch_fields_for_selection": args.candidate_source != "live-only",
+        "used_batch_fields_for_selection": args.candidate_source not in {"live-only", "live-duplicate-heavy"},
     }
     payload = {
         "schema": SCHEMA,

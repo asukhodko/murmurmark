@@ -6008,14 +6008,31 @@ duplicate-heavy local-recall blocker:
 
 ```bash
 scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source live-duplicate-heavy \
+  --source-scope live
+
+scripts/report-live-boundary-island-micro-asr-lab.py \
   --candidate-source blocker-analysis \
   --source-scope live
 ```
 
-It reads `capture_safe_candidate_local_recall_blocker_analysis.examples` from
-`live_corpus_gates_report.json`, selects only rows labeled
-`duplicate_heavy_mixed_needs_token_split`, and probes overlapping suppressed-mic local islands. It
-writes:
+`live-duplicate-heavy` is live-only. It reads `risk_examples.suppressed_mic_asr_segments` from each
+`live_batch_comparison.json`, selects rows with `segment_gate_reason =
+segment_duplicates_overlapping_remote`, low mic/remote correlation, quiet mic-vs-remote energy and
+`audio_low_corr_text_guard_v1`, then re-decodes those spans from live chunk mic audio. It writes:
+
+- `sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_live_candidates_lab.json`;
+- `sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_live_candidates_lab_attempts.jsonl`;
+- `sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_live_candidates_lab.md`.
+
+Rows in this report set `candidate_source = live-duplicate-heavy` and
+`used_batch_fields_for_selection = false`. Current evidence: `4` live-selected rows, `3` split
+candidates / `12.00s`, `promotion_allowed = false`.
+
+`blocker-analysis` is batch-informed. It reads
+`capture_safe_candidate_local_recall_blocker_analysis.examples` from `live_corpus_gates_report.json`,
+selects only rows labeled `duplicate_heavy_mixed_needs_token_split`, and probes overlapping
+suppressed-mic local islands. It writes:
 
 - `sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_lab.json`;
 - `sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_lab_attempts.jsonl`;

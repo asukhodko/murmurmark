@@ -647,15 +647,21 @@ The same script can explain the current duplicate-heavy local-recall blocker dir
 
 ```bash
 scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source live-duplicate-heavy \
+  --source-scope live
+
+scripts/report-live-boundary-island-micro-asr-lab.py \
   --candidate-source blocker-analysis \
   --source-scope live
 ```
 
-It reads `capture_safe_candidate_local_recall_blocker_analysis` from the live corpus report and
-writes `sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_lab.*`. This mode is
-batch-informed and diagnostic-only. Current evidence: `2` duplicate-heavy rows produce `4` local
-island probes; `3` probes / `9.16s` are micro-ASR alignment candidates, but
-`promotion_allowed = false` because candidate selection still depends on batch blocker labels.
+`live-duplicate-heavy` is the first live-only selector for rows where mic text mostly duplicates
+overlapping remote text but audio evidence is low-correlation enough to deserve a split probe. It
+writes `live_duplicate_heavy_micro_asr_live_candidates_lab.*`. Current evidence: `4` live-selected
+rows, `3` micro-ASR split candidates / `12.00s`, `promotion_allowed = false`.
+`blocker-analysis` reads `capture_safe_candidate_local_recall_blocker_analysis` from the live corpus
+report and writes `live_duplicate_heavy_micro_asr_lab.*`; it is batch-informed and remains a ceiling
+check, not a live-implementable profile.
 
 The corpus report now also writes
 `live_mixed_speaker_boundary_voice_coverage_lab/v1`. It checks whether the remaining mixed/speaker
