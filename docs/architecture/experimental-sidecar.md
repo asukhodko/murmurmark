@@ -250,6 +250,14 @@ closed 60-second intervals, materialize WAV from raw CAF with delay, produce a d
 compare after stop. That is enough to prove chunking, handoff, backpressure and parity without
 risking capture.
 
+Current safe default: the raw sidecar worker does not read still-open CAF files. A real session
+showed that `ffmpeg` can block while reading a growing CAF, which creates misleading "live" behavior
+and can delay finalization. The worker now waits for the session to close unless
+`MURMURMARK_RAW_SIDECAR_ALLOW_OPEN_RAW_READ=1` or `--allow-open-raw-read` is used for a lab-only
+probe. That means `record --experiment live-shadow-v1` is controlled sidecar evidence, not guaranteed
+visible live transcription. A true near-realtime draft needs a later chunk writer that produces
+closed raw chunks during capture.
+
 True low-latency transcription can come later after:
 
 - capture fail-open proof stays green;

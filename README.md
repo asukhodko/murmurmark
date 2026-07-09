@@ -324,16 +324,21 @@ In this mode the capture callback writes raw CAF first. After a successful raw w
 commit tracker records segment boundaries in
 `derived/experiments/live-shadow-v1/raw_segment_commits.jsonl`. A separate sidecar worker reads that
 commit log, waits for paired `mic`/`remote` intervals and materializes WAV segments under
-`derived/experiments/live-shadow-v1/audio/`. If open CAF files are not readable yet, the sidecar
-waits; if it falls behind, it disables only the experiment. Raw `audio/mic/*.caf` and
+`derived/experiments/live-shadow-v1/audio/`. By default it does **not** read still-open CAF files:
+some macOS/ffmpeg combinations can block on an open growing CAF, and that must not delay or endanger
+recording. During recording the sidecar records commit evidence and waits; after stop, `process` or
+`experiment compare` materializes the sidecar segments and draft. If you see no draft during the
+meeting, that is expected for the safe mode. If the sidecar falls behind, it disables only the
+experiment. Raw `audio/mic/*.caf` and
 `audio/remote/*.caf` remain the authoritative recording and `murmurmark process` remains the
 authoritative transcript path.
 
 `--experiment live-shadow-v1` is controlled evidence, not promotion. It can be used on real
 meetings when you want live evidence, because raw CAF remains the source of truth and
 `murmurmark process` remains the authoritative transcript path. Use plain
-`murmurmark record --target-bundle system` when you do not need the sidecar evidence. The live draft
-is useful for proving whether sidecar work can run beside stable capture; it is not a final result.
+`murmurmark record --target-bundle system` when you do not need the sidecar evidence. The draft is
+useful for proving whether sidecar work can run beside stable capture; in the current safe mode it is
+usually produced after the recording stops, and it is not a final result.
 See [Experimental sidecar architecture](docs/architecture/experimental-sidecar.md).
 
 The sidecar contract lives under:

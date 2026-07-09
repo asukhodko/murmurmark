@@ -5507,6 +5507,14 @@ stronger local-speaker evidence. The capture-safe variants
 blocks are corpus-lab evidence only: they use batch labels for evaluation and do not publish live
 `Me` turns.
 
+`capture_safe_candidate_local_recall_blocker_analysis` uses schema
+`murmurmark.live_local_recall_blocker_analysis/v1`. It explains the remaining missing `Me` rows in
+the stricter capture-safe candidate slice. Each item links the batch utterance, overlapping
+suppressed-mic ASR evidence, the blocker label and the next engineering action. Typical labels are
+`duplicate_heavy_mixed_needs_token_split`, `remote_risk_dominant`,
+`local_island_needs_boundary_or_speaker_gate` and `suspicious_batch_me_not_publishable`. This block
+is diagnostic only: `promotion_allowed` is always `false`, and it must not publish live text.
+
 `scripts/report-suppressed-mic-policy-lab.py` is the standalone threshold-search companion for that
 same evidence. It reads existing live chunks, selected batch dialogue and suppressed mic ASR segment
 features, then writes ignored corpus reports:

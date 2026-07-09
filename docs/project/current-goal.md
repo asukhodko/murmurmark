@@ -5,6 +5,23 @@ production path remains non-live `record -> process`. The current live work is e
 and gate hardening only: live output must stay shadow-only and batch transcript remains
 authoritative.
 
+## Current Live Evidence Status, 2026-07-09
+
+`record --experiment live-shadow-v1` preserved raw capture on a real daily sync even when
+ScreenCaptureKit restarted once. The session completed with warning, but `mic` and `remote` CAF
+covered the full meeting and batch processing produced the authoritative transcript.
+
+Important correction: the safe sidecar is not true realtime yet. The worker now avoids reading
+still-open CAF files by default because a real run showed `ffmpeg` can block on a growing CAF. During
+recording it should collect raw commit evidence and wait; after stop, `process` or
+`experiment compare` materializes sidecar chunks and draft from the saved raw files.
+
+The current live-parity blocker is local recall, not raw capture. In the capture-safe candidate
+slice, `capture_safe_candidate_local_recall_blocker_analysis` currently labels the top blocker as
+`duplicate_heavy_mixed_needs_token_split`: real `Me` speech is visible in suppressed mic evidence,
+but it sits inside mixed/duplicate-heavy segments that cannot be safely published as whole live
+turns without token-level split, micro-ASR or stronger speaker evidence.
+
 ## Latest Completed Goal: Experimental Sidecar Contract v1
 
 Status, 2026-07-07: complete.

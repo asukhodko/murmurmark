@@ -141,6 +141,12 @@ derived/experiments/live-shadow-v1/audio/remote/000001.wav
 For compatibility, it also writes `derived/live/segments.jsonl` rows pointing back to those canonical
 experiment audio files.
 
+By default the worker must not read still-open raw CAF files. While the session is still recording,
+ready commit pairs may leave the worker in `waiting_for_raw_readable` with reason
+`open_raw_read_disabled_until_session_close`. Lab probes can opt into open-file reads with
+`--allow-open-raw-read` or `MURMURMARK_RAW_SIDECAR_ALLOW_OPEN_RAW_READ=1`, but normal meeting
+recording keeps this disabled because `ffmpeg` can block on growing CAF files.
+
 ## Report
 
 `report.json` and `report.md` are readable summaries of the manifest and state. They are not

@@ -143,8 +143,11 @@ capture -> durable raw writer -> stable session
 
 The sidecar reads `derived/experiments/live-shadow-v1/raw_segment_commits.jsonl`, materializes WAV
 segments from raw CAF into `derived/experiments/live-shadow-v1/audio/`, and keeps compatibility rows
-in `derived/live/segments.jsonl`. If it cannot read open CAF files or falls behind, it waits or
-disables itself. The batch transcript from raw CAF remains authoritative.
+in `derived/live/segments.jsonl`. Safe default: it waits until raw CAF files are closed before
+materializing segments, because `ffmpeg` can block on still-open growing CAF files. During a meeting
+you may see commit evidence but no usable live transcript yet. After stop, `process` and
+`experiment compare` resume sidecar materialization and draft comparison. If the sidecar falls behind,
+it disables only the experiment. The batch transcript from raw CAF remains authoritative.
 
 If the recording-time sidecar worker timed out before live draft completion, rerun
 `murmurmark experiment compare ...`; it resumes sidecar materialization from the raw commit log and

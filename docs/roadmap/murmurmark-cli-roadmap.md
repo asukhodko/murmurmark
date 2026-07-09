@@ -266,6 +266,8 @@ flowchart LR
   - the current redesign is `record --experiment live-shadow-v1`: raw CAF is written first, then
     `raw_segment_commits.jsonl` records committed intervals, and a best-effort worker materializes
     sidecar WAVs under `derived/experiments/live-shadow-v1/audio/`;
+  - safe default is post-stop materialization: the worker does not read still-open CAF files unless a
+    lab probe explicitly enables it, because open-CAF reads can block;
   - `derived/live/segments.jsonl` remains a compatibility alias pointing to those canonical
     experiment files; live draft output is advisory only;
   - the design rule is one ScreenCaptureKit owner plus derived sidecar artifacts, never two

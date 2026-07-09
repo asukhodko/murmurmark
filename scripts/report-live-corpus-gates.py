@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.28.0"
+SCRIPT_VERSION = "1.29.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -1893,6 +1893,280 @@ def local_recall_gap_examples(rows: list[dict[str, Any]], *, limit: int = 50) ->
         "schema": "murmurmark.live_local_recall_gap_examples/v1",
         "item_count": len(examples),
         "seconds": total_seconds,
+        "examples": examples[:limit],
+        "truncated": len(examples) > limit,
+        "limit": limit,
+    }
+
+
+def local_recall_blocker_analysis(rows: list[dict[str, Any]], *, root: Path, limit: int = 50) -> dict[str, Any]:
+    examples: list[dict[str, Any]] = []
+    missing_inputs: list[str] = []
+
+    def evidence_for_gap(gap: dict[str, Any], suppressed_segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        start = safe_float(gap.get("start"))
+        end = safe_float(gap.get("end"), start)
+        duration = max(0.0, end - start)
+        evidence: list[dict[str, Any]] = []
+        for segment in suppressed_segments:
+            segment_start = safe_float(segment.get("start"))
+            segment_end = safe_float(segment.get("end"), segment_start)
+            overlap = interval_overlap(start, end, segment_start, segment_end)
+            if overlap <= 0:
+                continue
+            policies = [str(policy) for policy in segment.get("rescue_policy_candidates") or []]
+            live_policies = [policy for policy in policies if policy in LIVE_IMPLEMENTABLE_RESCUE_POLICIES]
+            evidence.append(
+                {
+                    "chunk_index": segment.get("chunk_index"),
+                    "start": segment.get("start"),
+                    "end": segment.get("end"),
+                    "duration_sec": segment.get("duration_sec"),
+                    "overlap_sec": round(overlap, 3),
+                    "overlap_ratio": round(overlap / duration, 6) if duration > 0 else None,
+                    "text": segment.get("text"),
+                    "batch_role_label": segment.get("batch_role_label"),
+                    "known_hallucination": bool(segment.get("known_hallucination")),
+                    "token_count": segment.get("token_count"),
+                    "segment_gate_status": segment.get("segment_gate_status"),
+                    "segment_gate_reason": segment.get("segment_gate_reason"),
+                    "segment_gate_unique_token_count": segment.get("segment_gate_unique_token_count"),
+                    "segment_gate_mic_token_recall_in_overlapping_remote": segment.get(
+                        "segment_gate_mic_token_recall_in_overlapping_remote"
+                    ),
+                    "segment_gate_overlapping_remote_token_recall_in_mic": segment.get(
+                        "segment_gate_overlapping_remote_token_recall_in_mic"
+                    ),
+                    "segment_gate_overlapping_remote_token_count": segment.get(
+                        "segment_gate_overlapping_remote_token_count"
+                    ),
+                    "audio_mic_minus_remote_rms_db": segment.get("audio_mic_minus_remote_rms_db"),
+                    "audio_mic_remote_zero_lag_abs_corr": segment.get("audio_mic_remote_zero_lag_abs_corr"),
+                    "rescue_policy_candidates": policies,
+                    "live_rescue_policy_candidates": live_policies,
+                }
+            )
+        evidence.sort(key=lambda item: (-safe_float(item.get("overlap_sec")), safe_float(item.get("start"))))
+        return evidence
+
+    def sum_overlap(evidence_rows: list[dict[str, Any]], labels: set[str] | None = None) -> float:
+        total = 0.0
+        for evidence in evidence_rows:
+            if labels is not None and str(evidence.get("batch_role_label") or "") not in labels:
+                continue
+            total += safe_float(evidence.get("overlap_sec"))
+        return round(total, 3)
+
+    def classify_gap(gap: dict[str, Any], evidence_rows: list[dict[str, Any]], category: str) -> dict[str, Any]:
+        duration = safe_float(gap.get("duration_sec"))
+        local_overlap = sum_overlap(evidence_rows, {"me_dominant", "mixed"})
+        remote_overlap = sum_overlap(evidence_rows, {"remote_dominant", "none", "known_hallucination"})
+        duplicate_overlap = round(
+            sum(
+                safe_float(row.get("overlap_sec"))
+                for row in evidence_rows
+                if row.get("segment_gate_reason") == "segment_duplicates_overlapping_remote"
+            ),
+            3,
+        )
+        local_island_overlap = round(
+            sum(
+                safe_float(row.get("overlap_sec"))
+                for row in evidence_rows
+                if row.get("segment_gate_reason") == "segment_has_local_tokens_not_seen_in_overlapping_remote"
+            ),
+            3,
+        )
+        live_policy_overlap = round(
+            sum(
+                safe_float(row.get("overlap_sec"))
+                for row in evidence_rows
+                if row.get("live_rescue_policy_candidates")
+            ),
+            3,
+        )
+        oracle_local_overlap = round(
+            sum(
+                safe_float(row.get("overlap_sec"))
+                for row in evidence_rows
+                if "batch_oracle_local_ceiling" in (row.get("rescue_policy_candidates") or [])
+                and row.get("batch_role_label") in {"me_dominant", "mixed"}
+            ),
+            3,
+        )
+        max_unique_tokens = max(
+            [safe_int(row.get("segment_gate_unique_token_count")) for row in evidence_rows] or [0]
+        )
+        max_mic_recall_remote = max(
+            [safe_float(row.get("segment_gate_mic_token_recall_in_overlapping_remote")) for row in evidence_rows]
+            or [0.0]
+        )
+        min_zero_lag_corr = min(
+            [
+                safe_float(row.get("audio_mic_remote_zero_lag_abs_corr"), default=1.0)
+                for row in evidence_rows
+                if row.get("audio_mic_remote_zero_lag_abs_corr") is not None
+            ]
+            or [None]
+        )
+        max_mic_minus_remote_db = max(
+            [
+                safe_float(row.get("audio_mic_minus_remote_rms_db"), default=-999.0)
+                for row in evidence_rows
+                if row.get("audio_mic_minus_remote_rms_db") is not None
+            ]
+            or [None]
+        )
+        if category == "local_missing_suspicious_batch_me":
+            label = "suspicious_batch_me_not_publishable"
+            next_action = "exclude_or_review_suspicious_short_batch_me"
+            reason = "batch Me row is already suspicious and crosses authoritative remote evidence"
+        elif not evidence_rows:
+            label = "missing_suppressed_mic_evidence"
+            next_action = "inspect_live_asr_or_chunk_materialization"
+            reason = "no suppressed mic ASR evidence overlaps this missing Me row"
+        elif remote_overlap > local_overlap and remote_overlap >= max(0.35, duration * 0.35):
+            label = "remote_risk_dominant"
+            next_action = "do_not_publish_without_new_local_evidence"
+            reason = "overlapping suppressed mic evidence is dominated by remote-risk labels"
+        elif local_overlap > 0 and duplicate_overlap >= max(1.0, local_overlap * 0.60):
+            label = "duplicate_heavy_mixed_needs_token_split"
+            next_action = "design_token_level_split_or_micro_asr_for_duplicate_heavy_mixed_segments"
+            reason = "local/mixed evidence is mostly duplicated in remote text, so whole-segment publication is unsafe"
+        elif local_island_overlap >= 1.0 and live_policy_overlap == 0:
+            label = "local_island_needs_boundary_or_speaker_gate"
+            next_action = "build_boundary_or_speaker_gate_for_local_islands"
+            reason = "local-looking islands exist but current live-safe policies reject them"
+        elif oracle_local_overlap > 0 and live_policy_overlap == 0:
+            label = "oracle_local_needs_remote_forbidden_evidence"
+            next_action = "add_remote_forbidden_or_speaker_evidence_for_oracle_local_segments"
+            reason = "batch oracle sees local content, but live-accessible evidence is not strong enough"
+        elif live_policy_overlap > 0 and local_overlap > 0:
+            label = "partial_safe_tail_candidate"
+            next_action = "materialize_partial_safe_tail_shadow_and_recheck_recall"
+            reason = "some live-safe suppressed mic evidence overlaps the missing Me row, but it does not recover enough text"
+        elif local_overlap > 0:
+            label = "local_evidence_needs_speaker_confirmation"
+            next_action = "add_target_speaker_or_local_voice_confirmation"
+            reason = "local/mixed evidence exists but lacks trusted speaker evidence"
+        else:
+            label = "suppressed_evidence_not_actionable"
+            next_action = "keep_suppressed_until_stronger_evidence"
+            reason = "suppressed mic evidence exists but has no trusted local signal"
+        return {
+            "label": label,
+            "next_action": next_action,
+            "reason": reason,
+            "local_overlap_seconds": local_overlap,
+            "remote_risk_overlap_seconds": remote_overlap,
+            "duplicate_overlap_seconds": duplicate_overlap,
+            "local_island_overlap_seconds": local_island_overlap,
+            "live_policy_overlap_seconds": live_policy_overlap,
+            "oracle_local_overlap_seconds": oracle_local_overlap,
+            "max_unique_tokens": max_unique_tokens,
+            "max_mic_token_recall_in_overlapping_remote": round(max_mic_recall_remote, 6),
+            "min_audio_mic_remote_zero_lag_abs_corr": (
+                round(float(min_zero_lag_corr), 6) if min_zero_lag_corr is not None else None
+            ),
+            "max_audio_mic_minus_remote_rms_db": (
+                round(float(max_mic_minus_remote_db), 3) if max_mic_minus_remote_db is not None else None
+            ),
+        }
+
+    for row in rows:
+        session_name = str(row.get("session") or "")
+        inputs = row.get("inputs") if isinstance(row.get("inputs"), dict) else {}
+        comparison_rel = inputs.get("live_batch_comparison")
+        comparison_path = root / session_name / str(comparison_rel or "derived/live/live_batch_comparison.json")
+        comparison = read_json(comparison_path)
+        if not isinstance(comparison, dict):
+            missing_inputs.append(session_name)
+            continue
+        risk_examples = comparison.get("risk_examples") if isinstance(comparison.get("risk_examples"), dict) else {}
+        suppressed_segments = [
+            segment
+            for segment in risk_examples.get("suppressed_mic_asr_segments") or []
+            if isinstance(segment, dict)
+        ]
+        for category in ("local_missing", "local_missing_suspicious_batch_me"):
+            for item in risk_examples.get(category) or []:
+                if not isinstance(item, dict):
+                    continue
+                evidence_rows = evidence_for_gap(item, suppressed_segments)
+                analysis = classify_gap(item, evidence_rows, category)
+                examples.append(
+                    {
+                        "session": session_name,
+                        "category": category,
+                        "batch_id": item.get("batch_id"),
+                        "start": item.get("start"),
+                        "end": item.get("end"),
+                        "duration_sec": item.get("duration_sec"),
+                        "text": item.get("text"),
+                        "recall_in_live_me": item.get("recall_in_live_me"),
+                        "recall_in_suppressed_mic": item.get("recall_in_suppressed_mic"),
+                        "reason": item.get("reason"),
+                        "blocker": analysis,
+                        "suppressed_evidence_count": len(evidence_rows),
+                        "suppressed_evidence": evidence_rows[:6],
+                        "comparison": str(comparison_rel or "derived/live/live_batch_comparison.json"),
+                    }
+                )
+
+    def aggregate_by_label() -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for item in examples:
+            blocker = item.get("blocker") if isinstance(item.get("blocker"), dict) else {}
+            label = str(blocker.get("label") or "unknown")
+            row = grouped.setdefault(
+                label,
+                {
+                    "count": 0,
+                    "seconds": 0.0,
+                    "local_overlap_seconds": 0.0,
+                    "remote_risk_overlap_seconds": 0.0,
+                    "next_action": blocker.get("next_action"),
+                },
+            )
+            row["count"] += 1
+            row["seconds"] = round(safe_float(row.get("seconds")) + safe_float(item.get("duration_sec")), 3)
+            row["local_overlap_seconds"] = round(
+                safe_float(row.get("local_overlap_seconds")) + safe_float(blocker.get("local_overlap_seconds")),
+                3,
+            )
+            row["remote_risk_overlap_seconds"] = round(
+                safe_float(row.get("remote_risk_overlap_seconds"))
+                + safe_float(blocker.get("remote_risk_overlap_seconds")),
+                3,
+            )
+        return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
+
+    by_label = aggregate_by_label()
+    top_label = next(iter(by_label.keys()), None)
+    recommended_next = "no_candidate_local_recall_gap"
+    if top_label:
+        recommended_next = str(by_label[top_label].get("next_action") or "inspect_candidate_local_recall_gap")
+    examples.sort(
+        key=lambda item: (
+            -safe_float(item.get("duration_sec")),
+            str(item.get("session") or ""),
+            safe_float(item.get("start")),
+        )
+    )
+    return {
+        "schema": "murmurmark.live_local_recall_blocker_analysis/v1",
+        "status": "ok" if examples else "no_local_recall_gaps",
+        "promotion_allowed": False,
+        "interpretation": (
+            "diagnostic only: classifies missing live Me rows using suppressed mic ASR, live-accessible "
+            "text/audio evidence and batch labels for offline scoring; it does not publish live text"
+        ),
+        "item_count": len(examples),
+        "seconds": round(sum(safe_float(item.get("duration_sec")) for item in examples), 3),
+        "recommended_next": recommended_next,
+        "top_label": top_label,
+        "by_label": by_label,
+        "missing_inputs": sorted(set(missing_inputs)),
         "examples": examples[:limit],
         "truncated": len(examples) > limit,
         "limit": limit,
@@ -6747,6 +7021,11 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     local_recall_examples = local_recall_gap_examples(real_live_rows)
     candidate_local_recall_examples = local_recall_gap_examples(capture_safe_candidate_rows, limit=30)
     evaluable_local_recall_examples = local_recall_gap_examples(capture_safe_evaluable_rows, limit=50)
+    candidate_local_recall_blocker_analysis = local_recall_blocker_analysis(
+        capture_safe_candidate_rows,
+        root=root,
+        limit=30,
+    )
     summary["live_local_recall_gap_example_count"] = safe_int(local_recall_examples.get("item_count"))
     summary["live_local_recall_gap_example_seconds"] = safe_float(local_recall_examples.get("seconds"))
     summary["capture_safe_candidate_local_recall_gap_example_count"] = safe_int(
@@ -6760,6 +7039,32 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     )
     summary["capture_safe_evaluable_local_recall_gap_example_seconds"] = safe_float(
         evaluable_local_recall_examples.get("seconds")
+    )
+    summary["capture_safe_candidate_local_recall_blocker_item_count"] = safe_int(
+        candidate_local_recall_blocker_analysis.get("item_count")
+    )
+    summary["capture_safe_candidate_local_recall_blocker_seconds"] = safe_float(
+        candidate_local_recall_blocker_analysis.get("seconds")
+    )
+    summary["capture_safe_candidate_local_recall_blocker_top_label"] = (
+        candidate_local_recall_blocker_analysis.get("top_label")
+    )
+    blocker_by_label = (
+        candidate_local_recall_blocker_analysis.get("by_label")
+        if isinstance(candidate_local_recall_blocker_analysis.get("by_label"), dict)
+        else {}
+    )
+    blocker_top_label = str(candidate_local_recall_blocker_analysis.get("top_label") or "")
+    blocker_top_row = (
+        blocker_by_label.get(blocker_top_label)
+        if blocker_top_label and isinstance(blocker_by_label.get(blocker_top_label), dict)
+        else {}
+    )
+    summary["capture_safe_candidate_local_recall_blocker_top_label_seconds"] = safe_float(
+        blocker_top_row.get("seconds")
+    )
+    summary["capture_safe_candidate_local_recall_blocker_recommended_next"] = (
+        candidate_local_recall_blocker_analysis.get("recommended_next")
     )
     summary["real_live_target_me_shadow_profile_best_live_implementable_remaining_gap_count"] = safe_int(
         best_live_profile_remaining_gap.get("item_count")
@@ -7612,6 +7917,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_next_unlock": live_next_unlock,
         "live_local_recall_gap_examples": local_recall_examples,
         "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
+        "capture_safe_candidate_local_recall_blocker_analysis": candidate_local_recall_blocker_analysis,
         "capture_safe_evaluable_local_recall_gap_examples": evaluable_local_recall_examples,
         "coverage_path": coverage_path,
         "promotion_policy": promotion_policy,
@@ -8958,6 +9264,66 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                     f"| `{item.get('batch_id')}` | {text} |"
                 )
             lines.append("")
+    blocker_analysis = (
+        report.get("capture_safe_candidate_local_recall_blocker_analysis")
+        if isinstance(report.get("capture_safe_candidate_local_recall_blocker_analysis"), dict)
+        else {}
+    )
+    if blocker_analysis:
+        lines += [
+            "## Capture-Safe Local Recall Blocker Analysis",
+            "",
+            "Diagnostic only. This explains why the current capture-safe live candidates still lose "
+            "`Me` text and what evidence is missing before live text can be published safely.",
+            "",
+            f"- items: {blocker_analysis.get('item_count', 0)} / {blocker_analysis.get('seconds', 0.0)} sec",
+            f"- top label: `{blocker_analysis.get('top_label')}`",
+            f"- recommended next: `{blocker_analysis.get('recommended_next')}`",
+            "- promotion allowed: `false`",
+            "",
+        ]
+        by_label = (
+            blocker_analysis.get("by_label")
+            if isinstance(blocker_analysis.get("by_label"), dict)
+            else {}
+        )
+        if by_label:
+            lines += [
+                "| Label | Count | Seconds | Local evidence sec | Remote-risk sec | Next action |",
+                "| --- | ---: | ---: | ---: | ---: | --- |",
+            ]
+            for label, payload in by_label.items():
+                if not isinstance(payload, dict):
+                    continue
+                lines.append(
+                    f"| `{label}` | {payload.get('count')} "
+                    f"| {safe_float(payload.get('seconds')):.2f} "
+                    f"| {safe_float(payload.get('local_overlap_seconds')):.2f} "
+                    f"| {safe_float(payload.get('remote_risk_overlap_seconds')):.2f} "
+                    f"| `{payload.get('next_action')}` |"
+                )
+            lines.append("")
+        examples = blocker_analysis.get("examples") if isinstance(blocker_analysis.get("examples"), list) else []
+        if examples:
+            lines += [
+                "| Session | Time | Duration | Label | Suppressed recall | Text |",
+                "| --- | ---: | ---: | --- | ---: | --- |",
+            ]
+            for item in examples[:10]:
+                if not isinstance(item, dict):
+                    continue
+                blocker = item.get("blocker") if isinstance(item.get("blocker"), dict) else {}
+                text = str(item.get("text") or "").replace("|", "\\|")
+                if len(text) > 110:
+                    text = text[:107].rstrip() + "..."
+                lines.append(
+                    f"| `{item.get('session')}` | {safe_float(item.get('start')):.2f}-{safe_float(item.get('end')):.2f} "
+                    f"| {safe_float(item.get('duration_sec')):.2f} "
+                    f"| `{blocker.get('label')}` "
+                    f"| {safe_float(item.get('recall_in_suppressed_mic')):.2f} "
+                    f"| {text} |"
+                )
+            lines.append("")
     lines += [
         "## Objective Audit",
         "",
@@ -9517,8 +9883,27 @@ def main() -> int:
                 f"(local={safe_float(best_policy.get('local_seconds')):.2f}s, "
                 f"remote_risk={safe_float(best_policy.get('remote_risk_seconds')):.2f}s)"
             )
-        if recommended_policy:
-            print(f"capture_safe_candidate_recommended_rescue_policy: {recommended_policy.get('policy')}")
+    if recommended_policy:
+        print(f"capture_safe_candidate_recommended_rescue_policy: {recommended_policy.get('policy')}")
+    blocker_analysis = (
+        report.get("capture_safe_candidate_local_recall_blocker_analysis")
+        if isinstance(report.get("capture_safe_candidate_local_recall_blocker_analysis"), dict)
+        else {}
+    )
+    if blocker_analysis:
+        print(
+            "capture_safe_candidate_local_recall_blocker_items: "
+            f"{blocker_analysis.get('item_count', 0)} "
+            f"({safe_float(blocker_analysis.get('seconds')):.2f}s)"
+        )
+        print(
+            "capture_safe_candidate_local_recall_blocker_top_label: "
+            f"{blocker_analysis.get('top_label')}"
+        )
+        print(
+            "capture_safe_candidate_local_recall_blocker_recommended_next: "
+            f"{blocker_analysis.get('recommended_next')}"
+        )
     target_me_diagnostics = (
         report.get("live_local_recall_target_me_diagnostics")
         if isinstance(report.get("live_local_recall_target_me_diagnostics"), dict)

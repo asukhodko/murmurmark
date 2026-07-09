@@ -27,6 +27,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--idle-after-session-json-sec", type=float, default=8.0)
     parser.add_argument("--max-ready-backlog", type=int, default=int(os.environ.get("MURMURMARK_RAW_SIDECAR_MAX_READY_BACKLOG", "5")))
     parser.add_argument("--ffmpeg-timeout-sec", type=float, default=float(os.environ.get("MURMURMARK_RAW_SIDECAR_FFMPEG_TIMEOUT_SEC", "4")))
+    parser.add_argument(
+        "--allow-open-raw-read",
+        action="store_true",
+        default=os.environ.get("MURMURMARK_RAW_SIDECAR_ALLOW_OPEN_RAW_READ") == "1",
+        help="Allow reading raw CAF while recording is still open. Default is off because ffmpeg can hang on open CAF.",
+    )
     parser.add_argument("--no-live-worker", action="store_true")
     parser.add_argument("--live-worker-timeout-sec", type=float, default=45.0)
     return parser.parse_args()
@@ -364,6 +370,7 @@ def main() -> int:
         processed: set[int] = set()
         materialized_rows: list[dict[str, Any]] = []
         last_progress = time.monotonic()
+        waiting_notified = False
         append_event(session, experiment, "raw_sidecar_worker.started", status)
         write_state(session, experiment, status, processed, materialized_rows)
 
@@ -374,6 +381,16 @@ def main() -> int:
                 ready = [index for index, pair in grouped.items() if {"mic", "remote"} <= set(pair)]
                 ready_unprocessed = sorted(index for index in ready if index not in processed)
                 session_closed = session_is_closed(session)
+                if ready_unprocessed and not session_closed and not args.allow_open_raw_read:
+                    status = "waiting_for_raw_readable"
+                    reason = "open_raw_read_disabled_until_session_close"
+                    if not waiting_notified or time.monotonic() - last_progress >= args.idle_after_session_json_sec:
+                        append_event(session, experiment, "raw_sidecar_worker.waiting_for_session_close", status, reason=reason)
+                        waiting_notified = True
+                        last_progress = time.monotonic()
+                    write_state(session, experiment, status, processed, materialized_rows, reason=reason)
+                    time.sleep(max(0.1, args.poll_sec))
+                    continue
                 if not session_closed and len(ready_unprocessed) > max(1, args.max_ready_backlog):
                     status = "disabled_backpressure"
                     reason = "ready commit backlog exceeded"
@@ -402,6 +419,7 @@ def main() -> int:
                             append_event(session, experiment, "live_worker.started", status, index=index)
                     status = "running"
                     reason = None
+                    waiting_notified = False
                     last_progress = time.monotonic()
                     append_event(session, experiment, "raw_sidecar_worker.materialized", status, index=index)
                 write_state(session, experiment, status, processed, materialized_rows, reason=reason)

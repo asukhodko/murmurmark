@@ -9436,6 +9436,7 @@ final class RawSidecarWorker {
             sessionDirectory.path,
             "--experiment",
             experimentID,
+            "--no-live-worker",
         ]
         process.standardOutput = handle
         process.standardError = handle

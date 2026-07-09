@@ -119,6 +119,7 @@ JSONL
 
 "$python_bin" scripts/raw-sidecar-worker.py "$backlog_session" \
   --experiment "$experiment" \
+  --allow-open-raw-read \
   --no-live-worker \
   --poll-sec 0.1 \
   --max-ready-backlog 1 >/dev/null
