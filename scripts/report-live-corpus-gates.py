@@ -7807,7 +7807,8 @@ def recommended_next_commands(
             commands.insert(1, ".venv/bin/python scripts/report-suppressed-mic-policy-lab.py")
             commands.insert(2, ".venv/bin/python scripts/report-live-target-me-enrollment-lab.py --method resemblyzer_dvector")
             commands.insert(3, ".venv/bin/python scripts/report-persistent-target-me-profile-lab.py --method resemblyzer_dvector")
-            commands.insert(4, ".venv/bin/python scripts/report-suppressed-mic-composite-gate-lab.py")
+            commands.insert(4, ".venv/bin/python scripts/report-live-local-only-enrollment-probe.py --method resemblyzer_dvector")
+            commands.insert(5, ".venv/bin/python scripts/report-suppressed-mic-composite-gate-lab.py")
         real_issues = [
             issue
             for issue in gate_issues

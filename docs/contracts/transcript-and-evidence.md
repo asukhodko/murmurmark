@@ -6052,6 +6052,29 @@ therefore becomes `build_same_session_local_only_voice_enrollment_probe`. That n
 try to build causal same-session Target-Me evidence from high-confidence local-only mic intervals
 before any publication policy is changed.
 
+`report-live-local-only-enrollment-probe.py` writes corpus schema
+`murmurmark.live_local_only_enrollment_probe_corpus/v1` and per-session schema
+`murmurmark.live_local_only_enrollment_probe/v1`. It reads
+`derived/preprocess/echo/speaker_state.jsonl`, extracts high-confidence `local_only` mic intervals
+from the best available mic enrollment source, extracts `remote_only` intervals as negatives, and
+scores whether the resulting same-session voice seed is separable from remote audio. It is
+diagnostic only:
+
+- `promotion_allowed` is always `false`;
+- status `local_only_enrollment_probe_ready` means the session has enough local-only seed audio to
+  test blocked mixed rows next;
+- status `local_only_enrollment_remote_ambiguous` means the local seed exists but is too close to
+  remote evidence;
+- the corpus output lives at
+  `sessions/_reports/live-pipeline/live_local_only_enrollment_probe.json`;
+- per-session summaries live under
+  `derived/audit/live-local-only-enrollment-probe/live_local_only_enrollment_probe_summary.json`.
+
+Current corpus evidence for the three affected sessions is promising: all `3` sessions are
+`local_only_enrollment_probe_ready`, with `144.00s` of accepted positive local-only seed audio. The
+next safe step is to evaluate those seed models against the blocked mixed rows; they still cannot
+publish live text by themselves.
+
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`
 is the first profile-level local-island split oracle. It starts from the current best
 live-implementable profile, adds batch-backed local-island candidates, then runs the normal

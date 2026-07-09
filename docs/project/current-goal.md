@@ -558,6 +558,12 @@ all `25.00s` are `needs_same_session_local_only_enrollment_probe`. The affected 
 positive same-session live `Me` enrollment examples, so the next useful step is to build a causal
 local-only Target-Me enrollment probe from high-confidence mic evidence. Mixed rows must remain
 review-only until that probe proves safe under the same remote-leak and order gates.
+
+`report-live-local-only-enrollment-probe.py` now performs that first probe. On the current affected
+sessions it finds `local_only_enrollment_probe_ready` in all `3` sessions, with `144.00s` of
+accepted positive local-only seed audio and remote-negative separation. This does not unlock
+promotion yet; it changes the next work from “find same-session enrollment material” to “evaluate
+these local-only seed models against the blocked mixed rows”.
 The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 
 - accepted rows: `0`;

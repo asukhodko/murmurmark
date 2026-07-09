@@ -780,6 +780,9 @@ nodes:
       guard lab found `0.00s` candidates and blocked all `25.00s`; the same-session disambiguation
       lab then classified the full `25.00s` as `needs_same_session_local_only_enrollment_probe`,
       because affected sessions have `0` positive same-session live `Me` enrollment examples.
+      The first local-only enrollment probe is now available and finds ready seed material in all
+      `3` affected sessions (`144.00s` accepted positive local-only audio). The next step is to
+      evaluate those seed models against blocked mixed rows while keeping promotion blocked.
       `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked.
       `live_order_risk_triage/v1` now sees `2` contentful order-risk rows after live split/retime:
       `0` blocking boundary-retime rows and `2` advisory weak/short/generic match rows; strict

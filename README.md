@@ -661,6 +661,19 @@ Target-Me enrollment lab has `0` positive same-session `Me` examples in the affe
 next practical step is a causal local-only voice enrollment probe built from high-confidence mic
 evidence, not more recordings and not a looser publication gate.
 
+That probe is available as:
+
+```bash
+.venv/bin/python scripts/report-live-local-only-enrollment-probe.py --method resemblyzer_dvector
+```
+
+It reads the same-session `speaker_state.jsonl`, uses high-confidence `local_only` mic intervals as
+positive seed audio and `remote_only` intervals as negative audio, and writes
+`sessions/_reports/live-pipeline/live_local_only_enrollment_probe.json`. On the current affected
+sessions it finds ready local-only enrollment seeds in all `3` sessions (`144.00s` accepted positive
+audio total). The next step after that is to evaluate those seed models against the blocked mixed
+rows; promotion stays blocked meanwhile.
+
 The follow-up `live_only_retime_boundary_candidate_lab/v1` tests this more directly against the
 current best-live-implementable remaining gap. Strict zero-remote anchors are safe but do not touch
 that gap yet: `0.00s` missing-Me overlap, `0.00s` remote-risk. The best relaxed probe,

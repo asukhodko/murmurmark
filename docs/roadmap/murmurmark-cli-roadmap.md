@@ -614,7 +614,10 @@ newer run-state exists.
    same-session disambiguation lab classifies the full `25.00s` as
    `needs_same_session_local_only_enrollment_probe`. The next implementable step is
    `build_same_session_local_only_voice_enrollment_probe`, not more live recordings and not a
-   relaxed publication gate.
+   relaxed publication gate. The first local-only enrollment probe is now available and finds ready
+   seed material in all `3` affected sessions (`144.00s` accepted positive local-only audio). The
+   next step is to evaluate those seed models against blocked mixed rows while keeping promotion
+   blocked.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
