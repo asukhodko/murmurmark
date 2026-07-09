@@ -5797,9 +5797,11 @@ confirmation, local-island candidate selection and strict zero-remote evidence r
 `remote_dominant` / `known_hallucination` buckets stay blocked.
 
 The report also writes `live_order_risk_triage` with schema
-`murmurmark.live_order_risk_triage/v1`. It reads the contentful same-role order-risk examples for
-the current best live-implementable profile and classifies them without changing strict parity
-gates. Current labels are:
+`murmurmark.live_order_risk_triage/v1`. By default it reads the contentful same-role order-risk
+examples from `base_live_comparison`, so ordinary `experiment compare` and corpus refresh can
+explain order risk without running expensive target-me shadow labs. When a target-me/lab profile is
+available, the same schema can describe that profile as additional diagnostic evidence. Triage never
+changes strict parity gates. Current labels are:
 
 - `boundary_retime_candidate`: a blocking mic/remote boundary timing problem that still needs
   repair or stronger evidence;
@@ -5808,10 +5810,11 @@ gates. Current labels are:
 - `weak_generic_match_false_positive_candidate`: an advisory row where the match is ambiguous,
   the score margin is small and many plausible batch matches exist.
 
-For the current corpus after the live-only split/retime profile this triage sees `2` contentful
-order-risk rows: `0` blocking boundary-retime candidates and `2` advisory weak/short/generic match
-candidates. Promotion remains blocked by the original strict order gate; triage only explains
-whether the next work is a real boundary repair or matcher/readiness tightening.
+For the current corpus, base live comparison triage sees `8` contentful order-risk rows: `3`
+blocking rows (`2` boundary-retime candidates and `1` cross-source order risk) and `5` advisory
+weak/short/generic match candidates. Promotion remains blocked by the original strict order gate;
+triage only explains whether the next work is a real boundary repair or matcher/readiness
+tightening.
 
 `live_next_unlock.boundary_order_retime_oracle` records an intentionally non-promotable diagnostic
 profile:

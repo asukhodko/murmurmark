@@ -561,10 +561,11 @@ voice/remote guard found `0.00s` publishable mixed candidates and blocked the re
 `13.94s` depend on non-authoritative persistent Target-Me fallback, `10.58s` have too little
 Target-Me-vs-remote separation, and `0.48s` are a low-value tail. Keep these rows review-only until
 stronger same-session voice evidence exists.
-It now also includes `order_risk_triage`: after the live-only split/retime pass, the current `2`
-contentful order risks are both advisory weak/short/generic match rows. There are `0` blocking
-`boundary_retime_candidate` rows. The strict order gate is unchanged; this triage tells us that
-order-risk repair is no longer the first unlock, though matcher tightening is still useful later.
+It now also includes `order_risk_triage`. The default triage reads base live-vs-batch comparison,
+not the expensive target-me labs, and classifies the current `8` contentful order-risk rows into
+`3` blocking rows and `5` advisory weak/short/generic match rows. The strict order gate is
+unchanged; this triage tells us which rows need real timing repair and which are likely matcher
+noise.
 The diagnostic `boundary_order_retime_oracle` then retimes those `2` boundary rows and trims
 `22.40s` of leading overlap. It lowers contentful order mismatches from `4` to `2`, keeps measured
 remote leak at `0.00s`, but worsens missing-Me from `51.50s` to `57.58s` (`-6.08s` delta). So the

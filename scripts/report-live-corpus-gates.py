@@ -2276,23 +2276,6 @@ def live_order_risk_triage(
 ) -> dict[str, Any]:
     examples: list[dict[str, Any]] = []
     missing_inputs: list[str] = []
-    if not policy:
-        return {
-            "schema": "murmurmark.live_order_risk_triage/v1",
-            "status": "no_profile",
-            "profile": None,
-            "item_count": 0,
-            "blocking_count": 0,
-            "advisory_count": 0,
-            "examples": [],
-            "truncated": False,
-            "limit": limit,
-            "by_label": {},
-            "by_severity": {},
-            "by_session": {},
-            "missing_inputs": [],
-        }
-
     for row in rows:
         session_name = str(row.get("session") or "")
         inputs = row.get("inputs") if isinstance(row.get("inputs"), dict) else {}
@@ -2302,10 +2285,15 @@ def live_order_risk_triage(
         if not isinstance(comparison, dict):
             missing_inputs.append(session_name)
             continue
-        shadow_profiles = comparison.get("shadow_profiles") if isinstance(comparison.get("shadow_profiles"), dict) else {}
-        target_profiles = shadow_profiles.get("target_me") if isinstance(shadow_profiles.get("target_me"), dict) else {}
-        profile = target_profiles.get(policy) if isinstance(target_profiles.get(policy), dict) else {}
-        risk_examples = profile.get("risk_examples") if isinstance(profile.get("risk_examples"), dict) else {}
+        if policy:
+            shadow_profiles = comparison.get("shadow_profiles") if isinstance(comparison.get("shadow_profiles"), dict) else {}
+            target_profiles = shadow_profiles.get("target_me") if isinstance(shadow_profiles.get("target_me"), dict) else {}
+            profile = target_profiles.get(policy) if isinstance(target_profiles.get(policy), dict) else {}
+            risk_examples = profile.get("risk_examples") if isinstance(profile.get("risk_examples"), dict) else {}
+            profile_name = policy
+        else:
+            risk_examples = comparison.get("risk_examples") if isinstance(comparison.get("risk_examples"), dict) else {}
+            profile_name = "base_live_comparison"
         for item in risk_examples.get("contentful_role_constrained_order_mismatches") or []:
             if not isinstance(item, dict):
                 continue
@@ -2315,7 +2303,7 @@ def live_order_risk_triage(
             examples.append(
                 {
                     "session": session_name,
-                    "profile": policy,
+                    "profile": profile_name,
                     "label": triage.get("label"),
                     "severity": triage.get("severity"),
                     "confidence": triage.get("confidence"),
@@ -2367,7 +2355,7 @@ def live_order_risk_triage(
     return {
         "schema": "murmurmark.live_order_risk_triage/v1",
         "status": "ok",
-        "profile": policy,
+        "profile": policy or "base_live_comparison",
         "item_count": len(examples),
         "blocking_count": blocking_count,
         "advisory_count": advisory_count,
