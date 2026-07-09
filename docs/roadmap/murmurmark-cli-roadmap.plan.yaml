@@ -667,12 +667,12 @@ nodes:
       Text-only segment rescue is
       recorded as diagnostic metadata (`6` real live candidate chunks / `31` candidate segments in
       the current corpus), but remains diagnostic-only because publishing it can reintroduce remote
-      as Me. Segment-level comparison now labels suppressed mic ASR against batch: `49`
-      Me-dominant segments / `209.58s` and `44` mixed segments / `199.92s` in real live runs.
+      as Me. Segment-level comparison now labels suppressed mic ASR against batch: `47`
+      Me-dominant segments / `149.62s` and `44` mixed segments / `199.92s` in real live runs.
       Policy-lab metrics show text-only rescue is unsafe: current text gate would recover `152.60s`
       local but risks `73.62s` remote; strict unique-token text rescue risks even more. The
       `remote_silent_text_v1` slice is much safer (`34.16s` local / `2.58s` remote-risk), but
-      low-recall versus the `409.50s` oracle local ceiling. The next implementation target is the
+      low-recall versus the `349.54s` oracle local ceiling. The next implementation target is the
       coarse `live_role_gate`: split or rescue local evidence inside suppressed mic chunks with
       stronger audio/evidence proof, without publishing remote leak as Me. First audio/evidence
       lab results: `audio_mic_dominant_v1` is clean but small (`24.00s` local / `0.00s`
@@ -681,7 +681,7 @@ nodes:
       remote-risk, `68.42s` missing-Me recovered). Fresh chunks can expose this candidate as
       `live_rescue_shadow`; current corpus has `2` real-live shadow chunks / `9` segments, recovering
       `45.36s` missing-Me in actual shadow artifacts while keeping normal live Me unchanged.
-      The shadow adds no measured remote-risk (`0.00s`), but still leaves `373.80s` missing-Me and
+      The shadow adds no measured remote-risk (`0.00s`), but still leaves `350.36s` missing-Me and
       leaves `34` order mismatches in the combined draft evaluation, so it is evidence for
       the next rescue/reconciliation pass, not a promotable live output.
       Scoped candidate diagnostics now show `no_material_live_candidate`: in capture-safe promotion
@@ -771,10 +771,12 @@ nodes:
       repair/retiming evidence. The live-only candidate lab now selects `99.40s` of suppressed mic
       candidates and `83.04s` local/mixed evidence, but still carries `16.36s` remote-risk
       (`precision_proxy = 0.835412`). Its stricter zero-risk profile selects `36.12s` with `0.00s`
-      remote-risk under batch evaluation, so the next implementation should materialize that strict
-      profile as shadow output before trying broader timing repair. Keep duplicate-heavy or
-      remote-dominant rows blocked, do not collect more recordings for this blocker and do not
-      promote live output.
+      remote-risk under batch evaluation. The strict profile is now materialized as shadow output:
+      standalone strict adds `36.12s`, leaves `144.35s` missing-Me and `0.00s` remote leak; combined
+      strict+audio-safe adds `67.52s`, but still leaves `130.97s` missing-Me with `0.00s` remote
+      leak. Keep duplicate-heavy or remote-dominant rows blocked; the next implementation target is
+      online timing anchors / remote-forbidden evidence for local islands, not more recordings,
+      broader rescue or live promotion.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

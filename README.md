@@ -563,9 +563,15 @@ The first live-only candidate lab now selects `99.40s` of suppressed mic candida
 live-available gates; `83.04s` are local or mixed, but `16.36s` are still remote-risk
 (`precision_proxy = 0.835412`). This is useful evidence for the next implementation, but not enough
 for publication. Its stricter `strict_zero_remote_risk_text_audio_v1` profile selects `36.12s` with
-`0.00s` remote-risk under batch evaluation. The next live work should materialize that strict
-profile as shadow output, then add online timing / remote-forbidden guards, not collect more
-recordings or relax gates.
+`0.00s` remote-risk under batch evaluation. That strict policy is now materialized as
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_strict_live_only_local_island_v1`:
+it adds `36.12s`, leaves missing-Me at `144.35s`, keeps remote leak at `0.00s`, and remains blocked
+by the same `4` contentful order mismatches / `41` non-passing gates. The combined
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_strict_live_only_local_island_v1`
+profile adds `67.52s` of suppressed mic turns, but corpus missing-Me stays at `130.97s` with
+`0.00s` remote leak. So the next useful work is not collecting more recordings or adding another
+publication threshold; it is online timing / remote-forbidden evidence that can decide which local
+islands are real, non-duplicative turns on the live timeline.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1129,15 +1135,15 @@ Active goal and near-term candidates:
    not published into the live draft, because it can reintroduce remote as `Me`. The next
    implementation target is a stronger audio/evidence gate for local speech inside suppressed mic
    chunks. The corpus report now also labels suppressed mic ASR segments against batch:
-   `49` Me-dominant segments / `209.58s` and `44` mixed segments / `199.92s` in real live runs.
+   `47` Me-dominant segments / `149.62s` and `44` mixed segments / `199.92s` in real live runs.
    A rescue policy lab is now part of the report: current text-only rescue would recover only
    `152.6s` local speech while risking `73.62s` remote leak; strict unique-token text rescue is also
-   unsafe (`143.52s` local / `219.12s` remote-risk). `remote_silent_text_v1` is much safer
+   unsafe (`143.52s` local / `118.74s` remote-risk). `remote_silent_text_v1` is much safer
    (`34.16s` local / `2.58s` remote-risk) but low-recall. The first audio/evidence policy lab shows
    `audio_mic_dominant_v1` has `24.0s` local / `0.0s` remote-risk, while `audio_safe_union_v1`
    recovers `68.42s` missing-Me at `2.58s` remote-risk. Fresh live chunks can now expose that policy
    as `live_rescue_shadow`: `2` real-live chunks / `9` segments, `45.36s` missing-Me recovered,
-   `373.80s` missing-Me still left, `0.0s` measured remote-risk and `34` segment-level order
+   `350.36s` missing-Me still left, `0.0s` measured remote-risk and `34` segment-level order
    mismatches still present in the current corpus. Published live `Me` also has `15.96s` suspected
    remote leakage. Rescue shadow remains candidate evidence, not normal live `Me`; full live
    promotion remains blocked. The scoped candidate diagnostic is stricter:
@@ -1209,9 +1215,11 @@ Active goal and near-term candidates:
    batch-time retime oracle recovers the full `17.34s` without new remote/order regressions. The
    next implementation should focus on online local-island timeline repair/retiming evidence, not
    broad rescue. The live-only candidate lab selects `99.40s`, but still carries `16.36s`
-   remote-risk. Its strict zero-risk profile selects `36.12s` with `0.00s` remote-risk. Both are
-   diagnostic until materialized and passed through ordinary parity gates. Batch remains
-   authoritative.
+   remote-risk. Its strict zero-risk profile selects `36.12s` with `0.00s` remote-risk. The strict
+   materialized shadow adds `36.12s` and the combined strict+audio-safe shadow adds `67.52s`, but the
+   combined profile still leaves `130.97s` missing-Me with `0.00s` remote leak. This proves the next
+   blocker is live timeline evidence, not another broad add-more-local-speech threshold. Batch
+   remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

@@ -61,6 +61,14 @@ LOCAL_ISLAND_RETIME_ORACLE_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "batch_remote_forbidden_local_island_retime_oracle_v1"
 )
+STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_"
+    "strict_live_only_local_island_v1"
+)
+STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "strict_live_only_local_island_v1"
+)
 TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_possible_timeline_safe_v1",
@@ -77,6 +85,8 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
+    STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
+    STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
     LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICY,
     LOCAL_ISLAND_RETIME_ORACLE_PROFILE_POLICY,
 )
@@ -3772,6 +3782,12 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["real_live_live_only_local_island_strict_zero_remote_risk_precision_proxy"] = (
         live_only_strict_zero_remote_risk_profile.get("precision_proxy")
     )
+    strict_live_only_profile_summary_prefix = (
+        f"real_live_target_me_shadow_profile_{STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY}"
+    )
+    combined_strict_audio_safe_union_profile_summary_prefix = (
+        f"real_live_target_me_shadow_profile_{STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY}"
+    )
     real_local_island_oracle_profile = target_me_shadow_profile_row(
         target_me_shadow_profile_diagnostics_report.get("real")
         if isinstance(target_me_shadow_profile_diagnostics_report.get("real"), dict)
@@ -3890,6 +3906,38 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         ),
         "live_only_strict_zero_remote_risk_precision_proxy": summary.get(
             "real_live_live_only_local_island_strict_zero_remote_risk_precision_proxy"
+        ),
+        "strict_live_only_profile_policy": STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
+        "strict_live_only_profile_missing_me_seconds": summary.get(
+            f"{strict_live_only_profile_summary_prefix}_live_missing_me_seconds"
+        ),
+        "strict_live_only_profile_remote_leak_seconds": summary.get(
+            f"{strict_live_only_profile_summary_prefix}_live_suspected_remote_leak_in_me_seconds"
+        ),
+        "strict_live_only_profile_contentful_order_mismatch_count": summary.get(
+            f"{strict_live_only_profile_summary_prefix}_live_contentful_role_constrained_order_mismatch_count"
+        ),
+        "strict_live_only_profile_added_turn_seconds": summary.get(
+            f"{strict_live_only_profile_summary_prefix}_visible_suppressed_mic_added_turn_seconds"
+        ),
+        "strict_live_only_profile_non_passing_gate_count": summary.get(
+            f"{strict_live_only_profile_summary_prefix}_non_passing_gate_count"
+        ),
+        "combined_strict_audio_safe_union_profile_policy": STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
+        "combined_strict_audio_safe_union_profile_missing_me_seconds": summary.get(
+            f"{combined_strict_audio_safe_union_profile_summary_prefix}_live_missing_me_seconds"
+        ),
+        "combined_strict_audio_safe_union_profile_remote_leak_seconds": summary.get(
+            f"{combined_strict_audio_safe_union_profile_summary_prefix}_live_suspected_remote_leak_in_me_seconds"
+        ),
+        "combined_strict_audio_safe_union_profile_contentful_order_mismatch_count": summary.get(
+            f"{combined_strict_audio_safe_union_profile_summary_prefix}_live_contentful_role_constrained_order_mismatch_count"
+        ),
+        "combined_strict_audio_safe_union_profile_added_turn_seconds": summary.get(
+            f"{combined_strict_audio_safe_union_profile_summary_prefix}_visible_suppressed_mic_added_turn_seconds"
+        ),
+        "combined_strict_audio_safe_union_profile_non_passing_gate_count": summary.get(
+            f"{combined_strict_audio_safe_union_profile_summary_prefix}_non_passing_gate_count"
         ),
         "requires_batch_timing": True,
         "requires_batch_role_labels": True,
@@ -4958,6 +5006,20 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"{safe_float(live_only_strict_profile.get('local_seconds')):.2f} sec local, "
             f"{safe_float(live_only_strict_profile.get('remote_risk_seconds')):.2f} sec remote-risk, "
             f"precision proxy {live_only_strict_profile.get('precision_proxy')}",
+            "- strict live-only shadow profile: "
+            f"added {timing_gap.get('strict_live_only_profile_added_turn_seconds')} sec, "
+            f"missing-Me {timing_gap.get('strict_live_only_profile_missing_me_seconds')} sec, "
+            f"remote leak {timing_gap.get('strict_live_only_profile_remote_leak_seconds')} sec, "
+            "contentful order mismatches "
+            f"{timing_gap.get('strict_live_only_profile_contentful_order_mismatch_count')}, "
+            f"non-passing gates {timing_gap.get('strict_live_only_profile_non_passing_gate_count')}",
+            "- combined strict+audio-safe shadow profile: "
+            f"added {timing_gap.get('combined_strict_audio_safe_union_profile_added_turn_seconds')} sec, "
+            f"missing-Me {timing_gap.get('combined_strict_audio_safe_union_profile_missing_me_seconds')} sec, "
+            f"remote leak {timing_gap.get('combined_strict_audio_safe_union_profile_remote_leak_seconds')} sec, "
+            "contentful order mismatches "
+            f"{timing_gap.get('combined_strict_audio_safe_union_profile_contentful_order_mismatch_count')}, "
+            f"non-passing gates {timing_gap.get('combined_strict_audio_safe_union_profile_non_passing_gate_count')}",
             "- timing gap: "
             f"{timing_gap.get('retime_gain_vs_split_oracle_seconds')} sec require batch timing; "
             "future live work needs online local-island timing anchors before publication",
@@ -5797,6 +5859,29 @@ def main() -> int:
                 print(
                     "real_live_live_only_local_island_strict_zero_remote_risk_remote_risk_seconds: "
                     f"{summary.get('real_live_live_only_local_island_strict_zero_remote_risk_remote_risk_seconds')}"
+                )
+                strict_live_only_profile_prefix = (
+                    f"real_live_target_me_shadow_profile_{STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY}"
+                )
+                print(
+                    "real_live_strict_live_only_local_island_profile_missing_me_seconds: "
+                    f"{summary.get(f'{strict_live_only_profile_prefix}_live_missing_me_seconds')}"
+                )
+                print(
+                    "real_live_strict_live_only_local_island_profile_remote_leak_seconds: "
+                    f"{summary.get(f'{strict_live_only_profile_prefix}_live_suspected_remote_leak_in_me_seconds')}"
+                )
+                combined_strict_audio_safe_union_profile_prefix = (
+                    "real_live_target_me_shadow_profile_"
+                    f"{STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY}"
+                )
+                print(
+                    "real_live_combined_strict_audio_safe_union_profile_missing_me_seconds: "
+                    f"{summary.get(f'{combined_strict_audio_safe_union_profile_prefix}_live_missing_me_seconds')}"
+                )
+                print(
+                    "real_live_combined_strict_audio_safe_union_profile_remote_leak_seconds: "
+                    f"{summary.get(f'{combined_strict_audio_safe_union_profile_prefix}_live_suspected_remote_leak_in_me_seconds')}"
                 )
                 print(
                     "real_live_local_island_split_oracle_profile_missing_me_seconds: "

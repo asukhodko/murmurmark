@@ -167,20 +167,20 @@ Current result:
 - `real_live_rescue_shadow_candidate_chunk_count = 2`;
 - `real_live_rescue_shadow_candidate_segment_count = 9`;
 - `real_live_rescue_shadow_missing_me_recovered_seconds = 45.36`;
-- `real_live_rescue_shadow_missing_me_seconds_after = 373.80`;
+- `real_live_rescue_shadow_missing_me_seconds_after = 350.36`;
 - `real_live_rescue_shadow_suspected_remote_leak_in_me_seconds = 0.00`;
 - `real_live_rescue_shadow_order_mismatch_count = 34`;
-- `real_live_suppressed_mic_asr_me_dominant_segment_count = 49 / 209.58 sec`;
+- `real_live_suppressed_mic_asr_me_dominant_segment_count = 47 / 149.62 sec`;
 - `real_live_suppressed_mic_asr_mixed_segment_count = 44 / 199.92 sec`;
 - current text-only rescue policy: `152.60 sec` local / `73.62 sec` remote-risk;
-- strict unique-token text policy: `143.52 sec` local / `219.12 sec` remote-risk;
+- strict unique-token text policy: `143.52 sec` local / `118.74 sec` remote-risk;
 - remote-silent text policy: `34.16 sec` local / `2.58 sec` remote-risk;
-- audio remote-quiet policy: `51.14 sec` local / `15.42 sec` remote-risk;
+- audio remote-quiet policy: `51.14 sec` local / `2.58 sec` remote-risk;
 - audio mic-dominant policy: `24.00 sec` local / `0.00 sec` remote-risk;
 - audio low-coherence policy: `176.98 sec` local / `193.18 sec` remote-risk;
 - audio safe union policy: `50.18 sec` local / `2.58 sec` remote-risk,
   `68.42 sec` missing-Me recovered;
-- batch-oracle local ceiling: `409.50 sec` local;
+- batch-oracle local ceiling: `349.54 sec` local;
 - scoped capture-safe candidate rescue status: `no_material_live_candidate`;
 - scoped capture-safe candidate best live policy: `current_text_segment_gate`
   (`1.80 sec` local / `0.00 sec` remote-risk), below the material threshold;
@@ -457,12 +457,24 @@ The same report now evaluates a stricter live-only profile:
 - current source session: `2026-07-03_10-15-18`;
 - status: diagnostic only, not promoted.
 
+The strict profile is now also materialized into ordinary live-shadow drafts:
+
+- strict policy:
+  `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_strict_live_only_local_island_v1`;
+- strict profile result: `36.12s` added, `144.35s` missing-Me, `0.00s` remote leak, `4`
+  contentful order mismatches, `41` non-passing gates;
+- combined policy:
+  `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_strict_live_only_local_island_v1`;
+- combined profile result: `67.52s` added, `130.97s` missing-Me, `0.00s` remote leak, `4`
+  contentful order mismatches, `41` non-passing gates.
+
 Conclusion: no additional recordings are required to unblock the current design question. The
 corpus already proves both sides of the trade-off: live-only gates can recover meaningful local
 speech, but the broader gates are not precise enough for publication. The stricter profile shows a
-small zero-risk materialization candidate. The next implementation should materialize that strict
-candidate as a shadow live profile, then add an online timing anchor / remote-forbidden guard. Live
-promotion remains blocked until ordinary parity gates pass.
+small zero-risk materialization candidate, but the combined materialized profile does not reduce
+corpus missing-Me below the existing best live-implementable `130.97s`. The next implementation
+should add an online timing anchor / remote-forbidden guard for local islands, not another broad
+threshold and not more recordings. Live promotion remains blocked until ordinary parity gates pass.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not
@@ -490,13 +502,13 @@ but the live branch also has segment-level ordering drift and `15.96s` suspected
 published live `Me`. The current live blockers are therefore: live timeline ordering, remote leakage
 and the coarse `live_role_gate`, which suppresses an entire mic chunk when the chunk looks like
 remote duplicate even if it also contains real local speech. Segment-level batch comparison now
-shows `49` Me-dominant suppressed mic ASR segments
-(`209.58s`) and `44` mixed suppressed mic ASR segments (`199.92s`) in real live runs. A first
+shows `47` Me-dominant suppressed mic ASR segments
+(`149.62s`) and `44` mixed suppressed mic ASR segments (`199.92s`) in real live runs. A first
 text-only segment rescue found `9` real live candidate chunks / `54` kept candidate segments, but it
 stays diagnostic-only because policy-lab metrics show it would recover `152.60s` local speech while
 risking `73.62s` remote leakage. A stricter unique-token text rule is not better enough:
-`143.52s` local / `219.12s` remote-risk. `remote_silent_text_v1` is much safer
-(`34.16s` local / `2.58s` remote-risk), but covers only a small slice of the `409.50s` batch-oracle
+`143.52s` local / `118.74s` remote-risk. `remote_silent_text_v1` is much safer
+(`34.16s` local / `2.58s` remote-risk), but covers only a small slice of the `349.54s` batch-oracle
 local ceiling. The next implementation step should therefore add audio/evidence gates, not only text
 thresholds, to split or rescue local evidence inside suppressed mic chunks without publishing remote
 leak. The first audio policy lab narrows that path: `audio_mic_dominant_v1` is clean but small
@@ -505,7 +517,7 @@ leak. The first audio policy lab narrows that path: `audio_mic_dominant_v1` is c
 candidate (`50.18s` local / `2.58s` remote-risk, `68.42s` missing-Me recovered). Fresh live chunks
 now expose that candidate separately as `live_rescue_shadow`; in the current corpus this appears in
 `2` real-live chunks / `9` segments and recovers `45.36s` missing-Me in actual shadow artifacts.
-The shadow itself does not add measured remote-risk (`0.00s`), but it still leaves `373.80s`
+The shadow itself does not add measured remote-risk (`0.00s`), but it still leaves `350.36s`
 missing-Me and does not reduce the `34` segment-level order mismatches when evaluated as a combined
 draft. It remains
 shadow-only evidence, not a promotable live `Me` path. The scoped candidate diagnostic is stricter:

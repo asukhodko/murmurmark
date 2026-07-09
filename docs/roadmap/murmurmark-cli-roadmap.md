@@ -533,9 +533,11 @@ newer run-state exists.
    retime candidate already has `3.96s` of live-available audio anchors. The first live-only
    candidate lab finds `99.40s` of suppressed mic candidates and `83.04s` local/mixed evidence, but
    still carries `16.36s` remote-risk. Its stricter zero-risk profile finds `36.12s` with `0.00s`
-   remote-risk. This is not a call for more live recording, broader rescue or relaxed publication
-   gates; it is a call to materialize the strict profile as shadow output and then add online timing
-   anchors.
+   remote-risk. That strict profile is now materialized as a normal shadow draft: the standalone
+   version adds `36.12s`, leaves `144.35s` missing-Me and `0.00s` remote leak; the combined
+   strict+audio-safe version adds `67.52s`, but corpus missing-Me remains `130.97s` with `0.00s`
+   remote leak. This is not a call for more live recording, broader rescue or relaxed publication
+   gates; the next step is online timing anchors / remote-forbidden evidence for local islands.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

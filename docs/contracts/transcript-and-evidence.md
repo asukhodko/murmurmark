@@ -5833,8 +5833,21 @@ The same block includes `stricter_profiles.strict_zero_remote_risk_text_audio_v1
 live-available gates: zero mic-token recall in overlapping remote text, at most `10` overlapping
 remote tokens and `audio_mic_remote_zero_lag_abs_corr <= 0.01`. Current corpus evidence selects
 `36.12s` / `3` candidates, all `me_dominant` under batch evaluation, with `0.00s` remote-risk. This
-profile is still diagnostic only; the next implementation step is materializing it as a shadow live
-profile and running the ordinary parity gates.
+profile is now materialized as
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_strict_live_only_local_island_v1`.
+That shadow profile runs through the ordinary parity metrics: it adds `36.12s`, leaves missing-Me at
+`144.35s`, keeps measured remote leak at `0.00s`, and still has `4` contentful order mismatches plus
+`41` non-passing gates.
+
+The companion
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_strict_live_only_local_island_v1`
+profile combines the existing `audio_safe_union_v1` supplemental turns with strict live-only
+local-island turns and deduplicates by chunk/start/end/role. Current corpus evidence: `67.52s`
+suppressed-mic turns are added, but missing-Me remains `130.97s` with `0.00s` measured remote leak
+and `4` contentful order mismatches. This makes the result a useful negative test: strict live-only
+islands are safe enough to materialize as shadow evidence, but simply adding them does not close the
+remaining live local-recall gap. The next contract work remains online timing / remote-forbidden
+evidence for local islands, not promotion.
 
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the
