@@ -544,6 +544,11 @@ newer run-state exists.
    `0.00s` closed missing-Me. This is not a call for more live recording, broader rescue or relaxed
    publication gates; the next step is online timing anchors / remote-forbidden evidence for
    still-uncovered local islands.
+   The new `live_only_retime_boundary_candidate_lab/v1` confirms the boundary of that approach:
+   strict zero-remote anchors recover `0.00s` of the current best-live-implementable remaining gap,
+   while the relaxed `oracle_gap_probe_v1` recovers `18.69s` but brings `27.20s` remote-risk. The
+   next implementation target is therefore a remote-forbidden context/boundary gate around relaxed
+   anchors, not additional recordings or relaxed live publication.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

@@ -14,7 +14,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.18.0"
+SCRIPT_VERSION = "1.19.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -2430,6 +2430,357 @@ def live_only_local_island_candidate_lab(rows: list[dict[str, Any]], *, limit: i
     }
 
 
+def live_only_retime_boundary_candidate_lab(
+    rows: list[dict[str, Any]],
+    *,
+    remaining_gap: dict[str, Any] | None = None,
+    limit: int = 30,
+) -> dict[str, Any]:
+    segments = suppressed_mic_segments_from_report_rows(rows)
+    max_anchor_gap_sec = 3.0
+    relaxed_anchor_rows = [
+        row
+        for row in segments
+        if not bool(row.get("known_hallucination"))
+        and safe_int(row.get("token_count")) >= 2
+        and row.get("segment_gate_reason") == "segment_has_local_tokens_not_seen_in_overlapping_remote"
+        and safe_float(row.get("audio_mic_remote_zero_lag_abs_corr"), default=1.0) <= 0.03
+        and safe_float(row.get("audio_mic_minus_remote_rms_db"), default=-999.0) >= -6.0
+    ]
+    strict_anchor_rows = [
+        row
+        for row in relaxed_anchor_rows
+        if not bool(row.get("known_hallucination"))
+        and safe_float(row.get("audio_mic_remote_zero_lag_abs_corr"), default=1.0) <= 0.01
+        and safe_int(row.get("segment_gate_overlapping_remote_token_count")) <= 10
+        and safe_float(row.get("segment_gate_mic_token_recall_in_overlapping_remote"), default=1.0) == 0.0
+    ]
+
+    missing_rows: list[dict[str, Any]] = []
+    suspicious_missing_rows: list[dict[str, Any]] = []
+    remaining_examples = (
+        remaining_gap.get("examples")
+        if isinstance(remaining_gap, dict) and isinstance(remaining_gap.get("examples"), list)
+        else []
+    )
+    if remaining_examples:
+        for item in remaining_examples:
+            if isinstance(item, dict):
+                copied = dict(item)
+                copied["session"] = str(copied.get("session") or "")
+                missing_rows.append(copied)
+    else:
+        for row in rows:
+            session = str(row.get("session") or "")
+            risk_examples = row.get("risk_examples") if isinstance(row.get("risk_examples"), dict) else {}
+            for item in risk_examples.get("local_missing") or []:
+                if isinstance(item, dict):
+                    copied = dict(item)
+                    copied["session"] = session
+                    missing_rows.append(copied)
+            for item in risk_examples.get("local_missing_suspicious_batch_me") or []:
+                if isinstance(item, dict):
+                    copied = dict(item)
+                    copied["session"] = session
+                    suspicious_missing_rows.append(copied)
+
+    remaining_gap_evidence_segments: list[dict[str, Any]] = []
+    for item in remaining_examples:
+        if not isinstance(item, dict):
+            continue
+        session = str(item.get("session") or "")
+        evidence_rows = item.get("suppressed_mic_evidence") if isinstance(item.get("suppressed_mic_evidence"), list) else []
+        for evidence in evidence_rows:
+            if isinstance(evidence, dict):
+                copied = dict(evidence)
+                copied["session"] = session
+                if copied.get("token_count") is None:
+                    copied["token_count"] = len(text_tokens(str(copied.get("text") or "")))
+                if copied.get("segment_gate_unique_token_count") is None:
+                    copied["segment_gate_unique_token_count"] = copied.get("unique_token_count")
+                if copied.get("segment_gate_mic_token_recall_in_overlapping_remote") is None:
+                    copied["segment_gate_mic_token_recall_in_overlapping_remote"] = copied.get(
+                        "mic_token_recall_in_overlapping_remote"
+                    )
+                if copied.get("segment_gate_overlapping_remote_token_recall_in_mic") is None:
+                    copied["segment_gate_overlapping_remote_token_recall_in_mic"] = copied.get(
+                        "overlapping_remote_token_recall_in_mic"
+                    )
+                if copied.get("segment_gate_overlapping_remote_token_count") is None:
+                    copied["segment_gate_overlapping_remote_token_count"] = 0
+                remaining_gap_evidence_segments.append(copied)
+    if remaining_gap_evidence_segments:
+        deduped_segments: dict[tuple[str, int, float, float, str], dict[str, Any]] = {}
+        for row in segments + remaining_gap_evidence_segments:
+            key = (
+                str(row.get("session") or ""),
+                safe_int(row.get("chunk_index")),
+                round(safe_float(row.get("start")), 3),
+                round(safe_float(row.get("end"), row.get("start")), 3),
+                str(row.get("text") or ""),
+            )
+            deduped_segments[key] = row
+        segments = list(deduped_segments.values())
+        relaxed_anchor_rows = [
+            row
+            for row in segments
+            if not bool(row.get("known_hallucination"))
+            and safe_int(row.get("token_count")) >= 2
+            and row.get("segment_gate_reason") == "segment_has_local_tokens_not_seen_in_overlapping_remote"
+            and safe_float(row.get("audio_mic_remote_zero_lag_abs_corr"), default=1.0) <= 0.03
+            and safe_float(row.get("audio_mic_minus_remote_rms_db"), default=-999.0) >= -6.0
+        ]
+        strict_anchor_rows = [
+            row
+            for row in relaxed_anchor_rows
+            if not bool(row.get("known_hallucination"))
+            and safe_float(row.get("audio_mic_remote_zero_lag_abs_corr"), default=1.0) <= 0.01
+            and safe_int(row.get("segment_gate_overlapping_remote_token_count")) <= 10
+            and safe_float(row.get("segment_gate_mic_token_recall_in_overlapping_remote"), default=1.0) == 0.0
+        ]
+
+    def row_interval(row: dict[str, Any]) -> tuple[float, float]:
+        start = safe_float(row.get("start"))
+        end = safe_float(row.get("end"), start)
+        return start, max(start, end)
+
+    def duration(interval: dict[str, Any]) -> float:
+        return max(0.0, safe_float(interval.get("end")) - safe_float(interval.get("start")))
+
+    def merge_intervals(intervals: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        merged: list[dict[str, Any]] = []
+        for interval in sorted(intervals, key=lambda item: (str(item.get("session") or ""), safe_float(item.get("start")))):
+            session = str(interval.get("session") or "")
+            start = safe_float(interval.get("start"))
+            end = safe_float(interval.get("end"), start)
+            if end <= start:
+                continue
+            if merged and str(merged[-1].get("session") or "") == session and start <= safe_float(merged[-1].get("end")):
+                merged[-1]["end"] = round(max(safe_float(merged[-1].get("end")), end), 3)
+                continue
+            merged.append({"session": session, "start": round(start, 3), "end": round(end, 3)})
+        return merged
+
+    def overlap_with_rows(intervals: list[dict[str, Any]], evidence_rows: list[dict[str, Any]]) -> float:
+        total = 0.0
+        for interval in intervals:
+            session = str(interval.get("session") or "")
+            start = safe_float(interval.get("start"))
+            end = safe_float(interval.get("end"), start)
+            for row in evidence_rows:
+                if str(row.get("session") or "") != session:
+                    continue
+                row_start, row_end = row_interval(row)
+                total += interval_overlap(start, end, row_start, row_end)
+        return round(total, 3)
+
+    def grouped_anchors(anchor_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        groups: list[dict[str, Any]] = []
+        by_session_chunk: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
+        for row in anchor_rows:
+            by_session_chunk[(str(row.get("session") or ""), safe_int(row.get("chunk_index")))].append(row)
+        for (session, chunk_index), chunk_rows in sorted(by_session_chunk.items()):
+            current: list[dict[str, Any]] = []
+            for row in sorted(chunk_rows, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")))):
+                if not current:
+                    current = [row]
+                    continue
+                previous_end = safe_float(current[-1].get("end"), current[-1].get("start"))
+                if safe_float(row.get("start")) - previous_end <= max_anchor_gap_sec:
+                    current.append(row)
+                    continue
+                groups.append({"session": session, "chunk_index": chunk_index, "anchors": current})
+                current = [row]
+            if current:
+                groups.append({"session": session, "chunk_index": chunk_index, "anchors": current})
+        return groups
+
+    anchor_sets = {
+        "strict_zero_remote_anchor": strict_anchor_rows,
+        "relaxed_audio_text_anchor": relaxed_anchor_rows,
+    }
+    profiles = {
+        "anchor_span_v1": {"left_sec": 0.0, "right_sec": 0.0},
+        "short_context_v1": {"left_sec": 3.0, "right_sec": 1.0},
+        "oracle_gap_probe_v1": {"left_sec": 10.0, "right_sec": 1.0},
+    }
+
+    local_segments = [row for row in segments if row.get("batch_role_label") in {"me_dominant", "mixed"}]
+    remote_risk_segments = [
+        row
+        for row in segments
+        if row.get("batch_role_label") in {"remote_dominant", "none", "known_hallucination"}
+    ]
+    profile_reports: dict[str, dict[str, Any]] = {}
+    anchor_set_summaries: dict[str, dict[str, Any]] = {}
+    for anchor_set_name, anchor_rows in anchor_sets.items():
+        anchor_groups = grouped_anchors(anchor_rows)
+        anchor_set_summaries[anchor_set_name] = {
+            "anchor_segment_count": len(anchor_rows),
+            "anchor_group_count": len(anchor_groups),
+            "anchor_seconds": round(sum(safe_float(row.get("duration_sec")) for row in anchor_rows), 3),
+        }
+        for profile_name, config in profiles.items():
+            full_profile_name = f"{anchor_set_name}_{profile_name}"
+            raw_intervals: list[dict[str, Any]] = []
+            examples: list[dict[str, Any]] = []
+            for group in anchor_groups:
+                anchors = group.get("anchors") if isinstance(group.get("anchors"), list) else []
+                if not anchors:
+                    continue
+                session = str(group.get("session") or "")
+                anchor_start = min(safe_float(row.get("start")) for row in anchors)
+                anchor_end = max(safe_float(row.get("end"), row.get("start")) for row in anchors)
+                start = max(0.0, anchor_start - safe_float(config.get("left_sec")))
+                end = anchor_end + safe_float(config.get("right_sec"))
+                raw_intervals.append({"session": session, "start": round(start, 3), "end": round(end, 3)})
+                examples.append(
+                    {
+                        "session": session,
+                        "chunk_index": group.get("chunk_index"),
+                        "start": round(start, 3),
+                        "end": round(end, 3),
+                        "candidate_seconds": round(max(0.0, end - start), 3),
+                        "anchor_start": round(anchor_start, 3),
+                        "anchor_end": round(anchor_end, 3),
+                        "anchor_span_seconds": round(max(0.0, anchor_end - anchor_start), 3),
+                        "anchor_seconds": round(sum(safe_float(row.get("duration_sec")) for row in anchors), 3),
+                        "anchor_count": len(anchors),
+                        "anchor_set": anchor_set_name,
+                        "anchor_text": " ".join(
+                            " ".join(str(row.get("text") or "").split()) for row in anchors
+                        ).strip(),
+                        "local_missing_overlap_seconds": overlap_with_rows(
+                            [{"session": session, "start": start, "end": end}],
+                            missing_rows,
+                        ),
+                        "suppressed_remote_risk_seconds": overlap_with_rows(
+                            [{"session": session, "start": start, "end": end}],
+                            remote_risk_segments,
+                        ),
+                        "suppressed_local_seconds": overlap_with_rows(
+                            [{"session": session, "start": start, "end": end}],
+                            local_segments,
+                        ),
+                    }
+                )
+            merged = merge_intervals(raw_intervals)
+            candidate_seconds = round(sum(duration(interval) for interval in merged), 3)
+            local_missing_overlap_seconds = overlap_with_rows(merged, missing_rows)
+            suspicious_missing_overlap_seconds = overlap_with_rows(merged, suspicious_missing_rows)
+            suppressed_local_seconds = overlap_with_rows(merged, local_segments)
+            suppressed_remote_risk_seconds = overlap_with_rows(merged, remote_risk_segments)
+            evaluated_suppressed_seconds = round(suppressed_local_seconds + suppressed_remote_risk_seconds, 3)
+            examples.sort(
+                key=lambda item: (
+                    -safe_float(item.get("local_missing_overlap_seconds")),
+                    -safe_float(item.get("suppressed_remote_risk_seconds")),
+                    str(item.get("session") or ""),
+                    safe_float(item.get("start")),
+                )
+            )
+            profile_reports[full_profile_name] = {
+                "status": "ok" if merged else "no_candidates",
+                "promotion_allowed": False,
+                "anchor_set": anchor_set_name,
+                "left_context_sec": config.get("left_sec"),
+                "right_context_sec": config.get("right_sec"),
+                "candidate_count": len(merged),
+                "candidate_seconds": candidate_seconds,
+                "anchor_group_count": len(anchor_groups),
+                "anchor_seconds": round(sum(safe_float(row.get("duration_sec")) for row in anchor_rows), 3),
+                "local_missing_overlap_seconds": local_missing_overlap_seconds,
+                "suspicious_missing_overlap_seconds": suspicious_missing_overlap_seconds,
+                "suppressed_local_seconds": suppressed_local_seconds,
+                "suppressed_remote_risk_seconds": suppressed_remote_risk_seconds,
+                "evaluated_suppressed_seconds": evaluated_suppressed_seconds,
+                "precision_proxy": (
+                    round(suppressed_local_seconds / evaluated_suppressed_seconds, 6)
+                    if evaluated_suppressed_seconds > 0
+                    else None
+                ),
+                "remote_risk_ratio": (
+                    round(suppressed_remote_risk_seconds / evaluated_suppressed_seconds, 6)
+                    if evaluated_suppressed_seconds > 0
+                    else None
+                ),
+                "missing_overlap_per_candidate_second": (
+                    round(local_missing_overlap_seconds / candidate_seconds, 6) if candidate_seconds > 0 else None
+                ),
+                "examples": examples[:limit],
+                "truncated": len(examples) > limit,
+                "limit": limit,
+            }
+
+    recommended_profile = None
+    zero_remote_profiles = [
+        (name, report)
+        for name, report in profile_reports.items()
+        if safe_float(report.get("suppressed_remote_risk_seconds")) == 0.0
+        and safe_float(report.get("local_missing_overlap_seconds")) > 0.0
+    ]
+    if zero_remote_profiles:
+        recommended_profile = max(
+            zero_remote_profiles,
+            key=lambda pair: (
+                safe_float(pair[1].get("local_missing_overlap_seconds")),
+                -safe_float(pair[1].get("candidate_seconds")),
+            ),
+        )[0]
+    best_missing_overlap_profile = None
+    if profile_reports:
+        best_missing_overlap_profile = max(
+            profile_reports.items(),
+            key=lambda pair: (
+                safe_float(pair[1].get("local_missing_overlap_seconds")),
+                -safe_float(pair[1].get("suppressed_remote_risk_seconds")),
+                -safe_float(pair[1].get("candidate_seconds")),
+            ),
+        )[0]
+    return {
+        "schema": "murmurmark.live_only_retime_boundary_candidate_lab/v1",
+        "status": "ok" if anchor_groups else "no_live_only_anchor_groups",
+        "promotion_allowed": False,
+        "interpretation": (
+            "diagnostic only: groups strict live-only local anchors and probes fixed online context "
+            "expansions; batch labels are used only to estimate local recall and remote-risk"
+        ),
+        "criteria": {
+            "anchor_segment_gate_reason": "segment_has_local_tokens_not_seen_in_overlapping_remote",
+            "anchor_min_token_count": 2,
+            "relaxed_anchor_max_audio_mic_remote_zero_lag_abs_corr": 0.03,
+            "strict_anchor_max_audio_mic_remote_zero_lag_abs_corr": 0.01,
+            "anchor_min_audio_mic_minus_remote_rms_db": -6.0,
+            "strict_anchor_max_overlapping_remote_token_count": 10,
+            "strict_anchor_max_mic_token_recall_in_overlapping_remote": 0.0,
+            "max_anchor_gap_sec": max_anchor_gap_sec,
+        },
+        "evaluation_gap_source": "best_live_implementable_remaining_gap" if remaining_examples else "raw_live_missing",
+        "evaluation_gap_seconds": round(sum(safe_float(row.get("duration_sec")) for row in missing_rows), 3),
+        "candidate_pool_source": (
+            "top_level_suppressed_mic_segments_plus_remaining_gap_evidence"
+            if remaining_gap_evidence_segments
+            else "top_level_suppressed_mic_segments"
+        ),
+        "candidate_pool_segment_count": len(segments),
+        "remaining_gap_evidence_segment_count": len(remaining_gap_evidence_segments),
+        "anchor_sets": anchor_set_summaries,
+        "anchor_group_count": safe_int(anchor_set_summaries.get("strict_zero_remote_anchor", {}).get("anchor_group_count")),
+        "anchor_segment_count": safe_int(anchor_set_summaries.get("strict_zero_remote_anchor", {}).get("anchor_segment_count")),
+        "anchor_seconds": safe_float(anchor_set_summaries.get("strict_zero_remote_anchor", {}).get("anchor_seconds")),
+        "recommended_profile": recommended_profile,
+        "best_missing_overlap_profile": best_missing_overlap_profile,
+        "recommended_next": (
+            "design_online_context_boundary_gate"
+            if recommended_profile
+            else "relaxed_anchor_boundary_gate_needed"
+            if best_missing_overlap_profile
+            else "no_live_only_boundary_candidate_found"
+        ),
+        "profiles": profile_reports,
+    }
+
+
 def live_strict_local_island_shadow_delta_lab(
     rows: list[dict[str, Any]],
     *,
@@ -3664,6 +4015,10 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     local_island_audio_anchor_lab_report = live_local_island_audio_anchor_lab(local_island_split_lab_report)
     local_island_retime_anchor_lab_report = live_local_island_retime_anchor_lab(local_island_split_lab_report)
     live_only_local_island_candidate_lab_report = live_only_local_island_candidate_lab(real_live_rows)
+    live_only_retime_boundary_lab_report = live_only_retime_boundary_candidate_lab(
+        real_live_rows,
+        remaining_gap=best_live_profile_remaining_gap,
+    )
     strict_local_island_shadow_delta_lab_report = live_strict_local_island_shadow_delta_lab(
         real_live_rows,
         root=root,
@@ -4123,6 +4478,62 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["real_live_live_only_local_island_strict_zero_remote_risk_precision_proxy"] = (
         live_only_strict_zero_remote_risk_profile.get("precision_proxy")
     )
+    live_only_retime_boundary_profiles = (
+        live_only_retime_boundary_lab_report.get("profiles")
+        if isinstance(live_only_retime_boundary_lab_report.get("profiles"), dict)
+        else {}
+    )
+    live_only_retime_boundary_recommended_profile = str(
+        live_only_retime_boundary_lab_report.get("recommended_profile") or ""
+    )
+    live_only_retime_boundary_recommended = (
+        live_only_retime_boundary_profiles.get(live_only_retime_boundary_recommended_profile)
+        if live_only_retime_boundary_recommended_profile
+        else {}
+    )
+    if not isinstance(live_only_retime_boundary_recommended, dict):
+        live_only_retime_boundary_recommended = {}
+    live_only_retime_boundary_best_missing_profile = str(
+        live_only_retime_boundary_lab_report.get("best_missing_overlap_profile") or ""
+    )
+    live_only_retime_boundary_best_missing = (
+        live_only_retime_boundary_profiles.get(live_only_retime_boundary_best_missing_profile)
+        if live_only_retime_boundary_best_missing_profile
+        else {}
+    )
+    if not isinstance(live_only_retime_boundary_best_missing, dict):
+        live_only_retime_boundary_best_missing = {}
+    summary["real_live_live_only_retime_boundary_lab_status"] = live_only_retime_boundary_lab_report.get("status")
+    summary["real_live_live_only_retime_boundary_anchor_group_count"] = safe_int(
+        live_only_retime_boundary_lab_report.get("anchor_group_count")
+    )
+    summary["real_live_live_only_retime_boundary_anchor_seconds"] = safe_float(
+        live_only_retime_boundary_lab_report.get("anchor_seconds")
+    )
+    summary["real_live_live_only_retime_boundary_recommended_profile"] = (
+        live_only_retime_boundary_recommended_profile or None
+    )
+    summary["real_live_live_only_retime_boundary_recommended_missing_overlap_seconds"] = safe_float(
+        live_only_retime_boundary_recommended.get("local_missing_overlap_seconds")
+    )
+    summary["real_live_live_only_retime_boundary_recommended_remote_risk_seconds"] = safe_float(
+        live_only_retime_boundary_recommended.get("suppressed_remote_risk_seconds")
+    )
+    summary["real_live_live_only_retime_boundary_recommended_candidate_seconds"] = safe_float(
+        live_only_retime_boundary_recommended.get("candidate_seconds")
+    )
+    summary["real_live_live_only_retime_boundary_best_missing_profile"] = (
+        live_only_retime_boundary_best_missing_profile or None
+    )
+    summary["real_live_live_only_retime_boundary_best_missing_overlap_seconds"] = safe_float(
+        live_only_retime_boundary_best_missing.get("local_missing_overlap_seconds")
+    )
+    summary["real_live_live_only_retime_boundary_best_missing_remote_risk_seconds"] = safe_float(
+        live_only_retime_boundary_best_missing.get("suppressed_remote_risk_seconds")
+    )
+    summary["real_live_live_only_retime_boundary_best_missing_candidate_seconds"] = safe_float(
+        live_only_retime_boundary_best_missing.get("candidate_seconds")
+    )
     strict_live_only_profile_summary_prefix = (
         f"real_live_target_me_shadow_profile_{STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY}"
     )
@@ -4260,6 +4671,37 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         ),
         "live_only_strict_zero_remote_risk_precision_proxy": summary.get(
             "real_live_live_only_local_island_strict_zero_remote_risk_precision_proxy"
+        ),
+        "live_only_retime_boundary_lab_status": live_only_retime_boundary_lab_report.get("status"),
+        "live_only_retime_boundary_recommended_profile": summary.get(
+            "real_live_live_only_retime_boundary_recommended_profile"
+        ),
+        "live_only_retime_boundary_anchor_group_count": summary.get(
+            "real_live_live_only_retime_boundary_anchor_group_count"
+        ),
+        "live_only_retime_boundary_anchor_seconds": summary.get(
+            "real_live_live_only_retime_boundary_anchor_seconds"
+        ),
+        "live_only_retime_boundary_recommended_candidate_seconds": summary.get(
+            "real_live_live_only_retime_boundary_recommended_candidate_seconds"
+        ),
+        "live_only_retime_boundary_recommended_missing_overlap_seconds": summary.get(
+            "real_live_live_only_retime_boundary_recommended_missing_overlap_seconds"
+        ),
+        "live_only_retime_boundary_recommended_remote_risk_seconds": summary.get(
+            "real_live_live_only_retime_boundary_recommended_remote_risk_seconds"
+        ),
+        "live_only_retime_boundary_best_missing_profile": summary.get(
+            "real_live_live_only_retime_boundary_best_missing_profile"
+        ),
+        "live_only_retime_boundary_best_missing_candidate_seconds": summary.get(
+            "real_live_live_only_retime_boundary_best_missing_candidate_seconds"
+        ),
+        "live_only_retime_boundary_best_missing_overlap_seconds": summary.get(
+            "real_live_live_only_retime_boundary_best_missing_overlap_seconds"
+        ),
+        "live_only_retime_boundary_best_missing_remote_risk_seconds": summary.get(
+            "real_live_live_only_retime_boundary_best_missing_remote_risk_seconds"
         ),
         "strict_live_only_profile_policy": STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
         "strict_live_only_profile_missing_me_seconds": summary.get(
@@ -4441,6 +4883,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_local_island_audio_anchor_lab": local_island_audio_anchor_lab_report,
         "live_local_island_retime_anchor_lab": local_island_retime_anchor_lab_report,
         "live_only_local_island_candidate_lab": live_only_local_island_candidate_lab_report,
+        "live_only_retime_boundary_candidate_lab": live_only_retime_boundary_lab_report,
         "live_strict_local_island_shadow_delta_lab": strict_local_island_shadow_delta_lab_report,
         "live_local_island_timing_gap": local_island_timing_gap_report,
         "live_local_recall_gap_examples": local_recall_examples,
@@ -5322,6 +5765,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             if isinstance(live_only_candidate_lab.get("stricter_profiles"), dict)
             else {}
         )
+        live_only_retime_lab = (
+            report.get("live_only_retime_boundary_candidate_lab")
+            if isinstance(report.get("live_only_retime_boundary_candidate_lab"), dict)
+            else {}
+        )
         timing_gap = (
             report.get("live_local_island_timing_gap")
             if isinstance(report.get("live_local_island_timing_gap"), dict)
@@ -5380,6 +5828,16 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"{safe_float(live_only_strict_profile.get('local_seconds')):.2f} sec local, "
             f"{safe_float(live_only_strict_profile.get('remote_risk_seconds')):.2f} sec remote-risk, "
             f"precision proxy {live_only_strict_profile.get('precision_proxy')}",
+            "- live-only retime boundary probe: "
+            f"{live_only_retime_lab.get('recommended_profile') or '(none)'}; "
+            f"{timing_gap.get('live_only_retime_boundary_recommended_missing_overlap_seconds')} sec missing-Me overlap, "
+            f"{timing_gap.get('live_only_retime_boundary_recommended_remote_risk_seconds')} sec remote-risk, "
+            f"{timing_gap.get('live_only_retime_boundary_recommended_candidate_seconds')} sec candidate span",
+            "- live-only retime best recall probe: "
+            f"{timing_gap.get('live_only_retime_boundary_best_missing_profile') or '(none)'}; "
+            f"{timing_gap.get('live_only_retime_boundary_best_missing_overlap_seconds')} sec missing-Me overlap, "
+            f"{timing_gap.get('live_only_retime_boundary_best_missing_remote_risk_seconds')} sec remote-risk, "
+            f"{timing_gap.get('live_only_retime_boundary_best_missing_candidate_seconds')} sec candidate span",
             "- strict live-only shadow profile: "
             f"added {timing_gap.get('strict_live_only_profile_added_turn_seconds')} sec, "
             f"missing-Me {timing_gap.get('strict_live_only_profile_missing_me_seconds')} sec, "
@@ -6250,6 +6708,30 @@ def main() -> int:
                 print(
                     "real_live_live_only_local_island_strict_zero_remote_risk_remote_risk_seconds: "
                     f"{summary.get('real_live_live_only_local_island_strict_zero_remote_risk_remote_risk_seconds')}"
+                )
+                print(
+                    "real_live_live_only_retime_boundary_recommended_profile: "
+                    f"{summary.get('real_live_live_only_retime_boundary_recommended_profile')}"
+                )
+                print(
+                    "real_live_live_only_retime_boundary_recommended_missing_overlap_seconds: "
+                    f"{summary.get('real_live_live_only_retime_boundary_recommended_missing_overlap_seconds')}"
+                )
+                print(
+                    "real_live_live_only_retime_boundary_recommended_remote_risk_seconds: "
+                    f"{summary.get('real_live_live_only_retime_boundary_recommended_remote_risk_seconds')}"
+                )
+                print(
+                    "real_live_live_only_retime_boundary_best_missing_profile: "
+                    f"{summary.get('real_live_live_only_retime_boundary_best_missing_profile')}"
+                )
+                print(
+                    "real_live_live_only_retime_boundary_best_missing_overlap_seconds: "
+                    f"{summary.get('real_live_live_only_retime_boundary_best_missing_overlap_seconds')}"
+                )
+                print(
+                    "real_live_live_only_retime_boundary_best_missing_remote_risk_seconds: "
+                    f"{summary.get('real_live_live_only_retime_boundary_best_missing_remote_risk_seconds')}"
                 )
                 strict_live_only_profile_prefix = (
                     f"real_live_target_me_shadow_profile_{STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY}"

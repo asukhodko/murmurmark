@@ -494,6 +494,24 @@ implementation should add an online timing anchor / remote-forbidden guard for s
 islands, not another broad threshold and not more recordings. Live promotion remains blocked until
 ordinary parity gates pass.
 
+The report now adds `live_only_retime_boundary_candidate_lab/v1`, which evaluates whether
+live-visible anchors can explain the current best-live-implementable remaining gap without using
+batch timing for publication. It uses batch labels only for evaluation and keeps
+`promotion_allowed: false`.
+
+Current result:
+
+- strict zero-remote anchors: `36.12s` anchor evidence, but `0.00s` overlap with the current
+  remaining gap;
+- no zero-remote recommended boundary profile: `recommended_profile = null`;
+- best recall probe: `relaxed_audio_text_anchor_oracle_gap_probe_v1`;
+- best recall probe overlaps `18.69s` of missing `Me`, but also `27.20s` remote-risk;
+- candidate pool combines top-level suppressed-mic segments with remaining-gap evidence because the
+  top-level risk examples are intentionally truncated.
+
+Conclusion: the oracle-sized recovery is reachable only through relaxed anchors plus a stronger
+remote-forbidden boundary/context gate. Relaxed anchors must not be promoted as-is.
+
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not
 `meaningful_live_comparison` because the live draft lost all `Me` turns; those sessions must remain

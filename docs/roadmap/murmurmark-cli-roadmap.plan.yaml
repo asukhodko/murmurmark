@@ -781,7 +781,12 @@ nodes:
       leak. `live_strict_local_island_shadow_delta_lab/v1` records `0.00s` incremental strict turns
       and `0.00s` closed missing-Me. Keep duplicate-heavy or remote-dominant rows blocked; the next
       implementation target is online timing anchors / remote-forbidden evidence for still-uncovered
-      local islands, not more recordings, broader rescue or live promotion.
+      local islands, not more recordings, broader rescue or live promotion. The
+      `live_only_retime_boundary_candidate_lab/v1` follow-up evaluates that idea against the current
+      best-live-implementable remaining gap: strict zero-remote anchors recover `0.00s`, so there is
+      no safe recommended profile yet; the relaxed `oracle_gap_probe_v1` recovers `18.69s` but also
+      carries `27.20s` remote-risk. The next implementation target is a remote-forbidden
+      context/boundary gate around relaxed anchors, not publication of relaxed anchors as-is.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

@@ -5880,6 +5880,43 @@ are safe enough to identify, but they are already covered by existing Target-Me/
 materialization. The next contract work remains online timing / remote-forbidden evidence for
 still-uncovered local islands, not promotion.
 
+The report also writes `live_only_retime_boundary_candidate_lab` with schema
+`murmurmark.live_only_retime_boundary_candidate_lab/v1`. It groups live-visible local anchors and
+probes fixed online context expansions against the current best-live-implementable remaining gap.
+Batch labels are used only to evaluate recall and remote-risk; the block is diagnostic and always
+keeps `promotion_allowed: false`.
+
+```json
+{
+  "schema": "murmurmark.live_only_retime_boundary_candidate_lab/v1",
+  "status": "ok",
+  "promotion_allowed": false,
+  "evaluation_gap_source": "best_live_implementable_remaining_gap",
+  "candidate_pool_source": "top_level_suppressed_mic_segments_plus_remaining_gap_evidence",
+  "anchor_sets": {
+    "strict_zero_remote_anchor": {
+      "anchor_segment_count": 3,
+      "anchor_group_count": 1,
+      "anchor_seconds": 36.12
+    },
+    "relaxed_audio_text_anchor": {
+      "anchor_segment_count": 18,
+      "anchor_group_count": 5,
+      "anchor_seconds": 103.36
+    }
+  },
+  "recommended_profile": null,
+  "best_missing_overlap_profile": "relaxed_audio_text_anchor_oracle_gap_probe_v1"
+}
+```
+
+`recommended_profile` is the zero-remote-risk profile, if any profile overlaps the current remaining
+gap without adding evaluated remote-risk. `best_missing_overlap_profile` is the best recall probe
+even when it carries remote-risk. Current corpus result: strict zero-remote anchors recover `0.00s`
+of the current remaining gap; the relaxed oracle-gap probe overlaps `18.69s` missing `Me`, but also
+adds `27.20s` remote-risk. That makes this block a design target for a future remote-forbidden
+boundary/context gate, not publication evidence.
+
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the
 best live-implementable profile and records `missing_me_seconds_gap`, both profile names, remote leak

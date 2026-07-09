@@ -576,6 +576,14 @@ collecting more recordings or adding another publication threshold; it is online
 remote-forbidden evidence that can find local islands not already covered by Target-Me/audio-safe
 materialization.
 
+The follow-up `live_only_retime_boundary_candidate_lab/v1` tests this more directly against the
+current best-live-implementable remaining gap. Strict zero-remote anchors are safe but do not touch
+that gap yet: `recommended_profile = null`, `0.00s` missing-Me overlap, `0.00s` remote-risk. The
+best relaxed probe, `relaxed_audio_text_anchor_oracle_gap_probe_v1`, reaches `18.69s` of missing-Me
+overlap, close to the oracle-sized gap, but also brings `27.20s` of remote-risk. That makes the next
+target sharper: build a remote-forbidden context/boundary gate around relaxed anchors. Relaxed
+anchors must not be published as-is, and more recordings are not the current unlock.
+
 To inspect whether suppressed live mic segments contain your voice:
 
 ```bash
