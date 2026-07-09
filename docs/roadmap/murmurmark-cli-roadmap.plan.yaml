@@ -800,8 +800,10 @@ nodes:
       `5.10s`). The first `live_boundary_island_micro_asr_lab` confirms `1` live alignment
       candidate / `5.10s`: live batch-token recall improves from `0.154` to `0.385`,
       batch-reference recall reaches `0.462`, and publication remains blocked at `0.0s`.
-      The next concrete target is a separate live micro-ASR shadow profile under strict
-      remote-forbidden gates.
+      The diagnostic lab-shadow profile now materializes that candidate: it adds `1` micro-ASR
+      turn / `5.10s`, lowers missing-Me to `76.27s`, keeps measured remote leak at `0.00s`, keeps
+      contentful order mismatches at `2`, and remains `lab_shadow`. The next concrete target is
+      live-only micro-ASR candidate selection under strict remote-forbidden gates.
       The
       live-only candidate lab now selects `99.40s` of suppressed mic
       candidates and `83.04s` local/mixed evidence, but still carries `16.36s` remote-risk

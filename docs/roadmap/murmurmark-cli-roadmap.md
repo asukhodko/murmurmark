@@ -560,10 +560,13 @@ newer run-state exists.
    `live_boundary_island_micro_asr_lab` now confirms that this unit is real but still not
    promotable: `1` live alignment candidate / `5.10s`, live batch-token recall improves from
    `0.154` to `0.385`, batch-reference recall reaches `0.462`, and publication remains `0.0s`.
-   The next roadmap item is to materialize a separate live micro-ASR shadow profile and compare it
-   through the existing parity gates. The first
-   live-only
-   candidate lab finds `99.40s` of suppressed mic candidates and `83.04s` local/mixed evidence, but
+   The candidate is now materialized as the diagnostic lab-shadow profile
+   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_live_boundary_micro_asr_lab_shadow_v1`:
+   it adds `1` micro-ASR turn / `5.10s`, lowers missing-Me to `76.27s`, keeps measured remote leak
+   at `0.00s` and keeps contentful order mismatches at `2`. The next roadmap item is to make this
+   candidate selection live-only and remote-forbidden, then compare that new profile through the
+   same parity gates. The first live-only candidate lab finds `99.40s` of suppressed mic
+   candidates and `83.04s` local/mixed evidence, but
    still carries `16.36s` remote-risk. Its stricter zero-risk profile finds `36.12s` with `0.00s`
    remote-risk. That strict profile is now materialized as a normal shadow draft: after
    deduplication against existing live/Target-Me turns, the standalone version adds `0.00s`, leaves

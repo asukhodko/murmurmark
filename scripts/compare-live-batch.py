@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.29.0"
+SCRIPT_VERSION = "0.30.0"
 EPSILON = 1.0e-12
 LIVE_BATCH_BOUNDARY_TOLERANCE_SEC = 2.5
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -139,6 +139,10 @@ BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_batch_order_boundary_split_retime_oracle_v1"
 )
+LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "live_boundary_micro_asr_lab_shadow_v1"
+)
 TARGET_ME_DERIVED_POLICY_BASE = {
     "target_me_confirmed_remote_guard_timeline_safe_v1": "target_me_confirmed_remote_guard_v1",
     "target_me_possible_timeline_safe_v1": "target_me_possible_v1",
@@ -163,6 +167,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
     BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
@@ -218,6 +223,9 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY: (
@@ -313,6 +321,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
     BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
@@ -359,6 +368,10 @@ LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES = {
 LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
+}
+LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES = {
+    LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
 }
 SOFT_LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES = {
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
@@ -4451,6 +4464,17 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "anchor_start",
         "anchor_end",
         "anchor_span_seconds",
+        "live_boundary_micro_asr_lab_shadow",
+        "micro_asr_score",
+        "micro_asr_remote_similarity",
+        "micro_asr_remote_text_recall",
+        "micro_asr_existing_island_batch_token_recall",
+        "micro_asr_source_label",
+        "micro_asr_window_label",
+        "micro_asr_json",
+        "micro_asr_wav",
+        "batch_text",
+        "existing_island_text",
         "raw_candidate_start",
         "raw_candidate_end",
         "raw_candidate_seconds",
@@ -4497,6 +4521,127 @@ def target_me_shadow_profile_is_oracle(policy: str) -> bool:
     )
 
 
+def target_me_shadow_profile_is_live_implementable(policy: str) -> bool:
+    return not (
+        target_me_shadow_profile_is_oracle(policy)
+        or policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
+    )
+
+
+def target_me_shadow_profile_promotion_reason(policy: str) -> str:
+    if target_me_shadow_profile_is_oracle(policy):
+        return "batch_oracle_shadow_profile_is_not_live_promotable"
+    if policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES:
+        return "live_boundary_micro_asr_lab_shadow_is_diagnostic_only"
+    return "target_me_shadow_profile_never_promotes_by_default"
+
+
+def live_boundary_micro_asr_lab_shadow_turns(session: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    report_path = session.parent / "_reports/live-pipeline/live_boundary_island_micro_asr_lab.json"
+    report = read_json(report_path)
+    items = report.get("items") if isinstance(report, dict) and isinstance(report.get("items"), list) else []
+    turns: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for index, item in enumerate(items, start=1):
+        if not isinstance(item, dict) or str(item.get("session") or "") != session.name:
+            continue
+        decision = item.get("decision") if isinstance(item.get("decision"), dict) else {}
+        best_live = item.get("best_live_attempt") if isinstance(item.get("best_live_attempt"), dict) else {}
+        context = {
+            "id": f"live_boundary_micro_asr_lab_rejected_{index:06d}",
+            "session": item.get("session"),
+            "batch_id": item.get("batch_id"),
+            "start": item.get("start"),
+            "end": item.get("end"),
+            "batch_text": item.get("batch_text"),
+            "existing_island_text": item.get("existing_island_text"),
+            "decision": decision,
+            "best_live_attempt": {
+                key: best_live.get(key)
+                for key in (
+                    "status",
+                    "source_label",
+                    "window_label",
+                    "text",
+                    "score",
+                    "remote_similarity",
+                    "batch_token_recall",
+                )
+            },
+        }
+        if decision.get("label") != "micro_asr_alignment_candidate":
+            rejected.append({**context, "reason": "decision_not_alignment_candidate"})
+            continue
+        if best_live.get("status") != "ok":
+            rejected.append({**context, "reason": "no_successful_live_attempt"})
+            continue
+        text = clean_text(str(best_live.get("text") or ""))
+        text_tokens = tokens(text)
+        if len(text_tokens) < 2:
+            rejected.append({**context, "reason": "too_few_tokens"})
+            continue
+        if KNOWN_HALLUCINATION_RE.search(text):
+            rejected.append({**context, "reason": "known_hallucination"})
+            continue
+        if safe_float(best_live.get("score")) < 0.68:
+            rejected.append({**context, "reason": "micro_asr_score_too_low"})
+            continue
+        if safe_float(best_live.get("remote_similarity")) > 0.30:
+            rejected.append({**context, "reason": "remote_similarity_too_high"})
+            continue
+        if safe_float(decision.get("remote_text_recall_in_micro")) > 0.10:
+            rejected.append({**context, "reason": "remote_text_recall_too_high"})
+            continue
+        if safe_float(decision.get("batch_token_recall")) <= safe_float(
+            decision.get("existing_island_batch_token_recall")
+        ) + 0.05:
+            rejected.append({**context, "reason": "no_alignment_gain"})
+            continue
+        start = safe_float(item.get("start"))
+        end = safe_float(item.get("end"), start)
+        if end <= start:
+            rejected.append({**context, "reason": "invalid_interval"})
+            continue
+        turns.append(
+            {
+                "id": f"live_boundary_micro_asr_lab_shadow_{index:06d}",
+                "chunk_index": best_live.get("chunk_index"),
+                "source": "mic_live_boundary_micro_asr_lab_shadow",
+                "role": "Me",
+                "start": start,
+                "end": end,
+                "text": text,
+                "tokens": text_tokens,
+                "batch_id": item.get("batch_id"),
+                "batch_start": item.get("batch_start"),
+                "batch_end": item.get("batch_end"),
+                "live_island_start": start,
+                "live_island_end": end,
+                "local_island_seconds": round(max(0.0, end - start), 3),
+                "local_island_count": 1,
+                "token_recall_from_local_islands": decision.get("batch_token_recall"),
+                "live_boundary_micro_asr_lab_shadow": True,
+                "live_group_classifier": "live_boundary_micro_asr_lab_shadow_v1",
+                "micro_asr_score": best_live.get("score"),
+                "micro_asr_remote_similarity": best_live.get("remote_similarity"),
+                "micro_asr_remote_text_recall": decision.get("remote_text_recall_in_micro"),
+                "micro_asr_existing_island_batch_token_recall": decision.get(
+                    "existing_island_batch_token_recall"
+                ),
+                "micro_asr_source_label": best_live.get("source_label"),
+                "micro_asr_window_label": best_live.get("window_label"),
+                "micro_asr_json": best_live.get("json"),
+                "micro_asr_wav": best_live.get("wav"),
+                "batch_text": item.get("batch_text"),
+                "existing_island_text": item.get("existing_island_text"),
+            }
+        )
+    return (
+        sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or ""))),
+        rejected,
+    )
+
+
 def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]:
     retimed = [turn for turn in turns if turn.get("boundary_order_retime_oracle")]
     split = [turn for turn in turns if turn.get("boundary_order_split_retime_oracle")]
@@ -4518,6 +4663,7 @@ def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]
 
 def target_me_shadow_profile_components(
     *,
+    session: Path,
     policy: str,
     live_turns_rows: list[dict[str, Any]],
     suppressed_mic_asr_segments: list[dict[str, Any]],
@@ -4687,6 +4833,20 @@ def target_me_shadow_profile_components(
         live_turns = apply_live_boundary_split_retime(live_turns, adjustments)
         target_turns = apply_live_boundary_split_retime(target_turns, adjustments)
         supplemental_turns = apply_live_boundary_split_retime(supplemental_turns, adjustments)
+    if policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES:
+        micro_asr_turns, rejected_micro_asr_turns = live_boundary_micro_asr_lab_shadow_turns(session)
+        micro_asr_turns = filter_supplemental_turns_already_in_base(
+            micro_asr_turns,
+            live_turns + target_turns + supplemental_turns,
+        )
+        micro_asr_turns, rejected_timeline_micro_asr_turns = timeline_safe_visible_suppressed_mic_turns(
+            candidates=micro_asr_turns,
+            base_turns=live_turns + target_turns + supplemental_turns,
+            batch_utterances=batch_utterances,
+        )
+        supplemental_turns.extend(micro_asr_turns)
+        rejected_supplemental_turns.extend(rejected_micro_asr_turns)
+        rejected_supplemental_turns.extend(rejected_timeline_micro_asr_turns)
     if policy in LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICIES or policy in LOCAL_ISLAND_RETIME_ORACLE_PROFILE_POLICIES:
         local_island_candidates, rejected_local_island_candidates = local_island_split_oracle_turns(
             segments=suppressed_mic_asr_segments,
@@ -4738,6 +4898,7 @@ def write_target_me_shadow_drafts(
     for policy in MATERIALIZED_TARGET_ME_SHADOW_POLICIES:
         live_turns, target_turns, supplemental_turns, removed_live_turns, rejected_supplemental_turns = (
             target_me_shadow_profile_components(
+                session=session,
                 policy=policy,
                 live_turns_rows=live_turns_rows,
                 suppressed_mic_asr_segments=suppressed_mic_asr_segments,
@@ -4772,6 +4933,18 @@ def write_target_me_shadow_drafts(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in supplemental_turns),
             3,
         )
+        micro_asr_turns = [turn for turn in supplemental_turns if turn.get("live_boundary_micro_asr_lab_shadow")]
+        micro_asr_rejected_turns = [
+            turn
+            for turn in rejected_supplemental_turns
+            if "micro_asr" in str(turn.get("id") or "")
+            or "micro_asr" in str(turn.get("reason") or "")
+            or isinstance(turn.get("best_live_attempt"), dict)
+        ]
+        micro_asr_seconds = round(
+            sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in micro_asr_turns),
+            3,
+        )
         retime_metrics = boundary_order_retime_metrics(live_turns + target_turns + supplemental_turns)
         payload = {
             "schema": "murmurmark.live_target_me_shadow_draft/v1",
@@ -4780,12 +4953,10 @@ def write_target_me_shadow_drafts(
             "policy": policy,
             "base_policy": base_policy,
             "diagnostic_oracle": target_me_shadow_profile_is_oracle(policy),
+            "diagnostic_lab": policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES,
+            "live_implementable": target_me_shadow_profile_is_live_implementable(policy),
             "promotion_allowed": False,
-            "promotion_reason": (
-                "batch_oracle_shadow_profile_is_not_live_promotable"
-                if target_me_shadow_profile_is_oracle(policy)
-                else "target_me_shadow_draft_is_diagnostic_only"
-            ),
+            "promotion_reason": target_me_shadow_profile_promotion_reason(policy),
             "batch_authoritative": True,
             "metrics": {
                 "live_turn_count": len(live_payload),
@@ -4793,6 +4964,9 @@ def write_target_me_shadow_drafts(
                 "visible_suppressed_mic_added_turn_count": len(supplemental_payload),
                 "visible_suppressed_mic_added_turn_seconds": supplemental_seconds,
                 "visible_suppressed_mic_rejected_turn_count": len(rejected_supplemental_turns),
+                "live_boundary_micro_asr_lab_added_turn_count": len(micro_asr_turns),
+                "live_boundary_micro_asr_lab_added_turn_seconds": micro_asr_seconds,
+                "live_boundary_micro_asr_lab_rejected_turn_count": len(micro_asr_rejected_turns),
                 "removed_live_turn_count": len(removed_live_turns),
                 "removed_live_turn_seconds": removed_seconds,
                 **retime_metrics,
@@ -4823,6 +4997,7 @@ def write_target_me_shadow_drafts(
             "- batch authoritative: `true`",
             f"- target-me added turns: `{len(target_payload)}`",
             f"- visible suppressed mic added turns: `{len(supplemental_payload)}`",
+            f"- live boundary micro-ASR lab added turns: `{len(micro_asr_turns)}` / `{micro_asr_seconds}s`",
             f"- visible suppressed mic rejected turns: `{len(rejected_supplemental_turns)}`",
             f"- removed live turns: `{len(removed_live_turns)}` / `{removed_seconds}s`",
             f"- boundary retimed turns: `{retime_metrics['boundary_order_retime_oracle_turn_count']}` / "
@@ -4855,6 +5030,7 @@ def write_target_me_shadow_drafts(
 
 def build_target_me_shadow_profiles(
     *,
+    session: Path,
     live_turns_rows: list[dict[str, Any]],
     suppressed_mic_turns: list[dict[str, Any]],
     suppressed_mic_asr_segments: list[dict[str, Any]],
@@ -4877,6 +5053,7 @@ def build_target_me_shadow_profiles(
     for policy in MATERIALIZED_TARGET_ME_SHADOW_POLICIES:
         live_turns, target_turns, supplemental_turns, removed_live_turns, rejected_supplemental_turns = (
             target_me_shadow_profile_components(
+                session=session,
                 policy=policy,
                 live_turns_rows=live_turns_rows,
                 suppressed_mic_asr_segments=suppressed_mic_asr_segments,
@@ -4892,6 +5069,18 @@ def build_target_me_shadow_profiles(
         )
         supplemental_seconds = round(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in supplemental_turns),
+            3,
+        )
+        micro_asr_turns = [turn for turn in supplemental_turns if turn.get("live_boundary_micro_asr_lab_shadow")]
+        micro_asr_rejected_turns = [
+            turn
+            for turn in rejected_supplemental_turns
+            if "micro_asr" in str(turn.get("id") or "")
+            or "micro_asr" in str(turn.get("reason") or "")
+            or isinstance(turn.get("best_live_attempt"), dict)
+        ]
+        micro_asr_seconds = round(
+            sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in micro_asr_turns),
             3,
         )
         removed_seconds = round(
@@ -5002,6 +5191,9 @@ def build_target_me_shadow_profiles(
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_count"] = len(supplemental_turns)
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_seconds"] = supplemental_seconds
         top_level_metrics[f"{base}_visible_suppressed_mic_rejected_turn_count"] = len(rejected_supplemental_turns)
+        top_level_metrics[f"{base}_live_boundary_micro_asr_lab_added_turn_count"] = len(micro_asr_turns)
+        top_level_metrics[f"{base}_live_boundary_micro_asr_lab_added_turn_seconds"] = micro_asr_seconds
+        top_level_metrics[f"{base}_live_boundary_micro_asr_lab_rejected_turn_count"] = len(micro_asr_rejected_turns)
         for key in (
             "live_turn_count",
             "live_me_turn_count",
@@ -5038,12 +5230,10 @@ def build_target_me_shadow_profiles(
             "schema": "murmurmark.live_shadow_profile_parity/v1",
             "policy": policy,
             "status": status,
+            "live_implementable": target_me_shadow_profile_is_live_implementable(policy),
+            "diagnostic_lab": policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES,
             "promotion_allowed": False,
-            "promotion_reason": (
-                "batch_oracle_shadow_profile_is_not_live_promotable"
-                if target_me_shadow_profile_is_oracle(policy)
-                else "target_me_shadow_profile_never_promotes_by_default"
-            ),
+            "promotion_reason": target_me_shadow_profile_promotion_reason(policy),
             "batch_authoritative": True,
             "outputs": target_me_shadow_outputs.get(policy) or {},
             "metrics": {
@@ -5056,6 +5246,9 @@ def build_target_me_shadow_profiles(
                 "visible_suppressed_mic_added_turn_count": len(supplemental_turns),
                 "visible_suppressed_mic_added_turn_seconds": supplemental_seconds,
                 "visible_suppressed_mic_rejected_turn_count": len(rejected_supplemental_turns),
+                "live_boundary_micro_asr_lab_added_turn_count": len(micro_asr_turns),
+                "live_boundary_micro_asr_lab_added_turn_seconds": micro_asr_seconds,
+                "live_boundary_micro_asr_lab_rejected_turn_count": len(micro_asr_rejected_turns),
             },
             "removed_live_turns": removed_live_turns[:50],
             "rejected_visible_suppressed_mic_turns": rejected_supplemental_turns[:50],
@@ -5168,6 +5361,7 @@ def main() -> int:
         metrics=live_metrics,
     )
     target_me_shadow_profiles, target_me_shadow_profile_metrics = build_target_me_shadow_profiles(
+        session=session,
         live_turns_rows=live_assessment.get("live_turns") or [],
         suppressed_mic_turns=live_assessment.get("suppressed_mic_turns") or [],
         suppressed_mic_asr_segments=live_assessment.get("suppressed_mic_asr_segments") or [],

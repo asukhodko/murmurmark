@@ -5937,7 +5937,26 @@ optional batch-reference mic sources. Each item records `best_live_attempt`,
 
 This lab is evidence only. `publication_ready_seconds` is always `0.0`, `promotion_allowed` is
 always `false`, and no live draft, batch transcript or promotion gate is modified by this script.
-It can justify a future shadow profile, but cannot publish live text by itself.
+It can justify a shadow profile, but cannot publish live text by itself.
+
+The accepted live attempts can be materialized by `compare-live-batch.py` as the diagnostic
+target-me shadow profile
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_live_boundary_micro_asr_lab_shadow_v1`.
+The profile writes the usual target-me shadow draft under
+`derived/live/target-me-shadow/<policy>/draft.{json,md}` and is evaluated by the same parity gates as
+other live shadow profiles. It adds only `best_live_attempt` rows; batch-reference attempts are kept
+as comparison evidence and are not published into the shadow draft. The profile sets
+`promotion_reason = live_boundary_micro_asr_lab_shadow_is_diagnostic_only`; corpus diagnostics mark
+it as `diagnostic_kind = lab_shadow`, not `live_implementable`.
+
+Current corpus evidence for this lab-shadow profile:
+
+- `live_boundary_micro_asr_lab_added_turn_count = 1`;
+- `live_boundary_micro_asr_lab_added_turn_seconds = 5.10`;
+- missing-Me improves from `86.85s` to `76.27s` versus the best live-implementable profile;
+- measured remote leak remains `0.00s`;
+- contentful role-constrained order mismatches remain `2`;
+- promotion remains blocked.
 
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`
 is the first profile-level local-island split oracle. It starts from the current best

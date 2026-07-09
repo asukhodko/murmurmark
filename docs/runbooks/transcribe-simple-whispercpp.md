@@ -365,7 +365,18 @@ less sessions/_reports/live-pipeline/live_boundary_island_micro_asr_lab.md
 The lab re-decodes selected local islands from live chunk audio and batch-reference mic sources.
 It is evidence-only: current output finds `1` live alignment candidate / `5.10s`, keeps
 `publication_ready_seconds = 0.0`, and does not modify live drafts, batch transcripts or promotion
-gates.
+gates. After the lab report exists, `scripts/compare-live-batch.py` materializes the diagnostic
+profile
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_live_boundary_micro_asr_lab_shadow_v1`.
+Use the corpus report to inspect it:
+
+```bash
+jq '.live_target_me_shadow_profile_diagnostics.real.best_profile' \
+  sessions/_reports/live-pipeline/live_corpus_gates_report.json
+```
+
+This profile is `lab_shadow`, not live-implementable. It is useful only to measure the ceiling of
+the micro-ASR idea under normal parity gates.
 
 Older sessions may have top-level `raw/mic.json` and `raw/remote.json` from pre-chunk runs but no
 `raw/chunks/<track>/chunk_cache_report.json`. In `windowed` mode that legacy raw cache is no longer

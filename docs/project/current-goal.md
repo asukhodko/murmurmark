@@ -502,6 +502,11 @@ The first diagnostic micro-ASR lab for this target is now implemented as
 chunk attempt improves batch-token recall from `0.154` to `0.385` while keeping remote similarity
 at `0.236`; the best batch-reference attempt reaches `0.462`. The lab is diagnostic only:
 `publication_ready_seconds = 0.0`, `promotion_allowed = false`, and batch remains authoritative.
+The accepted live attempt is now materialized into a separate lab-shadow profile:
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_live_boundary_micro_asr_lab_shadow_v1`.
+Corpus result: `1` micro-ASR turn / `5.10s` added, missing-Me falls from `86.85s` to `76.27s`,
+measured remote leak stays `0.00s`, contentful order mismatches stay `2`, and the profile remains
+`lab_shadow`, not live-implementable.
 The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 
 - accepted rows: `0`;
@@ -514,9 +519,9 @@ The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 - max inter-island gap: `0.00s`.
 
 This means additional recordings are not the current unlock. The corpus already proves the shape of
-the missing work: turn the live micro-ASR alignment candidate into a separate shadow profile, then
-run the normal parity gates before any publication path is considered. Until that exists, live
-promotion stays blocked even if more similar sessions are added.
+the missing work: replace lab/batch-selected micro-ASR candidates with live-only candidate selection
+and strict remote-forbidden gates, then run the normal parity gates before any publication path is
+considered. Until that exists, live promotion stays blocked even if more similar sessions are added.
 
 The corpus report now also records `live_only_local_island_candidate_lab/v1`. It selects suppressed
 mic segments using only live-available text/audio gates and uses batch labels only to estimate
