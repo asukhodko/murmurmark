@@ -2149,7 +2149,7 @@ def live_only_local_island_candidate_lab(rows: list[dict[str, Any]], *, limit: i
     min_mic_minus_remote_rms_db = -6.0
     min_token_count = 2
     segments = suppressed_mic_segments_from_report_rows(rows)
-    candidates: list[dict[str, Any]] = []
+    base_candidates: list[dict[str, Any]] = []
     missing_audio_metrics = 0
     for segment in segments:
         if bool(segment.get("known_hallucination")):
@@ -2167,7 +2167,7 @@ def live_only_local_island_candidate_lab(rows: list[dict[str, Any]], *, limit: i
             continue
         if mic_minus_remote_rms_db < min_mic_minus_remote_rms_db:
             continue
-        candidates.append(segment)
+        base_candidates.append(segment)
 
     def is_local(segment: dict[str, Any]) -> bool:
         return segment.get("batch_role_label") in {"me_dominant", "mixed"}
@@ -2175,39 +2175,67 @@ def live_only_local_island_candidate_lab(rows: list[dict[str, Any]], *, limit: i
     def is_remote_risk(segment: dict[str, Any]) -> bool:
         return segment.get("batch_role_label") in {"remote_dominant", "none"}
 
-    selected_seconds = round(sum(safe_float(row.get("duration_sec")) for row in candidates), 3)
-    local_seconds = round(sum(safe_float(row.get("duration_sec")) for row in candidates if is_local(row)), 3)
-    remote_risk_seconds = round(
-        sum(safe_float(row.get("duration_sec")) for row in candidates if is_remote_risk(row)),
-        3,
-    )
-    by_label: dict[str, dict[str, Any]] = {}
-    by_session: dict[str, dict[str, Any]] = {}
-    for row in candidates:
-        label = str(row.get("batch_role_label") or "(none)")
-        label_row = by_label.setdefault(label, {"count": 0, "seconds": 0.0})
-        label_row["count"] += 1
-        label_row["seconds"] = round(safe_float(label_row.get("seconds")) + safe_float(row.get("duration_sec")), 3)
-        session = str(row.get("session") or "")
-        session_row = by_session.setdefault(
-            session,
-            {"count": 0, "seconds": 0.0, "local_seconds": 0.0, "remote_risk_seconds": 0.0},
+    def summarize_candidates(candidates: list[dict[str, Any]]) -> dict[str, Any]:
+        selected_seconds = round(sum(safe_float(row.get("duration_sec")) for row in candidates), 3)
+        local_seconds = round(sum(safe_float(row.get("duration_sec")) for row in candidates if is_local(row)), 3)
+        remote_risk_seconds = round(
+            sum(safe_float(row.get("duration_sec")) for row in candidates if is_remote_risk(row)),
+            3,
         )
-        session_row["count"] += 1
-        session_row["seconds"] = round(safe_float(session_row.get("seconds")) + safe_float(row.get("duration_sec")), 3)
-        if is_local(row):
-            session_row["local_seconds"] = round(
-                safe_float(session_row.get("local_seconds")) + safe_float(row.get("duration_sec")),
+        by_label: dict[str, dict[str, Any]] = {}
+        by_session: dict[str, dict[str, Any]] = {}
+        for row in candidates:
+            label = str(row.get("batch_role_label") or "(none)")
+            label_row = by_label.setdefault(label, {"count": 0, "seconds": 0.0})
+            label_row["count"] += 1
+            label_row["seconds"] = round(safe_float(label_row.get("seconds")) + safe_float(row.get("duration_sec")), 3)
+            session = str(row.get("session") or "")
+            session_row = by_session.setdefault(
+                session,
+                {"count": 0, "seconds": 0.0, "local_seconds": 0.0, "remote_risk_seconds": 0.0},
+            )
+            session_row["count"] += 1
+            session_row["seconds"] = round(
+                safe_float(session_row.get("seconds")) + safe_float(row.get("duration_sec")),
                 3,
             )
-        elif is_remote_risk(row):
-            session_row["remote_risk_seconds"] = round(
-                safe_float(session_row.get("remote_risk_seconds")) + safe_float(row.get("duration_sec")),
-                3,
-            )
+            if is_local(row):
+                session_row["local_seconds"] = round(
+                    safe_float(session_row.get("local_seconds")) + safe_float(row.get("duration_sec")),
+                    3,
+                )
+            elif is_remote_risk(row):
+                session_row["remote_risk_seconds"] = round(
+                    safe_float(session_row.get("remote_risk_seconds")) + safe_float(row.get("duration_sec")),
+                    3,
+                )
+        return {
+            "candidate_count": len(candidates),
+            "candidate_seconds": selected_seconds,
+            "local_seconds": local_seconds,
+            "remote_risk_seconds": remote_risk_seconds,
+            "precision_proxy": round(local_seconds / selected_seconds, 6) if selected_seconds > 0 else None,
+            "remote_risk_ratio": round(remote_risk_seconds / selected_seconds, 6) if selected_seconds > 0 else None,
+            "by_label": dict(sorted(by_label.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0]))),
+            "by_session": dict(
+                sorted(by_session.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0]))
+            ),
+        }
+
+    strict_zero_remote_risk_candidates = [
+        row
+        for row in base_candidates
+        if safe_float(row.get("audio_mic_remote_zero_lag_abs_corr")) <= 0.01
+        and safe_float(row.get("audio_mic_minus_remote_rms_db")) >= min_mic_minus_remote_rms_db
+        and safe_int(row.get("segment_gate_overlapping_remote_token_count")) <= 10
+        and safe_float(row.get("segment_gate_mic_token_recall_in_overlapping_remote")) == 0.0
+    ]
+
+    base_summary = summarize_candidates(base_candidates)
+    strict_summary = summarize_candidates(strict_zero_remote_risk_candidates)
 
     examples = sorted(
-        candidates,
+        base_candidates,
         key=lambda row: (
             0 if is_remote_risk(row) else 1,
             -safe_float(row.get("duration_sec")),
@@ -2217,7 +2245,7 @@ def live_only_local_island_candidate_lab(rows: list[dict[str, Any]], *, limit: i
     )
     return {
         "schema": "murmurmark.live_only_local_island_candidate_lab/v1",
-        "status": "ok" if candidates else "no_candidates",
+        "status": "ok" if base_candidates else "no_candidates",
         "promotion_allowed": False,
         "interpretation": (
             "diagnostic only: selects suppressed mic segments using live-available text/audio gates, "
@@ -2231,16 +2259,27 @@ def live_only_local_island_candidate_lab(rows: list[dict[str, Any]], *, limit: i
             "min_audio_mic_minus_remote_rms_db": min_mic_minus_remote_rms_db,
         },
         "excluded_missing_audio_metrics_count": missing_audio_metrics,
-        "candidate_count": len(candidates),
-        "candidate_seconds": selected_seconds,
-        "local_seconds": local_seconds,
-        "remote_risk_seconds": remote_risk_seconds,
-        "precision_proxy": round(local_seconds / selected_seconds, 6) if selected_seconds > 0 else None,
-        "remote_risk_ratio": round(remote_risk_seconds / selected_seconds, 6) if selected_seconds > 0 else None,
-        "by_label": dict(sorted(by_label.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0]))),
-        "by_session": dict(
-            sorted(by_session.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0]))
-        ),
+        **base_summary,
+        "stricter_profiles": {
+            "strict_zero_remote_risk_text_audio_v1": {
+                "status": "ok" if strict_zero_remote_risk_candidates else "no_candidates",
+                "promotion_allowed": False,
+                "interpretation": (
+                    "diagnostic only: zero remote-risk under current batch labels; next step is "
+                    "materialization plus ordinary live parity gates"
+                ),
+                "criteria": {
+                    "segment_gate_reason": "segment_has_local_tokens_not_seen_in_overlapping_remote",
+                    "min_token_count": min_token_count,
+                    "require_audio_metrics": True,
+                    "max_audio_mic_remote_zero_lag_abs_corr": 0.01,
+                    "min_audio_mic_minus_remote_rms_db": min_mic_minus_remote_rms_db,
+                    "max_segment_gate_overlapping_remote_token_count": 10,
+                    "max_segment_gate_mic_token_recall_in_overlapping_remote": 0.0,
+                },
+                **strict_summary,
+            }
+        },
         "examples": [
             {
                 "session": row.get("session"),
@@ -3714,6 +3753,25 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["real_live_live_only_local_island_candidate_lab_precision_proxy"] = live_only_local_island_candidate_lab_report.get(
         "precision_proxy"
     )
+    live_only_strict_zero_remote_risk_profile = (
+        live_only_local_island_candidate_lab_report.get("stricter_profiles", {}).get(
+            "strict_zero_remote_risk_text_audio_v1"
+        )
+        if isinstance(live_only_local_island_candidate_lab_report.get("stricter_profiles"), dict)
+        else {}
+    )
+    summary["real_live_live_only_local_island_strict_zero_remote_risk_candidate_seconds"] = safe_float(
+        live_only_strict_zero_remote_risk_profile.get("candidate_seconds")
+    )
+    summary["real_live_live_only_local_island_strict_zero_remote_risk_local_seconds"] = safe_float(
+        live_only_strict_zero_remote_risk_profile.get("local_seconds")
+    )
+    summary["real_live_live_only_local_island_strict_zero_remote_risk_remote_risk_seconds"] = safe_float(
+        live_only_strict_zero_remote_risk_profile.get("remote_risk_seconds")
+    )
+    summary["real_live_live_only_local_island_strict_zero_remote_risk_precision_proxy"] = (
+        live_only_strict_zero_remote_risk_profile.get("precision_proxy")
+    )
     real_local_island_oracle_profile = target_me_shadow_profile_row(
         target_me_shadow_profile_diagnostics_report.get("real")
         if isinstance(target_me_shadow_profile_diagnostics_report.get("real"), dict)
@@ -3820,6 +3878,18 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         ),
         "live_only_candidate_precision_proxy": summary.get(
             "real_live_live_only_local_island_candidate_lab_precision_proxy"
+        ),
+        "live_only_strict_zero_remote_risk_candidate_seconds": summary.get(
+            "real_live_live_only_local_island_strict_zero_remote_risk_candidate_seconds"
+        ),
+        "live_only_strict_zero_remote_risk_local_seconds": summary.get(
+            "real_live_live_only_local_island_strict_zero_remote_risk_local_seconds"
+        ),
+        "live_only_strict_zero_remote_risk_remote_risk_seconds": summary.get(
+            "real_live_live_only_local_island_strict_zero_remote_risk_remote_risk_seconds"
+        ),
+        "live_only_strict_zero_remote_risk_precision_proxy": summary.get(
+            "real_live_live_only_local_island_strict_zero_remote_risk_precision_proxy"
         ),
         "requires_batch_timing": True,
         "requires_batch_role_labels": True,
@@ -4830,6 +4900,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             if isinstance(report.get("live_only_local_island_candidate_lab"), dict)
             else {}
         )
+        live_only_strict_profile = (
+            live_only_candidate_lab.get("stricter_profiles", {}).get("strict_zero_remote_risk_text_audio_v1")
+            if isinstance(live_only_candidate_lab.get("stricter_profiles"), dict)
+            else {}
+        )
         timing_gap = (
             report.get("live_local_island_timing_gap")
             if isinstance(report.get("live_local_island_timing_gap"), dict)
@@ -4878,6 +4953,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"{safe_float(live_only_candidate_lab.get('local_seconds')):.2f} sec local, "
             f"{safe_float(live_only_candidate_lab.get('remote_risk_seconds')):.2f} sec remote-risk, "
             f"precision proxy {live_only_candidate_lab.get('precision_proxy')}",
+            "- strict live-only zero-risk candidates: "
+            f"{safe_float(live_only_strict_profile.get('candidate_seconds')):.2f} sec selected, "
+            f"{safe_float(live_only_strict_profile.get('local_seconds')):.2f} sec local, "
+            f"{safe_float(live_only_strict_profile.get('remote_risk_seconds')):.2f} sec remote-risk, "
+            f"precision proxy {live_only_strict_profile.get('precision_proxy')}",
             "- timing gap: "
             f"{timing_gap.get('retime_gain_vs_split_oracle_seconds')} sec require batch timing; "
             "future live work needs online local-island timing anchors before publication",
@@ -5709,6 +5789,14 @@ def main() -> int:
                 print(
                     "real_live_live_only_local_island_candidate_lab_remote_risk_seconds: "
                     f"{summary.get('real_live_live_only_local_island_candidate_lab_remote_risk_seconds')}"
+                )
+                print(
+                    "real_live_live_only_local_island_strict_zero_remote_risk_candidate_seconds: "
+                    f"{summary.get('real_live_live_only_local_island_strict_zero_remote_risk_candidate_seconds')}"
+                )
+                print(
+                    "real_live_live_only_local_island_strict_zero_remote_risk_remote_risk_seconds: "
+                    f"{summary.get('real_live_live_only_local_island_strict_zero_remote_risk_remote_risk_seconds')}"
                 )
                 print(
                     "real_live_local_island_split_oracle_profile_missing_me_seconds: "

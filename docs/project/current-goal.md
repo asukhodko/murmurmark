@@ -447,11 +447,22 @@ precision. Current result:
 - observed failure mode: live-only gates still select `remote_dominant` segments when text looks
   locally novel but audio is weakly correlated with remote.
 
+The same report now evaluates a stricter live-only profile:
+`strict_zero_remote_risk_text_audio_v1`.
+
+- selected candidates: `3` segments / `36.12s`;
+- local or mixed: `36.12s`;
+- remote-risk: `0.00s`;
+- precision proxy: `1.0`;
+- current source session: `2026-07-03_10-15-18`;
+- status: diagnostic only, not promoted.
+
 Conclusion: no additional recordings are required to unblock the current design question. The
 corpus already proves both sides of the trade-off: live-only gates can recover meaningful local
-speech, but they are not precise enough for publication. The next implementation should narrow
-candidate selection and add an online timing anchor / remote-forbidden guard. Live promotion remains
-blocked until `remote_risk_seconds` is close to zero and ordinary parity gates pass.
+speech, but the broader gates are not precise enough for publication. The stricter profile shows a
+small zero-risk materialization candidate. The next implementation should materialize that strict
+candidate as a shadow live profile, then add an online timing anchor / remote-forbidden guard. Live
+promotion remains blocked until ordinary parity gates pass.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not

@@ -562,8 +562,10 @@ so the missing piece is live candidate selection and timing, not raw audio evide
 The first live-only candidate lab now selects `99.40s` of suppressed mic candidates using only
 live-available gates; `83.04s` are local or mixed, but `16.36s` are still remote-risk
 (`precision_proxy = 0.835412`). This is useful evidence for the next implementation, but not enough
-for publication. The next live work should narrow candidate selection and add online timing /
-remote-forbidden guards, not collect more recordings or relax gates.
+for publication. Its stricter `strict_zero_remote_risk_text_audio_v1` profile selects `36.12s` with
+`0.00s` remote-risk under batch evaluation. The next live work should materialize that strict
+profile as shadow output, then add online timing / remote-forbidden guards, not collect more
+recordings or relax gates.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1207,7 +1209,9 @@ Active goal and near-term candidates:
    batch-time retime oracle recovers the full `17.34s` without new remote/order regressions. The
    next implementation should focus on online local-island timeline repair/retiming evidence, not
    broad rescue. The live-only candidate lab selects `99.40s`, but still carries `16.36s`
-   remote-risk, so it is diagnostic only. Batch remains authoritative.
+   remote-risk. Its strict zero-risk profile selects `36.12s` with `0.00s` remote-risk. Both are
+   diagnostic until materialized and passed through ordinary parity gates. Batch remains
+   authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

@@ -5829,6 +5829,13 @@ selection can find substantial local speech, but not enough for publication: `re
 must be driven close to zero, or the selected rows must be routed through a stronger remote-forbidden
 guard before any live profile can use them.
 
+The same block includes `stricter_profiles.strict_zero_remote_risk_text_audio_v1`. It adds stricter
+live-available gates: zero mic-token recall in overlapping remote text, at most `10` overlapping
+remote tokens and `audio_mic_remote_zero_lag_abs_corr <= 0.01`. Current corpus evidence selects
+`36.12s` / `3` candidates, all `me_dominant` under batch evaluation, with `0.00s` remote-risk. This
+profile is still diagnostic only; the next implementation step is materializing it as a shadow live
+profile and running the ordinary parity gates.
+
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the
 best live-implementable profile and records `missing_me_seconds_gap`, both profile names, remote leak
