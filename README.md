@@ -546,9 +546,11 @@ The `0.32s` speaker-confirmation candidate is already materialized in a diagnost
 voice-boundary shadow profile; it remains non-promotable.
 The report now also writes `live_next_unlock` (`murmurmark.live_next_unlock/v1`): it says
 `additional_recordings_required_for_current_blocker = false`, keeps batch authoritative, and names
-the next action as `tighten_voice_remote_guard_for_mixed_rows`, followed by speaker confirmation,
-local-island candidate selection, and reuse of strict zero-remote evidence without broad
-publication.
+the next action as `improve_same_session_voice_disambiguation_for_mixed_rows`. The tighter
+voice/remote guard found `0.00s` publishable mixed candidates and blocked the remaining `25.00s`:
+`13.94s` depend on non-authoritative persistent Target-Me fallback, `10.58s` have too little
+Target-Me-vs-remote separation, and `0.48s` are a low-value tail. Keep these rows review-only until
+stronger same-session voice evidence exists.
 It now also includes `order_risk_triage`: after the live-only split/retime pass, the current `2`
 contentful order risks are both advisory weak/short/generic match rows. There are `0` blocking
 `boundary_retime_candidate` rows. The strict order gate is unchanged; this triage tells us that
@@ -647,8 +649,10 @@ enrollment is not ready. That fallback is diagnostic only and never creates publ
 Current corpus result after the diagnostic materialization: `5` rows / `25.32s` remain in scope,
 Target-Me coverage is available for the whole set, `0.32s` are already materialized in the
 remote-guarded voice-boundary shadow profile, and `25.00s` remain weak or ambiguous voice evidence.
-More recordings are not required for this blocker; the next practical step is to tighten the voice
-remote guard for the remaining mixed rows and keep weak/ambiguous evidence review-only.
+More recordings are not required for this blocker. The follow-up `live_tight_voice_remote_guard_lab`
+then applies stricter voice/remote thresholds and finds no publishable candidate: candidate seconds
+`0.00`, blocked seconds `25.00`, top blocker `blocked_target_me_audit_not_same_session_ok`
+(`13.94s`). The next practical step is stronger same-session voice disambiguation for mixed rows.
 
 The follow-up `live_only_retime_boundary_candidate_lab/v1` tests this more directly against the
 current best-live-implementable remaining gap. Strict zero-remote anchors are safe but do not touch
@@ -1353,14 +1357,16 @@ Active goal and near-term candidates:
    The split/retime version preserves `6.62s` of local prefix and keeps missing-Me unchanged
    (`51.50s`) while still reducing contentful order mismatches to `2`. A live-only version of that
    idea is now the best live-implementable shadow, so the next unlock moves from boundary-retime
-   repair to `tighten_voice_remote_guard_for_mixed_rows`.
+   repair to `improve_same_session_voice_disambiguation_for_mixed_rows`.
    A soft local-speaker boundary shadow was tested next and produced `no_incremental_gain`
    (`0.00s` missing-Me delta, `0.00s` remote-leak delta). Do not spend the next round on weaker
    loudness thresholds; the remaining work needs stronger speaker/boundary evidence.
    The current mixed/speaker-boundary queue is now `25.32s`: `0.32s` has been materialized in a
-   diagnostic remote-guarded voice-boundary profile, and `25.00s` remain weak or ambiguous. The top
-   unit is still `local_island_split_candidate` (`10.58s`), but publication needs stronger
-   voice/remote-guard evidence rather than whole-row rescue.
+   diagnostic remote-guarded voice-boundary profile, and `25.00s` remain weak or ambiguous. The
+   tight voice/remote guard lab finds `0.00s` safe candidates: `13.94s` are blocked by persistent
+   Target-Me fallback, `10.58s` by low Target-Me-vs-remote delta, and `0.48s` as a low-value tail.
+   The top unit is still `local_island_split_candidate` (`10.58s`), but publication needs stronger
+   same-session voice disambiguation rather than whole-row rescue.
    The first micro-ASR lab for this unit now writes
    `live_boundary_island_micro_asr_lab.*`. It finds `1` live alignment candidate / `5.10s` and
    improves the top island's batch-token recall from `0.154` to `0.385` from live chunk audio

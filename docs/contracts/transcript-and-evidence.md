@@ -5792,9 +5792,9 @@ machine-readable handoff for the next live-parity step. It records:
   stronger evidence.
 
 For the current corpus, `additional_recordings_required_for_current_blocker` is `false`; the first
-next action is `tighten_voice_remote_guard_for_mixed_rows`, followed by speaker confirmation,
-local-island candidate selection and strict zero-remote evidence reuse. `remote_dominant` /
-`known_hallucination` buckets stay blocked.
+next action is `improve_same_session_voice_disambiguation_for_mixed_rows`, followed by speaker
+confirmation, local-island candidate selection and strict zero-remote evidence reuse.
+`remote_dominant` / `known_hallucination` buckets stay blocked.
 
 The report also writes `live_order_risk_triage` with schema
 `murmurmark.live_order_risk_triage/v1`. It reads the contentful same-role order-risk examples for
@@ -6021,8 +6021,23 @@ are already materialized in
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1`;
 `25.00s` remain weak or ambiguous voice evidence; `0.00s` remain blocked by enrollment not being
 ready. That profile is diagnostic only: it uses a batch anchor, is not live-implementable and cannot
-be promoted. The report therefore recommends `tighten_voice_remote_guard_for_mixed_rows` before any
-broader live publication-gate change.
+be promoted. The coverage report feeds those weak rows into the tighter voice/remote guard before
+any broader live publication-gate change.
+
+`live_tight_voice_remote_guard_lab` has schema
+`murmurmark.live_tight_voice_remote_guard_lab/v1`. It reads the weak rows from
+`live_mixed_speaker_boundary_voice_coverage_lab`, applies stricter Target-Me-vs-remote thresholds,
+and still never publishes live `Me` text. Current corpus evidence:
+
+- rows in scope: `4` / `25.00s`;
+- tight candidates: `0` / `0.00s`;
+- blocked rows: `4` / `25.00s`;
+- top blocker: `blocked_target_me_audit_not_same_session_ok` / `13.94s`;
+- other blockers: `blocked_low_delta_vs_remote` / `10.58s`, `blocked_low_value_tail` / `0.48s`.
+
+The report therefore updates `live_next_unlock.next_actions[0]` to
+`improve_same_session_voice_disambiguation_for_mixed_rows`: the remaining weak rows need stronger
+same-session voice evidence before any new shadow materialization is useful.
 
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`
 is the first profile-level local-island split oracle. It starts from the current best

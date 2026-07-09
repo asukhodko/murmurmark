@@ -2531,6 +2531,7 @@ def live_next_unlock_report(
     order_risk_triage: dict[str, Any],
     speaker_boundary_lab: dict[str, Any],
     mixed_voice_coverage_lab: dict[str, Any],
+    tight_voice_remote_guard_lab: dict[str, Any],
     local_island_split: dict[str, Any],
     live_only_local_island: dict[str, Any],
     timing_gap: dict[str, Any],
@@ -2657,6 +2658,11 @@ def live_next_unlock_report(
         if isinstance(mixed_voice_coverage_lab.get("recommended_next"), dict)
         else {}
     )
+    tight_voice_next = (
+        tight_voice_remote_guard_lab.get("recommended_next")
+        if isinstance(tight_voice_remote_guard_lab.get("recommended_next"), dict)
+        else {}
+    )
 
     next_actions: list[dict[str, Any]] = []
     if order_triage_boundary_count > 0:
@@ -2686,11 +2692,16 @@ def live_next_unlock_report(
     if mixed_seconds > 0:
         mixed_voice_action: dict[str, Any] | None = None
         if mixed_voice_next:
+            action_id = str(mixed_voice_next.get("id") or "inspect_mixed_voice_coverage")
+            action_why = str(mixed_voice_next.get("why") or "mixed speech needs speaker/boundary evidence")
+            if action_id == "tighten_voice_remote_guard_for_mixed_rows" and tight_voice_next:
+                action_id = str(tight_voice_next.get("id") or action_id)
+                action_why = str(tight_voice_next.get("why") or action_why)
             mixed_voice_action = {
-                "id": str(mixed_voice_next.get("id") or "inspect_mixed_voice_coverage"),
+                "id": action_id,
                 "priority": 2,
                 "scope_seconds": round(mixed_seconds, 3),
-                "why": str(mixed_voice_next.get("why") or "mixed speech needs speaker/boundary evidence"),
+                "why": action_why,
                 "voice_coverage": {
                     "status": mixed_voice_coverage_lab.get("status"),
                     "publication_candidate_seconds": round(
@@ -2713,6 +2724,18 @@ def live_next_unlock_report(
                         safe_float(mixed_voice_coverage_lab.get("weak_or_ambiguous_seconds")),
                         3,
                     ),
+                },
+                "tight_voice_remote_guard": {
+                    "status": tight_voice_remote_guard_lab.get("status"),
+                    "candidate_seconds": round(
+                        safe_float(tight_voice_remote_guard_lab.get("candidate_seconds")),
+                        3,
+                    ),
+                    "blocked_seconds": round(
+                        safe_float(tight_voice_remote_guard_lab.get("blocked_seconds")),
+                        3,
+                    ),
+                    "top_blocker": tight_voice_remote_guard_lab.get("top_blocker"),
                 },
                 "must_preserve": ["remote_leakage == 0", "contentful_order_mismatches must not increase"],
             }
@@ -3636,6 +3659,210 @@ def live_mixed_speaker_boundary_voice_coverage_lab(
             rows,
             key=lambda row: (
                 str(row.get("voice_coverage_classification") or ""),
+                -safe_float(row.get("duration_sec")),
+                str(row.get("session") or ""),
+                safe_float(row.get("start")),
+            ),
+        )[:limit],
+    }
+
+
+def _tight_voice_remote_guard_metrics(row: dict[str, Any]) -> dict[str, Any]:
+    matched_rows = (
+        row.get("matched_target_me_rows")
+        if isinstance(row.get("matched_target_me_rows"), list)
+        else []
+    )
+    best_mic = 0.0
+    best_delta = -999.0
+    max_remote_similarity = 0.0
+    max_remote_active = 0.0
+    max_local_score = 0.0
+    has_remote_role = False
+    has_possible_or_confirmed = False
+    has_remote_guard = False
+    for matched in matched_rows:
+        if not isinstance(matched, dict):
+            continue
+        role = str(matched.get("batch_role_label") or "")
+        has_remote_role = has_remote_role or role == "remote_dominant"
+        label = str(matched.get("target_me_label") or "")
+        has_possible_or_confirmed = has_possible_or_confirmed or label in {
+            "target_me_possible",
+            "target_me_confirmed",
+        }
+        policies = matched.get("target_me_rescue_policy_candidates")
+        if isinstance(policies, list):
+            has_remote_guard = has_remote_guard or "target_me_confirmed_remote_guard_v1" in policies
+        scores = matched.get("scores") if isinstance(matched.get("scores"), dict) else {}
+        best_mic = max(best_mic, safe_float(scores.get("best_mic_target_similarity")))
+        best_delta = max(best_delta, safe_float(scores.get("delta_vs_remote"), -999.0))
+        max_remote_similarity = max(max_remote_similarity, safe_float(scores.get("remote_target_similarity")))
+        max_remote_active = max(max_remote_active, safe_float(scores.get("state_remote_active_ratio")))
+        max_local_score = max(max_local_score, safe_float(scores.get("state_local_score_proxy")))
+    return {
+        "best_mic_target_similarity": round(best_mic, 6),
+        "best_delta_vs_remote": round(best_delta if best_delta > -900 else 0.0, 6),
+        "max_remote_target_similarity": round(max_remote_similarity, 6),
+        "max_state_remote_active_ratio": round(max_remote_active, 6),
+        "max_state_local_score_proxy": round(max_local_score, 6),
+        "has_remote_role_conflict": has_remote_role,
+        "has_possible_or_confirmed_target_me": has_possible_or_confirmed,
+        "has_confirmed_remote_guard": has_remote_guard,
+    }
+
+
+def classify_tight_voice_remote_guard(row: dict[str, Any]) -> tuple[str, list[str], bool, dict[str, Any]]:
+    metrics = _tight_voice_remote_guard_metrics(row)
+    blockers: list[str] = []
+    design_unit = str(row.get("design_unit") or "")
+    audit_status = str(row.get("target_me_audit_status") or "")
+    voice_ratio = safe_float(row.get("voice_coverage_ratio"))
+
+    if design_unit == "low_value_tail_policy":
+        blockers.append("blocked_low_value_tail")
+    if audit_status not in {"ok"}:
+        blockers.append("blocked_target_me_audit_not_same_session_ok")
+    if metrics.get("has_remote_role_conflict"):
+        blockers.append("blocked_remote_role_conflict")
+    if not metrics.get("has_possible_or_confirmed_target_me"):
+        blockers.append("blocked_no_possible_target_me_voice")
+    if safe_float(metrics.get("best_mic_target_similarity")) < 0.82:
+        blockers.append("blocked_weak_target_similarity")
+    if safe_float(metrics.get("best_delta_vs_remote")) < 0.10:
+        blockers.append("blocked_low_delta_vs_remote")
+    if safe_float(metrics.get("max_remote_target_similarity")) > 0.78:
+        blockers.append("blocked_high_remote_similarity")
+    if safe_float(metrics.get("max_state_remote_active_ratio")) > 0.15:
+        blockers.append("blocked_remote_active_overlap")
+    if safe_float(metrics.get("max_state_local_score_proxy")) < 0.75:
+        blockers.append("blocked_weak_local_state")
+    if voice_ratio < 0.75:
+        blockers.append("blocked_insufficient_voice_coverage")
+
+    can_publish = not blockers
+    if can_publish:
+        return "tight_voice_remote_guard_candidate", [], True, metrics
+
+    priority = [
+        "blocked_low_value_tail",
+        "blocked_target_me_audit_not_same_session_ok",
+        "blocked_remote_role_conflict",
+        "blocked_no_possible_target_me_voice",
+        "blocked_low_delta_vs_remote",
+        "blocked_high_remote_similarity",
+        "blocked_weak_target_similarity",
+        "blocked_remote_active_overlap",
+        "blocked_weak_local_state",
+        "blocked_insufficient_voice_coverage",
+    ]
+    primary = next((label for label in priority if label in blockers), "blocked_by_tight_voice_remote_guard")
+    return primary, blockers, False, metrics
+
+
+def live_tight_voice_remote_guard_lab(
+    mixed_voice_coverage: dict[str, Any],
+    *,
+    limit: int = 80,
+) -> dict[str, Any]:
+    examples = (
+        mixed_voice_coverage.get("examples")
+        if isinstance(mixed_voice_coverage.get("examples"), list)
+        else []
+    )
+    rows: list[dict[str, Any]] = []
+    for row in examples:
+        if not isinstance(row, dict):
+            continue
+        if row.get("would_be_publication_candidate"):
+            continue
+        if row.get("voice_coverage_classification") not in {
+            "voice_possible_needs_review",
+            "voice_confirmed_needs_remote_guard",
+            "voice_rejected_or_ambiguous",
+        }:
+            continue
+        primary, blockers, candidate, metrics = classify_tight_voice_remote_guard(row)
+        rows.append(
+            {
+                "session": row.get("session"),
+                "batch_id": row.get("batch_id"),
+                "start": row.get("start"),
+                "end": row.get("end"),
+                "duration_sec": row.get("duration_sec"),
+                "text": row.get("text"),
+                "design_unit": row.get("design_unit"),
+                "voice_coverage_classification": row.get("voice_coverage_classification"),
+                "target_me_audit_status": row.get("target_me_audit_status"),
+                "primary_blocker": primary,
+                "blockers": blockers,
+                "would_be_tight_voice_remote_guard_candidate": candidate,
+                "publication_allowed": False,
+                "publication_safety_reason": "diagnostic only; live promotion remains blocked",
+                "metrics": metrics,
+                "matched_target_me_rows": row.get("matched_target_me_rows") or [],
+            }
+        )
+
+    def aggregate(key: str) -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            label = str(row.get(key) or "(none)")
+            payload = grouped.setdefault(label, {"count": 0, "seconds": 0.0})
+            payload["count"] += 1
+            payload["seconds"] = round(
+                safe_float(payload.get("seconds")) + safe_float(row.get("duration_sec")),
+                3,
+            )
+        return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
+
+    candidates = [row for row in rows if row.get("would_be_tight_voice_remote_guard_candidate")]
+    blocked = [row for row in rows if not row.get("would_be_tight_voice_remote_guard_candidate")]
+    by_primary_blocker = aggregate("primary_blocker")
+    top_blocker = largest_group(by_primary_blocker)
+    candidate_seconds = round(sum(safe_float(row.get("duration_sec")) for row in candidates), 3)
+    blocked_seconds = round(sum(safe_float(row.get("duration_sec")) for row in blocked), 3)
+    if not rows:
+        recommended_next = {
+            "id": "no_tight_voice_remote_guard_work",
+            "why": "mixed voice coverage has no weak rows in scope",
+        }
+    elif candidate_seconds > 0:
+        recommended_next = {
+            "id": "materialize_tight_voice_remote_guard_candidates",
+            "why": "strict voice/remote guard found candidate rows that can be materialized as diagnostic shadow",
+            "candidate_seconds": candidate_seconds,
+        }
+    else:
+        recommended_next = {
+            "id": "improve_same_session_voice_disambiguation_for_mixed_rows",
+            "why": "strict voice/remote guard found no publishable mixed rows; remaining evidence is too close to remote or fallback-only",
+            "blocked_seconds": blocked_seconds,
+            "top_blocker": top_blocker,
+        }
+
+    return {
+        "schema": "murmurmark.live_tight_voice_remote_guard_lab/v1",
+        "status": "ok" if rows else "no_scope",
+        "promotion_allowed": False,
+        "interpretation": (
+            "diagnostic only: applies stricter Target-Me-vs-remote thresholds to weak mixed rows. "
+            "It does not publish live Me text and cannot promote live output."
+        ),
+        "row_count": len(rows),
+        "seconds": round(sum(safe_float(row.get("duration_sec")) for row in rows), 3),
+        "candidate_count": len(candidates),
+        "candidate_seconds": candidate_seconds,
+        "blocked_count": len(blocked),
+        "blocked_seconds": blocked_seconds,
+        "top_blocker": top_blocker,
+        "by_primary_blocker": by_primary_blocker,
+        "by_design_unit": aggregate("design_unit"),
+        "recommended_next": recommended_next,
+        "examples": sorted(
+            rows,
+            key=lambda row: (
+                not bool(row.get("would_be_tight_voice_remote_guard_candidate")),
                 -safe_float(row.get("duration_sec")),
                 str(row.get("session") or ""),
                 safe_float(row.get("start")),
@@ -5860,6 +6087,9 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         online_speaker_boundary_design_lab_report,
         root=root,
     )
+    tight_voice_remote_guard_lab_report = live_tight_voice_remote_guard_lab(
+        mixed_speaker_boundary_voice_coverage_lab_report
+    )
     local_island_audio_anchor_lab_report = live_local_island_audio_anchor_lab(local_island_split_lab_report)
     local_island_retime_anchor_lab_report = live_local_island_retime_anchor_lab(local_island_split_lab_report)
     live_only_local_island_candidate_lab_report = live_only_local_island_candidate_lab(real_live_rows)
@@ -6717,6 +6947,30 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["real_live_mixed_speaker_boundary_voice_coverage_recommended_next"] = (
         mixed_voice_next.get("id") if mixed_voice_next else None
     )
+    summary["real_live_tight_voice_remote_guard_status"] = tight_voice_remote_guard_lab_report.get("status")
+    summary["real_live_tight_voice_remote_guard_seconds"] = safe_float(
+        tight_voice_remote_guard_lab_report.get("seconds")
+    )
+    summary["real_live_tight_voice_remote_guard_candidate_seconds"] = safe_float(
+        tight_voice_remote_guard_lab_report.get("candidate_seconds")
+    )
+    summary["real_live_tight_voice_remote_guard_blocked_seconds"] = safe_float(
+        tight_voice_remote_guard_lab_report.get("blocked_seconds")
+    )
+    tight_voice_top_blocker = (
+        tight_voice_remote_guard_lab_report.get("top_blocker")
+        if isinstance(tight_voice_remote_guard_lab_report.get("top_blocker"), dict)
+        else {}
+    )
+    summary["real_live_tight_voice_remote_guard_top_blocker"] = tight_voice_top_blocker.get("label")
+    tight_voice_next = (
+        tight_voice_remote_guard_lab_report.get("recommended_next")
+        if isinstance(tight_voice_remote_guard_lab_report.get("recommended_next"), dict)
+        else {}
+    )
+    summary["real_live_tight_voice_remote_guard_recommended_next"] = (
+        tight_voice_next.get("id") if tight_voice_next else None
+    )
     local_island_timing_gap_report = {
         "schema": "murmurmark.live_local_island_timing_gap/v1",
         "status": "ok" if real_local_island_retime_profile else "missing_retime_oracle_profile",
@@ -6902,6 +7156,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         order_risk_triage=live_order_risk_triage_report,
         speaker_boundary_lab=speaker_boundary_lab_report,
         mixed_voice_coverage_lab=mixed_speaker_boundary_voice_coverage_lab_report,
+        tight_voice_remote_guard_lab=tight_voice_remote_guard_lab_report,
         local_island_split=local_island_split_lab_report,
         live_only_local_island=live_only_local_island_candidate_lab_report,
         timing_gap=local_island_timing_gap_report,
@@ -7029,6 +7284,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_speaker_boundary_evidence_lab": speaker_boundary_lab_report,
         "live_online_speaker_boundary_evidence_design_lab": online_speaker_boundary_design_lab_report,
         "live_mixed_speaker_boundary_voice_coverage_lab": mixed_speaker_boundary_voice_coverage_lab_report,
+        "live_tight_voice_remote_guard_lab": tight_voice_remote_guard_lab_report,
         "live_local_island_split_lab": local_island_split_lab_report,
         "live_local_island_audio_anchor_lab": local_island_audio_anchor_lab_report,
         "live_local_island_retime_anchor_lab": local_island_retime_anchor_lab_report,
@@ -7429,6 +7685,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         if isinstance(report.get("live_mixed_speaker_boundary_voice_coverage_lab"), dict)
         else {}
     )
+    tight_voice_remote_guard = (
+        report.get("live_tight_voice_remote_guard_lab")
+        if isinstance(report.get("live_tight_voice_remote_guard_lab"), dict)
+        else {}
+    )
     lines = [
         "# Live Pipeline Corpus Gates",
         "",
@@ -7764,6 +8025,46 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 f"| `{label}` | {payload.get('count')} "
                 f"| {safe_float(payload.get('seconds')):.2f} "
                 f"| {safe_float(payload.get('voice_overlap_seconds')):.2f} |"
+            )
+    if tight_voice_remote_guard:
+        recommended_next = (
+            tight_voice_remote_guard.get("recommended_next")
+            if isinstance(tight_voice_remote_guard.get("recommended_next"), dict)
+            else {}
+        )
+        top_blocker = (
+            tight_voice_remote_guard.get("top_blocker")
+            if isinstance(tight_voice_remote_guard.get("top_blocker"), dict)
+            else {}
+        )
+        lines += [
+            "",
+            "## Tight Voice Remote Guard Lab",
+            "",
+            "Diagnostic only. It applies stricter Target-Me-vs-remote thresholds to weak mixed rows. "
+            "It does not publish live `Me` text.",
+            "",
+            f"- status: `{tight_voice_remote_guard.get('status')}`",
+            f"- rows: {tight_voice_remote_guard.get('row_count')} / {tight_voice_remote_guard.get('seconds')} sec",
+            f"- candidate seconds: {tight_voice_remote_guard.get('candidate_seconds')}",
+            f"- blocked seconds: {tight_voice_remote_guard.get('blocked_seconds')}",
+            f"- top blocker: `{top_blocker.get('label')}` / {top_blocker.get('seconds')} sec",
+            f"- recommended next: `{recommended_next.get('id')}`",
+            "",
+            "| Primary blocker | Rows | Seconds |",
+            "| --- | ---: | ---: |",
+        ]
+        by_primary_blocker = (
+            tight_voice_remote_guard.get("by_primary_blocker")
+            if isinstance(tight_voice_remote_guard.get("by_primary_blocker"), dict)
+            else {}
+        )
+        for label, payload in by_primary_blocker.items():
+            if not isinstance(payload, dict):
+                continue
+            lines.append(
+                f"| `{label}` | {payload.get('count')} "
+                f"| {safe_float(payload.get('seconds')):.2f} |"
             )
     lines += [
         "",
