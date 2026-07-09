@@ -3,10 +3,15 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
+python_bin="${MURMURMARK_PYTHON:-python3}"
+if [[ -z "${MURMURMARK_PYTHON:-}" && -x "$repo_root/.venv/bin/python" ]]; then
+  python_bin="$repo_root/.venv/bin/python"
+fi
 
 swift build
 swiftlint lint --quiet
-python3 -m py_compile scripts/*.py
+"$python_bin" -m py_compile scripts/*.py
+"$python_bin" scripts/check-live-voice-activity-retime.py
 scripts/check-open-source-readiness.sh
 scripts/check-capture-regressions.sh
 scripts/smoke-experimental-sidecar-contract.sh

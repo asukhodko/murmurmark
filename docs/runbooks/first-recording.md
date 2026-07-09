@@ -157,12 +157,16 @@ files.
 If the recording-time sidecar worker timed out before live draft completion, rerun
 `murmurmark experiment compare ...`; it can use the raw commit log as a fallback and then compares the
 draft with authoritative batch output.
-The default comparison computes the required parity gates. Keep the expensive target-me shadow labs
-out of the normal handoff unless you are debugging live recall specifically:
+The default comparison computes the required parity gates. For a focused shadow experiment,
+materialize only the selected policy:
 
 ```bash
-scripts/compare-live-batch.py "$SESSION" --with-labs
+POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_v1
+scripts/compare-live-batch.py "$SESSION" --lab-policy "$POLICY"
 ```
+
+`--lab-policy` is repeatable. Keep `--with-labs` for deliberate full laboratory sweeps; it runs all
+exploratory profiles and can take many minutes on a long meeting.
 
 Existing experiment sessions can still be analyzed without starting capture:
 
@@ -261,6 +265,13 @@ jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_ga
 `--refresh` reruns `compare-live-batch.py` from existing derived live/batch artifacts before
 aggregation, so the corpus report does not use stale gate JSON after live-parity logic changes.
 It does not modify raw capture or the authoritative batch transcript.
+
+To refresh one materialized profile instead of every laboratory profile:
+
+```bash
+POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_v1
+scripts/report-live-corpus-gates.py all --refresh --refresh-lab-policy "$POLICY"
+```
 
 The correct v1 outcome is normally `shadow_only_not_promotable`; promotion requires future gates for
 capture safety, order risk, local recall, remote leakage, review burden and boundary speech. The

@@ -16,13 +16,17 @@ segment-level realtime through committed PCM: after raw write succeeds, a bounde
 writes closed experiment segments and the live worker drafts from those files. `raw_segment_commits`
 remain evidence and fallback, while batch remains authoritative.
 
-The current live-parity blocker is local recall, not raw capture or lack of more recordings. The
-fresh corpus report after the committed-PCM sidecar work still keeps promotion blocked, but its
-`live_next_unlock` says no additional recordings are required for the current blocker. The active
-unlock scope is now `capture_safe_candidate`: `7` order-risk rows, all advisory, with no blocking
-order row left in that slice. The first implementation action is
-`materialize_partial_safe_tail_shadow_and_recheck_recall`; historical full-corpus order rows remain
-diagnostic, but they are not the active unlock target.
+The current live-parity blocker is profile quality, not raw capture or lack of more recordings. The
+fresh corpus report still keeps promotion blocked and says no additional recording is required for
+the current implementation step. Materializing Target-Me/local-recall candidates exposed a previous
+measurement gap: the active `capture_safe_candidate` order slice is not advisory-only. The current
+best live-implementable profile is
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_v1`.
+It corrects coarse Whisper starts from committed chunk audio and reduces contentful order
+mismatches from `23` to `21`, but still leaves `9` blocking boundary rows, `12` advisory weak-match
+rows, `158.87s` missing Me and `6.82s` remote-like Me in the active candidate scope. The first
+implementation action is now `fix_live_order_risk`; local recall and remote leakage remain parallel
+gates. Batch remains authoritative.
 
 ## Latest Completed Goal: Experimental Sidecar Contract v1
 
@@ -80,8 +84,8 @@ Completion evidence:
 
 ## Current Goal: Near-Realtime Live Parity Coverage v1
 
-Status, 2026-07-09: active, blocked by live local-recall precision/coverage rather than by capture
-loss or lack of more recordings.
+Status, 2026-07-09: active, blocked first by live order risk and then by local recall and remote
+leakage. Capture loss and lack of recordings are not the current blockers.
 
 Goal:
 
@@ -99,9 +103,9 @@ batch output and does not break on chunk boundaries.
 
 Current state:
 
-- live sessions in the corpus: `25`;
+- live sessions in the corpus: `27`;
 - real live sessions in the corpus: `14`;
-- diagnostic/lab live sessions kept out of promotion scope: `11`;
+- diagnostic/lab live sessions kept out of promotion scope: `13`;
 - real live-vs-batch compared sessions: `11`;
 - meaningful real comparisons: `7`;
 - real passing comparisons: `1`;
@@ -116,10 +120,12 @@ Current state:
   `required_artifacts`.
 - capture-safe candidate blocking dimensions: `order_risk`, `local_recall`, `remote_leakage`,
   `review_burden`, `selected_notes_readiness`;
-- real order-risk triage: `14` items, `5` blocking and `9` advisory;
-- capture-safe candidate local-recall gaps: `50` examples / `228.99 sec`, top label
-  `partial_safe_tail_candidate`;
-- current objective next focus: `fix_live_local_recall_gap`.
+- current best live-implementable profile: voice-activity boundary retime over the existing
+  local-speaker/split-retime shadow;
+- active order-risk triage: `21` items, `9` blocking boundary rows and `12` advisory weak-match
+  rows;
+- best-profile active-scope gaps: `158.87 sec` missing Me and `6.82 sec` remote-like Me;
+- current objective next focus: `fix_live_order_risk`.
 
 Safety constraint:
 
@@ -150,7 +156,10 @@ Definition of done:
 Latest verification:
 
 ```bash
-murmurmark corpus live all --refresh
+POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_v1
+.venv/bin/python scripts/report-live-corpus-gates.py all \
+  --refresh \
+  --refresh-lab-policy "$POLICY"
 ```
 
 Current result:
@@ -159,18 +168,20 @@ Current result:
 - `promotion_decision = shadow_only_do_not_promote`;
 - `promotion_allowed_sessions = 0`;
 - live/batch comparison granularity: ASR segment when available, chunk fallback otherwise;
-- `real_live_order_mismatch_count = 95`;
-- `real_live_contentful_role_constrained_order_mismatch_count = 14`;
-- `real_live_unambiguous_contentful_role_constrained_order_mismatch_count = 6`;
-- `real_live_order_risk_triage = 14 rows`: `5` blocking, `9` advisory weak/short/generic match rows;
-- `real_live_missing_me_seconds = 2433.03`;
-- `capture_safe_candidate_local_recall_blockers = 50 / 228.99 sec`, top label
-  `partial_safe_tail_candidate`;
-- `real_live_suspected_remote_leak_in_me_seconds = 81.22`;
+- current best profile evaluates `5` real sessions and passes all parity gates on `1`;
+- voice-activity boundary retime reduces contentful order mismatches from `23` to `21` without
+  increasing missing-Me or remote-like-Me seconds;
+- active order triage: `21` rows, `9` blocking boundary rows and `12` advisory weak-match rows;
+- best-profile full-real gaps: `532.15 sec` missing Me and `6.82 sec` remote-like Me;
+- best-profile active-scope gaps: `158.87 sec` missing Me and `6.82 sec` remote-like Me;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
-- `objective_next_focus = fix_live_local_recall_gap`;
+- `objective_next_focus = fix_live_order_risk`;
 - `live_next_unlock.active_scope = capture_safe_candidate`;
-- `live_next_unlock.next_actions[0] = materialize_partial_safe_tail_shadow_and_recheck_recall`.
+- `live_next_unlock.next_actions[0] = fix_live_order_risk`.
+
+`--refresh-lab-policy` evaluates one selected shadow profile. Use `--with-labs` only for deliberate
+full laboratory sweeps: it materializes every exploratory policy and is too expensive for routine
+corpus refreshes.
 
 Latest suppressed-mic threshold lab, 2026-07-09:
 
@@ -283,12 +294,9 @@ Current result:
 - broadest composite with useful recall, `target_or_persistent_remote_guard_v1`, recovers `144.12s`
   local but leaks `11.08s` remote-risk.
 
-Conclusion: combining existing online evidence improves precision, but not enough recall. A
-zero-risk composite shadow can be useful as a small diagnostic draft, yet it does not close the
-promotion blockers. After the committed-PCM sidecar refresh, order-risk rows in the active
-capture-safe slice became advisory-only, so the immediate target moved to local recall:
-materialize the partial-safe-tail shadow and recheck recall without weakening remote-forbidden or
-strict order gates.
+Historical conclusion: combining existing online evidence improved precision, but not enough
+recall. The later focused profile materialization invalidated the advisory-only order assumption;
+see the current status at the top of this file.
 
 Materialized composite shadow profile, 2026-07-09:
 
@@ -370,12 +378,11 @@ Online remote-overlap shadow filter, 2026-07-09:
 - `live_next_unlock`:
   - schema: `murmurmark.live_next_unlock/v1`;
   - full-corpus diagnostics still include historical unsafe/debug blockers;
-  - current objective next action: `fix_live_local_recall_gap`;
+  - historical objective at this checkpoint: `fix_live_local_recall_gap`;
   - active order-risk scope: `capture_safe_candidate`;
   - first implementation action: `materialize_partial_safe_tail_shadow_and_recheck_recall`;
-  - conclusion: historical timing-repair labs remain diagnostic-only, while the active corpus slice
-    has advisory-only order rows; local-speech recovery is now the next concrete blocker, with strict
-    order and remote-forbidden gates preserved;
+  - later correction: focused profile materialization found blocking boundary rows, so this
+    advisory-only conclusion is no longer current;
   - boundary-order split/retime oracle:
     - profile:
       `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_batch_order_boundary_split_retime_oracle_v1`;
@@ -541,13 +548,12 @@ candidates. Current result after both extensions:
 - weak or ambiguous voice evidence: `25.00s`;
 - Target-Me enrollment-not-ready: `0.00s`;
 - no-overlap Target-Me coverage: `0.00s`;
-- current objective next:
+- historical objective at this checkpoint:
   `fix_live_local_recall_gap`.
 
-Conclusion: new recordings are not needed for the current blocker. The voice audit covers the known
-mixed intervals, but the latest corpus run says the next useful implementation should materialize
-the partial-safe-tail local-recall shadow and recheck recall. The local-recall evidence remains
-important, but it must not weaken strict ordering or remote-forbidden gates.
+Later focused materialization retained the conclusion that new recordings are unnecessary, but
+changed the first blocker to order risk. The local-recall evidence remains important and follows
+after blocking boundary rows are closed without weakening remote-forbidden gates.
 
 The follow-up `live_same_session_voice_disambiguation_lab/v1` now makes the next blocker explicit:
 all `25.00s` are `needs_same_session_local_only_enrollment_probe`. The affected sessions have `0`
@@ -701,11 +707,10 @@ visible for the local-recall fix.
 The comparison now evaluates normal live turns and rescue-shadow candidates at ASR-segment
 granularity when the source ASR JSON is present, with chunk-level fallback for older artifacts. This
 exposes order and remote-leakage risks that the earlier chunk-level comparison could hide.
-Order risk is still visible in the full corpus around live chunk boundaries and mic/remote
-reconciliation, but the active capture-safe slice now has advisory-only order rows. Raw capture and
-sidecar materialization are not the next bottleneck. The metric-aware objective focus now points to
-`fix_live_local_recall_gap`: materialize partial-safe-tail evidence, recheck recall, and keep strict
-order plus remote-forbidden gates stable.
+Order risk is still visible around live chunk boundaries and mic/remote reconciliation. Focused
+profile materialization now finds `9` blocking boundary rows and `12` advisory weak-match rows in
+the active slice. Raw capture and sidecar materialization are not the next bottleneck. The current
+objective is `fix_live_order_risk`; local recall and remote leakage remain subsequent hard gates.
 Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks,
 but the live branch also has segment-level ordering drift and `15.96s` suspected remote leakage in
 published live `Me`. The current live blockers are therefore: live timeline ordering, remote leakage

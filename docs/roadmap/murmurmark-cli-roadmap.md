@@ -543,17 +543,16 @@ newer run-state exists.
    nearest work is therefore online local-speaker and boundary evidence for mixed regions, with
    stricter order-matcher handling for the remaining advisory weak/short/generic rows.
    `live_next_unlock` records full-corpus diagnostics, but the current unlock path now uses
-   `capture_safe_candidate_scope`. Fresh corpus evidence after committed-PCM sidecar work now points
-   the next implementation focus at `fix_live_local_recall_gap`: active candidate-scope order rows
-   are advisory-only, so the next concrete step is to materialize the partial-safe-tail shadow and
-   recheck recall while keeping remote-forbidden and strict order gates intact. Historical
-   boundary-retime rows remain full-corpus diagnostics, not the active unlock target.
-   `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked. The current
-   `live_order_risk_triage/v1` sees `14` contentful order-risk rows in the full real corpus:
-   `3` blocking rows and `11` advisory weak/short/generic/reference-gap match rows. In the
-   capture-safe candidate slice, order-risk triage has `7` advisory rows and `0` blocking rows.
-   Strict order gates are unchanged,
-   but the implementation focus moves to live local recall instead of historical boundary retime.
+   `capture_safe_candidate_scope`. Materializing the local-speaker/split-retime candidate disproved
+   the earlier advisory-only order result: missing profile artifacts had hidden blocking rows. The
+   current causal voice-activity retime profile reduces contentful order mismatches from `23` to
+   `21`, with `9` blocking boundary rows and `12` advisory weak-match rows still active. The next
+   implementation focus is `fix_live_order_risk`; local recall and remote leakage remain parallel
+   gates, and no extra recording is required for this step.
+   `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked. Historical base
+   triage had `14` contentful rows; the materialized current profile has `21` active rows: `9`
+   blocking boundary candidates and `12` advisory weak matches. Strict order gates are unchanged,
+   and the implementation focus remains boundary/order repair before live local recall.
    The diagnostic boundary-order retime oracle remains non-promotable evidence: timing repair needs
    local-speaker preservation and must not relax remote-forbidden gates.
    The split/retime oracle preserves the local prefix (`1 / 6.62s`) and keeps missing-Me unchanged
@@ -610,18 +609,18 @@ newer run-state exists.
    `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_v1`
    is now the pre-split/retime baseline at `86.85s` missing-Me, `0.00s` measured remote leak and
    `4` contentful order mismatches. The current best live-implementable profile adds live-only
-   split/retime, keeps missing-Me and remote leak unchanged, and lowers contentful order mismatches
-   to `2`. Active capture-safe order triage now has `7` advisory rows and `0` blocking rows. Strict
-   order gates remain part of promotion, but the next roadmap item is local recall, not more
-   same-source order repair. The first voice-coverage
+   split/retime. The previous `7` advisory / `0` blocking result was incomplete because the
+   candidate profile was absent from several comparisons. Focused materialization now finds `9`
+   blocking boundary rows and `12` advisory weak-match rows. The voice-activity retime profile closes
+   two contentful order mismatches without changing missing-Me or remote-like-Me seconds; strict
+   order remains the first roadmap item. The first voice-coverage
    check now narrows that further: `live_mixed_speaker_boundary_voice_coverage_lab` sees `5`
    mixed/speaker rows / `25.32s`. After Target-Me is rerun with `--include-remaining-gap` and the
    diagnostic `--fallback-persistent-profile`, all rows have Target-Me coverage; `0.32s` have been
    materialized in the diagnostic remote-guarded boundary profile and `25.00s` stay weak or
-   ambiguous. Those labs remain diagnostic-only. The current candidate-scope report makes
-   `fix_live_local_recall_gap` the next implementable step through
-   `materialize_partial_safe_tail_shadow_and_recheck_recall`; strict order and remote-forbidden gates
-   must stay unchanged.
+   ambiguous. Those labs remain diagnostic-only. After order risk is closed, return to the
+   `158.87s` active missing-Me gap and `6.82s` remote-like-Me gap without weakening remote-forbidden
+   gates.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

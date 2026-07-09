@@ -4787,6 +4787,11 @@ derived/live/target-me-shadow/<policy>/draft.json
 derived/live/target-me-shadow/<policy>/draft.md
 ```
 
+The default command evaluates normal parity gates without materializing every exploratory profile.
+`--lab-policy POLICY` materializes one selected policy and may be repeated. `--with-labs` is the
+explicit full sweep. The generator records selected policies in `generator.lab_policies`, and
+`metrics.expensive_lab_policy_count` makes the cost-bearing path visible.
+
 Schema:
 
 ```json
@@ -5119,6 +5124,10 @@ With `--refresh`, it first reruns `scripts/compare-live-batch.py` for every targ
 writes fresh `live_batch_comparison.json`; it does not modify raw capture, batch ASR or selected
 transcript profiles. Refresh status is reported in `summary.live_comparison_refresh_*` and the
 top-level `live_comparison_refresh` block.
+
+`--refresh-lab-policy POLICY` forwards one or more selected policies to each comparison. The report
+records them in `summary.live_comparison_refresh_lab_policies`. This is the routine way to recheck a
+single candidate without paying for every historical laboratory profile.
 
 Schema:
 
@@ -5826,11 +5835,14 @@ changes strict parity gates. Current labels are:
 - `weak_generic_match_false_positive_candidate`: an advisory row where the match is ambiguous,
   the score margin is small and many plausible batch matches exist.
 
-For the current corpus, base live comparison triage sees `14` contentful order-risk rows: `3`
-blocking rows and `11` advisory weak/short/generic/reference-gap match candidates. In the
-capture-safe candidate slice, row-level order triage has `7` advisory rows and `0` blocking rows.
-Promotion remains blocked by the original strict order gate; triage only explains whether the next
-work is a real boundary repair or matcher/readiness/local-recall step.
+Materializing the current local-speaker/split-retime candidate exposed a previous measurement gap:
+the active slice is not advisory-only. The current live-implementable profile adds a causal
+voice-activity boundary retime using already closed live chunk WAV files. It advances only coarse
+Whisper starts after sustained speech evidence; it does not use raw CAF, batch timestamps or future
+chunks. On the current corpus it reduces contentful order mismatches from `23` to `21` without
+changing missing-Me or remote-like-Me seconds. Active triage still contains `9` blocking boundary
+rows and `12` advisory weak-match rows, so promotion remains blocked and `fix_live_order_risk` is
+the next implementation action.
 
 The same schema is also emitted as `capture_safe_candidate_order_risk_triage`, scoped only to
 capture-safe candidate sessions. This lets the goal runner separate historical unsafe/debug evidence
@@ -5839,13 +5851,17 @@ advisory rows, `capture_safe_candidate_scope.next_focus` may point to the next h
 `local_recall`. That does not pass the strict order gate and does not permit promotion; it only makes
 the next implementation step more honest.
 
+The profile records `voice_activity_boundary_retime`, original start, applied shift, threshold,
+noise floor and source chunk path on adjusted turns. Corpus summaries aggregate retimed-turn count
+and total shift. These fields are evidence only and cannot make live output authoritative.
+
 `live_next_unlock.boundary_order_retime_oracle` records an intentionally non-promotable diagnostic
 profile when boundary rows exist:
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1`.
 It uses batch comparison evidence, so it is not an online algorithm. Historical runs showed that
 blind retiming can remove part of the order-risk signal while losing local speech. The oracle itself
-cannot be promoted; current candidate-scope focus is local recall because order-risk triage there is
-advisory-only.
+cannot be promoted. Current candidate-scope focus remains order risk until the blocking boundary
+rows are closed; local recall and remote leakage stay parallel gates.
 
 The report also records the paired diagnostic
 `live_next_unlock.boundary_order_split_retime_oracle`:
@@ -6105,9 +6121,9 @@ useful.
 cannot be published. It is diagnostic only and cannot promote live output.
 
 Older corpus evidence used this lab to ask for same-session Target-Me enrollment probes. Current
-reports keep that evidence diagnostic-only; the active candidate-scope unlock is `local_recall`
-because order-risk triage is advisory-only in capture-safe candidate sessions. Do not change
-publication policy until local speech recovery passes remote-forbidden and order gates.
+reports keep that evidence diagnostic-only. Focused profile materialization later exposed blocking
+boundary rows, so order repair is the active unlock; local recall remains the next hard gate. Do not
+change publication policy until both pass remote-forbidden and strict order gates.
 
 `report-live-local-only-enrollment-probe.py` writes corpus schema
 `murmurmark.live_local_only_enrollment_probe_corpus/v1` and per-session schema

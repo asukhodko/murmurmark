@@ -16,7 +16,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.30.0"
+SCRIPT_VERSION = "0.31.0"
 EPSILON = 1.0e-12
 LIVE_BATCH_BOUNDARY_TOLERANCE_SEC = 2.5
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -128,6 +128,10 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_v1"
 )
+VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_v1"
+)
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -176,6 +180,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -234,6 +239,9 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY: (
@@ -385,10 +393,14 @@ LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES = {
 }
 LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
+}
+VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICIES = {
+    VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
 }
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
@@ -419,7 +431,23 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="also run expensive exploratory target-me shadow profiles; default compare keeps only parity gates",
     )
+    parser.add_argument(
+        "--lab-policy",
+        action="append",
+        choices=MATERIALIZED_TARGET_ME_SHADOW_POLICIES,
+        default=[],
+        help=(
+            "materialize and evaluate only this target-me shadow policy; repeat for several policies. "
+            "This is substantially cheaper than --with-labs, which evaluates every exploratory policy."
+        ),
+    )
     return parser.parse_args()
+
+
+def selected_lab_policies(args: argparse.Namespace) -> tuple[str, ...]:
+    if args.with_labs:
+        return MATERIALIZED_TARGET_ME_SHADOW_POLICIES
+    return tuple(dict.fromkeys(str(policy) for policy in args.lab_policy))
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -1832,6 +1860,139 @@ def apply_live_boundary_split_retime(
     )
 
 
+def frame_rms_db(values: np.ndarray, sample_rate: int, *, frame_ms: float = 30.0, hop_ms: float = 10.0) -> np.ndarray:
+    frame = max(1, int(round(sample_rate * frame_ms / 1000.0)))
+    hop = max(1, int(round(sample_rate * hop_ms / 1000.0)))
+    if values.size < frame:
+        return np.empty(0, dtype=np.float32)
+    count = 1 + (values.size - frame) // hop
+    shape = (count, frame)
+    strides = (values.strides[0] * hop, values.strides[0])
+    windows = np.lib.stride_tricks.as_strided(values, shape=shape, strides=strides)
+    rms = np.sqrt(np.mean(np.square(windows.astype(np.float64)), axis=1))
+    return (20.0 * np.log10(rms + EPSILON)).astype(np.float32)
+
+
+def first_sustained_activity_mask(active: np.ndarray, *, window_frames: int = 5, required_frames: int = 3) -> int | None:
+    if active.size < window_frames:
+        return None
+    for index in range(active.size - window_frames + 1):
+        if int(np.count_nonzero(active[index : index + window_frames])) >= required_frames:
+            return index
+    return None
+
+
+def first_sustained_activity_frame(levels_db: np.ndarray, threshold_db: float) -> int | None:
+    return first_sustained_activity_mask(levels_db >= threshold_db)
+
+
+def apply_voice_activity_boundary_retime(
+    session: Path,
+    turns: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    chunks = {
+        safe_int(row.get("index")): row
+        for row in read_jsonl(session / "derived/live/chunks.jsonl")
+        if safe_int(row.get("index")) > 0
+    }
+    audio_cache: dict[Path, tuple[int, np.ndarray] | None] = {}
+    adjusted: list[dict[str, Any]] = []
+    for turn in turns:
+        role = str(turn.get("role") or "")
+        source = str(turn.get("source") or "")
+        if (role, source) not in {("Colleagues", "remote_segment"), ("Me", "mic_segment")}:
+            adjusted.append(turn)
+            continue
+        start = safe_float(turn.get("start"))
+        end = safe_float(turn.get("end"), start)
+        if end - start < 1.0:
+            adjusted.append(turn)
+            continue
+        chunk = chunks.get(safe_int(turn.get("chunk_index")))
+        track_name = "remote" if role == "Colleagues" else "mic"
+        track = chunk.get(track_name) if isinstance(chunk, dict) and isinstance(chunk.get(track_name), dict) else {}
+        if track_name == "remote":
+            wav_value = track.get("wav") or track.get("asr_wav")
+        else:
+            wav_value = track.get("asr_wav") or track.get("wav")
+        if not wav_value:
+            adjusted.append(turn)
+            continue
+        wav_path = Path(str(wav_value))
+        if not wav_path.is_absolute():
+            wav_path = session / wav_path
+        audio = read_audio(wav_path, audio_cache)
+        if audio is None:
+            adjusted.append(turn)
+            continue
+        sample_rate, values = audio
+        clip_start = safe_float(chunk.get("clip_start_sec"), safe_float(chunk.get("start_sec")))
+        relative_start = max(0.0, start - clip_start)
+        relative_end = min(values.size / sample_rate, end - clip_start)
+        if relative_end - relative_start < 1.0:
+            adjusted.append(turn)
+            continue
+        full_levels = frame_rms_db(values, sample_rate)
+        if full_levels.size == 0:
+            adjusted.append(turn)
+            continue
+        noise_floor_db = float(np.percentile(full_levels, 15))
+        threshold_db = max(-50.0, min(-28.0, noise_floor_db + 10.0))
+        start_sample = max(0, int(round(relative_start * sample_rate)))
+        end_sample = min(values.size, int(round(relative_end * sample_rate)))
+        levels = frame_rms_db(values[start_sample:end_sample], sample_rate)
+        onset_frame: int | None
+        if role == "Me":
+            remote_track = chunk.get("remote") if isinstance(chunk.get("remote"), dict) else {}
+            remote_wav_value = remote_track.get("wav") or remote_track.get("asr_wav")
+            remote_audio = None
+            if remote_wav_value:
+                remote_wav_path = Path(str(remote_wav_value))
+                if not remote_wav_path.is_absolute():
+                    remote_wav_path = session / remote_wav_path
+                remote_audio = read_audio(remote_wav_path, audio_cache)
+            if remote_audio is not None and remote_audio[0] == sample_rate:
+                remote_values = remote_audio[1]
+                remote_end_sample = min(remote_values.size, end_sample)
+                remote_levels = frame_rms_db(remote_values[start_sample:remote_end_sample], sample_rate)
+                common = min(levels.size, remote_levels.size)
+                local_active = (levels[:common] >= threshold_db) & (
+                    (remote_levels[:common] <= -45.0) | ((levels[:common] - remote_levels[:common]) >= -6.0)
+                )
+                onset_frame = first_sustained_activity_mask(
+                    local_active,
+                    window_frames=20,
+                    required_frames=16,
+                )
+            else:
+                onset_frame = first_sustained_activity_frame(levels, threshold_db)
+        else:
+            onset_frame = first_sustained_activity_frame(levels, threshold_db)
+        if onset_frame is None:
+            adjusted.append(turn)
+            continue
+        onset_sec = relative_start + onset_frame * 0.010
+        retimed_start = max(start, clip_start + onset_sec - 0.15)
+        shift = retimed_start - start
+        max_shift = min(12.0, max(0.0, end - start - 0.35))
+        if shift < 0.35 or shift > max_shift:
+            adjusted.append(turn)
+            continue
+        new_turn = dict(turn)
+        new_turn["start"] = round(retimed_start, 3)
+        new_turn["voice_activity_boundary_retime"] = True
+        new_turn["voice_activity_boundary_original_start"] = round(start, 3)
+        new_turn["voice_activity_boundary_shift_seconds"] = round(shift, 3)
+        new_turn["voice_activity_boundary_threshold_db"] = round(threshold_db, 3)
+        new_turn["voice_activity_boundary_noise_floor_db"] = round(noise_floor_db, 3)
+        new_turn["voice_activity_boundary_audio"] = rel(wav_path, session)
+        adjusted.append(new_turn)
+    return sorted(
+        adjusted,
+        key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+    )
+
+
 def target_me_shadow_policy_metrics(
     *,
     batch_utterances: list[dict[str, Any]],
@@ -2532,6 +2693,10 @@ def best_batch_match(
             "token_recall": round(bag_recall(turn_tokens, row_tokens) or 0.0, 6),
             "turn_content_token_count": len(content_tokens(turn_tokens)),
             "batch_content_token_count": len(content_tokens(row_tokens)),
+            "time_distance_sec": round(
+                abs(safe_float(turn.get("start")) - safe_float(row.get("start"))),
+                3,
+            ),
         }
         candidates.append(candidate)
     if not candidates:
@@ -2540,6 +2705,7 @@ def best_batch_match(
         key=lambda item: (
             safe_float(item.get("score")),
             safe_float(item.get("token_recall")),
+            -safe_float(item.get("time_distance_sec")),
             -safe_float(item.get("batch_start")),
         ),
         reverse=True,
@@ -4702,6 +4868,12 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "boundary_order_split_original_end",
         "boundary_order_split_counterpart_id",
         "boundary_order_split_reason",
+        "voice_activity_boundary_retime",
+        "voice_activity_boundary_original_start",
+        "voice_activity_boundary_shift_seconds",
+        "voice_activity_boundary_threshold_db",
+        "voice_activity_boundary_noise_floor_db",
+        "voice_activity_boundary_audio",
         "segment_gate_status",
         "segment_gate_reason",
         "segment_gate_unique_token_count",
@@ -4884,6 +5056,7 @@ def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]
     retimed = [turn for turn in turns if turn.get("boundary_order_retime_oracle")]
     split = [turn for turn in turns if turn.get("boundary_order_split_retime_oracle")]
     preserved_prefix = [turn for turn in split if turn.get("boundary_order_split_part") == "preserved_prefix"]
+    voice_activity_retimed = [turn for turn in turns if turn.get("voice_activity_boundary_retime")]
     return {
         "boundary_order_retime_oracle_turn_count": len(retimed),
         "boundary_order_retime_oracle_trimmed_seconds": round(
@@ -4894,6 +5067,11 @@ def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]
         "boundary_order_split_retime_oracle_preserved_prefix_count": len(preserved_prefix),
         "boundary_order_split_retime_oracle_preserved_prefix_seconds": round(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in preserved_prefix),
+            3,
+        ),
+        "voice_activity_boundary_retime_turn_count": len(voice_activity_retimed),
+        "voice_activity_boundary_retime_shift_seconds": round(
+            sum(safe_float(turn.get("voice_activity_boundary_shift_seconds")) for turn in voice_activity_retimed),
             3,
         ),
     }
@@ -5090,6 +5268,10 @@ def target_me_shadow_profile_components(
         live_turns = apply_live_boundary_split_retime(live_turns, adjustments)
         target_turns = apply_live_boundary_split_retime(target_turns, adjustments)
         supplemental_turns = apply_live_boundary_split_retime(supplemental_turns, adjustments)
+    if policy in VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICIES:
+        live_turns = apply_voice_activity_boundary_retime(session, live_turns)
+        target_turns = apply_voice_activity_boundary_retime(session, target_turns)
+        supplemental_turns = apply_voice_activity_boundary_retime(session, supplemental_turns)
     if (
         policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
         or policy in LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICIES
@@ -5158,9 +5340,10 @@ def write_target_me_shadow_drafts(
     persistent_target_me_rows: list[dict[str, Any]],
     batch_utterances: list[dict[str, Any]],
     metrics: dict[str, Any],
+    policies: tuple[str, ...] = MATERIALIZED_TARGET_ME_SHADOW_POLICIES,
 ) -> dict[str, dict[str, str]]:
     outputs: dict[str, dict[str, str]] = {}
-    for policy in MATERIALIZED_TARGET_ME_SHADOW_POLICIES:
+    for policy in policies:
         live_turns, target_turns, supplemental_turns, removed_live_turns, rejected_supplemental_turns = (
             target_me_shadow_profile_components(
                 session=session,
@@ -5361,10 +5544,11 @@ def build_target_me_shadow_profiles(
     batch_quality: dict[str, Any] | None,
     readiness: dict[str, Any] | None,
     outcome: dict[str, Any] | None,
+    policies: tuple[str, ...] = MATERIALIZED_TARGET_ME_SHADOW_POLICIES,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     profiles: dict[str, Any] = {}
     top_level_metrics: dict[str, Any] = {}
-    for policy in MATERIALIZED_TARGET_ME_SHADOW_POLICIES:
+    for policy in policies:
         live_turns, target_turns, supplemental_turns, removed_live_turns, rejected_supplemental_turns = (
             target_me_shadow_profile_components(
                 session=session,
@@ -5538,6 +5722,12 @@ def build_target_me_shadow_profiles(
         top_level_metrics[f"{base}_boundary_order_split_retime_oracle_preserved_prefix_seconds"] = retime_metrics[
             "boundary_order_split_retime_oracle_preserved_prefix_seconds"
         ]
+        top_level_metrics[f"{base}_voice_activity_boundary_retime_turn_count"] = retime_metrics[
+            "voice_activity_boundary_retime_turn_count"
+        ]
+        top_level_metrics[f"{base}_voice_activity_boundary_retime_shift_seconds"] = retime_metrics[
+            "voice_activity_boundary_retime_shift_seconds"
+        ]
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_count"] = len(supplemental_turns)
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_seconds"] = supplemental_seconds
         top_level_metrics[f"{base}_visible_suppressed_mic_rejected_turn_count"] = len(rejected_supplemental_turns)
@@ -5656,11 +5846,15 @@ def build_target_me_shadow_profiles(
 def main() -> int:
     args = parse_args()
     session = args.session.expanduser().resolve()
-    include_labs = args.with_labs or os.environ.get("MURMURMARK_COMPARE_WITH_LABS", "").lower() in {
+    env_with_labs = os.environ.get("MURMURMARK_COMPARE_WITH_LABS", "").lower() in {
         "1",
         "true",
         "yes",
     }
+    if env_with_labs:
+        args.with_labs = True
+    lab_policies = selected_lab_policies(args)
+    include_labs = bool(lab_policies)
     live_report_path = session / "derived/live/live_pipeline_report.json"
     chunks_path = session / "derived/live/chunks.jsonl"
     comparison_path = session / "derived/live/live_batch_comparison.json"
@@ -5749,6 +5943,7 @@ def main() -> int:
             persistent_target_me_rows=persistent_target_me_rows,
             batch_utterances=batch_utterances,
             metrics=live_metrics,
+            policies=lab_policies,
         )
         target_me_shadow_profiles, target_me_shadow_profile_metrics = build_target_me_shadow_profiles(
             session=session,
@@ -5768,6 +5963,7 @@ def main() -> int:
             batch_quality=batch_quality,
             readiness=readiness,
             outcome=outcome,
+            policies=lab_policies,
         )
     promotion_blockers = [
         "shadow_v1_never_promotes_by_default",
@@ -5775,7 +5971,11 @@ def main() -> int:
     ]
     payload = {
         "schema": SCHEMA,
-        "generator": {"name": "compare-live-batch", "version": SCRIPT_VERSION},
+        "generator": {
+            "name": "compare-live-batch",
+            "version": SCRIPT_VERSION,
+            "lab_policies": list(lab_policies),
+        },
         "created_at": datetime.now(timezone.utc).isoformat(),
         "session": str(session),
         "status": "blocked" if blockers else "shadow_compared",
@@ -5796,6 +5996,7 @@ def main() -> int:
         },
         "metrics": {
             "expensive_labs_enabled": include_labs,
+            "expensive_lab_policy_count": len(lab_policies),
             "live_chunks": len(chunks),
             "live_token_count": len(live_tokens),
             "batch_token_count": len(final_tokens),

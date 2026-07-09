@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.29.0"
+SCRIPT_VERSION = "1.30.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -86,6 +86,10 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_v1"
 )
+VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_v1"
+)
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -130,6 +134,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -216,6 +221,8 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "boundary_order_split_retime_oracle_turn_count",
     "boundary_order_split_retime_oracle_preserved_prefix_count",
     "boundary_order_split_retime_oracle_preserved_prefix_seconds",
+    "voice_activity_boundary_retime_turn_count",
+    "voice_activity_boundary_retime_shift_seconds",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -416,6 +423,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run compare-live-batch.py for live sessions before aggregating the corpus report.",
     )
+    parser.add_argument(
+        "--refresh-lab-policy",
+        action="append",
+        choices=TARGET_ME_SHADOW_PROFILE_POLICIES,
+        default=[],
+        help=(
+            "During --refresh, materialize only this shadow policy. Repeat for several policies; "
+            "without this option refresh keeps the normal parity-only path."
+        ),
+    )
     parser.add_argument("--min-live-sessions", type=int, default=0, help="Required live sessions for strict coverage checks.")
     parser.add_argument("--min-compared-sessions", type=int, default=0, help="Required live-vs-batch compared sessions for strict coverage checks.")
     parser.add_argument(
@@ -541,7 +558,11 @@ def resolve_project_python() -> str:
     return sys.executable
 
 
-def refresh_live_comparisons(sessions: list[Path]) -> list[dict[str, Any]]:
+def refresh_live_comparisons(
+    sessions: list[Path],
+    *,
+    lab_policies: list[str] | None = None,
+) -> list[dict[str, Any]]:
     script = Path(__file__).resolve().parent / "compare-live-batch.py"
     python = resolve_project_python()
     rows: list[dict[str, Any]] = []
@@ -550,6 +571,8 @@ def refresh_live_comparisons(sessions: list[Path]) -> list[dict[str, Any]]:
         if not live_report.exists():
             continue
         command = [python, str(script), str(session)]
+        for policy in lab_policies or []:
+            command.extend(["--lab-policy", policy])
         result = subprocess.run(
             command,
             text=True,
@@ -1505,6 +1528,14 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
         summary[f"{out}_boundary_order_split_retime_oracle_preserved_prefix_seconds"] = sum_metric(
             evaluated_rows,
             f"{base}_boundary_order_split_retime_oracle_preserved_prefix_seconds",
+        )
+        summary[f"{out}_voice_activity_boundary_retime_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_voice_activity_boundary_retime_turn_count",
+        )
+        summary[f"{out}_voice_activity_boundary_retime_shift_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_voice_activity_boundary_retime_shift_seconds",
         )
         summary[f"{out}_visible_suppressed_mic_added_turn_count"] = sum_int_metric(
             evaluated_rows,
@@ -6335,7 +6366,11 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
 
 
 def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> dict[str, Any]:
-    refresh_results = refresh_live_comparisons(sessions) if args.refresh else []
+    refresh_results = (
+        refresh_live_comparisons(sessions, lab_policies=args.refresh_lab_policy)
+        if args.refresh
+        else []
+    )
     refresh_attempted = refresh_results
     refresh_failed = [row for row in refresh_results if row.get("status") == "failed"]
     refresh_skipped = max(0, len(sessions) - len(refresh_attempted)) if args.refresh else 0
@@ -6374,6 +6409,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_live_sessions": len(real_live_rows),
         "diagnostic_live_sessions": len(diagnostic_live_rows),
         "live_comparison_refresh_status": refresh_status,
+        "live_comparison_refresh_lab_policies": list(args.refresh_lab_policy),
         "live_comparison_refresh_attempted_sessions": len(refresh_attempted),
         "live_comparison_refresh_failed_sessions": len(refresh_failed),
         "live_comparison_refresh_skipped_sessions": refresh_skipped,
