@@ -506,11 +506,17 @@ Current result:
 - no zero-remote recommended boundary profile: `recommended_profile = null`;
 - best recall probe: `relaxed_audio_text_anchor_oracle_gap_probe_v1`;
 - best recall probe overlaps `18.69s` of missing `Me`, but also `27.20s` remote-risk;
+- evaluation-only zero-remote ceiling:
+  `relaxed_audio_text_anchor_remote_forbidden_trimmed_zero_remote_evaluated_gate_v1`;
+- that ceiling keeps `2` groups / `31.28s` candidate span, overlaps `14.79s` missing `Me` and has
+  `0.00s` evaluated remote-risk;
 - candidate pool combines top-level suppressed-mic segments with remaining-gap evidence because the
   top-level risk examples are intentionally truncated.
 
 Conclusion: the oracle-sized recovery is reachable only through relaxed anchors plus a stronger
-remote-forbidden boundary/context gate. Relaxed anchors must not be promoted as-is.
+remote-forbidden boundary/context gate. The next implementation target is a live classifier that
+approximates the evaluation-only zero-remote ceiling without using batch labels. Relaxed anchors must
+not be promoted as-is.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not

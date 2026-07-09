@@ -5906,7 +5906,8 @@ keeps `promotion_allowed: false`.
     }
   },
   "recommended_profile": null,
-  "best_missing_overlap_profile": "relaxed_audio_text_anchor_oracle_gap_probe_v1"
+  "best_missing_overlap_profile": "relaxed_audio_text_anchor_oracle_gap_probe_v1",
+  "best_zero_remote_evaluated_profile": "relaxed_audio_text_anchor_remote_forbidden_trimmed_zero_remote_evaluated_gate_v1"
 }
 ```
 
@@ -5914,8 +5915,11 @@ keeps `promotion_allowed: false`.
 gap without adding evaluated remote-risk. `best_missing_overlap_profile` is the best recall probe
 even when it carries remote-risk. Current corpus result: strict zero-remote anchors recover `0.00s`
 of the current remaining gap; the relaxed oracle-gap probe overlaps `18.69s` missing `Me`, but also
-adds `27.20s` remote-risk. That makes this block a design target for a future remote-forbidden
-boundary/context gate, not publication evidence.
+adds `27.20s` remote-risk. `best_zero_remote_evaluated_profile` is an evaluation-only ceiling: it
+first trims live-forbidden intervals, then uses batch labels to keep only groups with zero evaluated
+remote-risk. Current value: `14.79s` missing-Me overlap, `31.28s` candidate span and `0.00s`
+remote-risk. This is not publication evidence; it defines the target for a future live
+remote-forbidden boundary/context classifier.
 
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the

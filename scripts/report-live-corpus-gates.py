@@ -14,7 +14,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.19.0"
+SCRIPT_VERSION = "1.20.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -2561,6 +2561,33 @@ def live_only_retime_boundary_candidate_lab(
             merged.append({"session": session, "start": round(start, 3), "end": round(end, 3)})
         return merged
 
+    def subtract_intervals(
+        start: float,
+        end: float,
+        forbidden: list[tuple[float, float]],
+        *,
+        min_interval_sec: float,
+    ) -> list[tuple[float, float]]:
+        pieces = [(start, end)]
+        for forbidden_start, forbidden_end in sorted(forbidden):
+            if forbidden_end <= start or forbidden_start >= end:
+                continue
+            next_pieces: list[tuple[float, float]] = []
+            for piece_start, piece_end in pieces:
+                if forbidden_end <= piece_start or forbidden_start >= piece_end:
+                    next_pieces.append((piece_start, piece_end))
+                    continue
+                if forbidden_start > piece_start:
+                    next_pieces.append((piece_start, min(forbidden_start, piece_end)))
+                if forbidden_end < piece_end:
+                    next_pieces.append((max(forbidden_end, piece_start), piece_end))
+            pieces = next_pieces
+        return [
+            (round(piece_start, 3), round(piece_end, 3))
+            for piece_start, piece_end in pieces
+            if piece_end - piece_start >= min_interval_sec
+        ]
+
     def overlap_with_rows(intervals: list[dict[str, Any]], evidence_rows: list[dict[str, Any]]) -> float:
         total = 0.0
         for interval in intervals:
@@ -2603,6 +2630,12 @@ def live_only_retime_boundary_candidate_lab(
         "anchor_span_v1": {"left_sec": 0.0, "right_sec": 0.0},
         "short_context_v1": {"left_sec": 3.0, "right_sec": 1.0},
         "oracle_gap_probe_v1": {"left_sec": 10.0, "right_sec": 1.0},
+        "remote_forbidden_trimmed_oracle_gap_probe_v1": {
+            "left_sec": 10.0,
+            "right_sec": 1.0,
+            "remote_forbidden_gate": True,
+            "min_interval_sec": 0.35,
+        },
     }
 
     local_segments = [row for row in segments if row.get("batch_role_label") in {"me_dominant", "mixed"}]
@@ -2610,6 +2643,21 @@ def live_only_retime_boundary_candidate_lab(
         row
         for row in segments
         if row.get("batch_role_label") in {"remote_dominant", "none", "known_hallucination"}
+    ]
+    remote_forbidden_rows = [
+        row
+        for row in segments
+        if bool(row.get("known_hallucination"))
+        or safe_float(row.get("segment_gate_mic_token_recall_in_overlapping_remote")) >= 0.4
+        or safe_float(row.get("segment_gate_overlapping_remote_token_recall_in_mic")) >= 0.25
+        or (
+            row.get("segment_gate_reason") == "segment_duplicates_overlapping_remote"
+            and safe_int(row.get("segment_gate_unique_token_count") or row.get("unique_token_count")) <= 1
+        )
+        or (
+            row.get("segment_gate_reason") == "segment_duplicates_overlapping_remote"
+            and safe_float(row.get("audio_mic_minus_remote_rms_db"), default=999.0) <= -8.0
+        )
     ]
     profile_reports: dict[str, dict[str, Any]] = {}
     anchor_set_summaries: dict[str, dict[str, Any]] = {}
@@ -2633,14 +2681,42 @@ def live_only_retime_boundary_candidate_lab(
                 anchor_end = max(safe_float(row.get("end"), row.get("start")) for row in anchors)
                 start = max(0.0, anchor_start - safe_float(config.get("left_sec")))
                 end = anchor_end + safe_float(config.get("right_sec"))
-                raw_intervals.append({"session": session, "start": round(start, 3), "end": round(end, 3)})
+                forbidden = [
+                    row_interval(row)
+                    for row in remote_forbidden_rows
+                    if str(row.get("session") or "") == session
+                    and interval_overlap(start, end, *row_interval(row)) > 0
+                ]
+                kept_pieces = [(round(start, 3), round(end, 3))]
+                if config.get("remote_forbidden_gate"):
+                    kept_pieces = subtract_intervals(
+                        start,
+                        end,
+                        forbidden,
+                        min_interval_sec=safe_float(config.get("min_interval_sec"), 0.35),
+                    )
+                for piece_start, piece_end in kept_pieces:
+                    raw_intervals.append({"session": session, "start": round(piece_start, 3), "end": round(piece_end, 3)})
+                group_intervals = [
+                    {"session": session, "start": piece_start, "end": piece_end}
+                    for piece_start, piece_end in kept_pieces
+                ]
                 examples.append(
                     {
                         "session": session,
                         "chunk_index": group.get("chunk_index"),
                         "start": round(start, 3),
                         "end": round(end, 3),
-                        "candidate_seconds": round(max(0.0, end - start), 3),
+                        "candidate_seconds": round(sum(max(0.0, piece_end - piece_start) for piece_start, piece_end in kept_pieces), 3),
+                        "raw_candidate_seconds": round(max(0.0, end - start), 3),
+                        "remote_forbidden_gate": bool(config.get("remote_forbidden_gate")),
+                        "remote_forbidden_cut_seconds": round(
+                            max(0.0, end - start)
+                            - sum(max(0.0, piece_end - piece_start) for piece_start, piece_end in kept_pieces),
+                            3,
+                        ),
+                        "remote_forbidden_row_count": len(forbidden),
+                        "intervals": group_intervals,
                         "anchor_start": round(anchor_start, 3),
                         "anchor_end": round(anchor_end, 3),
                         "anchor_span_seconds": round(max(0.0, anchor_end - anchor_start), 3),
@@ -2651,15 +2727,15 @@ def live_only_retime_boundary_candidate_lab(
                             " ".join(str(row.get("text") or "").split()) for row in anchors
                         ).strip(),
                         "local_missing_overlap_seconds": overlap_with_rows(
-                            [{"session": session, "start": start, "end": end}],
+                            group_intervals,
                             missing_rows,
                         ),
                         "suppressed_remote_risk_seconds": overlap_with_rows(
-                            [{"session": session, "start": start, "end": end}],
+                            group_intervals,
                             remote_risk_segments,
                         ),
                         "suppressed_local_seconds": overlap_with_rows(
-                            [{"session": session, "start": start, "end": end}],
+                            group_intervals,
                             local_segments,
                         ),
                     }
@@ -2682,9 +2758,23 @@ def live_only_retime_boundary_candidate_lab(
             profile_reports[full_profile_name] = {
                 "status": "ok" if merged else "no_candidates",
                 "promotion_allowed": False,
+                "evaluation_only": False,
                 "anchor_set": anchor_set_name,
                 "left_context_sec": config.get("left_sec"),
                 "right_context_sec": config.get("right_sec"),
+                "remote_forbidden_gate": bool(config.get("remote_forbidden_gate")),
+                "remote_forbidden_gate_criteria": (
+                    {
+                        "known_hallucination": True,
+                        "min_mic_token_recall_in_overlapping_remote": 0.4,
+                        "min_overlapping_remote_token_recall_in_mic": 0.25,
+                        "duplicate_max_unique_token_count": 1,
+                        "duplicate_max_audio_mic_minus_remote_rms_db": -8.0,
+                        "min_kept_interval_sec": config.get("min_interval_sec"),
+                    }
+                    if config.get("remote_forbidden_gate")
+                    else None
+                ),
                 "candidate_count": len(merged),
                 "candidate_seconds": candidate_seconds,
                 "anchor_group_count": len(anchor_groups),
@@ -2712,16 +2802,100 @@ def live_only_retime_boundary_candidate_lab(
                 "limit": limit,
             }
 
+    trimmed_relaxed_profile_name = "relaxed_audio_text_anchor_remote_forbidden_trimmed_oracle_gap_probe_v1"
+    trimmed_relaxed_profile = profile_reports.get(trimmed_relaxed_profile_name)
+    if isinstance(trimmed_relaxed_profile, dict):
+        accepted_examples = [
+            example
+            for example in trimmed_relaxed_profile.get("examples") or []
+            if isinstance(example, dict)
+            and safe_float(example.get("suppressed_remote_risk_seconds")) == 0.0
+            and safe_float(example.get("local_missing_overlap_seconds")) > 0.0
+        ]
+        evaluated_intervals: list[dict[str, Any]] = []
+        for example in accepted_examples:
+            for interval in example.get("intervals") or []:
+                if isinstance(interval, dict):
+                    evaluated_intervals.append(
+                        {
+                            "session": str(interval.get("session") or ""),
+                            "start": safe_float(interval.get("start")),
+                            "end": safe_float(interval.get("end"), interval.get("start")),
+                        }
+                    )
+        merged = merge_intervals(evaluated_intervals)
+        candidate_seconds = round(sum(duration(interval) for interval in merged), 3)
+        local_missing_overlap_seconds = overlap_with_rows(merged, missing_rows)
+        suspicious_missing_overlap_seconds = overlap_with_rows(merged, suspicious_missing_rows)
+        suppressed_local_seconds = overlap_with_rows(merged, local_segments)
+        suppressed_remote_risk_seconds = overlap_with_rows(merged, remote_risk_segments)
+        evaluated_suppressed_seconds = round(suppressed_local_seconds + suppressed_remote_risk_seconds, 3)
+        profile_reports[
+            "relaxed_audio_text_anchor_remote_forbidden_trimmed_zero_remote_evaluated_gate_v1"
+        ] = {
+            "status": "ok" if merged else "no_candidates",
+            "promotion_allowed": False,
+            "evaluation_only": True,
+            "interpretation": (
+                "diagnostic ceiling: keeps only trimmed relaxed-anchor groups that have zero "
+                "evaluated remote-risk; batch labels are used for this acceptance decision"
+            ),
+            "source_profile": trimmed_relaxed_profile_name,
+            "anchor_set": "relaxed_audio_text_anchor",
+            "remote_forbidden_gate": True,
+            "candidate_count": len(merged),
+            "accepted_group_count": len(accepted_examples),
+            "candidate_seconds": candidate_seconds,
+            "local_missing_overlap_seconds": local_missing_overlap_seconds,
+            "suspicious_missing_overlap_seconds": suspicious_missing_overlap_seconds,
+            "suppressed_local_seconds": suppressed_local_seconds,
+            "suppressed_remote_risk_seconds": suppressed_remote_risk_seconds,
+            "evaluated_suppressed_seconds": evaluated_suppressed_seconds,
+            "precision_proxy": (
+                round(suppressed_local_seconds / evaluated_suppressed_seconds, 6)
+                if evaluated_suppressed_seconds > 0
+                else None
+            ),
+            "remote_risk_ratio": (
+                round(suppressed_remote_risk_seconds / evaluated_suppressed_seconds, 6)
+                if evaluated_suppressed_seconds > 0
+                else None
+            ),
+            "missing_overlap_per_candidate_second": (
+                round(local_missing_overlap_seconds / candidate_seconds, 6) if candidate_seconds > 0 else None
+            ),
+            "examples": accepted_examples[:limit],
+            "truncated": len(accepted_examples) > limit,
+            "limit": limit,
+        }
+
     recommended_profile = None
     zero_remote_profiles = [
         (name, report)
         for name, report in profile_reports.items()
-        if safe_float(report.get("suppressed_remote_risk_seconds")) == 0.0
+        if not bool(report.get("evaluation_only"))
+        and safe_float(report.get("suppressed_remote_risk_seconds")) == 0.0
         and safe_float(report.get("local_missing_overlap_seconds")) > 0.0
     ]
     if zero_remote_profiles:
         recommended_profile = max(
             zero_remote_profiles,
+            key=lambda pair: (
+                safe_float(pair[1].get("local_missing_overlap_seconds")),
+                -safe_float(pair[1].get("candidate_seconds")),
+            ),
+        )[0]
+    best_zero_remote_evaluated_profile = None
+    zero_remote_evaluated_profiles = [
+        (name, report)
+        for name, report in profile_reports.items()
+        if bool(report.get("evaluation_only"))
+        and safe_float(report.get("suppressed_remote_risk_seconds")) == 0.0
+        and safe_float(report.get("local_missing_overlap_seconds")) > 0.0
+    ]
+    if zero_remote_evaluated_profiles:
+        best_zero_remote_evaluated_profile = max(
+            zero_remote_evaluated_profiles,
             key=lambda pair: (
                 safe_float(pair[1].get("local_missing_overlap_seconds")),
                 -safe_float(pair[1].get("candidate_seconds")),
@@ -2770,9 +2944,12 @@ def live_only_retime_boundary_candidate_lab(
         "anchor_seconds": safe_float(anchor_set_summaries.get("strict_zero_remote_anchor", {}).get("anchor_seconds")),
         "recommended_profile": recommended_profile,
         "best_missing_overlap_profile": best_missing_overlap_profile,
+        "best_zero_remote_evaluated_profile": best_zero_remote_evaluated_profile,
         "recommended_next": (
             "design_online_context_boundary_gate"
             if recommended_profile
+            else "implement_remote_forbidden_boundary_classifier"
+            if best_zero_remote_evaluated_profile
             else "relaxed_anchor_boundary_gate_needed"
             if best_missing_overlap_profile
             else "no_live_only_boundary_candidate_found"
@@ -4503,6 +4680,16 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     )
     if not isinstance(live_only_retime_boundary_best_missing, dict):
         live_only_retime_boundary_best_missing = {}
+    live_only_retime_boundary_best_zero_remote_evaluated_profile = str(
+        live_only_retime_boundary_lab_report.get("best_zero_remote_evaluated_profile") or ""
+    )
+    live_only_retime_boundary_best_zero_remote_evaluated = (
+        live_only_retime_boundary_profiles.get(live_only_retime_boundary_best_zero_remote_evaluated_profile)
+        if live_only_retime_boundary_best_zero_remote_evaluated_profile
+        else {}
+    )
+    if not isinstance(live_only_retime_boundary_best_zero_remote_evaluated, dict):
+        live_only_retime_boundary_best_zero_remote_evaluated = {}
     summary["real_live_live_only_retime_boundary_lab_status"] = live_only_retime_boundary_lab_report.get("status")
     summary["real_live_live_only_retime_boundary_anchor_group_count"] = safe_int(
         live_only_retime_boundary_lab_report.get("anchor_group_count")
@@ -4533,6 +4720,18 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     )
     summary["real_live_live_only_retime_boundary_best_missing_candidate_seconds"] = safe_float(
         live_only_retime_boundary_best_missing.get("candidate_seconds")
+    )
+    summary["real_live_live_only_retime_boundary_best_zero_remote_evaluated_profile"] = (
+        live_only_retime_boundary_best_zero_remote_evaluated_profile or None
+    )
+    summary["real_live_live_only_retime_boundary_best_zero_remote_evaluated_missing_overlap_seconds"] = safe_float(
+        live_only_retime_boundary_best_zero_remote_evaluated.get("local_missing_overlap_seconds")
+    )
+    summary["real_live_live_only_retime_boundary_best_zero_remote_evaluated_remote_risk_seconds"] = safe_float(
+        live_only_retime_boundary_best_zero_remote_evaluated.get("suppressed_remote_risk_seconds")
+    )
+    summary["real_live_live_only_retime_boundary_best_zero_remote_evaluated_candidate_seconds"] = safe_float(
+        live_only_retime_boundary_best_zero_remote_evaluated.get("candidate_seconds")
     )
     strict_live_only_profile_summary_prefix = (
         f"real_live_target_me_shadow_profile_{STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY}"
@@ -4702,6 +4901,18 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         ),
         "live_only_retime_boundary_best_missing_remote_risk_seconds": summary.get(
             "real_live_live_only_retime_boundary_best_missing_remote_risk_seconds"
+        ),
+        "live_only_retime_boundary_best_zero_remote_evaluated_profile": summary.get(
+            "real_live_live_only_retime_boundary_best_zero_remote_evaluated_profile"
+        ),
+        "live_only_retime_boundary_best_zero_remote_evaluated_candidate_seconds": summary.get(
+            "real_live_live_only_retime_boundary_best_zero_remote_evaluated_candidate_seconds"
+        ),
+        "live_only_retime_boundary_best_zero_remote_evaluated_missing_overlap_seconds": summary.get(
+            "real_live_live_only_retime_boundary_best_zero_remote_evaluated_missing_overlap_seconds"
+        ),
+        "live_only_retime_boundary_best_zero_remote_evaluated_remote_risk_seconds": summary.get(
+            "real_live_live_only_retime_boundary_best_zero_remote_evaluated_remote_risk_seconds"
         ),
         "strict_live_only_profile_policy": STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
         "strict_live_only_profile_missing_me_seconds": summary.get(
@@ -5838,6 +6049,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"{timing_gap.get('live_only_retime_boundary_best_missing_overlap_seconds')} sec missing-Me overlap, "
             f"{timing_gap.get('live_only_retime_boundary_best_missing_remote_risk_seconds')} sec remote-risk, "
             f"{timing_gap.get('live_only_retime_boundary_best_missing_candidate_seconds')} sec candidate span",
+            "- live-only retime zero-remote evaluated ceiling: "
+            f"{timing_gap.get('live_only_retime_boundary_best_zero_remote_evaluated_profile') or '(none)'}; "
+            f"{timing_gap.get('live_only_retime_boundary_best_zero_remote_evaluated_missing_overlap_seconds')} sec missing-Me overlap, "
+            f"{timing_gap.get('live_only_retime_boundary_best_zero_remote_evaluated_remote_risk_seconds')} sec remote-risk, "
+            f"{timing_gap.get('live_only_retime_boundary_best_zero_remote_evaluated_candidate_seconds')} sec candidate span",
             "- strict live-only shadow profile: "
             f"added {timing_gap.get('strict_live_only_profile_added_turn_seconds')} sec, "
             f"missing-Me {timing_gap.get('strict_live_only_profile_missing_me_seconds')} sec, "
@@ -6732,6 +6948,22 @@ def main() -> int:
                 print(
                     "real_live_live_only_retime_boundary_best_missing_remote_risk_seconds: "
                     f"{summary.get('real_live_live_only_retime_boundary_best_missing_remote_risk_seconds')}"
+                )
+                print(
+                    "real_live_live_only_retime_boundary_best_zero_remote_evaluated_profile: "
+                    f"{summary.get('real_live_live_only_retime_boundary_best_zero_remote_evaluated_profile')}"
+                )
+                print(
+                    "real_live_live_only_retime_boundary_best_zero_remote_evaluated_missing_overlap_seconds: "
+                    f"{summary.get('real_live_live_only_retime_boundary_best_zero_remote_evaluated_missing_overlap_seconds')}"
+                )
+                print(
+                    "real_live_live_only_retime_boundary_best_zero_remote_evaluated_remote_risk_seconds: "
+                    f"{summary.get('real_live_live_only_retime_boundary_best_zero_remote_evaluated_remote_risk_seconds')}"
+                )
+                print(
+                    "real_live_live_only_retime_boundary_best_zero_remote_evaluated_candidate_seconds: "
+                    f"{summary.get('real_live_live_only_retime_boundary_best_zero_remote_evaluated_candidate_seconds')}"
                 )
                 strict_live_only_profile_prefix = (
                     f"real_live_target_me_shadow_profile_{STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY}"

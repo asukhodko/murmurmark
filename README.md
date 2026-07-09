@@ -583,6 +583,11 @@ best relaxed probe, `relaxed_audio_text_anchor_oracle_gap_probe_v1`, reaches `18
 overlap, close to the oracle-sized gap, but also brings `27.20s` of remote-risk. That makes the next
 target sharper: build a remote-forbidden context/boundary gate around relaxed anchors. Relaxed
 anchors must not be published as-is, and more recordings are not the current unlock.
+The same lab now includes an evaluation-only ceiling,
+`relaxed_audio_text_anchor_remote_forbidden_trimmed_zero_remote_evaluated_gate_v1`: after trimming
+remote-forbidden intervals and accepting only zero-remote-risk groups under batch evaluation, it
+recovers `14.79s` missing-Me with `0.00s` remote-risk from `31.28s` of candidate span. This is not a
+publication rule; it is the concrete target for the next live classifier.
 
 To inspect whether suppressed live mic segments contain your voice:
 
