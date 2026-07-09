@@ -32,8 +32,8 @@ batch transcript until separate parity gates pass.
 
 1. **Single capture owner.** Only one process owns ScreenCaptureKit capture for a session.
 2. **Raw first.** Raw `audio/mic/*.caf` and `audio/remote/*.caf` are the only capture source of truth.
-3. **Experiment after raw commit.** Sidecar work receives raw commit events or closed raw-derived
-   segments, never the incoming sample buffers themselves.
+3. **Experiment after raw commit.** Sidecar work receives copied PCM only after the durable raw writer
+   accepted it; raw commit events remain a fallback and audit trail.
 4. **No blocking capture callbacks.** The ScreenCaptureKit callback may update lightweight counters;
    it must not run ASR, Echo Guard, derived audio writes, transcript reconciliation or heavy logging.
 5. **Fail open.** When the sidecar queue is full, slow or broken, the sidecar disables itself and raw
@@ -52,13 +52,13 @@ ScreenCaptureKit
   -> capture callback
        -> raw writer -> audio/mic/000001.caf
                   \-> audio/remote/000001.caf
-       -> commit tracker -> raw_segment_commits.jsonl
-       -> sidecar worker reads committed raw intervals best-effort
+       -> committed PCM queue -> live segmenter -> live ASR draft
+       -> commit tracker -> raw_segment_commits.jsonl fallback
 ```
 
-The raw writer path is mandatory. The sidecar only sees lightweight commit events emitted after raw
-frames were accepted by the writer. It never owns capture buffers and never runs heavy work in the
-callback.
+The raw writer path is mandatory. The sidecar only sees PCM copied from the same buffer after raw
+frames were accepted by the writer. It never owns capture, never reads an open CAF for normal preview
+and never runs ASR/Echo Guard/reconciliation in the callback.
 
 Recommended v1 sidecar:
 
@@ -69,8 +69,8 @@ derived/experiments/live-shadow-v1/
   events.jsonl
   raw_segment_commits.jsonl
   audio/
-    mic/000001.wav
-    remote/000001.wav
+    mic/000001.caf
+    remote/000001.caf
   report.json
   report.md
   transcript.draft.md
@@ -79,8 +79,8 @@ derived/experiments/live-shadow-v1/
   live_batch_comparison.json
 ```
 
-The existing `derived/live/` path may stay as a compatibility alias while this shape settles, but new
-code should prefer an experiment-id namespace when more than one experiment exists.
+The existing `derived/live/` path stays as a compatibility alias for `segments.jsonl`, chunks and
+draft output. Canonical experiment audio lives under `derived/experiments/live-shadow-v1/audio/`.
 
 Implemented v1 contract:
 
@@ -103,6 +103,7 @@ comparison and final reconcile files. The experiment namespace is the contract s
 - recovery and comparison commands;
 - raw seconds recorded;
 - raw commit rows seen;
+- live preview mode, currently `committed_pcm_queue_v1`;
 - sidecar seconds captured/preprocessed/asr;
 - whether backpressure disabled the sidecar;
 - whether batch can be reproduced from raw CAF files without sidecar artifacts.
@@ -133,10 +134,11 @@ The capture callback does the minimum:
 
 1. validate sample buffer timing;
 2. write samples to the durable raw CAF writer;
-3. update committed frame counters and emit tiny raw commit rows when segment boundaries are crossed;
-4. return.
+3. enqueue copied committed PCM into a bounded sidecar queue;
+4. update committed frame counters and emit tiny raw commit rows when segment boundaries are crossed;
+5. return.
 
-It does not pass `CMSampleBuffer` objects to live segmenters, does not write derived live audio and
+It does not pass `CMSampleBuffer` objects to live segmenters, does not read raw CAF for preview and
 does not run ASR/Echo Guard/reconciliation.
 
 If raw commit events or sidecar work exceed limits:
@@ -243,22 +245,14 @@ pipeline, for example a server-side meeting recording or another device.
 This is acceptable because MurmurMark's highest-value guarantee is "do not corrupt the local raw
 capture". Two local ScreenCaptureKit clients do not improve that guarantee.
 
-### Near-Realtime First, True Realtime Later
+### Segment-Level Realtime First
 
-The first useful sidecar does not need word-by-word realtime. It can write raw commit rows for
-closed 60-second intervals, materialize WAV from raw CAF with delay, produce a draft later and
-compare after stop. That is enough to prove chunking, handoff, backpressure and parity without
-risking capture.
+The useful sidecar target is segment-level realtime, not word-by-word streaming. The recorder writes
+closed experiment CAF segments from committed PCM, usually every 30 seconds with overlap, and the live
+worker consumes those closed files. This gives a visible draft during the meeting while avoiding open
+CAF reads and keeping raw capture authoritative.
 
-Current safe default: the raw sidecar worker does not read still-open CAF files. A real session
-showed that `ffmpeg` can block while reading a growing CAF, which creates misleading "live" behavior
-and can delay finalization. The worker now waits for the session to close unless
-`MURMURMARK_RAW_SIDECAR_ALLOW_OPEN_RAW_READ=1` or `--allow-open-raw-read` is used for a lab-only
-probe. That means `record --experiment live-shadow-v1` is controlled sidecar evidence, not guaranteed
-visible live transcription. A true near-realtime draft needs a later chunk writer that produces
-closed raw chunks during capture.
-
-True low-latency transcription can come later after:
+Lower-latency transcription can come later after:
 
 - capture fail-open proof stays green;
 - controlled Live Evidence runs pass;
@@ -333,6 +327,8 @@ second `record` process. Until soak/parity gates pass, use it as controlled evid
 - Keep the existing recording lock. It prevents the known bad two-process shape.
 - Keep the sidecar queue bounded and non-blocking.
 - Keep `raw_segment_commits.jsonl` append-only and small: it records committed intervals, not audio.
+- Keep committed PCM segment files under the experiment namespace; `derived/live/segments.jsonl`
+  points to them for compatibility.
 - Keep experiment manifests with explicit `experiment_id`, `schema`, `config`, `inputs`, `outputs`,
   `status`, `started_at`, `ended_at`, `disabled_reason`, `raw_capture_affected` and
   `promotion_allowed: false`.

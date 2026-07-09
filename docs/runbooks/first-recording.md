@@ -112,20 +112,24 @@ murmurmark inspect "$SESSION"
 real meetings. Treat `near_realtime_shadow_gate` as shadow evidence collection only: it starts with
 `MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh` and must keep live
 promotion blocked until live-vs-batch parity evidence is explicitly approved.
-For a short lab pilot after the safety probe, run:
+For a short lab run after the safety probe, use the normal recorder with the committed-PCM
+experiment sidecar:
 
 ```bash
-murmurmark live pilot --duration 45
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live-evidence"
+murmurmark record --out "$SESSION" --target-bundle system --duration 120 --experiment live-shadow-v1
+murmurmark process "$SESSION"
+murmurmark experiment status "$SESSION"
+murmurmark experiment report "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
-The pilot refuses to create a new live recording unless
-`sessions/_reports/capture-regression/capture_regression_check.json` says
-`capture_safe_proof.status == "full_fail_open_proof_passed"`. `--skip-safety-gate` can reuse that
-existing proof, but it does not bypass the proof requirement.
+This command still writes the normal raw CAF session first. The live draft is shadow evidence and
+must not be treated as final transcript while parity gates are red.
 
 Near-realtime evidence has two paths. The old inline `--live-pipeline` path remains unsafe/lab-only
-and must not be used for valuable meetings. The new controlled experiment path keeps the normal raw
-writer as the only source of truth and lets the sidecar consume committed raw intervals:
+and must not be used for valuable meetings. The controlled experiment path keeps the normal raw
+writer as the only source of truth and lets the sidecar consume committed PCM after raw write:
 
 ```bash
 SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live-lab"
@@ -141,20 +145,18 @@ The runtime shape is:
 ```text
 capture -> durable raw writer -> stable session
                     |
-                    +-> best-effort sidecar queue -> live draft
+                    +-> nonblocking committed PCM queue -> live segmenter -> live ASR draft
 ```
 
-The sidecar reads `derived/experiments/live-shadow-v1/raw_segment_commits.jsonl`, materializes WAV
-segments from raw CAF into `derived/experiments/live-shadow-v1/audio/`, and keeps compatibility rows
-in `derived/live/segments.jsonl`. Safe default: it waits until raw CAF files are closed before
-materializing segments, because `ffmpeg` can block on still-open growing CAF files. During a meeting
-you may see commit evidence but no usable live transcript yet. After stop, `process` and
-`experiment compare` resume sidecar materialization and draft comparison. If the sidecar falls behind,
-it disables only the experiment. The batch transcript from raw CAF remains authoritative.
+The sidecar writes closed segment files into `derived/experiments/live-shadow-v1/audio/` and keeps
+compatibility rows in `derived/live/segments.jsonl`. `derived/live/transcript.draft.md` may update
+during the meeting, but the batch transcript from raw CAF remains authoritative. The raw commit log is
+still written as evidence and as a post-stop fallback; normal preview no longer reads still-open CAF
+files.
 
 If the recording-time sidecar worker timed out before live draft completion, rerun
-`murmurmark experiment compare ...`; it resumes sidecar materialization from the raw commit log and
-then compares the draft with authoritative batch output.
+`murmurmark experiment compare ...`; it can use the raw commit log as a fallback and then compares the
+draft with authoritative batch output.
 The default comparison computes the required parity gates. Keep the expensive target-me shadow labs
 out of the normal handoff unless you are debugging live recall specifically:
 

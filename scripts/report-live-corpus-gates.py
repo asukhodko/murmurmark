@@ -954,6 +954,14 @@ def order_risk_triage_counts(report: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def order_risk_triage_label_count(report: dict[str, Any] | None, label: str) -> int:
+    if not isinstance(report, dict):
+        return 0
+    by_label = report.get("by_label") if isinstance(report.get("by_label"), dict) else {}
+    row = by_label.get(label) if isinstance(by_label.get(label), dict) else {}
+    return safe_int(row.get("count"))
+
+
 def candidate_scope_next_focus(
     dimensions: list[str],
     summary: dict[str, Any],
@@ -2852,6 +2860,8 @@ def live_next_unlock_report(
     local_island_split: dict[str, Any],
     live_only_local_island: dict[str, Any],
     timing_gap: dict[str, Any],
+    candidate_order_risk_triage: dict[str, Any] | None = None,
+    candidate_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     by_actionability = (
         remaining_gap.get("by_actionability")
@@ -2928,10 +2938,31 @@ def live_next_unlock_report(
         safe_float(strict_profile.get("candidate_seconds")) if isinstance(strict_profile, dict) else 0.0
     )
     oracle_gain = safe_float(timing_gap.get("retime_gain_vs_best_live_implementable_seconds"))
-    order_triage_blocking_count = safe_int(order_risk_triage.get("blocking_count"))
-    order_triage_advisory_count = safe_int(order_risk_triage.get("advisory_count"))
-    order_triage_boundary_count = safe_int(order_risk_triage.get("boundary_retime_candidate_count"))
-    order_triage_likely_false_positive_count = safe_int(order_risk_triage.get("likely_false_positive_count"))
+    active_order_triage = order_risk_triage if isinstance(order_risk_triage, dict) else {}
+    active_order_scope = "real_full_corpus"
+    if isinstance(candidate_order_risk_triage, dict) and safe_int(candidate_order_risk_triage.get("item_count")) > 0:
+        active_order_triage = candidate_order_risk_triage
+        active_order_scope = "capture_safe_candidate"
+    order_triage_blocking_count = safe_int(active_order_triage.get("blocking_count"))
+    order_triage_advisory_count = safe_int(active_order_triage.get("advisory_count"))
+    order_triage_boundary_count = safe_int(active_order_triage.get("boundary_retime_candidate_count"))
+    order_triage_likely_false_positive_count = safe_int(active_order_triage.get("likely_false_positive_count"))
+    order_triage_same_source_count = order_risk_triage_label_count(
+        active_order_triage,
+        "same_source_timeline_reorder_candidate",
+    )
+    order_triage_needs_review_count = order_risk_triage_label_count(active_order_triage, "needs_review_order_risk")
+    order_triage_cross_source_count = order_risk_triage_label_count(active_order_triage, "cross_source_order_risk")
+    if contentful_order_mismatches == 0 and order_triage_blocking_count > 0:
+        blockers.append(
+            {
+                "dimension": "order_risk",
+                "severity": "blocking",
+                "count": order_triage_blocking_count,
+                "scope": active_order_scope,
+                "reason": "order-risk triage still has blocking rows in the active unlock scope",
+            }
+        )
     boundary_order_retime_oracle_missing = safe_float(
         summary.get("real_live_boundary_order_retime_oracle_profile_missing_me_seconds")
     )
@@ -3009,6 +3040,42 @@ def live_next_unlock_report(
                     "missing_me_delta_seconds": round(boundary_order_split_retime_oracle_missing_delta, 3),
                 },
                 "must_preserve": ["remote_leakage == 0", "strict order gates must remain authoritative"],
+            }
+        )
+    if order_triage_same_source_count > 0:
+        next_actions.append(
+            {
+                "id": "repair_live_same_source_timeline_order_risk",
+                "priority": 1 if order_triage_boundary_count == 0 else 2,
+                "scope": active_order_scope,
+                "scope_count": order_triage_same_source_count,
+                "why": (
+                    "active unlock scope still has same-source timeline reorder rows; inspect whether the matcher "
+                    "selected a weak far-away batch match or whether chunk text must be split"
+                ),
+                "must_preserve": ["strict order gates must remain authoritative", "do not promote weak matches"],
+            }
+        )
+    if order_triage_cross_source_count > 0 and order_triage_boundary_count == 0:
+        next_actions.append(
+            {
+                "id": "repair_live_cross_source_order_risk",
+                "priority": 2,
+                "scope": active_order_scope,
+                "scope_count": order_triage_cross_source_count,
+                "why": "active unlock scope still has mic/remote ordering risk outside the boundary-retime bucket",
+                "must_preserve": ["remote_leakage == 0", "strict order gates must remain authoritative"],
+            }
+        )
+    if order_triage_needs_review_count > 0:
+        next_actions.append(
+            {
+                "id": "classify_live_order_risk_needs_review_rows",
+                "priority": 2,
+                "scope": active_order_scope,
+                "scope_count": order_triage_needs_review_count,
+                "why": "active unlock scope has contentful order rows that current triage cannot classify safely",
+                "must_preserve": ["do not downgrade blocking order rows without stronger evidence"],
             }
         )
     if mixed_seconds > 0:
@@ -3186,13 +3253,22 @@ def live_next_unlock_report(
             "requires_batch_role_labels": bool(timing_gap.get("requires_batch_role_labels")),
         },
         "order_risk_triage": {
-            "status": order_risk_triage.get("status"),
-            "item_count": safe_int(order_risk_triage.get("item_count")),
+            "active_scope": active_order_scope,
+            "status": active_order_triage.get("status"),
+            "profile": active_order_triage.get("profile"),
+            "item_count": safe_int(active_order_triage.get("item_count")),
             "blocking_count": order_triage_blocking_count,
             "advisory_count": order_triage_advisory_count,
             "boundary_retime_candidate_count": order_triage_boundary_count,
             "likely_false_positive_count": order_triage_likely_false_positive_count,
-            "by_label": order_risk_triage.get("by_label") if isinstance(order_risk_triage.get("by_label"), dict) else {},
+            "same_source_timeline_reorder_candidate_count": order_triage_same_source_count,
+            "needs_review_order_risk_count": order_triage_needs_review_count,
+            "cross_source_order_risk_count": order_triage_cross_source_count,
+            "by_label": active_order_triage.get("by_label")
+            if isinstance(active_order_triage.get("by_label"), dict)
+            else {},
+            "full_corpus": order_risk_triage_counts(order_risk_triage),
+            "capture_safe_candidate": order_risk_triage_counts(candidate_order_risk_triage),
         },
         "boundary_order_retime_oracle": {
             "profile": summary.get("real_live_boundary_order_retime_oracle_profile_policy"),
@@ -7780,6 +7856,8 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         local_island_split=local_island_split_lab_report,
         live_only_local_island=live_only_local_island_candidate_lab_report,
         timing_gap=local_island_timing_gap_report,
+        candidate_order_risk_triage=capture_safe_candidate_order_risk_triage_report,
+        candidate_scope=candidate_scope,
     )
     remaining_by_bucket = (
         best_live_profile_remaining_gap.get("by_bucket")

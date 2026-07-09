@@ -267,11 +267,11 @@ flowchart LR
 - Continue **Near-Realtime Pipeline Shadow v1** as a single-capture sidecar:
   - legacy `record --live-pipeline` remains quarantined because inline segment work correlated with
     sparse raw ScreenCaptureKit audio;
-  - the current redesign is `record --experiment live-shadow-v1`: raw CAF is written first, then
-    `raw_segment_commits.jsonl` records committed intervals, and a best-effort worker materializes
-    sidecar WAVs under `derived/experiments/live-shadow-v1/audio/`;
-  - safe default is post-stop materialization: the worker does not read still-open CAF files unless a
-    lab probe explicitly enables it, because open-CAF reads can block;
+  - the current redesign is `record --experiment live-shadow-v1`: raw CAF is written first, then a
+    bounded committed-PCM queue writes closed experiment segments under
+    `derived/experiments/live-shadow-v1/audio/`;
+  - `raw_segment_commits.jsonl` remains as audit and post-stop fallback; normal preview does not read
+    still-open CAF files;
   - `derived/live/segments.jsonl` remains a compatibility alias pointing to those canonical
     experiment files; live draft output is advisory only;
   - the design rule is one ScreenCaptureKit owner plus derived sidecar artifacts, never two
@@ -309,8 +309,9 @@ flowchart LR
 - Near-realtime shadow pipeline follow-up, after stabilization:
   - previous inline segment writing during capture is quarantined: live tests showed it can starve
     ScreenCaptureKit audio delivery and leave raw tracks mostly silent;
-  - first redesign step is now implemented as a raw commit sidecar after durable raw writes; the
-    callback no longer writes derived live audio or passes sample buffers to the sidecar;
+  - first redesign step is now implemented as committed PCM after durable raw writes; the callback
+    no longer passes `CMSampleBuffer` objects to sidecar workers and normal preview no longer reads
+    open CAF files;
   - `scripts/check-capture-regressions.sh` now writes
     `sessions/_reports/capture-regression/capture_regression_check.json`; `static_only` is useful
     regression evidence, while `full_fail_open_proof_passed` is required before controlled
@@ -542,9 +543,11 @@ newer run-state exists.
    nearest work is therefore online local-speaker and boundary evidence for mixed regions, with
    stricter order-matcher handling for the remaining advisory weak/short/generic rows.
    `live_next_unlock` records full-corpus diagnostics, but the current unlock path now uses
-   `capture_safe_candidate_scope`. That scope has `0` blocking order-risk rows and `1` advisory
-   weak/generic row, so the next implementation focus is `fix_live_local_recall_gap`: recover lost
-   `Me` speech from live chunks while keeping remote-forbidden guards strict.
+   `capture_safe_candidate_scope`. Fresh corpus evidence after committed-PCM sidecar work now points
+   the next implementation focus at `fix_live_order_risk`: repair the active same-source timeline
+   reorder row and classify the remaining needs-review order row while keeping remote-forbidden
+   guards strict. Historical boundary-retime rows remain full-corpus diagnostics, not the active
+   unlock target.
    `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked. The current
    `live_order_risk_triage/v1` sees `8` contentful order-risk rows in the full real corpus:
    `3` blocking rows (`2` boundary-retime candidates and `1` cross-source order risk) and `5`
@@ -608,16 +611,17 @@ newer run-state exists.
    is now the pre-split/retime baseline at `86.85s` missing-Me, `0.00s` measured remote leak and
    `4` contentful order mismatches. The current best live-implementable profile adds live-only
    split/retime, keeps missing-Me and remote leak unchanged, and lowers contentful order mismatches
-   to `2`. Order-risk triage now has no blocking boundary-retime rows, only `2` advisory weak/
-   short/generic rows. So the next roadmap item is stronger online local-speaker and boundary
-   evidence for mixed missing-Me regions, plus later matcher tightening. The first voice-coverage
+   to `2`. Active capture-safe triage now has `2` blocking rows (`1` same-source timeline reorder
+   and `1` needs-review order row) plus `5` advisory weak/short/generic rows. So the next roadmap
+   item is same-source timeline repair and order-row classification, then stronger online
+   local-speaker and boundary evidence for mixed missing-Me regions. The first voice-coverage
    check now narrows that further: `live_mixed_speaker_boundary_voice_coverage_lab` sees `5`
    mixed/speaker rows / `25.32s`. After Target-Me is rerun with `--include-remaining-gap` and the
    diagnostic `--fallback-persistent-profile`, all rows have Target-Me coverage; `0.32s` have been
    materialized in the diagnostic remote-guarded boundary profile and `25.00s` stay weak or
-   ambiguous. Those labs remain diagnostic-only. The current candidate-scope report has no blocking
-   order-risk rows, so the next implementable step is `fix_live_local_recall_gap`: recover lost
-   local speech from capture-safe live chunks while keeping remote-forbidden gates strict.
+   ambiguous. Those labs remain diagnostic-only. The current candidate-scope report makes
+   `fix_live_order_risk` the next implementable step; local-speech recovery remains a later blocker
+   behind strict order and remote-forbidden gates.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

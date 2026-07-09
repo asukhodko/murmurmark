@@ -65,8 +65,8 @@ Chunked/Resumable Processing v1 is now complete at the ASR layer: long `windowed
 write validated chunk reports, interrupted `process` runs can resume from verified chunks, and
 corpus gates treat failed chunk rebuilds as hard failures. Batch processing remains authoritative.
 The live/near-realtime branch is still quarantined as a source of truth. Its segment writer now runs
-behind an async bounded queue instead of doing derived live writes in the ScreenCaptureKit callback,
-and the full fail-open proof allows controlled Live Evidence runs on real meetings, but live
+behind a bounded committed-PCM queue after durable raw writes, not inside the ScreenCaptureKit
+callback, and the full fail-open proof allows controlled Live Evidence runs on real meetings. Live
 promotion still requires broader passing real coverage. The latest audio milestone,
 ASR-Positive Echo Candidate Hardening v1, remains important but shadow-only:
 `coverage_v2_remote_gate_local_fir` improved `5/6` candidate-corpus sessions without local-recall
@@ -324,28 +324,24 @@ The shape is:
 ```text
 capture -> durable raw writer -> stable session
                     |
-                    +-> best-effort sidecar queue -> live draft
+                    +-> nonblocking committed PCM queue -> live segmenter -> live ASR draft
 ```
 
-In this mode the capture callback writes raw CAF first. After a successful raw write, a lightweight
-commit tracker records segment boundaries in
-`derived/experiments/live-shadow-v1/raw_segment_commits.jsonl`. A separate sidecar worker reads that
-commit log, waits for paired `mic`/`remote` intervals and materializes WAV segments under
-`derived/experiments/live-shadow-v1/audio/`. By default it does **not** read still-open CAF files:
-some macOS/ffmpeg combinations can block on an open growing CAF, and that must not delay or endanger
-recording. During recording the sidecar records commit evidence and waits; after stop, `process` or
-`experiment compare` materializes the sidecar segments and draft. If you see no draft during the
-meeting, that is expected for the safe mode. If the sidecar falls behind, it disables only the
-experiment. Raw `audio/mic/*.caf` and
-`audio/remote/*.caf` remain the authoritative recording and `murmurmark process` remains the
-authoritative transcript path.
+In this mode the capture callback writes raw CAF first. Only after `AudioFileWriter` accepts the
+frames does the experiment enqueue a copied committed PCM packet into a bounded nonblocking queue.
+That queue writes closed segment files under `derived/experiments/live-shadow-v1/audio/` and appends
+compatible rows to `derived/live/segments.jsonl`; `scripts/live-pipeline-shadow.py` then consumes
+those closed segments and updates `derived/live/transcript.draft.md`. The raw commit log still exists
+as evidence and as a post-stop fallback, but the normal preview path no longer reads a still-open CAF.
+If the PCM queue or live ASR falls behind, only the experiment is disabled or marked partial. Raw
+`audio/mic/*.caf` and `audio/remote/*.caf` remain the authoritative recording and `murmurmark process`
+remains the authoritative transcript path.
 
 `--experiment live-shadow-v1` is controlled evidence, not promotion. It can be used on real
 meetings when you want live evidence, because raw CAF remains the source of truth and
 `murmurmark process` remains the authoritative transcript path. Use plain
 `murmurmark record --target-bundle system` when you do not need the sidecar evidence. The draft is
-useful for proving whether sidecar work can run beside stable capture; in the current safe mode it is
-usually produced after the recording stops, and it is not a final result.
+useful for watching whether sidecar work can run beside stable capture, but it is not a final result.
 See [Experimental sidecar architecture](docs/architecture/experimental-sidecar.md).
 
 The sidecar contract lives under:
@@ -370,9 +366,9 @@ murmurmark experiment report "$SESSION"
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
-`experiment compare` also resumes missing sidecar materialization from `raw_segment_commits.jsonl`.
-This is intentional: recording should stop quickly, while slower live draft recovery can happen in
-the explicit experiment step.
+`experiment compare` also uses `raw_segment_commits.jsonl` as a fallback if committed-PCM preview was
+partial. This is intentional: recording should stop quickly, while slower draft recovery can happen
+in the explicit experiment step.
 The default comparison computes the required parity gates. Expensive exploratory target-me shadow
 profiles are opt-in:
 
@@ -570,15 +566,17 @@ voice-boundary shadow profile; it remains non-promotable.
 The report also writes `live_next_unlock` (`murmurmark.live_next_unlock/v1`). It keeps batch
 authoritative and explains full-corpus blockers, including historical unsafe/debug runs. For the
 current unlock path, prefer `capture_safe_candidate_scope`: it excludes broken-capture evidence and
-now points to `fix_live_local_recall_gap`.
+now points to `fix_live_order_risk`.
 It now also includes `order_risk_triage`. The default triage reads base live-vs-batch comparison,
-not the expensive target-me labs, and classifies the current `8` contentful order-risk rows into
-`3` blocking rows and `5` advisory weak/short/generic match rows. The strict order gate is
+not the expensive target-me labs, and classifies the current `14` contentful order-risk rows into
+`5` blocking rows and `9` advisory weak/short/generic match rows. The strict order gate is
 unchanged; this triage tells us which rows need real timing repair and which are likely matcher
 noise.
-In the capture-safe candidate slice, order triage has only `1` advisory weak/generic row and `0`
-blocking rows. Strict order gates are unchanged, but the next implementation should recover lost
-local speech without weakening remote-forbidden guards.
+In the capture-safe candidate slice, the first unlock step is again order repair, but the active
+rows are no longer boundary-retime rows. The next concrete action is
+`repair_live_same_source_timeline_order_risk`, followed by classifying the remaining
+needs-review order row. Local-recall recovery remains a later blocker, but it is no longer the
+immediate next focus.
 The paired `live_speaker_boundary_evidence_lab` now splits the current real-live remaining gap into
 `16.74s` future shadow-probe candidates and `34.76s` blocked rows. It still marks
 `publication_ready_seconds = 0.0`, so this is design evidence for the next profile, not permission
@@ -1266,7 +1264,7 @@ Current focus:
 - keep `next`/`status`/`review` honest about residual risk;
 - keep near-realtime processing as a shadow/debug CLI branch, not the recommended production path:
   legacy `record --live-pipeline` is disabled by default, while new evidence goes through
-  `record --experiment live-shadow-v1` and raw commit materialization;
+  `record --experiment live-shadow-v1` and committed-PCM experiment segments;
 - keep live-ASR cache reuse behind strict eligibility gates; `not_eligible` is expected until
   live chunk geometry, audio prep, language and model match batch ASR expectations, and materialized
   live chunks must still pass the raw chunk rebuild check;
@@ -1289,17 +1287,20 @@ Active goal and near-term candidates:
 4. Active live follow-up: Near-Realtime Live Parity Coverage v1. Capture-safe sidecar proof exists,
    `murmurmark corpus live all --refresh` compares real live chunks/drafts with batch output, and
    live promotion stays blocked. The comparison now uses ASR-segment granularity when available, with
-   chunk fallback for older artifacts. Current next focus is `fix_live_local_recall_gap`: metric-aware
-   triage keeps order risk visible but points the next implementation at lost local speech and the
-   coarse live role gate. Segment-level parity still exposes ordering drift, suspected remote leakage
-   in live `Me`, and lost local speech on controlled real evidence. The current real corpus has `55`
-   order mismatches: `33` same-chunk/same-source, `20` same-chunk/cross-source, `1` cross-chunk and
-   `1` overlap-context mismatch. Primary risk is split into `18` role-conflict/remote-leak, `19`
-   weak-match possible false positives, `14` same-source timeline reorders and `4` cross-source
-   timeline reorders. The contentful same-role slice narrows this to `8` order-risk examples, with
-   `4` unambiguous rows. Base order-risk triage sees `3` blocking rows and `5` advisory rows; the
-   capture-safe candidate slice has only `1` advisory weak/generic match and `0` blocking order rows,
-   so the next objective focus is local recall rather than boundary retime.
+   chunk fallback for older artifacts. Current next focus is `fix_live_order_risk`: fresh corpus
+   evidence says no additional recordings are required for the current blocker, while the active
+   capture-safe slice now points to a same-source timeline reorder row and one needs-review order
+   row before promotion. Segment-level parity
+   still exposes ordering drift, suspected remote leakage in live `Me`, and lost local speech on
+   controlled real evidence. The current real corpus has `95` order mismatches: `60`
+   same-chunk/same-source, `25` same-chunk/cross-source, `8` cross-chunk and `2` overlap-context
+   mismatches. Primary risk is split into `24` role-conflict/remote-leak, `27` weak-match possible
+   false positives, `32` same-source timeline reorders, `9` cross-source timeline reorders and `3`
+   cross-chunk timeline reorders. The contentful same-role slice narrows this to `14` order-risk
+   examples, with `6` unambiguous rows. Base order-risk triage sees `5` blocking rows and `9`
+   advisory rows; in the active `capture_safe_candidate` slice it sees `2` blocking rows and `5`
+   advisory rows, with `live_next_unlock.next_actions[0]` now
+   `repair_live_same_source_timeline_order_risk`.
    The corpus report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
    visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic

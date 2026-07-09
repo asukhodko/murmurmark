@@ -95,7 +95,10 @@ run:
 
 ```bash
 MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh
-murmurmark live pilot --duration 45
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live-evidence"
+murmurmark record --out "$SESSION" --target-bundle system --duration 120 --experiment live-shadow-v1
+murmurmark process "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 murmurmark corpus live all --refresh
 jq '.promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json
 ```

@@ -36,7 +36,9 @@ Required fields:
 - `schema`: `murmurmark.experimental_sidecar_manifest/v1`.
 - `experiment_id`: stable id, for example `live-shadow-v1`.
 - `kind`: experiment kind, currently `near_realtime_shadow`.
-- `status`: `not_started`, `recording`, `running`, `completed`, `disabled`, `failed` or `unknown`.
+- `status`: `not_started`, `recording`, `preview_running`, `running`, `completed`,
+  `completed_partial_draft`, `disabled_backpressure`, `disabled_pcm_copy`, `disabled`, `failed` or
+  `unknown`.
 - `started_at`, `ended_at`: timestamps when known.
 - `config`: experiment configuration and compatibility alias.
 - `inputs`: raw/session inputs. Raw CAF paths are inputs, not outputs.
@@ -55,6 +57,7 @@ Required fields:
 - did the experiment start;
 - how many raw seconds were recorded;
 - how many raw commit rows were seen;
+- live preview mode, currently `committed_pcm_queue_v1`;
 - how many sidecar seconds were captured, preprocessed and sent to ASR;
 - whether chunks were dropped;
 - whether backpressure was detected;
@@ -131,21 +134,20 @@ Example:
 }
 ```
 
-The sidecar worker waits for paired `mic` and `remote` rows with the same `index`, then materializes:
+The normal live-preview path writes paired `mic` and `remote` segment files from committed PCM:
 
 ```text
-derived/experiments/live-shadow-v1/audio/mic/000001.wav
-derived/experiments/live-shadow-v1/audio/remote/000001.wav
+derived/experiments/live-shadow-v1/audio/mic/000001.caf
+derived/experiments/live-shadow-v1/audio/remote/000001.caf
 ```
 
 For compatibility, it also writes `derived/live/segments.jsonl` rows pointing back to those canonical
 experiment audio files.
 
-By default the worker must not read still-open raw CAF files. While the session is still recording,
-ready commit pairs may leave the worker in `waiting_for_raw_readable` with reason
-`open_raw_read_disabled_until_session_close`. Lab probes can opt into open-file reads with
-`--allow-open-raw-read` or `MURMURMARK_RAW_SIDECAR_ALLOW_OPEN_RAW_READ=1`, but normal meeting
-recording keeps this disabled because `ffmpeg` can block on growing CAF files.
+`raw_segment_commits.jsonl` remains a fallback and audit trail. If committed-PCM preview is missing
+or partial, `experiment compare` may run the raw sidecar worker after recording stops to materialize
+missing intervals. That fallback must not read still-open raw CAF files in normal meeting recording,
+because `ffmpeg` can block on growing CAF files.
 
 ## Report
 
@@ -165,7 +167,7 @@ murmurmark experiment compare SESSION|latest --experiment live-shadow-v1
 ## Invariants
 
 - Raw CAF is the only capture source of truth.
-- Sidecar receives raw commit rows, not capture sample buffers.
+- Sidecar receives committed PCM packets after raw write; raw commit rows are fallback evidence.
 - Sidecar artifacts never overwrite batch outputs.
 - Batch transcript is authoritative until separate parity gates promote an experiment.
 - Sidecar failure is fail-open: raw capture must finalize and `murmurmark process SESSION` must work

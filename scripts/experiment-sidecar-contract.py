@@ -161,12 +161,21 @@ def status_from(
     warnings: str,
     segments: list[dict[str, Any]],
 ) -> str:
-    if "backlog exceeded" in warnings or "live segment writer disabled" in warnings:
-        return "disabled"
     if experiment_state:
         experiment_status = str(experiment_state.get("status") or "")
-        if experiment_status in {"waiting_for_raw_readable", "disabled_backpressure", "failed", "running"}:
+        if experiment_status in {
+            "preview_running",
+            "waiting_for_raw_readable",
+            "disabled_backpressure",
+            "disabled_pcm_copy",
+            "failed",
+            "running",
+        }:
             return experiment_status
+    if "backlog exceeded" in warnings:
+        return "disabled_backpressure"
+    if "live segment writer disabled" in warnings:
+        return "disabled"
     if not segments and not live_report and not live_state and not final_reconcile:
         if session_manifest:
             return "not_started"
@@ -179,11 +188,11 @@ def status_from(
         if not isinstance(payload, dict):
             continue
         status = str(payload.get("status") or "")
-        if status in {"failed", "disabled", "disabled_backpressure"}:
+        if status in {"failed", "disabled", "disabled_backpressure", "disabled_pcm_copy"}:
             return status
-        if status in {"completed", "stopped_by_limit", "capture_finished"}:
+        if status in {"completed", "completed_partial_draft", "stopped_by_limit", "capture_finished"}:
             return "completed"
-        if status in {"running", "recording"}:
+        if status in {"running", "recording", "preview_running"}:
             return status
     if segments:
         return "completed"
@@ -210,7 +219,9 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
     session_manifest = read_json(session / "session.json")
     live_report = read_json(live_dir / "live_pipeline_report.json")
     live_state = read_json(live_dir / "live_pipeline_state.json")
+    existing_manifest = read_json(experiment_dir / "experiment_manifest.json")
     existing_experiment_state = read_json(experiment_dir / "state.json")
+    raw_commit_state = read_json(experiment_dir / "raw_commit_state.json")
     final_reconcile = read_json(live_dir / "final_reconcile_report.json")
     comparison = read_json(live_dir / "live_batch_comparison.json")
     pipeline_report = read_json(session / "derived/pipeline-run/pipeline_run_report.json")
@@ -236,6 +247,12 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         else 0.0,
     )
     existing_answers = (existing_experiment_state or {}).get("answers") if isinstance((existing_experiment_state or {}).get("answers"), dict) else {}
+    existing_config = (existing_manifest or {}).get("config") if isinstance((existing_manifest or {}).get("config"), dict) else {}
+    live_preview_mode = str(
+        (existing_experiment_state or {}).get("live_preview_mode")
+        or existing_config.get("handoff")
+        or "committed_pcm_queue_v1"
+    )
     backpressure = (
         "backlog exceeded" in warnings
         or "live segment writer disabled" in warnings
@@ -260,6 +277,7 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         "draft_transcript": rel(live_dir / "transcript.draft.md", session),
         "worker_log": rel(live_dir / "live_worker.log", session),
         "raw_segment_commits": rel(experiment_dir / "raw_segment_commits.jsonl", session),
+        "experiment_audio": rel(experiment_dir / "audio", session) or f"derived/experiments/{experiment_id}/audio",
         "live_pipeline_report": rel(live_dir / "live_pipeline_report.json", session),
         "live_batch_comparison": rel(live_dir / "live_batch_comparison.json", session),
         "final_reconcile_report": rel(live_dir / "final_reconcile_report.json", session),
@@ -275,6 +293,7 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         "kind": "near_realtime_shadow",
         "status": status,
         "updated_at": utc_now(),
+        "live_preview_mode": live_preview_mode,
         "answers": {
             "experiment_started": bool(segments or raw_commits or live_report or live_state or existing_experiment_state),
             "raw_seconds_recorded": raw_seconds,
@@ -319,9 +338,21 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         "started_at": first_event_time(events, "experiment_sidecar.prepare") or first_event_time(events, "live_pipeline.prepare") or first_event_time(events, "capture.prepare"),
         "ended_at": ((session_manifest or {}).get("ended_at") if session_manifest else None),
         "config": {
-            "segment_sec": value_from(live_state, live_report, "segment_sec") or value_from(live_report, live_report, "parameters.segment_sec"),
-            "overlap_sec": value_from(live_state, live_report, "overlap_sec"),
+            "segment_sec": (
+                value_from(live_state, live_report, "segment_sec")
+                or value_from(live_report, live_report, "parameters.segment_sec")
+                or (existing_experiment_state or {}).get("segment_sec")
+                or existing_config.get("segment_sec")
+                or (raw_commit_state or {}).get("segment_sec")
+            ),
+            "overlap_sec": (
+                value_from(live_state, live_report, "overlap_sec")
+                or (existing_experiment_state or {}).get("overlap_sec")
+                or existing_config.get("overlap_sec")
+            ),
             "compatibility_alias": "derived/live",
+            "handoff": live_preview_mode,
+            "fallback_handoff": "raw_segment_commits",
         },
         "inputs": state["inputs"],
         "outputs": outputs,
@@ -459,6 +490,7 @@ def print_status(contract: dict[str, Any]) -> None:
     print(f"  raw_capture_affected: {render(report['raw_capture_affected'])}")
     print(f"  batch_authoritative: {str(report['batch_authoritative']).lower()}")
     print(f"  promotion_allowed: {str(report['promotion_allowed']).lower()}")
+    print(f"  live_preview_mode: {contract['state'].get('live_preview_mode') or 'unknown'}")
     print(f"  raw_seconds_recorded: {answers['raw_seconds_recorded']}")
     print(f"  sidecar_seconds_captured: {answers['sidecar_seconds_captured']}")
     print(f"  sidecar_seconds_asr: {answers['sidecar_seconds_asr']}")
@@ -482,6 +514,7 @@ def print_report(contract: dict[str, Any]) -> None:
     print(f"raw_capture_affected: {raw_capture_affected}")
     print(f"batch_authoritative: {str(report['batch_authoritative']).lower()}")
     print(f"promotion_allowed: {str(report['promotion_allowed']).lower()}")
+    print(f"live_preview_mode: {contract['state'].get('live_preview_mode') or 'unknown'}")
     print(f"recovery_command: {report['recovery_command']}")
     print(f"comparison_command: {report['comparison_command']}")
 

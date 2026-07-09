@@ -4255,21 +4255,24 @@ layer has nothing measurable to remove without inventing a fix.
 
 ## Near-Realtime Shadow Artifacts
 
-Near-realtime processing is a shadow branch and remains quarantined for real meetings. Earlier tests
-showed that doing derived live segment writes in the ScreenCaptureKit callback can starve audio
-delivery and leave raw capture mostly silent. The current implementation moves live segment writes
-behind an async bounded queue, but it still needs real parity evidence before the quarantine can be
-lifted. For real meetings, do not use `--live-pipeline`; the authoritative path is:
+Near-realtime processing is a shadow branch. Batch remains authoritative until parity gates prove the
+live branch safe. Earlier tests showed that doing derived live segment writes in the
+ScreenCaptureKit callback can starve audio delivery and leave raw capture mostly silent. The current
+safe experiment path is `record --experiment live-shadow-v1`: raw CAF is written first, then copied
+committed PCM packets go into a bounded nonblocking sidecar queue. For final meeting results, the
+authoritative path is still:
 
 ```text
 raw CAF session -> murmurmark process -> reviewed/readiness transcript
 ```
 
-The live branch writes only under `derived/live/` when explicitly enabled for lab diagnostics with
-`MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1`. Segment production must be fail-open: raw CAF is the
-durable source, the callback path may only enqueue live work after raw writing, and a slow or failed
-live queue must disable live artifacts without stopping or corrupting capture. It must not be used
-as a production recording path until real live-vs-batch parity gates pass.
+The experiment branch writes canonical segment audio under
+`derived/experiments/live-shadow-v1/audio/` and compatibility rows under `derived/live/segments.jsonl`.
+Legacy `--live-pipeline` remains unsafe/lab-only behind `MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1`.
+Segment production must be fail-open: raw CAF is the durable source, the callback path may only
+enqueue copied PCM after raw writing succeeds, and a slow or failed live queue must disable live
+artifacts without stopping or corrupting capture. Live draft output must not be promoted or exported
+as authoritative until real live-vs-batch parity gates pass.
 
 ### Segment Manifest
 
@@ -4280,7 +4283,7 @@ as a production recording path until real live-vs-batch parity gates pass.
   "schema": "murmurmark.live_segment/v1",
   "source": "mic",
   "index": 1,
-  "path": "derived/live/audio/mic/000001.caf",
+  "path": "derived/experiments/live-shadow-v1/audio/mic/000001.caf",
   "start_sec": 0.0,
   "end_sec": 60.0,
   "duration_sec": 60.0,
@@ -4311,15 +4314,16 @@ Invariants:
 - if the live worker or derived live segment writer fails, the session must remain
   batch-processable from raw CAF.
 
-### Live Parity Pilot Report
+### Legacy Live Parity Pilot Report
 
-`murmurmark live pilot` is the user-facing wrapper for collecting near-realtime evidence without
-promoting live output. It delegates to `scripts/run-live-parity-pilot.sh`. Default `--duration` runs
-are lab evidence and use `live-pilot-*` session names. New `--controlled-real` recordings are
-disabled for valuable meetings while capture isolation is under repair. The runner must fail before
-starting capture unless the operator passes the explicit
-`--allow-unsafe-controlled-real-recording` escape hatch. Existing `--controlled-real SESSION`
-analysis remains allowed because it does not start capture.
+`murmurmark live pilot` is the legacy wrapper for older near-realtime evidence and existing-session
+analysis. New evidence should use `murmurmark record --experiment live-shadow-v1`, which writes raw
+CAF first and feeds the sidecar from committed PCM. The legacy runner delegates to
+`scripts/run-live-parity-pilot.sh`. Default `--duration` runs are lab evidence and use
+`live-pilot-*` session names. New `--controlled-real` recordings through this legacy path are
+disabled for valuable meetings. The runner must fail before starting capture unless the operator
+passes the explicit `--allow-unsafe-controlled-real-recording` escape hatch. Existing
+`--controlled-real SESSION` analysis remains allowed because it does not start capture.
 Before a controlled real recording can ever be re-enabled, the runner must refresh the same corpus
 gates and refuse to record unless `controlled_real_live_pilot_allowed == true`,
 `new_real_live_collection_allowed == false`, passing coverage is still needed, the capture-safe

@@ -538,13 +538,13 @@ nodes:
       inline live segment writer может starve ScreenCaptureKit audio delivery и оставить raw tracks
       почти пустыми. Production route остаётся batch-first: raw CAF/session package и обычный
       `murmurmark process` остаются source of truth. Старый `--live-pipeline` quarantined. Новый
-      путь — `record --experiment live-shadow-v1`: callback пишет raw CAF, затем лёгкий tracker
-      пишет `raw_segment_commits.jsonl`, а отдельный worker материализует sidecar WAV из уже
-      committed raw intervals. Поэтому ближайшая live-работа — soak/parity gates для raw-commit
+      путь — `record --experiment live-shadow-v1`: callback сначала пишет raw CAF, затем bounded
+      committed-PCM queue пишет закрытые experiment segments, а `raw_segment_commits.jsonl`
+      остаётся audit/fallback. Поэтому ближайшая live-работа — soak/parity gates для committed-PCM
       sidecar, пока promotion остаётся blocked и batch transcript authoritative.
 
   realtime-segment-writer:
-    title: "Durable raw commit sidecar"
+    title: "Durable committed PCM sidecar"
     kind: task
     parent: near-realtime-pipeline
     deps: [cli-recording-reliability]
@@ -552,12 +552,11 @@ nodes:
     effort: 4
     notes: |
       `record --live-pipeline` остаётся отключённым по умолчанию. Новый безопасный вход:
-      `record --experiment live-shadow-v1`. Callback не пишет derived live audio и не передаёт
-      CMSampleBuffer в sidecar. После успешной raw write операции tracker пишет маленькие
-      `murmurmark.raw_segment_commit/v1` строки, а worker отдельно читает raw CAF и материализует
-      WAV-сегменты. При backlog/read failure отключается только experiment. Два параллельных
-      `murmurmark record` процесса запрещены lock-ом: stable и experimental живут внутри одного
-      запуска как raw capture плюс sidecar.
+      `record --experiment live-shadow-v1`. После успешной raw write операции recorder кладёт
+      copied committed PCM в bounded queue, которая пишет закрытые experiment segments. Tracker
+      продолжает писать `murmurmark.raw_segment_commit/v1` как audit/fallback. При backlog/read
+      failure отключается только experiment. Два параллельных `murmurmark record` процесса запрещены
+      lock-ом: stable и experimental живут внутри одного запуска как raw capture плюс sidecar.
 
   experimental-sidecar-contract-v1:
     title: "Experimental Sidecar Contract v1"
@@ -573,7 +572,7 @@ nodes:
       `derived/experiments/live-shadow-v1/experiment_manifest.json`, `state.json`, `events.jsonl`,
       `raw_segment_commits.jsonl`, `report.json` и `report.md`. Manifest фиксирует
       `batch_authoritative: true`, `promotion_allowed: false`, `raw_capture_affected`,
-      recovery/comparison commands и ссылки на raw commit log, canonical experiment audio,
+      recovery/comparison commands и ссылки на committed-PCM mode, raw commit log, canonical experiment audio,
       compatibility segments and reports. Smoke проверяет materialization from raw commits:
       sidecar может отключиться, но raw CAF и batch process остаются воспроизводимыми.
 
@@ -585,9 +584,9 @@ nodes:
     status: later
     effort: 5
     notes: |
-      Worker теперь стартует только как best-effort consumer raw commits. Следующий слой должен
-      аккуратно подключить Echo/ASR draft поверх materialized segments, per-stage state,
-      restartability, явный lag и безопасный skip, если live отстаёт.
+      Worker теперь стартует как best-effort consumer закрытых committed-PCM segments. Следующий
+      слой должен аккуратно укрепить Echo/ASR draft поверх segments, per-stage state, restartability,
+      явный lag и безопасный skip, если live отстаёт.
 
   realtime-live-draft:
     title: "Live draft transcript"
@@ -644,7 +643,7 @@ nodes:
     notes: |
       После sparse-capture на legacy live путь `--live-pipeline` остаётся quarantined. Новый
       controlled путь `record --experiment live-shadow-v1` пишет raw CAF как source of truth, затем
-      `raw_segment_commits.jsonl`, затем best-effort worker материализует sidecar WAV. Normal
+      committed-PCM sidecar segments; `raw_segment_commits.jsonl` остаётся fallback/audit. Normal
       `record --target-bundle system` остаётся production path, batch transcript authoritative.
       Текущий corpus report уже сравнивает real live chunks/drafts с batch output, держит
       `promotion_allowed_sessions = 0` и покрывает dimensions capture safety, order risk, local
@@ -775,9 +774,11 @@ nodes:
       token recall. The diagnostic split/retime oracle no longer closes extra missing-Me on the
       real-live subset; ordinary parity gates still block promotion.
       `live_next_unlock` records full-corpus diagnostics, but the current unlock path now uses
-      `capture_safe_candidate_scope`. That scope has `0` blocking order-risk rows and `1` advisory
-      weak/generic row, so the next implementation focus is `fix_live_local_recall_gap`: recover
-      lost `Me` speech from live chunks while keeping remote-forbidden guards strict.
+      `capture_safe_candidate_scope`. Fresh corpus evidence after committed-PCM sidecar work points
+      the next implementation focus at `fix_live_order_risk`: repair the active same-source
+      timeline reorder row and classify the remaining needs-review order row while keeping
+      remote-forbidden guards strict. Historical boundary-retime rows remain full-corpus
+      diagnostics, not the active unlock target. Local recall remains a later blocker.
       The first local-only enrollment probe is now available and finds ready seed material in all
       `3` affected sessions (`144.00s` accepted positive local-only audio). The probe supports
       `24.52s` of the `25.00s` blocked mixed rows, leaving only the `0.48s` low-value tail
@@ -851,22 +852,21 @@ nodes:
       contentful order mismatches at `4`. The local-speaker boundary materialized variant now
       leaves `86.85s` missing-Me with the same `0.00s` remote leak and `4` contentful order
       mismatches. The current live-only split/retime variant keeps missing-Me and remote leak
-      unchanged and lowers contentful order mismatches to `2`. Order-risk triage now has no
-      blocking boundary-retime rows, only `2` advisory weak/short/generic rows. The next
-      implementation target is stronger online local-speaker and boundary evidence for mixed
-      missing-Me regions, while keeping the advisory order rows visible. The first voice-coverage
+      unchanged and lowers contentful order mismatches to `2`. Active capture-safe triage now has
+      `2` blocking rows (`1` same-source timeline reorder and `1` needs-review order row) plus `5`
+      advisory weak/short/generic rows. The next implementation target is same-source timeline
+      repair and order-row classification, then stronger online local-speaker and boundary evidence
+      for mixed missing-Me regions. The first voice-coverage
       check now shows `5` mixed/speaker rows / `25.32s`. After Target-Me is rerun with
       `--include-remaining-gap` and diagnostic `--fallback-persistent-profile`, all rows have
       Target-Me coverage; `0.32s` have been materialized in the diagnostic remote-guarded boundary
       profile and `25.00s` stay weak or ambiguous. Those labs remain diagnostic-only. The current
-      candidate-scope report has no blocking order-risk rows, so the next concrete step is
-      `fix_live_local_recall_gap`: recover lost local speech from capture-safe live chunks while
-      keeping remote-forbidden gates strict.
-      Следующий фокус: `fix_live_local_recall_gap`; metric-aware
-      triage держит order risk видимым и отделяет слабые совпадения от настоящих блокеров. Targeted
-      role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful
-      cases, но это не самый большой текущий источник потерь. Live draft иногда путает порядок,
-      публикует remote as Me и часто теряет Me, поэтому promotion остаётся blocked.
+      candidate-scope report now makes the next concrete step `fix_live_order_risk`: repair the
+      same-source timeline order row and classify the remaining needs-review order row before
+      returning to local speech recovery.
+      Следующий фокус: `fix_live_order_risk`; metric-aware triage держит слабые совпадения отдельно,
+      но strict order gates остаются блокером. Live draft иногда путает порядок, публикует remote as
+      Me и часто теряет Me, поэтому promotion остаётся blocked.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"

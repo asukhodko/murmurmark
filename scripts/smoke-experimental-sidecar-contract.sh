@@ -100,6 +100,7 @@ jq -e '
 
 jq -e '
   .schema == "murmurmark.experimental_sidecar_state/v1"
+  and .live_preview_mode == "committed_pcm_queue_v1"
   and .answers.experiment_started == true
   and .answers.raw_seconds_recorded == 60
   and .answers.sidecar_seconds_captured == 30
@@ -120,7 +121,7 @@ backpressure_session="$workdir/session-backpressure"
 write_session "$backpressure_session" '["live segment writer disabled for remote: backlog exceeded 1 samples"]'
 python3 scripts/experiment-sidecar-contract.py refresh "$backpressure_session" >/dev/null
 jq -e '
-  .status == "disabled"
+  .status == "disabled_backpressure"
   and .disabled_reason == "sidecar_backpressure"
   and .raw_capture_affected == false
 ' "$backpressure_session/derived/experiments/live-shadow-v1/experiment_manifest.json" >/dev/null \

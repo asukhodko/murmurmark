@@ -285,6 +285,7 @@ def write_state(
         "experiment_id": experiment,
         "kind": "near_realtime_shadow",
         "status": status,
+        "live_preview_mode": "fallback_raw_commit_only",
         "updated_at": utc_now(),
         "reason": reason,
         "answers": {

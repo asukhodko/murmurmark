@@ -6,6 +6,53 @@ import Darwin
 import Foundation
 import ScreenCaptureKit
 
+final class SingleResumeBox<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var didResume = false
+    private let continuation: CheckedContinuation<Value, Error>
+
+    init(_ continuation: CheckedContinuation<Value, Error>) {
+        self.continuation = continuation
+    }
+
+    func resume(_ result: sending Result<Value, Error>) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !didResume else {
+            return
+        }
+        didResume = true
+        continuation.resume(with: result)
+    }
+}
+
+enum ScreenCaptureContent {
+    static func current(timeoutSeconds: TimeInterval = 5) async throws -> SCShareableContent {
+        try await withCheckedThrowingContinuation { continuation in
+            let box = SingleResumeBox(continuation)
+            let contentTask = Task {
+                do {
+                    box.resume(.success(try await SCShareableContent.current))
+                } catch {
+                    box.resume(.failure(error))
+                }
+            }
+            Task {
+                let nanoseconds = UInt64(max(timeoutSeconds, 0.1) * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: nanoseconds)
+                contentTask.cancel()
+                box.resume(
+                    .failure(
+                        CLIError(
+                            "ScreenCaptureKit shareable content timed out after \(Int(timeoutSeconds))s"
+                        )
+                    )
+                )
+            }
+        }
+    }
+}
+
 @main
 struct MurmurMark {
     static let version = "0.1.0"
@@ -277,7 +324,7 @@ enum Commands {
         DoctorChecks.checkTargetMeSpeakerBackend(&report)
 
         do {
-            let content = try await SCShareableContent.current
+            let content = try await ScreenCaptureContent.current()
             report.check(.passed, "screen/system audio permission", "ok")
             print("shareable displays: \(content.displays.count)")
             print("shareable applications: \(content.applications.count)")
@@ -471,9 +518,10 @@ enum Commands {
         let remoteDevice = options.string("remote-device")
         let sampleRate = options.int("sample-rate") ?? 48000
         let channelCount = options.int("channels") ?? 2
-        let liveSegmentSeconds = try options.optionalPositiveDouble("live-segment-sec") ?? 60
+        let requestedLiveSegmentSeconds = try options.optionalPositiveDouble("live-segment-sec")
+        let liveSegmentSeconds = requestedLiveSegmentSeconds ?? (experimentID == nil ? 60 : 30)
         let liveOverlapSeconds = try options.optionalNonNegativeDouble("live-overlap-sec") ?? 5
-        let liveWorkerEnabled = livePipelineEnabled && !options.flag("live-no-worker")
+        let liveWorkerEnabled = (livePipelineEnabled || experimentID != nil) && !options.flag("live-no-worker")
         let liveFinalizeEnabled = livePipelineEnabled && !options.flag("live-no-finalize")
         if liveOverlapSeconds >= liveSegmentSeconds / 2 {
             throw CLIError("--live-overlap-sec must be less than half of --live-segment-sec")
@@ -519,7 +567,7 @@ enum Commands {
                                  [--mic default] [--mic-backend screencapturekit|voice-processing]
                                  [--remote-backend screencapturekit|audio-input] [--remote-device Device_UID]
                                  [--experiment live-shadow-v1]
-                                 [--live-pipeline] [--live-segment-sec 60] [--live-overlap-sec 5]
+                                 [--live-pipeline] [--live-segment-sec 30|60] [--live-overlap-sec 5]
                                  [--live-no-worker] [--live-no-finalize]
 
         Records separate mic and remote CAF tracks into a session package.
@@ -538,7 +586,8 @@ enum Commands {
         MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1 until the async live path passes parity gates.
 
         --experiment live-shadow-v1 keeps raw CAF authoritative and starts a best-effort sidecar
-        from committed raw segments. If the sidecar fails, process the session normally.
+        from committed PCM after each raw write. If the sidecar fails, process the session normally.
+        The default segment size is 30s for --experiment and 60s for legacy --live-pipeline.
 
         `latest` is a mutable pointer to the newest session. For real meetings, especially with
         multiple terminals, set SESSION before recording and pass --out "$SESSION".
@@ -693,6 +742,7 @@ enum DoctorChecks {
             "scripts/build-provider-payload-manifest.py",
             "scripts/smoke-cli-handoff.sh",
             "scripts/smoke-experimental-sidecar-contract.sh",
+            "scripts/smoke-committed-pcm-sidecar.sh",
             "scripts/smoke-process-chunk-resume.sh",
         ] {
             let url = PathURLs.fileURL(path)
@@ -5136,12 +5186,15 @@ enum LiveCommands {
         usage:
           murmurmark live pilot [SESSION] [options]
 
-        Wraps scripts/run-live-parity-pilot.sh.
+        Legacy wrapper around scripts/run-live-parity-pilot.sh.
 
-        Without SESSION, records a new shadow live-pipeline pilot, then runs batch processing,
-        live-vs-batch comparison and refreshed live corpus gates. With SESSION, processes and
-        compares an existing live-pipeline session. Use --controlled-real with SESSION to mark an
-        existing date-named Live Evidence run without starting a new recording.
+        New live evidence should normally use:
+          murmurmark record --target-bundle system --experiment live-shadow-v1
+
+        Without SESSION, this command records an old lab live-pipeline pilot, then runs batch
+        processing, live-vs-batch comparison and refreshed live corpus gates. With SESSION, it
+        processes and compares an existing live-pipeline session. Use --controlled-real with SESSION
+        to mark an existing date-named Live Evidence run without starting a new recording.
 
         Options:
           --duration SEC       Recording duration for a new lab pilot. Default: 45.
@@ -5158,7 +5211,7 @@ enum LiveCommands {
           --force-asr          Force batch ASR during post-stop processing.
 
         Safe current use:
-          murmurmark live pilot --duration 45
+          murmurmark record --target-bundle system --experiment live-shadow-v1
           murmurmark live pilot sessions/<session-id> --controlled-real
           murmurmark record --target-bundle system
         """)
@@ -7213,6 +7266,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var remoteWriter: AudioFileWriter?
     private var remoteInputCapture: AudioInputDeviceCapture?
     private var liveSegments: AsyncLiveSegmentCapture?
+    private var experimentLivePreview: AsyncCommittedLiveSegmentCapture?
     private var liveWorker: LivePipelineWorker?
     private var rawSidecarCommits: RawSegmentCommitTracker?
     private var rawSidecarWorker: RawSidecarWorker?
@@ -7347,16 +7401,35 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                     }
                 )
                 rawSidecarCommits = tracker
+                let maxPendingPackets = AsyncCommittedLiveSegmentCapture.resolveMaxPendingPackets()
+                let livePreviewWriteDelayMilliseconds = AsyncCommittedLiveSegmentCapture.resolveWriteDelayMilliseconds()
+                let livePreview = try AsyncCommittedLiveSegmentCapture(
+                    sessionDirectory: outputDirectory,
+                    experimentID: experimentID,
+                    segmentSeconds: liveSegmentSeconds,
+                    overlapSeconds: liveOverlapSeconds,
+                    maxPendingPackets: maxPendingPackets,
+                    artificialWriteDelayMilliseconds: livePreviewWriteDelayMilliseconds,
+                    warningHandler: { [weak self] warning in
+                        self?.appendWarning(warning)
+                    }
+                )
+                experimentLivePreview = livePreview
                 try eventLog.write(
                     type: "experiment_sidecar.prepare",
                     fields: [
                         "experiment_id": experimentID,
                         "segment_sec": liveSegmentSeconds,
-                        "worker_enabled": true,
-                        "writer_mode": "raw_segment_commit_log",
-                        "callback_policy": "raw_write_then_commit_event_no_sample_buffers",
+                        "overlap_sec": liveOverlapSeconds,
+                        "worker_enabled": liveWorkerEnabled,
+                        "writer_mode": "committed_pcm_queue_v1",
+                        "fallback_writer_mode": "raw_segment_commit_log",
+                        "callback_policy": "raw_write_then_nonblocking_committed_pcm_enqueue",
                         "max_pending_commits": maxPendingCommits,
+                        "max_pending_pcm_packets": maxPendingPackets,
+                        "artificial_write_delay_ms": livePreviewWriteDelayMilliseconds,
                         "commits": "derived/experiments/\(experimentID)/raw_segment_commits.jsonl",
+                        "segments": "derived/live/segments.jsonl",
                     ]
                 )
             }
@@ -7373,7 +7446,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             }
 
             if needsScreenCaptureKit {
-                let content = try await SCShareableContent.current
+                let content = try await ScreenCaptureContent.current()
                 guard let display = content.displays.first else {
                     throw CLIError("no shareable display found")
                 }
@@ -7443,9 +7516,6 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             if liveWorkerEnabled {
                 try startLiveWorker(eventLog: eventLog)
             }
-            if experimentID != nil {
-                try startRawSidecarWorker(eventLog: eventLog)
-            }
             if let duration {
                 print("recording \(String(format: "%.1f", duration))s -> \(outputDirectory.path)")
             } else {
@@ -7465,6 +7535,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             let actualDuration = max(0.0, (stopDate ?? Date()).timeIntervalSince(startDate))
             try padScreenCaptureWritersToDuration(actualDuration)
             liveSegments?.closeAll(finalDurationSeconds: actualDuration)
+            experimentLivePreview?.closeAll(finalDurationSeconds: actualDuration)
             rawSidecarCommits?.closeAll(finalFramesBySource: [
                 "mic": micFramesWritten() ?? 0,
                 "remote": remoteFramesWritten() ?? 0,
@@ -7492,7 +7563,11 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             try finish()
             if let worker = liveWorker {
                 let workerWaitSeconds = livePipelineWorkerFinalizationWaitSeconds(
-                    capturedDuration: max(actualDuration, liveSegments?.capturedDurationSeconds() ?? 0)
+                    capturedDuration: max(
+                        actualDuration,
+                        liveSegments?.capturedDurationSeconds() ?? 0,
+                        experimentLivePreview?.capturedDurationSeconds() ?? 0
+                    )
                 )
                 let exited = worker.wait(seconds: workerWaitSeconds)
                 try? eventLog.write(
@@ -7546,6 +7621,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             if liveFinalizeEnabled, !finalizedAsPartial {
                 runLiveFinalReconcile(eventLog: eventLog)
             }
+            refreshExperimentContract(eventLog: eventLog)
             if finalizedAsPartial {
                 print("partial session finalized")
                 printInterruptedHandoff()
@@ -7599,6 +7675,47 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         )
     }
 
+    private func refreshExperimentContract(eventLog: EventLog) {
+        guard let experimentID else { return }
+        let script = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("scripts/experiment-sidecar-contract.py")
+        guard fileManager.fileExists(atPath: script.path) else {
+            appendWarning("experiment sidecar contract refresh skipped: script missing")
+            return
+        }
+        do {
+            try Tooling.runPathQuiet(
+                try PythonRuntime.resolve(),
+                [
+                    script.path,
+                    "refresh",
+                    outputDirectory.path,
+                    "--experiment",
+                    experimentID,
+                    "--sessions-root",
+                    outputDirectory.deletingLastPathComponent().path,
+                ]
+            )
+            try eventLog.write(
+                type: "experiment_sidecar.contract_refreshed",
+                fields: [
+                    "experiment_id": experimentID,
+                    "state": "derived/experiments/\(experimentID)/state.json",
+                    "report": "derived/experiments/\(experimentID)/report.json",
+                ]
+            )
+        } catch {
+            appendWarning("experiment sidecar contract refresh failed: \(error.localizedDescription)")
+            try? eventLog.write(
+                type: "experiment_sidecar.contract_refresh_failed",
+                fields: [
+                    "experiment_id": experimentID,
+                    "error": error.localizedDescription,
+                ]
+            )
+        }
+    }
+
     private func markLiveWorkerTerminatedReport(reason: String, waitSeconds: TimeInterval) {
         let reportURL = outputDirectory.appendingPathComponent("derived/live/live_pipeline_report.json")
         var payload = (try? JSONObject.readDictionary(from: reportURL)) ?? [:]
@@ -7611,19 +7728,33 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         if payload["generator"] == nil {
             payload["generator"] = ["name": "murmurmark-recorder-sidecar", "version": "0.1.0"]
         }
-        payload["status"] = "terminated"
-        payload["current_stage"] = "terminated"
+        var progress = payload["progress"] as? [String: Any] ?? [:]
+        if progress["captured_sec"] == nil {
+            let captured = max(
+                liveSegments?.capturedDurationSeconds() ?? 0,
+                experimentLivePreview?.capturedDurationSeconds() ?? 0
+            )
+            if captured > 0 {
+                progress["captured_sec"] = roundedSeconds(captured)
+            }
+        }
+        let captured = secondsValue(progress["captured_sec"]) ?? 0
+        let processed = max(
+            secondsValue(progress["processed_sec"]) ?? 0,
+            secondsValue(progress["asr_sec"]) ?? 0,
+            secondsValue(progress["draft_sec"]) ?? 0
+        )
+        let caughtUp = captured > 0 && processed + 0.5 >= captured
+        let status = caughtUp ? "completed" : "completed_partial_draft"
+
+        payload["status"] = status
+        payload["current_stage"] = caughtUp ? "completed" : "terminated"
         payload["termination_reason"] = reason
         payload["terminated_at"] = DateStrings.iso8601(Date())
         payload["finalization_wait_timeout_sec"] = roundedSeconds(waitSeconds)
         payload["batch_authoritative"] = true
         payload["promotion_allowed"] = false
         payload["recommended_next"] = "murmurmark process \(PathDisplay.display(outputDirectory))"
-
-        var progress = payload["progress"] as? [String: Any] ?? [:]
-        if progress["captured_sec"] == nil, let captured = liveSegments?.capturedDurationSeconds() {
-            progress["captured_sec"] = roundedSeconds(captured)
-        }
         payload["progress"] = progress
 
         try? JSONObject.write(payload, to: reportURL)
@@ -7633,11 +7764,27 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         if state["schema"] == nil {
             state["schema"] = "murmurmark.live_pipeline_state/v1"
         }
-        state["status"] = "terminated"
+        state["status"] = status
         state["termination_reason"] = reason
         state["updated_at"] = DateStrings.iso8601(Date())
         state["report"] = "derived/live/live_pipeline_report.json"
         try? JSONObject.write(state, to: stateURL)
+    }
+
+    private func secondsValue(_ value: Any?) -> Double? {
+        if let value = value as? Double {
+            return value
+        }
+        if let value = value as? Int {
+            return Double(value)
+        }
+        if let value = value as? NSNumber {
+            return value.doubleValue
+        }
+        if let value = value as? String {
+            return Double(value)
+        }
+        return nil
     }
 
     private func beginRecordingActivity() {
@@ -7684,7 +7831,9 @@ extension SessionRecorder {
         do {
             switch type {
             case .audio:
-                let format = AudioFileWriter.audioFormat(from: sampleBuffer)
+                guard let format = AudioFileWriter.audioFormat(from: sampleBuffer) else {
+                    throw CLIError("cannot read audio format for remote")
+                }
                 if remoteWriter == nil {
                     remoteWriter = try AudioFileWriter(
                         url: outputDirectory.appendingPathComponent("audio/remote/000001.caf"),
@@ -7692,13 +7841,18 @@ extension SessionRecorder {
                         timelineStartDate: startDate
                     )
                 }
-                try remoteWriter?.write(sampleBuffer)
-                if let format, let remoteWriter {
+                let committedWrite = try remoteWriter?.writeReturningCommittedPCM(sampleBuffer, format: format)
+                if let remoteWriter {
                     recordRawSidecarCommit(source: "remote", framesWritten: remoteWriter.framesWritten, sampleRate: format.sampleRate)
+                }
+                if let committedWrite {
+                    enqueueExperimentLivePreview(committedWrite, source: "remote")
                 }
                 writeLiveSegmentSafely(sampleBuffer, source: "remote")
             case .microphone:
-                let format = AudioFileWriter.audioFormat(from: sampleBuffer)
+                guard let format = AudioFileWriter.audioFormat(from: sampleBuffer) else {
+                    throw CLIError("cannot read audio format for mic")
+                }
                 if micWriter == nil {
                     micWriter = try AudioFileWriter(
                         url: outputDirectory.appendingPathComponent("audio/mic/000001.caf"),
@@ -7706,9 +7860,12 @@ extension SessionRecorder {
                         timelineStartDate: startDate
                     )
                 }
-                try micWriter?.write(sampleBuffer)
-                if let format, let micWriter {
+                let committedWrite = try micWriter?.writeReturningCommittedPCM(sampleBuffer, format: format)
+                if let micWriter {
                     recordRawSidecarCommit(source: "mic", framesWritten: micWriter.framesWritten, sampleRate: format.sampleRate)
+                }
+                if let committedWrite {
+                    enqueueExperimentLivePreview(committedWrite, source: "mic")
                 }
                 writeLiveSegmentSafely(sampleBuffer, source: "mic")
             default:
@@ -7724,6 +7881,11 @@ extension SessionRecorder {
     private func writeLiveSegmentSafely(_ sampleBuffer: CMSampleBuffer, source: String) {
         guard let liveSegments else { return }
         liveSegments.enqueue(sampleBuffer, source: source)
+    }
+
+    private func enqueueExperimentLivePreview(_ write: CommittedAudioWrite, source: String) {
+        guard let experimentLivePreview else { return }
+        experimentLivePreview.enqueue(CommittedAudioPacket(source: source, write: write))
     }
 
     private func recordRawSidecarCommit(source: String, framesWritten: AVAudioFramePosition, sampleRate: Double) {
@@ -8243,7 +8405,7 @@ extension SessionRecorder {
     }
 
     private func livePipelineWorkerFinalizationWaitSeconds(capturedDuration: TimeInterval) -> TimeInterval {
-        guard livePipelineEnabled && liveWorkerEnabled else { return 0 }
+        guard liveWorkerEnabled else { return 0 }
         let segmentCount = max(1.0, ceil(max(capturedDuration, liveSegmentSeconds) / max(liveSegmentSeconds, 1.0)))
         let estimatedTailWork = segmentCount
         return min(30.0, max(10.0, estimatedTailWork))
@@ -8258,8 +8420,13 @@ extension SessionRecorder {
             atPath: outputDirectory.appendingPathComponent("derived/live/final_reconcile_report.json").path
         )
         print("SESSION=\"\(session)\"")
-        if livePipelineEnabled {
-            print("live_pipeline: shadow")
+        if livePipelineEnabled || experimentID != nil {
+            if let experimentID {
+                print("experiment: \(experimentID)")
+                print("experiment_transport: committed_pcm_queue_v1")
+            } else {
+                print("live_pipeline: shadow")
+            }
             print("live_draft: \(session)/derived/live/transcript.draft.md")
             print("live_report: \(session)/derived/live/live_pipeline_report.json")
             if finalReportExists {
@@ -8277,9 +8444,12 @@ extension SessionRecorder {
         print("recommended_next: murmurmark process \(session)")
         print("next:")
         print("  murmurmark process \(session)")
-        if livePipelineEnabled {
+        if livePipelineEnabled || experimentID != nil {
             print("  less \(session)/derived/live/transcript.draft.md")
             print("  less \(session)/derived/live/live_pipeline_report.json")
+            if let experimentID {
+                print("  murmurmark experiment status \(session) --experiment \(experimentID)")
+            }
         }
     }
 
@@ -8447,6 +8617,32 @@ extension SessionRecorder {
     }
 }
 
+struct CommittedAudioWrite: @unchecked Sendable {
+    let format: AVAudioFormat
+    let buffer: AVAudioPCMBuffer
+    let gapFrames: AVAudioFramePosition
+    let sampleFrames: AVAudioFramePosition
+    let totalFramesWritten: AVAudioFramePosition
+}
+
+struct CommittedAudioPacket: @unchecked Sendable {
+    let source: String
+    let format: AVAudioFormat
+    let buffer: AVAudioPCMBuffer
+    let gapFrames: AVAudioFramePosition
+    let sampleFrames: AVAudioFramePosition
+    let totalFramesWritten: AVAudioFramePosition
+
+    init(source: String, write: CommittedAudioWrite) {
+        self.source = source
+        format = write.format
+        buffer = write.buffer
+        gapFrames = write.gapFrames
+        sampleFrames = write.sampleFrames
+        totalFramesWritten = write.totalFramesWritten
+    }
+}
+
 final class AudioFileWriter {
     let url: URL
     let source: String
@@ -8488,9 +8684,46 @@ final class AudioFileWriter {
 
     @discardableResult
     func write(_ sampleBuffer: CMSampleBuffer, format: AVAudioFormat) throws -> AVAudioFramePosition {
+        let write = try writeReturningCommittedPCM(sampleBuffer, format: format)
+        return write.totalFramesWritten
+    }
+
+    func writeReturningCommittedPCM(_ sampleBuffer: CMSampleBuffer, format: AVAudioFormat) throws -> CommittedAudioWrite {
+        let buffer = try Self.pcmBuffer(from: sampleBuffer, format: format)
+
+        try ensureFile(format: format)
+        let gapFrames = timelineGapFrames(sampleBuffer: sampleBuffer, format: format)
+        if gapFrames > 0 {
+            try writeSilence(format: format, frames: gapFrames)
+        }
+        try writePCMBuffer(buffer)
+        let sampleFrames = AVAudioFramePosition(buffer.frameLength)
+        framesWritten += sampleFrames
+        return CommittedAudioWrite(
+            format: format,
+            buffer: buffer,
+            gapFrames: gapFrames,
+            sampleFrames: sampleFrames,
+            totalFramesWritten: gapFrames + sampleFrames
+        )
+    }
+
+    @discardableResult
+    func writeCommittedPCM(_ buffer: AVAudioPCMBuffer, format: AVAudioFormat, gapFrames: AVAudioFramePosition = 0) throws -> AVAudioFramePosition {
+        try ensureFile(format: format)
+        if gapFrames > 0 {
+            try writeSilence(format: format, frames: gapFrames)
+        }
+        try writePCMBuffer(buffer)
+        let sampleFrames = AVAudioFramePosition(buffer.frameLength)
+        framesWritten += sampleFrames
+        return max(0, gapFrames) + sampleFrames
+    }
+
+    static func pcmBuffer(from sampleBuffer: CMSampleBuffer, format: AVAudioFormat) throws -> AVAudioPCMBuffer {
         let frameCount = AVAudioFrameCount(CMSampleBufferGetNumSamples(sampleBuffer))
         guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
-            throw CLIError("cannot allocate PCM buffer for \(source)")
+            throw CLIError("cannot allocate PCM buffer")
         }
         buffer.frameLength = frameCount
 
@@ -8501,17 +8734,9 @@ final class AudioFileWriter {
             into: buffer.mutableAudioBufferList
         )
         guard status == noErr else {
-            throw CLIError("cannot copy PCM data for \(source): OSStatus \(status)")
+            throw CLIError("cannot copy PCM data: OSStatus \(status)")
         }
-
-        try ensureFile(format: format)
-        let gapFrames = timelineGapFrames(sampleBuffer: sampleBuffer, format: format)
-        if gapFrames > 0 {
-            try writeSilence(format: format, frames: gapFrames)
-        }
-        try writePCMBuffer(buffer)
-        framesWritten += AVAudioFramePosition(frameCount)
-        return gapFrames + AVAudioFramePosition(frameCount)
+        return buffer
     }
 
     private func ensureFile(format: AVAudioFormat) throws {
@@ -8694,7 +8919,8 @@ final class RawSegmentCommitTracker: @unchecked Sendable {
                 "started_at": startedAt,
                 "config": [
                     "segment_sec": rounded(segmentSeconds),
-                    "handoff": "raw_segment_commits",
+                    "handoff": "committed_pcm_queue_v1",
+                    "fallback_handoff": "raw_segment_commits",
                     "compatibility_alias": "derived/live",
                 ],
                 "inputs": [
@@ -8703,7 +8929,10 @@ final class RawSegmentCommitTracker: @unchecked Sendable {
                 ],
                 "outputs": [
                     "raw_segment_commits": "derived/experiments/\(experimentID)/raw_segment_commits.jsonl",
+                    "experiment_audio": "derived/experiments/\(experimentID)/audio",
                     "compat_live_dir": "derived/live",
+                    "segments": "derived/live/segments.jsonl",
+                    "draft_transcript": "derived/live/transcript.draft.md",
                 ],
                 "raw_capture_affected": "unknown",
                 "batch_authoritative": true,
@@ -9005,10 +9234,264 @@ final class AsyncLiveSegmentCapture: @unchecked Sendable {
     }
 }
 
+final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
+    private let writer: LiveSegmentCapture
+    private let writerQueue = DispatchQueue(label: "murmurmark.live.committed-pcm.writer")
+    private let stateQueue = DispatchQueue(label: "murmurmark.live.committed-pcm.state")
+    private let sessionDirectory: URL
+    private let experimentID: String
+    private let segmentSeconds: TimeInterval
+    private let overlapSeconds: TimeInterval
+    private let maxPendingPackets: Int
+    private let artificialWriteDelayMilliseconds: Int
+    private let warningHandler: (String) -> Void
+
+    private var pendingPackets = 0
+    private var disabled = false
+    private var closed = false
+    private var capturedDuration: TimeInterval = 0
+    private var droppedPackets = 0
+    private var lastStatus = "preview_running"
+    private var disabledReason: String?
+
+    init(
+        sessionDirectory: URL,
+        experimentID: String,
+        segmentSeconds: TimeInterval,
+        overlapSeconds: TimeInterval,
+        maxPendingPackets: Int = 512,
+        artificialWriteDelayMilliseconds: Int = 0,
+        warningHandler: @escaping (String) -> Void
+    ) throws {
+        self.sessionDirectory = sessionDirectory
+        self.experimentID = experimentID
+        self.segmentSeconds = max(5.0, segmentSeconds)
+        self.overlapSeconds = max(0.0, overlapSeconds)
+        self.maxPendingPackets = max(1, maxPendingPackets)
+        self.artificialWriteDelayMilliseconds = max(0, min(artificialWriteDelayMilliseconds, 5000))
+        self.warningHandler = warningHandler
+        writer = try LiveSegmentCapture(
+            sessionDirectory: sessionDirectory,
+            segmentSeconds: segmentSeconds,
+            overlapSeconds: overlapSeconds,
+            audioPathPrefix: "derived/experiments/\(experimentID)/audio"
+        )
+        try writeExperimentState(status: "preview_running", reason: nil)
+    }
+
+    static func resolveMaxPendingPackets() -> Int {
+        let env = ProcessInfo.processInfo.environment
+        guard let value = env["MURMURMARK_LIVE_PCM_MAX_PENDING_PACKETS"],
+              let parsed = Int(value) else {
+            return 512
+        }
+        return max(1, min(parsed, 100_000))
+    }
+
+    static func resolveWriteDelayMilliseconds() -> Int {
+        let env = ProcessInfo.processInfo.environment
+        guard let value = env["MURMURMARK_LIVE_PCM_WRITE_DELAY_MS"],
+              let parsed = Int(value) else {
+            return 0
+        }
+        return max(0, min(parsed, 5000))
+    }
+
+    func enqueue(_ packet: CommittedAudioPacket) {
+        enum Decision {
+            case enqueue
+            case ignore
+            case disable(String)
+        }
+
+        let decision = stateQueue.sync { () -> Decision in
+            if closed || disabled {
+                return .ignore
+            }
+            if pendingPackets >= maxPendingPackets {
+                disabled = true
+                droppedPackets += 1
+                lastStatus = "disabled_backpressure"
+                disabledReason = "committed PCM queue exceeded \(maxPendingPackets) packets"
+                return .disable("live-shadow-v1 committed PCM sidecar disabled: backlog exceeded \(maxPendingPackets) packets")
+            }
+            pendingPackets += 1
+            return .enqueue
+        }
+
+        switch decision {
+        case .ignore:
+            return
+        case .disable(let warning):
+            warningHandler(warning)
+            writerQueue.async { [weak self] in
+                self?.closeWriterFromWriterQueue(status: "disabled_backpressure", reason: warning)
+            }
+        case .enqueue:
+            writerQueue.async { [weak self, packet] in
+                guard let self else { return }
+                defer {
+                    stateQueue.sync {
+                        pendingPackets = max(0, pendingPackets - 1)
+                    }
+                }
+                let shouldWrite = stateQueue.sync { !closed && !disabled }
+                guard shouldWrite else { return }
+                do {
+                    if artificialWriteDelayMilliseconds > 0 {
+                        Thread.sleep(forTimeInterval: Double(artificialWriteDelayMilliseconds) / 1000.0)
+                    }
+                    try writer.write(packet)
+                    let duration = writer.capturedDurationSeconds()
+                    stateQueue.sync {
+                        capturedDuration = max(capturedDuration, duration)
+                    }
+                    try? writeExperimentState(status: "preview_running", reason: nil)
+                } catch {
+                    let reason = error.localizedDescription
+                    stateQueue.sync {
+                        disabled = true
+                        lastStatus = "disabled_pcm_copy"
+                        disabledReason = reason
+                    }
+                    warningHandler("live-shadow-v1 committed PCM sidecar disabled for \(packet.source): \(reason)")
+                    closeWriterFromWriterQueue(status: "disabled_pcm_copy", reason: reason)
+                }
+            }
+        }
+    }
+
+    func closeAll(finalDurationSeconds: TimeInterval? = nil) {
+        writerQueue.sync {
+            let shouldClose = stateQueue.sync { !closed }
+            guard shouldClose else { return }
+            writer.closeAll(finalDurationSeconds: finalDurationSeconds)
+            let duration = writer.capturedDurationSeconds()
+            let status = stateQueue.sync { () -> String in
+                capturedDuration = max(capturedDuration, duration)
+                closed = true
+                pendingPackets = 0
+                if disabled {
+                    return lastStatus == "preview_running" ? "completed_partial_draft" : lastStatus
+                }
+                lastStatus = "completed"
+                return "completed"
+            }
+            try? writeExperimentState(status: status, reason: disabledReason)
+        }
+    }
+
+    func capturedDurationSeconds() -> TimeInterval {
+        stateQueue.sync { capturedDuration }
+    }
+
+    private func closeWriterFromWriterQueue(status: String, reason: String?) {
+        let shouldClose = stateQueue.sync { !closed }
+        guard shouldClose else { return }
+        writer.closeAll()
+        let duration = writer.capturedDurationSeconds()
+        stateQueue.sync {
+            capturedDuration = max(capturedDuration, duration)
+            closed = true
+            pendingPackets = 0
+            lastStatus = status
+            disabledReason = reason
+        }
+        try? writeExperimentState(status: status, reason: reason)
+    }
+
+    private func writeExperimentState(status: String, reason: String?) throws {
+        let snapshot = stateQueue.sync {
+            (
+                pending: pendingPackets,
+                dropped: droppedPackets,
+                disabled: disabled,
+                duration: capturedDuration,
+                reason: reason ?? disabledReason
+            )
+        }
+        let experimentDirectory = sessionDirectory
+            .appendingPathComponent("derived/experiments")
+            .appendingPathComponent(experimentID)
+        let now = DateStrings.iso8601(Date())
+        let state: [String: Any] = [
+            "schema": "murmurmark.experimental_sidecar_state/v1",
+            "experiment_id": experimentID,
+            "kind": "near_realtime_shadow",
+            "status": status,
+            "updated_at": now,
+            "live_preview_mode": "committed_pcm_queue_v1",
+            "segment_sec": rounded(segmentSeconds),
+            "overlap_sec": rounded(overlapSeconds),
+            "reason": snapshot.reason as Any? ?? NSNull(),
+            "answers": [
+                "experiment_started": true,
+                "raw_seconds_recorded": rounded(snapshot.duration),
+                "sidecar_seconds_captured": rounded(snapshot.duration),
+                "sidecar_seconds_preprocessed": 0.0,
+                "sidecar_seconds_asr": 0.0,
+                "dropped_chunks": snapshot.dropped,
+                "backpressure_detected": status == "disabled_backpressure",
+                "sidecar_disabled": snapshot.disabled,
+                "raw_capture_affected": false,
+                "batch_reproducible_from_raw": FileManager.default.fileExists(atPath: sessionDirectory.appendingPathComponent("session.json").path),
+            ],
+            "counters": [
+                "pending_pcm_packets": snapshot.pending,
+                "dropped_pcm_packets": snapshot.dropped,
+                "max_pending_pcm_packets": maxPendingPackets,
+                "artificial_write_delay_ms": artificialWriteDelayMilliseconds,
+            ],
+            "inputs": [
+                "raw_mic": "audio/mic/000001.caf",
+                "raw_remote": "audio/remote/000001.caf",
+            ],
+            "outputs": [
+                "segments": "derived/live/segments.jsonl",
+                "compat_live_dir": "derived/live",
+                "experiment_audio": "derived/experiments/\(experimentID)/audio",
+                "draft_transcript": "derived/live/transcript.draft.md",
+                "live_pipeline_report": "derived/live/live_pipeline_report.json",
+                "raw_segment_commits": "derived/experiments/\(experimentID)/raw_segment_commits.jsonl",
+            ],
+            "recovery_command": "murmurmark process \(PathDisplay.display(sessionDirectory))",
+            "comparison_command": "murmurmark experiment compare \(PathDisplay.display(sessionDirectory)) --experiment \(experimentID)",
+        ]
+        try JSONObject.write(state, to: experimentDirectory.appendingPathComponent("state.json"))
+        try JSONObject.write(
+            [
+                "schema": "murmurmark.experimental_sidecar_report/v1",
+                "experiment_id": experimentID,
+                "generated_at": now,
+                "session": PathDisplay.display(sessionDirectory),
+                "status": status,
+                "raw_capture_affected": false,
+                "batch_authoritative": true,
+                "promotion_allowed": false,
+                "summary": [
+                    "sidecar_seconds_captured": rounded(snapshot.duration),
+                    "sidecar_disabled": snapshot.disabled,
+                    "backpressure_detected": status == "disabled_backpressure",
+                    "live_preview_mode": "committed_pcm_queue_v1",
+                    "reason": snapshot.reason as Any? ?? NSNull(),
+                ],
+                "recovery_command": "murmurmark process \(PathDisplay.display(sessionDirectory))",
+                "comparison_command": "murmurmark experiment compare \(PathDisplay.display(sessionDirectory)) --experiment \(experimentID)",
+            ],
+            to: experimentDirectory.appendingPathComponent("report.json")
+        )
+    }
+
+    private func rounded(_ value: Double) -> Double {
+        Double((value * 1000).rounded() / 1000)
+    }
+}
+
 final class LiveSegmentCapture {
     private struct BufferedSample {
-        let sampleBuffer: CMSampleBuffer
         let format: AVAudioFormat
+        let buffer: AVAudioPCMBuffer
+        let gapFrames: AVAudioFramePosition
         let frames: AVAudioFramePosition
     }
 
@@ -9056,18 +9539,26 @@ final class LiveSegmentCapture {
     let sessionDirectory: URL
     let segmentSeconds: TimeInterval
     let overlapSeconds: TimeInterval
+    let audioPathPrefix: String
 
     private let manifestURL: URL
     private let manifestHandle: FileHandle
     private var states: [String: SourceState] = [:]
 
-    init(sessionDirectory: URL, segmentSeconds: TimeInterval, overlapSeconds: TimeInterval) throws {
+    init(
+        sessionDirectory: URL,
+        segmentSeconds: TimeInterval,
+        overlapSeconds: TimeInterval,
+        audioPathPrefix: String = "derived/live/audio"
+    ) throws {
         self.sessionDirectory = sessionDirectory
         self.segmentSeconds = max(5.0, segmentSeconds)
         self.overlapSeconds = max(0.0, overlapSeconds)
+        self.audioPathPrefix = audioPathPrefix
         let liveDirectory = sessionDirectory.appendingPathComponent("derived/live")
-        try FileManager.default.createDirectory(at: liveDirectory.appendingPathComponent("audio/mic"), withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: liveDirectory.appendingPathComponent("audio/remote"), withIntermediateDirectories: true)
+        let audioDirectory = sessionDirectory.appendingPathComponent(audioPathPrefix)
+        try FileManager.default.createDirectory(at: audioDirectory.appendingPathComponent("mic"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: audioDirectory.appendingPathComponent("remote"), withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: liveDirectory.appendingPathComponent("chunks"), withIntermediateDirectories: true)
         manifestURL = liveDirectory.appendingPathComponent("segments.jsonl")
         FileManager.default.createFile(atPath: manifestURL.path, contents: Data())
@@ -9079,18 +9570,37 @@ final class LiveSegmentCapture {
         guard let format = AudioFileWriter.audioFormat(from: sampleBuffer) else {
             throw CLIError("cannot read live audio format for \(source)")
         }
+        let buffer = try AudioFileWriter.pcmBuffer(from: sampleBuffer, format: format)
+        try writePCM(buffer: buffer, format: format, gapFrames: 0, source: source)
+    }
+
+    func write(_ packet: CommittedAudioPacket) throws {
+        try writePCM(
+            buffer: packet.buffer,
+            format: packet.format,
+            gapFrames: packet.gapFrames,
+            source: packet.source
+        )
+    }
+
+    private func writePCM(
+        buffer: AVAudioPCMBuffer,
+        format: AVAudioFormat,
+        gapFrames: AVAudioFramePosition,
+        source: String
+    ) throws {
         var state = states[source] ?? SourceState()
 
-        try writePendingAfterOverlap(sampleBuffer, format: format, source: source, state: &state)
+        try writePendingAfterOverlap(buffer: buffer, format: format, gapFrames: gapFrames, source: source, state: &state)
         if state.writer == nil {
             try startSegment(source: source, format: format, state: &state)
         }
-        let sampleFrames = AVAudioFramePosition(CMSampleBufferGetNumSamples(sampleBuffer))
-        let writtenFrames = try state.writer?.write(sampleBuffer, format: format) ?? sampleFrames
+        let writtenFrames = try state.writer?.writeCommittedPCM(buffer, format: format, gapFrames: gapFrames)
+            ?? (max(0, gapFrames) + AVAudioFramePosition(buffer.frameLength))
         state.hardFrames += writtenFrames
         state.fileFrames += writtenFrames
         state.cumulativeFrames += writtenFrames
-        appendTail(sampleBuffer, format: format, frames: sampleFrames, state: &state)
+        appendTail(buffer: buffer, format: format, gapFrames: gapFrames, frames: writtenFrames, state: &state)
 
         let targetFrames = AVAudioFramePosition(max(1.0, state.sampleRate * segmentSeconds))
         if state.hardFrames >= targetFrames {
@@ -9131,7 +9641,7 @@ final class LiveSegmentCapture {
         state.fileStartFrame = max(0, state.cumulativeFrames - state.tailFrames)
         state.hardFrames = 0
         state.fileFrames = 0
-        state.path = "derived/live/audio/\(source)/\(String(format: "%06d", state.index)).caf"
+        state.path = "\(audioPathPrefix)/\(source)/\(String(format: "%06d", state.index)).caf"
         let writer = try AudioFileWriter(
             url: sessionDirectory.appendingPathComponent(state.path),
             source: "live-\(source)-\(state.index)"
@@ -9139,7 +9649,7 @@ final class LiveSegmentCapture {
         state.writer = writer
         for sample in state.tail {
             do {
-                try writer.write(sample.sampleBuffer, format: sample.format)
+                try writer.writeCommittedPCM(sample.buffer, format: sample.format, gapFrames: sample.gapFrames)
                 state.fileFrames += sample.frames
             } catch {
                 state.fileStartFrame = state.cumulativeFrames
@@ -9264,14 +9774,19 @@ final class LiveSegmentCapture {
     }
 
     private func writePendingAfterOverlap(
-        _ sampleBuffer: CMSampleBuffer,
+        buffer: AVAudioPCMBuffer,
         format: AVAudioFormat,
+        gapFrames: AVAudioFramePosition,
         source: String,
         state: inout SourceState
     ) throws {
         for index in state.closing.indices.reversed() {
             do {
-                let writtenFrames = try state.closing[index].writer.write(sampleBuffer, format: format)
+                let writtenFrames = try state.closing[index].writer.writeCommittedPCM(
+                    buffer,
+                    format: format,
+                    gapFrames: gapFrames
+                )
                 state.closing[index].fileFrames += writtenFrames
                 state.closing[index].afterFramesWritten += writtenFrames
             } catch {
@@ -9285,8 +9800,9 @@ final class LiveSegmentCapture {
     }
 
     private func appendTail(
-        _ sampleBuffer: CMSampleBuffer,
+        buffer: AVAudioPCMBuffer,
         format: AVAudioFormat,
+        gapFrames: AVAudioFramePosition,
         frames: AVAudioFramePosition,
         state: inout SourceState
     ) {
@@ -9295,18 +9811,7 @@ final class LiveSegmentCapture {
             state.tailFrames = 0
             return
         }
-        var copied: CMSampleBuffer?
-        let status = CMSampleBufferCreateCopy(
-            allocator: kCFAllocatorDefault,
-            sampleBuffer: sampleBuffer,
-            sampleBufferOut: &copied
-        )
-        guard status == noErr, let copied else {
-            state.tail.removeAll()
-            state.tailFrames = 0
-            return
-        }
-        state.tail.append(BufferedSample(sampleBuffer: copied, format: format, frames: frames))
+        state.tail.append(BufferedSample(format: format, buffer: buffer, gapFrames: gapFrames, frames: frames))
         state.tailFrames += frames
         let maxFrames = overlapFrames(sampleRate: format.sampleRate)
         while state.tailFrames > maxFrames, !state.tail.isEmpty {
