@@ -791,6 +791,9 @@ nodes:
       `live_speaker_boundary_evidence_lab` now splits the same gap into `17.90s` future
       shadow-probe candidates, `68.95s` blocked rows and `0.0s` publication-ready. Next
       implementation should focus on online local-speaker and boundary evidence for mixed regions.
+      A soft local-speaker boundary shadow was tested and produced `no_incremental_gain`
+      (`0.00s` missing-Me delta, `0.00s` remote-leak delta), so weaker loudness thresholds are not
+      the next useful path.
       The
       live-only candidate lab now selects `99.40s` of suppressed mic
       candidates and `83.04s` local/mixed evidence, but still carries `16.36s` remote-risk

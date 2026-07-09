@@ -573,6 +573,13 @@ The paired `live_speaker_boundary_evidence_lab` now splits the current `86.85s` 
 `17.90s` future shadow-probe candidates and `68.95s` blocked rows. It still marks
 `publication_ready_seconds = 0.0`, so this is design evidence for the next profile, not permission
 to publish more live `Me`.
+`live_soft_local_speaker_boundary_shadow_lab` then tests the cheap idea of relaxing the local
+speaker boundary evidence for short, low-correlation, text-unique mic fragments. The profile is
+materialized as
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_soft_local_speaker_boundary_shadow_live_boundary_split_retime_v1`,
+but current corpus result is `no_incremental_gain`: missing-Me remains `86.85s`, remote leak stays
+`0.00s`, and contentful order mismatches stay `2`. So the next unlock is not a softer loudness
+threshold; it needs new speaker/boundary evidence.
 The current diagnostic `live_local_island_split_lab` narrows this further: it finds `1` candidate
 batch row / `10.58s` with `5.10s` of local-island audio/text, but token-recall rejects it
 (`0.143 < 0.35`). This is enough to justify a timing/speaker-evidence prototype, not enough to
@@ -1306,6 +1313,9 @@ Active goal and near-term candidates:
    (`86.85s`) while still reducing contentful order mismatches to `2`. A live-only version of that
    idea is now the best live-implementable shadow, so the next unlock moves from boundary-retime
    repair to online local-speaker/boundary evidence for mixed missing-Me regions.
+   A soft local-speaker boundary shadow was tested next and produced `no_incremental_gain`
+   (`0.00s` missing-Me delta, `0.00s` remote-leak delta). Do not spend the next round on weaker
+   loudness thresholds; the remaining work needs stronger speaker/boundary evidence.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

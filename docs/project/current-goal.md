@@ -422,6 +422,14 @@ Online remote-overlap shadow filter, 2026-07-09:
   - future shadow-probe candidates: `5 / 17.90s`;
   - publication-ready seconds: `0.00s`;
   - blocked rows: `16 / 68.95s`;
+- `live_soft_local_speaker_boundary_shadow_lab`:
+  - schema: `murmurmark.live_soft_local_speaker_boundary_shadow_lab/v1`;
+  - status: `no_incremental_gain`;
+  - tested profile:
+    `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_soft_local_speaker_boundary_shadow_live_boundary_split_retime_v1`;
+  - missing-Me delta vs best live-implementable: `0.00s`;
+  - remote-leak delta vs best live-implementable: `0.00s`;
+  - conclusion: a softer loudness boundary does not unlock the remaining mixed rows.
   - largest candidate class: `local_island_boundary_probe_candidate` (`10.58s`);
   - largest blocked class: `blocked_remote_dominant` (`29.68s`).
 - Local-island split lab:
@@ -466,11 +474,13 @@ and the local-speaker boundary profile lowers the best live-implementable missin
 The goal remains blocked by local recall, order risk, review burden and draft readiness, not by lack
 of another raw recording. The best local-island oracle is now only `1.16s` better than the best
 live-implementable profile, so the next useful work is not another broad threshold: it is targeted
-boundary-retime order repair plus online local-speaker and boundary evidence for mixed regions
-without using batch labels. The boundary-order retime oracle confirms the direction but also shows
-the trap: it fixes two timing rows while increasing missing-Me by `6.08s`. The split/retime oracle
-keeps missing-Me unchanged by preserving a `6.62s` local prefix, so the next non-oracle version
-should approximate split/retime using only live-available boundary and speaker evidence.
+online local-speaker and boundary evidence for mixed regions without using batch labels. The
+boundary-order retime oracle confirmed the direction but also showed the trap: it fixed two timing
+rows while increasing missing-Me by `6.08s`. The live-only split/retime shadow now preserves that
+local speech and lowers contentful order mismatches to `2`, so boundary-retime is no longer the
+first unlock. A softer local-speaker boundary threshold was also tested and produced
+`no_incremental_gain`; the next non-oracle version needs new speaker/boundary evidence, not weaker
+loudness thresholds.
 Duplicate-heavy or remote-dominant mixed rows should remain blocked until stronger speaker evidence
 exists.
 The corpus report records this as `live_local_island_timing_gap/v1`, including the current

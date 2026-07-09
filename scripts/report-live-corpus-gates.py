@@ -86,6 +86,10 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_v1"
 )
+SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "soft_local_speaker_boundary_shadow_live_boundary_split_retime_v1"
+)
 BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1"
@@ -114,6 +118,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
     BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
@@ -5786,6 +5791,78 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         summary["real_live_boundary_order_split_retime_oracle_profile_retimed_trimmed_seconds"] = None
         summary["real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_count"] = None
         summary["real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_seconds"] = None
+    real_soft_boundary_profile = target_me_shadow_profile_row(
+        target_me_shadow_profile_diagnostics_report.get("real")
+        if isinstance(target_me_shadow_profile_diagnostics_report.get("real"), dict)
+        else {},
+        SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    )
+    best_live_missing = safe_float(summary.get("real_live_target_me_shadow_profile_best_live_implementable_missing_me_seconds"))
+    best_live_remote_leak = safe_float(
+        summary.get("real_live_target_me_shadow_profile_best_live_implementable_remote_leak_seconds")
+    )
+    best_live_order = safe_int(
+        summary.get("real_live_target_me_shadow_profile_best_live_implementable_contentful_order_mismatch_count")
+    )
+    if real_soft_boundary_profile:
+        soft_missing = safe_float(real_soft_boundary_profile.get("live_missing_me_seconds"))
+        soft_remote_leak = safe_float(real_soft_boundary_profile.get("live_suspected_remote_leak_in_me_seconds"))
+        soft_order = safe_int(real_soft_boundary_profile.get("live_contentful_role_constrained_order_mismatch_count"))
+        soft_missing_delta = round(best_live_missing - soft_missing, 3)
+        soft_remote_leak_delta = round(soft_remote_leak - best_live_remote_leak, 3)
+        soft_order_delta = soft_order - best_live_order
+        soft_status = "no_incremental_gain"
+        if soft_remote_leak_delta > 0 or soft_order_delta > 0:
+            soft_status = "rejected_regression"
+        elif soft_missing_delta > 0:
+            soft_status = "candidate_improves_local_recall"
+        soft_boundary_shadow_lab = {
+            "schema": "murmurmark.live_soft_local_speaker_boundary_shadow_lab/v1",
+            "status": soft_status,
+            "promotion_allowed": False,
+            "profile": SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+            "interpretation": (
+                "diagnostic only: tests whether softer local-speaker boundary evidence adds safe "
+                "Me turns beyond the current best live profile"
+            ),
+            "metrics": {
+                "missing_me_seconds": soft_missing,
+                "missing_me_delta_vs_best_live_implementable_seconds": soft_missing_delta,
+                "remote_leak_seconds": soft_remote_leak,
+                "remote_leak_delta_vs_best_live_implementable_seconds": soft_remote_leak_delta,
+                "contentful_order_mismatch_count": soft_order,
+                "contentful_order_mismatch_delta_vs_best_live_implementable": soft_order_delta,
+                "visible_suppressed_mic_added_turn_seconds": safe_float(
+                    real_soft_boundary_profile.get("visible_suppressed_mic_added_turn_seconds")
+                ),
+                "visible_suppressed_mic_added_turn_count": safe_int(
+                    real_soft_boundary_profile.get("visible_suppressed_mic_added_turn_count")
+                ),
+            },
+            "conclusion": (
+                "keep current profile; soft boundary evidence does not reduce missing-Me"
+                if soft_status == "no_incremental_gain"
+                else "do not promote soft boundary evidence without stronger regression proof"
+            ),
+        }
+    else:
+        soft_boundary_shadow_lab = {
+            "schema": "murmurmark.live_soft_local_speaker_boundary_shadow_lab/v1",
+            "status": "missing_profile",
+            "promotion_allowed": False,
+            "profile": SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+        }
+    summary["real_live_soft_local_speaker_boundary_shadow_lab_status"] = soft_boundary_shadow_lab.get("status")
+    summary["real_live_soft_local_speaker_boundary_shadow_lab_missing_delta_seconds"] = (
+        (soft_boundary_shadow_lab.get("metrics") or {}).get("missing_me_delta_vs_best_live_implementable_seconds")
+        if isinstance(soft_boundary_shadow_lab.get("metrics"), dict)
+        else None
+    )
+    summary["real_live_soft_local_speaker_boundary_shadow_lab_remote_leak_delta_seconds"] = (
+        (soft_boundary_shadow_lab.get("metrics") or {}).get("remote_leak_delta_vs_best_live_implementable_seconds")
+        if isinstance(soft_boundary_shadow_lab.get("metrics"), dict)
+        else None
+    )
     local_island_timing_gap_report = {
         "schema": "murmurmark.live_local_island_timing_gap/v1",
         "status": "ok" if real_local_island_retime_profile else "missing_retime_oracle_profile",
@@ -6093,6 +6170,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_target_me_shadow_profile_diagnostics": target_me_shadow_profile_diagnostics_report,
         "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
         "live_order_risk_triage": live_order_risk_triage_report,
+        "live_soft_local_speaker_boundary_shadow_lab": soft_boundary_shadow_lab,
         "live_speaker_boundary_evidence_lab": speaker_boundary_lab_report,
         "live_local_island_split_lab": local_island_split_lab_report,
         "live_local_island_audio_anchor_lab": local_island_audio_anchor_lab_report,
@@ -8015,6 +8093,22 @@ def main() -> int:
                 print(
                     "real_live_target_me_shadow_profile_best_to_live_implementable_interpretation: "
                     f"{best_to_live_gap.get('interpretation')}"
+                )
+            soft_boundary_lab = (
+                report.get("live_soft_local_speaker_boundary_shadow_lab")
+                if isinstance(report.get("live_soft_local_speaker_boundary_shadow_lab"), dict)
+                else {}
+            )
+            if soft_boundary_lab:
+                metrics = soft_boundary_lab.get("metrics") if isinstance(soft_boundary_lab.get("metrics"), dict) else {}
+                print(f"real_live_soft_local_speaker_boundary_shadow_lab_status: {soft_boundary_lab.get('status')}")
+                print(
+                    "real_live_soft_local_speaker_boundary_shadow_lab_missing_delta_seconds: "
+                    f"{metrics.get('missing_me_delta_vs_best_live_implementable_seconds')}"
+                )
+                print(
+                    "real_live_soft_local_speaker_boundary_shadow_lab_remote_leak_delta_seconds: "
+                    f"{metrics.get('remote_leak_delta_vs_best_live_implementable_seconds')}"
                 )
             remaining_gap = (
                 report.get("live_target_me_shadow_profile_best_live_implementable_remaining_gap")

@@ -5859,6 +5859,16 @@ remaining rows, `5 / 17.90s` future shadow-probe candidates, `16 / 68.95s` block
 publication-ready. The implemented profile is useful shadow evidence, but the lab still keeps
 publication-ready seconds at zero until ordinary parity gates pass.
 
+The report also writes `live_soft_local_speaker_boundary_shadow_lab` with schema
+`murmurmark.live_soft_local_speaker_boundary_shadow_lab/v1`. It evaluates a separate live-
+implementable shadow profile:
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_soft_local_speaker_boundary_shadow_live_boundary_split_retime_v1`.
+The profile tests a cheap relaxation of local-speaker boundary evidence for short, text-unique,
+low-correlation mic fragments. Current corpus status is `no_incremental_gain`: missing-Me delta
+vs the best live-implementable profile is `0.00s`, remote-leak delta is `0.00s`, and contentful
+order mismatch delta is `0`. The conclusion is negative but useful: the next work should add
+stronger speaker/boundary evidence, not simply weaken loudness thresholds.
+
 The same report may include `live_local_island_split_lab` with schema
 `murmurmark.live_local_island_split_lab/v1`. It is a diagnostic estimate over
 `local_island_split_candidate` rows: it joins local-island texts, computes token recall against the

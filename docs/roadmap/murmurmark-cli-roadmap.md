@@ -549,7 +549,10 @@ newer run-state exists.
    The live-only split/retime profile materializes that shape; the next concrete quality-hardening
    target is speaker/boundary evidence for the remaining mixed missing-Me queue.
    `live_speaker_boundary_evidence_lab` now splits the same gap into `17.90s` future shadow-probe
-   candidates, `68.95s` blocked rows and `0.0s` publication-ready. The first
+   candidates, `68.95s` blocked rows and `0.0s` publication-ready. A soft local-speaker boundary
+   shadow was also tested and produced `no_incremental_gain`: `0.00s` missing-Me delta and `0.00s`
+   remote-leak delta versus the best live-implementable profile. This rules out the cheap path of
+   merely weakening loudness thresholds. The first
    live-only
    candidate lab finds `99.40s` of suppressed mic candidates and `83.04s` local/mixed evidence, but
    still carries `16.36s` remote-risk. Its stricter zero-risk profile finds `36.12s` with `0.00s`

@@ -127,6 +127,10 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_v1"
 )
+SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "soft_local_speaker_boundary_shadow_live_boundary_split_retime_v1"
+)
 BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1"
@@ -159,6 +163,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
     BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
@@ -213,6 +218,9 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY: (
@@ -305,6 +313,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
     BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
     (
@@ -349,6 +358,10 @@ LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES = {
 }
 LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+}
+SOFT_LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES = {
+    SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
 }
 BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES = {
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
@@ -2964,6 +2977,118 @@ def local_speaker_boundary_shadow_turns(segments: list[dict[str, Any]]) -> tuple
     )
 
 
+def soft_local_speaker_boundary_shadow_turns(
+    segments: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    turns: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for index, row in enumerate(segments, start=1):
+        start = safe_float(row.get("start"))
+        end = safe_float(row.get("end"), start)
+        duration = max(0.0, end - start)
+        text = clean_text(str(row.get("text") or ""))
+        row_tokens = tokens(text)
+        rescue_candidates = set(row.get("rescue_policy_candidates") or [])
+        unique_token_count = safe_int(row.get("segment_gate_unique_token_count"))
+        corr = safe_float(row.get("audio_mic_remote_zero_lag_abs_corr"), default=1.0)
+        mic_minus_remote = safe_float(row.get("audio_mic_minus_remote_rms_db"), default=-999.0)
+        mic_recall_in_remote = safe_float(row.get("segment_gate_mic_token_recall_in_overlapping_remote"), default=1.0)
+        remote_recall_in_mic = safe_float(row.get("segment_gate_overlapping_remote_token_recall_in_mic"), default=1.0)
+        context = {
+            "id": f"live_soft_local_speaker_boundary_rejected_{safe_int(row.get('chunk_index')):06d}_{index:06d}",
+            "chunk_index": row.get("chunk_index"),
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "duration_sec": round(duration, 3),
+            "text": text,
+            "segment_gate_status": row.get("segment_gate_status"),
+            "segment_gate_reason": row.get("segment_gate_reason"),
+            "segment_gate_unique_token_count": unique_token_count,
+            "segment_gate_mic_token_recall_in_overlapping_remote": row.get(
+                "segment_gate_mic_token_recall_in_overlapping_remote"
+            ),
+            "segment_gate_overlapping_remote_token_recall_in_mic": row.get(
+                "segment_gate_overlapping_remote_token_recall_in_mic"
+            ),
+            "audio_mic_minus_remote_rms_db": row.get("audio_mic_minus_remote_rms_db"),
+            "audio_mic_remote_zero_lag_abs_corr": row.get("audio_mic_remote_zero_lag_abs_corr"),
+            "rescue_policy_candidates": row.get("rescue_policy_candidates") or [],
+        }
+        if bool(row.get("known_hallucination")):
+            rejected.append({**context, "reason": "known_hallucination"})
+            continue
+        if not text or len(row_tokens) < 3:
+            rejected.append({**context, "reason": "too_few_tokens"})
+            continue
+        if "..." in text or "…" in text:
+            rejected.append({**context, "reason": "incomplete_asr_fragment"})
+            continue
+        if end <= start or duration < 1.0 or duration > 6.5:
+            rejected.append({**context, "reason": "duration_out_of_range"})
+            continue
+        if row.get("segment_gate_reason") != "segment_has_local_tokens_not_seen_in_overlapping_remote":
+            rejected.append({**context, "reason": "not_local_tokens_gate"})
+            continue
+        required_policies = {"strict_text_unique_v1", "audio_low_corr_text_guard_v1"}
+        if not required_policies.issubset(rescue_candidates):
+            rejected.append({**context, "reason": "missing_strict_text_or_audio_guard"})
+            continue
+        if unique_token_count < 4:
+            rejected.append({**context, "reason": "too_few_unique_tokens"})
+            continue
+        if mic_recall_in_remote > 0.0 or remote_recall_in_mic > 0.0:
+            rejected.append({**context, "reason": "text_too_close_to_remote"})
+            continue
+        if corr > 0.018:
+            rejected.append({**context, "reason": "audio_corr_too_high"})
+            continue
+        if mic_minus_remote < -14.0:
+            rejected.append({**context, "reason": "mic_too_quiet_for_soft_boundary"})
+            continue
+        turns.append(
+            {
+                "id": f"live_soft_local_speaker_boundary_{safe_int(row.get('chunk_index')):06d}_{index:06d}",
+                "chunk_index": row.get("chunk_index"),
+                "source": "mic_suppressed_soft_local_speaker_boundary_shadow",
+                "role": "Me",
+                "start": start,
+                "end": end,
+                "text": text,
+                "tokens": row_tokens,
+                "local_speaker_boundary_shadow": True,
+                "soft_local_speaker_boundary_shadow": True,
+                "live_group_classifier": "soft_local_speaker_boundary_shadow_v1",
+                "segment_gate_status": row.get("segment_gate_status"),
+                "segment_gate_reason": row.get("segment_gate_reason"),
+                "segment_gate_unique_token_count": unique_token_count,
+                "segment_gate_mic_token_recall_in_overlapping_remote": row.get(
+                    "segment_gate_mic_token_recall_in_overlapping_remote"
+                ),
+                "segment_gate_overlapping_remote_token_recall_in_mic": row.get(
+                    "segment_gate_overlapping_remote_token_recall_in_mic"
+                ),
+                "audio_mic_minus_remote_rms_db": row.get("audio_mic_minus_remote_rms_db"),
+                "audio_mic_remote_zero_lag_abs_corr": row.get("audio_mic_remote_zero_lag_abs_corr"),
+                "rescue_policy_candidates": row.get("rescue_policy_candidates") or [],
+                "local_speaker_boundary_criteria": {
+                    "profile": "soft_local_speaker_boundary_shadow_v1",
+                    "min_duration_sec": 1.0,
+                    "max_duration_sec": 6.5,
+                    "max_audio_mic_remote_zero_lag_abs_corr": 0.018,
+                    "min_audio_mic_minus_remote_rms_db": -14.0,
+                    "min_unique_token_count": 4,
+                    "required_policies": sorted(required_policies),
+                    "max_mic_token_recall_in_overlapping_remote": 0.0,
+                    "max_overlapping_remote_token_recall_in_mic": 0.0,
+                },
+            }
+        )
+    return (
+        sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or ""))),
+        rejected,
+    )
+
+
 def subtract_intervals(
     start: float,
     end: float,
@@ -4321,6 +4446,7 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "local_islands",
         "remote_forbidden_boundary_classifier",
         "local_speaker_boundary_shadow",
+        "soft_local_speaker_boundary_shadow",
         "live_group_classifier",
         "anchor_start",
         "anchor_end",
@@ -4515,6 +4641,7 @@ def target_me_shadow_profile_components(
     elif (
         policy in LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES
         or policy in LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES
+        or policy in SOFT_LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES
         or policy in BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES
         or policy in BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICIES
     ):
@@ -4539,6 +4666,18 @@ def target_me_shadow_profile_components(
         )
         rejected_supplemental_turns.extend(rejected_boundary_turns)
         rejected_supplemental_turns.extend(rejected_speaker_boundary_turns)
+        if policy in SOFT_LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES:
+            soft_speaker_boundary_turns, rejected_soft_speaker_boundary_turns = soft_local_speaker_boundary_shadow_turns(
+                suppressed_mic_asr_segments
+            )
+            soft_speaker_boundary_turns, rejected_soft_timeline_turns = timeline_safe_visible_suppressed_mic_turns(
+                candidates=soft_speaker_boundary_turns,
+                base_turns=live_turns + target_turns + supplemental_turns,
+                batch_utterances=batch_utterances,
+            )
+            supplemental_turns.extend(soft_speaker_boundary_turns)
+            rejected_supplemental_turns.extend(rejected_soft_speaker_boundary_turns)
+            rejected_supplemental_turns.extend(rejected_soft_timeline_turns)
     if policy in LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES:
         combined_for_retime = sorted(
             live_turns + target_turns + supplemental_turns,
