@@ -5958,6 +5958,41 @@ Current corpus evidence for this lab-shadow profile:
 - contentful role-constrained order mismatches remain `2`;
 - promotion remains blocked.
 
+The same lab script can run in live-only candidate mode:
+
+```bash
+scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source live-only \
+  --max-candidates 10 \
+  --source-scope live
+```
+
+This writes:
+
+- `sessions/_reports/live-pipeline/live_boundary_micro_asr_live_candidates_lab.json`;
+- `sessions/_reports/live-pipeline/live_boundary_micro_asr_live_candidates_lab_attempts.jsonl`;
+- `sessions/_reports/live-pipeline/live_boundary_micro_asr_live_candidates_lab.md`.
+
+Rows in this report set `candidate_source = live-only` and
+`used_batch_fields_for_selection = false`. Batch labels may still be used later by
+`compare-live-batch.py` only as evaluation evidence. The materialized live-implementable profile is:
+
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_live_boundary_micro_asr_live_only_shadow_v1`.
+
+Current corpus evidence:
+
+- `live_boundary_micro_asr_live_only_added_turn_count = 0`;
+- `live_boundary_micro_asr_live_only_added_turn_seconds = 0.00`;
+- `live_boundary_micro_asr_live_only_rejected_turn_count = 8`;
+- missing-Me remains `86.85s`;
+- measured remote leak remains `0.00s`;
+- contentful role-constrained order mismatches remain `2`;
+- promotion remains blocked.
+
+This is a negative but useful contract result: the live-only micro-ASR hook exists and is evaluated
+by the normal parity gates, but current candidate selection does not yet produce publishable
+incremental `Me` turns.
+
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`
 is the first profile-level local-island split oracle. It starts from the current best
 live-implementable profile, adds batch-backed local-island candidates, then runs the normal

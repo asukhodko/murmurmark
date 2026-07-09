@@ -563,9 +563,8 @@ newer run-state exists.
    The candidate is now materialized as the diagnostic lab-shadow profile
    `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_live_boundary_micro_asr_lab_shadow_v1`:
    it adds `1` micro-ASR turn / `5.10s`, lowers missing-Me to `76.27s`, keeps measured remote leak
-   at `0.00s` and keeps contentful order mismatches at `2`. The next roadmap item is to make this
-   candidate selection live-only and remote-forbidden, then compare that new profile through the
-   same parity gates. The first live-only candidate lab finds `99.40s` of suppressed mic
+   at `0.00s` and keeps contentful order mismatches at `2`. The first live-only candidate lab finds
+   `99.40s` of suppressed mic
    candidates and `83.04s` local/mixed evidence, but
    still carries `16.36s` remote-risk. Its stricter zero-risk profile finds `36.12s` with `0.00s`
    remote-risk. That strict profile is now materialized as a normal shadow draft: after
@@ -575,8 +574,12 @@ newer run-state exists.
    `86.85s` with `0.00s` remote leak. `live_strict_local_island_shadow_delta_lab/v1` records `0.00s` incremental strict turns and
    `13.38s` closed missing-Me, but a negative net delta versus the current relaxed profile. This is
    not a call for more live recording, broader rescue or relaxed
-   publication gates; the next step is online timing anchors / remote-forbidden evidence for
-   still-uncovered local islands.
+   publication gates. The micro-ASR live-only candidate mode is now also materialized as
+   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_live_boundary_micro_asr_live_only_shadow_v1`:
+   the lab finds `3` alignment candidates / `13.76s`, but after deduplication and timeline safety
+   the profile adds `0.00s`, keeps missing-Me at `86.85s`, remote leak at `0.00s` and contentful
+   order mismatches at `2`. This makes the next step online timing anchors and remote-forbidden
+   speaker/boundary evidence for still-uncovered mixed local islands.
    The new `live_only_retime_boundary_candidate_lab/v1` confirms the boundary of that approach:
    strict zero-remote anchors recover `0.00s` of the current best-live-implementable remaining gap,
    while the relaxed `oracle_gap_probe_v1` recovers `18.69s` but brings `27.20s` remote-risk. The

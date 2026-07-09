@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 SCHEMA = "murmurmark.live_boundary_island_micro_asr_lab/v1"
 DEFAULT_MODEL = "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
@@ -35,6 +35,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--max-candidates", type=int, default=10)
     parser.add_argument(
+        "--candidate-source",
+        choices=("design-lab", "live-only"),
+        default="design-lab",
+        help=(
+            "design-lab uses batch-informed design examples; live-only selects candidates "
+            "from live comparison rows using only live/audio evidence."
+        ),
+    )
+    parser.add_argument(
         "--source-scope",
         choices=("live", "batch-reference", "both"),
         default="both",
@@ -42,6 +51,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--force", action="store_true", help="Rerun whisper-cli even when cached micro-ASR JSON exists.")
     return parser.parse_args()
+
+
+def output_paths(out_dir: Path, candidate_source: str) -> dict[str, Path]:
+    if candidate_source == "live-only":
+        stem = "live_boundary_micro_asr_live_candidates_lab"
+    else:
+        stem = "live_boundary_island_micro_asr_lab"
+    return {
+        "attempts_jsonl": out_dir / f"{stem}_attempts.jsonl",
+        "report_json": out_dir / f"{stem}.json",
+        "report_md": out_dir / f"{stem}.md",
+    }
 
 
 def load_transcribe_bridge() -> Any:
@@ -261,6 +282,132 @@ def select_candidates(report: dict[str, Any], max_candidates: int) -> list[dict[
         )
     )
     return rows[:max_candidates]
+
+
+def live_only_candidate_features(row: dict[str, Any]) -> dict[str, Any]:
+    text = clean_text(str(row.get("text") or ""))
+    start_sec = safe_float(row.get("start"))
+    end_sec = safe_float(row.get("end"))
+    duration_sec = safe_float(row.get("duration_sec"), end_sec - start_sec)
+    if duration_sec <= 0 and end_sec > start_sec:
+        duration_sec = end_sec - start_sec
+    rescue_policies = row.get("rescue_policy_candidates")
+    if not isinstance(rescue_policies, list):
+        rescue_policies = []
+    return {
+        "text": text,
+        "token_count": len(tokens(text)),
+        "start": round(start_sec, 3),
+        "end": round(end_sec, 3),
+        "duration_sec": round(duration_sec, 3),
+        "known_hallucination": bool(row.get("known_hallucination")),
+        "segment_gate_reason": str(row.get("segment_gate_reason") or ""),
+        "segment_gate_unique_token_count": safe_int(row.get("segment_gate_unique_token_count")),
+        "segment_gate_mic_token_recall_in_overlapping_remote": round(
+            safe_float(row.get("segment_gate_mic_token_recall_in_overlapping_remote")),
+            6,
+        ),
+        "segment_gate_overlapping_remote_token_recall_in_mic": round(
+            safe_float(row.get("segment_gate_overlapping_remote_token_recall_in_mic")),
+            6,
+        ),
+        "audio_mic_minus_remote_rms_db": round(safe_float(row.get("audio_mic_minus_remote_rms_db")), 3),
+        "audio_mic_remote_zero_lag_abs_corr": round(safe_float(row.get("audio_mic_remote_zero_lag_abs_corr")), 6),
+        "rescue_policy_candidates": [str(value) for value in rescue_policies],
+    }
+
+
+def is_live_only_candidate(features: dict[str, Any]) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    if features["known_hallucination"]:
+        reasons.append("known_hallucination")
+    if features["segment_gate_reason"] != "segment_has_local_tokens_not_seen_in_overlapping_remote":
+        reasons.append("segment_gate_reason_not_local_unique")
+    if features["segment_gate_unique_token_count"] < 4:
+        reasons.append("too_few_unique_tokens")
+    if features["token_count"] < 2:
+        reasons.append("too_few_text_tokens")
+    if not (2.0 <= features["duration_sec"] <= 8.0):
+        reasons.append("duration_outside_live_only_range")
+    if features["segment_gate_mic_token_recall_in_overlapping_remote"] > 0.20:
+        reasons.append("mic_tokens_overlap_remote_too_much")
+    if features["segment_gate_overlapping_remote_token_recall_in_mic"] > 0.20:
+        reasons.append("remote_tokens_overlap_mic_too_much")
+    if features["audio_mic_remote_zero_lag_abs_corr"] > 0.025:
+        reasons.append("mic_remote_corr_too_high")
+    if features["audio_mic_minus_remote_rms_db"] < -14.0:
+        reasons.append("mic_too_quiet_vs_remote")
+    policies = set(features["rescue_policy_candidates"])
+    if not ({"audio_low_corr_text_guard_v1", "audio_low_coherence_v1"} & policies):
+        reasons.append("missing_low_corr_or_low_coherence_evidence")
+    return not reasons, reasons
+
+
+def select_live_only_candidates(sessions_root: Path, max_candidates: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    candidates: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    comparison_paths = sorted(sessions_root.glob("20??-??-??_*/derived/live/live_batch_comparison.json"))
+    for comparison_path in comparison_paths:
+        session = comparison_path.parents[2]
+        report = read_json(comparison_path)
+        risk_examples = report.get("risk_examples") if isinstance(report.get("risk_examples"), dict) else {}
+        rows = (
+            risk_examples.get("suppressed_mic_asr_segments")
+            if isinstance(risk_examples.get("suppressed_mic_asr_segments"), list)
+            else []
+        )
+        for row_index, row in enumerate(rows, start=1):
+            if not isinstance(row, dict):
+                continue
+            features = live_only_candidate_features(row)
+            accepted, reject_reasons = is_live_only_candidate(features)
+            context = {
+                "candidate_source": "live-only",
+                "used_batch_fields_for_selection": False,
+                "session": session.name,
+                "source_comparison": str(comparison_path),
+                "row_index": row_index,
+                "chunk_index": row.get("chunk_index"),
+                "selection_features": features,
+            }
+            if not accepted:
+                rejected.append({**context, "reject_reasons": reject_reasons})
+                continue
+            start_sec = safe_float(row.get("start"))
+            end_sec = safe_float(row.get("end"))
+            text = features["text"]
+            candidates.append(
+                {
+                    **context,
+                    "priority": 50,
+                    "batch_id": None,
+                    "start": round(start_sec, 3),
+                    "end": round(end_sec, 3),
+                    "duration_sec": round(end_sec - start_sec, 3),
+                    "text": text,
+                    "local_island_examples": [
+                        {
+                            "start": round(start_sec, 3),
+                            "end": round(end_sec, 3),
+                            "text": text,
+                            "source": "live_suppressed_mic_segment",
+                            "chunk_index": row.get("chunk_index"),
+                            "source_row_index": row_index,
+                        }
+                    ],
+                    "split_row": None,
+                    "source_row": row,
+                }
+            )
+    candidates.sort(
+        key=lambda row: (
+            -safe_float((row.get("selection_features") or {}).get("segment_gate_unique_token_count")),
+            -safe_float(row.get("duration_sec")),
+            str(row.get("session") or ""),
+            safe_float(row.get("start")),
+        )
+    )
+    return candidates[:max_candidates], rejected
 
 
 def output_stem(*, candidate_index: int, island_index: int, source_label: str, window_label: str) -> str:
@@ -484,21 +631,68 @@ def classify_best_attempt(
     }
 
 
+def classify_best_live_only_attempt(
+    *,
+    best: dict[str, Any] | None,
+    source_text: str,
+    remote_text: str,
+    bridge: Any,
+) -> dict[str, Any]:
+    if not best or best.get("status") != "ok":
+        return {
+            "label": "no_micro_asr_candidate",
+            "publication_ready": False,
+            "reason": "no successful non-empty live-only micro-ASR attempt",
+        }
+    text = str(best.get("text") or "")
+    source_recall = bag_recall(tokens(source_text), tokens(text))
+    micro_source_recall = bag_recall(tokens(text), tokens(source_text))
+    remote_similarity = float(best.get("remote_similarity") or 0.0)
+    remote_recall = bag_recall(tokens(remote_text), tokens(text)) if remote_text else 0.0
+    score = safe_float(best.get("score"))
+    if remote_similarity > 0.30 or remote_recall > 0.10:
+        label = "blocked_remote_similarity"
+        reason = "live-only micro-ASR text is too similar to overlapping remote text"
+    elif score < 0.68:
+        label = "blocked_low_micro_score"
+        reason = "micro-ASR score is below live-only threshold"
+    elif source_recall < 0.25 and micro_source_recall < 0.25:
+        label = "blocked_low_live_source_alignment"
+        reason = "micro-ASR text does not align with the live suppressed-mic source text"
+    else:
+        label = "micro_asr_live_only_alignment_candidate"
+        reason = "live-only micro-ASR has local-source support and low remote similarity"
+    return {
+        "label": label,
+        "publication_ready": False,
+        "reason": reason,
+        "used_batch_fields_for_selection": False,
+        "source_text_token_recall": round(source_recall, 6),
+        "micro_text_token_recall_in_source": round(micro_source_recall, 6),
+        "remote_text_recall_in_micro": round(remote_recall, 6),
+        "remote_similarity": round(remote_similarity, 6),
+        "score": round(score, 6),
+    }
+
+
 def markdown_report(report: dict[str, Any]) -> str:
     summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+    candidate_source = summary.get("candidate_source") or "design-lab"
     lines = [
         "# Live Boundary-Island Micro-ASR Lab",
         "",
         "Diagnostic only. This lab never changes live drafts, batch transcripts or promotion gates.",
         "",
         f"- status: `{report.get('status')}`",
+        f"- candidate source: `{candidate_source}`",
+        f"- used batch fields for selection: `{summary.get('used_batch_fields_for_selection')}`",
         f"- candidates: {summary.get('candidate_count', 0)}",
         f"- islands: {summary.get('island_count', 0)}",
         f"- attempts: {summary.get('attempt_count', 0)}",
         f"- alignment candidates: {summary.get('alignment_candidate_count', 0)} / {summary.get('alignment_candidate_seconds', 0.0)} sec",
         f"- publication-ready seconds now: {summary.get('publication_ready_seconds', 0.0)}",
         "",
-        "| Session | Batch id | Island | Best label | Source | Score | Batch recall | Remote sim | Text |",
+        "| Session | Batch id | Island | Best label | Source | Score | Source recall | Remote sim | Text |",
         "| --- | --- | ---: | --- | --- | ---: | ---: | ---: | --- |",
     ]
     for row in report.get("items") or []:
@@ -511,7 +705,7 @@ def markdown_report(report: dict[str, Any]) -> str:
             f"| `{row.get('session')}` | `{row.get('batch_id')}` | {row.get('island_index')} "
             f"| `{decision.get('label')}` | `{best.get('source_label')}` / `{best.get('window_label')}` "
             f"| {safe_float(best.get('score')):.3f} "
-            f"| {safe_float(decision.get('batch_token_recall')):.3f} "
+            f"| {safe_float(decision.get('source_text_token_recall', decision.get('batch_token_recall'))):.3f} "
             f"| {safe_float(best.get('remote_similarity')):.3f} "
             f"| {text[:120]} |"
         )
@@ -522,7 +716,7 @@ def markdown_report(report: dict[str, Any]) -> str:
 def main() -> int:
     args = parse_args()
     report_path = args.report
-    if not report_path.exists():
+    if args.candidate_source == "design-lab" and not report_path.exists():
         print(f"report not found: {report_path}", file=sys.stderr)
         return 2
     model = args.model.expanduser()
@@ -535,12 +729,18 @@ def main() -> int:
         return 2
 
     bridge = load_transcribe_bridge()
-    corpus_report = read_json(report_path)
-    candidates = select_candidates(corpus_report, args.max_candidates)
+    corpus_report = read_json(report_path) if report_path.exists() else {}
+    rejected_candidates: list[dict[str, Any]] = []
+    if args.candidate_source == "live-only":
+        candidates, rejected_candidates = select_live_only_candidates(args.sessions_root, args.max_candidates)
+    else:
+        candidates = select_candidates(corpus_report, args.max_candidates)
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    attempts_jsonl = args.out_dir / "live_boundary_island_micro_asr_lab_attempts.jsonl"
-    report_json = args.out_dir / "live_boundary_island_micro_asr_lab.json"
-    report_md = args.out_dir / "live_boundary_island_micro_asr_lab.md"
+    paths = output_paths(args.out_dir, args.candidate_source)
+    attempts_jsonl = paths["attempts_jsonl"]
+    report_json = paths["report_json"]
+    report_md = paths["report_md"]
+    effective_source_scope = "live" if args.candidate_source == "live-only" else args.source_scope
 
     windows = [
         ("tight", 0.3, 0.3),
@@ -568,9 +768,9 @@ def main() -> int:
             candidate_remote_text = clean_text(
                 " ".join(str(row.get("remote_text") or "") for row in live_sources if isinstance(row, dict))
             )
-            if args.source_scope in {"live", "both"}:
+            if effective_source_scope in {"live", "both"}:
                 sources.extend(live_sources)
-            if args.source_scope in {"batch-reference", "both"}:
+            if effective_source_scope in {"batch-reference", "both"}:
                 sources.extend(batch_reference_sources(session, candidate_remote_text))
             island_attempts: list[dict[str, Any]] = []
             for source in sources:
@@ -628,16 +828,27 @@ def main() -> int:
             best_reference = reference_successful[0] if reference_successful else None
             best = best_live or best_reference or (successful[0] if successful else None)
             remote_text = str(best.get("remote_text") or "") if isinstance(best, dict) else ""
-            decision = classify_best_attempt(
-                best=best,
-                batch_text=batch_text,
-                island_text=island_text,
-                remote_text=remote_text,
-                bridge=bridge,
-            )
+            if args.candidate_source == "live-only":
+                decision = classify_best_live_only_attempt(
+                    best=best,
+                    source_text=island_text or batch_text,
+                    remote_text=remote_text,
+                    bridge=bridge,
+                )
+            else:
+                decision = classify_best_attempt(
+                    best=best,
+                    batch_text=batch_text,
+                    island_text=island_text,
+                    remote_text=remote_text,
+                    bridge=bridge,
+                )
             items.append(
                 {
                     "schema": "murmurmark.live_boundary_island_micro_asr_item/v1",
+                    "candidate_source": args.candidate_source,
+                    "used_batch_fields_for_selection": args.candidate_source != "live-only",
+                    "selection_features": candidate.get("selection_features"),
                     "candidate_index": candidate_index,
                     "island_index": island_index,
                     "session": session_name,
@@ -659,7 +870,10 @@ def main() -> int:
     alignment_candidates = [
         row for row in items
         if isinstance(row.get("decision"), dict)
-        and row["decision"].get("label") == "micro_asr_alignment_candidate"
+        and row["decision"].get("label") in {
+            "micro_asr_alignment_candidate",
+            "micro_asr_live_only_alignment_candidate",
+        }
     ]
     summary = {
         "candidate_count": len(candidates),
@@ -670,7 +884,11 @@ def main() -> int:
         "alignment_candidate_seconds": round(sum(safe_float(row.get("duration_sec")) for row in alignment_candidates), 3),
         "publication_ready_seconds": 0.0,
         "promotion_allowed": False,
+        "candidate_source": args.candidate_source,
         "source_scope": args.source_scope,
+        "effective_source_scope": effective_source_scope,
+        "rejected_candidate_count": len(rejected_candidates),
+        "used_batch_fields_for_selection": args.candidate_source != "live-only",
     }
     payload = {
         "schema": SCHEMA,
@@ -683,13 +901,14 @@ def main() -> int:
             "It can identify a future shadow-profile candidate, but cannot publish live text by itself."
         ),
         "inputs": {
-            "live_corpus_gates_report": str(report_path),
+            "live_corpus_gates_report": str(report_path) if report_path.exists() else None,
             "sessions_root": str(args.sessions_root),
             "model": str(model),
             "whisper_cli": whisper_cli,
         },
         "summary": summary,
         "items": items,
+        "rejected_candidates": rejected_candidates[:200],
         "outputs": {
             "report_json": str(report_json),
             "attempts_jsonl": str(attempts_jsonl),

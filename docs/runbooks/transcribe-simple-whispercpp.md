@@ -378,6 +378,27 @@ jq '.live_target_me_shadow_profile_diagnostics.real.best_profile' \
 This profile is `lab_shadow`, not live-implementable. It is useful only to measure the ceiling of
 the micro-ASR idea under normal parity gates.
 
+To test the live-implementable side of the same idea, run the live-only candidate mode:
+
+```bash
+scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source live-only \
+  --max-candidates 10 \
+  --source-scope live
+
+scripts/report-live-corpus-gates.py --sessions-root sessions --refresh
+
+jq '.live_target_me_shadow_profile_diagnostics.real.profiles[]
+    | select(.policy | contains("live_boundary_micro_asr_live_only_shadow_v1"))' \
+  sessions/_reports/live-pipeline/live_corpus_gates_report.json
+```
+
+This writes `live_boundary_micro_asr_live_candidates_lab.*`. Current corpus result: `3`
+alignment candidates / `13.76s` are found, but the materialized live-only profile adds `0.00s`
+after deduplication and safety gates. Treat that as a useful negative result: micro-ASR is wired
+into the live-implementable path, but candidate selection still needs better speaker/boundary
+evidence before it can close the local-recall gap.
+
 Older sessions may have top-level `raw/mic.json` and `raw/remote.json` from pre-chunk runs but no
 `raw/chunks/<track>/chunk_cache_report.json`. In `windowed` mode that legacy raw cache is no longer
 enough for `murmurmark process`: the transcript step rebuilds per-window chunks first, then

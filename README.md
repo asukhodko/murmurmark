@@ -617,7 +617,26 @@ profile adds the same `52.76s` as `audio_safe_union_v1`, and corpus missing-Me s
 with `0.00s` remote leak. The `live_strict_local_island_shadow_delta_lab/v1` block records this as
 `0.00s` incremental strict turns and `13.38s` closed missing-Me, with a negative net delta because
 the current relaxed boundary profile is already stronger. So the next useful work is not
-collecting more recordings or adding another publication threshold; it is online timing /
+collecting more recordings or adding another publication threshold; it is online timing and
+speaker-boundary evidence for still-uncovered mixed regions.
+
+The micro-ASR path now also has a live-only candidate mode:
+
+```bash
+scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source live-only \
+  --max-candidates 10 \
+  --source-scope live
+```
+
+It writes `sessions/_reports/live-pipeline/live_boundary_micro_asr_live_candidates_lab.*` and
+feeds the live-implementable shadow profile
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_live_boundary_micro_asr_live_only_shadow_v1`.
+Current corpus result: the lab finds `3` alignment candidates / `13.76s`, but after deduplication
+and timeline safety the materialized profile adds `0.00s`; it keeps missing-Me at `86.85s`, remote
+leak at `0.00s` and contentful order mismatches at `2`. This is a useful negative result: batch
+selection proved the micro-ASR idea has a `5.10s` ceiling on the current corpus, but live-only
+candidate selection is still not precise enough to close that gap.
 remote-forbidden evidence that can find local islands not already covered by Target-Me/audio-safe
 materialization.
 
@@ -1338,9 +1357,10 @@ Active goal and near-term candidates:
    improves the top island's batch-token recall from `0.154` to `0.385` from live chunk audio
    (`0.462` from batch-reference mic), with publication still blocked. The candidate is now
    materialized as a diagnostic lab-shadow profile; it closes `10.58s` of the gap versus the best
-   live-implementable profile without measured remote leak. This makes the next implementable step
-   live-only candidate selection and strict remote-forbidden gates for micro-ASR, not more
-   recordings.
+   live-implementable profile without measured remote leak. The first live-only micro-ASR shadow is
+   also materialized, but currently adds `0.00s` after deduplication and safety gates. This makes the
+   next implementable step better online speaker/boundary evidence around mixed regions, not more
+   recordings or looser micro-ASR thresholds.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

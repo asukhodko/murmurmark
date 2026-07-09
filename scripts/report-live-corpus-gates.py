@@ -102,6 +102,10 @@ LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "live_boundary_micro_asr_lab_shadow_v1"
 )
+LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "live_boundary_micro_asr_live_only_shadow_v1"
+)
 TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_possible_timeline_safe_v1",
@@ -123,6 +127,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
+    LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
     BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
@@ -195,6 +200,9 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "live_boundary_micro_asr_lab_added_turn_count",
     "live_boundary_micro_asr_lab_added_turn_seconds",
     "live_boundary_micro_asr_lab_rejected_turn_count",
+    "live_boundary_micro_asr_live_only_added_turn_count",
+    "live_boundary_micro_asr_live_only_added_turn_seconds",
+    "live_boundary_micro_asr_live_only_rejected_turn_count",
     "boundary_order_retime_oracle_turn_count",
     "boundary_order_retime_oracle_trimmed_seconds",
     "boundary_order_split_retime_oracle_turn_count",
@@ -1431,6 +1439,18 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
             evaluated_rows,
             f"{base}_live_boundary_micro_asr_lab_rejected_turn_count",
         )
+        summary[f"{out}_live_boundary_micro_asr_live_only_added_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_live_boundary_micro_asr_live_only_added_turn_count",
+        )
+        summary[f"{out}_live_boundary_micro_asr_live_only_added_turn_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_live_boundary_micro_asr_live_only_added_turn_seconds",
+        )
+        summary[f"{out}_live_boundary_micro_asr_live_only_rejected_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_live_boundary_micro_asr_live_only_rejected_turn_count",
+        )
 
 
 def target_me_shadow_policy_diagnostics(summary: dict[str, Any], prefix: str) -> dict[str, Any]:
@@ -1497,6 +1517,8 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             else (
                 "lab_shadow"
                 if policy == LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY
+                else "live_only_shadow"
+                if policy == LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY
                 else "oracle"
             )
         )
@@ -1560,6 +1582,15 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             ),
             "live_boundary_micro_asr_lab_rejected_turn_count": safe_int(
                 summary.get(f"{base}_live_boundary_micro_asr_lab_rejected_turn_count")
+            ),
+            "live_boundary_micro_asr_live_only_added_turn_count": safe_int(
+                summary.get(f"{base}_live_boundary_micro_asr_live_only_added_turn_count")
+            ),
+            "live_boundary_micro_asr_live_only_added_turn_seconds": safe_float(
+                summary.get(f"{base}_live_boundary_micro_asr_live_only_added_turn_seconds")
+            ),
+            "live_boundary_micro_asr_live_only_rejected_turn_count": safe_int(
+                summary.get(f"{base}_live_boundary_micro_asr_live_only_rejected_turn_count")
             ),
             "boundary_order_retime_oracle_turn_count": safe_int(
                 summary.get(f"{base}_boundary_order_retime_oracle_turn_count")

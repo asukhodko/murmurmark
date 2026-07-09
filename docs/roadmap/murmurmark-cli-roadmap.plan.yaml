@@ -802,8 +802,7 @@ nodes:
       batch-reference recall reaches `0.462`, and publication remains blocked at `0.0s`.
       The diagnostic lab-shadow profile now materializes that candidate: it adds `1` micro-ASR
       turn / `5.10s`, lowers missing-Me to `76.27s`, keeps measured remote leak at `0.00s`, keeps
-      contentful order mismatches at `2`, and remains `lab_shadow`. The next concrete target is
-      live-only micro-ASR candidate selection under strict remote-forbidden gates.
+      contentful order mismatches at `2`, and remains `lab_shadow`.
       The
       live-only candidate lab now selects `99.40s` of suppressed mic
       candidates and `83.04s` local/mixed evidence, but still carries `16.36s` remote-risk
@@ -814,6 +813,11 @@ nodes:
       `52.76s` as `audio_safe_union_v1`, while the current local-speaker boundary profile leaves
       `86.85s` missing-Me with `0.00s` remote leak. `live_strict_local_island_shadow_delta_lab/v1` records `0.00s` incremental strict turns
       and `13.38s` closed missing-Me, but a negative net delta versus the current relaxed profile.
+      The live-only micro-ASR profile is now materialized too:
+      `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_live_boundary_micro_asr_live_only_shadow_v1`.
+      It finds `3` alignment candidates / `13.76s`, but after deduplication and timeline safety it
+      adds `0.00s`, leaves missing-Me at `86.85s`, keeps remote leak at `0.00s` and contentful
+      order mismatches at `2`.
       Keep duplicate-heavy or remote-dominant rows blocked; the next
       implementation target is online timing anchors / remote-forbidden evidence for still-uncovered
       local islands, not more recordings, broader rescue or live promotion. The

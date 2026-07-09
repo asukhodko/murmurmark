@@ -507,6 +507,24 @@ The accepted live attempt is now materialized into a separate lab-shadow profile
 Corpus result: `1` micro-ASR turn / `5.10s` added, missing-Me falls from `86.85s` to `76.27s`,
 measured remote leak stays `0.00s`, contentful order mismatches stay `2`, and the profile remains
 `lab_shadow`, not live-implementable.
+The same script now has a live-only candidate mode:
+
+```bash
+scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source live-only \
+  --max-candidates 10 \
+  --source-scope live
+```
+
+It writes `live_boundary_micro_asr_live_candidates_lab.*` and feeds the live-implementable shadow
+profile
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_live_boundary_micro_asr_live_only_shadow_v1`.
+Current corpus result: the live-only lab finds `3` alignment candidates / `13.76s`, but the
+materialized profile adds `0.00s` after deduplication and timeline safety; missing-Me remains
+`86.85s`, measured remote leak remains `0.00s`, and contentful order mismatches remain `2`.
+This proves that the current blocker is not lack of recordings or lack of a micro-ASR hook. The
+blocker is still live-only speaker/boundary evidence precise enough to publish short `Me` islands
+without opening a remote leak path.
 The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 
 - accepted rows: `0`;
