@@ -494,6 +494,14 @@ after new evidence, and `0.0s` are publish-ready now. Its top implementation uni
 `boundary_island_micro_asr` (`10.58s` row scope, `5.10s` potential publishable local island). This is
 now the smallest useful next target: decode and align local-island spans, keep duplicate-heavy rows
 blocked unless voice evidence proves unique local speech, and preserve `remote_leakage == 0`.
+The first diagnostic micro-ASR lab for this target is now implemented as
+`scripts/report-live-boundary-island-micro-asr-lab.py`. It writes
+`sessions/_reports/live-pipeline/live_boundary_island_micro_asr_lab.json`,
+`live_boundary_island_micro_asr_lab_attempts.jsonl` and a Markdown report. Current evidence:
+`1` local island / `5.10s`, `12` successful attempts, `1` live alignment candidate. The best live
+chunk attempt improves batch-token recall from `0.154` to `0.385` while keeping remote similarity
+at `0.236`; the best batch-reference attempt reaches `0.462`. The lab is diagnostic only:
+`publication_ready_seconds = 0.0`, `promotion_allowed = false`, and batch remains authoritative.
 The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 
 - accepted rows: `0`;
@@ -506,9 +514,9 @@ The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 - max inter-island gap: `0.00s`.
 
 This means additional recordings are not the current unlock. The corpus already proves the shape of
-the missing work: build online evidence that can safely expand short local anchors into a publishable
-`Me` interval without copying remote text or breaking order. Until that exists, live promotion stays
-blocked even if more similar sessions are added.
+the missing work: turn the live micro-ASR alignment candidate into a separate shadow profile, then
+run the normal parity gates before any publication path is considered. Until that exists, live
+promotion stays blocked even if more similar sessions are added.
 
 The corpus report now also records `live_only_local_island_candidate_lab/v1`. It selects suppressed
 mic segments using only live-available text/audio gates and uses batch labels only to estimate

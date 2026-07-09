@@ -591,6 +591,14 @@ gain over the best live-implementable profile. The paired retime oracle,
 now has the same missing-Me ceiling (`85.69s`), so the current gap is not a proven retime-only win.
 The blocker is earlier: live candidate selection and local-speaker/boundary evidence for mixed
 regions without relying on batch labels.
+`scripts/report-live-boundary-island-micro-asr-lab.py` is the first diagnostic prototype for that
+top unit. It re-decodes the `5.10s` local island from live chunk audio and batch-reference mic
+sources, writes `sessions/_reports/live-pipeline/live_boundary_island_micro_asr_lab.*`, and keeps
+`promotion_allowed = false`. Current corpus evidence finds `1` live alignment candidate / `5.10s`:
+the best live chunk attempt improves batch-token recall from `0.154` to `0.385` with remote
+similarity `0.236`; the best batch-reference attempt reaches `0.462`. This proves the direction is
+worth materializing as a future shadow profile, but it is still diagnostic-only and adds
+`0.0s` publication-ready live text.
 The first live-only candidate lab now selects `99.40s` of suppressed mic candidates using only
 live-available gates; `83.04s` are local or mixed, but `16.36s` are still remote-risk
 (`precision_proxy = 0.835412`). This is useful evidence for the next implementation, but not enough
@@ -1321,6 +1329,12 @@ Active goal and near-term candidates:
    seconds after new evidence, and `0.0s` publication-ready now. The top unit is
    `boundary_island_micro_asr` (`10.58s`, potential `5.10s`), so the next useful implementation
    should decode and align local-island spans rather than publish whole mixed rows.
+   The first micro-ASR lab for this unit now writes
+   `live_boundary_island_micro_asr_lab.*`. It finds `1` live alignment candidate / `5.10s` and
+   improves the top island's batch-token recall from `0.154` to `0.385` from live chunk audio
+   (`0.462` from batch-reference mic), with publication still blocked. This makes the next
+   implementable step a shadow profile that uses live micro-ASR candidates under strict
+   remote-forbidden gates, not more recordings.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

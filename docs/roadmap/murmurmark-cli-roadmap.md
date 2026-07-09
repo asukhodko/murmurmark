@@ -556,7 +556,12 @@ newer run-state exists.
    remaining queue into `40.18s` actionable mixed/speaker rows and `14.132s` potential publishable
    seconds after new evidence, with `0.0s` publication-ready now. Its top unit is
    `boundary_island_micro_asr` (`10.58s`, potential `5.10s`), so the nearest useful target is
-   local-island micro-ASR/alignment, not broad rescue. The first
+   local-island micro-ASR/alignment, not broad rescue.
+   `live_boundary_island_micro_asr_lab` now confirms that this unit is real but still not
+   promotable: `1` live alignment candidate / `5.10s`, live batch-token recall improves from
+   `0.154` to `0.385`, batch-reference recall reaches `0.462`, and publication remains `0.0s`.
+   The next roadmap item is to materialize a separate live micro-ASR shadow profile and compare it
+   through the existing parity gates. The first
    live-only
    candidate lab finds `99.40s` of suppressed mic candidates and `83.04s` local/mixed evidence, but
    still carries `16.36s` remote-risk. Its stricter zero-risk profile finds `36.12s` with `0.00s`

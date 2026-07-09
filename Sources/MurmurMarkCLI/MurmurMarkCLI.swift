@@ -663,6 +663,7 @@ enum DoctorChecks {
             "scripts/compare-live-batch.py",
             "scripts/materialize-live-asr-cache.py",
             "scripts/report-live-corpus-gates.py",
+            "scripts/report-live-boundary-island-micro-asr-lab.py",
             "scripts/run-live-parity-pilot.sh",
             "scripts/experiment-sidecar-contract.py",
             "scripts/report-asr-chunk-cache-corpus.py",

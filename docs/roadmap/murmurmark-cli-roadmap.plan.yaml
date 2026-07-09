@@ -797,7 +797,10 @@ nodes:
       `live_online_speaker_boundary_evidence_design_lab/v1` now narrows the next implementation:
       `40.18s` actionable mixed/speaker rows, `14.132s` potential publishable seconds after new
       evidence, `0.0s` publish-ready now, and top unit `boundary_island_micro_asr` (`10.58s`, potential
-      `5.10s`). The next concrete target is local-island micro-ASR/alignment plus strict
+      `5.10s`). The first `live_boundary_island_micro_asr_lab` confirms `1` live alignment
+      candidate / `5.10s`: live batch-token recall improves from `0.154` to `0.385`,
+      batch-reference recall reaches `0.462`, and publication remains blocked at `0.0s`.
+      The next concrete target is a separate live micro-ASR shadow profile under strict
       remote-forbidden gates.
       The
       live-only candidate lab now selects `99.40s` of suppressed mic

@@ -5895,6 +5895,50 @@ missing batch `Me` row, and records candidate/accepted batch seconds plus local-
 `promotion_allowed` is always `false`; accepted rows still need a real split profile and normal
 parity gates before live output can use them.
 
+`scripts/report-live-boundary-island-micro-asr-lab.py` writes the follow-up diagnostic lab:
+
+- `sessions/_reports/live-pipeline/live_boundary_island_micro_asr_lab.json`;
+- `sessions/_reports/live-pipeline/live_boundary_island_micro_asr_lab_attempts.jsonl`;
+- `sessions/_reports/live-pipeline/live_boundary_island_micro_asr_lab.md`;
+- per-session micro-ASR clips and JSON under
+  `derived/live/boundary-island-micro-asr-lab/micro_asr/`.
+
+The JSON schema is `murmurmark.live_boundary_island_micro_asr_lab/v1`. It reads the design lab's
+`boundary_island_micro_asr` rows and re-decodes each local island from live chunk mic audio plus
+optional batch-reference mic sources. Each item records `best_live_attempt`,
+`best_reference_attempt`, `best_attempt`, all attempt metadata, and a `decision`:
+
+```json
+{
+  "schema": "murmurmark.live_boundary_island_micro_asr_item/v1",
+  "session": "2026-07-03_12-02-46",
+  "batch_id": "utt_000038",
+  "start": 223.068,
+  "end": 228.168,
+  "batch_text": "выйти пожалуйста ...",
+  "existing_island_text": "Потому что остальное сервировано.",
+  "best_live_attempt": {
+    "source_scope": "live",
+    "source_label": "live_chunk_000004_mic",
+    "window_label": "normal",
+    "text": "Сделаем лмо на нашем, можешь туда? Потому что осталька серийная.",
+    "score": 0.841782,
+    "remote_similarity": 0.236364,
+    "batch_token_recall": 0.384615
+  },
+  "decision": {
+    "label": "micro_asr_alignment_candidate",
+    "publication_ready": false,
+    "batch_token_recall": 0.384615,
+    "existing_island_batch_token_recall": 0.153846
+  }
+}
+```
+
+This lab is evidence only. `publication_ready_seconds` is always `0.0`, `promotion_allowed` is
+always `false`, and no live draft, batch transcript or promotion gate is modified by this script.
+It can justify a future shadow profile, but cannot publish live text by itself.
+
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`
 is the first profile-level local-island split oracle. It starts from the current best
 live-implementable profile, adds batch-backed local-island candidates, then runs the normal

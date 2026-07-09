@@ -355,6 +355,18 @@ Use it to see which parity dimensions still block a safe live branch after old b
 are excluded. It is not a promotion flag: live output remains shadow-only and batch remains
 authoritative. Its `next_focus` names the next blocker inside that capture-safe candidate slice.
 
+For the current boundary-island blocker, run the diagnostic micro-ASR lab:
+
+```bash
+scripts/report-live-boundary-island-micro-asr-lab.py --max-candidates 5
+less sessions/_reports/live-pipeline/live_boundary_island_micro_asr_lab.md
+```
+
+The lab re-decodes selected local islands from live chunk audio and batch-reference mic sources.
+It is evidence-only: current output finds `1` live alignment candidate / `5.10s`, keeps
+`publication_ready_seconds = 0.0`, and does not modify live drafts, batch transcripts or promotion
+gates.
+
 Older sessions may have top-level `raw/mic.json` and `raw/remote.json` from pre-chunk runs but no
 `raw/chunks/<track>/chunk_cache_report.json`. In `windowed` mode that legacy raw cache is no longer
 enough for `murmurmark process`: the transcript step rebuilds per-window chunks first, then
