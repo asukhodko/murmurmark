@@ -5930,12 +5930,19 @@ remote-risk.
 The materialized shadow profile is
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`.
 It writes normal `target-me-shadow/<policy>/draft.{json,md}` artifacts and normal
-`shadow_profiles.target_me.<policy>` parity metrics. Current corpus result: `12.68s` added,
-`127.01s` missing-Me, `0.00s` measured remote leak, `5` contentful order mismatches, `41`
-non-passing gates and `11` rejected boundary turns. This profile is evidence that remote-forbidden
-boundary recovery can close part of the gap, but it is not promotion-ready because it worsens the
-order gate. Future profiles must either retime/split/drop the added boundary turns or prove a
-stronger online order guard before publication.
+`shadow_profiles.target_me.<policy>` parity metrics. The unguarded first materialization added
+`12.68s` and lowered missing-Me to `127.01s` with `0.00s` measured remote leak, but increased
+contentful order mismatches from `4` to `5`. The current guarded version publishes only
+anchor-bounded pieces whose anchors are not remote-dominant. Current corpus result: `1.48s` added,
+`144.35s` missing-Me, `0.00s` measured remote leak, `4` contentful order mismatches, `41`
+non-passing gates and `12` rejected boundary turns. This profile is evidence that the missing recall
+requires stronger online timing/local-speaker evidence; simple boundary expansion either hurts order
+or loses the useful recovery.
+
+Each `shadow_profiles.target_me.<policy>.risk_examples` block includes `local_missing`,
+`remote_leak`, `order_mismatches`, `role_constrained_order_mismatches` and
+`contentful_role_constrained_order_mismatches`, so profile-level order regressions can be inspected
+without re-running ad hoc debug scripts.
 
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the

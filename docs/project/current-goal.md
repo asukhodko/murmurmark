@@ -524,17 +524,19 @@ That materialization is now present as
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`.
 The ordinary parity gates show that it is not yet a promotion candidate:
 
-- added boundary turns: `12.68s`;
-- missing-Me improves only from `130.97s` to `127.01s`;
+- guarded boundary turns added: `1.48s`;
+- missing-Me stays at `144.35s`, worse than the current best live-implementable `130.97s`;
 - measured remote leak stays `0.00s`;
-- contentful order mismatches increase from `4` to `5`;
+- contentful order mismatches stay at `4`;
 - non-passing gates remain `41`;
-- rejected boundary turns: `11`.
+- rejected boundary turns: `12`.
 
-Conclusion: the classifier validates the direction, but the materialized turns need a stricter online
-timing/order guard. The next implementation work is to inspect the added boundary turns, explain the
-new order mismatch, and either retime/split/drop those turns or add publication criteria that keep the
-small recall gain without increasing order risk. More recordings still are not the current unlock.
+The first unguarded materialization is still useful as a negative test: it added `12.68s` and lowered
+missing-Me to `127.01s`, but it increased contentful order mismatches from `4` to `5`. The current
+guarded version avoids that order regression by publishing only anchor-bounded pieces whose anchors
+are not remote-dominant, but this also removes the useful recovery. Conclusion: the next
+implementation work is stronger online timing/local-speaker evidence for boundary turns. More
+recordings still are not the current unlock.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not

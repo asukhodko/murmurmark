@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.25.0"
+SCRIPT_VERSION = "0.26.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 KNOWN_HALLUCINATION_RE = re.compile(
@@ -2358,6 +2358,7 @@ def remote_forbidden_boundary_classifier_turns(
     min_remote_forbidden_row_count = 2
     min_anchor_span_sec = 3.0
     min_candidate_sec_after_trim = 6.0
+    min_piece_anchor_mic_minus_remote_db = -3.0
     relaxed_anchor_rows = [
         row
         for row in segments
@@ -2474,6 +2475,45 @@ def remote_forbidden_boundary_classifier_turns(
                     }
                 )
                 continue
+            min_anchor_mic_minus_remote_db = min(
+                safe_float(row.get("audio_mic_minus_remote_rms_db"), default=-999.0)
+                for row in overlapping_anchors
+            )
+            if min_anchor_mic_minus_remote_db < min_piece_anchor_mic_minus_remote_db:
+                rejected.append(
+                    {
+                        "id": (
+                            f"live_remote_forbidden_boundary_classifier_rejected_"
+                            f"{chunk_index:06d}_{group_index:06d}_{piece_index:03d}"
+                        ),
+                        "reason": "anchor_piece_remote_dominant",
+                        "chunk_index": chunk_index,
+                        "start": piece_start,
+                        "end": piece_end,
+                        "min_anchor_mic_minus_remote_db": round(min_anchor_mic_minus_remote_db, 3),
+                        "threshold_db": min_piece_anchor_mic_minus_remote_db,
+                        "text": text,
+                    }
+                )
+                continue
+            publish_start = max(piece_start, min(safe_float(row.get("start")) for row in overlapping_anchors))
+            publish_end = min(piece_end, max(safe_float(row.get("end"), row.get("start")) for row in overlapping_anchors))
+            if publish_end - publish_start < min_interval_sec:
+                rejected.append(
+                    {
+                        "id": (
+                            f"live_remote_forbidden_boundary_classifier_rejected_"
+                            f"{chunk_index:06d}_{group_index:06d}_{piece_index:03d}"
+                        ),
+                        "reason": "anchor_publish_interval_too_short",
+                        "chunk_index": chunk_index,
+                        "piece_start": piece_start,
+                        "piece_end": piece_end,
+                        "publish_start": round(publish_start, 3),
+                        "publish_end": round(publish_end, 3),
+                    }
+                )
+                continue
             turns.append(
                 {
                     "id": (
@@ -2483,12 +2523,15 @@ def remote_forbidden_boundary_classifier_turns(
                     "chunk_index": chunk_index,
                     "source": "mic_suppressed_remote_forbidden_boundary_classifier",
                     "role": "Me",
-                    "start": piece_start,
-                    "end": piece_end,
+                    "start": round(publish_start, 3),
+                    "end": round(publish_end, 3),
                     "text": text,
                     "tokens": text_tokens,
                     "remote_forbidden_boundary_classifier": True,
                     "live_group_classifier": "remote_forbidden_multi_cut_v1",
+                    "publish_interval_policy": "anchor_bounds_within_remote_forbidden_piece",
+                    "safe_piece_start": piece_start,
+                    "safe_piece_end": piece_end,
                     "anchor_start": round(anchor_start, 3),
                     "anchor_end": round(anchor_end, 3),
                     "anchor_span_seconds": anchor_span,
@@ -2508,6 +2551,7 @@ def remote_forbidden_boundary_classifier_turns(
                         "min_remote_forbidden_row_count": min_remote_forbidden_row_count,
                         "min_anchor_span_sec": min_anchor_span_sec,
                         "min_candidate_sec_after_trim": min_candidate_sec_after_trim,
+                        "min_piece_anchor_mic_minus_remote_db": min_piece_anchor_mic_minus_remote_db,
                     },
                     "anchors": [
                         {
@@ -3834,6 +3878,28 @@ def build_target_me_shadow_profiles(
             batch_utterances,
             match_mode_prefix=f"target_me_shadow_profile_{policy}",
         )
+        order_mismatch_examples = order_mismatch_rows_for_turns(
+            combined_turns,
+            batch_utterances,
+            match_mode=f"target_me_shadow_profile_{policy}_examples",
+        )
+        role_order_mismatch_examples = order_mismatch_rows_for_turns(
+            combined_turns,
+            batch_utterances,
+            same_role_only=True,
+            min_token_recall=0.45,
+            min_score=0.65,
+            match_mode=f"target_me_shadow_profile_{policy}_role_examples",
+        )
+        contentful_order_mismatch_examples = order_mismatch_rows_for_turns(
+            combined_turns,
+            batch_utterances,
+            same_role_only=True,
+            contentful_only=True,
+            min_token_recall=0.45,
+            min_score=0.65,
+            match_mode=f"target_me_shadow_profile_{policy}_contentful_examples",
+        )
         missing_rows, missing_diagnostics = local_missing_diagnostics_for_turns(
             batch_utterances=batch_utterances,
             turns=combined_turns,
@@ -3922,6 +3988,9 @@ def build_target_me_shadow_profiles(
             "risk_examples": {
                 "local_missing": missing_rows[:20],
                 "remote_leak": remote_leak_rows_for_turns(combined_turns, batch_utterances)[:20],
+                "order_mismatches": order_mismatch_examples[:20],
+                "role_constrained_order_mismatches": role_order_mismatch_examples[:20],
+                "contentful_role_constrained_order_mismatches": contentful_order_mismatch_examples[:20],
             },
             "parity_gates": {
                 "status": "not_promotable" if gate_statuses - {"passed"} else "passed_but_shadow_locked",

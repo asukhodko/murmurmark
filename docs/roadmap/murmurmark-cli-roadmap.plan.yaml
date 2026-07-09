@@ -791,10 +791,11 @@ nodes:
       candidate span. The first live-only classifier now recovers `13.44s` at `0.00s` remote-risk
       without batch labels. It has now been materialized as an ordinary shadow profile:
       `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`.
-      It adds `12.68s`, lowers missing-Me from `130.97s` to `127.01s` and keeps measured remote leak
-      at `0.00s`, but increases contentful order mismatches from `4` to `5`. The next implementation
-      target is boundary-turn order repair / stricter online timing guard for those added turns; the
-      profile stays shadow-only.
+      The unguarded version adds `12.68s` and lowers missing-Me from `130.97s` to `127.01s`, but
+      increases contentful order mismatches from `4` to `5`. The guarded version adds only `1.48s`,
+      leaves missing-Me at `144.35s`, keeps measured remote leak at `0.00s` and keeps contentful order
+      mismatches at `4`. The next implementation target is stronger online timing/local-speaker
+      evidence for boundary turns; the profile stays shadow-only.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

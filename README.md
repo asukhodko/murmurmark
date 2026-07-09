@@ -593,11 +593,13 @@ The first live-only classifier,
 without batch labels: it recovers `13.44s` missing-Me with `0.00s` remote-risk by requiring multiple
 remote-forbidden cuts around a relaxed anchor. It is now materialized as a normal shadow profile:
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`.
-The ordinary parity gates show a mixed result: `12.68s` added, missing-Me improves only from
-`130.97s` to `127.01s`, remote leak stays `0.00s`, but contentful order mismatches rise from `4` to
-`5` and non-passing gates remain `41`. So this is useful evidence, not a promotable profile. The next
-useful work is to inspect and repair the added boundary turns that create order risk, or to add a
-stronger online timing/order guard before publication.
+An unsafe first materialization lowered missing-Me to `127.01s` with `0.00s` remote leak, but raised
+contentful order mismatches from `4` to `5`. The current guarded version publishes only anchor-bounded
+pieces whose anchors are not remote-dominant: it adds `1.48s`, keeps contentful order mismatches at
+`4`, keeps remote leak at `0.00s`, but leaves missing-Me at `144.35s`, worse than the current best
+live-implementable profile. So this is useful evidence, not a promotable profile. The next useful work
+is stronger online timing/local-speaker evidence for boundary turns, not more recordings or a broader
+threshold.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1251,8 +1253,10 @@ Active goal and near-term candidates:
    timeline evidence for still-uncovered local islands, not another broad add-more-local-speech
    threshold. The remote-forbidden boundary classifier is now also materialized as
    `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`;
-   it lowers missing-Me to `127.01s` with `0.00s` remote leak, but increases contentful order
-   mismatches to `5`, so it remains shadow-only. Batch remains authoritative.
+   the guarded version adds `1.48s`, leaves missing-Me at `144.35s`, keeps remote leak at `0.00s`
+   and does not increase contentful order mismatches. The earlier unguarded version showed why the
+   guard is needed: it reached `127.01s` missing-Me but increased order mismatches to `5`. Batch
+   remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

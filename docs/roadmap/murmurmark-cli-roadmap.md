@@ -553,10 +553,11 @@ newer run-state exists.
    live classifier learns to keep the same zero-risk groups without batch labels. The first
    live-only classifier now recovers `13.44s` at `0.00s` remote-risk. It has now been materialized as
    `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`.
-   It adds `12.68s`, lowers missing-Me from `130.97s` to `127.01s` and keeps measured remote leak at
-   `0.00s`, but it increases contentful order mismatches from `4` to `5`. So the next roadmap item is
-   boundary-turn order repair: inspect the added turns, tighten the online timing/order guard, and keep
-   the profile shadow-only until ordinary parity gates improve.
+   The unguarded version added `12.68s` and lowered missing-Me from `130.97s` to `127.01s`, but
+   increased contentful order mismatches from `4` to `5`. The guarded version adds only `1.48s`,
+   leaves missing-Me at `144.35s`, keeps measured remote leak at `0.00s` and keeps contentful order
+   mismatches at `4`. So the next roadmap item is stronger online timing/local-speaker evidence for
+   boundary turns; the profile stays shadow-only until ordinary parity gates improve.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
