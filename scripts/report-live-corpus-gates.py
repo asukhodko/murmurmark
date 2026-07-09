@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.26.0"
+SCRIPT_VERSION = "1.27.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -459,6 +459,27 @@ def read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            rows.append(value)
+    return rows
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -2489,6 +2510,7 @@ def live_next_unlock_report(
     remaining_gap: dict[str, Any],
     order_risk_triage: dict[str, Any],
     speaker_boundary_lab: dict[str, Any],
+    mixed_voice_coverage_lab: dict[str, Any],
     local_island_split: dict[str, Any],
     live_only_local_island: dict[str, Any],
     timing_gap: dict[str, Any],
@@ -2610,6 +2632,11 @@ def live_next_unlock_report(
     boundary_order_split_retime_preserved_prefix_seconds = safe_float(
         summary.get("real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_seconds")
     )
+    mixed_voice_next = (
+        mixed_voice_coverage_lab.get("recommended_next")
+        if isinstance(mixed_voice_coverage_lab.get("recommended_next"), dict)
+        else {}
+    )
 
     next_actions: list[dict[str, Any]] = []
     if order_triage_boundary_count > 0:
@@ -2637,8 +2664,37 @@ def live_next_unlock_report(
             }
         )
     if mixed_seconds > 0:
+        mixed_voice_action: dict[str, Any] | None = None
+        if mixed_voice_next:
+            mixed_voice_action = {
+                "id": str(mixed_voice_next.get("id") or "inspect_mixed_voice_coverage"),
+                "priority": 2,
+                "scope_seconds": round(mixed_seconds, 3),
+                "why": str(mixed_voice_next.get("why") or "mixed speech needs speaker/boundary evidence"),
+                "voice_coverage": {
+                    "status": mixed_voice_coverage_lab.get("status"),
+                    "publication_candidate_seconds": round(
+                        safe_float(mixed_voice_coverage_lab.get("publication_candidate_seconds")),
+                        3,
+                    ),
+                    "no_target_me_audit_seconds": round(
+                        safe_float(mixed_voice_coverage_lab.get("no_target_me_audit_seconds")),
+                        3,
+                    ),
+                    "no_voice_overlap_seconds": round(
+                        safe_float(mixed_voice_coverage_lab.get("no_voice_overlap_seconds")),
+                        3,
+                    ),
+                    "weak_or_ambiguous_seconds": round(
+                        safe_float(mixed_voice_coverage_lab.get("weak_or_ambiguous_seconds")),
+                        3,
+                    ),
+                },
+                "must_preserve": ["remote_leakage == 0", "contentful_order_mismatches must not increase"],
+            }
         next_actions.append(
-            {
+            mixed_voice_action
+            or {
                 "id": "build_online_local_speaker_boundary_evidence",
                 "priority": 2,
                 "scope_seconds": round(mixed_seconds, 3),
@@ -2731,6 +2787,17 @@ def live_next_unlock_report(
             "shadow_probe_seconds": round(safe_float(speaker_boundary_lab.get("shadow_probe_seconds")), 3),
             "publication_ready_seconds": round(safe_float(speaker_boundary_lab.get("publication_ready_seconds")), 3),
             "blocked_seconds": round(safe_float(speaker_boundary_lab.get("blocked_seconds")), 3),
+        },
+        "mixed_speaker_boundary_voice_coverage": {
+            "status": mixed_voice_coverage_lab.get("status"),
+            "publication_candidate_seconds": round(
+                safe_float(mixed_voice_coverage_lab.get("publication_candidate_seconds")),
+                3,
+            ),
+            "no_target_me_audit_seconds": round(safe_float(mixed_voice_coverage_lab.get("no_target_me_audit_seconds")), 3),
+            "no_voice_overlap_seconds": round(safe_float(mixed_voice_coverage_lab.get("no_voice_overlap_seconds")), 3),
+            "weak_or_ambiguous_seconds": round(safe_float(mixed_voice_coverage_lab.get("weak_or_ambiguous_seconds")), 3),
+            "recommended_next": mixed_voice_next,
         },
         "oracle_gap": {
             "diagnostic_gain_seconds": round(oracle_gain, 3),
@@ -3172,6 +3239,342 @@ def live_online_speaker_boundary_evidence_design_lab(
             rows,
             key=lambda row: (
                 safe_int(row.get("priority")),
+                -safe_float(row.get("duration_sec")),
+                str(row.get("session") or ""),
+                safe_float(row.get("start")),
+            ),
+        )[:limit],
+    }
+
+
+def _target_me_audit_rows(root: Path, session_id: str) -> tuple[list[dict[str, Any]], str | None]:
+    audit_path = (
+        root
+        / session_id
+        / "derived/audit/live-local-recall-target-me/live_local_recall_target_me_audit.jsonl"
+    )
+    rows = read_jsonl(audit_path)
+    return rows, str(audit_path) if audit_path.exists() else None
+
+
+def _audit_interval(row: dict[str, Any]) -> tuple[float, float]:
+    interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+    start = safe_float(interval.get("start"), row.get("start"))
+    end = safe_float(interval.get("end"), row.get("end"))
+    return start, end
+
+
+def _voice_row_summary(row: dict[str, Any], overlap_sec: float) -> dict[str, Any]:
+    classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+    scores = classification.get("scores") if isinstance(classification.get("scores"), dict) else {}
+    start, end = _audit_interval(row)
+    return {
+        "id": row.get("id"),
+        "start": round(start, 3),
+        "end": round(end, 3),
+        "duration_sec": round(max(0.0, end - start), 3),
+        "overlap_sec": round(overlap_sec, 3),
+        "batch_role_label": row.get("batch_role_label"),
+        "text": row.get("text"),
+        "target_me_label": classification.get("label"),
+        "confidence": classification.get("confidence"),
+        "suggested_decision": classification.get("suggested_decision"),
+        "reason": classification.get("reason"),
+        "target_me_rescue_policy_candidates": row.get("target_me_rescue_policy_candidates") or [],
+        "scores": {
+            "best_mic_target_similarity": scores.get("best_mic_target_similarity"),
+            "remote_target_similarity": scores.get("remote_target_similarity"),
+            "delta_vs_remote": scores.get("delta_vs_remote"),
+            "state_local_score_proxy": scores.get("state_local_score_proxy"),
+            "state_remote_active_ratio": scores.get("state_remote_active_ratio"),
+        },
+    }
+
+
+def classify_mixed_voice_coverage(
+    *,
+    design_unit: str,
+    matched_rows: list[dict[str, Any]],
+    target_audit_present: bool,
+) -> tuple[str, str, bool]:
+    if not target_audit_present:
+        return (
+            "no_target_me_audit",
+            "session has no live-local-recall Target-Me audit for these mixed rows",
+            False,
+        )
+    if not matched_rows:
+        return (
+            "no_voice_overlap",
+            "Target-Me audit exists, but it does not cover this remaining mixed/speaker interval",
+            False,
+        )
+    labels = {
+        str(
+            (
+                row.get("classification")
+                if isinstance(row.get("classification"), dict)
+                else {}
+            ).get("label")
+            or ""
+        )
+        for row in matched_rows
+    }
+    roles = {str(row.get("batch_role_label") or "") for row in matched_rows}
+    policy_candidates = {
+        str(policy)
+        for row in matched_rows
+        for policy in (row.get("target_me_rescue_policy_candidates") or [])
+    }
+    has_remote_guard = "target_me_confirmed_remote_guard_v1" in policy_candidates
+    has_confirmed = "target_me_confirmed" in labels
+    has_possible = "target_me_possible" in labels
+    has_remote_risk = "remote_dominant" in roles
+    if has_remote_guard and not has_remote_risk:
+        if design_unit == "low_value_tail_policy":
+            return (
+                "voice_confirmed_low_value_tail_advisory",
+                "short low-value tail has voice evidence, but should not drive publication",
+                False,
+            )
+        return (
+            "voice_confirmed_remote_guard_candidate",
+            "overlapping Target-Me row has confirmed remote-guard evidence and no remote-dominant audit label",
+            True,
+        )
+    if has_confirmed and design_unit in {"mixed_boundary_voice_gate", "speaker_confirmation_voice_gate"}:
+        return (
+            "voice_confirmed_needs_remote_guard",
+            "overlapping Target-Me row is confirmed, but needs a stricter remote guard before publication",
+            False,
+        )
+    if has_possible:
+        return (
+            "voice_possible_needs_review",
+            "overlapping Target-Me row is possible only; useful for the next gate, not enough to publish",
+            False,
+        )
+    return (
+        "voice_rejected_or_ambiguous",
+        "overlapping Target-Me evidence is ambiguous or conflicts with remote/role evidence",
+        False,
+    )
+
+
+def live_mixed_speaker_boundary_voice_coverage_lab(
+    remaining_gap: dict[str, Any],
+    online_design: dict[str, Any],
+    *,
+    root: Path,
+    limit: int = 80,
+) -> dict[str, Any]:
+    design_examples = (
+        online_design.get("examples")
+        if isinstance(online_design.get("examples"), list)
+        else []
+    )
+    remaining_examples = (
+        remaining_gap.get("examples")
+        if isinstance(remaining_gap.get("examples"), list)
+        else []
+    )
+    remaining_by_key = {
+        (str(row.get("session") or ""), str(row.get("batch_id") or "")): row
+        for row in remaining_examples
+        if isinstance(row, dict)
+    }
+    audit_cache: dict[str, tuple[list[dict[str, Any]], str | None]] = {}
+    rows: list[dict[str, Any]] = []
+
+    for design in design_examples:
+        if not isinstance(design, dict):
+            continue
+        design_unit = str(design.get("design_unit") or "")
+        if design_unit not in {
+            "boundary_island_micro_asr",
+            "mixed_boundary_voice_gate",
+            "duplicate_heavy_voice_disambiguation",
+            "speaker_confirmation_voice_gate",
+            "low_value_tail_policy",
+            "remote_dominant_keep_blocked",
+        }:
+            continue
+        session_id = str(design.get("session") or "")
+        batch_id = str(design.get("batch_id") or "")
+        if not session_id:
+            continue
+        audit_rows, audit_path = audit_cache.setdefault(
+            session_id,
+            _target_me_audit_rows(root, session_id),
+        )
+        gap = remaining_by_key.get((session_id, batch_id)) or {}
+        gap_start = safe_float(gap.get("start"), design.get("start"))
+        gap_end = safe_float(gap.get("end"), design.get("end"))
+        suppressed_evidence = (
+            gap.get("suppressed_mic_evidence")
+            if isinstance(gap.get("suppressed_mic_evidence"), list)
+            else []
+        )
+        spans: list[tuple[float, float]] = []
+        for evidence in suppressed_evidence:
+            if not isinstance(evidence, dict):
+                continue
+            start = safe_float(evidence.get("start"))
+            end = safe_float(evidence.get("end"))
+            if end > start:
+                span_start = max(start, gap_start)
+                span_end = min(end, gap_end)
+                if span_end > span_start:
+                    spans.append((span_start, span_end))
+        if not spans:
+            start = safe_float(design.get("start"))
+            end = safe_float(design.get("end"))
+            if end > start:
+                spans.append((start, end))
+
+        matched: list[tuple[dict[str, Any], float]] = []
+        for audit_row in audit_rows:
+            if not isinstance(audit_row, dict):
+                continue
+            audit_start, audit_end = _audit_interval(audit_row)
+            if audit_end <= audit_start:
+                continue
+            overlap = sum(interval_overlap(audit_start, audit_end, span_start, span_end) for span_start, span_end in spans)
+            if overlap >= 0.25:
+                matched.append((audit_row, overlap))
+        matched.sort(key=lambda pair: (-pair[1], _audit_interval(pair[0])[0]))
+        matched_rows = [row for row, _overlap in matched]
+        classification, reason, publish_candidate = classify_mixed_voice_coverage(
+            design_unit=design_unit,
+            matched_rows=matched_rows,
+            target_audit_present=bool(audit_path),
+        )
+        overlap_seconds = round(sum(overlap for _row, overlap in matched), 3)
+        rows.append(
+            {
+                "session": session_id,
+                "batch_id": batch_id,
+                "start": design.get("start"),
+                "end": design.get("end"),
+                "duration_sec": design.get("duration_sec"),
+                "text": design.get("text"),
+                "design_unit": design_unit,
+                "segmentability": design.get("segmentability"),
+                "actionability": design.get("actionability"),
+                "target_me_audit_path": audit_path,
+                "target_me_audit_row_count": len(audit_rows),
+                "voice_overlap_seconds": overlap_seconds,
+                "voice_coverage_ratio": (
+                    round(overlap_seconds / safe_float(design.get("duration_sec")), 6)
+                    if safe_float(design.get("duration_sec")) > 0
+                    else 0.0
+                ),
+                "voice_coverage_classification": classification,
+                "voice_coverage_reason": reason,
+                "would_be_publication_candidate": bool(publish_candidate),
+                "publication_allowed": False,
+                "publication_safety_reason": "diagnostic only; live promotion remains blocked",
+                "matched_target_me_rows": [
+                    _voice_row_summary(row, overlap)
+                    for row, overlap in matched[:5]
+                ],
+            }
+        )
+
+    def aggregate(key: str) -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            group = str(row.get(key) or "(none)")
+            payload = grouped.setdefault(
+                group,
+                {"count": 0, "seconds": 0.0, "voice_overlap_seconds": 0.0},
+            )
+            payload["count"] += 1
+            payload["seconds"] = round(
+                safe_float(payload.get("seconds")) + safe_float(row.get("duration_sec")),
+                3,
+            )
+            payload["voice_overlap_seconds"] = round(
+                safe_float(payload.get("voice_overlap_seconds")) + safe_float(row.get("voice_overlap_seconds")),
+                3,
+            )
+        return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
+
+    publication_candidates = [row for row in rows if row.get("would_be_publication_candidate")]
+    no_audit_rows = [row for row in rows if row.get("voice_coverage_classification") == "no_target_me_audit"]
+    no_overlap_rows = [row for row in rows if row.get("voice_coverage_classification") == "no_voice_overlap"]
+    weak_rows = [
+        row
+        for row in rows
+        if row.get("voice_coverage_classification")
+        in {
+            "voice_possible_needs_review",
+            "voice_confirmed_needs_remote_guard",
+            "voice_rejected_or_ambiguous",
+        }
+    ]
+    publication_candidate_seconds = round(
+        sum(safe_float(row.get("duration_sec")) for row in publication_candidates),
+        3,
+    )
+    missing_coverage_seconds = round(
+        sum(safe_float(row.get("duration_sec")) for row in no_audit_rows + no_overlap_rows),
+        3,
+    )
+    if no_audit_rows or (no_overlap_rows and publication_candidate_seconds < 2.0):
+        recommended_next = {
+            "id": "extend_target_me_audit_to_remaining_mixed_boundary_rows",
+            "why": "current Target-Me audit does not cover the largest mixed/speaker blocker intervals",
+            "missing_coverage_seconds": missing_coverage_seconds,
+            "ready_candidate_seconds": publication_candidate_seconds,
+        }
+    elif rows and publication_candidates:
+        recommended_next = {
+            "id": "materialize_remote_guarded_voice_boundary_candidates",
+            "why": "some mixed rows already have overlapping confirmed remote-guard Target-Me evidence",
+            "candidate_seconds": publication_candidate_seconds,
+        }
+    elif weak_rows:
+        recommended_next = {
+            "id": "tighten_voice_remote_guard_for_mixed_rows",
+            "why": "voice evidence exists but is not safe enough for publication",
+            "weak_seconds": round(sum(safe_float(row.get("duration_sec")) for row in weak_rows), 3),
+        }
+    else:
+        recommended_next = {
+            "id": "no_mixed_voice_coverage_work",
+            "why": "no mixed/speaker rows are present",
+        }
+
+    return {
+        "schema": "murmurmark.live_mixed_speaker_boundary_voice_coverage_lab/v1",
+        "status": "ok" if rows else "no_mixed_or_speaker_rows",
+        "promotion_allowed": False,
+        "interpretation": (
+            "diagnostic only: measures whether the current mixed/speaker blocker is covered by existing "
+            "Target-Me voice evidence. It does not publish live Me text."
+        ),
+        "row_count": len(rows),
+        "seconds": round(sum(safe_float(row.get("duration_sec")) for row in rows), 3),
+        "voice_overlap_seconds": round(sum(safe_float(row.get("voice_overlap_seconds")) for row in rows), 3),
+        "publication_candidate_count": len(publication_candidates),
+        "publication_candidate_seconds": round(
+            sum(safe_float(row.get("duration_sec")) for row in publication_candidates),
+            3,
+        ),
+        "no_target_me_audit_count": len(no_audit_rows),
+        "no_target_me_audit_seconds": round(sum(safe_float(row.get("duration_sec")) for row in no_audit_rows), 3),
+        "no_voice_overlap_count": len(no_overlap_rows),
+        "no_voice_overlap_seconds": round(sum(safe_float(row.get("duration_sec")) for row in no_overlap_rows), 3),
+        "weak_or_ambiguous_count": len(weak_rows),
+        "weak_or_ambiguous_seconds": round(sum(safe_float(row.get("duration_sec")) for row in weak_rows), 3),
+        "by_classification": aggregate("voice_coverage_classification"),
+        "by_design_unit": aggregate("design_unit"),
+        "recommended_next": recommended_next,
+        "examples": sorted(
+            rows,
+            key=lambda row: (
+                str(row.get("voice_coverage_classification") or ""),
                 -safe_float(row.get("duration_sec")),
                 str(row.get("session") or ""),
                 safe_float(row.get("start")),
@@ -5391,6 +5794,11 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         best_live_profile_remaining_gap,
         local_island_split_lab_report,
     )
+    mixed_speaker_boundary_voice_coverage_lab_report = live_mixed_speaker_boundary_voice_coverage_lab(
+        best_live_profile_remaining_gap,
+        online_speaker_boundary_design_lab_report,
+        root=root,
+    )
     local_island_audio_anchor_lab_report = live_local_island_audio_anchor_lab(local_island_split_lab_report)
     local_island_retime_anchor_lab_report = live_local_island_retime_anchor_lab(local_island_split_lab_report)
     live_only_local_island_candidate_lab_report = live_only_local_island_candidate_lab(real_live_rows)
@@ -6202,6 +6610,32 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["real_live_online_speaker_boundary_design_top_unit_seconds"] = (
         safe_float(top_online_speaker_boundary_unit.get("seconds")) if top_online_speaker_boundary_unit else None
     )
+    summary["real_live_mixed_speaker_boundary_voice_coverage_status"] = (
+        mixed_speaker_boundary_voice_coverage_lab_report.get("status")
+    )
+    summary["real_live_mixed_speaker_boundary_voice_coverage_seconds"] = safe_float(
+        mixed_speaker_boundary_voice_coverage_lab_report.get("seconds")
+    )
+    summary["real_live_mixed_speaker_boundary_voice_coverage_voice_overlap_seconds"] = safe_float(
+        mixed_speaker_boundary_voice_coverage_lab_report.get("voice_overlap_seconds")
+    )
+    summary["real_live_mixed_speaker_boundary_voice_coverage_publication_candidate_seconds"] = safe_float(
+        mixed_speaker_boundary_voice_coverage_lab_report.get("publication_candidate_seconds")
+    )
+    summary["real_live_mixed_speaker_boundary_voice_coverage_no_audit_seconds"] = safe_float(
+        mixed_speaker_boundary_voice_coverage_lab_report.get("no_target_me_audit_seconds")
+    )
+    summary["real_live_mixed_speaker_boundary_voice_coverage_no_overlap_seconds"] = safe_float(
+        mixed_speaker_boundary_voice_coverage_lab_report.get("no_voice_overlap_seconds")
+    )
+    mixed_voice_next = (
+        mixed_speaker_boundary_voice_coverage_lab_report.get("recommended_next")
+        if isinstance(mixed_speaker_boundary_voice_coverage_lab_report.get("recommended_next"), dict)
+        else {}
+    )
+    summary["real_live_mixed_speaker_boundary_voice_coverage_recommended_next"] = (
+        mixed_voice_next.get("id") if mixed_voice_next else None
+    )
     local_island_timing_gap_report = {
         "schema": "murmurmark.live_local_island_timing_gap/v1",
         "status": "ok" if real_local_island_retime_profile else "missing_retime_oracle_profile",
@@ -6386,6 +6820,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         remaining_gap=best_live_profile_remaining_gap,
         order_risk_triage=live_order_risk_triage_report,
         speaker_boundary_lab=speaker_boundary_lab_report,
+        mixed_voice_coverage_lab=mixed_speaker_boundary_voice_coverage_lab_report,
         local_island_split=local_island_split_lab_report,
         live_only_local_island=live_only_local_island_candidate_lab_report,
         timing_gap=local_island_timing_gap_report,
@@ -6512,6 +6947,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_soft_local_speaker_boundary_shadow_lab": soft_boundary_shadow_lab,
         "live_speaker_boundary_evidence_lab": speaker_boundary_lab_report,
         "live_online_speaker_boundary_evidence_design_lab": online_speaker_boundary_design_lab_report,
+        "live_mixed_speaker_boundary_voice_coverage_lab": mixed_speaker_boundary_voice_coverage_lab_report,
         "live_local_island_split_lab": local_island_split_lab_report,
         "live_local_island_audio_anchor_lab": local_island_audio_anchor_lab_report,
         "live_local_island_retime_anchor_lab": local_island_retime_anchor_lab_report,
@@ -6907,6 +7343,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         if isinstance(report.get("live_online_speaker_boundary_evidence_design_lab"), dict)
         else {}
     )
+    mixed_voice_coverage = (
+        report.get("live_mixed_speaker_boundary_voice_coverage_lab")
+        if isinstance(report.get("live_mixed_speaker_boundary_voice_coverage_lab"), dict)
+        else {}
+    )
     lines = [
         "# Live Pipeline Corpus Gates",
         "",
@@ -7198,6 +7639,48 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 f"| `{label}` | {payload.get('count')} "
                 f"| {safe_float(payload.get('seconds')):.2f} "
                 f"| {safe_float(payload.get('potential_publish_seconds')):.2f} |"
+            )
+    if mixed_voice_coverage:
+        recommended_next = (
+            mixed_voice_coverage.get("recommended_next")
+            if isinstance(mixed_voice_coverage.get("recommended_next"), dict)
+            else {}
+        )
+        lines += [
+            "",
+            "## Mixed Speaker Boundary Voice Coverage Lab",
+            "",
+            "Diagnostic only. It checks whether the remaining mixed/speaker blocker is already covered "
+            "by Target-Me voice rows. It does not publish live `Me` text.",
+            "",
+            f"- status: `{mixed_voice_coverage.get('status')}`",
+            f"- rows: {mixed_voice_coverage.get('row_count')} / {mixed_voice_coverage.get('seconds')} sec",
+            f"- voice-overlap seconds: {mixed_voice_coverage.get('voice_overlap_seconds')}",
+            "- publication candidate seconds now: "
+            f"{mixed_voice_coverage.get('publication_candidate_seconds')}",
+            "- missing Target-Me audit seconds: "
+            f"{mixed_voice_coverage.get('no_target_me_audit_seconds')}",
+            "- no-overlap Target-Me seconds: "
+            f"{mixed_voice_coverage.get('no_voice_overlap_seconds')}",
+            "- weak/ambiguous voice seconds: "
+            f"{mixed_voice_coverage.get('weak_or_ambiguous_seconds')}",
+            f"- recommended next: `{recommended_next.get('id')}`",
+            "",
+            "| Voice coverage class | Rows | Seconds | Voice overlap sec |",
+            "| --- | ---: | ---: | ---: |",
+        ]
+        by_classification = (
+            mixed_voice_coverage.get("by_classification")
+            if isinstance(mixed_voice_coverage.get("by_classification"), dict)
+            else {}
+        )
+        for label, payload in by_classification.items():
+            if not isinstance(payload, dict):
+                continue
+            lines.append(
+                f"| `{label}` | {payload.get('count')} "
+                f"| {safe_float(payload.get('seconds')):.2f} "
+                f"| {safe_float(payload.get('voice_overlap_seconds')):.2f} |"
             )
     lines += [
         "",

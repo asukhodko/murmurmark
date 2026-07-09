@@ -5993,6 +5993,27 @@ This is a negative but useful contract result: the live-only micro-ASR hook exis
 by the normal parity gates, but current candidate selection does not yet produce publishable
 incremental `Me` turns.
 
+`live_mixed_speaker_boundary_voice_coverage_lab/v1` is a diagnostic-only corpus report section that
+joins the current best-live-implementable remaining mixed/speaker gap with existing
+`live_local_recall_target_me_audit.jsonl` rows. It uses interval overlap only; it does not run new
+audio models, edit transcripts or publish live `Me` text.
+
+Important fields:
+
+- `row_count`, `seconds`: mixed/speaker blocker rows inspected;
+- `voice_overlap_seconds`: overlap with existing Target-Me audit rows;
+- `publication_candidate_seconds`: rows that already have confirmed remote-guard Target-Me evidence;
+- `no_target_me_audit_seconds`: rows from sessions without a Target-Me audit;
+- `no_voice_overlap_seconds`: rows where a Target-Me audit exists but does not overlap the blocker;
+- `weak_or_ambiguous_seconds`: rows with possible, ambiguous or remote-conflicting voice evidence;
+- `by_classification`: grouped counts/seconds by voice coverage class;
+- `recommended_next`: the next implementation target, still with `promotion_allowed: false`.
+
+Current corpus evidence: the mixed/speaker blocker has `8` rows / `43.40s`; existing Target-Me rows
+overlap only `3.312s`; a remote-guard candidate covers `0.32s`; `39.38s` have no overlapping
+Target-Me voice evidence. The report therefore recommends
+`extend_target_me_audit_to_remaining_mixed_boundary_rows` before any live publication-gate change.
+
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`
 is the first profile-level local-island split oracle. It starts from the current best
 live-implementable profile, adds batch-backed local-island candidates, then runs the normal

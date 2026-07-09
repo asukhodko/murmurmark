@@ -525,6 +525,22 @@ materialized profile adds `0.00s` after deduplication and timeline safety; missi
 This proves that the current blocker is not lack of recordings or lack of a micro-ASR hook. The
 blocker is still live-only speaker/boundary evidence precise enough to publish short `Me` islands
 without opening a remote leak path.
+
+The corpus report now adds `live_mixed_speaker_boundary_voice_coverage_lab/v1` to check whether
+the current mixed/speaker blocker is already covered by Target-Me voice evidence. Current result:
+
+- rows in scope: `8` / `43.40s`;
+- voice overlap with existing Target-Me rows: `3.312s`;
+- remote-guard publication candidate: `0.32s`;
+- no-overlap Target-Me coverage: `39.38s`;
+- weak or ambiguous voice evidence: `3.70s`;
+- recommended next:
+  `extend_target_me_audit_to_remaining_mixed_boundary_rows`.
+
+Conclusion: new recordings are not needed for the current blocker, but the existing Target-Me audit
+does not look at most of the remaining mixed boundary intervals. The next useful step is to extend
+the voice audit input set to those intervals and then re-evaluate publication safety under the same
+remote-leak/order gates.
 The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 
 - accepted rows: `0`;

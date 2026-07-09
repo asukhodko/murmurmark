@@ -640,6 +640,15 @@ candidate selection is still not precise enough to close that gap.
 remote-forbidden evidence that can find local islands not already covered by Target-Me/audio-safe
 materialization.
 
+The corpus report now also writes
+`live_mixed_speaker_boundary_voice_coverage_lab/v1`. It checks whether the remaining mixed/speaker
+blocker is already covered by existing Target-Me voice rows. Current corpus result: `8` rows /
+`43.40s` are in scope, only `3.312s` overlap existing Target-Me rows, just `0.32s` are a
+remote-guard publication candidate, and `39.38s` have no overlapping Target-Me voice evidence.
+That makes the next practical step narrower: extend the Target-Me/voice audit to the remaining
+mixed boundary rows before changing live publication gates. More recordings are not required for
+this blocker.
+
 The follow-up `live_only_retime_boundary_candidate_lab/v1` tests this more directly against the
 current best-live-implementable remaining gap. Strict zero-remote anchors are safe but do not touch
 that gap yet: `0.00s` missing-Me overlap, `0.00s` remote-risk. The best relaxed probe,
