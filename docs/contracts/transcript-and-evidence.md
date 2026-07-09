@@ -6011,12 +6011,15 @@ Important fields:
 
 `scripts/audit-live-local-recall-target-me.py --include-remaining-gap` extends the Target-Me audit
 input set with suppressed mic evidence from the current best-live-implementable remaining mixed
-intervals. Current corpus evidence after that extension: the mixed/speaker blocker has `8` rows /
-`43.40s`; Target-Me rows overlap `30.60s`; a remote-guard candidate covers `0.32s`; `29.14s` are
-weak or ambiguous voice evidence; `13.94s` are blocked by Target-Me enrollment not being ready. The
-report therefore recommends
-`add_target_me_enrollment_fallback_for_remaining_mixed_boundary_rows` before any live
-publication-gate change.
+intervals. `--fallback-persistent-profile` can then copy diagnostic classifications from
+`persistent_target_me_profile_lab` for sessions where same-session Target-Me enrollment is not
+ready. Fallback rows set `fallback_source = "persistent_target_me_profile_lab"` and
+`fallback_policy.publication_allowed = false`; they never create `target_me_rescue_policy_candidates`.
+Current corpus evidence after both extensions: the mixed/speaker blocker has `8` rows / `43.40s`;
+Target-Me coverage exists for the whole set; a remote-guard candidate covers `0.32s`; `43.08s`
+remain weak or ambiguous voice evidence; `0.00s` remain blocked by enrollment not being ready. The
+report therefore recommends `materialize_remote_guarded_voice_boundary_candidates` before any
+broader live publication-gate change.
 
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`
 is the first profile-level local-island split oracle. It starts from the current best

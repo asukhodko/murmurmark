@@ -529,21 +529,24 @@ without opening a remote leak path.
 The corpus report now adds `live_mixed_speaker_boundary_voice_coverage_lab/v1` to check whether
 the current mixed/speaker blocker is already covered by Target-Me voice evidence. The Target-Me
 audit now has `--include-remaining-gap`, so it can feed the current best-live-implementable
-remaining mixed intervals into the same voice backend. Current result after that extension:
+remaining mixed intervals into the same voice backend. It also has
+`--fallback-persistent-profile`, which uses historical persistent Target-Me rows when same-session
+enrollment is not ready. This fallback is diagnostic-only: it never creates rescue policy
+candidates. Current result after both extensions:
 
 - rows in scope: `8` / `43.40s`;
-- voice overlap with Target-Me rows: `30.60s`;
+- Target-Me voice evidence exists for the whole set;
 - remote-guard publication candidate: `0.32s`;
-- weak or ambiguous voice evidence: `29.14s`;
-- Target-Me enrollment-not-ready: `13.94s`;
+- weak or ambiguous voice evidence: `43.08s`;
+- Target-Me enrollment-not-ready: `0.00s`;
 - no-overlap Target-Me coverage: `0.00s`;
 - recommended next:
-  `add_target_me_enrollment_fallback_for_remaining_mixed_boundary_rows`.
+  `materialize_remote_guarded_voice_boundary_candidates`.
 
-Conclusion: new recordings are not needed for the current blocker. The voice audit now covers most
-of the remaining mixed intervals, but it either stays weak/ambiguous or cannot build enough
-enrollment in one session. The next useful step is an enrollment fallback/warmup path for remaining
-mixed boundary rows, still under the same remote-leak/order gates.
+Conclusion: new recordings are not needed for the current blocker. The voice audit now covers all
+remaining mixed intervals, but almost everything is still weak or ambiguous. The next useful step is
+to materialize the very small remote-guarded candidate, keep the rest review-only, and preserve the
+same remote-leak/order gates.
 The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 
 - accepted rows: `0`;

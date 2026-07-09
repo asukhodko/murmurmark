@@ -16,7 +16,7 @@ from typing import Any
 SCHEMA_ROW = "murmurmark.live_local_recall_target_me_audit/v1"
 SCHEMA_SUMMARY = "murmurmark.live_local_recall_target_me_summary/v1"
 SCHEMA_CORPUS = "murmurmark.live_local_recall_target_me_corpus_report/v1"
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.2.0"
 LOCAL_LABELS = {"me_dominant", "mixed"}
 DEFAULT_REMAINING_GAP_PROFILE = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
@@ -82,6 +82,15 @@ def parse_args() -> argparse.Namespace:
         "--remaining-gap-profile",
         default=DEFAULT_REMAINING_GAP_PROFILE,
         help="Target-Me shadow profile whose risk_examples.local_missing rows should feed --include-remaining-gap.",
+    )
+    parser.add_argument(
+        "--fallback-persistent-profile",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "When session-local enrollment is not ready, copy diagnostic classifications from "
+            "persistent_target_me_profile_lab rows. This never creates publication candidates."
+        ),
     )
     parser.add_argument("--write-clips", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--progress", action=argparse.BooleanOptionalAction, default=True)
@@ -483,6 +492,156 @@ def audit_segment(
     return row
 
 
+def persistent_profile_rows(session: Path) -> list[dict[str, Any]]:
+    candidates = [
+        Path("sessions/_reports/live-pipeline/persistent_target_me_profile_lab.real/targets")
+        / session.name
+        / "persistent_target_me_profile_lab_rows.json",
+        Path("sessions/_reports/live-pipeline/persistent_target_me_profile_lab/targets")
+        / session.name
+        / "persistent_target_me_profile_lab_rows.json",
+    ]
+    for path in candidates:
+        payload = read_json(path)
+        if isinstance(payload, dict):
+            rows = payload.get("rows")
+        else:
+            try:
+                value = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            rows = value
+        if isinstance(rows, list):
+            return [row for row in rows if isinstance(row, dict)]
+    return []
+
+
+def best_persistent_match(segment: dict[str, Any], rows: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, float]:
+    start = safe_float(segment.get("start"))
+    end = safe_float(segment.get("end"), start)
+    best_row: dict[str, Any] | None = None
+    best_overlap = 0.0
+    for row in rows:
+        overlap = interval_overlap(start, end, safe_float(row.get("start")), safe_float(row.get("end")))
+        if overlap > best_overlap:
+            best_row = row
+            best_overlap = overlap
+    return best_row, best_overlap
+
+
+def persistent_source_clips(source_scores: dict[str, Any]) -> dict[str, str]:
+    clips: dict[str, str] = {}
+    for source in ("mic_role_masked", "mic_clean", "mic_raw", "remote"):
+        score = source_scores.get(source) if isinstance(source_scores.get(source), dict) else {}
+        path = score.get("path")
+        if path:
+            clips[source] = str(path)
+    return clips
+
+
+def audit_segment_from_persistent_profile(
+    *,
+    session: Path,
+    segment: dict[str, Any],
+    persistent_row: dict[str, Any],
+    overlap_sec: float,
+    index: int,
+) -> dict[str, Any]:
+    start = safe_float(segment.get("start"))
+    end = safe_float(segment.get("end"), start)
+    duration = max(0.0, end - start)
+    persistent = (
+        persistent_row.get("persistent_target_me")
+        if isinstance(persistent_row.get("persistent_target_me"), dict)
+        else {}
+    )
+    classification = (
+        persistent.get("classification")
+        if isinstance(persistent.get("classification"), dict)
+        else {
+            "label": "target_me_ambiguous",
+            "confidence": 0.0,
+            "suggested_decision": "needs_review",
+            "reason": "missing persistent Target-Me classification",
+        }
+    )
+    source_scores = persistent.get("source_scores") if isinstance(persistent.get("source_scores"), dict) else {}
+    state = persistent.get("state") if isinstance(persistent.get("state"), dict) else {}
+    item_id = f"lltme_{index:06d}"
+    return {
+        "schema": SCHEMA_ROW,
+        "id": item_id,
+        "session_id": session.name,
+        "chunk_index": safe_int(segment.get("chunk_index")),
+        "interval": {
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "duration_sec": round(duration, 3),
+            "start_time": format_time(start),
+            "end_time": format_time(end),
+        },
+        "candidate_source": segment.get("candidate_source") or "suppressed_mic_asr_segments",
+        "fallback_source": "persistent_target_me_profile_lab",
+        "fallback_overlap_sec": round(overlap_sec, 3),
+        "remaining_gap_profile": segment.get("remaining_gap_profile"),
+        "missing_batch_id": segment.get("missing_batch_id"),
+        "missing_batch_start": segment.get("missing_batch_start"),
+        "missing_batch_end": segment.get("missing_batch_end"),
+        "batch_role_label": segment.get("batch_role_label"),
+        "live_rescue_policy_candidates": live_policy_candidates(segment),
+        "text": segment.get("text") or "",
+        "segment_features": {
+            "token_count": segment.get("token_count"),
+            "unique_token_count": segment.get("segment_gate_unique_token_count"),
+            "mic_token_recall_in_overlapping_remote": segment.get(
+                "segment_gate_mic_token_recall_in_overlapping_remote"
+            ),
+            "overlapping_remote_token_recall_in_mic": segment.get(
+                "segment_gate_overlapping_remote_token_recall_in_mic"
+            ),
+            "audio_mic_clean_rms_db": segment.get("audio_mic_clean_rms_db"),
+            "audio_remote_rms_db": segment.get("audio_remote_rms_db"),
+            "audio_mic_remote_zero_lag_abs_corr": segment.get("audio_mic_remote_zero_lag_abs_corr"),
+        },
+        "state": state,
+        "source_scores": source_scores,
+        "classification": classification,
+        "clips": persistent_source_clips(source_scores),
+        "target_me_rescue_policy_candidates": [],
+        "fallback_policy": {
+            "publication_allowed": False,
+            "reason": "persistent profile fallback is diagnostic only and never creates rescue policy candidates",
+        },
+    }
+
+
+def persistent_fallback_audit_rows(
+    *,
+    session: Path,
+    segments: list[dict[str, Any]],
+    args: argparse.Namespace,
+) -> list[dict[str, Any]]:
+    rows = persistent_profile_rows(session)
+    if not rows:
+        return []
+    audited: list[dict[str, Any]] = []
+    for segment in segments:
+        persistent_row, overlap = best_persistent_match(segment, rows)
+        duration = safe_float(segment.get("duration_sec"))
+        if persistent_row is None or overlap < min(max(0.25, duration * 0.30), duration):
+            continue
+        audited.append(
+            audit_segment_from_persistent_profile(
+                session=session,
+                segment=segment,
+                persistent_row=persistent_row,
+                overlap_sec=overlap,
+                index=len(audited) + 1,
+            )
+        )
+    return audited[: args.max_items] if args.max_items > 0 else audited
+
+
 def interval_overlap(a_start: float, a_end: float, b_start: float, b_end: float) -> float:
     return max(0.0, min(a_end, b_end) - max(a_start, b_start))
 
@@ -573,6 +732,7 @@ def summarize_session(
     by_label = Counter(str(row.get("batch_role_label") or "unknown") for row in rows)
     by_class = Counter(str((row.get("classification") or {}).get("label") or "unknown") for row in rows)
     by_source = Counter(str(row.get("candidate_source") or "unknown") for row in rows)
+    by_fallback = Counter(str(row.get("fallback_source") or "none") for row in rows)
     local_rows = [row for row in rows if row.get("batch_role_label") in LOCAL_LABELS]
     remote_rows = [row for row in rows if row.get("batch_role_label") not in LOCAL_LABELS]
     confirmed_local = [
@@ -605,6 +765,7 @@ def summarize_session(
         "by_batch_role_label": dict(by_label),
         "by_target_me_label": dict(by_class),
         "by_candidate_source": dict(by_source),
+        "by_fallback_source": dict(by_fallback),
         "local_items": len(local_rows),
         "local_seconds": seconds(local_rows),
         "target_me_confirmed_local_items": len(confirmed_strong_local),
@@ -640,6 +801,7 @@ def write_session_report(path: Path, summary: dict[str, Any], rows: list[dict[st
         f"- Remote-risk rejected: `{summary.get('target_me_rejected_remote_risk_items')}` / "
         f"`{summary.get('target_me_rejected_remote_risk_seconds')}` sec",
         f"- Candidate sources: `{json.dumps(summary.get('by_candidate_source', {}), ensure_ascii=False)}`",
+        f"- Fallback sources: `{json.dumps(summary.get('by_fallback_source', {}), ensure_ascii=False)}`",
         "",
         "This report is diagnostic only. Batch remains authoritative and live output is not promoted.",
         "",
@@ -759,6 +921,26 @@ def audit_session(session: Path, args: argparse.Namespace) -> dict[str, Any]:
     )
     enrollment["method"] = str(backend_status.get("selected") or backend.method)
     if enrollment.get("status") != "ready":
+        if args.fallback_persistent_profile:
+            segments = selected_segments(comparison, args)
+            rows = persistent_fallback_audit_rows(session=session, segments=segments, args=args)
+            if rows:
+                summary = summarize_session(
+                    session=session,
+                    profile=profile,
+                    out_dir=out_dir,
+                    enrollment=enrollment,
+                    rows=rows,
+                    comparison=comparison,
+                )
+                summary["status"] = "persistent_fallback_only"
+                summary["embedding_backend"] = backend_status
+                summary["fallback_source"] = "persistent_target_me_profile_lab"
+                summary["fallback_reason"] = str(enrollment.get("status") or "enrollment_not_ready")
+                write_jsonl(out_dir / "live_local_recall_target_me_audit.jsonl", rows)
+                write_json(out_dir / "live_local_recall_target_me_summary.json", summary)
+                write_session_report(out_dir / "live_local_recall_target_me_report.md", summary, rows)
+                return summary
         summary = summarize_session(session=session, profile=profile, out_dir=out_dir, enrollment=enrollment, rows=[])
         summary["status"] = str(enrollment.get("status") or "enrollment_not_ready")
         write_jsonl(out_dir / "live_local_recall_target_me_audit.jsonl", [])

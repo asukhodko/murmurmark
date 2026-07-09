@@ -1407,13 +1407,16 @@ To audit the current live remaining mixed-boundary gap explicitly:
 scripts/audit-live-local-recall-target-me.py "$SESSION" \
   --method resemblyzer_dvector \
   --include-remaining-gap \
+  --fallback-persistent-profile \
   --max-items 120
 ```
 
 This is diagnostic-only. It does not publish live `Me` text; it only writes
 `derived/audit/live-local-recall-target-me/*` rows that `report-live-corpus-gates.py` can use to
 explain whether the current blocker is missing voice coverage, weak voice evidence or insufficient
-Target-Me enrollment.
+Target-Me enrollment. `--fallback-persistent-profile` is also diagnostic-only: it can copy
+historical persistent Target-Me classifications into a session with insufficient same-session
+enrollment, but those rows never create rescue policy candidates by themselves.
 
 Target-Me now audits open readiness review-plan rows as well as older transcript/audit rows. The
 audio-review pack stores those rows with `review_plan:*` reasons and `source_audit_id`, and

@@ -644,12 +644,13 @@ The corpus report now also writes
 `live_mixed_speaker_boundary_voice_coverage_lab/v1`. It checks whether the remaining mixed/speaker
 blocker is already covered by existing Target-Me voice rows. The Target-Me audit can now be run
 with `--include-remaining-gap`, which feeds the current best-live-implementable remaining mixed
-intervals into the same voice backend. Current corpus result after that extension: `8` rows /
-`43.40s` are in scope, `30.60s` overlap Target-Me rows, `0.32s` are a remote-guard publication
-candidate, `29.14s` are weak or ambiguous voice evidence, and `13.94s` are in a session where
-Target-Me enrollment is not ready. That makes the next practical step narrower again: add an
-enrollment fallback/warmup path for those remaining mixed boundary rows before changing live
-publication gates. More recordings are not required for this blocker.
+intervals into the same voice backend. It can also be run with `--fallback-persistent-profile`,
+which copies historical persistent Target-Me classifications into sessions where same-session
+enrollment is not ready. That fallback is diagnostic only and never creates publication candidates.
+Current corpus result after both extensions: `8` rows / `43.40s` are in scope, Target-Me coverage is
+available for the whole set, `0.32s` are a remote-guard publication candidate, and `43.08s` remain
+weak or ambiguous voice evidence. More recordings are not required for this blocker; the next
+practical step is to materialize the narrow remote-guarded candidate and keep the rest review-only.
 
 The follow-up `live_only_retime_boundary_candidate_lab/v1` tests this more directly against the
 current best-live-implementable remaining gap. Strict zero-remote anchors are safe but do not touch
@@ -689,6 +690,8 @@ jq -r '.real_blocker_triage_summary.by_category.live_local_recall_gap.sessions[]
   sed 's#^#sessions/#' |
   xargs .venv/bin/python scripts/audit-live-local-recall-target-me.py \
     --method resemblyzer_dvector \
+    --include-remaining-gap \
+    --fallback-persistent-profile \
     --max-items 80 \
     --no-progress
 

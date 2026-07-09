@@ -843,11 +843,11 @@ nodes:
       implementation target is stronger online local-speaker and boundary evidence for mixed
       missing-Me regions, while keeping the advisory order rows visible. The first voice-coverage
       check now shows `8` mixed/speaker rows / `43.40s`. After Target-Me is rerun with
-      `--include-remaining-gap`, Target-Me rows overlap `30.60s`; only `0.32s` are remote-guard
-      candidates, `29.14s` stay weak or ambiguous, and `13.94s` are blocked by insufficient
-      Target-Me enrollment. The next concrete step is
-      `add_target_me_enrollment_fallback_for_remaining_mixed_boundary_rows`, not more live
-      recordings and not a relaxed publication gate.
+      `--include-remaining-gap` and diagnostic `--fallback-persistent-profile`, all rows have
+      Target-Me coverage; only `0.32s` are remote-guard candidates and `43.08s` stay weak or
+      ambiguous. The next concrete step is
+      `materialize_remote_guarded_voice_boundary_candidates`, not more live recordings and not a
+      relaxed publication gate.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware
       triage держит order risk видимым и отделяет слабые совпадения от настоящих блокеров. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful
