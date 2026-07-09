@@ -766,9 +766,10 @@ nodes:
       split recovers only `1.16s` (`130.97s -> 129.81s`) with `0.00s` remote leak because the large
       candidate is rejected by the contentful order gate. The batch-time retime oracle recovers the
       full `17.34s` candidate without new measured remote leak or contentful order regressions.
-      Next implementation should focus on online local-island timeline repair/retiming evidence.
-      Keep duplicate-heavy or remote-dominant rows blocked, do not collect more recordings for this
-      blocker and do not promote live output.
+      The accepted retime candidate already has `3.96s` of live-available audio anchors. Next
+      implementation should focus on online local-island candidate selection plus timeline
+      repair/retiming evidence. Keep duplicate-heavy or remote-dominant rows blocked, do not collect
+      more recordings for this blocker and do not promote live output.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

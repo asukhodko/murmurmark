@@ -429,6 +429,9 @@ that can approximate the batch-time oracle without using batch truth. Duplicate-
 remote-dominant mixed rows should remain blocked until stronger speaker evidence exists.
 The corpus report now records this as `live_local_island_timing_gap/v1`, including the `17.34s`
 retime gain over split and the exact online evidence still missing before any live publication.
+It also records `live_local_island_audio_anchor_lab/v1`: the accepted retime candidate has `3.96s`
+of live-available audio anchors, so the next blocker is not raw audio evidence alone, but online
+candidate selection and timing without batch labels.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not

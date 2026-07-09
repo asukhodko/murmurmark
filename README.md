@@ -557,7 +557,8 @@ gate. The paired retime oracle,
 places the same local-island text on the batch timeline and recovers the full `17.34s` candidate:
 missing-Me drops to `112.47s` without new measured remote leak or contentful order regressions.
 That confirms the next blocker: online timeline/retiming evidence around local islands, not island
-detection alone.
+detection alone. The accepted retime candidate already has `3.96s` of live-available audio anchors,
+so the missing piece is live candidate selection and timing, not raw audio evidence by itself.
 
 To inspect whether suppressed live mic segments contain your voice:
 

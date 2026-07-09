@@ -2047,6 +2047,79 @@ def local_island_split_lab(remaining_gap: dict[str, Any], *, recall_threshold: f
     }
 
 
+def live_local_island_audio_anchor_lab(local_island_split_lab_report: dict[str, Any]) -> dict[str, Any]:
+    examples = (
+        local_island_split_lab_report.get("examples")
+        if isinstance(local_island_split_lab_report.get("examples"), list)
+        else []
+    )
+    max_zero_lag_abs_corr = 0.03
+    min_mic_minus_remote_rms_db = -6.0
+    accepted_rows = [row for row in examples if isinstance(row, dict) and bool(row.get("accepted"))]
+    candidate_rows: list[dict[str, Any]] = []
+    anchor_seconds = 0.0
+    anchor_count = 0
+    for row in accepted_rows:
+        islands = row.get("local_island_examples") if isinstance(row.get("local_island_examples"), list) else []
+        anchor_islands: list[dict[str, Any]] = []
+        for island in islands:
+            if not isinstance(island, dict):
+                continue
+            corr = safe_float(island.get("audio_mic_remote_zero_lag_abs_corr"))
+            mic_minus_remote = safe_float(island.get("audio_mic_minus_remote_rms_db"))
+            if corr > max_zero_lag_abs_corr or mic_minus_remote < min_mic_minus_remote_rms_db:
+                continue
+            anchor_count += 1
+            seconds = safe_float(island.get("overlap_sec"))
+            anchor_seconds = round(anchor_seconds + seconds, 3)
+            anchor_islands.append(
+                {
+                    "start": island.get("start"),
+                    "end": island.get("end"),
+                    "overlap_sec": island.get("overlap_sec"),
+                    "text": island.get("text"),
+                    "audio_mic_minus_remote_rms_db": island.get("audio_mic_minus_remote_rms_db"),
+                    "audio_mic_remote_zero_lag_abs_corr": island.get("audio_mic_remote_zero_lag_abs_corr"),
+                }
+            )
+        if anchor_islands:
+            candidate_rows.append(
+                {
+                    "session": row.get("session"),
+                    "batch_id": row.get("batch_id"),
+                    "duration_sec": row.get("duration_sec"),
+                    "local_island_seconds": row.get("local_island_seconds"),
+                    "token_recall_from_local_islands": row.get("token_recall_from_local_islands"),
+                    "anchor_island_count": len(anchor_islands),
+                    "anchor_island_seconds": round(
+                        sum(safe_float(island.get("overlap_sec")) for island in anchor_islands),
+                        3,
+                    ),
+                    "anchor_islands": anchor_islands,
+                }
+            )
+    return {
+        "schema": "murmurmark.live_local_island_audio_anchor_lab/v1",
+        "status": "ok" if accepted_rows else "no_accepted_local_island_rows",
+        "promotion_allowed": False,
+        "interpretation": (
+            "diagnostic only: counts live-available audio anchors inside batch-backed local-island rows; "
+            "it does not prove live publication safety by itself"
+        ),
+        "criteria": {
+            "max_audio_mic_remote_zero_lag_abs_corr": max_zero_lag_abs_corr,
+            "min_audio_mic_minus_remote_rms_db": min_mic_minus_remote_rms_db,
+        },
+        "accepted_batch_row_count": len(accepted_rows),
+        "accepted_batch_seconds": safe_float(local_island_split_lab_report.get("accepted_batch_seconds")),
+        "accepted_local_island_seconds": safe_float(local_island_split_lab_report.get("accepted_local_island_seconds")),
+        "audio_anchor_row_count": len(candidate_rows),
+        "audio_anchor_island_count": anchor_count,
+        "audio_anchor_seconds": round(anchor_seconds, 3),
+        "examples": candidate_rows[:20],
+    }
+
+
 def local_recall_rescue_lab(rows: list[dict[str, Any]], *, limit: int = 30) -> dict[str, Any]:
     segments: list[dict[str, Any]] = []
     for row in rows:
@@ -3074,6 +3147,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         policy=real_best_live_profile_policy,
     )
     local_island_split_lab_report = local_island_split_lab(best_live_profile_remaining_gap)
+    local_island_audio_anchor_lab_report = live_local_island_audio_anchor_lab(local_island_split_lab_report)
     local_recall_rescue_lab_report = local_recall_rescue_lab(real_live_rows)
     candidate_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_candidate_rows)
     evaluable_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_evaluable_rows)
@@ -3483,6 +3557,16 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["real_live_local_island_split_lab_accepted_local_island_seconds"] = safe_float(
         local_island_split_lab_report.get("accepted_local_island_seconds")
     )
+    summary["real_live_local_island_audio_anchor_lab_status"] = local_island_audio_anchor_lab_report.get("status")
+    summary["real_live_local_island_audio_anchor_lab_anchor_seconds"] = safe_float(
+        local_island_audio_anchor_lab_report.get("audio_anchor_seconds")
+    )
+    summary["real_live_local_island_audio_anchor_lab_anchor_island_count"] = safe_int(
+        local_island_audio_anchor_lab_report.get("audio_anchor_island_count")
+    )
+    summary["real_live_local_island_audio_anchor_lab_anchor_row_count"] = safe_int(
+        local_island_audio_anchor_lab_report.get("audio_anchor_row_count")
+    )
     real_local_island_oracle_profile = target_me_shadow_profile_row(
         target_me_shadow_profile_diagnostics_report.get("real")
         if isinstance(target_me_shadow_profile_diagnostics_report.get("real"), dict)
@@ -3578,6 +3662,9 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "retime_oracle_contentful_order_mismatch_count": summary.get(
             "real_live_local_island_retime_oracle_profile_contentful_order_mismatch_count"
         ),
+        "live_audio_anchor_lab_status": local_island_audio_anchor_lab_report.get("status"),
+        "live_audio_anchor_seconds": summary.get("real_live_local_island_audio_anchor_lab_anchor_seconds"),
+        "live_audio_anchor_island_count": summary.get("real_live_local_island_audio_anchor_lab_anchor_island_count"),
         "requires_batch_timing": True,
         "requires_batch_role_labels": True,
         "required_online_evidence": [
@@ -3710,6 +3797,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_target_me_shadow_profile_diagnostics": target_me_shadow_profile_diagnostics_report,
         "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
         "live_local_island_split_lab": local_island_split_lab_report,
+        "live_local_island_audio_anchor_lab": local_island_audio_anchor_lab_report,
         "live_local_island_timing_gap": local_island_timing_gap_report,
         "live_local_recall_gap_examples": local_recall_examples,
         "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
@@ -4575,6 +4663,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         else {}
     )
     if local_island_lab:
+        audio_anchor_lab = (
+            report.get("live_local_island_audio_anchor_lab")
+            if isinstance(report.get("live_local_island_audio_anchor_lab"), dict)
+            else {}
+        )
         timing_gap = (
             report.get("live_local_island_timing_gap")
             if isinstance(report.get("live_local_island_timing_gap"), dict)
@@ -4614,6 +4707,10 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"{summary.get('real_live_local_island_retime_oracle_profile_remote_leak_seconds')} sec, "
             "contentful order mismatches "
             f"{summary.get('real_live_local_island_retime_oracle_profile_contentful_order_mismatch_count')}",
+            "- live audio anchors inside accepted rows: "
+            f"{safe_float(audio_anchor_lab.get('audio_anchor_seconds')):.2f} sec / "
+            f"{safe_int(audio_anchor_lab.get('audio_anchor_island_count'))} islands "
+            f"({audio_anchor_lab.get('status')})",
             "- timing gap: "
             f"{timing_gap.get('retime_gain_vs_split_oracle_seconds')} sec require batch timing; "
             "future live work needs online local-island timing anchors before publication",
@@ -5433,6 +5530,10 @@ def main() -> int:
                 print(
                     "real_live_local_island_split_lab_accepted_local_island_seconds: "
                     f"{safe_float(local_island_lab.get('accepted_local_island_seconds'))}"
+                )
+                print(
+                    "real_live_local_island_audio_anchor_lab_anchor_seconds: "
+                    f"{summary.get('real_live_local_island_audio_anchor_lab_anchor_seconds')}"
                 )
                 print(
                     "real_live_local_island_split_oracle_profile_missing_me_seconds: "

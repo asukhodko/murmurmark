@@ -5805,6 +5805,13 @@ the split oracle and the retime oracle, then records:
 This block is the handoff from oracle diagnostics to implementation design. It is explicitly
 non-promotable and must not relax live parity gates.
 
+The report also writes `live_local_island_audio_anchor_lab` with schema
+`murmurmark.live_local_island_audio_anchor_lab/v1`. It counts live-available audio anchors inside
+the batch-backed local-island rows: low zero-lag mic/remote correlation and enough mic-vs-remote RMS
+margin. Current corpus evidence shows `3.96s` of such anchors for the accepted `17.34s` retime
+candidate. This is useful implementation evidence, but it still depends on batch-backed candidate
+selection and does not prove publication safety.
+
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the
 best live-implementable profile and records `missing_me_seconds_gap`, both profile names, remote leak
