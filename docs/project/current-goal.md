@@ -161,7 +161,7 @@ Current result:
 - `real_live_missing_me_visible_in_suppressed_mic_seconds = 382.52`;
 - `real_live_missing_me_not_visible_in_suppressed_mic_seconds = 37.21`;
 - `real_live_suspicious_batch_me_missing_seconds = 24.01`;
-- `real_live_suppressed_mic_turn_count = 30`;
+- `real_live_suppressed_mic_turn_count = 31`;
 - `real_live_segment_role_gate_candidate_chunk_count = 9`;
 - `real_live_segment_role_gate_candidate_kept_segment_count = 54`;
 - `real_live_rescue_shadow_candidate_chunk_count = 2`;
@@ -433,6 +433,21 @@ retime gain over split and the exact online evidence still missing before any li
 It also records `live_local_island_audio_anchor_lab/v1`: the accepted retime candidate has `3.96s`
 of live-available audio anchors, so the next blocker is not raw audio evidence alone, but online
 candidate selection and timing without batch labels.
+The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
+
+- accepted rows: `1`;
+- batch Me interval: `17.34s`;
+- live-available local-island audio: `3.96s`;
+- anchor span: `6.64s`;
+- context expansion needed to match batch timing: `10.70s`;
+- max leading gap before the first anchor: `9.748s`;
+- max trailing gap after the last anchor: `0.952s`;
+- max inter-island gap: `2.54s`.
+
+This means additional recordings are not the current unlock. The corpus already proves the shape of
+the missing work: build online evidence that can safely expand short local anchors into a publishable
+`Me` interval without copying remote text or breaking order. Until that exists, live promotion stays
+blocked even if more similar sessions are added.
 
 The corpus report now also records `live_only_local_island_candidate_lab/v1`. It selects suppressed
 mic segments using only live-available text/audio gates and uses batch labels only to estimate

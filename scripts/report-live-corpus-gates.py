@@ -14,7 +14,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.17.0"
+SCRIPT_VERSION = "1.18.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -492,11 +492,14 @@ def safe_int(value: Any) -> int:
         return 0
 
 
-def safe_float(value: Any) -> float:
+def safe_float(value: Any, default: Any = 0.0) -> float:
     try:
         return float(value)
     except (TypeError, ValueError):
-        return 0.0
+        try:
+            return float(default)
+        except (TypeError, ValueError):
+            return 0.0
 
 
 def interval_overlap(start_a: float, end_a: float, start_b: float, end_b: float) -> float:
@@ -2143,6 +2146,119 @@ def live_local_island_audio_anchor_lab(local_island_split_lab_report: dict[str, 
     }
 
 
+def live_local_island_retime_anchor_lab(local_island_split_lab_report: dict[str, Any]) -> dict[str, Any]:
+    rows = (
+        local_island_split_lab_report.get("examples")
+        if isinstance(local_island_split_lab_report.get("examples"), list)
+        else []
+    )
+    accepted_rows = [row for row in rows if isinstance(row, dict) and bool(row.get("accepted"))]
+    examples: list[dict[str, Any]] = []
+    total_batch_seconds = 0.0
+    total_local_island_seconds = 0.0
+    total_anchor_span_seconds = 0.0
+    total_context_expansion_seconds = 0.0
+    max_leading_gap = 0.0
+    max_trailing_gap = 0.0
+    max_inter_island_gap = 0.0
+
+    for row in accepted_rows:
+        islands = row.get("local_island_examples") if isinstance(row.get("local_island_examples"), list) else []
+        islands = [island for island in islands if isinstance(island, dict)]
+        if not islands:
+            continue
+        islands.sort(key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end"))))
+        batch_start = safe_float(row.get("start"))
+        batch_end = safe_float(row.get("end"), batch_start)
+        batch_seconds = max(0.0, batch_end - batch_start)
+        island_start = min(safe_float(item.get("start")) for item in islands)
+        island_end = max(safe_float(item.get("end"), item.get("start")) for item in islands)
+        anchor_span_seconds = max(0.0, island_end - island_start)
+        local_island_seconds = safe_float(row.get("local_island_seconds"))
+        leading_gap = max(0.0, island_start - batch_start)
+        trailing_gap = max(0.0, batch_end - island_end)
+        inter_gaps = [
+            max(0.0, safe_float(current.get("start")) - safe_float(previous.get("end"), previous.get("start")))
+            for previous, current in zip(islands, islands[1:])
+        ]
+        inter_gap = max(inter_gaps) if inter_gaps else 0.0
+        context_expansion = max(0.0, batch_seconds - anchor_span_seconds)
+
+        total_batch_seconds += batch_seconds
+        total_local_island_seconds += local_island_seconds
+        total_anchor_span_seconds += anchor_span_seconds
+        total_context_expansion_seconds += context_expansion
+        max_leading_gap = max(max_leading_gap, leading_gap)
+        max_trailing_gap = max(max_trailing_gap, trailing_gap)
+        max_inter_island_gap = max(max_inter_island_gap, inter_gap)
+
+        examples.append(
+            {
+                "session": row.get("session"),
+                "batch_id": row.get("batch_id"),
+                "batch_start": row.get("start"),
+                "batch_end": row.get("end"),
+                "batch_seconds": round(batch_seconds, 3),
+                "local_island_seconds": round(local_island_seconds, 3),
+                "anchor_span_start": round(island_start, 3),
+                "anchor_span_end": round(island_end, 3),
+                "anchor_span_seconds": round(anchor_span_seconds, 3),
+                "context_expansion_seconds": round(context_expansion, 3),
+                "leading_gap_seconds": round(leading_gap, 3),
+                "trailing_gap_seconds": round(trailing_gap, 3),
+                "max_inter_island_gap_seconds": round(inter_gap, 3),
+                "local_island_coverage_ratio": (
+                    round(local_island_seconds / batch_seconds, 6) if batch_seconds > 0 else None
+                ),
+                "anchor_span_coverage_ratio": (
+                    round(anchor_span_seconds / batch_seconds, 6) if batch_seconds > 0 else None
+                ),
+                "token_recall_from_local_islands": row.get("token_recall_from_local_islands"),
+                "retime_need": "expand_anchor_span_to_batch_interval",
+                "online_missing_evidence": [
+                    "batch_start_without_batch_truth",
+                    "batch_end_without_batch_truth",
+                    "safe_context_expansion_without_remote_duplication",
+                    "contentful_order_gate_without_authoritative_batch_interval",
+                ],
+                "local_island_examples": islands,
+                "batch_text": row.get("batch_text"),
+                "local_island_text": row.get("local_island_text"),
+            }
+        )
+
+    return {
+        "schema": "murmurmark.live_local_island_retime_anchor_lab/v1",
+        "status": "ok" if examples else "no_accepted_retime_anchor_rows",
+        "promotion_allowed": False,
+        "interpretation": (
+            "diagnostic only: measures how much online retiming must expand trusted local-island "
+            "anchors to match the batch Me interval; it uses batch timing and cannot promote live output"
+        ),
+        "accepted_row_count": len(examples),
+        "batch_seconds": round(total_batch_seconds, 3),
+        "local_island_seconds": round(total_local_island_seconds, 3),
+        "anchor_span_seconds": round(total_anchor_span_seconds, 3),
+        "context_expansion_seconds": round(total_context_expansion_seconds, 3),
+        "local_island_coverage_ratio": (
+            round(total_local_island_seconds / total_batch_seconds, 6) if total_batch_seconds > 0 else None
+        ),
+        "anchor_span_coverage_ratio": (
+            round(total_anchor_span_seconds / total_batch_seconds, 6) if total_batch_seconds > 0 else None
+        ),
+        "max_leading_gap_seconds": round(max_leading_gap, 3),
+        "max_trailing_gap_seconds": round(max_trailing_gap, 3),
+        "max_inter_island_gap_seconds": round(max_inter_island_gap, 3),
+        "required_online_evidence": [
+            "detect local-island anchors without batch labels",
+            "estimate safe left/right context around anchors from live mic/remote evidence",
+            "reject context expansion that duplicates remote text",
+            "preserve contentful order without authoritative batch intervals",
+        ],
+        "examples": examples,
+    }
+
+
 def suppressed_mic_segments_from_report_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     segments: list[dict[str, Any]] = []
     for row in rows:
@@ -3546,6 +3662,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     )
     local_island_split_lab_report = local_island_split_lab(best_live_profile_remaining_gap)
     local_island_audio_anchor_lab_report = live_local_island_audio_anchor_lab(local_island_split_lab_report)
+    local_island_retime_anchor_lab_report = live_local_island_retime_anchor_lab(local_island_split_lab_report)
     live_only_local_island_candidate_lab_report = live_only_local_island_candidate_lab(real_live_rows)
     strict_local_island_shadow_delta_lab_report = live_strict_local_island_shadow_delta_lab(
         real_live_rows,
@@ -4110,6 +4227,19 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_audio_anchor_lab_status": local_island_audio_anchor_lab_report.get("status"),
         "live_audio_anchor_seconds": summary.get("real_live_local_island_audio_anchor_lab_anchor_seconds"),
         "live_audio_anchor_island_count": summary.get("real_live_local_island_audio_anchor_lab_anchor_island_count"),
+        "retime_anchor_lab_status": local_island_retime_anchor_lab_report.get("status"),
+        "retime_anchor_batch_seconds": local_island_retime_anchor_lab_report.get("batch_seconds"),
+        "retime_anchor_local_island_seconds": local_island_retime_anchor_lab_report.get("local_island_seconds"),
+        "retime_anchor_span_seconds": local_island_retime_anchor_lab_report.get("anchor_span_seconds"),
+        "retime_anchor_context_expansion_seconds": local_island_retime_anchor_lab_report.get(
+            "context_expansion_seconds"
+        ),
+        "retime_anchor_max_leading_gap_seconds": local_island_retime_anchor_lab_report.get(
+            "max_leading_gap_seconds"
+        ),
+        "retime_anchor_max_inter_island_gap_seconds": local_island_retime_anchor_lab_report.get(
+            "max_inter_island_gap_seconds"
+        ),
         "live_only_candidate_lab_status": live_only_local_island_candidate_lab_report.get("status"),
         "live_only_candidate_seconds": summary.get("real_live_live_only_local_island_candidate_lab_candidate_seconds"),
         "live_only_candidate_local_seconds": summary.get("real_live_live_only_local_island_candidate_lab_local_seconds"),
@@ -4309,6 +4439,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
         "live_local_island_split_lab": local_island_split_lab_report,
         "live_local_island_audio_anchor_lab": local_island_audio_anchor_lab_report,
+        "live_local_island_retime_anchor_lab": local_island_retime_anchor_lab_report,
         "live_only_local_island_candidate_lab": live_only_local_island_candidate_lab_report,
         "live_strict_local_island_shadow_delta_lab": strict_local_island_shadow_delta_lab_report,
         "live_local_island_timing_gap": local_island_timing_gap_report,
@@ -5234,6 +5365,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"{safe_float(audio_anchor_lab.get('audio_anchor_seconds')):.2f} sec / "
             f"{safe_int(audio_anchor_lab.get('audio_anchor_island_count'))} islands "
             f"({audio_anchor_lab.get('status')})",
+            "- retime anchor lab: "
+            f"{timing_gap.get('retime_anchor_local_island_seconds')} sec local islands across "
+            f"{timing_gap.get('retime_anchor_span_seconds')} sec anchor span; "
+            f"{timing_gap.get('retime_anchor_context_expansion_seconds')} sec context expansion needed, "
+            f"max leading gap {timing_gap.get('retime_anchor_max_leading_gap_seconds')} sec",
             "- live-only local-island candidates: "
             f"{safe_float(live_only_candidate_lab.get('candidate_seconds')):.2f} sec selected, "
             f"{safe_float(live_only_candidate_lab.get('local_seconds')):.2f} sec local, "
@@ -6085,6 +6221,19 @@ def main() -> int:
                 print(
                     "real_live_local_island_audio_anchor_lab_anchor_seconds: "
                     f"{summary.get('real_live_local_island_audio_anchor_lab_anchor_seconds')}"
+                )
+                retime_anchor_lab = (
+                    report.get("live_local_island_retime_anchor_lab")
+                    if isinstance(report.get("live_local_island_retime_anchor_lab"), dict)
+                    else {}
+                )
+                print(
+                    "real_live_local_island_retime_anchor_lab_context_expansion_seconds: "
+                    f"{retime_anchor_lab.get('context_expansion_seconds')}"
+                )
+                print(
+                    "real_live_local_island_retime_anchor_lab_max_leading_gap_seconds: "
+                    f"{retime_anchor_lab.get('max_leading_gap_seconds')}"
                 )
                 print(
                     "real_live_live_only_local_island_candidate_lab_candidate_seconds: "

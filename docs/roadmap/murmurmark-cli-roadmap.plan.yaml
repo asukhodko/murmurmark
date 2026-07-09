@@ -766,9 +766,12 @@ nodes:
       split recovers only `1.16s` (`130.97s -> 129.81s`) with `0.00s` remote leak because the large
       candidate is rejected by the contentful order gate. The batch-time retime oracle recovers the
       full `17.34s` candidate without new measured remote leak or contentful order regressions.
-      The accepted retime candidate already has `3.96s` of live-available audio anchors. Next
-      implementation should focus on online local-island candidate selection plus timeline
-      repair/retiming evidence. The live-only candidate lab now selects `99.40s` of suppressed mic
+      The accepted retime candidate already has `3.96s` of live-available audio anchors. The
+      retime-anchor lab now shows the online cost: those anchors span `6.64s`, while the batch
+      interval is `17.34s`; online retiming would need `10.70s` of safe context expansion and up to
+      `9.748s` of left-boundary recovery before the first trusted anchor. Next implementation should
+      focus on online local-island candidate selection plus timeline repair/retiming evidence. The
+      live-only candidate lab now selects `99.40s` of suppressed mic
       candidates and `83.04s` local/mixed evidence, but still carries `16.36s` remote-risk
       (`precision_proxy = 0.835412`). Its stricter zero-risk profile selects `36.12s` with `0.00s`
       remote-risk under batch evaluation. The strict profile is now materialized as shadow output:

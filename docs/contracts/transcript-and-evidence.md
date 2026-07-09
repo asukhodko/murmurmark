@@ -5812,6 +5812,35 @@ margin. Current corpus evidence shows `3.96s` of such anchors for the accepted `
 candidate. This is useful implementation evidence, but it still depends on batch-backed candidate
 selection and does not prove publication safety.
 
+The report also writes `live_local_island_retime_anchor_lab` with schema
+`murmurmark.live_local_island_retime_anchor_lab/v1`. It measures how much an online implementation
+would need to expand trusted local-island anchors to match the batch `Me` interval:
+
+```json
+{
+  "schema": "murmurmark.live_local_island_retime_anchor_lab/v1",
+  "status": "ok",
+  "promotion_allowed": false,
+  "accepted_row_count": 1,
+  "batch_seconds": 17.34,
+  "local_island_seconds": 3.96,
+  "anchor_span_seconds": 6.64,
+  "context_expansion_seconds": 10.7,
+  "max_leading_gap_seconds": 9.748,
+  "max_trailing_gap_seconds": 0.952,
+  "max_inter_island_gap_seconds": 2.54,
+  "required_online_evidence": [
+    "detect local-island anchors without batch labels",
+    "estimate safe left/right context around anchors from live mic/remote evidence",
+    "reject context expansion that duplicates remote text",
+    "preserve contentful order without authoritative batch intervals"
+  ]
+}
+```
+
+This diagnostic is explicitly non-promotable. It uses batch timing to quantify the missing online
+evidence and must not be used to publish live `Me` text by itself.
+
 The report also writes `live_only_local_island_candidate_lab` with schema
 `murmurmark.live_only_local_island_candidate_lab/v1`. This is the first diagnostic pass that selects
 suppressed mic segments only with live-available text/audio gates, then uses batch role labels only

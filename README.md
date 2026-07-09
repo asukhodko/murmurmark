@@ -1216,8 +1216,11 @@ Active goal and near-term candidates:
    stay blocked until stronger evidence exists. The local-island split lab accepts `17.34s` of
    those batch rows from `3.96s` of local islands. Plain split recovers only `1.16s`, while the
    batch-time retime oracle recovers the full `17.34s` without new remote/order regressions. The
-   next implementation should focus on online local-island timeline repair/retiming evidence, not
-   broad rescue. The live-only candidate lab selects `99.40s`, but still carries `16.36s`
+   retime-anchor lab shows why this is hard online: those `3.96s` of local islands span only
+   `6.64s`, and the oracle needs `10.70s` of extra context expansion, including up to `9.748s`
+   before the first trusted anchor. The next implementation should focus on online local-island
+   timeline repair/retiming evidence, not broad rescue or more recordings. The live-only candidate
+   lab selects `99.40s`, but still carries `16.36s`
    remote-risk. Its strict zero-risk profile selects `36.12s` with `0.00s` remote-risk. The strict
    materialized shadow adds `0.00s` after deduplication against existing live/Target-Me turns, and
    the combined strict+audio-safe shadow adds the same `52.76s` as `audio_safe_union_v1`; it still

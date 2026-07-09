@@ -530,7 +530,10 @@ newer run-state exists.
    oracle places the same text on the authoritative batch timeline and recovers the full `17.34s`
    without new measured remote leak or contentful order regressions. The nearest work is therefore
    online local-island candidate selection plus timeline repair/retiming evidence; the accepted
-   retime candidate already has `3.96s` of live-available audio anchors. The first live-only
+   retime candidate already has `3.96s` of live-available audio anchors. The retime-anchor lab
+   quantifies the online gap: trusted local islands span `6.64s`, while the batch interval is
+   `17.34s`, so a live implementation would need `10.70s` of safe context expansion and as much as
+   `9.748s` of left-boundary recovery before the first trusted anchor. The first live-only
    candidate lab finds `99.40s` of suppressed mic candidates and `83.04s` local/mixed evidence, but
    still carries `16.36s` remote-risk. Its stricter zero-risk profile finds `36.12s` with `0.00s`
    remote-risk. That strict profile is now materialized as a normal shadow draft: after
