@@ -6003,6 +6003,30 @@ This is a negative but useful contract result: the live-only micro-ASR hook exis
 by the normal parity gates, but current candidate selection does not yet produce publishable
 incremental `Me` turns.
 
+The same script also supports `--candidate-source blocker-analysis` for the current
+duplicate-heavy local-recall blocker:
+
+```bash
+scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source blocker-analysis \
+  --source-scope live
+```
+
+It reads `capture_safe_candidate_local_recall_blocker_analysis.examples` from
+`live_corpus_gates_report.json`, selects only rows labeled
+`duplicate_heavy_mixed_needs_token_split`, and probes overlapping suppressed-mic local islands. It
+writes:
+
+- `sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_lab.json`;
+- `sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_lab_attempts.jsonl`;
+- `sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_lab.md`.
+
+Rows in this report set `candidate_source = blocker-analysis` and
+`used_batch_fields_for_selection = true`. It is a batch-informed diagnostic ceiling, not a
+live-implementable profile. Current evidence on the capture-safe blocker set: `2` duplicate-heavy
+rows produce `4` local-island probes; `3` probes / `9.16s` are classified as
+`micro_asr_duplicate_heavy_split_candidate`; `promotion_allowed` remains `false`.
+
 `live_mixed_speaker_boundary_voice_coverage_lab/v1` is a diagnostic-only corpus report section that
 joins the current best-live-implementable remaining mixed/speaker gap with existing
 `live_local_recall_target_me_audit.jsonl` rows. It uses interval overlap only; it does not run new

@@ -399,6 +399,21 @@ after deduplication and safety gates. Treat that as a useful negative result: mi
 into the live-implementable path, but candidate selection still needs better speaker/boundary
 evidence before it can close the local-recall gap.
 
+To inspect the duplicate-heavy blocker named by the live corpus report, run:
+
+```bash
+scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source blocker-analysis \
+  --source-scope live
+
+less sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_lab.md
+```
+
+This mode reads `capture_safe_candidate_local_recall_blocker_analysis`, writes
+`live_duplicate_heavy_micro_asr_lab.*`, and stays diagnostic-only because the candidate list is
+chosen from batch-informed blocker labels. Use it to see whether micro-ASR can split useful local
+speech out of duplicate-heavy mixed intervals before designing a live-only selector.
+
 Older sessions may have top-level `raw/mic.json` and `raw/remote.json` from pre-chunk runs but no
 `raw/chunks/<track>/chunk_cache_report.json`. In `windowed` mode that legacy raw cache is no longer
 enough for `murmurmark process`: the transcript step rebuilds per-window chunks first, then

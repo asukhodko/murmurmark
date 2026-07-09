@@ -491,6 +491,23 @@ This proves that the current blocker is not lack of recordings or lack of a micr
 blocker is still live-only speaker/boundary evidence precise enough to publish short `Me` islands
 without opening a remote leak path.
 
+The same lab now has a `blocker-analysis` candidate source for the capture-safe local-recall blocker:
+
+```bash
+scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source blocker-analysis \
+  --source-scope live
+```
+
+It reads `capture_safe_candidate_local_recall_blocker_analysis`, selects only
+`duplicate_heavy_mixed_needs_token_split` rows, and probes the overlapping suppressed-mic local
+islands from live chunk audio. Current result: `2` duplicate-heavy rows yield `4` probes; `3`
+probes / `9.16s` are micro-ASR split candidates. One example recovers the local phrase beginning
+with "Я бы, наверное, Алексею хотел тоже добавить..." from inside a duplicate-heavy batch `Me`
+block. This is still batch-informed and diagnostic-only: `promotion_allowed = false`, no live draft
+is modified, and the next implementation task remains a live-only selector/token split that can
+reach the same kind of islands without batch labels.
+
 The corpus report now adds `live_mixed_speaker_boundary_voice_coverage_lab/v1` to check whether
 the current mixed/speaker blocker is already covered by Target-Me voice evidence. The Target-Me
 audit now has `--include-remaining-gap`, so it can feed the current best-live-implementable

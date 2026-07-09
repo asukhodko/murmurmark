@@ -8183,6 +8183,11 @@ def recommended_next_commands(
             commands.insert(3, ".venv/bin/python scripts/report-persistent-target-me-profile-lab.py --method resemblyzer_dvector")
             commands.insert(4, ".venv/bin/python scripts/report-live-local-only-enrollment-probe.py --method resemblyzer_dvector")
             commands.insert(5, ".venv/bin/python scripts/report-suppressed-mic-composite-gate-lab.py")
+            commands.insert(
+                6,
+                ".venv/bin/python scripts/report-live-boundary-island-micro-asr-lab.py "
+                "--candidate-source blocker-analysis --source-scope live",
+            )
         real_issues = [
             issue
             for issue in gate_issues

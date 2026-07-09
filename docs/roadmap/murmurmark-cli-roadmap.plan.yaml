@@ -824,6 +824,9 @@ nodes:
       It finds `3` alignment candidates / `13.76s`, but after deduplication and timeline safety it
       adds `0.00s`, leaves missing-Me at `86.85s`, keeps remote leak at `0.00s` and contentful
       order mismatches at `2`.
+      The blocker-analysis micro-ASR lab now targets the capture-safe duplicate-heavy rows directly:
+      `2` rows yield `4` local-island probes, `3` probes / `9.16s` are split candidates, and
+      `promotion_allowed` remains false because selection still uses batch blocker labels.
       Keep duplicate-heavy or remote-dominant rows blocked; the next
       implementation target is online timing anchors / remote-forbidden evidence for still-uncovered
       local islands, not more recordings, broader rescue or live promotion. The

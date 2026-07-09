@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 SCHEMA = "murmurmark.live_boundary_island_micro_asr_lab/v1"
 DEFAULT_MODEL = "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
@@ -36,11 +36,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-candidates", type=int, default=10)
     parser.add_argument(
         "--candidate-source",
-        choices=("design-lab", "live-only"),
+        choices=("design-lab", "live-only", "blocker-analysis"),
         default="design-lab",
         help=(
             "design-lab uses batch-informed design examples; live-only selects candidates "
-            "from live comparison rows using only live/audio evidence."
+            "from live comparison rows using only live/audio evidence; blocker-analysis uses "
+            "capture-safe local recall blocker rows from the live corpus report."
         ),
     )
     parser.add_argument(
@@ -56,6 +57,8 @@ def parse_args() -> argparse.Namespace:
 def output_paths(out_dir: Path, candidate_source: str) -> dict[str, Path]:
     if candidate_source == "live-only":
         stem = "live_boundary_micro_asr_live_candidates_lab"
+    elif candidate_source == "blocker-analysis":
+        stem = "live_duplicate_heavy_micro_asr_lab"
     else:
         stem = "live_boundary_island_micro_asr_lab"
     return {
@@ -410,6 +413,89 @@ def select_live_only_candidates(sessions_root: Path, max_candidates: int) -> tup
     return candidates[:max_candidates], rejected
 
 
+def select_blocker_analysis_candidates(report: dict[str, Any], max_candidates: int) -> list[dict[str, Any]]:
+    analysis = report.get("capture_safe_candidate_local_recall_blocker_analysis")
+    examples = analysis.get("examples") if isinstance(analysis, dict) and isinstance(analysis.get("examples"), list) else []
+    candidates: list[dict[str, Any]] = []
+    for item_index, item in enumerate(examples, start=1):
+        if not isinstance(item, dict):
+            continue
+        blocker = item.get("blocker") if isinstance(item.get("blocker"), dict) else {}
+        if blocker.get("label") != "duplicate_heavy_mixed_needs_token_split":
+            continue
+        item_start = safe_float(item.get("start"))
+        item_end = safe_float(item.get("end"), item_start)
+        evidence_rows = item.get("suppressed_evidence") if isinstance(item.get("suppressed_evidence"), list) else []
+        islands: list[dict[str, Any]] = []
+        for evidence_index, evidence in enumerate(evidence_rows, start=1):
+            if not isinstance(evidence, dict):
+                continue
+            start = max(item_start, safe_float(evidence.get("start")))
+            end = min(item_end, safe_float(evidence.get("end"), start))
+            if end <= start:
+                continue
+            islands.append(
+                {
+                    "start": round(start, 3),
+                    "end": round(end, 3),
+                    "text": clean_text(str(evidence.get("text") or "")),
+                    "source": "blocker_suppressed_mic_evidence",
+                    "chunk_index": evidence.get("chunk_index"),
+                    "source_row_index": evidence_index,
+                    "segment_gate_reason": evidence.get("segment_gate_reason"),
+                    "segment_gate_unique_token_count": evidence.get("segment_gate_unique_token_count"),
+                    "segment_gate_mic_token_recall_in_overlapping_remote": evidence.get(
+                        "segment_gate_mic_token_recall_in_overlapping_remote"
+                    ),
+                    "audio_mic_minus_remote_rms_db": evidence.get("audio_mic_minus_remote_rms_db"),
+                    "audio_mic_remote_zero_lag_abs_corr": evidence.get("audio_mic_remote_zero_lag_abs_corr"),
+                    "rescue_policy_candidates": evidence.get("rescue_policy_candidates") or [],
+                }
+            )
+        if not islands:
+            continue
+        candidates.append(
+            {
+                "candidate_source": "blocker-analysis",
+                "used_batch_fields_for_selection": True,
+                "priority": 10,
+                "session": item.get("session"),
+                "batch_id": item.get("batch_id"),
+                "start": item.get("start"),
+                "end": item.get("end"),
+                "duration_sec": item.get("duration_sec"),
+                "text": clean_text(str(item.get("text") or "")),
+                "local_island_examples": islands,
+                "selection_features": {
+                    "blocker_label": blocker.get("label"),
+                    "blocker_reason": blocker.get("reason"),
+                    "duplicate_overlap_seconds": blocker.get("duplicate_overlap_seconds"),
+                    "local_overlap_seconds": blocker.get("local_overlap_seconds"),
+                    "remote_risk_overlap_seconds": blocker.get("remote_risk_overlap_seconds"),
+                    "max_unique_tokens": blocker.get("max_unique_tokens"),
+                    "max_mic_token_recall_in_overlapping_remote": blocker.get(
+                        "max_mic_token_recall_in_overlapping_remote"
+                    ),
+                    "min_audio_mic_remote_zero_lag_abs_corr": blocker.get(
+                        "min_audio_mic_remote_zero_lag_abs_corr"
+                    ),
+                    "max_audio_mic_minus_remote_rms_db": blocker.get("max_audio_mic_minus_remote_rms_db"),
+                    "source_example_index": item_index,
+                },
+                "source_item": item,
+            }
+        )
+    candidates.sort(
+        key=lambda row: (
+            -safe_float((row.get("selection_features") or {}).get("duplicate_overlap_seconds")),
+            -safe_float(row.get("duration_sec")),
+            str(row.get("session") or ""),
+            safe_float(row.get("start")),
+        )
+    )
+    return candidates[:max_candidates]
+
+
 def output_stem(*, candidate_index: int, island_index: int, source_label: str, window_label: str) -> str:
     safe_label = re.sub(r"[^0-9A-Za-z_.-]+", "_", source_label)
     safe_window = re.sub(r"[^0-9A-Za-z_.-]+", "_", window_label)
@@ -675,6 +761,60 @@ def classify_best_live_only_attempt(
     }
 
 
+def classify_best_blocker_attempt(
+    *,
+    best: dict[str, Any] | None,
+    batch_text: str,
+    source_text: str,
+    remote_text: str,
+    bridge: Any,
+) -> dict[str, Any]:
+    if not best or best.get("status") != "ok":
+        return {
+            "label": "no_micro_asr_candidate",
+            "publication_ready": False,
+            "reason": "no successful non-empty duplicate-heavy micro-ASR attempt",
+        }
+    text = str(best.get("text") or "")
+    batch_recall = bag_recall(tokens(batch_text), tokens(text))
+    source_recall = bag_recall(tokens(source_text), tokens(text))
+    micro_source_recall = bag_recall(tokens(text), tokens(source_text))
+    remote_similarity = float(best.get("remote_similarity") or 0.0)
+    source_remote_similarity = float(bridge.text_similarity(source_text, remote_text)) if remote_text else 0.0
+    remote_recall = bag_recall(tokens(remote_text), tokens(text)) if remote_text else 0.0
+    score = safe_float(best.get("score"))
+    similarity_improvement = source_remote_similarity - remote_similarity
+    if score < 0.68:
+        label = "blocked_low_micro_score"
+        reason = "micro-ASR score is below duplicate-heavy threshold"
+    elif batch_recall < 0.25 and source_recall < 0.35:
+        label = "blocked_low_local_alignment"
+        reason = "micro-ASR text does not align enough with batch or suppressed mic source"
+    elif remote_similarity > 0.38 and remote_recall > 0.30 and similarity_improvement < 0.12:
+        label = "blocked_still_remote_similar"
+        reason = "micro-ASR text remains too similar to overlapping remote text"
+    elif similarity_improvement < 0.05 and remote_recall > 0.15:
+        label = "blocked_no_remote_similarity_improvement"
+        reason = "micro-ASR does not reduce remote similarity enough"
+    else:
+        label = "micro_asr_duplicate_heavy_split_candidate"
+        reason = "micro-ASR gives local-aligned text with better remote separation than the original mixed segment"
+    return {
+        "label": label,
+        "publication_ready": False,
+        "reason": reason,
+        "used_batch_fields_for_selection": True,
+        "batch_token_recall": round(batch_recall, 6),
+        "source_text_token_recall": round(source_recall, 6),
+        "micro_text_token_recall_in_source": round(micro_source_recall, 6),
+        "remote_text_recall_in_micro": round(remote_recall, 6),
+        "remote_similarity": round(remote_similarity, 6),
+        "source_remote_similarity": round(source_remote_similarity, 6),
+        "remote_similarity_improvement": round(similarity_improvement, 6),
+        "score": round(score, 6),
+    }
+
+
 def markdown_report(report: dict[str, Any]) -> str:
     summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
     candidate_source = summary.get("candidate_source") or "design-lab"
@@ -716,7 +856,7 @@ def markdown_report(report: dict[str, Any]) -> str:
 def main() -> int:
     args = parse_args()
     report_path = args.report
-    if args.candidate_source == "design-lab" and not report_path.exists():
+    if args.candidate_source in {"design-lab", "blocker-analysis"} and not report_path.exists():
         print(f"report not found: {report_path}", file=sys.stderr)
         return 2
     model = args.model.expanduser()
@@ -733,6 +873,8 @@ def main() -> int:
     rejected_candidates: list[dict[str, Any]] = []
     if args.candidate_source == "live-only":
         candidates, rejected_candidates = select_live_only_candidates(args.sessions_root, args.max_candidates)
+    elif args.candidate_source == "blocker-analysis":
+        candidates = select_blocker_analysis_candidates(corpus_report, args.max_candidates)
     else:
         candidates = select_candidates(corpus_report, args.max_candidates)
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -835,6 +977,14 @@ def main() -> int:
                     remote_text=remote_text,
                     bridge=bridge,
                 )
+            elif args.candidate_source == "blocker-analysis":
+                decision = classify_best_blocker_attempt(
+                    best=best,
+                    batch_text=batch_text,
+                    source_text=island_text,
+                    remote_text=remote_text,
+                    bridge=bridge,
+                )
             else:
                 decision = classify_best_attempt(
                     best=best,
@@ -873,6 +1023,7 @@ def main() -> int:
         and row["decision"].get("label") in {
             "micro_asr_alignment_candidate",
             "micro_asr_live_only_alignment_candidate",
+            "micro_asr_duplicate_heavy_split_candidate",
         }
     ]
     summary = {

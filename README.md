@@ -639,9 +639,23 @@ Current corpus result: the lab finds `3` alignment candidates / `13.76s`, but af
 and timeline safety the materialized profile adds `0.00s`; it keeps missing-Me at `86.85s`, remote
 leak at `0.00s` and contentful order mismatches at `2`. This is a useful negative result: batch
 selection proved the micro-ASR idea has a `5.10s` ceiling on the current corpus, but live-only
-candidate selection is still not precise enough to close that gap.
+candidate selection is still not precise enough to close that gap. The next useful direction is
 remote-forbidden evidence that can find local islands not already covered by Target-Me/audio-safe
 materialization.
+
+The same script can explain the current duplicate-heavy local-recall blocker directly:
+
+```bash
+scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source blocker-analysis \
+  --source-scope live
+```
+
+It reads `capture_safe_candidate_local_recall_blocker_analysis` from the live corpus report and
+writes `sessions/_reports/live-pipeline/live_duplicate_heavy_micro_asr_lab.*`. This mode is
+batch-informed and diagnostic-only. Current evidence: `2` duplicate-heavy rows produce `4` local
+island probes; `3` probes / `9.16s` are micro-ASR alignment candidates, but
+`promotion_allowed = false` because candidate selection still depends on batch blocker labels.
 
 The corpus report now also writes
 `live_mixed_speaker_boundary_voice_coverage_lab/v1`. It checks whether the remaining mixed/speaker
