@@ -392,7 +392,7 @@ Online remote-overlap shadow filter, 2026-07-09:
   - additional recordings required for the current blocker: `false`;
   - top actionability: `mixed_needs_segmentation_or_speaker_evidence` / `25.00s`;
   - top segmentability: `local_island_split_candidate` / `10.58s`;
-  - first next action: `improve_same_session_voice_disambiguation_for_mixed_rows`;
+  - first next action: `build_same_session_local_only_voice_enrollment_probe`;
   - tight voice/remote guard: `0.00s` candidates, `25.00s` blocked;
   - tight guard top blocker: `blocked_target_me_audit_not_same_session_ok` / `13.94s`;
   - order risk triage after live split/retime: `0` blocking `boundary_retime_candidate` rows and
@@ -545,15 +545,19 @@ candidates. Current result after both extensions:
 - Target-Me enrollment-not-ready: `0.00s`;
 - no-overlap Target-Me coverage: `0.00s`;
 - recommended next:
-  `improve_same_session_voice_disambiguation_for_mixed_rows`.
+  `build_same_session_local_only_voice_enrollment_probe`.
 
 Conclusion: new recordings are not needed for the current blocker. The voice audit now covers all
 remaining mixed intervals. The very small remote-guarded candidate is already materialized as a
 diagnostic non-promotable profile. The tight voice/remote guard then found no publishable candidate:
 `13.94s` are blocked by persistent Target-Me fallback, `10.58s` by low Target-Me-vs-remote
-separation, and `0.48s` by low-value tail policy. The next useful step is stronger same-session
-voice disambiguation for mixed rows, while keeping them review-only until proven and preserving the
-same remote-leak and order gates.
+separation, and `0.48s` by low-value tail policy.
+
+The follow-up `live_same_session_voice_disambiguation_lab/v1` now makes the next blocker explicit:
+all `25.00s` are `needs_same_session_local_only_enrollment_probe`. The affected sessions have `0`
+positive same-session live `Me` enrollment examples, so the next useful step is to build a causal
+local-only Target-Me enrollment probe from high-confidence mic evidence. Mixed rows must remain
+review-only until that probe proves safe under the same remote-leak and order gates.
 The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 
 - accepted rows: `0`;

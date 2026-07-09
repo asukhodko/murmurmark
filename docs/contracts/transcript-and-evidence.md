@@ -5792,7 +5792,7 @@ machine-readable handoff for the next live-parity step. It records:
   stronger evidence.
 
 For the current corpus, `additional_recordings_required_for_current_blocker` is `false`; the first
-next action is `improve_same_session_voice_disambiguation_for_mixed_rows`, followed by speaker
+next action is `build_same_session_local_only_voice_enrollment_probe`, followed by speaker
 confirmation, local-island candidate selection and strict zero-remote evidence reuse.
 `remote_dominant` / `known_hallucination` buckets stay blocked.
 
@@ -6035,9 +6035,22 @@ and still never publishes live `Me` text. Current corpus evidence:
 - top blocker: `blocked_target_me_audit_not_same_session_ok` / `13.94s`;
 - other blockers: `blocked_low_delta_vs_remote` / `10.58s`, `blocked_low_value_tail` / `0.48s`.
 
-The report therefore updates `live_next_unlock.next_actions[0]` to
-`improve_same_session_voice_disambiguation_for_mixed_rows`: the remaining weak rows need stronger
-same-session voice evidence before any new shadow materialization is useful.
+The report used to stop at `improve_same_session_voice_disambiguation_for_mixed_rows`; the newer
+same-session disambiguation lab makes that step concrete before any new shadow materialization is
+useful.
+
+`live_same_session_voice_disambiguation_lab` has schema
+`murmurmark.live_same_session_voice_disambiguation_lab/v1`. It reads the blocked rows from
+`live_tight_voice_remote_guard_lab`, joins the per-session
+`live_target_me_enrollment_lab_summary.json`, and classifies the reason tight voice evidence still
+cannot be published. It is diagnostic only and cannot promote live output.
+
+Current corpus evidence classifies all `4` rows / `25.00s` as
+`needs_same_session_local_only_enrollment_probe`: affected sessions have `0` positive same-session
+live `Me` enrollment examples, while negative enrollment exists. `live_next_unlock.next_actions[0]`
+therefore becomes `build_same_session_local_only_voice_enrollment_probe`. That next step should
+try to build causal same-session Target-Me evidence from high-confidence local-only mic intervals
+before any publication policy is changed.
 
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`
 is the first profile-level local-island split oracle. It starts from the current best

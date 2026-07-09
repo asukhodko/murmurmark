@@ -546,7 +546,7 @@ The `0.32s` speaker-confirmation candidate is already materialized in a diagnost
 voice-boundary shadow profile; it remains non-promotable.
 The report now also writes `live_next_unlock` (`murmurmark.live_next_unlock/v1`): it says
 `additional_recordings_required_for_current_blocker = false`, keeps batch authoritative, and names
-the next action as `improve_same_session_voice_disambiguation_for_mixed_rows`. The tighter
+the next action as `build_same_session_local_only_voice_enrollment_probe`. The tighter
 voice/remote guard found `0.00s` publishable mixed candidates and blocked the remaining `25.00s`:
 `13.94s` depend on non-authoritative persistent Target-Me fallback, `10.58s` have too little
 Target-Me-vs-remote separation, and `0.48s` are a low-value tail. Keep these rows review-only until
@@ -652,7 +652,14 @@ remote-guarded voice-boundary shadow profile, and `25.00s` remain weak or ambigu
 More recordings are not required for this blocker. The follow-up `live_tight_voice_remote_guard_lab`
 then applies stricter voice/remote thresholds and finds no publishable candidate: candidate seconds
 `0.00`, blocked seconds `25.00`, top blocker `blocked_target_me_audit_not_same_session_ok`
-(`13.94s`). The next practical step is stronger same-session voice disambiguation for mixed rows.
+(`13.94s`).
+
+The next diagnostic layer is `live_same_session_voice_disambiguation_lab/v1`. It explains why the
+tight voice/remote guard cannot publish the remaining mixed rows. Current evidence is blunt:
+`25.00s` are classified as `needs_same_session_local_only_enrollment_probe`, because the live
+Target-Me enrollment lab has `0` positive same-session `Me` examples in the affected sessions. The
+next practical step is a causal local-only voice enrollment probe built from high-confidence mic
+evidence, not more recordings and not a looser publication gate.
 
 The follow-up `live_only_retime_boundary_candidate_lab/v1` tests this more directly against the
 current best-live-implementable remaining gap. Strict zero-remote anchors are safe but do not touch
@@ -1357,7 +1364,7 @@ Active goal and near-term candidates:
    The split/retime version preserves `6.62s` of local prefix and keeps missing-Me unchanged
    (`51.50s`) while still reducing contentful order mismatches to `2`. A live-only version of that
    idea is now the best live-implementable shadow, so the next unlock moves from boundary-retime
-   repair to `improve_same_session_voice_disambiguation_for_mixed_rows`.
+   repair to `build_same_session_local_only_voice_enrollment_probe`.
    A soft local-speaker boundary shadow was tested next and produced `no_incremental_gain`
    (`0.00s` missing-Me delta, `0.00s` remote-leak delta). Do not spend the next round on weaker
    loudness thresholds; the remaining work needs stronger speaker/boundary evidence.

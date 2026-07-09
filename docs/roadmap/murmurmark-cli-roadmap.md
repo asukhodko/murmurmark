@@ -535,11 +535,11 @@ newer run-state exists.
    stricter order-matcher handling for the remaining advisory weak/short/generic rows.
    `live_next_unlock` now records this as the machine-readable next step:
    `additional_recordings_required_for_current_blocker = false`, first action
-   `improve_same_session_voice_disambiguation_for_mixed_rows`, followed by speaker confirmation,
+   `build_same_session_local_only_voice_enrollment_probe`, followed by speaker confirmation,
    local-island candidate selection and strict zero-remote evidence reuse. The tight voice/remote
-   guard lab found `0.00s` candidates and blocked all `25.00s`: `13.94s` by non-authoritative
-   persistent Target-Me fallback, `10.58s` by low Target-Me-vs-remote separation and `0.48s` by
-   low-value tail policy.
+   guard lab found `0.00s` candidates and blocked all `25.00s`; the same-session disambiguation lab
+   then classified the full `25.00s` as `needs_same_session_local_only_enrollment_probe`, because
+   affected sessions have `0` positive same-session live `Me` enrollment examples.
    `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked. The new
    `live_order_risk_triage/v1` now sees `2` contentful order-risk rows after live split/retime:
    `0` blocking boundary-retime rows and `2` advisory weak/short/generic match rows; strict order
@@ -610,9 +610,11 @@ newer run-state exists.
    mixed/speaker rows / `25.32s`. After Target-Me is rerun with `--include-remaining-gap` and the
    diagnostic `--fallback-persistent-profile`, all rows have Target-Me coverage; `0.32s` have been
    materialized in the diagnostic remote-guarded boundary profile and `25.00s` stay weak or
-   ambiguous. The tight voice/remote guard lab then finds no publishable mixed row, so the next
-   implementable step is `improve_same_session_voice_disambiguation_for_mixed_rows`, not more live
-   recordings and not a relaxed publication gate.
+   ambiguous. The tight voice/remote guard lab then finds no publishable mixed row; the
+   same-session disambiguation lab classifies the full `25.00s` as
+   `needs_same_session_local_only_enrollment_probe`. The next implementable step is
+   `build_same_session_local_only_voice_enrollment_probe`, not more live recordings and not a
+   relaxed publication gate.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

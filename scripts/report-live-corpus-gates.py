@@ -2532,6 +2532,7 @@ def live_next_unlock_report(
     speaker_boundary_lab: dict[str, Any],
     mixed_voice_coverage_lab: dict[str, Any],
     tight_voice_remote_guard_lab: dict[str, Any],
+    same_session_voice_disambiguation_lab: dict[str, Any],
     local_island_split: dict[str, Any],
     live_only_local_island: dict[str, Any],
     timing_gap: dict[str, Any],
@@ -2663,6 +2664,11 @@ def live_next_unlock_report(
         if isinstance(tight_voice_remote_guard_lab.get("recommended_next"), dict)
         else {}
     )
+    same_session_voice_next = (
+        same_session_voice_disambiguation_lab.get("recommended_next")
+        if isinstance(same_session_voice_disambiguation_lab.get("recommended_next"), dict)
+        else {}
+    )
 
     next_actions: list[dict[str, Any]] = []
     if order_triage_boundary_count > 0:
@@ -2697,6 +2703,9 @@ def live_next_unlock_report(
             if action_id == "tighten_voice_remote_guard_for_mixed_rows" and tight_voice_next:
                 action_id = str(tight_voice_next.get("id") or action_id)
                 action_why = str(tight_voice_next.get("why") or action_why)
+                if action_id == "improve_same_session_voice_disambiguation_for_mixed_rows" and same_session_voice_next:
+                    action_id = str(same_session_voice_next.get("id") or action_id)
+                    action_why = str(same_session_voice_next.get("why") or action_why)
             mixed_voice_action = {
                 "id": action_id,
                 "priority": 2,
@@ -2736,6 +2745,11 @@ def live_next_unlock_report(
                         3,
                     ),
                     "top_blocker": tight_voice_remote_guard_lab.get("top_blocker"),
+                },
+                "same_session_voice_disambiguation": {
+                    "status": same_session_voice_disambiguation_lab.get("status"),
+                    "recommended_next": same_session_voice_next,
+                    "by_classification": same_session_voice_disambiguation_lab.get("by_classification"),
                 },
                 "must_preserve": ["remote_leakage == 0", "contentful_order_mismatches must not increase"],
             }
@@ -3863,6 +3877,209 @@ def live_tight_voice_remote_guard_lab(
             rows,
             key=lambda row: (
                 not bool(row.get("would_be_tight_voice_remote_guard_candidate")),
+                -safe_float(row.get("duration_sec")),
+                str(row.get("session") or ""),
+                safe_float(row.get("start")),
+            ),
+        )[:limit],
+    }
+
+
+def _live_target_me_enrollment_summary(root: Path, session_id: str) -> dict[str, Any] | None:
+    return read_json(
+        root
+        / session_id
+        / "derived/audit/live-target-me-enrollment-lab/live_target_me_enrollment_lab_summary.json"
+    )
+
+
+def _enrollment_mode_summary(summary: dict[str, Any] | None, mode: str) -> dict[str, Any]:
+    if not isinstance(summary, dict):
+        return {}
+    modes = summary.get("modes")
+    if not isinstance(modes, dict):
+        return {}
+    row = modes.get(mode)
+    return row if isinstance(row, dict) else {}
+
+
+def classify_same_session_voice_disambiguation_row(
+    row: dict[str, Any],
+    enrollment_summary: dict[str, Any] | None,
+) -> tuple[str, list[str]]:
+    reasons: list[str] = []
+    primary_blocker = str(row.get("primary_blocker") or "")
+    positive_count = safe_int((enrollment_summary or {}).get("positive_enrollment_count"))
+    positive_seconds = safe_float((enrollment_summary or {}).get("positive_enrollment_seconds"))
+    full = _enrollment_mode_summary(enrollment_summary, "full_live_enrollment")
+    prefix = _enrollment_mode_summary(enrollment_summary, "prefix_live_enrollment")
+    full_ready_local = safe_float(full.get("ready_local_seconds"))
+    prefix_ready_local = safe_float(prefix.get("ready_local_seconds"))
+    best_delta = safe_float((row.get("metrics") or {}).get("best_delta_vs_remote"))
+    best_mic = safe_float((row.get("metrics") or {}).get("best_mic_target_similarity"))
+    max_remote = safe_float((row.get("metrics") or {}).get("max_remote_target_similarity"))
+
+    if not enrollment_summary:
+        reasons.append("missing_live_target_me_enrollment_lab")
+        return "missing_same_session_enrollment_report", reasons
+    if positive_count <= 0 or positive_seconds <= 0:
+        reasons.append("no_positive_same_session_live_me_enrollment")
+    if full_ready_local <= 0:
+        reasons.append("full_live_enrollment_not_ready_for_local_rows")
+    if prefix_ready_local <= 0:
+        reasons.append("prefix_live_enrollment_not_ready_for_local_rows")
+    if primary_blocker == "blocked_target_me_audit_not_same_session_ok":
+        reasons.append("current_voice_rows_depend_on_persistent_fallback")
+    if primary_blocker == "blocked_low_delta_vs_remote" or best_delta < 0.10:
+        reasons.append("target_me_vs_remote_delta_too_low")
+    if best_mic < 0.82:
+        reasons.append("target_me_similarity_below_tight_gate")
+    if max_remote > 0.78:
+        reasons.append("remote_similarity_too_high")
+
+    if "no_positive_same_session_live_me_enrollment" in reasons:
+        return "needs_same_session_local_only_enrollment_probe", reasons
+    if "current_voice_rows_depend_on_persistent_fallback" in reasons:
+        return "needs_causal_same_session_voice_evidence", reasons
+    if "target_me_vs_remote_delta_too_low" in reasons:
+        return "needs_better_target_vs_remote_voice_separation", reasons
+    if reasons:
+        return "same_session_voice_evidence_not_publishable", reasons
+    return "same_session_voice_candidate_needs_materialization", reasons
+
+
+def live_same_session_voice_disambiguation_lab(
+    tight_voice_remote_guard: dict[str, Any],
+    *,
+    root: Path,
+    limit: int = 80,
+) -> dict[str, Any]:
+    examples = (
+        tight_voice_remote_guard.get("examples")
+        if isinstance(tight_voice_remote_guard.get("examples"), list)
+        else []
+    )
+    rows: list[dict[str, Any]] = []
+    enrollment_cache: dict[str, dict[str, Any] | None] = {}
+
+    for row in examples:
+        if not isinstance(row, dict):
+            continue
+        if row.get("would_be_tight_voice_remote_guard_candidate"):
+            continue
+        session_id = str(row.get("session") or "")
+        if not session_id:
+            continue
+        enrollment_summary = enrollment_cache.setdefault(
+            session_id,
+            _live_target_me_enrollment_summary(root, session_id),
+        )
+        classification, reasons = classify_same_session_voice_disambiguation_row(row, enrollment_summary)
+        full = _enrollment_mode_summary(enrollment_summary, "full_live_enrollment")
+        prefix = _enrollment_mode_summary(enrollment_summary, "prefix_live_enrollment")
+        rows.append(
+            {
+                "session": session_id,
+                "batch_id": row.get("batch_id"),
+                "start": row.get("start"),
+                "end": row.get("end"),
+                "duration_sec": row.get("duration_sec"),
+                "text": row.get("text"),
+                "design_unit": row.get("design_unit"),
+                "tight_voice_primary_blocker": row.get("primary_blocker"),
+                "classification": classification,
+                "reasons": reasons,
+                "enrollment": {
+                    "summary_path": (
+                        f"sessions/{session_id}/derived/audit/live-target-me-enrollment-lab/"
+                        "live_target_me_enrollment_lab_summary.json"
+                        if enrollment_summary
+                        else None
+                    ),
+                    "positive_count": safe_int((enrollment_summary or {}).get("positive_enrollment_count")),
+                    "positive_seconds": round(
+                        safe_float((enrollment_summary or {}).get("positive_enrollment_seconds")),
+                        3,
+                    ),
+                    "negative_count": safe_int((enrollment_summary or {}).get("negative_enrollment_count")),
+                    "negative_seconds": round(
+                        safe_float((enrollment_summary or {}).get("negative_enrollment_seconds")),
+                        3,
+                    ),
+                    "full_ready_local_seconds": round(safe_float(full.get("ready_local_seconds")), 3),
+                    "prefix_ready_local_seconds": round(safe_float(prefix.get("ready_local_seconds")), 3),
+                },
+                "metrics": row.get("metrics") or {},
+                "publication_allowed": False,
+                "publication_safety_reason": "diagnostic only; live promotion remains blocked",
+            }
+        )
+
+    def aggregate(key: str) -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            label = str(row.get(key) or "(none)")
+            payload = grouped.setdefault(label, {"count": 0, "seconds": 0.0})
+            payload["count"] += 1
+            payload["seconds"] = round(
+                safe_float(payload.get("seconds")) + safe_float(row.get("duration_sec")),
+                3,
+            )
+        return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
+
+    by_classification = aggregate("classification")
+    no_positive_seconds = safe_float(
+        (by_classification.get("needs_same_session_local_only_enrollment_probe") or {}).get("seconds")
+    )
+    low_delta_seconds = safe_float(
+        (by_classification.get("needs_better_target_vs_remote_voice_separation") or {}).get("seconds")
+    )
+    if no_positive_seconds > 0:
+        recommended_next = {
+            "id": "build_same_session_local_only_voice_enrollment_probe",
+            "why": (
+                "weak mixed rows cannot be published because the live Target-Me enrollment lab has "
+                "no positive same-session Me examples; build a causal local-only enrollment probe "
+                "from high-confidence mic evidence before trying another publication policy"
+            ),
+            "scope_seconds": round(no_positive_seconds, 3),
+        }
+    elif low_delta_seconds > 0:
+        recommended_next = {
+            "id": "improve_target_vs_remote_voice_separation_for_mixed_rows",
+            "why": "same-session evidence exists, but Target-Me and remote similarities are too close",
+            "scope_seconds": round(low_delta_seconds, 3),
+        }
+    elif rows:
+        recommended_next = {
+            "id": "inspect_same_session_voice_disambiguation_examples",
+            "why": "same-session voice evidence exists but remains non-publishable under current gates",
+            "scope_seconds": round(sum(safe_float(row.get("duration_sec")) for row in rows), 3),
+        }
+    else:
+        recommended_next = {
+            "id": "no_same_session_voice_disambiguation_work",
+            "why": "tight voice/remote guard has no blocked rows in scope",
+        }
+
+    return {
+        "schema": "murmurmark.live_same_session_voice_disambiguation_lab/v1",
+        "status": "ok" if rows else "no_scope",
+        "promotion_allowed": False,
+        "interpretation": (
+            "diagnostic only: explains why the tight voice/remote guard cannot publish remaining "
+            "mixed rows and whether the next blocker is missing causal same-session enrollment or "
+            "low Target-Me-vs-remote separation."
+        ),
+        "row_count": len(rows),
+        "seconds": round(sum(safe_float(row.get("duration_sec")) for row in rows), 3),
+        "by_classification": by_classification,
+        "by_tight_voice_primary_blocker": aggregate("tight_voice_primary_blocker"),
+        "recommended_next": recommended_next,
+        "examples": sorted(
+            rows,
+            key=lambda row: (
+                str(row.get("classification") or ""),
                 -safe_float(row.get("duration_sec")),
                 str(row.get("session") or ""),
                 safe_float(row.get("start")),
@@ -6090,6 +6307,10 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     tight_voice_remote_guard_lab_report = live_tight_voice_remote_guard_lab(
         mixed_speaker_boundary_voice_coverage_lab_report
     )
+    same_session_voice_disambiguation_lab_report = live_same_session_voice_disambiguation_lab(
+        tight_voice_remote_guard_lab_report,
+        root=root,
+    )
     local_island_audio_anchor_lab_report = live_local_island_audio_anchor_lab(local_island_split_lab_report)
     local_island_retime_anchor_lab_report = live_local_island_retime_anchor_lab(local_island_split_lab_report)
     live_only_local_island_candidate_lab_report = live_only_local_island_candidate_lab(real_live_rows)
@@ -6971,6 +7192,32 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["real_live_tight_voice_remote_guard_recommended_next"] = (
         tight_voice_next.get("id") if tight_voice_next else None
     )
+    summary["real_live_same_session_voice_disambiguation_status"] = (
+        same_session_voice_disambiguation_lab_report.get("status")
+    )
+    summary["real_live_same_session_voice_disambiguation_seconds"] = safe_float(
+        same_session_voice_disambiguation_lab_report.get("seconds")
+    )
+    same_session_voice_next = (
+        same_session_voice_disambiguation_lab_report.get("recommended_next")
+        if isinstance(same_session_voice_disambiguation_lab_report.get("recommended_next"), dict)
+        else {}
+    )
+    summary["real_live_same_session_voice_disambiguation_recommended_next"] = (
+        same_session_voice_next.get("id") if same_session_voice_next else None
+    )
+    same_session_by_classification = (
+        same_session_voice_disambiguation_lab_report.get("by_classification")
+        if isinstance(same_session_voice_disambiguation_lab_report.get("by_classification"), dict)
+        else {}
+    )
+    for label, payload in same_session_by_classification.items():
+        if not isinstance(payload, dict):
+            continue
+        safe_label = str(label).replace("-", "_")
+        summary[f"real_live_same_session_voice_disambiguation_{safe_label}_seconds"] = safe_float(
+            payload.get("seconds")
+        )
     local_island_timing_gap_report = {
         "schema": "murmurmark.live_local_island_timing_gap/v1",
         "status": "ok" if real_local_island_retime_profile else "missing_retime_oracle_profile",
@@ -7157,6 +7404,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         speaker_boundary_lab=speaker_boundary_lab_report,
         mixed_voice_coverage_lab=mixed_speaker_boundary_voice_coverage_lab_report,
         tight_voice_remote_guard_lab=tight_voice_remote_guard_lab_report,
+        same_session_voice_disambiguation_lab=same_session_voice_disambiguation_lab_report,
         local_island_split=local_island_split_lab_report,
         live_only_local_island=live_only_local_island_candidate_lab_report,
         timing_gap=local_island_timing_gap_report,
@@ -7285,6 +7533,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_online_speaker_boundary_evidence_design_lab": online_speaker_boundary_design_lab_report,
         "live_mixed_speaker_boundary_voice_coverage_lab": mixed_speaker_boundary_voice_coverage_lab_report,
         "live_tight_voice_remote_guard_lab": tight_voice_remote_guard_lab_report,
+        "live_same_session_voice_disambiguation_lab": same_session_voice_disambiguation_lab_report,
         "live_local_island_split_lab": local_island_split_lab_report,
         "live_local_island_audio_anchor_lab": local_island_audio_anchor_lab_report,
         "live_local_island_retime_anchor_lab": local_island_retime_anchor_lab_report,
@@ -7690,6 +7939,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         if isinstance(report.get("live_tight_voice_remote_guard_lab"), dict)
         else {}
     )
+    same_session_voice = (
+        report.get("live_same_session_voice_disambiguation_lab")
+        if isinstance(report.get("live_same_session_voice_disambiguation_lab"), dict)
+        else {}
+    )
     lines = [
         "# Live Pipeline Corpus Gates",
         "",
@@ -8060,6 +8314,40 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             else {}
         )
         for label, payload in by_primary_blocker.items():
+            if not isinstance(payload, dict):
+                continue
+            lines.append(
+                f"| `{label}` | {payload.get('count')} "
+                f"| {safe_float(payload.get('seconds')):.2f} |"
+            )
+    if same_session_voice:
+        recommended_next = (
+            same_session_voice.get("recommended_next")
+            if isinstance(same_session_voice.get("recommended_next"), dict)
+            else {}
+        )
+        lines += [
+            "",
+            "## Same-Session Voice Disambiguation Lab",
+            "",
+            "Diagnostic only. It explains why tight voice evidence is not publishable and whether "
+            "the next blocker is missing causal same-session enrollment or weak Target-Me-vs-remote "
+            "separation.",
+            "",
+            f"- status: `{same_session_voice.get('status')}`",
+            f"- rows: {same_session_voice.get('row_count')} / {same_session_voice.get('seconds')} sec",
+            f"- recommended next: `{recommended_next.get('id')}`",
+            f"- why: {recommended_next.get('why')}",
+            "",
+            "| Classification | Rows | Seconds |",
+            "| --- | ---: | ---: |",
+        ]
+        by_classification = (
+            same_session_voice.get("by_classification")
+            if isinstance(same_session_voice.get("by_classification"), dict)
+            else {}
+        )
+        for label, payload in by_classification.items():
             if not isinstance(payload, dict):
                 continue
             lines.append(
