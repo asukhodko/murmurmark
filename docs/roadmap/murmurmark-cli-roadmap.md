@@ -516,17 +516,20 @@ newer run-state exists.
    (`104.19s`) and also groups their overlapping suppressed-mic evidence: top gate reason
    `segment_duplicates_overlapping_remote` (`73.60s`), top batch-role labels `mixed` (`56.06s`) and
    `remote_dominant` (`50.24s`), plus `known_hallucination` (`12.42s`) that is explicitly forbidden
-   from rescue. The best oracle profile reaches `116.97s` missing-Me, so the remaining
-   live-implementable-to-oracle gap is `14.00s`. Actionability now points at `60.42s`
+   from rescue. The best oracle profile is now the batch-time local-island retime oracle: it reaches
+   `112.47s` missing-Me, so the remaining live-implementable-to-oracle gap is `18.50s`.
+   Actionability now points at `60.42s`
    `mixed_needs_segmentation_or_speaker_evidence`, not a clean speaker-confirmation queue. That
    mixed bucket is now split by segmentability: `27.92s` are `local_island_split_candidate`,
    `22.28s` are duplicate-heavy and need speaker evidence, `5.36s` need speaker evidence, `3.22s`
    are remote-dominant mixed rows, and `1.64s` are short low-value tails. This proves the
    materialization and online remote-forbidden mechanism, not parity. The local-island split lab
-   accepts only `1` row / `17.34s` from `3.96s` of local-island evidence. The first profile-level
-   oracle keeps remote leak at `0.00s`, but recovers only `1.16s` (`130.97s -> 129.81s`) because
-   the larger local-island candidate is rejected by the contentful order gate. The nearest work is
-   therefore local-island timeline repair/retiming, not more live recording, broader rescue or
+   accepts only `1` row / `17.34s` from `3.96s` of local-island evidence. Plain profile-level split
+   keeps remote leak at `0.00s`, but recovers only `1.16s` (`130.97s -> 129.81s`) because the
+   larger local-island candidate is rejected by the contentful order gate. The batch-time retime
+   oracle places the same text on the authoritative batch timeline and recovers the full `17.34s`
+   without new measured remote leak or contentful order regressions. The nearest work is therefore
+   online local-island timeline repair/retiming evidence, not more live recording, broader rescue or
    relaxed publication gates.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`

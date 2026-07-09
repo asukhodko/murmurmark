@@ -13,7 +13,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.16.0"
+SCRIPT_VERSION = "1.17.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -56,6 +56,10 @@ LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "batch_remote_forbidden_local_island_split_oracle_v1"
 )
+LOCAL_ISLAND_RETIME_ORACLE_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "batch_remote_forbidden_local_island_retime_oracle_v1"
+)
 TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_possible_timeline_safe_v1",
@@ -73,6 +77,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
     LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICY,
+    LOCAL_ISLAND_RETIME_ORACLE_PROFILE_POLICY,
 )
 TARGET_ME_SHADOW_POLICY_METRICS = (
     "candidate_segment_count",
@@ -3512,6 +3517,45 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         summary["real_live_local_island_split_oracle_profile_contentful_order_mismatch_count"] = None
         summary["real_live_local_island_split_oracle_profile_added_turn_seconds"] = None
         summary["real_live_local_island_split_oracle_profile_rejected_turn_count"] = None
+    real_local_island_retime_profile = target_me_shadow_profile_row(
+        target_me_shadow_profile_diagnostics_report.get("real")
+        if isinstance(target_me_shadow_profile_diagnostics_report.get("real"), dict)
+        else {},
+        LOCAL_ISLAND_RETIME_ORACLE_PROFILE_POLICY,
+    )
+    summary["real_live_local_island_retime_oracle_profile_policy"] = LOCAL_ISLAND_RETIME_ORACLE_PROFILE_POLICY
+    if real_local_island_retime_profile:
+        retime_missing = safe_float(real_local_island_retime_profile.get("live_missing_me_seconds"))
+        summary["real_live_local_island_retime_oracle_profile_missing_me_seconds"] = retime_missing
+        summary["real_live_local_island_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds"] = round(
+            safe_float(summary.get("real_live_target_me_shadow_profile_best_live_implementable_missing_me_seconds"))
+            - retime_missing,
+            3,
+        )
+        summary["real_live_local_island_retime_oracle_profile_delta_vs_split_oracle_seconds"] = round(
+            safe_float(summary.get("real_live_local_island_split_oracle_profile_missing_me_seconds")) - retime_missing,
+            3,
+        )
+        summary["real_live_local_island_retime_oracle_profile_remote_leak_seconds"] = safe_float(
+            real_local_island_retime_profile.get("live_suspected_remote_leak_in_me_seconds")
+        )
+        summary["real_live_local_island_retime_oracle_profile_contentful_order_mismatch_count"] = safe_int(
+            real_local_island_retime_profile.get("live_contentful_role_constrained_order_mismatch_count")
+        )
+        summary["real_live_local_island_retime_oracle_profile_added_turn_seconds"] = safe_float(
+            real_local_island_retime_profile.get("visible_suppressed_mic_added_turn_seconds")
+        )
+        summary["real_live_local_island_retime_oracle_profile_rejected_turn_count"] = safe_int(
+            real_local_island_retime_profile.get("visible_suppressed_mic_rejected_turn_count")
+        )
+    else:
+        summary["real_live_local_island_retime_oracle_profile_missing_me_seconds"] = None
+        summary["real_live_local_island_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds"] = None
+        summary["real_live_local_island_retime_oracle_profile_delta_vs_split_oracle_seconds"] = None
+        summary["real_live_local_island_retime_oracle_profile_remote_leak_seconds"] = None
+        summary["real_live_local_island_retime_oracle_profile_contentful_order_mismatch_count"] = None
+        summary["real_live_local_island_retime_oracle_profile_added_turn_seconds"] = None
+        summary["real_live_local_island_retime_oracle_profile_rejected_turn_count"] = None
     remaining_by_bucket = (
         best_live_profile_remaining_gap.get("by_bucket")
         if isinstance(best_live_profile_remaining_gap.get("by_bucket"), dict)
@@ -4519,6 +4563,16 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"{summary.get('real_live_local_island_split_oracle_profile_remote_leak_seconds')} sec, "
             "contentful order mismatches "
             f"{summary.get('real_live_local_island_split_oracle_profile_contentful_order_mismatch_count')}",
+            "- local-island retime oracle profile: "
+            f"missing-Me {summary.get('real_live_local_island_retime_oracle_profile_missing_me_seconds')} sec, "
+            "delta vs best live-implementable "
+            f"{summary.get('real_live_local_island_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds')} sec, "
+            "delta vs split oracle "
+            f"{summary.get('real_live_local_island_retime_oracle_profile_delta_vs_split_oracle_seconds')} sec, "
+            "remote leak "
+            f"{summary.get('real_live_local_island_retime_oracle_profile_remote_leak_seconds')} sec, "
+            "contentful order mismatches "
+            f"{summary.get('real_live_local_island_retime_oracle_profile_contentful_order_mismatch_count')}",
             f"- recall threshold: {safe_float(local_island_lab.get('recall_threshold')):.2f}",
             f"- promotion allowed: `{local_island_lab.get('promotion_allowed')}`",
             "",
@@ -5343,6 +5397,14 @@ def main() -> int:
                 print(
                     "real_live_local_island_split_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds: "
                     f"{summary.get('real_live_local_island_split_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds')}"
+                )
+                print(
+                    "real_live_local_island_retime_oracle_profile_missing_me_seconds: "
+                    f"{summary.get('real_live_local_island_retime_oracle_profile_missing_me_seconds')}"
+                )
+                print(
+                    "real_live_local_island_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds: "
+                    f"{summary.get('real_live_local_island_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds')}"
                 )
     if candidate_target_me:
         print(f"capture_safe_candidate_target_me_status: {candidate_target_me.get('status')}")

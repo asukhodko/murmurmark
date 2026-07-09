@@ -351,11 +351,11 @@ Online remote-overlap shadow filter, 2026-07-09:
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
 - best diagnostic oracle profile is
-  `target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1`:
-  - missing-Me: `116.97s`;
+  `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_retime_oracle_v1`:
+  - missing-Me: `112.47s`;
   - remaining measured remote leak: `0.00s`;
   - contentful role-constrained order mismatches: `4`;
-  - best live-implementable to oracle gap: `14.00s`.
+  - best live-implementable to oracle gap: `18.50s`.
 - remaining missing-Me decomposition for that best live-implementable profile:
   - visible in suppressed mic with broader Target-Me evidence: `26.78s`;
   - visible in suppressed mic without Target-Me evidence: `90.42s`;
@@ -396,6 +396,16 @@ Online remote-overlap shadow filter, 2026-07-09:
   - contentful order mismatches: `4`;
   - added suppressed-mic turn seconds: `55.66s`;
   - rejected supplemental turns: `3`.
+- Profile-level local-island retime oracle:
+  - policy:
+    `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_retime_oracle_v1`;
+  - missing-Me: `112.47s`;
+  - delta vs best live-implementable: `18.50s`;
+  - delta vs split oracle: `17.34s`;
+  - remote leak: `0.00s`;
+  - contentful order mismatches: `4`;
+  - added suppressed-mic turn seconds: `71.26s`;
+  - rejected supplemental turns: `2`.
 - `target_me_possible_timeline_safe_v1` recovers `251.37s`, rejects `47.38s` of candidates
   (`31.08s` contentful order risk, `16.30s` suspected remote leak), and keeps measured remote leak at
   `0.00s`.
@@ -412,13 +422,11 @@ Conclusion: the online filter closes the current measured remote-leak symptom wi
 and the `target_me_possible_timeline_safe` profile converts most of the former broad Target-Me gap
 into order-safe live shadow material. The goal remains blocked by local recall, order risk, review
 burden and draft readiness, not by lack of another raw recording. The best oracle improves the best
-live-implementable profile by only `14.00s`, so the next useful work is mixed-region segmentation
-and/or a new kind of local-speaker evidence, not another broad threshold. Because the suppressed
-evidence includes many mixed/remote-dominant overlaps and a separate hallucination tail, the next
-step should focus on local-island timeline repair/retiming: the token lab finds a `17.34s`
-candidate, but the profile-level oracle recovers only `1.16s` because the larger candidate is
-rejected by the contentful order gate. Duplicate-heavy or remote-dominant mixed rows should remain
-blocked until stronger speaker evidence exists.
+live-implementable profile by `18.50s`, but only by using batch timing. Plain local-island split
+recovers `1.16s`; batch-time retime recovers the full `17.34s` candidate. Therefore the next useful
+work is not another broad threshold: it is online local-island timeline repair/retiming evidence
+that can approximate the batch-time oracle without using batch truth. Duplicate-heavy or
+remote-dominant mixed rows should remain blocked until stronger speaker evidence exists.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not

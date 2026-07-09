@@ -520,10 +520,11 @@ still buying real protection. The `target_me_possible_timeline_safe_v1` policy r
 rejects `47.38s` of candidates (`31.08s` order risk, `16.30s` remote leak), and keeps measured
 remote leak at `0.00s`. So the larger remaining gap is no longer the broad Target-Me bucket; it is
 mostly visible suppressed-mic speech without Target-Me evidence.
-The best diagnostic oracle profile reaches `116.97s` missing-Me with the same `0.00s` remote leak and
-`4` contentful order mismatches, so the current live-implementable-to-oracle gap is only `14.00s`.
-That oracle gap is diagnostic, not promotable; the larger blocker is still that parity gates do not
-prove safe promotion.
+The best diagnostic oracle profile is now the local-island retime oracle. It reaches `112.47s`
+missing-Me with the same `0.00s` remote leak and `4` contentful order mismatches, so the current
+live-implementable-to-oracle gap is `18.50s`. That oracle gap is diagnostic, not promotable; it
+uses batch timing and exists to prove that the next useful work is online timing evidence, not a
+relaxed publication gate.
 The live corpus report also writes
 `live_target_me_shadow_profile_best_live_implementable_remaining_gap`, which groups this residual
 gap by Target-Me evidence and session. The current largest policy bucket is `(none)` at `104.19s`;
@@ -546,13 +547,17 @@ it should prototype safe local-island splitting for those `27.92s` while leaving
 and remote-dominant rows blocked.
 The first diagnostic `live_local_island_split_lab` narrows this further: it finds `2` candidate
 batch rows / `27.92s`, but token-recall accepts only `1` row / `17.34s`, backed by `3.96s` of
-local-island audio/text. This is enough to justify a small split prototype, not enough to promote
-live output. The first profile-level oracle prototype,
+local-island audio/text. This is enough to justify a small timing prototype, not enough to promote
+live output. The first profile-level split oracle,
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`,
-is stricter: it keeps remote leak at `0.00s`, but reduces missing-Me only by `1.16s`
+is stricter than the lab: it keeps remote leak at `0.00s`, but reduces missing-Me only by `1.16s`
 (`130.97s -> 129.81s`) because the large `17.34s` candidate is rejected by the contentful order
-gate. The next blocker is therefore timeline/retiming around local islands, not island detection
-alone.
+gate. The paired retime oracle,
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_retime_oracle_v1`,
+places the same local-island text on the batch timeline and recovers the full `17.34s` candidate:
+missing-Me drops to `112.47s` without new measured remote leak or contentful order regressions.
+That confirms the next blocker: online timeline/retiming evidence around local islands, not island
+detection alone.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1192,9 +1197,10 @@ Active goal and near-term candidates:
    `60.42s` `mixed_needs_segmentation_or_speaker_evidence`. The actionable subset is narrower:
    `27.92s` are `local_island_split_candidate`; duplicate-heavy, remote-dominant and short tails
    stay blocked until stronger evidence exists. The local-island split lab accepts `17.34s` of
-   those batch rows from `3.96s` of local islands, but the profile-level oracle recovers only
-   `1.16s` before the order gate blocks the large candidate. The next implementation should focus
-   on local-island timeline repair/retiming, not broad rescue. Batch remains authoritative.
+   those batch rows from `3.96s` of local islands. Plain split recovers only `1.16s`, while the
+   batch-time retime oracle recovers the full `17.34s` without new remote/order regressions. The
+   next implementation should focus on online local-island timeline repair/retiming evidence, not
+   broad rescue. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

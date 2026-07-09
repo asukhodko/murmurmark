@@ -5780,6 +5780,16 @@ reduces missing-Me by only `1.16s` (`130.97s -> 129.81s`): the larger `17.34s` l
 candidate is rejected by the contentful order gate. This means the next useful work is local-island
 timeline repair/retiming, not broader island detection or relaxed publication gates.
 
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_retime_oracle_v1`
+uses the same token-recall-passing local-island candidates, but places them on the authoritative
+batch interval before parity evaluation. It writes `local_island_retime_oracle: true`,
+`batch_start`, `batch_end`, `live_island_start`, `live_island_end` and the original
+`local_islands` evidence on added turns. It is a stronger diagnostic ceiling, not an online
+algorithm. Current corpus evidence drops missing-Me to `112.47s`, a `18.50s` gain over the best
+live-implementable profile and `17.34s` over the split oracle, without new measured remote leak or
+contentful order regressions. This proves that the next implementation should seek online timing
+evidence that can approximate batch retiming without using batch truth.
+
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the
 best live-implementable profile and records `missing_me_seconds_gap`, both profile names, remote leak
