@@ -353,30 +353,29 @@ Online remote-overlap shadow filter, 2026-07-09:
   - missing-Me: `86.85s`;
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
-- best diagnostic oracle profile is
-  `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_retime_oracle_v1`:
+- best diagnostic oracle profiles are the local-island split/retime oracle family:
   - missing-Me: `85.69s`;
   - remaining measured remote leak: `0.00s`;
   - contentful role-constrained order mismatches: `4`;
-  - best live-implementable to oracle gap: `14.54s`.
+  - best live-implementable to oracle gap: `1.16s`.
 - remaining missing-Me decomposition for that best live-implementable profile:
-  - visible in suppressed mic without Target-Me evidence: `86.46s`;
-  - not visible in suppressed mic: `13.77s`;
+  - visible in suppressed mic without Target-Me evidence: `73.08s`;
+  - not visible in suppressed mic without Target-Me evidence: `13.77s`;
   - visible/not-visible with Target-Me evidence: `0.00s`.
 - `live_target_me_shadow_profile_best_live_implementable_remaining_gap` exposes the same residual
   queue by bucket, policy set and session; its largest policy set is now no Target-Me policy
-  (`100.23s`).
+  (`86.85s`).
 - The same block now exposes overlapping suppressed-mic evidence. Current top groups:
   `(none)` (`17.83s`) by suppressed policy set,
-  `segment_has_local_tokens_not_seen_in_overlapping_remote` (`36.30s`) by gate reason, and
+  `(none)` (`34.45s`) by gate reason, and
   `remote_dominant` (`32.90s`) by suppressed batch-role label. Known live ASR hallucinations are
   split out as `known_hallucination` (`12.42s`) and cannot become rescue candidates.
 - Remaining-gap actionability:
   - `mixed_needs_segmentation_or_speaker_evidence`: `43.08s`;
   - `remote_dominant_not_rescuable_without_new_evidence`: `29.68s`;
-  - `speaker_confirmation_candidate`: `13.70s`;
   - `asr_hallucination_not_rescuable`: `12.42s`;
-  - `not_visible_needs_asr_or_boundary_repair`: `1.35s`.
+  - `not_visible_needs_asr_or_boundary_repair`: `1.35s`;
+  - `speaker_confirmation_candidate`: `0.32s`.
 - Mixed-region segmentability:
   - `local_island_split_candidate`: `10.58s`, including `5.10s` of local-looking islands;
   - `duplicate_heavy_needs_speaker_evidence`: `22.28s`;
@@ -388,16 +387,28 @@ Online remote-overlap shadow filter, 2026-07-09:
   - additional recordings required for the current blocker: `false`;
   - top actionability: `mixed_needs_segmentation_or_speaker_evidence` / `43.08s`;
   - top segmentability: `duplicate_heavy_needs_speaker_evidence` / `22.28s`;
-  - first next action: `build_online_local_speaker_boundary_evidence`;
+  - first next action: `repair_live_boundary_retime_order_risk`;
+  - order risk triage: `2` blocking `boundary_retime_candidate` rows and `2` advisory weak/short
+    match rows;
+  - boundary-order retime oracle:
+    - profile:
+      `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1`;
+    - retimed turns: `2`;
+    - trimmed leading overlap: `22.40s`;
+    - contentful order mismatches after retime: `2`;
+    - missing-Me after retime: `92.93s`;
+    - delta vs best live-implementable: `-6.08s`;
+    - conclusion: timing repair helps order risk, but simple retime loses too much local speech and
+      stays diagnostic-only;
   - blocked buckets: `remote_dominant_without_new_evidence` (`29.68s`) and
     `known_hallucination` (`12.42s`).
 - `live_speaker_boundary_evidence_lab`:
   - schema: `murmurmark.live_speaker_boundary_evidence_lab/v1`;
-  - remaining rows: `24 / 100.23s`;
-  - future shadow-probe candidates: `8 / 31.28s`;
+  - remaining rows: `21 / 86.85s`;
+  - future shadow-probe candidates: `5 / 17.90s`;
   - publication-ready seconds: `0.00s`;
   - blocked rows: `16 / 68.95s`;
-  - largest candidate class: `speaker_confirmation_shadow_candidate` (`13.70s`);
+  - largest candidate class: `local_island_boundary_probe_candidate` (`10.58s`);
   - largest blocked class: `blocked_remote_dominant` (`29.68s`).
 - Local-island split lab:
   - candidate batch rows: `1 / 10.58s`;
@@ -409,7 +420,7 @@ Online remote-overlap shadow filter, 2026-07-09:
   - policy:
     `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`;
   - missing-Me: `85.69s`;
-  - delta vs best live-implementable: `14.54s`;
+  - delta vs best live-implementable: `1.16s`;
   - remote leak: `0.00s`;
   - contentful order mismatches: `4`;
   - added suppressed-mic turn seconds: `62.30s`;
@@ -418,7 +429,7 @@ Online remote-overlap shadow filter, 2026-07-09:
   - policy:
     `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_retime_oracle_v1`;
   - missing-Me: `85.69s`;
-  - delta vs best live-implementable: `14.54s`;
+  - delta vs best live-implementable: `1.16s`;
   - delta vs split oracle: `0.00s`;
   - remote leak: `0.00s`;
   - contentful order mismatches: `4`;
@@ -437,15 +448,16 @@ Online remote-overlap shadow filter, 2026-07-09:
   - rejected because of suspected remote leak: `0.00s`.
 
 Conclusion: the online filter closes the current measured remote-leak symptom without batch truth,
-and the relaxed remote-forbidden boundary classifier lowers the best live-implementable missing-Me
-to `100.23s`. The goal remains blocked by local recall, order risk, review burden and draft
-readiness, not by lack of another raw recording. The best local-island oracle improves the best
-live-implementable profile by `14.54s`, but the current live local-island lab has no accepted
-token-recall rows. Therefore the next useful work is not another broad threshold: it is online
-local-speaker and boundary evidence for mixed regions without using batch labels. Duplicate-heavy
-or remote-dominant mixed rows should remain blocked until stronger speaker evidence exists.
+and the local-speaker boundary profile lowers the best live-implementable missing-Me to `86.85s`.
+The goal remains blocked by local recall, order risk, review burden and draft readiness, not by lack
+of another raw recording. The best local-island oracle is now only `1.16s` better than the best
+live-implementable profile, so the next useful work is not another broad threshold: it is targeted
+boundary-retime order repair plus online local-speaker and boundary evidence for mixed regions
+without using batch labels. The boundary-order retime oracle confirms the direction but also shows
+the trap: it fixes two timing rows while increasing missing-Me by `6.08s`. Duplicate-heavy or
+remote-dominant mixed rows should remain blocked until stronger speaker evidence exists.
 The corpus report records this as `live_local_island_timing_gap/v1`, including the current
-`14.54s` oracle gap and the online evidence still missing before any live publication.
+`1.16s` oracle gap and the online evidence still missing before any live publication.
 It also records `live_local_island_audio_anchor_lab/v1`, which currently has
 `no_accepted_local_island_rows`; the next blocker is online candidate selection and speaker/boundary
 evidence, not raw audio availability alone.

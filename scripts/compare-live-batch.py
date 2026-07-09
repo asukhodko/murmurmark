@@ -123,6 +123,10 @@ LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_v1"
 )
+BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1"
+)
 TARGET_ME_DERIVED_POLICY_BASE = {
     "target_me_confirmed_remote_guard_timeline_safe_v1": "target_me_confirmed_remote_guard_v1",
     "target_me_possible_timeline_safe_v1": "target_me_possible_v1",
@@ -146,6 +150,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
+    BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
     (
@@ -195,6 +200,9 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     (
@@ -280,6 +288,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
+    BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
     (
         "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
         "batch_remote_forbidden_local_island_split_oracle_v1"
@@ -319,6 +328,9 @@ REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICIES = {
 }
 LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES = {
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
+}
+BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES = {
+    BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
 }
 MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 
@@ -1214,6 +1226,105 @@ def timeline_safe_target_me_turns(
             continue
         accepted.append(candidate)
     return accepted, rejected
+
+
+def boundary_order_retime_oracle_adjustments(
+    turns: list[dict[str, Any]],
+    batch_utterances: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    by_id = {str(turn.get("id") or ""): turn for turn in turns if turn.get("id") is not None}
+    adjustments: dict[str, dict[str, Any]] = {}
+    mismatches = order_mismatch_rows_for_turns(
+        turns,
+        batch_utterances,
+        same_role_only=True,
+        contentful_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode="batch_order_boundary_retime_oracle_scan",
+    )
+    for item in mismatches:
+        if item.get("category") != "same_chunk_cross_source_reorder":
+            continue
+        previous_id = str(item.get("previous_live_id") or "")
+        current_id = str(item.get("current_live_id") or "")
+        previous = by_id.get(previous_id)
+        current = by_id.get(current_id)
+        if not previous or not current:
+            continue
+        previous_start = safe_float(previous.get("start"))
+        previous_end = safe_float(previous.get("end"), previous_start)
+        current_start = safe_float(current.get("start"))
+        current_end = safe_float(current.get("end"), current_start)
+        if previous_end <= previous_start or current_end <= current_start:
+            continue
+        if previous_start > current_start:
+            continue
+        overlap = interval_overlap(previous_start, previous_end, current_start, current_end)
+        if overlap <= 0:
+            continue
+        new_start = max(previous_start, current_end)
+        if previous_end - new_start < 0.3:
+            continue
+        adjustment = {
+            "policy": BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
+            "reason": "same_chunk_cross_source_order_risk_overlap",
+            "previous_live_id": previous_id,
+            "current_live_id": current_id,
+            "original_start": round(previous_start, 3),
+            "original_end": round(previous_end, 3),
+            "retimed_start": round(new_start, 3),
+            "retimed_end": round(previous_end, 3),
+            "trimmed_leading_seconds": round(new_start - previous_start, 3),
+            "overlap_seconds": round(overlap, 3),
+            "current_start": round(current_start, 3),
+            "current_end": round(current_end, 3),
+            "current_source": current.get("source"),
+            "current_role": current.get("role"),
+            "previous_source": previous.get("source"),
+            "previous_role": previous.get("role"),
+            "batch_start_delta_sec": item.get("batch_start_delta_sec"),
+            "live_start_delta_sec": item.get("live_start_delta_sec"),
+            "match_ambiguity": item.get("match_ambiguity"),
+            "min_score_margin": item.get("min_score_margin"),
+            "mismatch": item,
+        }
+        existing = adjustments.get(previous_id)
+        if not existing or safe_float(adjustment.get("retimed_start")) > safe_float(existing.get("retimed_start")):
+            adjustments[previous_id] = adjustment
+    return adjustments
+
+
+def apply_boundary_order_retime_oracle(
+    turns: list[dict[str, Any]],
+    batch_utterances: list[dict[str, Any]],
+    adjustments: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    if adjustments is None:
+        adjustments = boundary_order_retime_oracle_adjustments(turns, batch_utterances)
+    if not adjustments:
+        return turns
+    adjusted: list[dict[str, Any]] = []
+    for turn in turns:
+        turn_id = str(turn.get("id") or "")
+        adjustment = adjustments.get(turn_id)
+        if not adjustment:
+            adjusted.append(turn)
+            continue
+        new_turn = dict(turn)
+        new_turn["start"] = safe_float(adjustment.get("retimed_start"))
+        new_turn["boundary_order_retime_oracle"] = True
+        new_turn["boundary_order_retime_original_start"] = adjustment.get("original_start")
+        new_turn["boundary_order_retime_original_end"] = adjustment.get("original_end")
+        new_turn["boundary_order_retime_trimmed_leading_seconds"] = adjustment.get("trimmed_leading_seconds")
+        new_turn["boundary_order_retime_overlap_seconds"] = adjustment.get("overlap_seconds")
+        new_turn["boundary_order_retime_counterpart_id"] = adjustment.get("current_live_id")
+        new_turn["boundary_order_retime_reason"] = adjustment.get("reason")
+        adjusted.append(new_turn)
+    return sorted(
+        adjusted,
+        key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+    )
 
 
 def target_me_shadow_policy_metrics(
@@ -3921,6 +4032,13 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "anchor_count",
         "remote_forbidden_boundary_classifier_criteria",
         "local_speaker_boundary_criteria",
+        "boundary_order_retime_oracle",
+        "boundary_order_retime_original_start",
+        "boundary_order_retime_original_end",
+        "boundary_order_retime_trimmed_leading_seconds",
+        "boundary_order_retime_overlap_seconds",
+        "boundary_order_retime_counterpart_id",
+        "boundary_order_retime_reason",
         "segment_gate_status",
         "segment_gate_reason",
         "segment_gate_unique_token_count",
@@ -3933,6 +4051,21 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         if key in turn:
             payload[key] = turn.get(key)
     return payload
+
+
+def target_me_shadow_profile_is_oracle(policy: str) -> bool:
+    return policy in TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES or policy in BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES
+
+
+def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]:
+    retimed = [turn for turn in turns if turn.get("boundary_order_retime_oracle")]
+    return {
+        "boundary_order_retime_oracle_turn_count": len(retimed),
+        "boundary_order_retime_oracle_trimmed_seconds": round(
+            sum(safe_float(turn.get("boundary_order_retime_trimmed_leading_seconds")) for turn in retimed),
+            3,
+        ),
+    }
 
 
 def target_me_shadow_profile_components(
@@ -4057,7 +4190,7 @@ def target_me_shadow_profile_components(
             live_turns + target_turns,
         )
         rejected_supplemental_turns.extend(rejected_boundary_turns)
-    elif policy in LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES:
+    elif policy in LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES or policy in BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES:
         audio_safe_union_turns = online_suppressed_mic_policy_turns(
             suppressed_mic_asr_segments,
             "audio_safe_union_v1",
@@ -4094,6 +4227,15 @@ def target_me_shadow_profile_components(
         supplemental_turns.extend(local_island_turns)
         rejected_supplemental_turns.extend(rejected_local_island_candidates)
         rejected_supplemental_turns.extend(rejected_timeline_local_island_turns)
+    if policy in BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES:
+        combined_for_retime = sorted(
+            live_turns + target_turns + supplemental_turns,
+            key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+        )
+        adjustments = boundary_order_retime_oracle_adjustments(combined_for_retime, batch_utterances)
+        live_turns = apply_boundary_order_retime_oracle(live_turns, batch_utterances, adjustments)
+        target_turns = apply_boundary_order_retime_oracle(target_turns, batch_utterances, adjustments)
+        supplemental_turns = apply_boundary_order_retime_oracle(supplemental_turns, batch_utterances, adjustments)
     return live_turns, target_turns, supplemental_turns, removed_live_turns, rejected_supplemental_turns
 
 
@@ -4146,17 +4288,18 @@ def write_target_me_shadow_drafts(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in supplemental_turns),
             3,
         )
+        retime_metrics = boundary_order_retime_metrics(live_turns + target_turns + supplemental_turns)
         payload = {
             "schema": "murmurmark.live_target_me_shadow_draft/v1",
             "generator": {"name": "compare-live-batch", "version": SCRIPT_VERSION},
             "created_at": datetime.now(timezone.utc).isoformat(),
             "policy": policy,
             "base_policy": base_policy,
-            "diagnostic_oracle": policy in TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES,
+            "diagnostic_oracle": target_me_shadow_profile_is_oracle(policy),
             "promotion_allowed": False,
             "promotion_reason": (
-                "batch_remote_forbidden_oracle_is_not_live_promotable"
-                if policy in TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES
+                "batch_oracle_shadow_profile_is_not_live_promotable"
+                if target_me_shadow_profile_is_oracle(policy)
                 else "target_me_shadow_draft_is_diagnostic_only"
             ),
             "batch_authoritative": True,
@@ -4168,6 +4311,7 @@ def write_target_me_shadow_drafts(
                 "visible_suppressed_mic_rejected_turn_count": len(rejected_supplemental_turns),
                 "removed_live_turn_count": len(removed_live_turns),
                 "removed_live_turn_seconds": removed_seconds,
+                **retime_metrics,
                 "combined_turn_count": len(combined),
                 "target_me_added_seconds": metrics.get(f"{base}_candidate_seconds"),
                 "missing_me_recovered_seconds": metrics.get(f"{base}_missing_me_recovered_seconds"),
@@ -4197,6 +4341,8 @@ def write_target_me_shadow_drafts(
             f"- visible suppressed mic added turns: `{len(supplemental_payload)}`",
             f"- visible suppressed mic rejected turns: `{len(rejected_supplemental_turns)}`",
             f"- removed live turns: `{len(removed_live_turns)}` / `{removed_seconds}s`",
+            f"- boundary retimed turns: `{retime_metrics['boundary_order_retime_oracle_turn_count']}` / "
+            f"`{retime_metrics['boundary_order_retime_oracle_trimmed_seconds']}s` trimmed",
             f"- missing-Me recovered seconds: `{payload['metrics']['missing_me_recovered_seconds']}`",
             f"- suspected remote leak seconds: `{payload['metrics']['suspected_remote_leak_in_me_seconds']}`",
             f"- contentful order delta: `{payload['metrics']['contentful_role_constrained_order_mismatch_delta_count']}`",
@@ -4268,6 +4414,7 @@ def build_target_me_shadow_profiles(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in removed_live_turns),
             3,
         )
+        retime_metrics = boundary_order_retime_metrics(combined_turns)
         metrics = parity_metrics_for_turns(
             combined_turns,
             batch_utterances,
@@ -4353,6 +4500,12 @@ def build_target_me_shadow_profiles(
         top_level_metrics[f"{base}_live_token_recall_in_batch"] = round(recall, 6) if recall is not None else None
         top_level_metrics[f"{base}_removed_live_turn_count"] = len(removed_live_turns)
         top_level_metrics[f"{base}_removed_live_turn_seconds"] = removed_seconds
+        top_level_metrics[f"{base}_boundary_order_retime_oracle_turn_count"] = retime_metrics[
+            "boundary_order_retime_oracle_turn_count"
+        ]
+        top_level_metrics[f"{base}_boundary_order_retime_oracle_trimmed_seconds"] = retime_metrics[
+            "boundary_order_retime_oracle_trimmed_seconds"
+        ]
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_count"] = len(supplemental_turns)
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_seconds"] = supplemental_seconds
         top_level_metrics[f"{base}_visible_suppressed_mic_rejected_turn_count"] = len(rejected_supplemental_turns)
@@ -4393,7 +4546,11 @@ def build_target_me_shadow_profiles(
             "policy": policy,
             "status": status,
             "promotion_allowed": False,
-            "promotion_reason": "target_me_shadow_profile_never_promotes_by_default",
+            "promotion_reason": (
+                "batch_oracle_shadow_profile_is_not_live_promotable"
+                if target_me_shadow_profile_is_oracle(policy)
+                else "target_me_shadow_profile_never_promotes_by_default"
+            ),
             "batch_authoritative": True,
             "outputs": target_me_shadow_outputs.get(policy) or {},
             "metrics": {
@@ -4402,6 +4559,7 @@ def build_target_me_shadow_profiles(
                 "all_parity_gates_passed": all_gates_passed,
                 "removed_live_turn_count": len(removed_live_turns),
                 "removed_live_turn_seconds": removed_seconds,
+                **retime_metrics,
                 "visible_suppressed_mic_added_turn_count": len(supplemental_turns),
                 "visible_suppressed_mic_added_turn_seconds": supplemental_seconds,
                 "visible_suppressed_mic_rejected_turn_count": len(rejected_supplemental_turns),

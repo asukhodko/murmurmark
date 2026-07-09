@@ -757,12 +757,11 @@ nodes:
       improves this to `86.85s` missing-Me with the same `0.00s` remote leak and `4` contentful
       order mismatches. Its residual missing-Me splits into `73.08s` visible without Target-Me
       evidence and `13.77s` not visible in suppressed mic. The remaining-gap report now identifies no-policy
-      rows as the largest bucket and groups their overlapping suppressed-mic evidence: top gate reason
-      `segment_has_local_tokens_not_seen_in_overlapping_remote` (`36.30s`), top batch-role labels
-      `remote_dominant` (`32.90s`), `mixed` (`29.28s`) and `me_dominant` (`24.28s`), plus
-      `known_hallucination` (`12.42s`) explicitly forbidden from rescue. The best oracle profile is
-      now the local-island retime oracle: it reaches `85.69s` missing-Me, so the remaining
-      live-implementable-to-oracle gap is `14.54s`.
+      rows as the largest bucket (`86.85s`) and groups their overlapping suppressed-mic evidence: top gate reason
+      `(none)` (`34.45s`), top batch-role labels `remote_dominant` (`32.90s`), `mixed`
+      (`29.28s`) and `me_dominant` (`10.90s`), plus `known_hallucination` (`12.42s`)
+      explicitly forbidden from rescue. The best diagnostic split/retime oracle family reaches
+      `85.69s` missing-Me, so the remaining live-implementable-to-oracle gap is `1.16s`.
       Actionability points at `43.08s`
       `mixed_needs_segmentation_or_speaker_evidence`, not a clean speaker-confirmation queue. That
       mixed bucket now has a segmentability split: `10.58s` `local_island_split_candidate`,
@@ -773,12 +772,19 @@ nodes:
       live-implementable gap is now only `1.16s`; ordinary parity gates still block promotion.
       `live_next_unlock` now records this as the machine-readable next step:
       `additional_recordings_required_for_current_blocker = false`, first action
-      `build_online_local_speaker_boundary_evidence`, and blocked buckets
-      `remote_dominant_without_new_evidence` / `known_hallucination`.
-      `live_speaker_boundary_evidence_lab` now splits the same gap into `17.84s` future
-      shadow-probe candidates, `69.01s` blocked rows and `0.0s` publication-ready. Next
-      implementation should
-      focus on online local-speaker and boundary evidence for mixed regions. The
+      `repair_live_boundary_retime_order_risk`, followed by local-speaker/boundary evidence work.
+      `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked.
+      `live_order_risk_triage/v1` splits the current `4` contentful order-risk rows into `2`
+      blocking `boundary_retime_candidate` rows and `2` advisory weak/short/generic match rows;
+      strict order gates are unchanged.
+      The diagnostic boundary-order retime oracle retimes those `2` boundary rows and trims
+      `22.40s`, reducing contentful order mismatches to `2` with `0.00s` measured remote leak, but
+      it worsens missing-Me to `92.93s` (`-6.08s` vs best live-implementable). It is evidence for
+      the next design, not a promotable live profile.
+      `live_speaker_boundary_evidence_lab` now splits the same gap into `17.90s` future
+      shadow-probe candidates, `68.95s` blocked rows and `0.0s` publication-ready. Next
+      implementation should focus on boundary-retime repair plus online local-speaker and boundary
+      evidence for mixed regions. The
       live-only candidate lab now selects `99.40s` of suppressed mic
       candidates and `83.04s` local/mixed evidence, but still carries `16.36s` remote-risk
       (`precision_proxy = 0.835412`). Its stricter zero-risk profile selects `36.12s` with `0.00s`
@@ -807,13 +813,13 @@ nodes:
       adds `4.10s`, leaves `100.23s` missing-Me, keeps measured remote leak at `0.00s` and keeps
       contentful order mismatches at `4`. The local-speaker boundary materialized variant now
       leaves `86.85s` missing-Me with the same `0.00s` remote leak and `4` contentful order
-      mismatches. Order-risk triage now separates strict reorder from
-      batch-interval overlap ambiguity: real live has `28`
-      strict order mismatches plus `6` overlap ambiguities; contentful same-role remains `4` strict
-      mismatches plus `0` overlap ambiguities. The next implementation target is stronger online
-      timing/local-speaker evidence for boundary turns; the profile stays shadow-only.
-      Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
-      но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
+      mismatches. Order-risk triage keeps those `4` strict rows visible, but shows only `2` as
+      blocking boundary-retime candidates. The next implementation target is targeted live
+      boundary-retime repair plus stronger online local-speaker evidence. The boundary-retime
+      oracle lowers contentful order mismatches to `2`, but loses `6.08s` of local speech, so the
+      profile stays shadow-only.
+      Следующий фокус: boundary-retime order repair и `fix_live_local_recall_gap`; metric-aware
+      triage держит order risk видимым и отделяет слабые совпадения от настоящих блокеров. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful
       cases, но это не самый большой текущий источник потерь. Live draft иногда путает порядок,
       публикует remote as Me и часто теряет Me, поэтому promotion остаётся blocked.

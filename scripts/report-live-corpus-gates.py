@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import subprocess
 import sys
@@ -14,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.24.0"
+SCRIPT_VERSION = "1.25.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -81,6 +82,10 @@ LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_v1"
 )
+BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1"
+)
 TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_possible_timeline_safe_v1",
@@ -100,6 +105,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
+    BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
     LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICY,
@@ -166,6 +172,8 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "visible_suppressed_mic_added_turn_count",
     "visible_suppressed_mic_added_turn_seconds",
     "visible_suppressed_mic_rejected_turn_count",
+    "boundary_order_retime_oracle_turn_count",
+    "boundary_order_retime_oracle_trimmed_seconds",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -460,14 +468,25 @@ def resolve_targets(args: argparse.Namespace) -> list[Path]:
     return unique
 
 
+def resolve_project_python() -> str:
+    env_python = os.environ.get("MURMURMARK_PYTHON")
+    if env_python:
+        return env_python
+    project_python = Path(__file__).resolve().parent.parent / ".venv/bin/python"
+    if project_python.exists():
+        return str(project_python)
+    return sys.executable
+
+
 def refresh_live_comparisons(sessions: list[Path]) -> list[dict[str, Any]]:
     script = Path(__file__).resolve().parent / "compare-live-batch.py"
+    python = resolve_project_python()
     rows: list[dict[str, Any]] = []
     for session in sessions:
         live_report = session / "derived/live/live_pipeline_report.json"
         if not live_report.exists():
             continue
-        command = [sys.executable, str(script), str(session)]
+        command = [python, str(script), str(session)]
         result = subprocess.run(
             command,
             text=True,
@@ -1342,6 +1361,14 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
             evaluated_rows,
             f"{base}_removed_live_turn_seconds",
         )
+        summary[f"{out}_boundary_order_retime_oracle_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_boundary_order_retime_oracle_turn_count",
+        )
+        summary[f"{out}_boundary_order_retime_oracle_trimmed_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_boundary_order_retime_oracle_trimmed_seconds",
+        )
         summary[f"{out}_visible_suppressed_mic_added_turn_count"] = sum_int_metric(
             evaluated_rows,
             f"{base}_visible_suppressed_mic_added_turn_count",
@@ -1409,7 +1436,7 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
     best_live_implementable: dict[str, Any] | None = None
     for policy in TARGET_ME_SHADOW_PROFILE_POLICIES:
         base = f"{key_prefix}{policy}"
-        live_implementable = "batch_remote_forbidden" not in policy
+        live_implementable = "batch_remote_forbidden" not in policy and "_oracle" not in policy
         row = {
             "policy": policy,
             "live_implementable": live_implementable,
@@ -1460,6 +1487,12 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             ),
             "visible_suppressed_mic_rejected_turn_count": safe_int(
                 summary.get(f"{base}_visible_suppressed_mic_rejected_turn_count")
+            ),
+            "boundary_order_retime_oracle_turn_count": safe_int(
+                summary.get(f"{base}_boundary_order_retime_oracle_turn_count")
+            ),
+            "boundary_order_retime_oracle_trimmed_seconds": safe_float(
+                summary.get(f"{base}_boundary_order_retime_oracle_trimmed_seconds")
             ),
         }
         rows.append(row)
@@ -1997,6 +2030,219 @@ def target_me_shadow_profile_remaining_gap_examples(
     }
 
 
+def _order_turn_feature(turn: dict[str, Any] | None, key: str) -> Any:
+    if not isinstance(turn, dict):
+        return None
+    return turn.get(key)
+
+
+def live_order_risk_triage_label(item: dict[str, Any]) -> dict[str, Any]:
+    previous = item.get("previous") if isinstance(item.get("previous"), dict) else {}
+    current = item.get("current") if isinstance(item.get("current"), dict) else {}
+    previous_tokens = safe_int(_order_turn_feature(previous, "turn_content_token_count"))
+    current_tokens = safe_int(_order_turn_feature(current, "turn_content_token_count"))
+    previous_margin = safe_float(_order_turn_feature(previous, "score_margin"), 1.0)
+    current_margin = safe_float(_order_turn_feature(current, "score_margin"), 1.0)
+    min_margin = min(previous_margin, current_margin)
+    previous_plausible = safe_int(_order_turn_feature(previous, "plausible_match_count"))
+    current_plausible = safe_int(_order_turn_feature(current, "plausible_match_count"))
+    max_plausible = max(previous_plausible, current_plausible)
+    min_tokens = min(previous_tokens or 999, current_tokens or 999)
+    same_source = bool(item.get("same_source"))
+    same_chunk = bool(item.get("same_chunk"))
+    ambiguous = (
+        str(item.get("match_ambiguity") or "") == "ambiguous"
+        or bool(_order_turn_feature(previous, "ambiguous_match"))
+        or bool(_order_turn_feature(current, "ambiguous_match"))
+    )
+    batch_delta = abs(safe_float(item.get("batch_start_delta_sec")))
+    live_delta = abs(safe_float(item.get("live_start_delta_sec")))
+    previous_inside = bool(item.get("previous_live_inside_own_batch_interval"))
+    current_inside = bool(item.get("current_live_inside_own_batch_interval"))
+    source_pair = str(item.get("source_pair") or "")
+
+    label = "needs_review_order_risk"
+    severity = "blocking"
+    confidence = "medium"
+    reason = "order risk remains contentful and needs manual or algorithmic repair"
+
+    if ambiguous and min_margin <= 0.15 and max_plausible >= 8:
+        label = "weak_generic_match_false_positive_candidate"
+        severity = "advisory"
+        confidence = "high"
+        reason = "match is ambiguous, has small score margin, and many plausible alternatives"
+    elif same_source and min_tokens <= 2 and max_plausible >= 5 and min_margin <= 0.25 and batch_delta >= 20:
+        label = "same_source_weak_short_match_candidate"
+        severity = "advisory"
+        confidence = "medium"
+        reason = "same-source reorder is driven by a very short live phrase matched far away in batch"
+    elif same_chunk and not same_source and live_delta <= 8 and (not previous_inside or not current_inside):
+        label = "boundary_retime_candidate"
+        severity = "blocking"
+        confidence = "medium"
+        reason = "cross-source order risk is near a chunk boundary and at least one live turn is outside its batch interval"
+    elif same_chunk and same_source and batch_delta >= 20:
+        label = "same_source_timeline_reorder_candidate"
+        severity = "blocking"
+        confidence = "medium"
+        reason = "same-source order risk has a large batch-time reversal that is not explained by weak-match rules"
+    elif "mic_segment" in source_pair and "remote_segment" in source_pair:
+        label = "cross_source_order_risk"
+        severity = "blocking"
+        confidence = "medium"
+        reason = "mic/remote order risk remains after current live profile"
+
+    return {
+        "label": label,
+        "severity": severity,
+        "confidence": confidence,
+        "reason": reason,
+        "features": {
+            "same_chunk": same_chunk,
+            "same_source": same_source,
+            "source_pair": source_pair,
+            "ambiguous_match": ambiguous,
+            "min_score_margin": round(min_margin, 6),
+            "max_plausible_match_count": max_plausible,
+            "min_turn_content_token_count": 0 if min_tokens == 999 else min_tokens,
+            "batch_start_delta_abs_sec": round(batch_delta, 3),
+            "live_start_delta_abs_sec": round(live_delta, 3),
+            "previous_live_inside_own_batch_interval": previous_inside,
+            "current_live_inside_own_batch_interval": current_inside,
+        },
+    }
+
+
+def live_order_risk_triage(
+    rows: list[dict[str, Any]],
+    *,
+    root: Path,
+    policy: str | None,
+    limit: int = 80,
+) -> dict[str, Any]:
+    examples: list[dict[str, Any]] = []
+    missing_inputs: list[str] = []
+    if not policy:
+        return {
+            "schema": "murmurmark.live_order_risk_triage/v1",
+            "status": "no_profile",
+            "profile": None,
+            "item_count": 0,
+            "blocking_count": 0,
+            "advisory_count": 0,
+            "examples": [],
+            "truncated": False,
+            "limit": limit,
+            "by_label": {},
+            "by_severity": {},
+            "by_session": {},
+            "missing_inputs": [],
+        }
+
+    for row in rows:
+        session_name = str(row.get("session") or "")
+        inputs = row.get("inputs") if isinstance(row.get("inputs"), dict) else {}
+        comparison_rel = inputs.get("live_batch_comparison")
+        comparison_path = root / session_name / str(comparison_rel or "derived/live/live_batch_comparison.json")
+        comparison = read_json(comparison_path)
+        if not isinstance(comparison, dict):
+            missing_inputs.append(session_name)
+            continue
+        shadow_profiles = comparison.get("shadow_profiles") if isinstance(comparison.get("shadow_profiles"), dict) else {}
+        target_profiles = shadow_profiles.get("target_me") if isinstance(shadow_profiles.get("target_me"), dict) else {}
+        profile = target_profiles.get(policy) if isinstance(target_profiles.get(policy), dict) else {}
+        risk_examples = profile.get("risk_examples") if isinstance(profile.get("risk_examples"), dict) else {}
+        for item in risk_examples.get("contentful_role_constrained_order_mismatches") or []:
+            if not isinstance(item, dict):
+                continue
+            triage = live_order_risk_triage_label(item)
+            previous = item.get("previous") if isinstance(item.get("previous"), dict) else {}
+            current = item.get("current") if isinstance(item.get("current"), dict) else {}
+            examples.append(
+                {
+                    "session": session_name,
+                    "profile": policy,
+                    "label": triage.get("label"),
+                    "severity": triage.get("severity"),
+                    "confidence": triage.get("confidence"),
+                    "reason": triage.get("reason"),
+                    "features": triage.get("features"),
+                    "category": item.get("category"),
+                    "primary_risk": item.get("primary_risk"),
+                    "match_ambiguity": item.get("match_ambiguity"),
+                    "source_pair": item.get("source_pair"),
+                    "role_pair": item.get("role_pair"),
+                    "live_start_delta_sec": item.get("live_start_delta_sec"),
+                    "batch_start_delta_sec": item.get("batch_start_delta_sec"),
+                    "previous_live_id": item.get("previous_live_id"),
+                    "current_live_id": item.get("current_live_id"),
+                    "previous_live_start": item.get("previous_live_start"),
+                    "current_live_start": item.get("current_live_start"),
+                    "previous_batch_start": item.get("previous_batch_start"),
+                    "current_batch_start": item.get("current_batch_start"),
+                    "previous_text": previous.get("text"),
+                    "current_text": current.get("text"),
+                    "previous_batch_id": previous.get("batch_id"),
+                    "current_batch_id": current.get("batch_id"),
+                    "previous_score_margin": previous.get("score_margin"),
+                    "current_score_margin": current.get("score_margin"),
+                    "previous_plausible_match_count": previous.get("plausible_match_count"),
+                    "current_plausible_match_count": current.get("plausible_match_count"),
+                    "comparison": str(comparison_rel or "derived/live/live_batch_comparison.json"),
+                }
+            )
+
+    def aggregate_by(key: str) -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for item in examples:
+            group = str(item.get(key) or "(none)")
+            row = grouped.setdefault(group, {"count": 0})
+            row["count"] += 1
+        return dict(sorted(grouped.items(), key=lambda pair: (-safe_int(pair[1].get("count")), pair[0])))
+
+    examples.sort(
+        key=lambda item: (
+            0 if item.get("severity") == "blocking" else 1,
+            str(item.get("label") or ""),
+            str(item.get("session") or ""),
+            safe_float(item.get("current_live_start")),
+        )
+    )
+    blocking_count = sum(1 for item in examples if item.get("severity") == "blocking")
+    advisory_count = sum(1 for item in examples if item.get("severity") == "advisory")
+    return {
+        "schema": "murmurmark.live_order_risk_triage/v1",
+        "status": "ok",
+        "profile": policy,
+        "item_count": len(examples),
+        "blocking_count": blocking_count,
+        "advisory_count": advisory_count,
+        "likely_false_positive_count": sum(
+            1
+            for item in examples
+            if item.get("label")
+            in {
+                "weak_generic_match_false_positive_candidate",
+                "same_source_weak_short_match_candidate",
+            }
+        ),
+        "boundary_retime_candidate_count": sum(
+            1 for item in examples if item.get("label") == "boundary_retime_candidate"
+        ),
+        "examples": examples[:limit],
+        "truncated": len(examples) > limit,
+        "limit": limit,
+        "by_label": aggregate_by("label"),
+        "by_severity": aggregate_by("severity"),
+        "by_session": aggregate_by("session"),
+        "missing_inputs": missing_inputs,
+        "interpretation": (
+            "diagnostic only: strict order gates remain unchanged; advisory rows are candidates "
+            "for future matcher refinement, while blocking rows still require repair or stronger evidence"
+        ),
+    }
+
+
 def local_island_split_lab(remaining_gap: dict[str, Any], *, recall_threshold: float = 0.35) -> dict[str, Any]:
     examples = remaining_gap.get("examples") if isinstance(remaining_gap.get("examples"), list) else []
     rows: list[dict[str, Any]] = []
@@ -2128,6 +2374,7 @@ def live_next_unlock_report(
     *,
     summary: dict[str, Any],
     remaining_gap: dict[str, Any],
+    order_risk_triage: dict[str, Any],
     speaker_boundary_lab: dict[str, Any],
     local_island_split: dict[str, Any],
     live_only_local_island: dict[str, Any],
@@ -2208,13 +2455,48 @@ def live_next_unlock_report(
         safe_float(strict_profile.get("candidate_seconds")) if isinstance(strict_profile, dict) else 0.0
     )
     oracle_gain = safe_float(timing_gap.get("retime_gain_vs_best_live_implementable_seconds"))
+    order_triage_blocking_count = safe_int(order_risk_triage.get("blocking_count"))
+    order_triage_advisory_count = safe_int(order_risk_triage.get("advisory_count"))
+    order_triage_boundary_count = safe_int(order_risk_triage.get("boundary_retime_candidate_count"))
+    order_triage_likely_false_positive_count = safe_int(order_risk_triage.get("likely_false_positive_count"))
+    boundary_order_retime_oracle_missing = safe_float(
+        summary.get("real_live_boundary_order_retime_oracle_profile_missing_me_seconds")
+    )
+    boundary_order_retime_oracle_missing_delta = safe_float(
+        summary.get("real_live_boundary_order_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds")
+    )
+    boundary_order_retime_oracle_order_count = safe_int(
+        summary.get("real_live_boundary_order_retime_oracle_profile_contentful_order_mismatch_count")
+    )
+    boundary_order_retime_oracle_turn_count = safe_int(
+        summary.get("real_live_boundary_order_retime_oracle_profile_retimed_turn_count")
+    )
+    boundary_order_retime_oracle_trimmed = safe_float(
+        summary.get("real_live_boundary_order_retime_oracle_profile_retimed_trimmed_seconds")
+    )
 
     next_actions: list[dict[str, Any]] = []
+    if order_triage_boundary_count > 0:
+        next_actions.append(
+            {
+                "id": "repair_live_boundary_retime_order_risk",
+                "priority": 1,
+                "scope_count": order_triage_boundary_count,
+                "why": "remaining contentful order risks include mic/remote boundary-retime candidates",
+                "oracle_evidence": {
+                    "retimed_turn_count": boundary_order_retime_oracle_turn_count,
+                    "retimed_trimmed_seconds": round(boundary_order_retime_oracle_trimmed, 3),
+                    "contentful_order_mismatch_count_after": boundary_order_retime_oracle_order_count,
+                    "missing_me_delta_seconds": round(boundary_order_retime_oracle_missing_delta, 3),
+                },
+                "must_preserve": ["remote_leakage == 0", "strict order gates must remain authoritative"],
+            }
+        )
     if mixed_seconds > 0:
         next_actions.append(
             {
                 "id": "build_online_local_speaker_boundary_evidence",
-                "priority": 1,
+                "priority": 2,
                 "scope_seconds": round(mixed_seconds, 3),
                 "why": "largest actionable remaining bucket is mixed speech that needs segmentation or speaker evidence",
                 "must_preserve": ["remote_leakage == 0", "contentful_order_mismatches must not increase"],
@@ -2224,7 +2506,7 @@ def live_next_unlock_report(
         next_actions.append(
             {
                 "id": "confirm_speaker_confirmation_candidates",
-                "priority": 2,
+                "priority": 3,
                 "scope_seconds": round(speaker_seconds, 3),
                 "why": "me-dominant suppressed-mic rows lack Target-Me evidence and need confirmation before publication",
             }
@@ -2233,7 +2515,7 @@ def live_next_unlock_report(
         next_actions.append(
             {
                 "id": "improve_local_island_candidate_selection",
-                "priority": 3,
+                "priority": 4,
                 "scope_seconds": round(local_island_candidate_seconds, 3),
                 "accepted_seconds": round(local_island_accepted_seconds, 3),
                 "why": "current local-island candidate exists, but token recall does not pass the publication threshold",
@@ -2243,9 +2525,19 @@ def live_next_unlock_report(
         next_actions.append(
             {
                 "id": "reuse_strict_zero_remote_evidence_without_broad_publication",
-                "priority": 4,
+                "priority": 5,
                 "scope_seconds": round(strict_zero_remote_seconds, 3),
                 "why": "strict live-only candidates are zero-remote-risk under batch evaluation, but not enough after deduplication",
+            }
+        )
+    if order_triage_likely_false_positive_count > 0:
+        next_actions.append(
+            {
+                "id": "tighten_order_matcher_for_short_generic_phrases",
+                "priority": 6,
+                "scope_count": order_triage_likely_false_positive_count,
+                "why": "some order-risk rows look like short/generic weak-match false positives",
+                "must_preserve": ["do not lower strict order gate before regression evidence"],
             }
         )
 
@@ -2300,6 +2592,28 @@ def live_next_unlock_report(
             "diagnostic_gain_seconds": round(oracle_gain, 3),
             "requires_batch_timing": bool(timing_gap.get("requires_batch_timing")),
             "requires_batch_role_labels": bool(timing_gap.get("requires_batch_role_labels")),
+        },
+        "order_risk_triage": {
+            "status": order_risk_triage.get("status"),
+            "item_count": safe_int(order_risk_triage.get("item_count")),
+            "blocking_count": order_triage_blocking_count,
+            "advisory_count": order_triage_advisory_count,
+            "boundary_retime_candidate_count": order_triage_boundary_count,
+            "likely_false_positive_count": order_triage_likely_false_positive_count,
+            "by_label": order_risk_triage.get("by_label") if isinstance(order_risk_triage.get("by_label"), dict) else {},
+        },
+        "boundary_order_retime_oracle": {
+            "profile": summary.get("real_live_boundary_order_retime_oracle_profile_policy"),
+            "diagnostic_only": True,
+            "missing_me_seconds": round(boundary_order_retime_oracle_missing, 3),
+            "missing_me_delta_vs_best_live_implementable_seconds": round(boundary_order_retime_oracle_missing_delta, 3),
+            "remote_leak_seconds": round(
+                safe_float(summary.get("real_live_boundary_order_retime_oracle_profile_remote_leak_seconds")),
+                3,
+            ),
+            "contentful_order_mismatch_count": boundary_order_retime_oracle_order_count,
+            "retimed_turn_count": boundary_order_retime_oracle_turn_count,
+            "retimed_trimmed_seconds": round(boundary_order_retime_oracle_trimmed, 3),
         },
         "live_only_evidence": {
             "candidate_seconds": round(live_only_candidate_seconds, 3),
@@ -4661,6 +4975,11 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         root=root,
         policy=real_best_live_profile_policy,
     )
+    live_order_risk_triage_report = live_order_risk_triage(
+        real_live_rows,
+        root=root,
+        policy=real_best_live_profile_policy,
+    )
     speaker_boundary_lab_report = live_speaker_boundary_evidence_lab(best_live_profile_remaining_gap)
     local_island_split_lab_report = local_island_split_lab(best_live_profile_remaining_gap)
     local_island_audio_anchor_lab_report = live_local_island_audio_anchor_lab(local_island_split_lab_report)
@@ -5067,6 +5386,19 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["real_live_target_me_shadow_profile_best_live_implementable_remaining_gap_seconds"] = safe_float(
         best_live_profile_remaining_gap.get("seconds")
     )
+    summary["real_live_order_risk_triage_item_count"] = safe_int(live_order_risk_triage_report.get("item_count"))
+    summary["real_live_order_risk_triage_blocking_count"] = safe_int(
+        live_order_risk_triage_report.get("blocking_count")
+    )
+    summary["real_live_order_risk_triage_advisory_count"] = safe_int(
+        live_order_risk_triage_report.get("advisory_count")
+    )
+    summary["real_live_order_risk_triage_boundary_retime_candidate_count"] = safe_int(
+        live_order_risk_triage_report.get("boundary_retime_candidate_count")
+    )
+    summary["real_live_order_risk_triage_likely_false_positive_count"] = safe_int(
+        live_order_risk_triage_report.get("likely_false_positive_count")
+    )
     summary["real_live_local_island_split_lab_candidate_count"] = safe_int(
         local_island_split_lab_report.get("candidate_count")
     )
@@ -5289,6 +5621,40 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         summary["real_live_local_island_retime_oracle_profile_contentful_order_mismatch_count"] = None
         summary["real_live_local_island_retime_oracle_profile_added_turn_seconds"] = None
         summary["real_live_local_island_retime_oracle_profile_rejected_turn_count"] = None
+    real_boundary_order_retime_oracle_profile = target_me_shadow_profile_row(
+        target_me_shadow_profile_diagnostics_report.get("real")
+        if isinstance(target_me_shadow_profile_diagnostics_report.get("real"), dict)
+        else {},
+        BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
+    )
+    summary["real_live_boundary_order_retime_oracle_profile_policy"] = BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY
+    if real_boundary_order_retime_oracle_profile:
+        boundary_order_retime_missing = safe_float(real_boundary_order_retime_oracle_profile.get("live_missing_me_seconds"))
+        summary["real_live_boundary_order_retime_oracle_profile_missing_me_seconds"] = boundary_order_retime_missing
+        summary["real_live_boundary_order_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds"] = round(
+            safe_float(summary.get("real_live_target_me_shadow_profile_best_live_implementable_missing_me_seconds"))
+            - boundary_order_retime_missing,
+            3,
+        )
+        summary["real_live_boundary_order_retime_oracle_profile_remote_leak_seconds"] = safe_float(
+            real_boundary_order_retime_oracle_profile.get("live_suspected_remote_leak_in_me_seconds")
+        )
+        summary["real_live_boundary_order_retime_oracle_profile_contentful_order_mismatch_count"] = safe_int(
+            real_boundary_order_retime_oracle_profile.get("live_contentful_role_constrained_order_mismatch_count")
+        )
+        summary["real_live_boundary_order_retime_oracle_profile_retimed_turn_count"] = safe_int(
+            real_boundary_order_retime_oracle_profile.get("boundary_order_retime_oracle_turn_count")
+        )
+        summary["real_live_boundary_order_retime_oracle_profile_retimed_trimmed_seconds"] = safe_float(
+            real_boundary_order_retime_oracle_profile.get("boundary_order_retime_oracle_trimmed_seconds")
+        )
+    else:
+        summary["real_live_boundary_order_retime_oracle_profile_missing_me_seconds"] = None
+        summary["real_live_boundary_order_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds"] = None
+        summary["real_live_boundary_order_retime_oracle_profile_remote_leak_seconds"] = None
+        summary["real_live_boundary_order_retime_oracle_profile_contentful_order_mismatch_count"] = None
+        summary["real_live_boundary_order_retime_oracle_profile_retimed_turn_count"] = None
+        summary["real_live_boundary_order_retime_oracle_profile_retimed_trimmed_seconds"] = None
     local_island_timing_gap_report = {
         "schema": "murmurmark.live_local_island_timing_gap/v1",
         "status": "ok" if real_local_island_retime_profile else "missing_retime_oracle_profile",
@@ -5471,6 +5837,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     live_next_unlock = live_next_unlock_report(
         summary=summary,
         remaining_gap=best_live_profile_remaining_gap,
+        order_risk_triage=live_order_risk_triage_report,
         speaker_boundary_lab=speaker_boundary_lab_report,
         local_island_split=local_island_split_lab_report,
         live_only_local_island=live_only_local_island_candidate_lab_report,
@@ -5594,6 +5961,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_target_me_shadow_policy_diagnostics": target_me_shadow_diagnostics_report,
         "live_target_me_shadow_profile_diagnostics": target_me_shadow_profile_diagnostics_report,
         "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
+        "live_order_risk_triage": live_order_risk_triage_report,
         "live_speaker_boundary_evidence_lab": speaker_boundary_lab_report,
         "live_local_island_split_lab": local_island_split_lab_report,
         "live_local_island_audio_anchor_lab": local_island_audio_anchor_lab_report,
@@ -7054,6 +7422,33 @@ def main() -> int:
     print(
         "real_live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count: "
         f"{summary.get('real_live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count', 0)}"
+    )
+    print(f"real_live_order_risk_triage_item_count: {summary.get('real_live_order_risk_triage_item_count', 0)}")
+    print(f"real_live_order_risk_triage_blocking_count: {summary.get('real_live_order_risk_triage_blocking_count', 0)}")
+    print(f"real_live_order_risk_triage_advisory_count: {summary.get('real_live_order_risk_triage_advisory_count', 0)}")
+    print(
+        "real_live_order_risk_triage_boundary_retime_candidate_count: "
+        f"{summary.get('real_live_order_risk_triage_boundary_retime_candidate_count', 0)}"
+    )
+    print(
+        "real_live_order_risk_triage_likely_false_positive_count: "
+        f"{summary.get('real_live_order_risk_triage_likely_false_positive_count', 0)}"
+    )
+    print(
+        "real_live_boundary_order_retime_oracle_profile_contentful_order_mismatch_count: "
+        f"{summary.get('real_live_boundary_order_retime_oracle_profile_contentful_order_mismatch_count', 0)}"
+    )
+    print(
+        "real_live_boundary_order_retime_oracle_profile_retimed_turn_count: "
+        f"{summary.get('real_live_boundary_order_retime_oracle_profile_retimed_turn_count', 0)}"
+    )
+    print(
+        "real_live_boundary_order_retime_oracle_profile_retimed_trimmed_seconds: "
+        f"{summary.get('real_live_boundary_order_retime_oracle_profile_retimed_trimmed_seconds', 0.0)}"
+    )
+    print(
+        "real_live_boundary_order_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds: "
+        f"{summary.get('real_live_boundary_order_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds')}"
     )
     print(
         "real_live_unambiguous_contentful_role_constrained_order_mismatch_count: "

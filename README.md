@@ -527,17 +527,19 @@ relaxed publication gate.
 The live corpus report also writes
 `live_target_me_shadow_profile_best_live_implementable_remaining_gap`, which groups this residual
 gap by Target-Me evidence and session. The current largest policy bucket is `(none)` at `86.85s`;
-the next useful work is to build local-speaker evidence for those visible-without-Target-Me regions.
+the next useful work is to build boundary-order repair plus local-speaker evidence for those
+visible-without-Target-Me regions.
 The same block now includes suppressed-mic evidence slices. Current top suppressed evidence groups:
-policy set `(none)` (`17.83s`), gate reason `segment_has_local_tokens_not_seen_in_overlapping_remote`
-(`36.30s`) and top batch-role label `remote_dominant` (`32.90s`). A `known_hallucination` slice
+policy set `(none)` (`17.83s`), gate reason `(none)` (`34.45s`) and top batch-role label
+`remote_dominant` (`32.90s`). A `known_hallucination` slice
 (`12.42s`) is tracked separately and is never a rescue candidate. That means the remaining gap is
 not a simple clean local speech queue; many rows are short mixed/remote-dominant fragments or ASR
 artifacts that need better speaker evidence or stricter segmentation before they can be trusted.
 The actionability split makes the next step concrete: `43.08s` are
 `mixed_needs_segmentation_or_speaker_evidence`, `29.68s` are remote-dominant without new evidence,
-`13.70s` are speaker-confirmation candidates, `12.42s` are hallucination, and `1.35s` need ASR or
+`12.42s` are hallucination, `1.35s` need ASR or
 boundary repair.
+Only `0.32s` are a narrow speaker-confirmation candidate.
 The mixed bucket is now split again by segmentability: `10.58s` are
 `local_island_split_candidate`, `22.28s` are duplicate-heavy and need stronger speaker evidence,
 `5.36s` need speaker evidence before publication, `3.22s` are remote-dominant mixed rows, and
@@ -548,8 +550,16 @@ The report now also writes `live_next_unlock` (`murmurmark.live_next_unlock/v1`)
 `additional_recordings_required_for_current_blocker = false`, keeps batch authoritative, and names
 the next actions as online local-speaker/boundary evidence, speaker confirmation, local-island
 candidate selection, and reuse of strict zero-remote evidence without broad publication.
+It now also includes `order_risk_triage`: the current `4` contentful order risks split into
+`2` blocking `boundary_retime_candidate` rows and `2` advisory weak/short/generic match rows.
+The strict order gate is unchanged; this triage only tells the next repair where to focus.
+The diagnostic `boundary_order_retime_oracle` then retimes those `2` boundary rows and trims
+`22.40s` of leading overlap. It lowers contentful order mismatches from `4` to `2`, keeps measured
+remote leak at `0.00s`, but worsens missing-Me from `86.85s` to `92.93s` (`-6.08s` delta). So the
+next implementation must preserve the recovered local speech while repairing boundary order; simple
+retiming alone is not safe enough for promotion.
 The paired `live_speaker_boundary_evidence_lab` now splits the current `86.85s` remaining gap into
-`17.84s` future shadow-probe candidates and `69.01s` blocked rows. It still marks
+`17.90s` future shadow-probe candidates and `68.95s` blocked rows. It still marks
 `publication_ready_seconds = 0.0`, so this is design evidence for the next profile, not permission
 to publish more live `Me`.
 The current diagnostic `live_local_island_split_lab` narrows this further: it finds `1` candidate
@@ -1272,7 +1282,11 @@ Active goal and near-term candidates:
    order mismatches at `4`. The local-speaker boundary profile is now best live-implementable at
    `86.85s` missing-Me with the same `0.00s` remote leak and `4` contentful order mismatches. Batch remains authoritative. Current order
    diagnostics split strict reorder from batch-interval overlap ambiguity: real live has `28` strict order mismatches plus `6` overlap ambiguities;
-   contentful same-role remains `4` strict mismatches plus `0` overlap ambiguities.
+   contentful same-role remains `4` strict mismatches plus `0` overlap ambiguities. The new order-risk triage splits those
+   `4` contentful rows into `2` blocking boundary-retime candidates and `2` advisory weak/short/generic match candidates.
+   The diagnostic boundary-order retime oracle retimes those `2` candidates and trims `22.40s`,
+   lowering contentful order mismatches to `2`, but it worsens missing-Me by `6.08s`; keep it as an
+   oracle for the next design, not as a promotion candidate.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
