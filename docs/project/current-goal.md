@@ -33,7 +33,13 @@ increasing remote leakage or order risk. A live-only short-window micro-ASR foll
 pieces / `10.74s`, rejects `3` unsafe or already covered candidates, and closes the final known
 remote-dominant Target-Me row / `4.68s`. Full-profile missing Me is now `714.81s`; the classified
 remaining-gap set is `81` rows / `268.01s`, and remote-like Me is `40.29s`. The next implementation
-action returns to the broader `fix_live_local_recall_gap`. Batch remains authoritative.
+action returns to the broader `fix_live_local_recall_gap`. A new past-only local-speaker probe now
+supports `33` closed live mic segments / `111.18s`. Its causal micro-ASR shadow accepts `13`
+candidate groups / `62.54s`; after ordinary deduplication, timeline and remote-leak gates it reduces
+full-corpus missing Me from `714.81s` to `683.55s` (`31.26s` recovered), while remote-like Me stays
+at `40.29s` and order counters do not grow. The gain currently comes from one real session, and the
+speaker enrollment is not integrated into the running sidecar, so this profile remains a
+non-promotable lab ceiling. Batch remains authoritative.
 
 ## Latest Completed Goal: Experimental Sidecar Contract v1
 
@@ -134,6 +140,8 @@ Current state:
 - active capture-safe order-risk triage: `2` advisory timing/match ambiguities and `0` blocking rows;
 - historical full-corpus triage: `4` advisory rows and `1` blocking row outside the active slice;
 - best-profile full-real gaps: `714.81 sec` missing Me and `40.29 sec` remote-like Me;
+- causal past-only local-speaker lab ceiling: `683.55 sec` missing Me, `40.29 sec` remote-like Me,
+  `31.26 sec` recovered without new order risk; runtime integration is still absent;
 - classified remaining-gap set: `81` rows / `268.01 sec` missing Me;
 - current objective next focus: `fix_live_local_recall_gap`.
 
@@ -190,6 +198,8 @@ Current result:
 - focused live-only micro-ASR adds `3` non-duplicate pieces / `10.74 sec`, rejects `3`, and closes
   another `4.68 sec` of missing Me;
 - best-profile full-real gaps: `714.81 sec` missing Me and `40.29 sec` remote-like Me;
+- causal past-only local-speaker micro-ASR accepts `13` groups / `62.54 sec` and establishes a
+  diagnostic corpus ceiling of `683.55 sec` missing Me, with unchanged remote/order metrics;
 - classified remaining-gap set: `81` rows / `268.01 sec` missing Me;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
 - `objective_next_focus = fix_live_local_recall_gap`;

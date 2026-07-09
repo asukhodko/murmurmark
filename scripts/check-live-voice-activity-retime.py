@@ -20,6 +20,16 @@ def load_compare_module():
     return module
 
 
+def load_micro_lab_module():
+    path = Path(__file__).with_name("report-live-boundary-island-micro-asr-lab.py")
+    spec = importlib.util.spec_from_file_location("murmurmark_live_micro_lab_test", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot import {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def tone(sample_rate: int, duration_sec: float, start_sec: float, end_sec: float, amplitude: float) -> np.ndarray:
     count = int(round(sample_rate * duration_sec))
     values = np.zeros(count, dtype=np.float32)
@@ -37,6 +47,7 @@ def write_track(path: Path, values: np.ndarray, sample_rate: int) -> None:
 
 def main() -> int:
     compare = load_compare_module()
+    micro_lab = load_micro_lab_module()
     sample_rate = 16_000
     with tempfile.TemporaryDirectory(prefix="murmurmark-live-retime-") as temporary:
         session = Path(temporary) / "sessions/fixture-session"
@@ -362,6 +373,112 @@ def main() -> int:
         )
         assert not covered, covered
         assert covered_rejected[0].get("reason") == "micro_asr_already_covered_by_base_turn", covered_rejected
+
+        enrollment_summary_path = (
+            session
+            / "derived/audit/live-local-only-enrollment-probe/live_local_only_enrollment_probe_summary.json"
+        )
+        enrollment_summary_path.parent.mkdir(parents=True, exist_ok=True)
+        enrollment_summary_path.write_text(
+            json.dumps(
+                {
+                    "live_segment_evaluations": [
+                        {
+                            "chunk_index": 9,
+                            "start": 300.0,
+                            "end": 304.0,
+                            "text": "future full session candidate",
+                            "classification": "local_only_seed_supports_live_segment",
+                        }
+                    ],
+                    "causal_live_segment_evaluations": [
+                        {
+                            "chunk_index": 8,
+                            "start": 220.0,
+                            "end": 223.0,
+                            "text": "causal local phrase",
+                            "classification": "causal_local_only_seed_supports_live_segment",
+                            "enrollment": {"mode": "past_only", "cutoff_sec": 220.0},
+                            "live_features": {"segment_gate_status": "suppressed"},
+                        },
+                        {
+                            "chunk_index": 8,
+                            "start": 223.4,
+                            "end": 227.0,
+                            "text": "continues safely here",
+                            "classification": "causal_local_only_seed_supports_live_segment",
+                            "enrollment": {"mode": "past_only", "cutoff_sec": 223.4},
+                            "live_features": {"segment_gate_status": "kept"},
+                        },
+                        {
+                            "chunk_index": 8,
+                            "start": 228.0,
+                            "end": 230.0,
+                            "text": "remote ambiguous",
+                            "classification": "causal_live_segment_remote_ambiguous",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        causal_candidates, causal_rejected = micro_lab.select_local_only_seed_live_segment_candidates(
+            session.parent,
+            10,
+            causal=True,
+        )
+        assert not causal_rejected, causal_rejected
+        assert len(causal_candidates) == 1, causal_candidates
+        causal_candidate = causal_candidates[0]
+        assert causal_candidate["local_island_examples"][0]["start"] == 220.0, causal_candidate
+        assert causal_candidate["local_island_examples"][0]["end"] == 227.0, causal_candidate
+        causal_features = causal_candidate["selection_features"]
+        assert causal_features.get("enrollment_scope") == "past_only", causal_features
+        assert causal_features.get("used_batch_fields_for_selection") is False, causal_features
+        assert "future full session candidate" not in causal_candidate.get("text", ""), causal_candidate
+
+        causal_report_path = (
+            session.parent / "_reports/live-pipeline/live_causal_local_only_seed_live_segment_micro_asr_lab.json"
+        )
+        causal_report_path.write_text(
+            json.dumps(
+                {
+                    "items": [
+                        {
+                            "session": session.name,
+                            "start": 220.0,
+                            "end": 227.0,
+                            "existing_island_text": "causal local phrase continues safely here",
+                            "decision": {
+                                "label": "micro_asr_live_only_alignment_candidate",
+                                "used_batch_fields_for_selection": False,
+                                "source_text_token_recall": 1.0,
+                                "remote_text_recall_in_micro": 0.0,
+                            },
+                            "best_live_attempt": {
+                                "status": "ok",
+                                "chunk_index": 8,
+                                "text": "full causal local phrase continues safely here",
+                                "score": 0.94,
+                                "remote_similarity": 0.04,
+                            },
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        causal_turns, causal_turns_rejected = compare.live_boundary_micro_asr_lab_shadow_turns(
+            session,
+            candidate_source="causal-local-only-seed-live-segment",
+        )
+        assert not causal_turns_rejected, causal_turns_rejected
+        assert len(causal_turns) == 1, causal_turns
+        assert causal_turns[0].get("causal_local_only_seed_live_segment_micro_asr_shadow") is True, causal_turns[0]
+        assert causal_turns[0].get("used_batch_fields_for_selection") is False, causal_turns[0]
+        assert compare.target_me_shadow_profile_is_live_implementable(
+            compare.CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY
+        ) is False
 
     print("live voice activity retime checks passed")
     return 0

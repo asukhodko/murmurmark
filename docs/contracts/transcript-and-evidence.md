@@ -6082,6 +6082,21 @@ On the current real corpus it materializes `3` turns / `10.74s`, rejects `3`, im
 from `719.49s` to `714.81s`, leaves remote-like Me at `40.29s`, and keeps the active order slice at
 `0` blocking / `2` advisory rows. Promotion remains blocked.
 
+The local-speaker follow-up has two deliberately separate evidence modes:
+
+- `local-only-seed-live-segment` may use full-session enrollment and is noncausal;
+- `causal-local-only-seed-live-segment` accepts a closed live mic segment only when at least three
+  positive and three negative enrollment seeds end before that segment starts.
+
+Both modes select segment boundaries and source audio from live artifacts only. The causal mode
+writes `live_causal_local_only_seed_live_segment_micro_asr_lab.{json,md}` and the matching attempts
+JSONL under `sessions/_reports/live-pipeline/`. Every selected row records
+`used_batch_fields_for_selection = false`, `enrollment_scope = past_only`, the cutoff and seed
+counts. It is still a diagnostic profile because the progressive enrollment loop is not wired into
+the recording sidecar. Current corpus evidence: `33` causally supported segments / `111.18s`, `13`
+accepted micro-ASR groups / `62.54s`, and a missing-Me reduction `714.81s -> 683.55s` with unchanged
+remote/order metrics. Promotion remains blocked.
+
 The same script also supports `--candidate-source blocker-analysis` for the current
 duplicate-heavy local-recall blocker:
 

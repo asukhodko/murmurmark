@@ -177,6 +177,19 @@ micro-ASR replacement only with local-source support and low remote similarity, 
 already covered by a base `Me` turn. The generated draft is still shadow evidence; use the batch
 transcript for notes and export.
 
+To reproduce the current past-only local-speaker ceiling without touching raw capture or batch
+outputs:
+
+```bash
+.venv/bin/python scripts/report-live-local-only-enrollment-probe.py --method resemblyzer_dvector
+.venv/bin/python scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source causal-local-only-seed-live-segment \
+  --source-scope live
+```
+
+This remains an offline diagnostic until progressive enrollment is integrated into the live
+sidecar. Do not use its transcript as the final meeting result.
+
 Existing experiment sessions can still be analyzed without starting capture:
 
 ```bash

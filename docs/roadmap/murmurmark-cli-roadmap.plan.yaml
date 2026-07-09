@@ -785,8 +785,12 @@ nodes:
       The first local-only enrollment probe is now available and finds ready seed material in all
       `3` affected sessions (`144.00s` accepted positive local-only audio). The probe supports
       `24.52s` of the `25.00s` blocked mixed rows, leaving only the `0.48s` low-value tail
-      unsupported. The next step is to materialize a diagnostic local-only-seed mixed-row shadow and
-      run parity gates while keeping promotion blocked.
+      unsupported. A causal follow-up now uses only enrollment seeds ending before each closed live
+      segment: it supports `33` segments / `111.18s`. Its micro-ASR lab accepts `13` groups /
+      `62.54s`; after parity gates the corpus missing-Me ceiling improves `714.81s -> 683.55s`
+      (`31.26s`) with unchanged `40.29s` remote-like Me and no new order risk. The gain comes from
+      one session and the progressive model is not integrated into the running sidecar, so the next
+      step is runtime integration plus the same corpus gates; promotion remains blocked.
       `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked. Historical base
       triage had `14` contentful rows; the former voice-activity profile exposed `9` blocking
       boundary candidates and `12` advisory weak matches. The token-density follow-up clears

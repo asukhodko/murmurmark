@@ -587,6 +587,20 @@ and closes the last known remote-dominant Target-Me row / `4.68s`. The full prof
 `714.81s` of batch `Me`; the classified remaining-gap set is `81` rows / `268.01s`, and `40.29s`
 of remote-like `Me` remains. Promotion stays blocked.
 
+A causal local-speaker follow-up now uses only enrollment audio committed before each closed live
+mic segment. The probe supports `33` segments / `111.18s`; focused micro-ASR accepts `13` groups /
+`62.54s`. On the 14-session real corpus the diagnostic shadow reduces missing Me from `714.81s` to
+`683.55s` without increasing the measured `40.29s` remote-like Me or order risk. This is a design
+ceiling, not a live feature yet: the progressive enrollment model is still built offline and must be
+integrated into the sidecar before the profile can be considered live-implementable.
+
+```bash
+.venv/bin/python scripts/report-live-local-only-enrollment-probe.py --method resemblyzer_dvector
+.venv/bin/python scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source causal-local-only-seed-live-segment \
+  --source-scope live
+```
+
 For a focused refresh, avoid the expensive all-profile lab and evaluate only the current profile:
 
 ```bash

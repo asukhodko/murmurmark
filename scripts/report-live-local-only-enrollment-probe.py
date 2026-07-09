@@ -13,7 +13,7 @@ import numpy as np
 
 
 SCHEMA = "murmurmark.live_local_only_enrollment_probe/v1"
-SCRIPT_VERSION = "0.1.0"
+SCRIPT_VERSION = "0.3.0"
 DEFAULT_CORPUS_REPORT = Path("sessions/_reports/live-pipeline/live_corpus_gates_report.json")
 DEFAULT_OUT = Path("sessions/_reports/live-pipeline/live_local_only_enrollment_probe.json")
 
@@ -42,6 +42,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-remote-db", type=float, default=-55.0)
     parser.add_argument("--max-positive-segments", type=int, default=24)
     parser.add_argument("--max-negative-segments", type=int, default=24)
+    parser.add_argument("--max-live-segments", type=int, default=120)
     parser.add_argument("--padding-sec", type=float, default=0.10)
     parser.add_argument("--write-clips", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
@@ -249,6 +250,22 @@ def build_target_model(tm: Any, positives: list[np.ndarray], negatives: list[np.
     }
 
 
+def accepted_embedding_pairs(
+    rows: list[dict[str, Any]],
+    embeddings: list[np.ndarray],
+) -> list[tuple[dict[str, Any], np.ndarray]]:
+    pairs: list[tuple[dict[str, Any], np.ndarray]] = []
+    embedding_index = 0
+    for row in rows:
+        if not row.get("accepted"):
+            continue
+        if embedding_index >= len(embeddings):
+            break
+        pairs.append((row, embeddings[embedding_index]))
+        embedding_index += 1
+    return pairs
+
+
 def score_embeddings(tm: Any, positives: list[np.ndarray], negatives: list[np.ndarray], model: dict[str, Any]) -> dict[str, Any]:
     positive_scores = [tm.model_score(vector, model) for vector in positives]
     negative_scores = [tm.model_score(vector, model) for vector in negatives]
@@ -405,6 +422,215 @@ def evaluate_blocked_mixed_rows(
     return evaluations
 
 
+def live_suppressed_mic_segments(session: Path, limit: int) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    for chunk_path in sorted((session / "derived/live/chunks").glob("*/chunk.json")):
+        chunk = read_json(chunk_path) or {}
+        mic = chunk.get("mic") if isinstance(chunk.get("mic"), dict) else {}
+        gate = mic.get("live_segment_role_gate") if isinstance(mic.get("live_segment_role_gate"), dict) else {}
+        chunk_index = safe_int(chunk_path.parent.name)
+        for status, key in (("kept", "kept_segments"), ("suppressed", "suppressed_segments")):
+            rows = gate.get(key) if isinstance(gate.get(key), list) else []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                start = safe_float(row.get("start"))
+                end = safe_float(row.get("end"), start)
+                text = " ".join(str(row.get("text") or "").split())
+                normalized = text.casefold()
+                if any(
+                    marker in normalized
+                    for marker in ("продолжение следует", "редактор субтитров", "субтитры создавал")
+                ):
+                    continue
+                if end - start < 0.5 or end - start > 12.0 or len(text.split()) < 2:
+                    continue
+                candidates.append(
+                    {
+                        **row,
+                        "chunk_index": chunk_index,
+                        "segment_gate_status": status,
+                        "segment_gate_reason": row.get("reason"),
+                        "segment_gate_mic_token_recall_in_overlapping_remote": row.get(
+                            "mic_token_recall_in_overlapping_remote"
+                        ),
+                        "segment_gate_overlapping_remote_token_recall_in_mic": row.get(
+                            "overlapping_remote_token_recall_in_mic"
+                        ),
+                        "candidate_source": "live_chunk_segment_role_gate",
+                    }
+                )
+    candidates.sort(key=lambda row: (safe_int(row.get("chunk_index")), safe_float(row.get("start"))))
+    return candidates[:limit] if limit > 0 else candidates
+
+
+def live_chunk_mic_source(session: Path, chunk_index: int) -> tuple[Path | None, float]:
+    chunk = read_json(session / "derived/live/chunks" / f"{chunk_index:06d}" / "chunk.json") or {}
+    mic = chunk.get("mic") if isinstance(chunk.get("mic"), dict) else {}
+    value = mic.get("asr_wav") or mic.get("wav") or mic.get("input")
+    if not value:
+        return None, 0.0
+    path = Path(str(value))
+    if not path.is_absolute():
+        path = session / path
+    clip_start = safe_float(mic.get("clip_start_sec"), safe_float(chunk.get("clip_start_sec")))
+    return path, clip_start
+
+
+def evaluate_live_segments(
+    *,
+    session: Path,
+    rows: list[dict[str, Any]],
+    state_rows: list[dict[str, Any]],
+    model: dict[str, Any],
+    thresholds: dict[str, float],
+    out_dir: Path,
+    backend: Any,
+    tm: Any,
+    args: argparse.Namespace,
+    causal_positive_seeds: list[tuple[dict[str, Any], np.ndarray]] | None = None,
+    causal_negative_seeds: list[tuple[dict[str, Any], np.ndarray]] | None = None,
+) -> list[dict[str, Any]]:
+    evaluations: list[dict[str, Any]] = []
+    for index, row in enumerate(rows, start=1):
+        start = safe_float(row.get("start"))
+        end = safe_float(row.get("end"), start)
+        chunk_index = safe_int(row.get("chunk_index"))
+        source, clip_start = live_chunk_mic_source(session, chunk_index)
+        local_start = max(0.0, start - clip_start - args.padding_sec)
+        duration = max(0.0, end - start) + 2 * args.padding_sec
+        clip = out_dir / "clips/live_segments" / f"segment_{index:04d}_{start:.3f}_{end:.3f}.wav"
+        ok = bool(source) and tm.extract_wav(source, clip, local_start, duration)
+        embedding = None
+        info: dict[str, Any]
+        if ok:
+            embedding, info = backend.embed(clip)
+        else:
+            info = {"error": "extract_failed"}
+        causal = causal_positive_seeds is not None and causal_negative_seeds is not None
+        active_model = model
+        active_thresholds = thresholds
+        enrollment: dict[str, Any] = {"mode": "full_session_noncausal"}
+        enrollment_reasons: list[str] = []
+        if causal:
+            prior_positives = [
+                vector
+                for seed, vector in causal_positive_seeds
+                if safe_float(seed.get("end")) <= start
+            ]
+            prior_negatives = [
+                vector
+                for seed, vector in causal_negative_seeds
+                if safe_float(seed.get("end")) <= start
+            ]
+            enrollment = {
+                "mode": "past_only",
+                "positive_seed_count": len(prior_positives),
+                "negative_seed_count": len(prior_negatives),
+                "cutoff_sec": round(start, 3),
+            }
+            if len(prior_positives) < 3:
+                enrollment_reasons.append("insufficient_past_local_only_seeds")
+            if len(prior_negatives) < 3:
+                enrollment_reasons.append("insufficient_past_remote_only_seeds")
+            if not enrollment_reasons:
+                active_model = build_target_model(tm, prior_positives, prior_negatives)
+                active_score_distribution = score_embeddings(
+                    tm,
+                    prior_positives,
+                    prior_negatives,
+                    active_model,
+                )
+                active_thresholds = target_thresholds(active_score_distribution)
+                enrollment["thresholds"] = active_thresholds
+                enrollment["score_distribution"] = active_score_distribution
+        scores = tm.model_score(embedding, active_model) if not enrollment_reasons else {}
+        state = tm.interval_state_features(state_rows, start, end)
+        target_score = safe_float(scores.get("target_similarity"))
+        positive_score = safe_float(scores.get("positive_similarity"))
+        negative_score = safe_float(scores.get("negative_similarity"))
+        mic_remote_recall = safe_float(row.get("segment_gate_mic_token_recall_in_overlapping_remote"))
+        remote_mic_recall = safe_float(row.get("segment_gate_overlapping_remote_token_recall_in_mic"))
+        reasons: list[str] = list(enrollment_reasons)
+        if embedding is None:
+            reasons.append(info.get("error") or "embedding_failed")
+        if not enrollment_reasons and target_score < safe_float(active_thresholds.get("target_similarity")):
+            reasons.append("below_target_similarity_threshold")
+        if not enrollment_reasons and positive_score < safe_float(active_thresholds.get("positive_similarity")):
+            reasons.append("below_positive_similarity_threshold")
+        if not enrollment_reasons and negative_score > safe_float(active_thresholds.get("negative_similarity_max")):
+            reasons.append("too_close_to_remote_negative")
+        if safe_float(state.get("remote_active_ratio")) > 0.20:
+            reasons.append("remote_active_state_overlap")
+        if safe_float(state.get("local_score_proxy")) < 0.40:
+            reasons.append("weak_local_state")
+        if mic_remote_recall > 0.75 or remote_mic_recall > 0.75:
+            reasons.append("live_text_too_close_to_remote")
+        if not reasons:
+            classification = (
+                "causal_local_only_seed_supports_live_segment"
+                if causal
+                else "local_only_seed_supports_live_segment"
+            )
+        elif any(
+            reason in reasons
+            for reason in (
+                "too_close_to_remote_negative",
+                "remote_active_state_overlap",
+                "live_text_too_close_to_remote",
+            )
+        ):
+            classification = "causal_live_segment_remote_ambiguous" if causal else "live_segment_remote_ambiguous"
+        elif embedding is None:
+            classification = "causal_live_segment_embedding_failed" if causal else "live_segment_embedding_failed"
+        else:
+            classification = (
+                "causal_live_segment_not_supported_by_seed"
+                if causal
+                else "live_segment_not_supported_by_seed"
+            )
+        evaluations.append(
+            {
+                "session": session.name,
+                "chunk_index": chunk_index,
+                "start": round(start, 3),
+                "end": round(end, 3),
+                "duration_sec": round(max(0.0, end - start), 3),
+                "text": row.get("text") or "",
+                "source_audio": "live_chunk_mic",
+                "source_path": str(source) if source else None,
+                "source_clip_start_sec": round(clip_start, 3),
+                "clip": str(clip) if args.write_clips else "",
+                "classification": classification,
+                "reasons": reasons,
+                "thresholds": active_thresholds,
+                "enrollment": enrollment,
+                "scores": {
+                    "target_similarity": round(target_score, 6),
+                    "positive_similarity": round(positive_score, 6),
+                    "negative_similarity": round(negative_score, 6),
+                },
+                "state": state,
+                "live_features": {
+                    "segment_gate_status": row.get("segment_gate_status"),
+                    "segment_gate_reason": row.get("segment_gate_reason"),
+                    "mic_token_recall_in_overlapping_remote": row.get(
+                        "segment_gate_mic_token_recall_in_overlapping_remote"
+                    ),
+                    "overlapping_remote_token_recall_in_mic": row.get(
+                        "segment_gate_overlapping_remote_token_recall_in_mic"
+                    ),
+                    "audio_mic_minus_remote_rms_db": row.get("audio_mic_minus_remote_rms_db"),
+                    "audio_mic_remote_zero_lag_abs_corr": row.get("audio_mic_remote_zero_lag_abs_corr"),
+                },
+                "embedding_info": info,
+                "used_batch_fields_for_selection": False,
+                "publication_allowed": False,
+            }
+        )
+    return evaluations
+
+
 def classify_probe(accepted_positive: int, accepted_negative: int, scores: dict[str, Any]) -> tuple[str, list[str]]:
     reasons: list[str] = []
     if accepted_positive < 3:
@@ -518,6 +744,40 @@ def session_report(
         for row in blocked_mixed_evaluations
         if row.get("classification") == "local_only_seed_supports_blocked_mixed_row"
     ]
+    live_segment_evaluations = evaluate_live_segments(
+        session=session,
+        rows=live_suppressed_mic_segments(session, args.max_live_segments),
+        state_rows=states,
+        model=model,
+        thresholds=thresholds,
+        out_dir=out_dir,
+        backend=backend,
+        tm=tm,
+        args=args,
+    )
+    supported_live_segments = [
+        row
+        for row in live_segment_evaluations
+        if row.get("classification") == "local_only_seed_supports_live_segment"
+    ]
+    causal_live_segment_evaluations = evaluate_live_segments(
+        session=session,
+        rows=live_suppressed_mic_segments(session, args.max_live_segments),
+        state_rows=states,
+        model=model,
+        thresholds=thresholds,
+        out_dir=out_dir / "causal",
+        backend=backend,
+        tm=tm,
+        args=args,
+        causal_positive_seeds=accepted_embedding_pairs(positives, positive_embeddings),
+        causal_negative_seeds=accepted_embedding_pairs(negatives, negative_embeddings),
+    )
+    supported_causal_live_segments = [
+        row
+        for row in causal_live_segment_evaluations
+        if row.get("classification") == "causal_local_only_seed_supports_live_segment"
+    ]
     report = {
         "schema": SCHEMA,
         "generator": {"name": "report-live-local-only-enrollment-probe", "version": SCRIPT_VERSION},
@@ -545,6 +805,7 @@ def session_report(
             "min_remote_db": args.min_remote_db,
             "max_positive_segments": args.max_positive_segments,
             "max_negative_segments": args.max_negative_segments,
+            "max_live_segments": args.max_live_segments,
         },
         "positive_candidate_count": len(positive_candidates),
         "positive_accepted_count": accepted_positive,
@@ -561,6 +822,20 @@ def session_report(
             3,
         ),
         "blocked_mixed_evaluations": blocked_mixed_evaluations,
+        "live_segment_evaluated_count": len(live_segment_evaluations),
+        "live_segment_supported_count": len(supported_live_segments),
+        "live_segment_supported_seconds": round(
+            sum(safe_float(row.get("duration_sec")) for row in supported_live_segments),
+            3,
+        ),
+        "live_segment_evaluations": live_segment_evaluations,
+        "causal_live_segment_evaluated_count": len(causal_live_segment_evaluations),
+        "causal_live_segment_supported_count": len(supported_causal_live_segments),
+        "causal_live_segment_supported_seconds": round(
+            sum(safe_float(row.get("duration_sec")) for row in supported_causal_live_segments),
+            3,
+        ),
+        "causal_live_segment_evaluations": causal_live_segment_evaluations,
         "positive_segments": positives,
         "negative_segments": negatives,
     }
@@ -573,6 +848,10 @@ def corpus_summary(session_reports: list[dict[str, Any]], backend_status: dict[s
     supported_seconds = 0.0
     supported_count = 0
     evaluated_count = 0
+    live_segment_supported_count = 0
+    live_segment_supported_seconds = 0.0
+    causal_live_segment_supported_count = 0
+    causal_live_segment_supported_seconds = 0.0
     for report in session_reports:
         status = str(report.get("status") or "unknown")
         payload = by_status.setdefault(status, {"count": 0, "positive_seconds": 0.0})
@@ -584,9 +863,22 @@ def corpus_summary(session_reports: list[dict[str, Any]], backend_status: dict[s
         supported_count += safe_int(report.get("blocked_mixed_supported_count"))
         supported_seconds += safe_float(report.get("blocked_mixed_supported_seconds"))
         evaluated_count += safe_int(report.get("blocked_mixed_row_count"))
+        live_segment_supported_count += safe_int(report.get("live_segment_supported_count"))
+        live_segment_supported_seconds += safe_float(report.get("live_segment_supported_seconds"))
+        causal_live_segment_supported_count += safe_int(report.get("causal_live_segment_supported_count"))
+        causal_live_segment_supported_seconds += safe_float(report.get("causal_live_segment_supported_seconds"))
     ready = [report for report in session_reports if report.get("status") == "local_only_enrollment_probe_ready"]
     ambiguous = [report for report in session_reports if "ambiguous" in str(report.get("status") or "")]
-    if supported_seconds > 0:
+    if causal_live_segment_supported_seconds > 0:
+        recommended_next = {
+            "id": "materialize_causal_local_only_seed_live_segment_shadow",
+            "why": (
+                "past-only same-session enrollment supports closed live mic segments; materialize "
+                "causal micro-ASR candidates and run parity gates"
+            ),
+            "supported_seconds": round(causal_live_segment_supported_seconds, 3),
+        }
+    elif supported_seconds > 0:
         recommended_next = {
             "id": "materialize_local_only_seed_mixed_row_shadow",
             "why": "local-only seed models support some blocked mixed rows; materialize a diagnostic shadow and run parity gates",
@@ -620,6 +912,10 @@ def corpus_summary(session_reports: list[dict[str, Any]], backend_status: dict[s
         "blocked_mixed_evaluated_count": evaluated_count,
         "blocked_mixed_supported_count": supported_count,
         "blocked_mixed_supported_seconds": round(supported_seconds, 3),
+        "live_segment_supported_count": live_segment_supported_count,
+        "live_segment_supported_seconds": round(live_segment_supported_seconds, 3),
+        "causal_live_segment_supported_count": causal_live_segment_supported_count,
+        "causal_live_segment_supported_seconds": round(causal_live_segment_supported_seconds, 3),
         "recommended_next": recommended_next,
         "sessions": [
             {
@@ -633,6 +929,10 @@ def corpus_summary(session_reports: list[dict[str, Any]], backend_status: dict[s
                 "blocked_mixed_row_count": report.get("blocked_mixed_row_count"),
                 "blocked_mixed_supported_count": report.get("blocked_mixed_supported_count"),
                 "blocked_mixed_supported_seconds": report.get("blocked_mixed_supported_seconds"),
+                "live_segment_supported_count": report.get("live_segment_supported_count"),
+                "live_segment_supported_seconds": report.get("live_segment_supported_seconds"),
+                "causal_live_segment_supported_count": report.get("causal_live_segment_supported_count"),
+                "causal_live_segment_supported_seconds": report.get("causal_live_segment_supported_seconds"),
                 "scores": report.get("scores"),
                 "summary_path": (
                     f"sessions/{report.get('session')}/derived/audit/live-local-only-enrollment-probe/"

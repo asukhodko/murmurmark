@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.6.0"
 SCHEMA = "murmurmark.live_boundary_island_micro_asr_lab/v1"
 DEFAULT_MODEL = "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
@@ -36,13 +36,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-candidates", type=int, default=10)
     parser.add_argument(
         "--candidate-source",
-        choices=("design-lab", "live-only", "live-duplicate-heavy", "target-me-remote-gap", "blocker-analysis"),
+        choices=(
+            "design-lab",
+            "live-only",
+            "live-duplicate-heavy",
+            "target-me-remote-gap",
+            "local-only-seed-mixed-row",
+            "local-only-seed-live-segment",
+            "causal-local-only-seed-live-segment",
+            "blocker-analysis",
+        ),
         default="design-lab",
         help=(
             "design-lab uses batch-informed design examples; live-only selects candidates "
             "from live comparison rows using only live/audio evidence; live-duplicate-heavy "
             "selects live-only duplicate-heavy suppressed mic rows; target-me-remote-gap selects "
-            "strongly confirmed Target-Me gaps with weak full-chunk token alignment; blocker-analysis uses "
+            "strongly confirmed Target-Me gaps with weak full-chunk token alignment; "
+            "local-only-seed-mixed-row probes batch-selected rows supported by a same-session local-only "
+            "voice model; local-only-seed-live-segment groups supported closed live mic segments without "
+            "batch fields; causal-local-only-seed-live-segment additionally limits speaker enrollment to "
+            "audio committed before each candidate; blocker-analysis uses "
             "capture-safe local recall blocker rows from the live corpus report."
         ),
     )
@@ -65,6 +78,12 @@ def output_paths(out_dir: Path, candidate_source: str) -> dict[str, Path]:
         stem = "live_duplicate_heavy_micro_asr_lab"
     elif candidate_source == "target-me-remote-gap":
         stem = "live_target_me_remote_gap_micro_asr_lab"
+    elif candidate_source == "local-only-seed-mixed-row":
+        stem = "live_local_only_seed_mixed_row_micro_asr_lab"
+    elif candidate_source == "local-only-seed-live-segment":
+        stem = "live_local_only_seed_live_segment_micro_asr_lab"
+    elif candidate_source == "causal-local-only-seed-live-segment":
+        stem = "live_causal_local_only_seed_live_segment_micro_asr_lab"
     else:
         stem = "live_boundary_island_micro_asr_lab"
     return {
@@ -643,6 +662,250 @@ def select_target_me_remote_gap_candidates(
     return candidates[:max_candidates], rejected
 
 
+def select_local_only_seed_mixed_row_candidates(
+    sessions_root: Path,
+    max_candidates: int,
+    corpus_report: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    candidates: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    remaining_gap = (
+        corpus_report.get("live_target_me_shadow_profile_best_live_implementable_remaining_gap")
+        if isinstance(corpus_report, dict)
+        else {}
+    )
+    gap_examples = (
+        remaining_gap.get("examples")
+        if isinstance(remaining_gap, dict) and isinstance(remaining_gap.get("examples"), list)
+        else []
+    )
+    gap_by_key = {
+        (str(row.get("session") or ""), str(row.get("batch_id") or "")): row
+        for row in gap_examples
+        if isinstance(row, dict)
+    }
+    for session in sorted(path for path in sessions_root.iterdir() if path.is_dir()):
+        summary_path = (
+            session
+            / "derived/audit/live-local-only-enrollment-probe/live_local_only_enrollment_probe_summary.json"
+        )
+        if not summary_path.exists():
+            continue
+        summary = read_json(summary_path)
+        rows = summary.get("blocked_mixed_evaluations") if isinstance(summary, dict) else []
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, dict):
+                continue
+            if row.get("classification") != "local_only_seed_supports_blocked_mixed_row":
+                rejected.append(
+                    {
+                        "session": session.name,
+                        "candidate_source": "local-only-seed-mixed-row",
+                        "batch_id": row.get("batch_id"),
+                        "start": row.get("start"),
+                        "end": row.get("end"),
+                        "reason": "same_session_voice_probe_not_supported",
+                        "classification": row.get("classification"),
+                    }
+                )
+                continue
+            start = safe_float(row.get("start"))
+            end = safe_float(row.get("end"), start)
+            text = clean_text(str(row.get("text") or ""))
+            if end <= start or not text:
+                rejected.append(
+                    {
+                        "session": session.name,
+                        "candidate_source": "local-only-seed-mixed-row",
+                        "batch_id": row.get("batch_id"),
+                        "start": row.get("start"),
+                        "end": row.get("end"),
+                        "reason": "invalid_supported_probe_interval",
+                    }
+                )
+                continue
+            gap = gap_by_key.get((session.name, str(row.get("batch_id") or ""))) or {}
+            actionability = gap.get("actionability") if isinstance(gap.get("actionability"), dict) else {}
+            segmentability = (
+                actionability.get("segmentability")
+                if isinstance(actionability.get("segmentability"), dict)
+                else {}
+            )
+            local_islands = (
+                segmentability.get("local_island_examples")
+                if isinstance(segmentability.get("local_island_examples"), list)
+                else []
+            )
+            island_text = clean_text(
+                " ".join(
+                    str(item.get("text") or "")
+                    for item in local_islands
+                    if isinstance(item, dict)
+                )
+            )
+            if not island_text:
+                suppressed = gap.get("suppressed_mic_evidence") if isinstance(gap.get("suppressed_mic_evidence"), list) else []
+                island_text = clean_text(
+                    " ".join(
+                        str(item.get("text") or "")
+                        for item in suppressed
+                        if isinstance(item, dict)
+                        and item.get("batch_role_label") in {"me_dominant", "mixed"}
+                    )
+                )
+            candidates.append(
+                {
+                    "session": session.name,
+                    "batch_id": row.get("batch_id"),
+                    "text": text,
+                    "local_island_examples": [
+                        {
+                            "start": round(start, 3),
+                            "end": round(end, 3),
+                            "duration_sec": round(end - start, 3),
+                            "text": island_text,
+                        }
+                    ],
+                    "selection_features": {
+                        "candidate_source": "local-only-seed-mixed-row",
+                        "selection_uses_batch_interval": True,
+                        "same_session_voice_classification": row.get("classification"),
+                        "same_session_voice_scores": row.get("scores"),
+                        "same_session_state": row.get("state"),
+                        "probe_summary": str(summary_path),
+                        "existing_live_island_text": island_text,
+                    },
+                }
+            )
+    candidates.sort(
+        key=lambda row: (
+            -safe_float((row.get("local_island_examples") or [{}])[0].get("duration_sec")),
+            str(row.get("session") or ""),
+            safe_float((row.get("local_island_examples") or [{}])[0].get("start")),
+        )
+    )
+    return candidates[:max_candidates], rejected
+
+
+def select_local_only_seed_live_segment_candidates(
+    sessions_root: Path,
+    max_candidates: int,
+    *,
+    causal: bool = False,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    groups: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    max_group_sec = 12.0
+    max_gap_sec = 0.75
+    for session in sorted(path for path in sessions_root.iterdir() if path.is_dir()):
+        summary_path = (
+            session
+            / "derived/audit/live-local-only-enrollment-probe/live_local_only_enrollment_probe_summary.json"
+        )
+        if not summary_path.exists():
+            continue
+        summary = read_json(summary_path)
+        rows_key = "causal_live_segment_evaluations" if causal else "live_segment_evaluations"
+        supported_classification = (
+            "causal_local_only_seed_supports_live_segment"
+            if causal
+            else "local_only_seed_supports_live_segment"
+        )
+        candidate_source = (
+            "causal-local-only-seed-live-segment"
+            if causal
+            else "local-only-seed-live-segment"
+        )
+        rows = summary.get(rows_key) if isinstance(summary, dict) else []
+        supported = [
+            row
+            for row in rows if isinstance(rows, list) and isinstance(row, dict)
+            if row.get("classification") == supported_classification
+        ]
+        supported.sort(
+            key=lambda row: (
+                safe_int(row.get("chunk_index")),
+                safe_float(row.get("start")),
+                safe_float(row.get("end")),
+            )
+        )
+        current: list[dict[str, Any]] = []
+
+        def flush() -> None:
+            nonlocal current
+            if not current:
+                return
+            start = safe_float(current[0].get("start"))
+            end = safe_float(current[-1].get("end"), start)
+            text = clean_text(" ".join(str(row.get("text") or "") for row in current))
+            suppressed_count = sum(
+                1
+                for row in current
+                if (row.get("live_features") or {}).get("segment_gate_status") == "suppressed"
+            )
+            if end > start and len(tokens(text)) >= 2:
+                groups.append(
+                    {
+                        "session": session.name,
+                        "batch_id": None,
+                        "text": text,
+                        "local_island_examples": [
+                            {
+                                "start": round(start, 3),
+                                "end": round(end, 3),
+                                "duration_sec": round(end - start, 3),
+                                "text": text,
+                            }
+                        ],
+                        "selection_features": {
+                            "candidate_source": candidate_source,
+                            "used_batch_fields_for_selection": False,
+                            "enrollment_scope": "past_only" if causal else "same_session_full_context_noncausal",
+                            "chunk_index": current[0].get("chunk_index"),
+                            "segment_count": len(current),
+                            "suppressed_segment_count": suppressed_count,
+                            "segments": [
+                                {
+                                    "start": row.get("start"),
+                                    "end": row.get("end"),
+                                    "text": row.get("text"),
+                                    "classification": row.get("classification"),
+                                    "scores": row.get("scores"),
+                                    "enrollment": row.get("enrollment"),
+                                    "live_features": row.get("live_features"),
+                                }
+                                for row in current
+                            ],
+                            "probe_summary": str(summary_path),
+                        },
+                    }
+                )
+            current = []
+
+        for row in supported:
+            if not current:
+                current = [row]
+                continue
+            same_chunk = safe_int(row.get("chunk_index")) == safe_int(current[-1].get("chunk_index"))
+            gap = safe_float(row.get("start")) - safe_float(current[-1].get("end"))
+            group_duration = safe_float(row.get("end")) - safe_float(current[0].get("start"))
+            if same_chunk and gap <= max_gap_sec and group_duration <= max_group_sec:
+                current.append(row)
+            else:
+                flush()
+                current = [row]
+        flush()
+    groups.sort(
+        key=lambda row: (
+            -safe_int((row.get("selection_features") or {}).get("suppressed_segment_count")),
+            -safe_float((row.get("local_island_examples") or [{}])[0].get("duration_sec")),
+            str(row.get("session") or ""),
+            safe_float((row.get("local_island_examples") or [{}])[0].get("start")),
+        )
+    )
+    return groups[:max_candidates], rejected
+
+
 def output_stem(*, candidate_index: int, island_index: int, source_label: str, window_label: str) -> str:
     safe_label = re.sub(r"[^0-9A-Za-z_.-]+", "_", source_label)
     safe_window = re.sub(r"[^0-9A-Za-z_.-]+", "_", window_label)
@@ -1083,6 +1346,23 @@ def main() -> int:
             args.sessions_root,
             args.max_candidates,
         )
+    elif args.candidate_source == "local-only-seed-mixed-row":
+        candidates, rejected_candidates = select_local_only_seed_mixed_row_candidates(
+            args.sessions_root,
+            args.max_candidates,
+            corpus_report,
+        )
+    elif args.candidate_source == "local-only-seed-live-segment":
+        candidates, rejected_candidates = select_local_only_seed_live_segment_candidates(
+            args.sessions_root,
+            args.max_candidates,
+        )
+    elif args.candidate_source == "causal-local-only-seed-live-segment":
+        candidates, rejected_candidates = select_local_only_seed_live_segment_candidates(
+            args.sessions_root,
+            args.max_candidates,
+            causal=True,
+        )
     elif args.candidate_source == "blocker-analysis":
         candidates = select_blocker_analysis_candidates(corpus_report, args.max_candidates)
     else:
@@ -1092,8 +1372,15 @@ def main() -> int:
     attempts_jsonl = paths["attempts_jsonl"]
     report_json = paths["report_json"]
     report_md = paths["report_md"]
-    live_only_sources = {"live-only", "live-duplicate-heavy", "target-me-remote-gap"}
-    effective_source_scope = "live" if args.candidate_source in live_only_sources else args.source_scope
+    live_only_sources = {
+        "live-only",
+        "live-duplicate-heavy",
+        "target-me-remote-gap",
+        "local-only-seed-live-segment",
+        "causal-local-only-seed-live-segment",
+    }
+    forced_live_audio_sources = live_only_sources | {"local-only-seed-mixed-row"}
+    effective_source_scope = "live" if args.candidate_source in forced_live_audio_sources else args.source_scope
 
     windows = [
         ("tight", 0.3, 0.3),
@@ -1181,7 +1468,12 @@ def main() -> int:
             best_reference = reference_successful[0] if reference_successful else None
             best = best_live or best_reference or (successful[0] if successful else None)
             remote_text = str(best.get("remote_text") or "") if isinstance(best, dict) else ""
-            if args.candidate_source in {"live-only", "target-me-remote-gap"}:
+            if args.candidate_source in {
+                "live-only",
+                "target-me-remote-gap",
+                "local-only-seed-live-segment",
+                "causal-local-only-seed-live-segment",
+            }:
                 decision = classify_best_live_only_attempt(
                     best=best,
                     source_text=island_text or batch_text,

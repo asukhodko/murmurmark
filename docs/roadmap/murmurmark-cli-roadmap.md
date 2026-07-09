@@ -564,6 +564,12 @@ newer run-state exists.
    `10.74s`, rejects `3` unsafe or already-covered candidates and closes the remaining known
    Target-Me row / `4.68s` (`719.49s -> 714.81s`). The next step is the broader classified
    local-recall queue, not further tuning of this one row.
+   The causal local-only enrollment probe now supports `33` closed live segments / `111.18s` using
+   only seeds from the past. Focused micro-ASR accepts `13` groups / `62.54s`; the diagnostic corpus
+   profile lowers missing Me to `683.55s` (`31.26s` recovered) without changing remote-like Me or
+   order counters. This establishes the next implementation target: progressive enrollment and
+   focused micro-ASR inside the sidecar. The profile remains non-promotable until that runtime path
+   exists and passes the same corpus gates.
    The diagnostic boundary-order retime oracle remains non-promotable evidence: timing repair needs
    local-speaker preservation and must not relax remote-forbidden gates.
    The split/retime oracle preserves the local prefix (`1 / 6.62s`) and keeps missing-Me unchanged

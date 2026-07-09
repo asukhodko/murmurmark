@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.33.0"
+SCRIPT_VERSION = "1.35.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -104,6 +104,21 @@ TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY = (
     "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
     "target_me_remote_gap_trim_micro_asr_v1"
 )
+LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
+    "target_me_remote_gap_trim_micro_asr_local_only_seed_mixed_row_lab_v1"
+)
+LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
+    "target_me_remote_gap_trim_micro_asr_local_only_seed_live_segment_lab_v1"
+)
+CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
+    "target_me_remote_gap_trim_micro_asr_causal_local_seed_live_lab_v1"
+)
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -152,6 +167,9 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
+    CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -1716,13 +1734,21 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             "batch_remote_forbidden" not in policy
             and "_oracle" not in policy
             and policy != LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY
+            and policy != LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY
+            and policy != LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY
+            and policy != CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY
         )
         diagnostic_kind = (
             "live_implementable"
             if live_implementable
             else (
                 "lab_shadow"
-                if policy == LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY
+                if policy in {
+                    LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
+                    LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY,
+                    LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
+                    CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
+                }
                 else "live_only_shadow"
                 if policy == LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY
                 else "oracle"

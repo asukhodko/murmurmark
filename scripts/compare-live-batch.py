@@ -16,7 +16,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.34.0"
+SCRIPT_VERSION = "0.35.0"
 EPSILON = 1.0e-12
 LIVE_BATCH_BOUNDARY_TOLERANCE_SEC = 2.5
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -146,6 +146,21 @@ TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY = (
     "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
     "target_me_remote_gap_trim_micro_asr_v1"
 )
+LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
+    "target_me_remote_gap_trim_micro_asr_local_only_seed_mixed_row_lab_v1"
+)
+LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
+    "target_me_remote_gap_trim_micro_asr_local_only_seed_live_segment_lab_v1"
+)
+CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
+    "target_me_remote_gap_trim_micro_asr_causal_local_seed_live_lab_v1"
+)
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -198,6 +213,9 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
+    CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -268,6 +286,15 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY: (
@@ -423,6 +450,9 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
+    CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
@@ -433,18 +463,39 @@ VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICIES = {
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
+    CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
 }
 TOKEN_DENSITY_BOUNDARY_RETIME_PROFILE_POLICIES = {
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
+    CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
 }
 TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICIES = {
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
+    CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
 }
 TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICIES = {
     TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY,
+    LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
+    CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
+}
+LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICIES = {
+    LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY,
+}
+LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES = {
+    LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
+}
+CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES = {
+    CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
 }
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
@@ -5447,6 +5498,9 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "target_me_remote_gap_removed_remote_stem_groups",
         "target_me_remote_gap_asr_json",
         "target_me_remote_gap_micro_asr_shadow",
+        "local_only_seed_mixed_row_micro_asr_shadow",
+        "local_only_seed_live_segment_micro_asr_shadow",
+        "causal_local_only_seed_live_segment_micro_asr_shadow",
         "segment_gate_status",
         "segment_gate_reason",
         "segment_gate_unique_token_count",
@@ -5473,6 +5527,9 @@ def target_me_shadow_profile_is_live_implementable(policy: str) -> bool:
     return not (
         target_me_shadow_profile_is_oracle(policy)
         or policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
+        or policy in LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICIES
+        or policy in LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES
+        or policy in CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES
         or policy in REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES
     )
 
@@ -5482,6 +5539,12 @@ def target_me_shadow_profile_promotion_reason(policy: str) -> str:
         return "batch_oracle_shadow_profile_is_not_live_promotable"
     if policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES:
         return "live_boundary_micro_asr_lab_shadow_is_diagnostic_only"
+    if policy in LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICIES:
+        return "local_only_seed_mixed_row_micro_asr_uses_batch_selected_intervals"
+    if policy in LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES:
+        return "local_only_seed_live_segment_micro_asr_uses_full_session_noncausal_enrollment"
+    if policy in CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES:
+        return "causal_local_only_seed_live_segment_not_runtime_integrated"
     if policy in REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES:
         return "remote_guarded_voice_boundary_shadow_uses_batch_anchor_and_is_diagnostic_only"
     return "target_me_shadow_profile_never_promotes_by_default"
@@ -5492,8 +5555,37 @@ def live_boundary_micro_asr_lab_shadow_turns(
     *,
     candidate_source: str = "design-lab",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    live_only_candidate_sources = {"live-only", "target-me-remote-gap"}
-    if candidate_source == "target-me-remote-gap":
+    live_only_candidate_sources = {
+        "live-only",
+        "target-me-remote-gap",
+        "local-only-seed-live-segment",
+        "causal-local-only-seed-live-segment",
+    }
+    if candidate_source == "causal-local-only-seed-live-segment":
+        report_path = session.parent / "_reports/live-pipeline/live_causal_local_only_seed_live_segment_micro_asr_lab.json"
+        accepted_label = "micro_asr_live_only_alignment_candidate"
+        id_prefix = "live_causal_local_only_seed_live_segment_micro_asr_shadow"
+        rejected_prefix = "live_causal_local_only_seed_live_segment_micro_asr_rejected"
+        source_name = "mic_causal_local_only_seed_live_segment_micro_asr_shadow"
+        classifier_name = "causal_local_only_seed_live_segment_micro_asr_shadow_v1"
+        flag_name = "causal_local_only_seed_live_segment_micro_asr_shadow"
+    elif candidate_source == "local-only-seed-live-segment":
+        report_path = session.parent / "_reports/live-pipeline/live_local_only_seed_live_segment_micro_asr_lab.json"
+        accepted_label = "micro_asr_live_only_alignment_candidate"
+        id_prefix = "live_local_only_seed_live_segment_micro_asr_shadow"
+        rejected_prefix = "live_local_only_seed_live_segment_micro_asr_rejected"
+        source_name = "mic_local_only_seed_live_segment_micro_asr_shadow"
+        classifier_name = "local_only_seed_live_segment_micro_asr_shadow_v1"
+        flag_name = "local_only_seed_live_segment_micro_asr_shadow"
+    elif candidate_source == "local-only-seed-mixed-row":
+        report_path = session.parent / "_reports/live-pipeline/live_local_only_seed_mixed_row_micro_asr_lab.json"
+        accepted_label = "micro_asr_alignment_candidate"
+        id_prefix = "live_local_only_seed_mixed_row_micro_asr_shadow"
+        rejected_prefix = "live_local_only_seed_mixed_row_micro_asr_rejected"
+        source_name = "mic_local_only_seed_mixed_row_micro_asr_shadow"
+        classifier_name = "local_only_seed_mixed_row_micro_asr_shadow_v1"
+        flag_name = "local_only_seed_mixed_row_micro_asr_shadow"
+    elif candidate_source == "target-me-remote-gap":
         report_path = session.parent / "_reports/live-pipeline/live_target_me_remote_gap_micro_asr_lab.json"
         accepted_label = "micro_asr_live_only_alignment_candidate"
         id_prefix = "live_target_me_remote_gap_micro_asr_shadow"
@@ -5920,6 +6012,66 @@ def target_me_shadow_profile_components(
         )
         rejected_supplemental_turns.extend(rejected_micro_asr_turns)
         rejected_supplemental_turns.extend(rejected_covered_micro_asr_turns)
+    if policy in LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICIES:
+        seed_micro_asr_turns, rejected_seed_micro_asr_turns = live_boundary_micro_asr_lab_shadow_turns(
+            session,
+            candidate_source="local-only-seed-mixed-row",
+        )
+        seed_micro_asr_turns, rejected_covered_seed_micro_asr_turns = filter_micro_asr_turns_covered_by_base(
+            seed_micro_asr_turns,
+            live_turns + target_turns + supplemental_turns,
+        )
+        seed_micro_asr_turns, rejected_timeline_seed_micro_asr_turns = timeline_safe_visible_suppressed_mic_turns(
+            candidates=seed_micro_asr_turns,
+            base_turns=live_turns + target_turns + supplemental_turns,
+            batch_utterances=batch_utterances,
+        )
+        supplemental_turns = dedupe_supplemental_turns_by_interval(
+            supplemental_turns + seed_micro_asr_turns,
+        )
+        rejected_supplemental_turns.extend(rejected_seed_micro_asr_turns)
+        rejected_supplemental_turns.extend(rejected_covered_seed_micro_asr_turns)
+        rejected_supplemental_turns.extend(rejected_timeline_seed_micro_asr_turns)
+    if policy in LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES:
+        live_seed_turns, rejected_live_seed_turns = live_boundary_micro_asr_lab_shadow_turns(
+            session,
+            candidate_source="local-only-seed-live-segment",
+        )
+        live_seed_turns, rejected_covered_live_seed_turns = filter_micro_asr_turns_covered_by_base(
+            live_seed_turns,
+            live_turns + target_turns + supplemental_turns,
+        )
+        live_seed_turns, rejected_timeline_live_seed_turns = timeline_safe_visible_suppressed_mic_turns(
+            candidates=live_seed_turns,
+            base_turns=live_turns + target_turns + supplemental_turns,
+            batch_utterances=batch_utterances,
+        )
+        supplemental_turns = dedupe_supplemental_turns_by_interval(
+            supplemental_turns + live_seed_turns,
+        )
+        rejected_supplemental_turns.extend(rejected_live_seed_turns)
+        rejected_supplemental_turns.extend(rejected_covered_live_seed_turns)
+        rejected_supplemental_turns.extend(rejected_timeline_live_seed_turns)
+    if policy in CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES:
+        causal_seed_turns, rejected_causal_seed_turns = live_boundary_micro_asr_lab_shadow_turns(
+            session,
+            candidate_source="causal-local-only-seed-live-segment",
+        )
+        causal_seed_turns, rejected_covered_causal_seed_turns = filter_micro_asr_turns_covered_by_base(
+            causal_seed_turns,
+            live_turns + target_turns + supplemental_turns,
+        )
+        causal_seed_turns, rejected_timeline_causal_seed_turns = timeline_safe_visible_suppressed_mic_turns(
+            candidates=causal_seed_turns,
+            base_turns=live_turns + target_turns + supplemental_turns,
+            batch_utterances=batch_utterances,
+        )
+        supplemental_turns = dedupe_supplemental_turns_by_interval(
+            supplemental_turns + causal_seed_turns,
+        )
+        rejected_supplemental_turns.extend(rejected_causal_seed_turns)
+        rejected_supplemental_turns.extend(rejected_covered_causal_seed_turns)
+        rejected_supplemental_turns.extend(rejected_timeline_causal_seed_turns)
     if (
         policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
         or policy in LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICIES
@@ -6110,6 +6262,9 @@ def write_target_me_shadow_drafts(
             "diagnostic_oracle": target_me_shadow_profile_is_oracle(policy),
             "diagnostic_lab": (
                 policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
+                or policy in LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICIES
+                or policy in LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES
+                or policy in CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES
                 or policy in REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES
             ),
             "live_implementable": target_me_shadow_profile_is_live_implementable(policy),
@@ -6527,6 +6682,9 @@ def build_target_me_shadow_profiles(
             "live_implementable": target_me_shadow_profile_is_live_implementable(policy),
             "diagnostic_lab": (
                 policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
+                or policy in LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICIES
+                or policy in LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES
+                or policy in CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES
                 or policy in REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES
             ),
             "promotion_allowed": False,
