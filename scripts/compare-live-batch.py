@@ -123,6 +123,10 @@ LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_v1"
 )
+LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_v1"
+)
 BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1"
@@ -154,6 +158,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
+    LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
     BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
@@ -205,6 +210,9 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY: (
@@ -296,6 +304,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
+    LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
     BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
     (
@@ -337,6 +346,9 @@ REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICIES = {
 }
 LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES = {
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
+}
+LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
+    LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
 }
 BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES = {
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
@@ -1426,6 +1438,8 @@ def apply_boundary_order_split_retime_oracle(
                 prefix_turn["end"] = prefix_end
                 prefix_turn["text"] = prefix_text
                 prefix_turn["tokens"] = tokens(prefix_text)
+                if adjustment.get("policy") == LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY:
+                    prefix_turn["boundary_order_live_split_retime"] = True
                 prefix_turn["boundary_order_split_retime_oracle"] = True
                 prefix_turn["boundary_order_split_part"] = "preserved_prefix"
                 prefix_turn["boundary_order_split_original_id"] = turn_id
@@ -1441,6 +1455,8 @@ def apply_boundary_order_split_retime_oracle(
                 suffix_turn["end"] = original_end
                 suffix_turn["text"] = suffix_text
                 suffix_turn["tokens"] = tokens(suffix_text)
+                if adjustment.get("policy") == LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY:
+                    suffix_turn["boundary_order_live_split_retime"] = True
                 suffix_turn["boundary_order_retime_oracle"] = True
                 suffix_turn["boundary_order_split_retime_oracle"] = True
                 suffix_turn["boundary_order_split_part"] = "retimed_suffix"
@@ -1459,6 +1475,147 @@ def apply_boundary_order_split_retime_oracle(
         new_turn = dict(turn)
         new_turn["start"] = retimed_start
         new_turn["boundary_order_retime_oracle"] = True
+        new_turn["boundary_order_retime_original_start"] = adjustment.get("original_start")
+        new_turn["boundary_order_retime_original_end"] = adjustment.get("original_end")
+        new_turn["boundary_order_retime_trimmed_leading_seconds"] = adjustment.get("trimmed_leading_seconds")
+        new_turn["boundary_order_retime_overlap_seconds"] = adjustment.get("overlap_seconds")
+        new_turn["boundary_order_retime_counterpart_id"] = adjustment.get("current_live_id")
+        new_turn["boundary_order_retime_reason"] = adjustment.get("reason")
+        adjusted.append(new_turn)
+    return sorted(
+        adjusted,
+        key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+    )
+
+
+def live_boundary_split_retime_adjustments(turns: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    sorted_turns = sorted(
+        turns,
+        key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+    )
+    adjustments: dict[str, dict[str, Any]] = {}
+    for previous, current in zip(sorted_turns, sorted_turns[1:]):
+        previous_id = str(previous.get("id") or "")
+        current_id = str(current.get("id") or "")
+        if not previous_id or not current_id:
+            continue
+        if safe_int(previous.get("chunk_index")) != safe_int(current.get("chunk_index")):
+            continue
+        if previous.get("source") == current.get("source"):
+            continue
+        previous_start = safe_float(previous.get("start"))
+        previous_end = safe_float(previous.get("end"), previous_start)
+        current_start = safe_float(current.get("start"))
+        current_end = safe_float(current.get("end"), current_start)
+        overlap = interval_overlap(previous_start, previous_end, current_start, current_end)
+        if overlap < 0.3:
+            continue
+
+        previous_role = str(previous.get("role") or "")
+        current_role = str(current.get("role") or "")
+        previous_source = str(previous.get("source") or "")
+        current_source = str(current.get("source") or "")
+        if (
+            previous_role == "Me"
+            and current_role == "Colleagues"
+            and previous_source == "mic_segment"
+            and current_source == "remote_segment"
+            and previous_start < current_start < previous_end
+        ):
+            features = text_features_against_remote(str(previous.get("text") or ""), tokens(str(current.get("text") or "")))
+            if (
+                safe_int(features.get("overlapping_remote_token_count")) >= 3
+                and (
+                    safe_float(features.get("overlapping_remote_token_recall_in_mic")) >= 0.45
+                    or safe_float(features.get("mic_token_recall_in_overlapping_remote")) >= 0.20
+                )
+            ):
+                adjustments[previous_id] = {
+                    "policy": LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+                    "reason": "live_mic_remote_text_overlap_boundary_split",
+                    "previous_live_id": previous_id,
+                    "current_live_id": current_id,
+                    "original_start": round(previous_start, 3),
+                    "original_end": round(previous_end, 3),
+                    "retimed_start": round(max(previous_start, current_end), 3),
+                    "retimed_end": round(previous_end, 3),
+                    "trimmed_leading_seconds": round(max(previous_start, current_end) - previous_start, 3),
+                    "overlap_seconds": round(overlap, 3),
+                    "current_start": round(current_start, 3),
+                    "current_end": round(current_end, 3),
+                    "current_source": current.get("source"),
+                    "current_role": current.get("role"),
+                    "current_text": current.get("text"),
+                    "previous_source": previous.get("source"),
+                    "previous_role": previous.get("role"),
+                    "previous_text": previous.get("text"),
+                    "live_features": features,
+                }
+        elif (
+            previous_role == "Colleagues"
+            and current_role == "Me"
+            and previous_source == "remote_segment"
+            and current_source == "mic_segment"
+            and previous_start < current_start < previous_end
+        ):
+            previous_duration = previous_end - previous_start
+            previous_content_tokens = len(content_tokens(str(previous.get("text") or "")))
+            seconds_per_content_token = previous_duration / max(1, previous_content_tokens)
+            if previous_duration >= 8.0 and seconds_per_content_token >= 3.0 and overlap >= 2.0:
+                new_start = max(previous_start, current_end)
+                if previous_end - new_start >= 0.3:
+                    adjustments[previous_id] = {
+                        "policy": LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+                        "reason": "live_remote_short_text_long_segment_overlaps_mic_boundary",
+                        "previous_live_id": previous_id,
+                        "current_live_id": current_id,
+                        "original_start": round(previous_start, 3),
+                        "original_end": round(previous_end, 3),
+                        "retimed_start": round(new_start, 3),
+                        "retimed_end": round(previous_end, 3),
+                        "trimmed_leading_seconds": round(new_start - previous_start, 3),
+                        "overlap_seconds": round(overlap, 3),
+                        "current_start": round(current_start, 3),
+                        "current_end": round(current_end, 3),
+                        "current_source": current.get("source"),
+                        "current_role": current.get("role"),
+                        "current_text": current.get("text"),
+                        "previous_source": previous.get("source"),
+                        "previous_role": previous.get("role"),
+                        "previous_text": previous.get("text"),
+                        "live_features": {
+                            "previous_duration": round(previous_duration, 3),
+                            "previous_content_token_count": previous_content_tokens,
+                            "seconds_per_content_token": round(seconds_per_content_token, 3),
+                        },
+                    }
+    return adjustments
+
+
+def apply_live_boundary_split_retime(
+    turns: list[dict[str, Any]],
+    adjustments: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    if adjustments is None:
+        adjustments = live_boundary_split_retime_adjustments(turns)
+    if not adjustments:
+        return turns
+    adjusted: list[dict[str, Any]] = []
+    for turn in turns:
+        turn_id = str(turn.get("id") or "")
+        adjustment = adjustments.get(turn_id)
+        if not adjustment:
+            adjusted.append(turn)
+            continue
+        if str(turn.get("role") or "") == "Me":
+            adjusted.extend(
+                apply_boundary_order_split_retime_oracle([turn], [], {turn_id: adjustment})
+            )
+            continue
+        new_turn = dict(turn)
+        new_turn["start"] = safe_float(adjustment.get("retimed_start"))
+        new_turn["boundary_order_retime_oracle"] = True
+        new_turn["boundary_order_live_split_retime"] = True
         new_turn["boundary_order_retime_original_start"] = adjustment.get("original_start")
         new_turn["boundary_order_retime_original_end"] = adjustment.get("original_end")
         new_turn["boundary_order_retime_trimmed_leading_seconds"] = adjustment.get("trimmed_leading_seconds")
@@ -4184,6 +4341,7 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "boundary_order_retime_overlap_seconds",
         "boundary_order_retime_counterpart_id",
         "boundary_order_retime_reason",
+        "boundary_order_live_split_retime",
         "boundary_order_split_retime_oracle",
         "boundary_order_split_part",
         "boundary_order_split_original_id",
@@ -4356,6 +4514,7 @@ def target_me_shadow_profile_components(
         rejected_supplemental_turns.extend(rejected_boundary_turns)
     elif (
         policy in LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES
+        or policy in LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES
         or policy in BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES
         or policy in BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICIES
     ):
@@ -4380,6 +4539,15 @@ def target_me_shadow_profile_components(
         )
         rejected_supplemental_turns.extend(rejected_boundary_turns)
         rejected_supplemental_turns.extend(rejected_speaker_boundary_turns)
+    if policy in LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES:
+        combined_for_retime = sorted(
+            live_turns + target_turns + supplemental_turns,
+            key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+        )
+        adjustments = live_boundary_split_retime_adjustments(combined_for_retime)
+        live_turns = apply_live_boundary_split_retime(live_turns, adjustments)
+        target_turns = apply_live_boundary_split_retime(target_turns, adjustments)
+        supplemental_turns = apply_live_boundary_split_retime(supplemental_turns, adjustments)
     if policy in LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICIES or policy in LOCAL_ISLAND_RETIME_ORACLE_PROFILE_POLICIES:
         local_island_candidates, rejected_local_island_candidates = local_island_split_oracle_turns(
             segments=suppressed_mic_asr_segments,

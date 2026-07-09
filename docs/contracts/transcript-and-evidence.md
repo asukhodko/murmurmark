@@ -5739,10 +5739,14 @@ live-implementable profile is
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_relaxed_boundary_classifier_v1`:
 it reaches `100.23s` missing-Me with `0.00s` measured remote leak and `4` contentful order
 mismatches. The current best live-implementable profile is
-`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_v1`:
-it reaches `86.85s` missing-Me with the same `0.00s` measured remote leak and `4` contentful order
-mismatches. Its remaining missing-Me splits into `73.08s` visible without Target-Me evidence and
-`13.77s` not visible in suppressed mic. The underlying `target_me_possible_timeline_safe_v1`
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_v1`:
+it reaches `86.85s` missing-Me with the same `0.00s` measured remote leak and `2` contentful order
+mismatches. It adds a live-only boundary split/retime pass to the local-speaker boundary profile:
+`4` turns retimed, `51.916s` trimmed, `3` turns split, and `2` local prefixes / `7.832s`
+preserved. Its remaining missing-Me splits into `73.08s` visible without Target-Me evidence and
+`13.77s` not visible in suppressed mic. The previous local-speaker boundary profile remains the
+pre-split/retime baseline with the same missing-Me / remote-leak numbers and `4` contentful order
+mismatches. The underlying `target_me_possible_timeline_safe_v1`
 policy recovers `251.37s`, rejects `47.38s` of candidates (`31.08s` contentful-order risk and
 `16.30s` suspected remote leak), and keeps measured remote leak at `0.00s`. The less strict
 remote-guard audio-safe profile reaches `276.93s` missing-Me, but increases contentful order
@@ -5788,8 +5792,9 @@ machine-readable handoff for the next live-parity step. It records:
   stronger evidence.
 
 For the current corpus, `additional_recordings_required_for_current_blocker` is `false`; the first
-next action is `repair_live_boundary_retime_order_risk`, followed by local speaker/boundary
-evidence work. `remote_dominant` / `known_hallucination` buckets stay blocked.
+next action is `build_online_local_speaker_boundary_evidence`, followed by speaker confirmation,
+local-island candidate selection and strict zero-remote evidence reuse. `remote_dominant` /
+`known_hallucination` buckets stay blocked.
 
 The report also writes `live_order_risk_triage` with schema
 `murmurmark.live_order_risk_triage/v1`. It reads the contentful same-role order-risk examples for
@@ -5803,9 +5808,10 @@ gates. Current labels are:
 - `weak_generic_match_false_positive_candidate`: an advisory row where the match is ambiguous,
   the score margin is small and many plausible batch matches exist.
 
-For the current corpus this triage splits the `4` contentful order-risk rows into `2` blocking
-boundary-retime candidates and `2` advisory weak/short/generic match candidates. Promotion remains
-blocked by the original strict order gate; triage only explains the next repair target.
+For the current corpus after the live-only split/retime profile this triage sees `2` contentful
+order-risk rows: `0` blocking boundary-retime candidates and `2` advisory weak/short/generic match
+candidates. Promotion remains blocked by the original strict order gate; triage only explains
+whether the next work is a real boundary repair or matcher/readiness tightening.
 
 `live_next_unlock.boundary_order_retime_oracle` records an intentionally non-promotable diagnostic
 profile:
@@ -6040,13 +6046,15 @@ mismatches and `41` non-passing gates. It is live-implementable shadow evidence 
 `promotion_allowed` remains false and batch remains authoritative.
 
 The current best live-implementable materialized variant is
-`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_v1`.
-It unions `audio_safe_union_v1`, the relaxed remote-forbidden boundary classifier and a strict
-local-speaker boundary candidate. The local-speaker candidate is accepted only when live evidence
-contains a speaker/audio rescue policy and token overlap with the overlapping remote text is zero.
-Current corpus result: `86.85s` missing-Me, `0.00s` measured remote leak, `4` contentful order
-mismatches and `41` non-passing gates. It narrows the live-implementable-to-oracle gap to `1.16s`,
-but it is still shadow-only: normal parity gates continue to block promotion.
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_v1`.
+It unions `audio_safe_union_v1`, the relaxed remote-forbidden boundary classifier, a strict
+local-speaker boundary candidate, and a live-only boundary split/retime pass. The local-speaker
+candidate is accepted only when live evidence contains a speaker/audio rescue policy and token
+overlap with the overlapping remote text is zero. The split/retime pass adjusts only raw
+`mic_segment` / `remote_segment` boundary overlaps inside the same live chunk. Current corpus
+result: `86.85s` missing-Me, `0.00s` measured remote leak, `2` contentful order mismatches and `41`
+non-passing gates. It narrows the live-implementable-to-oracle gap to `1.16s`, but it is still
+shadow-only: normal parity gates continue to block promotion.
 
 Each `shadow_profiles.target_me.<policy>.risk_examples` block includes `local_missing`,
 `remote_leak`, `order_mismatches`, `role_constrained_order_mismatches` and

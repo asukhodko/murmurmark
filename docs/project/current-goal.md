@@ -348,11 +348,15 @@ Online remote-overlap shadow filter, 2026-07-09:
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
 - current best live-implementable profile is
-  `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_v1`:
+  `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_v1`:
   - remaining measured remote leak: `0.00s`;
   - missing-Me: `86.85s`;
-  - contentful role-constrained order mismatches: `4`;
-  - non-passing gates: `41`.
+  - contentful role-constrained order mismatches: `2`;
+  - non-passing gates: `41`;
+  - live-only boundary split/retime retimed `4` turns, trimmed `51.916s`, split `3` turns and
+    preserved `2` local prefixes / `7.832s`.
+- previous local-speaker boundary profile remains the pre-split/retime baseline:
+  `86.85s` missing-Me, `0.00s` remote leak, `4` contentful order mismatches.
 - best diagnostic oracle profiles are the local-island split/retime oracle family:
   - missing-Me: `85.69s`;
   - remaining measured remote leak: `0.00s`;
@@ -387,9 +391,9 @@ Online remote-overlap shadow filter, 2026-07-09:
   - additional recordings required for the current blocker: `false`;
   - top actionability: `mixed_needs_segmentation_or_speaker_evidence` / `43.08s`;
   - top segmentability: `duplicate_heavy_needs_speaker_evidence` / `22.28s`;
-  - first next action: `repair_live_boundary_retime_order_risk`;
-  - order risk triage: `2` blocking `boundary_retime_candidate` rows and `2` advisory weak/short
-    match rows;
+  - first next action: `build_online_local_speaker_boundary_evidence`;
+  - order risk triage after live split/retime: `0` blocking `boundary_retime_candidate` rows and
+    `2` advisory weak/short/generic match rows;
   - boundary-order retime oracle:
     - profile:
       `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1`;
@@ -718,9 +722,11 @@ New Target-Me diagnostic, 2026-07-08:
   viable promotion path. Combining `target_me_possible_timeline_safe_v1`, online remote-overlap
   cleanup and `audio_safe_union_v1` gave an earlier live-implementable shadow at `110.13s`
   missing-Me. The relaxed remote-forbidden boundary classifier improved that to `100.23s`, and the
-  current local-speaker boundary profile improves it to `86.85s` while keeping measured remote leak
-  at `0.00s`. The next online design therefore needs to reduce the remaining order/readiness
-  blockers and keep the small residual local-recall gap explicit.
+  local-speaker boundary profile improved that to `86.85s` while keeping measured remote leak at
+  `0.00s`. The current live-only split/retime variant keeps those numbers and reduces contentful
+  order mismatches from `4` to `2`. The next online design therefore needs to reduce the remaining
+  local-recall/readiness gap, especially mixed regions that still need speaker/boundary evidence,
+  while keeping order risk and remote leak from regressing.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
 existing corpus already contains enough suppressed live mic material and enough Target-Me evidence.
