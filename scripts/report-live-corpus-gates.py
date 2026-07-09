@@ -2547,9 +2547,26 @@ def live_order_risk_triage_label(item: dict[str, Any]) -> dict[str, Any]:
     )
     batch_delta = abs(safe_float(item.get("batch_start_delta_sec")))
     live_delta = abs(safe_float(item.get("live_start_delta_sec")))
+    previous_live_start = safe_float(item.get("previous_live_start"))
+    current_live_start = safe_float(item.get("current_live_start"))
+    previous_live_end = safe_float(_order_turn_feature(previous, "end"))
+    current_batch_start = safe_float(item.get("current_batch_start"))
     previous_inside = bool(item.get("previous_live_inside_own_batch_interval"))
     current_inside = bool(item.get("current_live_inside_own_batch_interval"))
     source_pair = str(item.get("source_pair") or "")
+    reference_gap_like = (
+        same_source
+        and same_chunk
+        and current_inside
+        and not previous_inside
+        and live_delta <= 5
+        and previous_margin <= 0.25
+        and previous_plausible >= 5
+        and previous_live_end > 0
+        and current_batch_start > 0
+        and previous_live_start <= current_live_start
+        and previous_live_end <= current_batch_start + 0.5
+    )
 
     label = "needs_review_order_risk"
     severity = "blocking"
@@ -2561,11 +2578,21 @@ def live_order_risk_triage_label(item: dict[str, Any]) -> dict[str, Any]:
         severity = "advisory"
         confidence = "high"
         reason = "match is ambiguous, has small score margin, and many plausible alternatives"
+    elif same_source and min_tokens <= 2 and max_plausible >= 20 and batch_delta >= 120:
+        label = "same_source_short_high_plausible_far_match_candidate"
+        severity = "advisory"
+        confidence = "high"
+        reason = "same-source reorder is driven by a short phrase with many plausible far-away batch matches"
     elif same_source and min_tokens <= 2 and max_plausible >= 5 and min_margin <= 0.25 and batch_delta >= 20:
         label = "same_source_weak_short_match_candidate"
         severity = "advisory"
         confidence = "medium"
         reason = "same-source reorder is driven by a very short live phrase matched far away in batch"
+    elif reference_gap_like:
+        label = "same_source_reference_gap_or_weak_match_candidate"
+        severity = "advisory"
+        confidence = "medium"
+        reason = "same-source reorder is explained by a weak previous match near a batch timing/text gap"
     elif same_chunk and not same_source and live_delta <= 8 and (not previous_inside or not current_inside):
         label = "boundary_retime_candidate"
         severity = "blocking"
@@ -2597,6 +2624,9 @@ def live_order_risk_triage_label(item: dict[str, Any]) -> dict[str, Any]:
             "min_turn_content_token_count": 0 if min_tokens == 999 else min_tokens,
             "batch_start_delta_abs_sec": round(batch_delta, 3),
             "live_start_delta_abs_sec": round(live_delta, 3),
+            "previous_live_end": round(previous_live_end, 3),
+            "current_batch_start": round(current_batch_start, 3),
+            "reference_gap_like": reference_gap_like,
             "previous_live_inside_own_batch_interval": previous_inside,
             "current_live_inside_own_batch_interval": current_inside,
         },
@@ -2702,6 +2732,8 @@ def live_order_risk_triage(
             in {
                 "weak_generic_match_false_positive_candidate",
                 "same_source_weak_short_match_candidate",
+                "same_source_short_high_plausible_far_match_candidate",
+                "same_source_reference_gap_or_weak_match_candidate",
             }
         ),
         "boundary_retime_candidate_count": sum(
@@ -3016,8 +3048,68 @@ def live_next_unlock_report(
         if isinstance(same_session_voice_disambiguation_lab.get("recommended_next"), dict)
         else {}
     )
+    candidate_blocking_dimensions = (
+        list(candidate_scope.get("blocking_dimensions") or [])
+        if isinstance(candidate_scope, dict) and isinstance(candidate_scope.get("blocking_dimensions"), list)
+        else []
+    )
+    candidate_next_focus = (
+        candidate_scope.get("next_focus")
+        if isinstance(candidate_scope, dict) and isinstance(candidate_scope.get("next_focus"), dict)
+        else {}
+    )
+    existing_blocker_dimensions = {str(blocker.get("dimension") or "") for blocker in blockers}
+    for dimension in candidate_blocking_dimensions:
+        dimension_text = str(dimension)
+        if dimension_text in existing_blocker_dimensions:
+            continue
+        blockers.append(
+            {
+                "dimension": dimension_text,
+                "severity": "blocking",
+                "scope": "capture_safe_candidate",
+                "reason": "capture-safe candidate scope still has a non-passing parity dimension",
+            }
+        )
+        existing_blocker_dimensions.add(dimension_text)
 
     next_actions: list[dict[str, Any]] = []
+    candidate_next_dimension = str(candidate_next_focus.get("dimension") or "")
+    candidate_next_action_id = str(candidate_next_focus.get("action_id") or "")
+    if candidate_next_dimension == "local_recall":
+        next_actions.append(
+            {
+                "id": str(
+                    summary.get("capture_safe_candidate_local_recall_blocker_recommended_next")
+                    or candidate_next_action_id
+                    or "fix_live_local_recall_gap"
+                ),
+                "priority": 1,
+                "scope": "capture_safe_candidate",
+                "scope_count": safe_int(summary.get("capture_safe_candidate_local_recall_blocker_item_count")),
+                "scope_seconds": round(
+                    safe_float(summary.get("capture_safe_candidate_local_recall_blocker_seconds")),
+                    3,
+                ),
+                "top_label": summary.get("capture_safe_candidate_local_recall_blocker_top_label"),
+                "why": (
+                    candidate_next_focus.get("recommended_next")
+                    or "capture-safe candidate scope now has advisory-only order risk; local recall is the next hard blocker"
+                ),
+                "must_preserve": ["remote_leakage == 0", "strict order gates must remain authoritative"],
+            }
+        )
+    elif candidate_next_action_id:
+        next_actions.append(
+            {
+                "id": candidate_next_action_id,
+                "priority": 1,
+                "scope": "capture_safe_candidate",
+                "dimension": candidate_next_dimension or None,
+                "why": candidate_next_focus.get("recommended_next") or "next capture-safe candidate blocker",
+                "must_preserve": ["batch transcript remains authoritative", "live promotion stays blocked"],
+            }
+        )
     if order_triage_boundary_count > 0:
         next_actions.append(
             {

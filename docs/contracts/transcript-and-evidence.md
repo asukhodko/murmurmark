@@ -5819,14 +5819,18 @@ changes strict parity gates. Current labels are:
   repair or stronger evidence;
 - `same_source_weak_short_match_candidate`: an advisory same-source row driven by a short phrase
   matched far away in batch;
+- `same_source_short_high_plausible_far_match_candidate`: an advisory same-source row driven by a
+  very short phrase with many plausible far-away batch matches;
+- `same_source_reference_gap_or_weak_match_candidate`: an advisory same-source row explained by a
+  weak previous match near a batch timing/text gap;
 - `weak_generic_match_false_positive_candidate`: an advisory row where the match is ambiguous,
   the score margin is small and many plausible batch matches exist.
 
-For the current corpus, base live comparison triage sees `8` contentful order-risk rows: `3`
-blocking rows (`2` boundary-retime candidates and `1` cross-source order risk) and `5` advisory
-weak/short/generic match candidates. Promotion remains blocked by the original strict order gate;
-triage only explains whether the next work is a real boundary repair or matcher/readiness
-tightening.
+For the current corpus, base live comparison triage sees `14` contentful order-risk rows: `3`
+blocking rows and `11` advisory weak/short/generic/reference-gap match candidates. In the
+capture-safe candidate slice, row-level order triage has `7` advisory rows and `0` blocking rows.
+Promotion remains blocked by the original strict order gate; triage only explains whether the next
+work is a real boundary repair or matcher/readiness/local-recall step.
 
 The same schema is also emitted as `capture_safe_candidate_order_risk_triage`, scoped only to
 capture-safe candidate sessions. This lets the goal runner separate historical unsafe/debug evidence

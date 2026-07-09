@@ -544,15 +544,15 @@ newer run-state exists.
    stricter order-matcher handling for the remaining advisory weak/short/generic rows.
    `live_next_unlock` records full-corpus diagnostics, but the current unlock path now uses
    `capture_safe_candidate_scope`. Fresh corpus evidence after committed-PCM sidecar work now points
-   the next implementation focus at `fix_live_order_risk`: repair the active same-source timeline
-   reorder row and classify the remaining needs-review order row while keeping remote-forbidden
-   guards strict. Historical boundary-retime rows remain full-corpus diagnostics, not the active
-   unlock target.
+   the next implementation focus at `fix_live_local_recall_gap`: active candidate-scope order rows
+   are advisory-only, so the next concrete step is to materialize the partial-safe-tail shadow and
+   recheck recall while keeping remote-forbidden and strict order gates intact. Historical
+   boundary-retime rows remain full-corpus diagnostics, not the active unlock target.
    `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked. The current
-   `live_order_risk_triage/v1` sees `8` contentful order-risk rows in the full real corpus:
-   `3` blocking rows (`2` boundary-retime candidates and `1` cross-source order risk) and `5`
-   advisory weak/short/generic match rows. In the capture-safe candidate slice, order-risk triage
-   has only `1` advisory weak/generic row and `0` blocking rows. Strict order gates are unchanged,
+   `live_order_risk_triage/v1` sees `14` contentful order-risk rows in the full real corpus:
+   `3` blocking rows and `11` advisory weak/short/generic/reference-gap match rows. In the
+   capture-safe candidate slice, order-risk triage has `7` advisory rows and `0` blocking rows.
+   Strict order gates are unchanged,
    but the implementation focus moves to live local recall instead of historical boundary retime.
    The diagnostic boundary-order retime oracle remains non-promotable evidence: timing repair needs
    local-speaker preservation and must not relax remote-forbidden gates.
@@ -611,17 +611,17 @@ newer run-state exists.
    is now the pre-split/retime baseline at `86.85s` missing-Me, `0.00s` measured remote leak and
    `4` contentful order mismatches. The current best live-implementable profile adds live-only
    split/retime, keeps missing-Me and remote leak unchanged, and lowers contentful order mismatches
-   to `2`. Active capture-safe triage now has `2` blocking rows (`1` same-source timeline reorder
-   and `1` needs-review order row) plus `5` advisory weak/short/generic rows. So the next roadmap
-   item is same-source timeline repair and order-row classification, then stronger online
-   local-speaker and boundary evidence for mixed missing-Me regions. The first voice-coverage
+   to `2`. Active capture-safe order triage now has `7` advisory rows and `0` blocking rows. Strict
+   order gates remain part of promotion, but the next roadmap item is local recall, not more
+   same-source order repair. The first voice-coverage
    check now narrows that further: `live_mixed_speaker_boundary_voice_coverage_lab` sees `5`
    mixed/speaker rows / `25.32s`. After Target-Me is rerun with `--include-remaining-gap` and the
    diagnostic `--fallback-persistent-profile`, all rows have Target-Me coverage; `0.32s` have been
    materialized in the diagnostic remote-guarded boundary profile and `25.00s` stay weak or
    ambiguous. Those labs remain diagnostic-only. The current candidate-scope report makes
-   `fix_live_order_risk` the next implementable step; local-speech recovery remains a later blocker
-   behind strict order and remote-forbidden gates.
+   `fix_live_local_recall_gap` the next implementable step through
+   `materialize_partial_safe_tail_shadow_and_recheck_recall`; strict order and remote-forbidden gates
+   must stay unchanged.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

@@ -566,17 +566,13 @@ voice-boundary shadow profile; it remains non-promotable.
 The report also writes `live_next_unlock` (`murmurmark.live_next_unlock/v1`). It keeps batch
 authoritative and explains full-corpus blockers, including historical unsafe/debug runs. For the
 current unlock path, prefer `capture_safe_candidate_scope`: it excludes broken-capture evidence and
-now points to `fix_live_order_risk`.
+now points to `fix_live_local_recall_gap`.
 It now also includes `order_risk_triage`. The default triage reads base live-vs-batch comparison,
-not the expensive target-me labs, and classifies the current `14` contentful order-risk rows into
-`5` blocking rows and `9` advisory weak/short/generic match rows. The strict order gate is
-unchanged; this triage tells us which rows need real timing repair and which are likely matcher
-noise.
-In the capture-safe candidate slice, the first unlock step is again order repair, but the active
-rows are no longer boundary-retime rows. The next concrete action is
-`repair_live_same_source_timeline_order_risk`, followed by classifying the remaining
-needs-review order row. Local-recall recovery remains a later blocker, but it is no longer the
-immediate next focus.
+not the expensive target-me labs, and keeps strict order gates unchanged. In the active
+capture-safe candidate slice, row-level order triage is advisory-only: `7` rows, `0` blocking and
+`7` weak/short/generic or reference-gap candidates. That means the next implementation focus is not
+to chase weak order matches first. It is to materialize and test the `partial_safe_tail_candidate`
+local-recall path while preserving `0` measured remote leak and strict order gates.
 The paired `live_speaker_boundary_evidence_lab` now splits the current real-live remaining gap into
 `16.74s` future shadow-probe candidates and `34.76s` blocked rows. It still marks
 `publication_ready_seconds = 0.0`, so this is design evidence for the next profile, not permission
@@ -1287,20 +1283,19 @@ Active goal and near-term candidates:
 4. Active live follow-up: Near-Realtime Live Parity Coverage v1. Capture-safe sidecar proof exists,
    `murmurmark corpus live all --refresh` compares real live chunks/drafts with batch output, and
    live promotion stays blocked. The comparison now uses ASR-segment granularity when available, with
-   chunk fallback for older artifacts. Current next focus is `fix_live_order_risk`: fresh corpus
-   evidence says no additional recordings are required for the current blocker, while the active
-   capture-safe slice now points to a same-source timeline reorder row and one needs-review order
-   row before promotion. Segment-level parity
-   still exposes ordering drift, suspected remote leakage in live `Me`, and lost local speech on
-   controlled real evidence. The current real corpus has `95` order mismatches: `60`
+   chunk fallback for older artifacts. Current next focus is `fix_live_local_recall_gap`: fresh
+   corpus evidence says no additional recordings are required for the current blocker, and the
+   active capture-safe order-risk rows are advisory-only (`7` rows, `0` blocking). Segment-level
+   parity still exposes ordering drift, suspected remote leakage in live `Me`, and lost local speech
+   on controlled real evidence. The current real corpus has `95` order mismatches: `60`
    same-chunk/same-source, `25` same-chunk/cross-source, `8` cross-chunk and `2` overlap-context
    mismatches. Primary risk is split into `24` role-conflict/remote-leak, `27` weak-match possible
    false positives, `32` same-source timeline reorders, `9` cross-source timeline reorders and `3`
    cross-chunk timeline reorders. The contentful same-role slice narrows this to `14` order-risk
-   examples, with `6` unambiguous rows. Base order-risk triage sees `5` blocking rows and `9`
-   advisory rows; in the active `capture_safe_candidate` slice it sees `2` blocking rows and `5`
-   advisory rows, with `live_next_unlock.next_actions[0]` now
-   `repair_live_same_source_timeline_order_risk`.
+   examples, with `6` unambiguous rows. Full-corpus order-risk triage still preserves historical
+   blocking diagnostics, but in the active `capture_safe_candidate` slice it sees `0` blocking rows
+   and `7` advisory rows. `live_next_unlock.next_actions[0]` is now
+   `materialize_partial_safe_tail_shadow_and_recheck_recall`.
    The corpus report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
    visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic
@@ -1404,9 +1399,9 @@ Active goal and near-term candidates:
    and does not increase contentful order mismatches. Historical boundary-retime and split/retime
    labs remain useful as diagnostics, but they are not promotion candidates because they depend on
    batch-derived timing or lose local speech in some cases. The current capture-safe candidate
-   order-risk slice has `0` blocking rows and `1` advisory weak/generic row, so the next unlock moves
-   to local recall: recover lost `Me` speech from live chunks while preserving remote-forbidden
-   guards and keeping batch authoritative.
+   order-risk slice has `0` blocking rows and `7` advisory weak/generic/reference-gap rows, so the
+   next unlock moves to local recall: recover lost `Me` speech from live chunks while preserving
+   remote-forbidden guards and keeping batch authoritative.
    The current mixed/speaker-boundary queue is now `25.32s`: `0.32s` has been materialized in a
    diagnostic remote-guarded voice-boundary profile, and `25.00s` remain weak or ambiguous. The
    tight voice/remote guard lab finds `0.00s` safe candidates: `13.94s` are blocked by persistent
