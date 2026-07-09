@@ -654,15 +654,17 @@ nodes:
       `local_recall` and `selected_notes_readiness`.
       Capture-safe/evaluable local-recall examples are listed in
       `capture_safe_evaluable_local_recall_gap_examples` so the next fix has concrete target rows.
-      Segment-level parity exposes `34` real live order mismatches, `419.16s` missing-Me and
-      `15.96s` suspected remote leakage in published live Me. Order-risk categories are now
-      explicit: `20` same-chunk/same-source, `11` same-chunk/cross-source, `2` cross-chunk and `1`
-      overlap-context mismatch. Primary-risk split narrows the work further: `19`
-      role-conflict/remote-leak, `8` weak-match possible false positives and only `7` direct
-      timeline-reorder cases. A stricter same-role matcher confirms `9` role-constrained order
-      mismatches: `6` same-source and `3` cross-source, all inside one live chunk. Filtering
-      short/generic phrases leaves `4` contentful same-role order-risk examples; ambiguity scoring
-      narrows the stable subset to `2`. Most missing Me seconds are visible in suppressed mic
+      Segment-level parity exposes `30` real live strict order mismatches, `4` batch-interval
+      overlap ambiguities, `395.72s` missing-Me and `15.96s` suspected remote leakage in published
+      live Me. Order-risk categories are now explicit: `17` same-chunk/same-source, `11`
+      same-chunk/cross-source, `1` cross-chunk and `1` overlap-context mismatch. Primary-risk split
+      narrows the work further: `16`
+      role-conflict/remote-leak, `8` weak-match possible false positives and only `6` direct
+      timeline-reorder cases. A stricter same-role matcher confirms `8` strict role-constrained
+      mismatches plus `1` overlap ambiguity: `5` same-source and `3` cross-source strict rows, all
+      inside one live chunk. Filtering short/generic phrases leaves `4` contentful same-role strict
+      order-risk examples and `0` overlap ambiguities; text-match ambiguity scoring narrows the
+      stable subset to `2`. Most missing Me seconds are visible in suppressed mic
       chunks.
       Text-only segment rescue is
       recorded as diagnostic metadata (`6` real live candidate chunks / `31` candidate segments in
@@ -746,17 +748,17 @@ nodes:
       missing-Me, `4` contentful role-constrained order mismatches and `41` non-passing gates. The
       current best live-implementable profile,
       `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1`,
-      gets to `130.97s` missing-Me with `0.00s` remote leak, `4` contentful order mismatches and
+      gets to `110.13s` missing-Me with `0.00s` remote leak, `4` contentful order mismatches and
       `41` non-passing gates. It gets there by applying timeline-safe checks to the broader
       `target_me_possible_v1` set: `251.37s` recovered, `47.38s` rejected (`31.08s` order risk,
-      `16.30s` remote leak). Its residual missing-Me splits into `26.78s` visible with broader
+      `16.30s` remote leak). Its residual missing-Me splits into `5.94s` visible with broader
       Target-Me evidence, `90.42s` visible without Target-Me evidence and `13.77s` not visible in
       suppressed mic. The remaining-gap report now identifies no-policy rows as the largest bucket
       (`104.19s`) and groups their overlapping suppressed-mic evidence: top gate reason
       `segment_duplicates_overlapping_remote` (`73.60s`), top batch-role labels `mixed` (`56.06s`)
       and `remote_dominant` (`50.24s`), plus `known_hallucination` (`12.42s`) explicitly forbidden
       from rescue. The best oracle profile is now the batch-time local-island retime oracle: it
-      reaches `112.47s` missing-Me, so the remaining live-implementable-to-oracle gap is `18.50s`.
+      reaches `91.63s` missing-Me, so the remaining live-implementable-to-oracle gap is `18.50s`.
       Actionability points at `60.42s`
       `mixed_needs_segmentation_or_speaker_evidence`, not a clean speaker-confirmation queue. That
       mixed bucket now has a segmentability split: `27.92s` `local_island_split_candidate`,
@@ -777,7 +779,7 @@ nodes:
       remote-risk under batch evaluation. The strict profile is now materialized as shadow output:
       after deduplication against existing live/Target-Me turns, standalone strict adds `0.00s`,
       leaves `144.35s` missing-Me and `0.00s` remote leak; combined strict+audio-safe adds the same
-      `52.76s` as `audio_safe_union_v1`, still leaving `130.97s` missing-Me with `0.00s` remote
+      `52.76s` as `audio_safe_union_v1`, still leaving `110.13s` missing-Me with `0.00s` remote
       leak. `live_strict_local_island_shadow_delta_lab/v1` records `0.00s` incremental strict turns
       and `0.00s` closed missing-Me. Keep duplicate-heavy or remote-dominant rows blocked; the next
       implementation target is online timing anchors / remote-forbidden evidence for still-uncovered
@@ -793,9 +795,11 @@ nodes:
       `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`.
       The unguarded version adds `12.68s` and lowers missing-Me from `130.97s` to `127.01s`, but
       increases contentful order mismatches from `4` to `5`. The guarded version adds only `1.48s`,
-      leaves missing-Me at `144.35s`, keeps measured remote leak at `0.00s` and keeps contentful order
-      mismatches at `4`. The next implementation target is stronger online timing/local-speaker
-      evidence for boundary turns; the profile stays shadow-only.
+      keeps measured remote leak at `0.00s` and keeps contentful order mismatches at `4`. Order-risk
+      triage now separates strict reorder from batch-interval overlap ambiguity: real live has `30`
+      strict order mismatches plus `4` overlap ambiguities; contentful same-role remains `4` strict
+      mismatches plus `0` overlap ambiguities. The next implementation target is stronger online
+      timing/local-speaker evidence for boundary turns; the profile stays shadow-only.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

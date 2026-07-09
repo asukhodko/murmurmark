@@ -5142,10 +5142,16 @@ Schema:
     "target_status": "shadow_only_not_promotable",
     "promotion_decision": "shadow_only_do_not_promote",
     "speedup_supported_sessions": 0,
-    "live_order_mismatch_count": 34,
-    "real_live_order_mismatch_count": 34,
-    "live_missing_me_seconds": 426.1,
-    "real_live_missing_me_seconds": 419.16,
+    "live_order_mismatch_count": 30,
+    "real_live_order_mismatch_count": 30,
+    "live_batch_interval_overlap_order_ambiguity_count": 4,
+    "real_live_batch_interval_overlap_order_ambiguity_count": 4,
+    "live_role_constrained_batch_interval_overlap_order_ambiguity_count": 1,
+    "real_live_role_constrained_batch_interval_overlap_order_ambiguity_count": 1,
+    "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count": 0,
+    "real_live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count": 0,
+    "live_missing_me_seconds": 402.66,
+    "real_live_missing_me_seconds": 395.72,
     "live_suspicious_batch_me_missing_seconds": 0.0,
     "real_live_suspicious_batch_me_missing_seconds": 0.0,
     "live_suspected_remote_leak_in_me_seconds": 15.96,
@@ -5727,9 +5733,9 @@ with the dual Target-Me suppressed-mic rescue. Current corpus evidence: the comb
 `Me`, but still leaves `380.17s` missing-Me and `4` contentful role-constrained order mismatches.
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1` is
 the current best live-implementable profile: it combines the remote-overlap cleanup, timeline-safe
-`target_me_possible_v1` rescue and `audio_safe_union_v1`, reaching `130.97s` missing-Me with
+`target_me_possible_v1` rescue and `audio_safe_union_v1`, reaching `110.13s` missing-Me with
 `0.00s` measured remote leak and `4` contentful order mismatches. The remaining missing-Me splits
-into `26.78s` visible with broader Target-Me evidence, `90.42s` visible without Target-Me evidence
+into `5.94s` visible with broader Target-Me evidence, `90.42s` visible without Target-Me evidence
 and `13.77s` not visible in suppressed mic. The underlying `target_me_possible_timeline_safe_v1`
 policy recovers `251.37s`, rejects `47.38s` of candidates (`31.08s` contentful-order risk and
 `16.30s` suspected remote leak), and keeps measured remote leak at `0.00s`. The less strict
@@ -5785,7 +5791,7 @@ uses the same token-recall-passing local-island candidates, but places them on t
 batch interval before parity evaluation. It writes `local_island_retime_oracle: true`,
 `batch_start`, `batch_end`, `live_island_start`, `live_island_end` and the original
 `local_islands` evidence on added turns. It is a stronger diagnostic ceiling, not an online
-algorithm. Current corpus evidence drops missing-Me to `112.47s`, a `18.50s` gain over the best
+algorithm. Current corpus evidence drops missing-Me to `91.63s`, a `18.50s` gain over the best
 live-implementable profile and `17.34s` over the split oracle, without new measured remote leak or
 contentful order regressions. This proves that the next implementation should seek online timing
 evidence that can approximate batch retiming without using batch truth.
@@ -5872,7 +5878,7 @@ The companion
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_strict_live_only_local_island_v1`
 profile combines the existing `audio_safe_union_v1` supplemental turns with strict live-only
 local-island turns and deduplicates by chunk/start/end/role. Current corpus evidence: it adds the
-same `52.76s` as `audio_safe_union_v1`, missing-Me remains `130.97s` with `0.00s` measured remote
+same `52.76s` as `audio_safe_union_v1`, missing-Me remains `110.13s` with `0.00s` measured remote
 leak and `4` contentful order mismatches. The companion
 `live_strict_local_island_shadow_delta_lab/v1` block records `0.00s` incremental strict turns and
 `0.00s` closed missing-Me. This makes the result a useful negative test: strict live-only islands
@@ -5934,8 +5940,8 @@ It writes normal `target-me-shadow/<policy>/draft.{json,md}` artifacts and norma
 `12.68s` and lowered missing-Me to `127.01s` with `0.00s` measured remote leak, but increased
 contentful order mismatches from `4` to `5`. The current guarded version publishes only
 anchor-bounded pieces whose anchors are not remote-dominant. Current corpus result: `1.48s` added,
-`144.35s` missing-Me, `0.00s` measured remote leak, `4` contentful order mismatches, `41`
-non-passing gates and `12` rejected boundary turns. This profile is evidence that the missing recall
+`0.00s` measured remote leak, `4` contentful order mismatches, `41` non-passing gates and `12`
+rejected boundary turns. This profile is evidence that the missing recall
 requires stronger online timing/local-speaker evidence; simple boundary expansion either hurts order
 or loses the useful recovery.
 
@@ -5943,6 +5949,14 @@ Each `shadow_profiles.target_me.<policy>.risk_examples` block includes `local_mi
 `remote_leak`, `order_mismatches`, `role_constrained_order_mismatches` and
 `contentful_role_constrained_order_mismatches`, so profile-level order regressions can be inspected
 without re-running ad hoc debug scripts.
+
+Order-risk metrics now split strict reorder from batch-interval overlap ambiguity. The strict
+counters are still the promotion gate input. The new audit-only counters are:
+`live_batch_interval_overlap_order_ambiguity_count`,
+`live_role_constrained_batch_interval_overlap_order_ambiguity_count` and
+`live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count`. Current real corpus:
+`30` strict order mismatches plus `4` overlap ambiguities, `8` same-role strict mismatches plus `1`
+overlap ambiguity, and `4` contentful same-role strict mismatches plus `0` overlap ambiguities.
 
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the

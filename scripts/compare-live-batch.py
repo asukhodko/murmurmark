@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.26.0"
+SCRIPT_VERSION = "0.27.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 KNOWN_HALLUCINATION_RE = re.compile(
@@ -1253,6 +1253,31 @@ def target_me_shadow_policy_metrics(
             min_score=0.65,
             match_mode=f"target_me_shadow_{policy}_role_constrained_contentful",
         )
+        order_ambiguities = order_mismatch_rows_for_turns(
+            live_turns_rows + policy_turns,
+            batch_utterances,
+            match_mode=f"target_me_shadow_{policy}_best_overall_batch_overlap_ambiguity",
+            only_batch_interval_overlap_ambiguity=True,
+        )
+        role_order_ambiguities = order_mismatch_rows_for_turns(
+            live_turns_rows + policy_turns,
+            batch_utterances,
+            same_role_only=True,
+            min_token_recall=0.45,
+            min_score=0.65,
+            match_mode=f"target_me_shadow_{policy}_role_constrained_strict_batch_overlap_ambiguity",
+            only_batch_interval_overlap_ambiguity=True,
+        )
+        contentful_role_order_ambiguities = order_mismatch_rows_for_turns(
+            live_turns_rows + policy_turns,
+            batch_utterances,
+            same_role_only=True,
+            contentful_only=True,
+            min_token_recall=0.45,
+            min_score=0.65,
+            match_mode=f"target_me_shadow_{policy}_role_constrained_contentful_batch_overlap_ambiguity",
+            only_batch_interval_overlap_ambiguity=True,
+        )
         base = f"live_target_me_shadow_policy_{policy}"
         metrics[f"{base}_candidate_segment_count"] = len(policy_turns)
         metrics[f"{base}_candidate_seconds"] = policy_seconds
@@ -1269,6 +1294,11 @@ def target_me_shadow_policy_metrics(
         metrics[f"{base}_order_mismatch_count"] = len(order_mismatches)
         metrics[f"{base}_role_constrained_order_mismatch_count"] = len(role_order_mismatches)
         metrics[f"{base}_contentful_role_constrained_order_mismatch_count"] = len(contentful_role_order_mismatches)
+        metrics[f"{base}_batch_interval_overlap_order_ambiguity_count"] = len(order_ambiguities)
+        metrics[f"{base}_role_constrained_batch_interval_overlap_order_ambiguity_count"] = len(role_order_ambiguities)
+        metrics[f"{base}_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count"] = len(
+            contentful_role_order_ambiguities
+        )
         metrics[f"{base}_order_mismatch_delta_count"] = len(order_mismatches) - len(baseline_order_mismatches)
         metrics[f"{base}_role_constrained_order_mismatch_delta_count"] = (
             len(role_order_mismatches) - len(baseline_role_order_mismatches)
@@ -1279,6 +1309,7 @@ def target_me_shadow_policy_metrics(
         examples[policy] = policy_turns[:20]
         examples[f"{policy}_remote_leak"] = remote_leak[:20]
         examples[f"{policy}_order_mismatches"] = order_mismatches[:20]
+        examples[f"{policy}_batch_interval_overlap_order_ambiguities"] = order_ambiguities[:20]
         turns_by_policy[policy] = policy_turns
         if policy in rejected_by_policy:
             rejected = rejected_by_policy[policy]
@@ -2011,6 +2042,60 @@ def order_mismatch_turn_payload(turn: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def order_mismatch_batch_interval_context(previous: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    previous_match = previous.get("match") if isinstance(previous.get("match"), dict) else {}
+    current_match = current.get("match") if isinstance(current.get("match"), dict) else {}
+    previous_batch_start = safe_float(previous_match.get("batch_start"))
+    previous_batch_end = safe_float(previous_match.get("batch_end"))
+    current_batch_start = safe_float(current_match.get("batch_start"))
+    current_batch_end = safe_float(current_match.get("batch_end"))
+    previous_live_start = safe_float(previous.get("start"))
+    previous_live_end = safe_float(previous.get("end"))
+    current_live_start = safe_float(current.get("start"))
+    current_live_end = safe_float(current.get("end"))
+    previous_batch_duration = max(0.0, previous_batch_end - previous_batch_start)
+    current_batch_duration = max(0.0, current_batch_end - current_batch_start)
+    shorter_batch_duration = min(previous_batch_duration, current_batch_duration)
+    batch_overlap = interval_overlap(previous_batch_start, previous_batch_end, current_batch_start, current_batch_end)
+    overlap_ratio = batch_overlap / shorter_batch_duration if shorter_batch_duration > 0 else 0.0
+    overlap_start = max(previous_batch_start, current_batch_start)
+    overlap_end = min(previous_batch_end, current_batch_end)
+    current_live_overlap = (
+        batch_overlap > 0
+        and interval_overlap(current_live_start, current_live_end, overlap_start - 0.5, overlap_end + 0.5) > 0
+    )
+    previous_live_overlap = (
+        batch_overlap > 0
+        and interval_overlap(previous_live_start, previous_live_end, overlap_start - 0.5, overlap_end + 0.5) > 0
+    )
+    current_live_inside_own_batch = (
+        current_live_start >= current_batch_start - 1.0 and current_live_start <= current_batch_end + 1.0
+    )
+    previous_live_inside_own_batch = (
+        previous_live_start >= previous_batch_start - 1.0 and previous_live_start <= previous_batch_end + 1.0
+    )
+    explains_reorder = (
+        batch_overlap >= 1.0
+        and overlap_ratio >= 0.15
+        and current_live_inside_own_batch
+        and previous_live_inside_own_batch
+        and (current_live_overlap or previous_live_overlap)
+    )
+    return {
+        "previous_batch_end": round(previous_batch_end, 3),
+        "current_batch_end": round(current_batch_end, 3),
+        "batch_interval_overlap_sec": round(batch_overlap, 3),
+        "batch_interval_overlap_ratio_of_shorter": round(overlap_ratio, 6),
+        "current_live_start": round(current_live_start, 3),
+        "previous_live_start": round(previous_live_start, 3),
+        "current_live_inside_own_batch_interval": current_live_inside_own_batch,
+        "previous_live_inside_own_batch_interval": previous_live_inside_own_batch,
+        "current_live_inside_batch_overlap_or_near": current_live_overlap,
+        "previous_live_inside_batch_overlap_or_near": previous_live_overlap,
+        "batch_interval_overlap_explains_reorder": explains_reorder,
+    }
+
+
 def order_mismatch_rows_for_turns(
     turns: list[dict[str, Any]],
     batch_utterances: list[dict[str, Any]],
@@ -2020,6 +2105,8 @@ def order_mismatch_rows_for_turns(
     min_token_recall: float = 0.25,
     min_score: float = 0.0,
     match_mode: str = "best_overall",
+    include_batch_interval_overlap_ambiguity: bool = False,
+    only_batch_interval_overlap_ambiguity: bool = False,
 ) -> list[dict[str, Any]]:
     order_mismatches: list[dict[str, Any]] = []
     previous: dict[str, Any] | None = None
@@ -2035,6 +2122,14 @@ def order_mismatch_rows_for_turns(
             previous_batch_start = safe_float((previous.get("match") or {}).get("batch_start"))
             current_batch_start = safe_float((turn.get("match") or {}).get("batch_start"))
             if current_batch_start + 1.0 < previous_batch_start:
+                batch_interval_context = order_mismatch_batch_interval_context(previous, turn)
+                overlap_ambiguity = bool(batch_interval_context.get("batch_interval_overlap_explains_reorder"))
+                if only_batch_interval_overlap_ambiguity and not overlap_ambiguity:
+                    previous = turn
+                    continue
+                if overlap_ambiguity and not (include_batch_interval_overlap_ambiguity or only_batch_interval_overlap_ambiguity):
+                    previous = turn
+                    continue
                 category = order_mismatch_category(previous, turn)
                 primary_risk = order_mismatch_primary_risk(previous, turn, category)
                 confidence = order_mismatch_confidence(previous, turn)
@@ -2050,6 +2145,7 @@ def order_mismatch_rows_for_turns(
                         "previous_batch_start": round(previous_batch_start, 3),
                         "current_batch_start": round(current_batch_start, 3),
                         "batch_start_delta_sec": round(current_batch_start - previous_batch_start, 3),
+                        **batch_interval_context,
                         "live_start_delta_sec": round(safe_float(turn.get("start")) - safe_float(previous.get("start")), 3),
                         "min_token_recall": round(order_mismatch_min_metric(previous, turn, "token_recall"), 6),
                         "min_score": round(order_mismatch_min_metric(previous, turn, "score"), 6),
@@ -2915,6 +3011,31 @@ def parity_metrics_for_turns(
         min_score=0.65,
         match_mode=f"{match_mode_prefix}_role_constrained_contentful",
     )
+    order_ambiguities = order_mismatch_rows_for_turns(
+        turns,
+        batch_utterances,
+        match_mode=f"{match_mode_prefix}_best_overall_batch_overlap_ambiguity",
+        only_batch_interval_overlap_ambiguity=True,
+    )
+    role_constrained_order_ambiguities = order_mismatch_rows_for_turns(
+        turns,
+        batch_utterances,
+        same_role_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode=f"{match_mode_prefix}_role_constrained_strict_batch_overlap_ambiguity",
+        only_batch_interval_overlap_ambiguity=True,
+    )
+    contentful_role_constrained_order_ambiguities = order_mismatch_rows_for_turns(
+        turns,
+        batch_utterances,
+        same_role_only=True,
+        contentful_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode=f"{match_mode_prefix}_role_constrained_contentful_batch_overlap_ambiguity",
+        only_batch_interval_overlap_ambiguity=True,
+    )
     local_missing = local_missing_rows_for_turns(batch_utterances, turns)
     remote_leak = remote_leak_rows_for_turns(turns, batch_utterances)
     return {
@@ -2928,6 +3049,7 @@ def parity_metrics_for_turns(
         "live_order_mismatch_by_category": order_mismatch_category_counts(order_mismatches),
         "live_order_mismatch_by_primary_risk": order_mismatch_field_counts(order_mismatches, "primary_risk"),
         "live_order_mismatch_by_confidence": order_mismatch_field_counts(order_mismatches, "confidence"),
+        "live_batch_interval_overlap_order_ambiguity_count": len(order_ambiguities),
         "live_role_constrained_order_mismatch_count": len(role_constrained_order_mismatches),
         "live_role_constrained_order_mismatch_by_category": order_mismatch_category_counts(
             role_constrained_order_mismatches,
@@ -2935,6 +3057,9 @@ def parity_metrics_for_turns(
         "live_role_constrained_order_mismatch_by_confidence": order_mismatch_field_counts(
             role_constrained_order_mismatches,
             "confidence",
+        ),
+        "live_role_constrained_batch_interval_overlap_order_ambiguity_count": len(
+            role_constrained_order_ambiguities
         ),
         "live_contentful_role_constrained_order_mismatch_count": len(contentful_role_constrained_order_mismatches),
         "live_contentful_role_constrained_order_mismatch_by_category": order_mismatch_category_counts(
@@ -2952,6 +3077,9 @@ def parity_metrics_for_turns(
             1
             for row in contentful_role_constrained_order_mismatches
             if row.get("match_ambiguity") == "unambiguous"
+        ),
+        "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count": len(
+            contentful_role_constrained_order_ambiguities
         ),
         "live_missing_me_utterance_count": len(local_missing),
         "live_missing_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3),
@@ -2979,6 +3107,18 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
     shadow_remote_leak = remote_leak_rows_for_turns(rescue_shadow_turns, batch_utterances)
     order_mismatches = order_mismatch_rows_for_turns(turns, batch_utterances)
     shadow_order_mismatches = order_mismatch_rows_for_turns(turns + rescue_shadow_turns, batch_utterances)
+    order_ambiguities = order_mismatch_rows_for_turns(
+        turns,
+        batch_utterances,
+        match_mode="best_overall_batch_overlap_ambiguity",
+        only_batch_interval_overlap_ambiguity=True,
+    )
+    shadow_order_ambiguities = order_mismatch_rows_for_turns(
+        turns + rescue_shadow_turns,
+        batch_utterances,
+        match_mode="rescue_shadow_best_overall_batch_overlap_ambiguity",
+        only_batch_interval_overlap_ambiguity=True,
+    )
     role_constrained_order_mismatches = order_mismatch_rows_for_turns(
         turns,
         batch_utterances,
@@ -2986,6 +3126,15 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         min_token_recall=0.45,
         min_score=0.65,
         match_mode="role_constrained_strict",
+    )
+    role_constrained_order_ambiguities = order_mismatch_rows_for_turns(
+        turns,
+        batch_utterances,
+        same_role_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode="role_constrained_strict_batch_overlap_ambiguity",
+        only_batch_interval_overlap_ambiguity=True,
     )
     contentful_role_constrained_order_mismatches = order_mismatch_rows_for_turns(
         turns,
@@ -2996,6 +3145,16 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         min_score=0.65,
         match_mode="role_constrained_contentful",
     )
+    contentful_role_constrained_order_ambiguities = order_mismatch_rows_for_turns(
+        turns,
+        batch_utterances,
+        same_role_only=True,
+        contentful_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode="role_constrained_contentful_batch_overlap_ambiguity",
+        only_batch_interval_overlap_ambiguity=True,
+    )
     shadow_role_constrained_order_mismatches = order_mismatch_rows_for_turns(
         turns + rescue_shadow_turns,
         batch_utterances,
@@ -3003,6 +3162,15 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         min_token_recall=0.45,
         min_score=0.65,
         match_mode="role_constrained_strict",
+    )
+    shadow_role_constrained_order_ambiguities = order_mismatch_rows_for_turns(
+        turns + rescue_shadow_turns,
+        batch_utterances,
+        same_role_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode="rescue_shadow_role_constrained_strict_batch_overlap_ambiguity",
+        only_batch_interval_overlap_ambiguity=True,
     )
     shadow_contentful_role_constrained_order_mismatches = order_mismatch_rows_for_turns(
         turns + rescue_shadow_turns,
@@ -3012,6 +3180,16 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         min_token_recall=0.45,
         min_score=0.65,
         match_mode="role_constrained_contentful",
+    )
+    shadow_contentful_role_constrained_order_ambiguities = order_mismatch_rows_for_turns(
+        turns + rescue_shadow_turns,
+        batch_utterances,
+        same_role_only=True,
+        contentful_only=True,
+        min_token_recall=0.45,
+        min_score=0.65,
+        match_mode="rescue_shadow_role_constrained_contentful_batch_overlap_ambiguity",
+        only_batch_interval_overlap_ambiguity=True,
     )
     matched_turns = matched_turn_rows(turns, batch_utterances)
     for row in batch_utterances:
@@ -3071,12 +3249,24 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
         "remote_leak": remote_leak,
         "live_rescue_shadow_remote_leak": shadow_remote_leak,
         "order_mismatches": order_mismatches,
+        "batch_interval_overlap_order_ambiguities": order_ambiguities,
         "role_constrained_order_mismatches": role_constrained_order_mismatches,
+        "role_constrained_batch_interval_overlap_order_ambiguities": role_constrained_order_ambiguities,
         "contentful_role_constrained_order_mismatches": contentful_role_constrained_order_mismatches,
+        "contentful_role_constrained_batch_interval_overlap_order_ambiguities": (
+            contentful_role_constrained_order_ambiguities
+        ),
         "live_rescue_shadow_order_mismatches": shadow_order_mismatches,
+        "live_rescue_shadow_batch_interval_overlap_order_ambiguities": shadow_order_ambiguities,
         "live_rescue_shadow_role_constrained_order_mismatches": shadow_role_constrained_order_mismatches,
+        "live_rescue_shadow_role_constrained_batch_interval_overlap_order_ambiguities": (
+            shadow_role_constrained_order_ambiguities
+        ),
         "live_rescue_shadow_contentful_role_constrained_order_mismatches": (
             shadow_contentful_role_constrained_order_mismatches
+        ),
+        "live_rescue_shadow_contentful_role_constrained_batch_interval_overlap_order_ambiguities": (
+            shadow_contentful_role_constrained_order_ambiguities
         ),
         "segment_role_gate_candidates": segment_gate_summary.get("examples", []),
         "live_rescue_shadow_examples": rescue_shadow_summary.get("examples", []),
@@ -3096,6 +3286,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             "live_order_mismatch_by_category": order_mismatch_category_counts(order_mismatches),
             "live_order_mismatch_by_primary_risk": order_mismatch_field_counts(order_mismatches, "primary_risk"),
             "live_order_mismatch_by_confidence": order_mismatch_field_counts(order_mismatches, "confidence"),
+            "live_batch_interval_overlap_order_ambiguity_count": len(order_ambiguities),
             "live_role_constrained_order_mismatch_count": len(role_constrained_order_mismatches),
             "live_role_constrained_order_mismatch_by_category": order_mismatch_category_counts(
                 role_constrained_order_mismatches,
@@ -3103,6 +3294,9 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             "live_role_constrained_order_mismatch_by_confidence": order_mismatch_field_counts(
                 role_constrained_order_mismatches,
                 "confidence",
+            ),
+            "live_role_constrained_batch_interval_overlap_order_ambiguity_count": len(
+                role_constrained_order_ambiguities
             ),
             "live_contentful_role_constrained_order_mismatch_count": len(
                 contentful_role_constrained_order_mismatches,
@@ -3122,6 +3316,9 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
                 1
                 for row in contentful_role_constrained_order_mismatches
                 if row.get("match_ambiguity") == "unambiguous"
+            ),
+            "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count": len(
+                contentful_role_constrained_order_ambiguities
             ),
             "live_missing_me_utterance_count": len(local_missing),
             "live_missing_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3),
@@ -3155,6 +3352,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
                 shadow_order_mismatches,
                 "confidence",
             ),
+            "live_rescue_shadow_batch_interval_overlap_order_ambiguity_count": len(shadow_order_ambiguities),
             "live_rescue_shadow_role_constrained_order_mismatch_count": len(
                 shadow_role_constrained_order_mismatches,
             ),
@@ -3164,6 +3362,9 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             "live_rescue_shadow_role_constrained_order_mismatch_by_confidence": order_mismatch_field_counts(
                 shadow_role_constrained_order_mismatches,
                 "confidence",
+            ),
+            "live_rescue_shadow_role_constrained_batch_interval_overlap_order_ambiguity_count": len(
+                shadow_role_constrained_order_ambiguities
             ),
             "live_rescue_shadow_contentful_role_constrained_order_mismatch_count": len(
                 shadow_contentful_role_constrained_order_mismatches,
@@ -3183,6 +3384,9 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
                 1
                 for row in shadow_contentful_role_constrained_order_mismatches
                 if row.get("match_ambiguity") == "unambiguous"
+            ),
+            "live_rescue_shadow_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count": len(
+                shadow_contentful_role_constrained_order_ambiguities
             ),
             "live_rescue_shadow_suspected_remote_leak_in_me_count": len(shadow_remote_leak),
             "live_rescue_shadow_suspected_remote_leak_in_me_seconds": round(
@@ -3283,6 +3487,15 @@ def parity_gates(
                 "live_order_mismatch_count": order_mismatches,
                 "live_role_constrained_order_mismatch_count": role_constrained_order_mismatches,
                 "live_contentful_role_constrained_order_mismatch_count": contentful_role_constrained_order_mismatches,
+                "live_batch_interval_overlap_order_ambiguity_count": assessment_metrics.get(
+                    "live_batch_interval_overlap_order_ambiguity_count"
+                ),
+                "live_role_constrained_batch_interval_overlap_order_ambiguity_count": assessment_metrics.get(
+                    "live_role_constrained_batch_interval_overlap_order_ambiguity_count"
+                ),
+                "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count": assessment_metrics.get(
+                    "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count"
+                ),
                 "live_order_mismatch_by_primary_risk": assessment_metrics.get("live_order_mismatch_by_primary_risk"),
                 "batch_metrics": batch_metrics,
             },
@@ -3900,6 +4113,31 @@ def build_target_me_shadow_profiles(
             min_score=0.65,
             match_mode=f"target_me_shadow_profile_{policy}_contentful_examples",
         )
+        order_ambiguity_examples = order_mismatch_rows_for_turns(
+            combined_turns,
+            batch_utterances,
+            match_mode=f"target_me_shadow_profile_{policy}_batch_overlap_ambiguity_examples",
+            only_batch_interval_overlap_ambiguity=True,
+        )
+        role_order_ambiguity_examples = order_mismatch_rows_for_turns(
+            combined_turns,
+            batch_utterances,
+            same_role_only=True,
+            min_token_recall=0.45,
+            min_score=0.65,
+            match_mode=f"target_me_shadow_profile_{policy}_role_batch_overlap_ambiguity_examples",
+            only_batch_interval_overlap_ambiguity=True,
+        )
+        contentful_order_ambiguity_examples = order_mismatch_rows_for_turns(
+            combined_turns,
+            batch_utterances,
+            same_role_only=True,
+            contentful_only=True,
+            min_token_recall=0.45,
+            min_score=0.65,
+            match_mode=f"target_me_shadow_profile_{policy}_contentful_batch_overlap_ambiguity_examples",
+            only_batch_interval_overlap_ambiguity=True,
+        )
         missing_rows, missing_diagnostics = local_missing_diagnostics_for_turns(
             batch_utterances=batch_utterances,
             turns=combined_turns,
@@ -3943,6 +4181,9 @@ def build_target_me_shadow_profiles(
             "live_order_mismatch_count",
             "live_role_constrained_order_mismatch_count",
             "live_contentful_role_constrained_order_mismatch_count",
+            "live_batch_interval_overlap_order_ambiguity_count",
+            "live_role_constrained_batch_interval_overlap_order_ambiguity_count",
+            "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count",
             "live_missing_me_utterance_count",
             "live_missing_me_seconds",
             "live_missing_me_visible_in_suppressed_mic_count",
@@ -3989,8 +4230,13 @@ def build_target_me_shadow_profiles(
                 "local_missing": missing_rows[:20],
                 "remote_leak": remote_leak_rows_for_turns(combined_turns, batch_utterances)[:20],
                 "order_mismatches": order_mismatch_examples[:20],
+                "batch_interval_overlap_order_ambiguities": order_ambiguity_examples[:20],
                 "role_constrained_order_mismatches": role_order_mismatch_examples[:20],
+                "role_constrained_batch_interval_overlap_order_ambiguities": role_order_ambiguity_examples[:20],
                 "contentful_role_constrained_order_mismatches": contentful_order_mismatch_examples[:20],
+                "contentful_role_constrained_batch_interval_overlap_order_ambiguities": (
+                    contentful_order_ambiguity_examples[:20]
+                ),
             },
             "parity_gates": {
                 "status": "not_promotable" if gate_statuses - {"passed"} else "passed_but_shadow_locked",
@@ -4159,20 +4405,42 @@ def main() -> int:
         },
         "risk_examples": {
             "order_mismatches": (live_assessment.get("order_mismatches") or [])[:20],
+            "batch_interval_overlap_order_ambiguities": (
+                live_assessment.get("batch_interval_overlap_order_ambiguities") or []
+            )[:20],
             "role_constrained_order_mismatches": (
                 live_assessment.get("role_constrained_order_mismatches") or []
+            )[:20],
+            "role_constrained_batch_interval_overlap_order_ambiguities": (
+                live_assessment.get("role_constrained_batch_interval_overlap_order_ambiguities") or []
             )[:20],
             "contentful_role_constrained_order_mismatches": (
                 live_assessment.get("contentful_role_constrained_order_mismatches") or []
             )[:20],
+            "contentful_role_constrained_batch_interval_overlap_order_ambiguities": (
+                live_assessment.get("contentful_role_constrained_batch_interval_overlap_order_ambiguities") or []
+            )[:20],
             "live_rescue_shadow_order_mismatches": (
                 live_assessment.get("live_rescue_shadow_order_mismatches") or []
+            )[:20],
+            "live_rescue_shadow_batch_interval_overlap_order_ambiguities": (
+                live_assessment.get("live_rescue_shadow_batch_interval_overlap_order_ambiguities") or []
             )[:20],
             "live_rescue_shadow_role_constrained_order_mismatches": (
                 live_assessment.get("live_rescue_shadow_role_constrained_order_mismatches") or []
             )[:20],
+            "live_rescue_shadow_role_constrained_batch_interval_overlap_order_ambiguities": (
+                live_assessment.get("live_rescue_shadow_role_constrained_batch_interval_overlap_order_ambiguities")
+                or []
+            )[:20],
             "live_rescue_shadow_contentful_role_constrained_order_mismatches": (
                 live_assessment.get("live_rescue_shadow_contentful_role_constrained_order_mismatches") or []
+            )[:20],
+            "live_rescue_shadow_contentful_role_constrained_batch_interval_overlap_order_ambiguities": (
+                live_assessment.get(
+                    "live_rescue_shadow_contentful_role_constrained_batch_interval_overlap_order_ambiguities",
+                )
+                or []
             )[:20],
             "local_missing": (live_assessment.get("local_missing") or [])[:20],
             "local_missing_suspicious_batch_me": (live_assessment.get("local_missing_suspicious_batch_me") or [])[:20],

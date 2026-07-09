@@ -105,6 +105,9 @@ TARGET_ME_SHADOW_POLICY_METRICS = (
     "order_mismatch_count",
     "role_constrained_order_mismatch_count",
     "contentful_role_constrained_order_mismatch_count",
+    "batch_interval_overlap_order_ambiguity_count",
+    "role_constrained_batch_interval_overlap_order_ambiguity_count",
+    "contentful_role_constrained_batch_interval_overlap_order_ambiguity_count",
     "order_mismatch_delta_count",
     "role_constrained_order_mismatch_delta_count",
     "contentful_role_constrained_order_mismatch_delta_count",
@@ -125,6 +128,9 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "live_order_mismatch_count",
     "live_role_constrained_order_mismatch_count",
     "live_contentful_role_constrained_order_mismatch_count",
+    "live_batch_interval_overlap_order_ambiguity_count",
+    "live_role_constrained_batch_interval_overlap_order_ambiguity_count",
+    "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count",
     "live_missing_me_utterance_count",
     "live_missing_me_seconds",
     "live_missing_me_visible_in_suppressed_mic_count",
@@ -1303,6 +1309,20 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
         summary[f"{out}_live_contentful_role_constrained_order_mismatch_count"] = sum_int_metric(
             evaluated_rows,
             f"{base}_live_contentful_role_constrained_order_mismatch_count",
+        )
+        summary[f"{out}_live_batch_interval_overlap_order_ambiguity_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_live_batch_interval_overlap_order_ambiguity_count",
+        )
+        summary[f"{out}_live_role_constrained_batch_interval_overlap_order_ambiguity_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_live_role_constrained_batch_interval_overlap_order_ambiguity_count",
+        )
+        summary[f"{out}_live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count"] = (
+            sum_int_metric(
+                evaluated_rows,
+                f"{base}_live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count",
+            )
         )
         summary[f"{out}_removed_live_turn_count"] = sum_int_metric(
             evaluated_rows,
@@ -3545,6 +3565,11 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             )
             if isinstance(metrics, dict)
             else {},
+            "live_batch_interval_overlap_order_ambiguity_count": (
+                metrics.get("live_batch_interval_overlap_order_ambiguity_count")
+                if isinstance(metrics, dict)
+                else None
+            ),
             "live_role_constrained_order_mismatch_count": (
                 metrics.get("live_role_constrained_order_mismatch_count") if isinstance(metrics, dict) else None
             ),
@@ -3562,6 +3587,11 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             )
             if isinstance(metrics, dict)
             else {},
+            "live_role_constrained_batch_interval_overlap_order_ambiguity_count": (
+                metrics.get("live_role_constrained_batch_interval_overlap_order_ambiguity_count")
+                if isinstance(metrics, dict)
+                else None
+            ),
             "live_contentful_role_constrained_order_mismatch_count": (
                 metrics.get("live_contentful_role_constrained_order_mismatch_count")
                 if isinstance(metrics, dict)
@@ -3588,6 +3618,11 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             )
             if isinstance(metrics, dict)
             else {},
+            "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count": (
+                metrics.get("live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count")
+                if isinstance(metrics, dict)
+                else None
+            ),
             "live_unambiguous_contentful_role_constrained_order_mismatch_count": (
                 metrics.get("live_unambiguous_contentful_role_constrained_order_mismatch_count")
                 if isinstance(metrics, dict)
@@ -3897,6 +3932,14 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         ),
         "live_order_mismatch_by_confidence": sum_counter_metric(rows, "live_order_mismatch_by_confidence"),
         "real_live_order_mismatch_by_confidence": sum_counter_metric(real_live_rows, "live_order_mismatch_by_confidence"),
+        "live_batch_interval_overlap_order_ambiguity_count": sum_int_metric(
+            rows,
+            "live_batch_interval_overlap_order_ambiguity_count",
+        ),
+        "real_live_batch_interval_overlap_order_ambiguity_count": sum_int_metric(
+            real_live_rows,
+            "live_batch_interval_overlap_order_ambiguity_count",
+        ),
         "live_role_constrained_order_mismatch_count": sum_int_metric(
             rows,
             "live_role_constrained_order_mismatch_count",
@@ -3920,6 +3963,14 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_live_role_constrained_order_mismatch_by_confidence": sum_counter_metric(
             real_live_rows,
             "live_role_constrained_order_mismatch_by_confidence",
+        ),
+        "live_role_constrained_batch_interval_overlap_order_ambiguity_count": sum_int_metric(
+            rows,
+            "live_role_constrained_batch_interval_overlap_order_ambiguity_count",
+        ),
+        "real_live_role_constrained_batch_interval_overlap_order_ambiguity_count": sum_int_metric(
+            real_live_rows,
+            "live_role_constrained_batch_interval_overlap_order_ambiguity_count",
         ),
         "live_contentful_role_constrained_order_mismatch_count": sum_int_metric(
             rows,
@@ -3952,6 +4003,14 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "real_live_contentful_role_constrained_order_mismatch_by_ambiguity": sum_counter_metric(
             real_live_rows,
             "live_contentful_role_constrained_order_mismatch_by_ambiguity",
+        ),
+        "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count": sum_int_metric(
+            rows,
+            "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count",
+        ),
+        "real_live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count": sum_int_metric(
+            real_live_rows,
+            "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count",
         ),
         "live_unambiguous_contentful_role_constrained_order_mismatch_count": sum_int_metric(
             rows,
@@ -5560,12 +5619,16 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"`{json.dumps(summary.get('real_live_order_mismatch_by_primary_risk', {}), ensure_ascii=False)}`",
         "- real live order mismatches by confidence: "
         f"`{json.dumps(summary.get('real_live_order_mismatch_by_confidence', {}), ensure_ascii=False)}`",
+        "- real live batch-interval overlap order ambiguities: "
+        f"{summary.get('real_live_batch_interval_overlap_order_ambiguity_count', 0)}",
         "- real live role-constrained order mismatches: "
         f"{summary.get('real_live_role_constrained_order_mismatch_count', 0)}",
         "- real live role-constrained order mismatches by category: "
         f"`{json.dumps(summary.get('real_live_role_constrained_order_mismatch_by_category', {}), ensure_ascii=False)}`",
         "- real live role-constrained order mismatches by confidence: "
         f"`{json.dumps(summary.get('real_live_role_constrained_order_mismatch_by_confidence', {}), ensure_ascii=False)}`",
+        "- real live role-constrained batch-interval overlap order ambiguities: "
+        f"{summary.get('real_live_role_constrained_batch_interval_overlap_order_ambiguity_count', 0)}",
         "- real live contentful role-constrained order mismatches: "
         f"{summary.get('real_live_contentful_role_constrained_order_mismatch_count', 0)}",
         "- real live contentful role-constrained order mismatches by category: "
@@ -5574,6 +5637,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"`{json.dumps(summary.get('real_live_contentful_role_constrained_order_mismatch_by_confidence', {}), ensure_ascii=False)}`",
         "- real live contentful role-constrained order mismatches by ambiguity: "
         f"`{json.dumps(summary.get('real_live_contentful_role_constrained_order_mismatch_by_ambiguity', {}), ensure_ascii=False)}`",
+        "- real live contentful role-constrained batch-interval overlap order ambiguities: "
+        f"{summary.get('real_live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count', 0)}",
         "- real live unambiguous contentful role-constrained order mismatches: "
         f"{summary.get('real_live_unambiguous_contentful_role_constrained_order_mismatch_count', 0)}",
         f"- live missing Me seconds: {summary.get('live_missing_me_seconds', 0.0)}",
@@ -6480,6 +6545,10 @@ def main() -> int:
         "real_live_order_mismatch_by_confidence: "
         f"{json.dumps(summary.get('real_live_order_mismatch_by_confidence', {}), ensure_ascii=False)}"
     )
+    print(
+        "real_live_batch_interval_overlap_order_ambiguity_count: "
+        f"{summary.get('real_live_batch_interval_overlap_order_ambiguity_count', 0)}"
+    )
     print(f"real_live_role_constrained_order_mismatch_count: {summary.get('real_live_role_constrained_order_mismatch_count', 0)}")
     print(
         "real_live_role_constrained_order_mismatch_by_category: "
@@ -6488,6 +6557,10 @@ def main() -> int:
     print(
         "real_live_role_constrained_order_mismatch_by_confidence: "
         f"{json.dumps(summary.get('real_live_role_constrained_order_mismatch_by_confidence', {}), ensure_ascii=False)}"
+    )
+    print(
+        "real_live_role_constrained_batch_interval_overlap_order_ambiguity_count: "
+        f"{summary.get('real_live_role_constrained_batch_interval_overlap_order_ambiguity_count', 0)}"
     )
     print(
         "real_live_contentful_role_constrained_order_mismatch_count: "
@@ -6504,6 +6577,10 @@ def main() -> int:
     print(
         "real_live_contentful_role_constrained_order_mismatch_by_ambiguity: "
         f"{json.dumps(summary.get('real_live_contentful_role_constrained_order_mismatch_by_ambiguity', {}), ensure_ascii=False)}"
+    )
+    print(
+        "real_live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count: "
+        f"{summary.get('real_live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count', 0)}"
     )
     print(
         "real_live_unambiguous_contentful_role_constrained_order_mismatch_count: "

@@ -507,17 +507,17 @@ newer run-state exists.
    `0.00s`, but still leaves `380.17s` missing-Me and `4` contentful order mismatches. The current
    best live-implementable profile,
    `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1`,
-   reaches `130.97s` missing-Me with `0.00s` remote leak, `4` contentful order mismatches and `41`
+   reaches `110.13s` missing-Me with `0.00s` remote leak, `4` contentful order mismatches and `41`
    non-passing gates. It gets there by applying timeline-safe checks to the broader
    `target_me_possible_v1` set: `251.37s` recovered, `47.38s` rejected (`31.08s` order risk,
-   `16.30s` remote leak). The residual missing-Me splits into `26.78s` visible with broader
+   `16.30s` remote leak). The residual missing-Me splits into `5.94s` visible with broader
    Target-Me evidence, `90.42s` visible without Target-Me evidence and `13.77s` not visible in
    suppressed mic. The remaining-gap report now identifies no-policy rows as the largest bucket
    (`104.19s`) and also groups their overlapping suppressed-mic evidence: top gate reason
    `segment_duplicates_overlapping_remote` (`73.60s`), top batch-role labels `mixed` (`56.06s`) and
    `remote_dominant` (`50.24s`), plus `known_hallucination` (`12.42s`) that is explicitly forbidden
    from rescue. The best oracle profile is now the batch-time local-island retime oracle: it reaches
-   `112.47s` missing-Me, so the remaining live-implementable-to-oracle gap is `18.50s`.
+   `91.63s` missing-Me, so the remaining live-implementable-to-oracle gap is `18.50s`.
    Actionability now points at `60.42s`
    `mixed_needs_segmentation_or_speaker_evidence`, not a clean speaker-confirmation queue. That
    mixed bucket is now split by segmentability: `27.92s` are `local_island_split_candidate`,
@@ -539,7 +539,7 @@ newer run-state exists.
    remote-risk. That strict profile is now materialized as a normal shadow draft: after
    deduplication against existing live/Target-Me turns, the standalone version adds `0.00s`, leaves
    `144.35s` missing-Me and `0.00s` remote leak; the combined strict+audio-safe version adds the same
-   `52.76s` as `audio_safe_union_v1`, and corpus missing-Me remains `130.97s` with `0.00s` remote
+   `52.76s` as `audio_safe_union_v1`, and corpus missing-Me remains `110.13s` with `0.00s` remote
    leak. `live_strict_local_island_shadow_delta_lab/v1` records `0.00s` incremental strict turns and
    `0.00s` closed missing-Me. This is not a call for more live recording, broader rescue or relaxed
    publication gates; the next step is online timing anchors / remote-forbidden evidence for
@@ -555,8 +555,10 @@ newer run-state exists.
    `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`.
    The unguarded version added `12.68s` and lowered missing-Me from `130.97s` to `127.01s`, but
    increased contentful order mismatches from `4` to `5`. The guarded version adds only `1.48s`,
-   leaves missing-Me at `144.35s`, keeps measured remote leak at `0.00s` and keeps contentful order
-   mismatches at `4`. So the next roadmap item is stronger online timing/local-speaker evidence for
+   keeps measured remote leak at `0.00s` and keeps contentful order mismatches at `4`. Order-risk
+   triage now separates strict reorder from batch-interval overlap ambiguity: real live has `30`
+   strict order mismatches plus `4` overlap ambiguities; contentful same-role remains `4` strict
+   mismatches plus `0` overlap ambiguities. So the next roadmap item is stronger online timing/local-speaker evidence for
    boundary turns; the profile stays shadow-only until ordinary parity gates improve.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`

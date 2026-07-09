@@ -136,20 +136,23 @@ Current result:
 - `promotion_decision = shadow_only_do_not_promote`;
 - `promotion_allowed_sessions = 0`;
 - live/batch comparison granularity: ASR segment when available, chunk fallback otherwise;
-- `real_live_order_mismatch_count = 34`;
-- `real_live_order_mismatch_by_category = {"same_chunk_same_source_reorder": 20,
-  "same_chunk_cross_source_reorder": 11, "cross_chunk_reorder": 2,
+- `real_live_order_mismatch_count = 30`;
+- `real_live_batch_interval_overlap_order_ambiguity_count = 4`;
+- `real_live_order_mismatch_by_category = {"same_chunk_same_source_reorder": 17,
+  "same_chunk_cross_source_reorder": 11, "cross_chunk_reorder": 1,
   "chunk_overlap_context_reorder": 1}`;
-- `real_live_order_mismatch_by_primary_risk = {"role_conflict_or_remote_leak": 19,
-  "weak_text_match_possible_false_positive": 8, "same_source_timeline_reorder": 4,
+- `real_live_order_mismatch_by_primary_risk = {"role_conflict_or_remote_leak": 16,
+  "weak_text_match_possible_false_positive": 8, "same_source_timeline_reorder": 3,
   "cross_source_timeline_reorder": 3}`;
-- `real_live_order_mismatch_by_confidence = {"role_conflict": 19, "low": 8, "high": 4,
+- `real_live_order_mismatch_by_confidence = {"role_conflict": 16, "low": 8, "high": 3,
   "medium": 3}`;
-- `real_live_role_constrained_order_mismatch_count = 9`;
-- `real_live_role_constrained_order_mismatch_by_category = {"same_chunk_same_source_reorder": 6,
+- `real_live_role_constrained_order_mismatch_count = 8`;
+- `real_live_role_constrained_batch_interval_overlap_order_ambiguity_count = 1`;
+- `real_live_role_constrained_order_mismatch_by_category = {"same_chunk_same_source_reorder": 5,
   "same_chunk_cross_source_reorder": 3}`;
-- `real_live_role_constrained_order_mismatch_by_confidence = {"high": 4, "medium": 5}`;
+- `real_live_role_constrained_order_mismatch_by_confidence = {"high": 3, "medium": 5}`;
 - `real_live_contentful_role_constrained_order_mismatch_count = 4`;
+- `real_live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count = 0`;
 - `real_live_contentful_role_constrained_order_mismatch_by_category =
   {"same_chunk_same_source_reorder": 2, "same_chunk_cross_source_reorder": 2}`;
 - `real_live_contentful_role_constrained_order_mismatch_by_confidence = {"high": 1,
@@ -169,7 +172,7 @@ Current result:
 - `real_live_rescue_shadow_missing_me_recovered_seconds = 45.36`;
 - `real_live_rescue_shadow_missing_me_seconds_after = 350.36`;
 - `real_live_rescue_shadow_suspected_remote_leak_in_me_seconds = 0.00`;
-- `real_live_rescue_shadow_order_mismatch_count = 34`;
+- `real_live_rescue_shadow_order_mismatch_count = 30`;
 - `real_live_suppressed_mic_asr_me_dominant_segment_count = 47 / 149.62 sec`;
 - `real_live_suppressed_mic_asr_mixed_segment_count = 44 / 199.92 sec`;
 - current text-only rescue policy: `152.60 sec` local / `73.62 sec` remote-risk;
@@ -315,7 +318,7 @@ Materialized composite shadow profile, 2026-07-09:
 - the profile uses only suppressed mic segments where session-local Target-Me and persistent
   Target-Me both pass their remote guard;
 - current real corpus result: `4` added turns / `47.70s`;
-- profile missing-Me: `380.17s`, down from ordinary live `419.16s`;
+- profile missing-Me: `380.17s`, down from ordinary live `395.72s`;
 - profile remote leak remains `15.96s` because this rescue-only profile does not remove already
   published bad live `Me` turns;
 - profile contentful role-constrained order mismatches remain `4`;
@@ -348,12 +351,12 @@ Online remote-overlap shadow filter, 2026-07-09:
   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1`:
   - remaining measured remote leak: `0.00s`;
   - visible suppressed mic added: `52.76s`;
-  - missing-Me: `130.97s`;
+  - missing-Me: `110.13s`;
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
 - best diagnostic oracle profile is
   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_retime_oracle_v1`:
-  - missing-Me: `112.47s`;
+  - missing-Me: `91.63s`;
   - remaining measured remote leak: `0.00s`;
   - contentful role-constrained order mismatches: `4`;
   - best live-implementable to oracle gap: `18.50s`.
@@ -481,7 +484,7 @@ The strict profile is now also materialized into ordinary live-shadow drafts:
   gates;
 - combined policy:
   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_strict_live_only_local_island_v1`;
-- combined profile result: `52.76s` added, `130.97s` missing-Me, `0.00s` remote leak, `4`
+- combined profile result: `52.76s` added, `110.13s` missing-Me, `0.00s` remote leak, `4`
   contentful order mismatches, `41` non-passing gates;
 - strict shadow delta lab: `0.00s` incremental strict turns and `0.00s` closed missing-Me.
 
@@ -525,7 +528,7 @@ That materialization is now present as
 The ordinary parity gates show that it is not yet a promotion candidate:
 
 - guarded boundary turns added: `1.48s`;
-- missing-Me stays at `144.35s`, worse than the current best live-implementable `130.97s`;
+- missing-Me remains worse than the current best live-implementable `110.13s`;
 - measured remote leak stays `0.00s`;
 - contentful order mismatches stay at `4`;
 - non-passing gates remain `41`;
@@ -546,18 +549,20 @@ visible for the local-recall fix.
 The comparison now evaluates normal live turns and rescue-shadow candidates at ASR-segment
 granularity when the source ASR JSON is present, with chunk-level fallback for older artifacts. This
 exposes order and remote-leakage risks that the earlier chunk-level comparison could hide.
-Order risk is mostly local to a single live chunk: `31/34` mismatches are same-chunk reorder, with
-`20` inside one source and `11` between mic/remote segments. Only `3/34` are cross-chunk or overlap
-context. The primary-risk split is even more useful: `19/34` are role conflict / possible remote
-leak, `8/34` are weak text matches that may be false positives, and only `7/34` look like direct
-timeline reorder. A stricter same-role matcher confirms `9` role-constrained order mismatches
-(`6` same-source and `3` cross-source, all inside one live chunk); after filtering short/generic
-phrases, only `4` contentful same-role order mismatches remain. This points the next implementation
-at targeted role-constrained live reconciliation and per-chunk timeline repair. Ambiguity scoring
-narrows the stable contentful order-risk subset to `2` examples, so order repair should be
+Order risk is mostly local to a single live chunk: `28/30` strict mismatches are same-chunk reorder,
+with `17` inside one source and `11` between mic/remote segments. Only `2/30` are cross-chunk or
+overlap context. The primary-risk split is even more useful: `16/30` are role conflict / possible
+remote leak, `8/30` are weak text matches that may be false positives, and only `6/30` look like
+direct timeline reorder. Batch-interval overlap ambiguity is now counted separately: `4` rows in
+all order checks, `1` in same-role checks and `0` in contentful same-role checks. A stricter
+same-role matcher confirms `8` strict role-constrained order mismatches (`5` same-source and `3`
+cross-source, all inside one live chunk); after filtering short/generic phrases, only `4`
+contentful same-role strict mismatches remain. This points the next implementation at targeted
+role-constrained live reconciliation and per-chunk timeline repair. Text-match ambiguity scoring
+still narrows the stable contentful order-risk subset to `2` examples, so order repair should be
 targeted; raw capture and sidecar materialization are not the next bottleneck. The metric-aware
 objective focus now points to `fix_live_local_recall_gap`, because stable contentful order risk is
-small while `419.16s` of batch `Me` speech are still missing from live `Me`, with `382.52s` visible
+small while `395.72s` of batch `Me` speech are still missing from live `Me`, with `382.52s` visible
 in suppressed mic evidence.
 Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks,
 but the live branch also has segment-level ordering drift and `15.96s` suspected remote leakage in
@@ -646,7 +651,7 @@ New Target-Me diagnostic, 2026-07-08:
   is safe but too weak (`278.52s` profile missing-Me remains). `audio_low_corr_text_guard_v1` recovers
   much more (`117.52s` missing-Me remains), but leaks `210.10s` of remote-like text, so it is not a
   viable promotion path. Combining `target_me_possible_timeline_safe_v1`, online remote-overlap
-  cleanup and `audio_safe_union_v1` gives the current best live-implementable shadow at `130.97s`
+  cleanup and `audio_safe_union_v1` gives the current best live-implementable shadow at `110.13s`
   missing-Me. The next online design therefore needs stronger local-speaker evidence for visible
   suppressed mic regions that still have no Target-Me policy.
 
