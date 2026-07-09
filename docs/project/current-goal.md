@@ -527,20 +527,23 @@ blocker is still live-only speaker/boundary evidence precise enough to publish s
 without opening a remote leak path.
 
 The corpus report now adds `live_mixed_speaker_boundary_voice_coverage_lab/v1` to check whether
-the current mixed/speaker blocker is already covered by Target-Me voice evidence. Current result:
+the current mixed/speaker blocker is already covered by Target-Me voice evidence. The Target-Me
+audit now has `--include-remaining-gap`, so it can feed the current best-live-implementable
+remaining mixed intervals into the same voice backend. Current result after that extension:
 
 - rows in scope: `8` / `43.40s`;
-- voice overlap with existing Target-Me rows: `3.312s`;
+- voice overlap with Target-Me rows: `30.60s`;
 - remote-guard publication candidate: `0.32s`;
-- no-overlap Target-Me coverage: `39.38s`;
-- weak or ambiguous voice evidence: `3.70s`;
+- weak or ambiguous voice evidence: `29.14s`;
+- Target-Me enrollment-not-ready: `13.94s`;
+- no-overlap Target-Me coverage: `0.00s`;
 - recommended next:
-  `extend_target_me_audit_to_remaining_mixed_boundary_rows`.
+  `add_target_me_enrollment_fallback_for_remaining_mixed_boundary_rows`.
 
-Conclusion: new recordings are not needed for the current blocker, but the existing Target-Me audit
-does not look at most of the remaining mixed boundary intervals. The next useful step is to extend
-the voice audit input set to those intervals and then re-evaluate publication safety under the same
-remote-leak/order gates.
+Conclusion: new recordings are not needed for the current blocker. The voice audit now covers most
+of the remaining mixed intervals, but it either stays weak/ambiguous or cannot build enough
+enrollment in one session. The next useful step is an enrollment fallback/warmup path for remaining
+mixed boundary rows, still under the same remote-leak/order gates.
 The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 
 - accepted rows: `0`;

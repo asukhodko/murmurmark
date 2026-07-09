@@ -1401,6 +1401,20 @@ To refresh Target-Me evidence during suggested review intentionally:
 MURMURMARK_REVIEW_TARGET_ME_REFRESH=1 murmurmark review suggested apply "$SESSION"
 ```
 
+To audit the current live remaining mixed-boundary gap explicitly:
+
+```bash
+scripts/audit-live-local-recall-target-me.py "$SESSION" \
+  --method resemblyzer_dvector \
+  --include-remaining-gap \
+  --max-items 120
+```
+
+This is diagnostic-only. It does not publish live `Me` text; it only writes
+`derived/audit/live-local-recall-target-me/*` rows that `report-live-corpus-gates.py` can use to
+explain whether the current blocker is missing voice coverage, weak voice evidence or insufficient
+Target-Me enrollment.
+
 Target-Me now audits open readiness review-plan rows as well as older transcript/audit rows. The
 audio-review pack stores those rows with `review_plan:*` reasons and `source_audit_id`, and
 `target_me_audit.jsonl` echoes that ID in `source_audit_ids`. This lets review suggestions close a

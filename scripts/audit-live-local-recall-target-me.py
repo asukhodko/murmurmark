@@ -18,6 +18,10 @@ SCHEMA_SUMMARY = "murmurmark.live_local_recall_target_me_summary/v1"
 SCHEMA_CORPUS = "murmurmark.live_local_recall_target_me_corpus_report/v1"
 SCRIPT_VERSION = "0.1.0"
 LOCAL_LABELS = {"me_dominant", "mixed"}
+DEFAULT_REMAINING_GAP_PROFILE = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_v1"
+)
 LIVE_IMPLEMENTABLE_POLICIES = {
     "current_text_segment_gate",
     "strict_text_unique_v1",
@@ -65,6 +69,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--padding-sec", type=float, default=0.20)
     parser.add_argument("--min-duration-sec", type=float, default=0.5)
     parser.add_argument("--include-policy-selected", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--include-remaining-gap",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Also audit suppressed mic evidence from the current best-live-implementable remaining "
+            "local-missing gap. Diagnostic only."
+        ),
+    )
+    parser.add_argument(
+        "--remaining-gap-profile",
+        default=DEFAULT_REMAINING_GAP_PROFILE,
+        help="Target-Me shadow profile whose risk_examples.local_missing rows should feed --include-remaining-gap.",
+    )
     parser.add_argument("--write-clips", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--progress", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--max-enrollment-segments", type=int, default=40)
@@ -214,19 +232,70 @@ def target_me_rescue_policy_candidates(row: dict[str, Any]) -> list[str]:
 def segment_priority(segment: dict[str, Any]) -> tuple[int, float, str, float]:
     label = str(segment.get("batch_role_label") or "")
     has_live_policy = bool(live_policy_candidates(segment))
-    if label in LOCAL_LABELS and not has_live_policy:
+    if segment.get("candidate_source") == "remaining_gap_suppressed_mic":
         bucket = 0
-    elif label in LOCAL_LABELS:
+    elif label in LOCAL_LABELS and not has_live_policy:
         bucket = 1
-    elif has_live_policy:
+    elif label in LOCAL_LABELS:
         bucket = 2
-    else:
+    elif has_live_policy:
         bucket = 3
+    else:
+        bucket = 4
     return (
         bucket,
         -safe_float(segment.get("duration_sec")),
         str(segment.get("session_id") or ""),
         safe_float(segment.get("start")),
+    )
+
+
+def remaining_gap_segments(comparison: dict[str, Any], args: argparse.Namespace) -> list[dict[str, Any]]:
+    shadow_profiles = comparison.get("shadow_profiles") if isinstance(comparison.get("shadow_profiles"), dict) else {}
+    target_me_profiles = shadow_profiles.get("target_me") if isinstance(shadow_profiles.get("target_me"), dict) else {}
+    profile = target_me_profiles.get(args.remaining_gap_profile)
+    if not isinstance(profile, dict):
+        return []
+    risk_examples = profile.get("risk_examples") if isinstance(profile.get("risk_examples"), dict) else {}
+    local_missing = risk_examples.get("local_missing") if isinstance(risk_examples.get("local_missing"), list) else []
+    rows: list[dict[str, Any]] = []
+    for item in local_missing:
+        if not isinstance(item, dict):
+            continue
+        missing_start = safe_float(item.get("start"))
+        missing_end = safe_float(item.get("end"), missing_start)
+        if missing_end <= missing_start:
+            continue
+        evidence_rows = item.get("suppressed_mic_evidence") if isinstance(item.get("suppressed_mic_evidence"), list) else []
+        for evidence in evidence_rows:
+            if not isinstance(evidence, dict) or evidence.get("known_hallucination"):
+                continue
+            start = max(missing_start, safe_float(evidence.get("start")))
+            end = min(missing_end, safe_float(evidence.get("end"), start))
+            duration = max(0.0, end - start)
+            if duration < args.min_duration_sec:
+                continue
+            segment = dict(evidence)
+            segment["candidate_source"] = "remaining_gap_suppressed_mic"
+            segment["remaining_gap_profile"] = args.remaining_gap_profile
+            segment["missing_batch_id"] = item.get("batch_id")
+            segment["missing_batch_start"] = round(missing_start, 3)
+            segment["missing_batch_end"] = round(missing_end, 3)
+            segment["start"] = round(start, 3)
+            segment["end"] = round(end, 3)
+            segment["duration_sec"] = round(duration, 3)
+            segment["text"] = evidence.get("text") or item.get("text") or ""
+            rows.append(segment)
+    return rows
+
+
+def segment_identity(segment: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        safe_int(segment.get("chunk_index")),
+        round(safe_float(segment.get("start")), 3),
+        round(safe_float(segment.get("end")), 3),
+        str(segment.get("text") or ""),
+        str(segment.get("candidate_source") or "suppressed_mic_asr_segments"),
     )
 
 
@@ -242,9 +311,19 @@ def selected_segments(comparison: dict[str, Any], args: argparse.Namespace) -> l
         label = str(item.get("batch_role_label") or "")
         has_policy = bool(live_policy_candidates(item))
         if label in LOCAL_LABELS and (args.include_policy_selected or not has_policy):
-            rows.append(dict(item))
+            segment = dict(item)
+            segment.setdefault("candidate_source", "suppressed_mic_asr_segments")
+            rows.append(segment)
         elif has_policy and label not in LOCAL_LABELS:
-            rows.append(dict(item))
+            segment = dict(item)
+            segment.setdefault("candidate_source", "suppressed_mic_asr_segments")
+            rows.append(segment)
+    if args.include_remaining_gap:
+        rows.extend(remaining_gap_segments(comparison, args))
+    deduped: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for row in rows:
+        deduped.setdefault(segment_identity(row), row)
+    rows = list(deduped.values())
     rows.sort(key=segment_priority)
     return rows[: args.max_items] if args.max_items > 0 else rows
 
@@ -374,6 +453,11 @@ def audit_segment(
             "start_time": format_time(start),
             "end_time": format_time(end),
         },
+        "candidate_source": segment.get("candidate_source") or "suppressed_mic_asr_segments",
+        "remaining_gap_profile": segment.get("remaining_gap_profile"),
+        "missing_batch_id": segment.get("missing_batch_id"),
+        "missing_batch_start": segment.get("missing_batch_start"),
+        "missing_batch_end": segment.get("missing_batch_end"),
         "batch_role_label": segment.get("batch_role_label"),
         "live_rescue_policy_candidates": live_policy_candidates(segment),
         "text": segment.get("text") or "",
@@ -488,6 +572,7 @@ def summarize_session(
 ) -> dict[str, Any]:
     by_label = Counter(str(row.get("batch_role_label") or "unknown") for row in rows)
     by_class = Counter(str((row.get("classification") or {}).get("label") or "unknown") for row in rows)
+    by_source = Counter(str(row.get("candidate_source") or "unknown") for row in rows)
     local_rows = [row for row in rows if row.get("batch_role_label") in LOCAL_LABELS]
     remote_rows = [row for row in rows if row.get("batch_role_label") not in LOCAL_LABELS]
     confirmed_local = [
@@ -519,6 +604,7 @@ def summarize_session(
         "total_seconds": seconds(rows),
         "by_batch_role_label": dict(by_label),
         "by_target_me_label": dict(by_class),
+        "by_candidate_source": dict(by_source),
         "local_items": len(local_rows),
         "local_seconds": seconds(local_rows),
         "target_me_confirmed_local_items": len(confirmed_strong_local),
@@ -553,6 +639,7 @@ def write_session_report(path: Path, summary: dict[str, Any], rows: list[dict[st
         f"`{summary.get('target_me_possible_or_confirmed_local_seconds')}` sec",
         f"- Remote-risk rejected: `{summary.get('target_me_rejected_remote_risk_items')}` / "
         f"`{summary.get('target_me_rejected_remote_risk_seconds')}` sec",
+        f"- Candidate sources: `{json.dumps(summary.get('by_candidate_source', {}), ensure_ascii=False)}`",
         "",
         "This report is diagnostic only. Batch remains authoritative and live output is not promoted.",
         "",

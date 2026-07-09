@@ -6009,10 +6009,14 @@ Important fields:
 - `by_classification`: grouped counts/seconds by voice coverage class;
 - `recommended_next`: the next implementation target, still with `promotion_allowed: false`.
 
-Current corpus evidence: the mixed/speaker blocker has `8` rows / `43.40s`; existing Target-Me rows
-overlap only `3.312s`; a remote-guard candidate covers `0.32s`; `39.38s` have no overlapping
-Target-Me voice evidence. The report therefore recommends
-`extend_target_me_audit_to_remaining_mixed_boundary_rows` before any live publication-gate change.
+`scripts/audit-live-local-recall-target-me.py --include-remaining-gap` extends the Target-Me audit
+input set with suppressed mic evidence from the current best-live-implementable remaining mixed
+intervals. Current corpus evidence after that extension: the mixed/speaker blocker has `8` rows /
+`43.40s`; Target-Me rows overlap `30.60s`; a remote-guard candidate covers `0.32s`; `29.14s` are
+weak or ambiguous voice evidence; `13.94s` are blocked by Target-Me enrollment not being ready. The
+report therefore recommends
+`add_target_me_enrollment_fallback_for_remaining_mixed_boundary_rows` before any live
+publication-gate change.
 
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`
 is the first profile-level local-island split oracle. It starts from the current best

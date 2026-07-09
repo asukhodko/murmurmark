@@ -603,9 +603,10 @@ newer run-state exists.
    short/generic rows. So the next roadmap item is stronger online local-speaker and boundary
    evidence for mixed missing-Me regions, plus later matcher tightening. The first voice-coverage
    check narrows that further: `live_mixed_speaker_boundary_voice_coverage_lab` sees `8`
-   mixed/speaker rows / `43.40s`, but existing Target-Me rows overlap only `3.312s`; `39.38s`
-   have no overlapping Target-Me voice evidence and only `0.32s` are remote-guard candidates. The
-   next implementable step is therefore `extend_target_me_audit_to_remaining_mixed_boundary_rows`,
+   mixed/speaker rows / `43.40s`. After Target-Me is rerun with `--include-remaining-gap`,
+   Target-Me rows overlap `30.60s`; only `0.32s` are remote-guard candidates, `29.14s` stay weak
+   or ambiguous, and `13.94s` are blocked by insufficient Target-Me enrollment. The next
+   implementable step is therefore `add_target_me_enrollment_fallback_for_remaining_mixed_boundary_rows`,
    not more live recordings and not a relaxed publication gate.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`

@@ -2685,6 +2685,10 @@ def live_next_unlock_report(
                         safe_float(mixed_voice_coverage_lab.get("no_voice_overlap_seconds")),
                         3,
                     ),
+                    "target_me_enrollment_not_ready_seconds": round(
+                        safe_float(mixed_voice_coverage_lab.get("target_me_enrollment_not_ready_seconds")),
+                        3,
+                    ),
                     "weak_or_ambiguous_seconds": round(
                         safe_float(mixed_voice_coverage_lab.get("weak_or_ambiguous_seconds")),
                         3,
@@ -2796,6 +2800,10 @@ def live_next_unlock_report(
             ),
             "no_target_me_audit_seconds": round(safe_float(mixed_voice_coverage_lab.get("no_target_me_audit_seconds")), 3),
             "no_voice_overlap_seconds": round(safe_float(mixed_voice_coverage_lab.get("no_voice_overlap_seconds")), 3),
+            "target_me_enrollment_not_ready_seconds": round(
+                safe_float(mixed_voice_coverage_lab.get("target_me_enrollment_not_ready_seconds")),
+                3,
+            ),
             "weak_or_ambiguous_seconds": round(safe_float(mixed_voice_coverage_lab.get("weak_or_ambiguous_seconds")), 3),
             "recommended_next": mixed_voice_next,
         },
@@ -3247,14 +3255,20 @@ def live_online_speaker_boundary_evidence_design_lab(
     }
 
 
-def _target_me_audit_rows(root: Path, session_id: str) -> tuple[list[dict[str, Any]], str | None]:
+def _target_me_audit_rows(root: Path, session_id: str) -> tuple[list[dict[str, Any]], str | None, str | None]:
     audit_path = (
         root
         / session_id
         / "derived/audit/live-local-recall-target-me/live_local_recall_target_me_audit.jsonl"
     )
+    summary_path = (
+        root
+        / session_id
+        / "derived/audit/live-local-recall-target-me/live_local_recall_target_me_summary.json"
+    )
     rows = read_jsonl(audit_path)
-    return rows, str(audit_path) if audit_path.exists() else None
+    summary = read_json(summary_path) or {}
+    return rows, str(audit_path) if audit_path.exists() else None, str(summary.get("status") or "")
 
 
 def _audit_interval(row: dict[str, Any]) -> tuple[float, float]:
@@ -3296,6 +3310,7 @@ def classify_mixed_voice_coverage(
     design_unit: str,
     matched_rows: list[dict[str, Any]],
     target_audit_present: bool,
+    target_audit_status: str | None,
 ) -> tuple[str, str, bool]:
     if not target_audit_present:
         return (
@@ -3304,6 +3319,12 @@ def classify_mixed_voice_coverage(
             False,
         )
     if not matched_rows:
+        if target_audit_status and target_audit_status not in {"ok", "no_items"}:
+            return (
+                "target_me_enrollment_not_ready",
+                f"Target-Me audit exists, but status is {target_audit_status}",
+                False,
+            )
         return (
             "no_voice_overlap",
             "Target-Me audit exists, but it does not cover this remaining mixed/speaker interval",
@@ -3403,7 +3424,7 @@ def live_mixed_speaker_boundary_voice_coverage_lab(
         batch_id = str(design.get("batch_id") or "")
         if not session_id:
             continue
-        audit_rows, audit_path = audit_cache.setdefault(
+        audit_rows, audit_path, audit_status = audit_cache.setdefault(
             session_id,
             _target_me_audit_rows(root, session_id),
         )
@@ -3448,6 +3469,7 @@ def live_mixed_speaker_boundary_voice_coverage_lab(
             design_unit=design_unit,
             matched_rows=matched_rows,
             target_audit_present=bool(audit_path),
+            target_audit_status=audit_status,
         )
         overlap_seconds = round(sum(overlap for _row, overlap in matched), 3)
         rows.append(
@@ -3462,6 +3484,7 @@ def live_mixed_speaker_boundary_voice_coverage_lab(
                 "segmentability": design.get("segmentability"),
                 "actionability": design.get("actionability"),
                 "target_me_audit_path": audit_path,
+                "target_me_audit_status": audit_status,
                 "target_me_audit_row_count": len(audit_rows),
                 "voice_overlap_seconds": overlap_seconds,
                 "voice_coverage_ratio": (
@@ -3502,6 +3525,9 @@ def live_mixed_speaker_boundary_voice_coverage_lab(
 
     publication_candidates = [row for row in rows if row.get("would_be_publication_candidate")]
     no_audit_rows = [row for row in rows if row.get("voice_coverage_classification") == "no_target_me_audit"]
+    enrollment_not_ready_rows = [
+        row for row in rows if row.get("voice_coverage_classification") == "target_me_enrollment_not_ready"
+    ]
     no_overlap_rows = [row for row in rows if row.get("voice_coverage_classification") == "no_voice_overlap"]
     weak_rows = [
         row
@@ -3521,7 +3547,17 @@ def live_mixed_speaker_boundary_voice_coverage_lab(
         sum(safe_float(row.get("duration_sec")) for row in no_audit_rows + no_overlap_rows),
         3,
     )
-    if no_audit_rows or (no_overlap_rows and publication_candidate_seconds < 2.0):
+    if enrollment_not_ready_rows:
+        recommended_next = {
+            "id": "add_target_me_enrollment_fallback_for_remaining_mixed_boundary_rows",
+            "why": "remaining mixed/speaker rows are in sessions where Target-Me audit cannot build enough enrollment",
+            "enrollment_not_ready_seconds": round(
+                sum(safe_float(row.get("duration_sec")) for row in enrollment_not_ready_rows),
+                3,
+            ),
+            "ready_candidate_seconds": publication_candidate_seconds,
+        }
+    elif no_audit_rows or (no_overlap_rows and publication_candidate_seconds < 2.0):
         recommended_next = {
             "id": "extend_target_me_audit_to_remaining_mixed_boundary_rows",
             "why": "current Target-Me audit does not cover the largest mixed/speaker blocker intervals",
@@ -3564,6 +3600,11 @@ def live_mixed_speaker_boundary_voice_coverage_lab(
         ),
         "no_target_me_audit_count": len(no_audit_rows),
         "no_target_me_audit_seconds": round(sum(safe_float(row.get("duration_sec")) for row in no_audit_rows), 3),
+        "target_me_enrollment_not_ready_count": len(enrollment_not_ready_rows),
+        "target_me_enrollment_not_ready_seconds": round(
+            sum(safe_float(row.get("duration_sec")) for row in enrollment_not_ready_rows),
+            3,
+        ),
         "no_voice_overlap_count": len(no_overlap_rows),
         "no_voice_overlap_seconds": round(sum(safe_float(row.get("duration_sec")) for row in no_overlap_rows), 3),
         "weak_or_ambiguous_count": len(weak_rows),
@@ -6628,6 +6669,9 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["real_live_mixed_speaker_boundary_voice_coverage_no_overlap_seconds"] = safe_float(
         mixed_speaker_boundary_voice_coverage_lab_report.get("no_voice_overlap_seconds")
     )
+    summary["real_live_mixed_speaker_boundary_voice_coverage_enrollment_not_ready_seconds"] = safe_float(
+        mixed_speaker_boundary_voice_coverage_lab_report.get("target_me_enrollment_not_ready_seconds")
+    )
     mixed_voice_next = (
         mixed_speaker_boundary_voice_coverage_lab_report.get("recommended_next")
         if isinstance(mixed_speaker_boundary_voice_coverage_lab_report.get("recommended_next"), dict)
@@ -7662,6 +7706,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"{mixed_voice_coverage.get('no_target_me_audit_seconds')}",
             "- no-overlap Target-Me seconds: "
             f"{mixed_voice_coverage.get('no_voice_overlap_seconds')}",
+            "- Target-Me enrollment-not-ready seconds: "
+            f"{mixed_voice_coverage.get('target_me_enrollment_not_ready_seconds')}",
             "- weak/ambiguous voice seconds: "
             f"{mixed_voice_coverage.get('weak_or_ambiguous_seconds')}",
             f"- recommended next: `{recommended_next.get('id')}`",
