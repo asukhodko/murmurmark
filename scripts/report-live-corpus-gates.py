@@ -7439,7 +7439,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         ).get("recommended_next")
     elif coverage_target["passing_compared_sessions_remaining"] > 0:
         coverage_path_status = "needs_new_controlled_live_evidence"
-        coverage_recommended_next = "murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only"
+        coverage_recommended_next = "murmurmark record --target-bundle system --experiment live-shadow-v1"
     else:
         coverage_path_status = "coverage_target_met_shadow_still_locked"
         coverage_recommended_next = "murmurmark live gate"
@@ -7776,7 +7776,7 @@ def recommended_next_commands(
 ) -> list[str]:
     live_quarantine_note = (
         "murmurmark status latest  # production meetings still use normal record/process; "
-        "controlled Live Evidence uses live pilot"
+        "controlled Live Evidence uses record --experiment live-shadow-v1 and batch stays authoritative"
     )
     if summary.get("live_quarantined") is True:
         if (
@@ -7785,8 +7785,8 @@ def recommended_next_commands(
             and not (summary.get("real_capture_safe_candidate_blocking_dimensions") or [])
         ):
             return [
-                "murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only",
-                "murmurmark live pilot --controlled-real --skip-safety-gate",
+                "murmurmark record --target-bundle system --experiment live-shadow-v1",
+                "murmurmark process latest",
                 "murmurmark experiment status latest",
                 "murmurmark experiment report latest",
                 "murmurmark experiment compare latest --experiment live-shadow-v1",

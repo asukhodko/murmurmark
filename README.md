@@ -329,10 +329,12 @@ waits; if it falls behind, it disables only the experiment. Raw `audio/mic/*.caf
 `audio/remote/*.caf` remain the authoritative recording and `murmurmark process` remains the
 authoritative transcript path.
 
-`--experiment live-shadow-v1` is still controlled evidence, not promotion. Use plain
-`murmurmark record --target-bundle system` for valuable meetings until soak and parity gates pass.
-The experiment is useful to prove whether sidecar draft work can run beside stable capture without
-damaging raw audio. See [Experimental sidecar architecture](docs/architecture/experimental-sidecar.md).
+`--experiment live-shadow-v1` is controlled evidence, not promotion. It can be used on real
+meetings when you want live evidence, because raw CAF remains the source of truth and
+`murmurmark process` remains the authoritative transcript path. Use plain
+`murmurmark record --target-bundle system` when you do not need the sidecar evidence. The live draft
+is useful for proving whether sidecar work can run beside stable capture; it is not a final result.
+See [Experimental sidecar architecture](docs/architecture/experimental-sidecar.md).
 
 The sidecar contract lives under:
 
@@ -359,6 +361,14 @@ murmurmark experiment compare latest --experiment live-shadow-v1
 `experiment compare` also resumes missing sidecar materialization from `raw_segment_commits.jsonl`.
 This is intentional: recording should stop quickly, while slower live draft recovery can happen in
 the explicit experiment step.
+The default comparison computes the required parity gates. Expensive exploratory target-me shadow
+profiles are opt-in:
+
+```bash
+MURMURMARK_COMPARE_WITH_LABS=1 scripts/compare-live-batch.py sessions/<session-id>
+# or
+scripts/compare-live-batch.py sessions/<session-id> --with-labs
+```
 
 For lab evidence, prefer the raw-commit experiment over the unsafe legacy live path:
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from collections import Counter
 from datetime import datetime, timezone
@@ -413,6 +414,11 @@ MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Compare near-realtime shadow draft with authoritative batch transcript.")
     parser.add_argument("session", type=Path)
+    parser.add_argument(
+        "--with-labs",
+        action="store_true",
+        help="also run expensive exploratory target-me shadow profiles; default compare keeps only parity gates",
+    )
     return parser.parse_args()
 
 
@@ -3952,14 +3958,20 @@ def parity_metrics_for_turns(
     }
 
 
-def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utterances: list[dict[str, Any]]) -> dict[str, Any]:
+def assess_live_vs_batch(
+    session: Path,
+    chunks: list[dict[str, Any]],
+    batch_utterances: list[dict[str, Any]],
+    *,
+    include_labs: bool = False,
+) -> dict[str, Any]:
     turns = live_turns(session, chunks)
     suppressed_mic_turns = live_suppressed_mic_turns(chunks)
     segment_gate_summary = live_segment_role_gate_summary(chunks)
     rescue_shadow_summary = live_rescue_shadow_summary(chunks)
     rescue_shadow_turns = rescue_shadow_summary.get("turns") or []
     suppressed_segment_audit = read_suppressed_mic_asr_segment_audit(session, chunks, batch_utterances)
-    target_me_rows = read_target_me_live_local_recall_rows(session)
+    target_me_rows = read_target_me_live_local_recall_rows(session) if include_labs else []
     local_missing: list[dict[str, Any]] = []
     local_missing_suspicious_batch_me: list[dict[str, Any]] = []
     local_missing_visible_in_suppressed_mic: list[dict[str, Any]] = []
@@ -4093,11 +4105,27 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
     shadow_missing_after = local_missing_rows_for_turns(batch_utterances, turns + rescue_shadow_turns)
     shadow_missing_after_seconds = round(sum(safe_float(row.get("duration_sec")) for row in shadow_missing_after), 3)
     baseline_missing_seconds = round(sum(safe_float(row.get("duration_sec")) for row in local_missing), 3)
-    target_me_shadow_metrics, target_me_shadow_examples, target_me_shadow_turns_by_policy = target_me_shadow_policy_metrics(
-        batch_utterances=batch_utterances,
-        live_turns_rows=turns,
-        target_me_rows=target_me_rows,
-        baseline_missing_rows=local_missing,
+    target_me_shadow_metrics: dict[str, Any] = {}
+    target_me_shadow_examples: dict[str, Any] = {}
+    target_me_shadow_turns_by_policy: dict[str, list[dict[str, Any]]] = {}
+    if include_labs:
+        target_me_shadow_metrics, target_me_shadow_examples, target_me_shadow_turns_by_policy = (
+            target_me_shadow_policy_metrics(
+                batch_utterances=batch_utterances,
+                live_turns_rows=turns,
+                target_me_rows=target_me_rows,
+                baseline_missing_rows=local_missing,
+            )
+        )
+    rescue_policy_metrics = (
+        rescue_policy_counterfactual_metrics(
+            batch_utterances,
+            turns,
+            suppressed_segment_audit.get("segments") or [],
+            local_missing,
+        )
+        if include_labs
+        else {}
     )
     return {
         "live_turns": turns,
@@ -4261,12 +4289,7 @@ def assess_live_vs_batch(session: Path, chunks: list[dict[str, Any]], batch_utte
             ),
             **(suppressed_segment_audit.get("metrics") or {}),
             **target_me_shadow_metrics,
-            **rescue_policy_counterfactual_metrics(
-                batch_utterances,
-                turns,
-                suppressed_segment_audit.get("segments") or [],
-                local_missing,
-            ),
+            **rescue_policy_metrics,
             "live_suspected_remote_leak_in_me_count": len(remote_leak),
             "live_suspected_remote_leak_in_me_seconds": round(sum(safe_float(row.get("duration_sec")) for row in remote_leak), 3),
         },
@@ -5633,6 +5656,11 @@ def build_target_me_shadow_profiles(
 def main() -> int:
     args = parse_args()
     session = args.session.expanduser().resolve()
+    include_labs = args.with_labs or os.environ.get("MURMURMARK_COMPARE_WITH_LABS", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
     live_report_path = session / "derived/live/live_pipeline_report.json"
     chunks_path = session / "derived/live/chunks.jsonl"
     comparison_path = session / "derived/live/live_batch_comparison.json"
@@ -5655,7 +5683,7 @@ def main() -> int:
     recall = bag_recall(live_tokens, final_tokens)
     duplicate_count = duplicate_adjacent_chunks(chunks)
     boundary_summary = live_boundary_gate_summary(chunks)
-    live_assessment = assess_live_vs_batch(session, chunks, batch_utterances)
+    live_assessment = assess_live_vs_batch(session, chunks, batch_utterances, include_labs=include_labs)
     blockers: list[str] = []
     warnings: list[str] = []
     if live_report is None:
@@ -5706,37 +5734,41 @@ def main() -> int:
         and int(live_metrics.get("batch_me_utterance_count") or 0) > 0
         and int(live_metrics.get("batch_remote_utterance_count") or 0) > 0
     )
-    target_me_rows = read_target_me_live_local_recall_rows(session)
-    persistent_target_me_rows = read_persistent_target_me_profile_rows(session)
-    target_me_shadow_outputs = write_target_me_shadow_drafts(
-        session=session,
-        live_turns_rows=live_assessment.get("live_turns") or [],
-        suppressed_mic_asr_segments=live_assessment.get("suppressed_mic_asr_segments") or [],
-        target_me_rows=target_me_rows,
-        target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
-        persistent_target_me_rows=persistent_target_me_rows,
-        batch_utterances=batch_utterances,
-        metrics=live_metrics,
-    )
-    target_me_shadow_profiles, target_me_shadow_profile_metrics = build_target_me_shadow_profiles(
-        session=session,
-        live_turns_rows=live_assessment.get("live_turns") or [],
-        suppressed_mic_turns=live_assessment.get("suppressed_mic_turns") or [],
-        suppressed_mic_asr_segments=live_assessment.get("suppressed_mic_asr_segments") or [],
-        target_me_rows=target_me_rows,
-        target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
-        persistent_target_me_rows=persistent_target_me_rows,
-        target_me_shadow_outputs=target_me_shadow_outputs,
-        batch_utterances=batch_utterances,
-        batch_final_tokens=final_tokens,
-        capture_safety_gate=capture_safety_gate,
-        blockers=blockers,
-        duplicate_count=duplicate_count,
-        boundary_summary=boundary_summary,
-        batch_quality=batch_quality,
-        readiness=readiness,
-        outcome=outcome,
-    )
+    target_me_shadow_outputs: dict[str, dict[str, str]] = {}
+    target_me_shadow_profiles: dict[str, Any] = {}
+    target_me_shadow_profile_metrics: dict[str, Any] = {}
+    if include_labs:
+        target_me_rows = read_target_me_live_local_recall_rows(session)
+        persistent_target_me_rows = read_persistent_target_me_profile_rows(session)
+        target_me_shadow_outputs = write_target_me_shadow_drafts(
+            session=session,
+            live_turns_rows=live_assessment.get("live_turns") or [],
+            suppressed_mic_asr_segments=live_assessment.get("suppressed_mic_asr_segments") or [],
+            target_me_rows=target_me_rows,
+            target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
+            persistent_target_me_rows=persistent_target_me_rows,
+            batch_utterances=batch_utterances,
+            metrics=live_metrics,
+        )
+        target_me_shadow_profiles, target_me_shadow_profile_metrics = build_target_me_shadow_profiles(
+            session=session,
+            live_turns_rows=live_assessment.get("live_turns") or [],
+            suppressed_mic_turns=live_assessment.get("suppressed_mic_turns") or [],
+            suppressed_mic_asr_segments=live_assessment.get("suppressed_mic_asr_segments") or [],
+            target_me_rows=target_me_rows,
+            target_me_turns_by_policy=live_assessment.get("live_target_me_shadow_turns_by_policy") or {},
+            persistent_target_me_rows=persistent_target_me_rows,
+            target_me_shadow_outputs=target_me_shadow_outputs,
+            batch_utterances=batch_utterances,
+            batch_final_tokens=final_tokens,
+            capture_safety_gate=capture_safety_gate,
+            blockers=blockers,
+            duplicate_count=duplicate_count,
+            boundary_summary=boundary_summary,
+            batch_quality=batch_quality,
+            readiness=readiness,
+            outcome=outcome,
+        )
     promotion_blockers = [
         "shadow_v1_never_promotes_by_default",
         *[str(row.get("name")) for row in gates if row.get("status") in {"blocked", "failed", "warning", "not_evaluated"}],
@@ -5763,6 +5795,7 @@ def main() -> int:
             "selected_batch_profile": profile,
         },
         "metrics": {
+            "expensive_labs_enabled": include_labs,
             "live_chunks": len(chunks),
             "live_token_count": len(live_tokens),
             "batch_token_count": len(final_tokens),

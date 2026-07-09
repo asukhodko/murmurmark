@@ -1055,9 +1055,9 @@ jq -e '
   and .coverage_target.status == "needs_more_live_coverage"
   and .coverage_target.live_sessions_remaining == 2
   and .coverage_target.passing_compared_sessions_remaining == 2
-  and .recommended_next == "murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only"
-  and (.next_commands | index("murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only") != null)
-  and (.next_commands | index("murmurmark live pilot --controlled-real --skip-safety-gate") != null)
+  and .recommended_next == "murmurmark record --target-bundle system --experiment live-shadow-v1"
+  and (.next_commands | index("murmurmark record --target-bundle system --experiment live-shadow-v1") != null)
+  and (.next_commands | index("murmurmark process latest") != null)
   and (.next_commands | index("murmurmark experiment status latest") != null)
   and (.next_commands | index("murmurmark experiment report latest") != null)
   and (.next_commands | index("murmurmark experiment compare latest --experiment live-shadow-v1") != null)
@@ -1155,9 +1155,9 @@ jq -e '
   and .summary.coverage_path_status == "needs_new_controlled_live_evidence"
   and .coverage_path.status == "needs_new_controlled_live_evidence"
   and .coverage_path.controlled_real_live_pilot_allowed == true
-  and .recommended_next == "murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only"
-  and (.next_commands | index("murmurmark live pilot --controlled-real --skip-safety-gate --preflight-only") != null)
-  and (.next_commands | index("murmurmark live pilot --controlled-real --skip-safety-gate") != null)
+  and .recommended_next == "murmurmark record --target-bundle system --experiment live-shadow-v1"
+  and (.next_commands | index("murmurmark record --target-bundle system --experiment live-shadow-v1") != null)
+  and (.next_commands | index("murmurmark process latest") != null)
   and (.next_commands | index("murmurmark experiment status latest") != null)
   and (.next_commands | index("murmurmark experiment report latest") != null)
   and (.next_commands | index("murmurmark experiment compare latest --experiment live-shadow-v1") != null)

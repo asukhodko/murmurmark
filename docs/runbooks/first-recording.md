@@ -149,6 +149,12 @@ disables itself. The batch transcript from raw CAF remains authoritative.
 If the recording-time sidecar worker timed out before live draft completion, rerun
 `murmurmark experiment compare ...`; it resumes sidecar materialization from the raw commit log and
 then compares the draft with authoritative batch output.
+The default comparison computes the required parity gates. Keep the expensive target-me shadow labs
+out of the normal handoff unless you are debugging live recall specifically:
+
+```bash
+scripts/compare-live-batch.py "$SESSION" --with-labs
+```
 
 Existing experiment sessions can still be analyzed without starting capture:
 
