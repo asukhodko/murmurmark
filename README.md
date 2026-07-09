@@ -567,19 +567,26 @@ The report also writes `live_next_unlock` (`murmurmark.live_next_unlock/v1`). It
 authoritative and explains full-corpus blockers, including historical unsafe/debug runs. For the
 current unlock path, prefer `capture_safe_candidate_scope`: it excludes broken-capture evidence.
 After Target-Me evidence and the best live-implementable profile were materialized for the latest
-capture-safe sessions, the earlier advisory-only order result was disproved. The current profile is
-`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_v1`.
-It uses sustained voice activity to correct coarse Whisper segment starts and reduces contentful
-order mismatches from `23` to `21` without changing the measured `532.15s` full-real missing-Me
-total or `6.82s` remote-like Me total. In the active candidate scope, `order_risk_triage` now has
-`9` blocking boundary rows and `12` advisory weak-match rows. The next focus is
-`fix_live_order_risk`; local recall and remote leakage remain parallel blockers. Promotion stays
-blocked.
+capture-safe sessions, the blocking order rows in the active unlock slice were repaired without
+relaxing batch authority. The
+current profile is
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1`.
+It combines sustained voice activity with a causal token-density boundary check over already-written
+live ASR JSON. Long remote segments are moved past low-confidence leading spans only when at least
+five reliable lexical tokens occur inside a six-second window. A temporal prior also prevents short
+generic live phrases from matching a distant batch phrase only because its text is identical. On
+the refreshed 14-session real corpus this profile has `5` contentful order mismatches: `0` are
+gate-blocking and `5` remain advisory. In the active capture-safe unlock slice, triage has `0`
+blocking / `2` advisory rows; the historical full-corpus triage retains one blocking row outside
+that active slice. The full profile misses `734.87s` of batch `Me`; the currently classified
+remaining-gap set is `81` rows / `285.11s`, and `40.29s` of remote-like `Me` remains. The next focus
+is `fix_live_local_recall_gap`, starting with `3` already visible Target-Me rows / `20.06s`.
+Promotion stays blocked.
 
 For a focused refresh, avoid the expensive all-profile lab and evaluate only the current profile:
 
 ```bash
-POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_v1
+POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1
 .venv/bin/python scripts/report-live-corpus-gates.py all \
   --refresh \
   --refresh-lab-policy "$POLICY"
@@ -1295,18 +1302,23 @@ Active goal and near-term candidates:
    `murmurmark corpus live all --refresh` compares real live chunks/drafts with batch output, and
    live promotion stays blocked. The comparison now uses ASR-segment granularity when available, with
    chunk fallback for older artifacts. A focused materialization of the current best profile showed
-   that the previous advisory-only order result came from missing profile artifacts. Current next
-   focus is `fix_live_order_risk`: no additional recording is required, but the active capture-safe
-   slice has `9` blocking boundary rows and `12` advisory weak-match rows. Segment-level
+   that the previous advisory-only order result came from missing profile artifacts. The blocking
+   rows have now been repaired with causal token-density boundary timing and a short-phrase temporal
+   matcher. Current next focus is `fix_live_local_recall_gap`: no additional recording is required,
+   and the best profile has `0` gate-blocking / `5` advisory contentful order rows across all real
+   live sessions. The active capture-safe unlock slice has `0` blocking / `2` advisory rows, while
+   one historical full-corpus triage row stays blocking outside that slice. Segment-level
    parity still exposes ordering drift, suspected remote leakage in live `Me`, and lost local speech
    on controlled real evidence. The current real corpus has `95` order mismatches: `60`
    same-chunk/same-source, `25` same-chunk/cross-source, `8` cross-chunk and `2` overlap-context
    mismatches. Primary risk is split into `24` role-conflict/remote-leak, `27` weak-match possible
    false positives, `32` same-source timeline reorders, `9` cross-source timeline reorders and `3`
    cross-chunk timeline reorders. The contentful same-role slice narrows this to `14` order-risk
-   examples, with `6` unambiguous rows in the base comparison. The voice-activity profile reduces
-   the current profile-level contentful mismatch count from `23` to `21`, but does not clear the
-   strict order gate. `live_next_unlock.next_actions[0]` is now `fix_live_order_risk`.
+   examples, with `6` unambiguous rows in the base comparison. The current token-density profile
+   leaves only advisory timing/match ambiguities in the active capture-safe path and clears its
+   blocking order gate. `live_next_unlock.next_actions[0]` now targets the `3` live-visible
+   Target-Me rows / `20.06s`; the classified remaining gap is `81` rows / `285.11s` and the full
+   profile missing-Me total is `734.87s`.
    The corpus report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
    visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic
@@ -1410,11 +1422,11 @@ Active goal and near-term candidates:
    and does not increase contentful order mismatches. Historical boundary-retime and split/retime
    labs remain useful as diagnostics, but they are not promotion candidates because they depend on
    batch-derived timing or lose local speech in some cases. Focused materialization disproved the
-   earlier advisory-only result: the current voice-activity retime profile leaves `9` blocking
-   boundary rows and `12` advisory weak-match rows. It reduces contentful order mismatches from
-   `23` to `21` without changing missing-Me or remote-like-Me seconds. The next unlock therefore
-   stays on `fix_live_order_risk`; local recall and remote leakage follow without weakening
-   remote-forbidden guards or batch authority.
+   earlier advisory-only result and then supplied the evidence needed to repair the blocking rows.
+   The current token-density profile leaves `0` blocking / `2` advisory rows in the active
+   capture-safe path. The refreshed historical full-corpus triage retains one blocking row, so it
+   stays visible as negative evidence. The next active unlock nevertheless moves to local recall
+   without weakening remote-forbidden guards or batch authority.
    The current mixed/speaker-boundary queue is now `25.32s`: `0.32s` has been materialized in a
    diagnostic remote-guarded voice-boundary profile, and `25.00s` remain weak or ambiguous. The
    tight voice/remote guard lab finds `0.00s` safe candidates: `13.94s` are blocked by persistent

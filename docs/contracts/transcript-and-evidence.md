@@ -5835,14 +5835,28 @@ changes strict parity gates. Current labels are:
 - `weak_generic_match_false_positive_candidate`: an advisory row where the match is ambiguous,
   the score margin is small and many plausible batch matches exist.
 
-Materializing the current local-speaker/split-retime candidate exposed a previous measurement gap:
-the active slice is not advisory-only. The current live-implementable profile adds a causal
-voice-activity boundary retime using already closed live chunk WAV files. It advances only coarse
-Whisper starts after sustained speech evidence; it does not use raw CAF, batch timestamps or future
-chunks. On the current corpus it reduces contentful order mismatches from `23` to `21` without
-changing missing-Me or remote-like-Me seconds. Active triage still contains `9` blocking boundary
-rows and `12` advisory weak-match rows, so promotion remains blocked and `fix_live_order_risk` is
-the next implementation action.
+Materializing the local-speaker/split-retime candidate exposed a previous measurement gap: the
+active slice was not advisory-only. The current live-implementable profile adds two causal boundary
+checks. Voice activity advances coarse starts after sustained speech evidence. Token density then
+uses only the already-written live ASR JSON for the same closed chunk and advances a long remote
+segment past a low-confidence prefix when at least five reliable lexical tokens occur in a
+six-second window. Neither check reads raw CAF, batch timestamps or future chunks. A temporal prior
+for short generic phrases also prefers a nearby partial batch match over a distant exact match.
+
+The order gate now distinguishes:
+
+- `live_blocking_contentful_role_constrained_order_mismatch_count`: unambiguous contradictions or
+  role conflicts that keep `order_risk` non-passing;
+- `live_advisory_contentful_role_constrained_order_mismatch_count`: explicit overlap/timing or weak
+  matching ambiguity that remains visible in reports but does not by itself fail the order gate.
+
+On the refreshed 14-session real corpus the token-density profile has `5` contentful order
+mismatches: `0` gate-blocking and `5` advisory. The active capture-safe unlock slice has `0`
+blocking / `2` advisory triage rows; historical full-corpus triage retains one blocking row outside
+that active slice. Promotion remains blocked by local recall, remote leakage, review burden and
+notes readiness. The full profile misses `734.87s` of batch `Me`; the classified remaining-gap set
+is `81` rows / `285.11s`. The next implementation action targets `3` live-visible Target-Me rows /
+`20.06s`.
 
 The same schema is also emitted as `capture_safe_candidate_order_risk_triage`, scoped only to
 capture-safe candidate sessions. This lets the goal runner separate historical unsafe/debug evidence
@@ -5852,16 +5866,18 @@ advisory rows, `capture_safe_candidate_scope.next_focus` may point to the next h
 the next implementation step more honest.
 
 The profile records `voice_activity_boundary_retime`, original start, applied shift, threshold,
-noise floor and source chunk path on adjusted turns. Corpus summaries aggregate retimed-turn count
-and total shift. These fields are evidence only and cannot make live output authoritative.
+noise floor and source chunk path on adjusted turns. Token-density adjustments additionally record
+`token_density_boundary_retime`, original start, shift, dense-token start/count and ASR JSON path.
+Corpus summaries aggregate retimed-turn counts and total shifts. These fields are evidence only and
+cannot make live output authoritative.
 
 `live_next_unlock.boundary_order_retime_oracle` records an intentionally non-promotable diagnostic
 profile when boundary rows exist:
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1`.
 It uses batch comparison evidence, so it is not an online algorithm. Historical runs showed that
 blind retiming can remove part of the order-risk signal while losing local speech. The oracle itself
-cannot be promoted. Current candidate-scope focus remains order risk until the blocking boundary
-rows are closed; local recall and remote leakage stay parallel gates.
+cannot be promoted. The blocking boundary rows are now closed by the causal token-density profile;
+the candidate-scope focus moves to local recall while remote leakage remains a parallel gate.
 
 The report also records the paired diagnostic
 `live_next_unlock.boundary_order_split_retime_oracle`:

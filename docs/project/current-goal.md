@@ -19,14 +19,18 @@ remain evidence and fallback, while batch remains authoritative.
 The current live-parity blocker is profile quality, not raw capture or lack of more recordings. The
 fresh corpus report still keeps promotion blocked and says no additional recording is required for
 the current implementation step. Materializing Target-Me/local-recall candidates exposed a previous
-measurement gap: the active `capture_safe_candidate` order slice is not advisory-only. The current
+measurement gap: the active `capture_safe_candidate` order slice was not advisory-only. The current
 best live-implementable profile is
-`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_v1`.
-It corrects coarse Whisper starts from committed chunk audio and reduces contentful order
-mismatches from `23` to `21`, but still leaves `9` blocking boundary rows, `12` advisory weak-match
-rows, `158.87s` missing Me and `6.82s` remote-like Me in the active candidate scope. The first
-implementation action is now `fix_live_order_risk`; local recall and remote leakage remain parallel
-gates. Batch remains authoritative.
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1`.
+It corrects coarse Whisper starts from committed chunk evidence, then shifts long remote starts past
+low-confidence prefixes only after a dense reliable token cluster. It also uses a temporal prior for
+short generic matches. Profile-level contentful order mismatches are now `2`: `0` blocking and `2`
+advisory in the active capture-safe unlock slice. Across all 14 refreshed real sessions the profile
+has `5` advisory gate rows and full historical triage retains one blocking row outside the active
+slice. Full-profile missing Me is `734.87s`; the classified remaining-gap set is `81` rows /
+`285.11s`, and remote-like Me is `40.29s`. The first implementation action now targets `3`
+live-visible Target-Me rows / `20.06s`; local recall is the next hard gate. Batch remains
+authoritative.
 
 ## Latest Completed Goal: Experimental Sidecar Contract v1
 
@@ -84,8 +88,9 @@ Completion evidence:
 
 ## Current Goal: Near-Realtime Live Parity Coverage v1
 
-Status, 2026-07-09: active, blocked first by live order risk and then by local recall and remote
-leakage. Capture loss and lack of recordings are not the current blockers.
+Status, 2026-07-09: active. Blocking live order risk is cleared in the current best profile; local
+recall, remote leakage, review burden and notes readiness still block promotion. Capture loss and
+lack of recordings are not the current blockers.
 
 Goal:
 
@@ -118,14 +123,15 @@ Current state:
 - current blocking dimensions: `capture_safety`, `order_risk`, `local_recall`, `remote_leakage`,
   `review_burden`, `selected_notes_readiness`, `chunk_boundary_risks`, `draft_text_recall`,
   `required_artifacts`.
-- capture-safe candidate blocking dimensions: `order_risk`, `local_recall`, `remote_leakage`,
-  `review_burden`, `selected_notes_readiness`;
-- current best live-implementable profile: voice-activity boundary retime over the existing
-  local-speaker/split-retime shadow;
-- active order-risk triage: `21` items, `9` blocking boundary rows and `12` advisory weak-match
-  rows;
-- best-profile active-scope gaps: `158.87 sec` missing Me and `6.82 sec` remote-like Me;
-- current objective next focus: `fix_live_order_risk`.
+- capture-safe candidate blocking dimensions: `local_recall`, `remote_leakage`, `review_burden`,
+  `selected_notes_readiness`;
+- current best live-implementable profile: voice-activity plus token-density boundary retime over
+  the existing local-speaker/split-retime shadow;
+- active capture-safe order-risk triage: `2` advisory timing/match ambiguities and `0` blocking rows;
+- historical full-corpus triage: `4` advisory rows and `1` blocking row outside the active slice;
+- best-profile full-real gaps: `734.87 sec` missing Me and `40.29 sec` remote-like Me;
+- classified remaining-gap set: `81` rows / `285.11 sec` missing Me;
+- current objective next focus: `fix_live_local_recall_gap`.
 
 Safety constraint:
 
@@ -156,7 +162,7 @@ Definition of done:
 Latest verification:
 
 ```bash
-POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_v1
+POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1
 .venv/bin/python scripts/report-live-corpus-gates.py all \
   --refresh \
   --refresh-lab-policy "$POLICY"
@@ -168,16 +174,17 @@ Current result:
 - `promotion_decision = shadow_only_do_not_promote`;
 - `promotion_allowed_sessions = 0`;
 - live/batch comparison granularity: ASR segment when available, chunk fallback otherwise;
-- current best profile evaluates `5` real sessions and passes all parity gates on `1`;
-- voice-activity boundary retime reduces contentful order mismatches from `23` to `21` without
-  increasing missing-Me or remote-like-Me seconds;
-- active order triage: `21` rows, `9` blocking boundary rows and `12` advisory weak-match rows;
-- best-profile full-real gaps: `532.15 sec` missing Me and `6.82 sec` remote-like Me;
-- best-profile active-scope gaps: `158.87 sec` missing Me and `6.82 sec` remote-like Me;
+- current best profile evaluates all `14` real live sessions and passes all parity gates on `1`;
+- the profile has `5` advisory gate-level contentful order mismatches and `0` blocking ones across
+  the refreshed real corpus;
+- active capture-safe order triage: `2` advisory timing/match rows and `0` blocking rows;
+- historical full-corpus triage: `4` advisory rows and `1` blocking row outside the active slice;
+- best-profile full-real gaps: `734.87 sec` missing Me and `40.29 sec` remote-like Me;
+- classified remaining-gap set: `81` rows / `285.11 sec` missing Me;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
-- `objective_next_focus = fix_live_order_risk`;
-- `live_next_unlock.active_scope = capture_safe_candidate`;
-- `live_next_unlock.next_actions[0] = fix_live_order_risk`.
+- `objective_next_focus = fix_live_local_recall_gap`;
+- `live_next_unlock.next_actions[0] = materialize_remaining_target_me_visible_rows_and_recheck_recall`;
+- first action scope: `3` rows / `20.06 sec`.
 
 `--refresh-lab-policy` evaluates one selected shadow profile. Use `--with-labs` only for deliberate
 full laboratory sweeps: it materializes every exploratory policy and is too expensive for routine
@@ -707,10 +714,11 @@ visible for the local-recall fix.
 The comparison now evaluates normal live turns and rescue-shadow candidates at ASR-segment
 granularity when the source ASR JSON is present, with chunk-level fallback for older artifacts. This
 exposes order and remote-leakage risks that the earlier chunk-level comparison could hide.
-Order risk is still visible around live chunk boundaries and mic/remote reconciliation. Focused
-profile materialization now finds `9` blocking boundary rows and `12` advisory weak-match rows in
-the active slice. Raw capture and sidecar materialization are not the next bottleneck. The current
-objective is `fix_live_order_risk`; local recall and remote leakage remain subsequent hard gates.
+Order risk remains visible around live chunk boundaries and mic/remote reconciliation, but the
+current token-density profile classifies the active capture-safe residual as `2` advisory
+timing/match rows and `0` blocking rows. Historical full-corpus triage retains one blocking row
+outside that active slice. Raw capture and sidecar materialization are not the next bottleneck. The current
+objective is `fix_live_local_recall_gap`; remote leakage remains a parallel hard gate.
 Most missing `Me` seconds are still visible in `raw_text_before_role_gate` / suppressed mic chunks,
 but the live branch also has segment-level ordering drift and `15.96s` suspected remote leakage in
 published live `Me`. The current live blockers are therefore: live timeline ordering, remote leakage

@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.30.0"
+SCRIPT_VERSION = "1.31.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -90,6 +90,10 @@ VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_v1"
 )
+VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1"
+)
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -135,6 +139,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
+    VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -179,6 +184,8 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "live_order_mismatch_count",
     "live_role_constrained_order_mismatch_count",
     "live_contentful_role_constrained_order_mismatch_count",
+    "live_blocking_contentful_role_constrained_order_mismatch_count",
+    "live_advisory_contentful_role_constrained_order_mismatch_count",
     "live_batch_interval_overlap_order_ambiguity_count",
     "live_role_constrained_batch_interval_overlap_order_ambiguity_count",
     "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count",
@@ -223,6 +230,8 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "boundary_order_split_retime_oracle_preserved_prefix_seconds",
     "voice_activity_boundary_retime_turn_count",
     "voice_activity_boundary_retime_shift_seconds",
+    "token_density_boundary_retime_turn_count",
+    "token_density_boundary_retime_shift_seconds",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -1487,6 +1496,14 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
             evaluated_rows,
             f"{base}_live_contentful_role_constrained_order_mismatch_count",
         )
+        summary[f"{out}_live_blocking_contentful_role_constrained_order_mismatch_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_live_blocking_contentful_role_constrained_order_mismatch_count",
+        )
+        summary[f"{out}_live_advisory_contentful_role_constrained_order_mismatch_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_live_advisory_contentful_role_constrained_order_mismatch_count",
+        )
         summary[f"{out}_live_batch_interval_overlap_order_ambiguity_count"] = sum_int_metric(
             evaluated_rows,
             f"{base}_live_batch_interval_overlap_order_ambiguity_count",
@@ -1536,6 +1553,14 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
         summary[f"{out}_voice_activity_boundary_retime_shift_seconds"] = sum_metric(
             evaluated_rows,
             f"{base}_voice_activity_boundary_retime_shift_seconds",
+        )
+        summary[f"{out}_token_density_boundary_retime_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_token_density_boundary_retime_turn_count",
+        )
+        summary[f"{out}_token_density_boundary_retime_shift_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_token_density_boundary_retime_shift_seconds",
         )
         summary[f"{out}_visible_suppressed_mic_added_turn_count"] = sum_int_metric(
             evaluated_rows,
@@ -1696,6 +1721,12 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             "live_order_mismatch_count": safe_int(summary.get(f"{base}_live_order_mismatch_count")),
             "live_contentful_role_constrained_order_mismatch_count": safe_int(
                 summary.get(f"{base}_live_contentful_role_constrained_order_mismatch_count")
+            ),
+            "live_blocking_contentful_role_constrained_order_mismatch_count": safe_int(
+                summary.get(f"{base}_live_blocking_contentful_role_constrained_order_mismatch_count")
+            ),
+            "live_advisory_contentful_role_constrained_order_mismatch_count": safe_int(
+                summary.get(f"{base}_live_advisory_contentful_role_constrained_order_mismatch_count")
             ),
             "removed_live_turn_count": safe_int(summary.get(f"{base}_removed_live_turn_count")),
             "removed_live_turn_seconds": safe_float(summary.get(f"{base}_removed_live_turn_seconds")),
@@ -2939,12 +2970,19 @@ def live_next_unlock_report(
     top_actionability = largest_group(by_actionability)
     top_segmentability = largest_group(by_segmentability)
 
-    missing_me_seconds = safe_float(remaining_gap.get("seconds"))
+    remaining_gap_seconds = safe_float(remaining_gap.get("seconds"))
+    profile_missing_me_seconds = safe_float(
+        summary.get("real_live_target_me_shadow_profile_best_live_implementable_missing_me_seconds")
+    )
+    missing_me_seconds = profile_missing_me_seconds or remaining_gap_seconds
     remote_leak_seconds = safe_float(
         summary.get("real_live_target_me_shadow_profile_best_live_implementable_remote_leak_seconds")
     )
     contentful_order_mismatches = safe_int(
         summary.get("real_live_target_me_shadow_profile_best_live_implementable_contentful_order_mismatch_count")
+    )
+    blocking_order_mismatches = safe_int(
+        summary.get("real_live_target_me_shadow_profile_best_live_implementable_blocking_order_mismatch_count")
     )
     live_sessions_remaining = safe_int(summary.get("coverage_target_live_sessions_remaining"))
     meaningful_remaining = safe_int(summary.get("coverage_target_meaningful_compared_sessions_remaining"))
@@ -2961,13 +2999,13 @@ def live_next_unlock_report(
                 "reason": "best live-implementable profile still misses batch Me speech",
             }
         )
-    if contentful_order_mismatches > 0:
+    if blocking_order_mismatches > 0:
         blockers.append(
             {
                 "dimension": "order_risk",
                 "severity": "blocking",
-                "count": contentful_order_mismatches,
-                "reason": "contentful same-role order mismatches remain in live/batch comparison",
+                "count": blocking_order_mismatches,
+                "reason": "unambiguous blocking contentful order mismatches remain in live/batch comparison",
             }
         )
     if remote_leak_seconds > 0:
@@ -3016,7 +3054,7 @@ def live_next_unlock_report(
     )
     order_triage_needs_review_count = order_risk_triage_label_count(active_order_triage, "needs_review_order_risk")
     order_triage_cross_source_count = order_risk_triage_label_count(active_order_triage, "cross_source_order_risk")
-    if contentful_order_mismatches == 0 and order_triage_blocking_count > 0:
+    if blocking_order_mismatches == 0 and order_triage_blocking_count > 0:
         blockers.append(
             {
                 "dimension": "order_risk",
@@ -3108,24 +3146,31 @@ def live_next_unlock_report(
     candidate_next_dimension = str(candidate_next_focus.get("dimension") or "")
     candidate_next_action_id = str(candidate_next_focus.get("action_id") or "")
     if candidate_next_dimension == "local_recall":
+        visible_remaining = (
+            by_actionability.get("target_me_visible_needs_live_materialization_or_timeline_gate") or {}
+        )
+        visible_remaining_count = safe_int(visible_remaining.get("count"))
+        visible_remaining_seconds = safe_float(visible_remaining.get("seconds"))
         next_actions.append(
             {
-                "id": str(
-                    summary.get("capture_safe_candidate_local_recall_blocker_recommended_next")
-                    or candidate_next_action_id
-                    or "fix_live_local_recall_gap"
+                "id": (
+                    "materialize_remaining_target_me_visible_rows_and_recheck_recall"
+                    if visible_remaining_count > 0
+                    else candidate_next_action_id or "fix_live_local_recall_gap"
                 ),
                 "priority": 1,
-                "scope": "capture_safe_candidate",
-                "scope_count": safe_int(summary.get("capture_safe_candidate_local_recall_blocker_item_count")),
-                "scope_seconds": round(
-                    safe_float(summary.get("capture_safe_candidate_local_recall_blocker_seconds")),
-                    3,
-                ),
-                "top_label": summary.get("capture_safe_candidate_local_recall_blocker_top_label"),
+                "scope": "best_live_implementable_remaining_gap",
+                "scope_count": visible_remaining_count or safe_int(remaining_gap.get("item_count")),
+                "scope_seconds": round(visible_remaining_seconds or remaining_gap_seconds, 3),
+                "remaining_gap_count": safe_int(remaining_gap.get("item_count")),
+                "remaining_gap_seconds": round(remaining_gap_seconds, 3),
+                "top_label": top_actionability.get("label"),
                 "why": (
-                    candidate_next_focus.get("recommended_next")
-                    or "capture-safe candidate scope now has advisory-only order risk; local recall is the next hard blocker"
+                    "materialize the live-visible Target-Me rows that remain missing from the best live-implementable "
+                    "profile, then recompute all parity gates"
+                    if visible_remaining_count > 0
+                    else candidate_next_focus.get("recommended_next")
+                    or "local recall is the next hard blocker for the best live-implementable profile"
                 ),
                 "must_preserve": ["remote_leakage == 0", "strict order gates must remain authoritative"],
             }
@@ -3343,8 +3388,11 @@ def live_next_unlock_report(
         "best_live_implementable": {
             "policy": remaining_gap.get("profile"),
             "missing_me_seconds": round(missing_me_seconds, 3),
+            "remaining_evaluable_gap_seconds": round(remaining_gap_seconds, 3),
             "remote_leak_seconds": round(remote_leak_seconds, 3),
             "contentful_order_mismatch_count": contentful_order_mismatches,
+            "blocking_order_mismatch_count": blocking_order_mismatches,
+            "advisory_order_mismatch_count": max(0, contentful_order_mismatches - blocking_order_mismatches),
             "remaining_gap_count": safe_int(remaining_gap.get("item_count")),
         },
         "top_actionability": top_actionability,
@@ -6958,6 +7006,16 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         )
         summary[f"{scope}_live_target_me_shadow_profile_best_live_implementable_contentful_order_mismatch_count"] = (
             safe_int(best_live.get("live_contentful_role_constrained_order_mismatch_count"))
+            if isinstance(best_live, dict)
+            else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_best_live_implementable_blocking_order_mismatch_count"] = (
+            safe_int(best_live.get("live_blocking_contentful_role_constrained_order_mismatch_count"))
+            if isinstance(best_live, dict)
+            else None
+        )
+        summary[f"{scope}_live_target_me_shadow_profile_best_live_implementable_advisory_order_mismatch_count"] = (
+            safe_int(best_live.get("live_advisory_contentful_role_constrained_order_mismatch_count"))
             if isinstance(best_live, dict)
             else None
         )

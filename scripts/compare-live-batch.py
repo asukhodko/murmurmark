@@ -16,7 +16,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.31.0"
+SCRIPT_VERSION = "0.32.0"
 EPSILON = 1.0e-12
 LIVE_BATCH_BOUNDARY_TOLERANCE_SEC = 2.5
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -132,6 +132,10 @@ VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_v1"
 )
+VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1"
+)
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -181,6 +185,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
+    VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -242,6 +247,9 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY: (
@@ -394,6 +402,7 @@ LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES = {
 LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
+    VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
@@ -401,6 +410,10 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
 }
 VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICIES = {
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
+    VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
+}
+TOKEN_DENSITY_BOUNDARY_RETIME_PROFILE_POLICIES = {
+    VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
 }
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
@@ -1993,6 +2006,107 @@ def apply_voice_activity_boundary_retime(
     )
 
 
+def token_offset_seconds(token: dict[str, Any], key: str) -> float:
+    offsets = token.get("offsets") if isinstance(token.get("offsets"), dict) else {}
+    return max(0.0, safe_float(offsets.get(key)) / 1000.0)
+
+
+def first_dense_token_start(
+    segment: dict[str, Any],
+    *,
+    probability_floor: float = 0.35,
+    max_token_duration_sec: float = 3.0,
+    window_sec: float = 6.0,
+    required_tokens: int = 5,
+) -> tuple[float, int] | None:
+    reliable: list[tuple[float, float]] = []
+    for token in segment.get("tokens") or []:
+        if not isinstance(token, dict):
+            continue
+        text = str(token.get("text") or "")
+        if text.startswith("[_") or not TOKEN_RE.search(text):
+            continue
+        start = token_offset_seconds(token, "from")
+        end = token_offset_seconds(token, "to")
+        if safe_float(token.get("p")) < probability_floor or end - start > max_token_duration_sec:
+            continue
+        reliable.append((start, end))
+    for index, (start, _) in enumerate(reliable):
+        count = sum(1 for candidate_start, _ in reliable[index:] if candidate_start <= start + window_sec)
+        if count >= required_tokens:
+            return start, count
+    return None
+
+
+def apply_token_density_boundary_retime(
+    session: Path,
+    turns: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    chunks = {
+        safe_int(row.get("index")): row
+        for row in read_jsonl(session / "derived/live/chunks.jsonl")
+        if safe_int(row.get("index")) > 0
+    }
+    json_cache: dict[Path, dict[str, Any] | None] = {}
+    adjusted: list[dict[str, Any]] = []
+    for turn in turns:
+        if str(turn.get("source") or "") != "remote_segment":
+            adjusted.append(turn)
+            continue
+        start = safe_float(turn.get("start"))
+        end = safe_float(turn.get("end"), start)
+        if end - start < 8.0:
+            adjusted.append(turn)
+            continue
+        chunk = chunks.get(safe_int(turn.get("chunk_index")))
+        remote = chunk.get("remote") if isinstance(chunk, dict) and isinstance(chunk.get("remote"), dict) else {}
+        asr = remote.get("asr") if isinstance(remote.get("asr"), dict) else {}
+        json_value = asr.get("json")
+        if not json_value:
+            adjusted.append(turn)
+            continue
+        json_path = Path(str(json_value))
+        if not json_path.is_absolute():
+            json_path = session / json_path
+        if json_path not in json_cache:
+            json_cache[json_path] = read_json(json_path)
+        payload = json_cache[json_path]
+        transcription = payload.get("transcription") if isinstance(payload, dict) else None
+        segment_index = safe_int(turn.get("segment_index")) - 1
+        if not isinstance(transcription, list) or not (0 <= segment_index < len(transcription)):
+            adjusted.append(turn)
+            continue
+        segment = transcription[segment_index]
+        if not isinstance(segment, dict):
+            adjusted.append(turn)
+            continue
+        dense = first_dense_token_start(segment)
+        if dense is None:
+            adjusted.append(turn)
+            continue
+        dense_start, dense_token_count = dense
+        clip_start = safe_float(chunk.get("clip_start_sec"), safe_float(chunk.get("start_sec")))
+        retimed_start = max(start, clip_start + dense_start - 0.15)
+        shift = retimed_start - start
+        max_shift = min(25.0, max(0.0, end - start - 0.35))
+        if shift < 2.0 or shift > max_shift:
+            adjusted.append(turn)
+            continue
+        new_turn = dict(turn)
+        new_turn["start"] = round(retimed_start, 3)
+        new_turn["token_density_boundary_retime"] = True
+        new_turn["token_density_boundary_original_start"] = round(start, 3)
+        new_turn["token_density_boundary_shift_seconds"] = round(shift, 3)
+        new_turn["token_density_boundary_dense_start_seconds"] = round(dense_start, 3)
+        new_turn["token_density_boundary_token_count"] = dense_token_count
+        new_turn["token_density_boundary_asr_json"] = rel(json_path, session)
+        adjusted.append(new_turn)
+    return sorted(
+        adjusted,
+        key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+    )
+
+
 def target_me_shadow_policy_metrics(
     *,
     batch_utterances: list[dict[str, Any]],
@@ -2674,6 +2788,7 @@ def best_batch_match(
         if not row_tokens:
             continue
         score = bag_recall(turn_tokens, row_tokens) or 0.0
+        time_distance_sec = abs(safe_float(turn.get("start")) - safe_float(row.get("start")))
         overlap = interval_overlap(
             safe_float(turn.get("start")),
             safe_float(turn.get("end")),
@@ -2684,6 +2799,15 @@ def best_batch_match(
             score += 0.15
         if row.get("role") == turn.get("role"):
             score += 0.1
+        temporal_adjustment = 0.0
+        if len(content_tokens(turn_tokens)) <= 3:
+            if time_distance_sec <= 15.0:
+                temporal_adjustment = 0.35
+            elif time_distance_sec <= 45.0:
+                temporal_adjustment = 0.15
+            elif time_distance_sec > 120.0:
+                temporal_adjustment = -0.25
+            score += temporal_adjustment
         candidate = {
             "batch_id": row.get("id"),
             "batch_start": row.get("start"),
@@ -2693,10 +2817,8 @@ def best_batch_match(
             "token_recall": round(bag_recall(turn_tokens, row_tokens) or 0.0, 6),
             "turn_content_token_count": len(content_tokens(turn_tokens)),
             "batch_content_token_count": len(content_tokens(row_tokens)),
-            "time_distance_sec": round(
-                abs(safe_float(turn.get("start")) - safe_float(row.get("start"))),
-                3,
-            ),
+            "time_distance_sec": round(time_distance_sec, 3),
+            "temporal_adjustment": round(temporal_adjustment, 6),
         }
         candidates.append(candidate)
     if not candidates:
@@ -2883,13 +3005,27 @@ def order_mismatch_batch_interval_context(previous: dict[str, Any], current: dic
         previous_live_start >= previous_batch_start - LIVE_BATCH_BOUNDARY_TOLERANCE_SEC
         and previous_live_start <= previous_batch_end + LIVE_BATCH_BOUNDARY_TOLERANCE_SEC
     )
-    explains_reorder = (
+    overlap_explains_reorder = (
         batch_overlap >= 1.0
         and overlap_ratio >= 0.15
         and current_live_inside_own_batch
         and previous_live_inside_own_batch
         and (current_live_overlap or previous_live_overlap)
     )
+    short_overlap_explains_reorder = (
+        batch_overlap >= 0.5
+        and overlap_ratio >= 0.5
+        and current_live_overlap
+        and previous_live_overlap
+    )
+    near_simultaneous_cross_source = (
+        previous.get("role") != current.get("role")
+        and abs(current_live_start - previous_live_start) <= 0.5
+        and abs(current_batch_start - previous_batch_start) <= 1.5
+        and current_live_inside_own_batch
+        and previous_live_inside_own_batch
+    )
+    explains_reorder = overlap_explains_reorder or short_overlap_explains_reorder or near_simultaneous_cross_source
     return {
         "previous_batch_end": round(previous_batch_end, 3),
         "current_batch_end": round(current_batch_end, 3),
@@ -2903,7 +3039,30 @@ def order_mismatch_batch_interval_context(previous: dict[str, Any], current: dic
         "previous_live_inside_batch_overlap_or_near": previous_live_overlap,
         "live_batch_boundary_tolerance_sec": LIVE_BATCH_BOUNDARY_TOLERANCE_SEC,
         "batch_interval_overlap_explains_reorder": explains_reorder,
+        "short_batch_overlap_explains_reorder": short_overlap_explains_reorder,
+        "near_simultaneous_cross_source_explains_reorder": near_simultaneous_cross_source,
     }
+
+
+def order_mismatch_is_blocking(row: dict[str, Any]) -> bool:
+    if row.get("role_mismatch_in_pair"):
+        return True
+    if row.get("match_ambiguity") == "ambiguous":
+        return False
+    previous = row.get("previous") if isinstance(row.get("previous"), dict) else {}
+    current = row.get("current") if isinstance(row.get("current"), dict) else {}
+    max_plausible = max(
+        safe_int(previous.get("plausible_match_count")),
+        safe_int(current.get("plausible_match_count")),
+    )
+    min_content = min(
+        safe_int(previous.get("turn_content_token_count")),
+        safe_int(current.get("turn_content_token_count")),
+    )
+    min_margin = safe_float(row.get("min_score_margin"))
+    if max_plausible >= 3 and (min_margin <= 0.20 or min_content <= 3):
+        return False
+    return True
 
 
 def order_mismatch_rows_for_turns(
@@ -3713,6 +3872,35 @@ def dedupe_supplemental_turns_by_interval(turns: list[dict[str, Any]]) -> list[d
             str(item.get("id") or ""),
         ),
     ):
+        duplicate_index: int | None = None
+        turn_start = safe_float(turn.get("start"))
+        turn_end = safe_float(turn.get("end"), turn_start)
+        turn_tokens = tokens(str(turn.get("text") or ""))
+        for index, existing in enumerate(deduped):
+            if (
+                safe_int(existing.get("chunk_index")) != safe_int(turn.get("chunk_index"))
+                or existing.get("role") != turn.get("role")
+            ):
+                continue
+            existing_start = safe_float(existing.get("start"))
+            existing_end = safe_float(existing.get("end"), existing_start)
+            shorter = min(max(0.0, turn_end - turn_start), max(0.0, existing_end - existing_start))
+            if shorter <= 0 or interval_overlap(turn_start, turn_end, existing_start, existing_end) / shorter < 0.60:
+                continue
+            existing_tokens = tokens(str(existing.get("text") or ""))
+            duplicate_score = max(
+                bag_recall(turn_tokens, existing_tokens) or 0.0,
+                bag_recall(existing_tokens, turn_tokens) or 0.0,
+            )
+            if duplicate_score >= 0.80:
+                duplicate_index = index
+                break
+        if duplicate_index is not None:
+            existing = deduped[duplicate_index]
+            existing_content = len(content_tokens(tokens(str(existing.get("text") or ""))))
+            if len(content_tokens(turn_tokens)) > existing_content:
+                deduped[duplicate_index] = turn
+            continue
         key = (
             safe_int(turn.get("chunk_index")),
             round(safe_float(turn.get("start")), 3),
@@ -4044,6 +4232,9 @@ def parity_metrics_for_turns(
         min_score=0.65,
         match_mode=f"{match_mode_prefix}_role_constrained_contentful",
     )
+    blocking_contentful_order_mismatches = [
+        row for row in contentful_role_constrained_order_mismatches if order_mismatch_is_blocking(row)
+    ]
     order_ambiguities = order_mismatch_rows_for_turns(
         turns,
         batch_utterances,
@@ -4095,6 +4286,12 @@ def parity_metrics_for_turns(
             role_constrained_order_ambiguities
         ),
         "live_contentful_role_constrained_order_mismatch_count": len(contentful_role_constrained_order_mismatches),
+        "live_blocking_contentful_role_constrained_order_mismatch_count": len(
+            blocking_contentful_order_mismatches
+        ),
+        "live_advisory_contentful_role_constrained_order_mismatch_count": (
+            len(contentful_role_constrained_order_mismatches) - len(blocking_contentful_order_mismatches)
+        ),
         "live_contentful_role_constrained_order_mismatch_by_category": order_mismatch_category_counts(
             contentful_role_constrained_order_mismatches,
         ),
@@ -4184,6 +4381,9 @@ def assess_live_vs_batch(
         min_score=0.65,
         match_mode="role_constrained_contentful",
     )
+    blocking_contentful_order_mismatches = [
+        row for row in contentful_role_constrained_order_mismatches if order_mismatch_is_blocking(row)
+    ]
     contentful_role_constrained_order_ambiguities = order_mismatch_rows_for_turns(
         turns,
         batch_utterances,
@@ -4308,6 +4508,7 @@ def assess_live_vs_batch(
         "role_constrained_order_mismatches": role_constrained_order_mismatches,
         "role_constrained_batch_interval_overlap_order_ambiguities": role_constrained_order_ambiguities,
         "contentful_role_constrained_order_mismatches": contentful_role_constrained_order_mismatches,
+        "blocking_contentful_role_constrained_order_mismatches": blocking_contentful_order_mismatches,
         "contentful_role_constrained_batch_interval_overlap_order_ambiguities": (
             contentful_role_constrained_order_ambiguities
         ),
@@ -4355,6 +4556,12 @@ def assess_live_vs_batch(
             ),
             "live_contentful_role_constrained_order_mismatch_count": len(
                 contentful_role_constrained_order_mismatches,
+            ),
+            "live_blocking_contentful_role_constrained_order_mismatch_count": len(
+                blocking_contentful_order_mismatches
+            ),
+            "live_advisory_contentful_role_constrained_order_mismatch_count": (
+                len(contentful_role_constrained_order_mismatches) - len(blocking_contentful_order_mismatches)
             ),
             "live_contentful_role_constrained_order_mismatch_by_category": order_mismatch_category_counts(
                 contentful_role_constrained_order_mismatches,
@@ -4526,17 +4733,29 @@ def parity_gates(
     contentful_role_constrained_order_mismatches = int(
         assessment_metrics.get("live_contentful_role_constrained_order_mismatch_count") or 0
     )
+    blocking_contentful_order_mismatches = int(
+        assessment_metrics.get("live_blocking_contentful_role_constrained_order_mismatch_count") or 0
+    )
+    advisory_contentful_order_mismatches = int(
+        assessment_metrics.get("live_advisory_contentful_role_constrained_order_mismatch_count") or 0
+    )
     missing_me_seconds = safe_float(assessment_metrics.get("live_missing_me_seconds"))
     remote_leak_seconds = safe_float(assessment_metrics.get("live_suspected_remote_leak_in_me_seconds"))
     gates.append(
         gate(
             "order_risk",
-            "passed" if order_mismatches == 0 else "warning",
-            "live turn order should not contradict the selected batch transcript order",
+            "passed" if blocking_contentful_order_mismatches == 0 else "warning",
+            "contentful live order must have no unambiguous blocking contradiction with batch",
             {
                 "live_order_mismatch_count": order_mismatches,
                 "live_role_constrained_order_mismatch_count": role_constrained_order_mismatches,
                 "live_contentful_role_constrained_order_mismatch_count": contentful_role_constrained_order_mismatches,
+                "live_blocking_contentful_role_constrained_order_mismatch_count": (
+                    blocking_contentful_order_mismatches
+                ),
+                "live_advisory_contentful_role_constrained_order_mismatch_count": (
+                    advisory_contentful_order_mismatches
+                ),
                 "live_batch_interval_overlap_order_ambiguity_count": assessment_metrics.get(
                     "live_batch_interval_overlap_order_ambiguity_count"
                 ),
@@ -4874,6 +5093,12 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "voice_activity_boundary_threshold_db",
         "voice_activity_boundary_noise_floor_db",
         "voice_activity_boundary_audio",
+        "token_density_boundary_retime",
+        "token_density_boundary_original_start",
+        "token_density_boundary_shift_seconds",
+        "token_density_boundary_dense_start_seconds",
+        "token_density_boundary_token_count",
+        "token_density_boundary_asr_json",
         "segment_gate_status",
         "segment_gate_reason",
         "segment_gate_unique_token_count",
@@ -5057,6 +5282,7 @@ def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]
     split = [turn for turn in turns if turn.get("boundary_order_split_retime_oracle")]
     preserved_prefix = [turn for turn in split if turn.get("boundary_order_split_part") == "preserved_prefix"]
     voice_activity_retimed = [turn for turn in turns if turn.get("voice_activity_boundary_retime")]
+    token_density_retimed = [turn for turn in turns if turn.get("token_density_boundary_retime")]
     return {
         "boundary_order_retime_oracle_turn_count": len(retimed),
         "boundary_order_retime_oracle_trimmed_seconds": round(
@@ -5072,6 +5298,11 @@ def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]
         "voice_activity_boundary_retime_turn_count": len(voice_activity_retimed),
         "voice_activity_boundary_retime_shift_seconds": round(
             sum(safe_float(turn.get("voice_activity_boundary_shift_seconds")) for turn in voice_activity_retimed),
+            3,
+        ),
+        "token_density_boundary_retime_turn_count": len(token_density_retimed),
+        "token_density_boundary_retime_shift_seconds": round(
+            sum(safe_float(turn.get("token_density_boundary_shift_seconds")) for turn in token_density_retimed),
             3,
         ),
     }
@@ -5272,6 +5503,10 @@ def target_me_shadow_profile_components(
         live_turns = apply_voice_activity_boundary_retime(session, live_turns)
         target_turns = apply_voice_activity_boundary_retime(session, target_turns)
         supplemental_turns = apply_voice_activity_boundary_retime(session, supplemental_turns)
+    if policy in TOKEN_DENSITY_BOUNDARY_RETIME_PROFILE_POLICIES:
+        live_turns = apply_token_density_boundary_retime(session, live_turns)
+        target_turns = apply_token_density_boundary_retime(session, target_turns)
+        supplemental_turns = apply_token_density_boundary_retime(session, supplemental_turns)
     if (
         policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
         or policy in LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICIES
@@ -5728,6 +5963,12 @@ def build_target_me_shadow_profiles(
         top_level_metrics[f"{base}_voice_activity_boundary_retime_shift_seconds"] = retime_metrics[
             "voice_activity_boundary_retime_shift_seconds"
         ]
+        top_level_metrics[f"{base}_token_density_boundary_retime_turn_count"] = retime_metrics[
+            "token_density_boundary_retime_turn_count"
+        ]
+        top_level_metrics[f"{base}_token_density_boundary_retime_shift_seconds"] = retime_metrics[
+            "token_density_boundary_retime_shift_seconds"
+        ]
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_count"] = len(supplemental_turns)
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_seconds"] = supplemental_seconds
         top_level_metrics[f"{base}_visible_suppressed_mic_rejected_turn_count"] = len(rejected_supplemental_turns)
@@ -5761,6 +6002,8 @@ def build_target_me_shadow_profiles(
             "live_order_mismatch_count",
             "live_role_constrained_order_mismatch_count",
             "live_contentful_role_constrained_order_mismatch_count",
+            "live_blocking_contentful_role_constrained_order_mismatch_count",
+            "live_advisory_contentful_role_constrained_order_mismatch_count",
             "live_batch_interval_overlap_order_ambiguity_count",
             "live_role_constrained_batch_interval_overlap_order_ambiguity_count",
             "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count",
