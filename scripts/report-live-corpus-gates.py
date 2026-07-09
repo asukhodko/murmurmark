@@ -69,6 +69,10 @@ STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "strict_live_only_local_island_v1"
 )
+REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_"
+    "remote_forbidden_boundary_classifier_v1"
+)
 TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_possible_timeline_safe_v1",
@@ -85,6 +89,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
+    REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
     LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICY,
@@ -4785,6 +4790,9 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     combined_strict_audio_safe_union_profile_summary_prefix = (
         f"real_live_target_me_shadow_profile_{STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY}"
     )
+    remote_forbidden_boundary_classifier_profile_summary_prefix = (
+        f"real_live_target_me_shadow_profile_{REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY}"
+    )
     real_local_island_oracle_profile = target_me_shadow_profile_row(
         target_me_shadow_profile_diagnostics_report.get("real")
         if isinstance(target_me_shadow_profile_diagnostics_report.get("real"), dict)
@@ -4991,6 +4999,25 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         ),
         "combined_strict_audio_safe_union_profile_non_passing_gate_count": summary.get(
             f"{combined_strict_audio_safe_union_profile_summary_prefix}_non_passing_gate_count"
+        ),
+        "remote_forbidden_boundary_classifier_profile_policy": REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
+        "remote_forbidden_boundary_classifier_profile_missing_me_seconds": summary.get(
+            f"{remote_forbidden_boundary_classifier_profile_summary_prefix}_live_missing_me_seconds"
+        ),
+        "remote_forbidden_boundary_classifier_profile_remote_leak_seconds": summary.get(
+            f"{remote_forbidden_boundary_classifier_profile_summary_prefix}_live_suspected_remote_leak_in_me_seconds"
+        ),
+        "remote_forbidden_boundary_classifier_profile_contentful_order_mismatch_count": summary.get(
+            f"{remote_forbidden_boundary_classifier_profile_summary_prefix}_live_contentful_role_constrained_order_mismatch_count"
+        ),
+        "remote_forbidden_boundary_classifier_profile_added_turn_seconds": summary.get(
+            f"{remote_forbidden_boundary_classifier_profile_summary_prefix}_visible_suppressed_mic_added_turn_seconds"
+        ),
+        "remote_forbidden_boundary_classifier_profile_rejected_turn_count": summary.get(
+            f"{remote_forbidden_boundary_classifier_profile_summary_prefix}_visible_suppressed_mic_rejected_turn_count"
+        ),
+        "remote_forbidden_boundary_classifier_profile_non_passing_gate_count": summary.get(
+            f"{remote_forbidden_boundary_classifier_profile_summary_prefix}_non_passing_gate_count"
         ),
         "strict_shadow_delta_lab_status": strict_local_island_shadow_delta_lab_report.get("status"),
         "strict_shadow_delta_incremental_turn_seconds": strict_local_island_shadow_delta_lab_report.get(
@@ -6114,6 +6141,14 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             "contentful order mismatches "
             f"{timing_gap.get('combined_strict_audio_safe_union_profile_contentful_order_mismatch_count')}, "
             f"non-passing gates {timing_gap.get('combined_strict_audio_safe_union_profile_non_passing_gate_count')}",
+            "- remote-forbidden boundary classifier shadow profile: "
+            f"added {timing_gap.get('remote_forbidden_boundary_classifier_profile_added_turn_seconds')} sec, "
+            f"missing-Me {timing_gap.get('remote_forbidden_boundary_classifier_profile_missing_me_seconds')} sec, "
+            f"remote leak {timing_gap.get('remote_forbidden_boundary_classifier_profile_remote_leak_seconds')} sec, "
+            "contentful order mismatches "
+            f"{timing_gap.get('remote_forbidden_boundary_classifier_profile_contentful_order_mismatch_count')}, "
+            f"non-passing gates {timing_gap.get('remote_forbidden_boundary_classifier_profile_non_passing_gate_count')}, "
+            f"rejected turns {timing_gap.get('remote_forbidden_boundary_classifier_profile_rejected_turn_count')}",
             "- strict shadow delta lab: "
             f"{timing_gap.get('strict_shadow_delta_incremental_turn_seconds')} sec incremental strict turns, "
             f"{timing_gap.get('strict_shadow_delta_closed_missing_me_seconds')} sec closed missing-Me, "
@@ -7033,6 +7068,26 @@ def main() -> int:
                 print(
                     "real_live_combined_strict_audio_safe_union_profile_remote_leak_seconds: "
                     f"{summary.get(f'{combined_strict_audio_safe_union_profile_prefix}_live_suspected_remote_leak_in_me_seconds')}"
+                )
+                remote_forbidden_boundary_classifier_profile_prefix = (
+                    "real_live_target_me_shadow_profile_"
+                    f"{REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY}"
+                )
+                print(
+                    "real_live_remote_forbidden_boundary_classifier_profile_missing_me_seconds: "
+                    f"{summary.get(f'{remote_forbidden_boundary_classifier_profile_prefix}_live_missing_me_seconds')}"
+                )
+                print(
+                    "real_live_remote_forbidden_boundary_classifier_profile_remote_leak_seconds: "
+                    f"{summary.get(f'{remote_forbidden_boundary_classifier_profile_prefix}_live_suspected_remote_leak_in_me_seconds')}"
+                )
+                print(
+                    "real_live_remote_forbidden_boundary_classifier_profile_added_turn_seconds: "
+                    f"{summary.get(f'{remote_forbidden_boundary_classifier_profile_prefix}_visible_suppressed_mic_added_turn_seconds')}"
+                )
+                print(
+                    "real_live_remote_forbidden_boundary_classifier_profile_contentful_order_mismatch_count: "
+                    f"{summary.get(f'{remote_forbidden_boundary_classifier_profile_prefix}_live_contentful_role_constrained_order_mismatch_count')}"
                 )
                 strict_delta_lab = (
                     report.get("live_strict_local_island_shadow_delta_lab")

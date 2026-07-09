@@ -591,8 +591,13 @@ publication rule; it is the comparison target for the live classifier.
 The first live-only classifier,
 `relaxed_audio_text_anchor_remote_forbidden_boundary_classifier_v1`, now approximates that target
 without batch labels: it recovers `13.44s` missing-Me with `0.00s` remote-risk by requiring multiple
-remote-forbidden cuts around a relaxed anchor. It is still only a report diagnostic. The next step is
-to materialize it as a normal shadow profile and run the ordinary parity gates.
+remote-forbidden cuts around a relaxed anchor. It is now materialized as a normal shadow profile:
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`.
+The ordinary parity gates show a mixed result: `12.68s` added, missing-Me improves only from
+`130.97s` to `127.01s`, remote leak stays `0.00s`, but contentful order mismatches rise from `4` to
+`5` and non-passing gates remain `41`. So this is useful evidence, not a promotable profile. The next
+useful work is to inspect and repair the added boundary turns that create order risk, or to add a
+stronger online timing/order guard before publication.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1244,7 +1249,10 @@ Active goal and near-term candidates:
    the combined strict+audio-safe shadow adds the same `52.76s` as `audio_safe_union_v1`; it still
    leaves `130.97s` missing-Me with `0.00s` remote leak. This proves the next blocker is live
    timeline evidence for still-uncovered local islands, not another broad add-more-local-speech
-   threshold. Batch remains authoritative.
+   threshold. The remote-forbidden boundary classifier is now also materialized as
+   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`;
+   it lowers missing-Me to `127.01s` with `0.00s` remote leak, but increases contentful order
+   mismatches to `5`, so it remains shadow-only. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

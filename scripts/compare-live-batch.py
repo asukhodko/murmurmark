@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.24.0"
+SCRIPT_VERSION = "0.25.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 KNOWN_HALLUCINATION_RE = re.compile(
@@ -110,6 +110,10 @@ STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "strict_live_only_local_island_v1"
 )
+REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_"
+    "remote_forbidden_boundary_classifier_v1"
+)
 TARGET_ME_DERIVED_POLICY_BASE = {
     "target_me_confirmed_remote_guard_timeline_safe_v1": "target_me_confirmed_remote_guard_v1",
     "target_me_possible_timeline_safe_v1": "target_me_possible_v1",
@@ -130,6 +134,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
+    REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
     (
@@ -170,6 +175,9 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     (
@@ -252,6 +260,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
+    REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     (
         "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
         "batch_remote_forbidden_local_island_split_oracle_v1"
@@ -282,6 +291,9 @@ STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICIES = {
 }
 STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICIES = {
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
+}
+REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICIES = {
+    REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
 }
 MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 
@@ -2307,6 +2319,215 @@ def strict_live_only_local_island_turns(segments: list[dict[str, Any]]) -> list[
     return sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")))
 
 
+def subtract_intervals(
+    start: float,
+    end: float,
+    forbidden: list[tuple[float, float]],
+    *,
+    min_interval_sec: float,
+) -> list[tuple[float, float]]:
+    pieces = [(start, end)]
+    for forbidden_start, forbidden_end in sorted(forbidden):
+        if forbidden_end <= start or forbidden_start >= end:
+            continue
+        next_pieces: list[tuple[float, float]] = []
+        for piece_start, piece_end in pieces:
+            if forbidden_end <= piece_start or forbidden_start >= piece_end:
+                next_pieces.append((piece_start, piece_end))
+                continue
+            if forbidden_start > piece_start:
+                next_pieces.append((piece_start, min(forbidden_start, piece_end)))
+            if forbidden_end < piece_end:
+                next_pieces.append((max(forbidden_end, piece_start), piece_end))
+        pieces = next_pieces
+    return [
+        (round(piece_start, 3), round(piece_end, 3))
+        for piece_start, piece_end in pieces
+        if piece_end - piece_start >= min_interval_sec
+    ]
+
+
+def remote_forbidden_boundary_classifier_turns(
+    segments: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    max_anchor_gap_sec = 3.0
+    left_context_sec = 10.0
+    right_context_sec = 1.0
+    min_interval_sec = 0.35
+    min_remote_forbidden_cut_sec = 3.5
+    min_remote_forbidden_row_count = 2
+    min_anchor_span_sec = 3.0
+    min_candidate_sec_after_trim = 6.0
+    relaxed_anchor_rows = [
+        row
+        for row in segments
+        if not bool(row.get("known_hallucination"))
+        and len(tokens(str(row.get("text") or ""))) >= 2
+        and row.get("segment_gate_reason") == "segment_has_local_tokens_not_seen_in_overlapping_remote"
+        and safe_float(row.get("audio_mic_remote_zero_lag_abs_corr"), default=1.0) <= 0.03
+        and safe_float(row.get("audio_mic_minus_remote_rms_db"), default=-999.0) >= -6.0
+    ]
+    remote_forbidden_rows = [
+        row
+        for row in segments
+        if bool(row.get("known_hallucination"))
+        or safe_float(row.get("segment_gate_mic_token_recall_in_overlapping_remote")) >= 0.4
+        or safe_float(row.get("segment_gate_overlapping_remote_token_recall_in_mic")) >= 0.25
+        or (
+            row.get("segment_gate_reason") == "segment_duplicates_overlapping_remote"
+            and safe_int(row.get("segment_gate_unique_token_count") or row.get("unique_token_count")) <= 1
+        )
+        or (
+            row.get("segment_gate_reason") == "segment_duplicates_overlapping_remote"
+            and safe_float(row.get("audio_mic_minus_remote_rms_db"), default=999.0) <= -8.0
+        )
+    ]
+
+    def row_interval(row: dict[str, Any]) -> tuple[float, float]:
+        start = safe_float(row.get("start"))
+        end = safe_float(row.get("end"), start)
+        return start, max(start, end)
+
+    grouped: list[list[dict[str, Any]]] = []
+    by_chunk: dict[int, list[dict[str, Any]]] = {}
+    for row in relaxed_anchor_rows:
+        by_chunk.setdefault(safe_int(row.get("chunk_index")), []).append(row)
+    for chunk_rows in by_chunk.values():
+        current: list[dict[str, Any]] = []
+        for row in sorted(chunk_rows, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")))):
+            if not current:
+                current = [row]
+                continue
+            previous_end = safe_float(current[-1].get("end"), current[-1].get("start"))
+            if safe_float(row.get("start")) - previous_end <= max_anchor_gap_sec:
+                current.append(row)
+                continue
+            grouped.append(current)
+            current = [row]
+        if current:
+            grouped.append(current)
+
+    turns: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for group_index, anchors in enumerate(grouped, start=1):
+        chunk_index = safe_int(anchors[0].get("chunk_index"))
+        anchor_start = min(safe_float(row.get("start")) for row in anchors)
+        anchor_end = max(safe_float(row.get("end"), row.get("start")) for row in anchors)
+        anchor_span = round(max(0.0, anchor_end - anchor_start), 3)
+        start = max(0.0, anchor_start - left_context_sec)
+        end = anchor_end + right_context_sec
+        forbidden = [
+            row_interval(row)
+            for row in remote_forbidden_rows
+            if interval_overlap(start, end, *row_interval(row)) > 0
+        ]
+        pieces = subtract_intervals(start, end, forbidden, min_interval_sec=min_interval_sec)
+        raw_candidate_seconds = round(max(0.0, end - start), 3)
+        candidate_after_trim = round(sum(piece_end - piece_start for piece_start, piece_end in pieces), 3)
+        remote_forbidden_cut_seconds = round(max(0.0, raw_candidate_seconds - candidate_after_trim), 3)
+        reasons: list[str] = []
+        if remote_forbidden_cut_seconds < min_remote_forbidden_cut_sec:
+            reasons.append("insufficient_remote_forbidden_cut")
+        if len(forbidden) < min_remote_forbidden_row_count:
+            reasons.append("insufficient_remote_forbidden_rows")
+        if anchor_span < min_anchor_span_sec:
+            reasons.append("anchor_span_too_short")
+        if candidate_after_trim < min_candidate_sec_after_trim:
+            reasons.append("candidate_after_trim_too_short")
+        if reasons:
+            rejected.append(
+                {
+                    "id": f"live_remote_forbidden_boundary_classifier_rejected_{chunk_index:06d}_{group_index:06d}",
+                    "reason": "live_group_classifier_rejected",
+                    "reasons": reasons,
+                    "chunk_index": chunk_index,
+                    "start": round(start, 3),
+                    "end": round(end, 3),
+                    "anchor_start": round(anchor_start, 3),
+                    "anchor_end": round(anchor_end, 3),
+                    "anchor_span_seconds": anchor_span,
+                    "raw_candidate_seconds": raw_candidate_seconds,
+                    "candidate_seconds_after_trim": candidate_after_trim,
+                    "remote_forbidden_cut_seconds": remote_forbidden_cut_seconds,
+                    "remote_forbidden_row_count": len(forbidden),
+                    "anchor_text": clean_text(" ".join(str(row.get("text") or "") for row in anchors)),
+                }
+            )
+            continue
+        for piece_index, (piece_start, piece_end) in enumerate(pieces, start=1):
+            overlapping_anchors = [
+                row for row in anchors if interval_overlap(piece_start, piece_end, *row_interval(row)) > 0
+            ]
+            text = clean_text(" ".join(str(row.get("text") or "") for row in overlapping_anchors))
+            text_tokens = tokens(text)
+            if len(text_tokens) < 2:
+                rejected.append(
+                    {
+                        "id": (
+                            f"live_remote_forbidden_boundary_classifier_rejected_"
+                            f"{chunk_index:06d}_{group_index:06d}_{piece_index:03d}"
+                        ),
+                        "reason": "no_anchor_text_inside_trimmed_piece",
+                        "chunk_index": chunk_index,
+                        "start": piece_start,
+                        "end": piece_end,
+                    }
+                )
+                continue
+            turns.append(
+                {
+                    "id": (
+                        f"live_remote_forbidden_boundary_classifier_"
+                        f"{chunk_index:06d}_{group_index:06d}_{piece_index:03d}"
+                    ),
+                    "chunk_index": chunk_index,
+                    "source": "mic_suppressed_remote_forbidden_boundary_classifier",
+                    "role": "Me",
+                    "start": piece_start,
+                    "end": piece_end,
+                    "text": text,
+                    "tokens": text_tokens,
+                    "remote_forbidden_boundary_classifier": True,
+                    "live_group_classifier": "remote_forbidden_multi_cut_v1",
+                    "anchor_start": round(anchor_start, 3),
+                    "anchor_end": round(anchor_end, 3),
+                    "anchor_span_seconds": anchor_span,
+                    "raw_candidate_start": round(start, 3),
+                    "raw_candidate_end": round(end, 3),
+                    "raw_candidate_seconds": raw_candidate_seconds,
+                    "candidate_seconds_after_trim": candidate_after_trim,
+                    "remote_forbidden_cut_seconds": remote_forbidden_cut_seconds,
+                    "remote_forbidden_row_count": len(forbidden),
+                    "anchor_count": len(anchors),
+                    "remote_forbidden_boundary_classifier_criteria": {
+                        "left_context_sec": left_context_sec,
+                        "right_context_sec": right_context_sec,
+                        "max_anchor_gap_sec": max_anchor_gap_sec,
+                        "min_interval_sec": min_interval_sec,
+                        "min_remote_forbidden_cut_sec": min_remote_forbidden_cut_sec,
+                        "min_remote_forbidden_row_count": min_remote_forbidden_row_count,
+                        "min_anchor_span_sec": min_anchor_span_sec,
+                        "min_candidate_sec_after_trim": min_candidate_sec_after_trim,
+                    },
+                    "anchors": [
+                        {
+                            "start": row.get("start"),
+                            "end": row.get("end"),
+                            "text": row.get("text"),
+                            "segment_gate_reason": row.get("segment_gate_reason"),
+                            "audio_mic_minus_remote_rms_db": row.get("audio_mic_minus_remote_rms_db"),
+                            "audio_mic_remote_zero_lag_abs_corr": row.get("audio_mic_remote_zero_lag_abs_corr"),
+                        }
+                        for row in anchors
+                    ],
+                }
+            )
+    return (
+        sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or ""))),
+        rejected,
+    )
+
+
 def dedupe_supplemental_turns_by_interval(turns: list[dict[str, Any]]) -> list[dict[str, Any]]:
     deduped: list[dict[str, Any]] = []
     seen: set[tuple[int, float, float, str]] = set()
@@ -3289,6 +3510,20 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "local_island_seconds",
         "local_island_count",
         "local_islands",
+        "remote_forbidden_boundary_classifier",
+        "live_group_classifier",
+        "anchor_start",
+        "anchor_end",
+        "anchor_span_seconds",
+        "raw_candidate_start",
+        "raw_candidate_end",
+        "raw_candidate_seconds",
+        "candidate_seconds_after_trim",
+        "remote_forbidden_cut_seconds",
+        "remote_forbidden_row_count",
+        "anchor_count",
+        "remote_forbidden_boundary_classifier_criteria",
+        "anchors",
     ):
         if key in turn:
             payload[key] = turn.get(key)
@@ -3396,6 +3631,15 @@ def target_me_shadow_profile_components(
         supplemental_turns = dedupe_supplemental_turns_by_interval(
             audio_safe_union_turns + strict_turns,
         )
+    elif policy in REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICIES:
+        boundary_turns, rejected_boundary_turns = remote_forbidden_boundary_classifier_turns(
+            suppressed_mic_asr_segments,
+        )
+        supplemental_turns = filter_supplemental_turns_already_in_base(
+            boundary_turns,
+            live_turns + target_turns,
+        )
+        rejected_supplemental_turns.extend(rejected_boundary_turns)
     if policy in LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICIES or policy in LOCAL_ISLAND_RETIME_ORACLE_PROFILE_POLICIES:
         local_island_candidates, rejected_local_island_candidates = local_island_split_oracle_turns(
             segments=suppressed_mic_asr_segments,

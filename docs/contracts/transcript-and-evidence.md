@@ -5925,8 +5925,17 @@ Current `recommended_profile` is the first live-only approximation of that targe
 labels for acceptance. The classifier requires remote-forbidden trimming, at least `3.5s` cut away,
 at least `2` forbidden rows, an anchor span of at least `3.0s` and at least `6.0s` left after
 trimming. Current corpus result: `13.44s` missing-Me overlap, `23.50s` candidate span and `0.00s`
-remote-risk. It remains diagnostic until materialized as a normal shadow profile and evaluated by
-ordinary live parity gates.
+remote-risk.
+
+The materialized shadow profile is
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`.
+It writes normal `target-me-shadow/<policy>/draft.{json,md}` artifacts and normal
+`shadow_profiles.target_me.<policy>` parity metrics. Current corpus result: `12.68s` added,
+`127.01s` missing-Me, `0.00s` measured remote leak, `5` contentful order mismatches, `41`
+non-passing gates and `11` rejected boundary turns. This profile is evidence that remote-forbidden
+boundary recovery can close part of the gap, but it is not promotion-ready because it worsens the
+order gate. Future profiles must either retime/split/drop the added boundary turns or prove a
+stronger online order guard before publication.
 
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the

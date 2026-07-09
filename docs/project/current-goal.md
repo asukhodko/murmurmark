@@ -516,10 +516,25 @@ Current result:
   top-level risk examples are intentionally truncated.
 
 Conclusion: the oracle-sized recovery is reachable only through relaxed anchors plus a stronger
-remote-forbidden boundary/context gate. The first conservative live-only classifier now recovers most
-of the evaluation-only ceiling (`13.44s` of `14.79s`) without evaluated remote-risk. The next
-implementation target is materializing this classifier as an ordinary shadow profile, then running
-normal parity gates. Relaxed anchors must not be promoted as-is.
+remote-forbidden boundary/context gate. The first conservative live-only classifier recovers most of
+the evaluation-only ceiling (`13.44s` of `14.79s`) without evaluated remote-risk. Relaxed anchors must
+not be promoted as-is.
+
+That materialization is now present as
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`.
+The ordinary parity gates show that it is not yet a promotion candidate:
+
+- added boundary turns: `12.68s`;
+- missing-Me improves only from `130.97s` to `127.01s`;
+- measured remote leak stays `0.00s`;
+- contentful order mismatches increase from `4` to `5`;
+- non-passing gates remain `41`;
+- rejected boundary turns: `11`.
+
+Conclusion: the classifier validates the direction, but the materialized turns need a stricter online
+timing/order guard. The next implementation work is to inspect the added boundary turns, explain the
+new order mismatch, and either retime/split/drop those turns or add publication criteria that keep the
+small recall gain without increasing order risk. More recordings still are not the current unlock.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not

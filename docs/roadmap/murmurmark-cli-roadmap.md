@@ -551,8 +551,12 @@ newer run-state exists.
    anchors, not additional recordings or relaxed live publication. The evaluation-only ceiling now
    shows the target shape: `14.79s` missing-Me can be recovered at `0.00s` remote-risk if the future
    live classifier learns to keep the same zero-risk groups without batch labels. The first
-   live-only classifier now recovers `13.44s` at `0.00s` remote-risk. The next roadmap item is
-   materialization into a real shadow profile, not promotion.
+   live-only classifier now recovers `13.44s` at `0.00s` remote-risk. It has now been materialized as
+   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`.
+   It adds `12.68s`, lowers missing-Me from `130.97s` to `127.01s` and keeps measured remote leak at
+   `0.00s`, but it increases contentful order mismatches from `4` to `5`. So the next roadmap item is
+   boundary-turn order repair: inspect the added turns, tighten the online timing/order guard, and keep
+   the profile shadow-only until ordinary parity gates improve.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
