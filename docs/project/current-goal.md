@@ -136,15 +136,15 @@ Current result:
 - `promotion_decision = shadow_only_do_not_promote`;
 - `promotion_allowed_sessions = 0`;
 - live/batch comparison granularity: ASR segment when available, chunk fallback otherwise;
-- `real_live_order_mismatch_count = 30`;
-- `real_live_batch_interval_overlap_order_ambiguity_count = 4`;
-- `real_live_order_mismatch_by_category = {"same_chunk_same_source_reorder": 17,
+- `real_live_order_mismatch_count = 28`;
+- `real_live_batch_interval_overlap_order_ambiguity_count = 6`;
+- `real_live_order_mismatch_by_category = {"same_chunk_same_source_reorder": 15,
   "same_chunk_cross_source_reorder": 11, "cross_chunk_reorder": 1,
   "chunk_overlap_context_reorder": 1}`;
-- `real_live_order_mismatch_by_primary_risk = {"role_conflict_or_remote_leak": 16,
+- `real_live_order_mismatch_by_primary_risk = {"role_conflict_or_remote_leak": 14,
   "weak_text_match_possible_false_positive": 8, "same_source_timeline_reorder": 3,
   "cross_source_timeline_reorder": 3}`;
-- `real_live_order_mismatch_by_confidence = {"role_conflict": 16, "low": 8, "high": 3,
+- `real_live_order_mismatch_by_confidence = {"role_conflict": 14, "low": 8, "high": 3,
   "medium": 3}`;
 - `real_live_role_constrained_order_mismatch_count = 8`;
 - `real_live_role_constrained_batch_interval_overlap_order_ambiguity_count = 1`;
@@ -348,64 +348,63 @@ Online remote-overlap shadow filter, 2026-07-09:
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
 - current best live-implementable profile is
-  `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1`:
+  `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_relaxed_boundary_classifier_v1`:
   - remaining measured remote leak: `0.00s`;
-  - visible suppressed mic added: `52.76s`;
-  - missing-Me: `110.13s`;
+  - visible suppressed mic added: `4.10s`;
+  - missing-Me: `100.23s`;
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
 - best diagnostic oracle profile is
   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_retime_oracle_v1`:
-  - missing-Me: `91.63s`;
+  - missing-Me: `85.69s`;
   - remaining measured remote leak: `0.00s`;
   - contentful role-constrained order mismatches: `4`;
-  - best live-implementable to oracle gap: `18.50s`.
+  - best live-implementable to oracle gap: `14.54s`.
 - remaining missing-Me decomposition for that best live-implementable profile:
-  - visible in suppressed mic with broader Target-Me evidence: `26.78s`;
-  - visible in suppressed mic without Target-Me evidence: `90.42s`;
+  - visible in suppressed mic without Target-Me evidence: `86.46s`;
   - not visible in suppressed mic: `13.77s`;
-  - not visible but with Target-Me evidence: `0.00s`.
+  - visible/not-visible with Target-Me evidence: `0.00s`.
 - `live_target_me_shadow_profile_best_live_implementable_remaining_gap` exposes the same residual
   queue by bucket, policy set and session; its largest policy set is now no Target-Me policy
-  (`104.19s`), followed by a much smaller `target_me_possible_v1` tail (`5.94s`).
+  (`100.23s`).
 - The same block now exposes overlapping suppressed-mic evidence. Current top groups:
-  `batch_oracle_local_ceiling` (`26.78s`) by suppressed policy set,
-  `segment_duplicates_overlapping_remote` (`73.60s`) by gate reason, and `mixed` (`56.06s`) /
-  `remote_dominant` (`50.24s`) by suppressed batch-role label. Known live ASR hallucinations are now
+  `(none)` (`17.83s`) by suppressed policy set,
+  `segment_has_local_tokens_not_seen_in_overlapping_remote` (`36.30s`) by gate reason, and
+  `remote_dominant` (`32.90s`) by suppressed batch-role label. Known live ASR hallucinations are
   split out as `known_hallucination` (`12.42s`) and cannot become rescue candidates.
 - Remaining-gap actionability:
-  - `mixed_needs_segmentation_or_speaker_evidence`: `60.42s`;
+  - `mixed_needs_segmentation_or_speaker_evidence`: `43.08s`;
   - `remote_dominant_not_rescuable_without_new_evidence`: `29.68s`;
-  - `target_me_visible_needs_live_materialization_or_timeline_gate`: `26.78s`;
+  - `speaker_confirmation_candidate`: `13.70s`;
   - `asr_hallucination_not_rescuable`: `12.42s`;
-  - `speaker_confirmation_candidate`: `0.32s`.
+  - `not_visible_needs_asr_or_boundary_repair`: `1.35s`.
 - Mixed-region segmentability:
-  - `local_island_split_candidate`: `27.92s`, including `9.06s` of local-looking islands;
+  - `local_island_split_candidate`: `10.58s`, including `5.10s` of local-looking islands;
   - `duplicate_heavy_needs_speaker_evidence`: `22.28s`;
   - `needs_speaker_evidence`: `5.36s`;
   - `remote_dominant_mixed_not_rescuable`: `3.22s`;
   - `short_low_value_tail`: `1.64s`.
 - Local-island split lab:
-  - candidate batch rows: `2 / 27.92s`;
-  - candidate local-island audio/text: `9.06s`;
-  - accepted by token recall >= `0.35`: `1 / 17.34s` batch row;
-  - accepted local-island evidence: `3.96s`;
+  - candidate batch rows: `1 / 10.58s`;
+  - candidate local-island audio/text: `5.10s`;
+  - accepted by token recall >= `0.35`: `0 / 0.00s` batch rows;
+  - accepted local-island evidence: `0.00s`;
   - promotion allowed: `false`.
 - Profile-level local-island oracle:
   - policy:
     `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`;
-  - missing-Me: `129.81s`;
-  - delta vs best live-implementable: `1.16s`;
+  - missing-Me: `85.69s`;
+  - delta vs best live-implementable: `14.54s`;
   - remote leak: `0.00s`;
   - contentful order mismatches: `4`;
-  - added suppressed-mic turn seconds: `55.66s`;
-  - rejected supplemental turns: `3`.
+  - added suppressed-mic turn seconds: `62.30s`;
+  - rejected supplemental turns: `2`.
 - Profile-level local-island retime oracle:
   - policy:
     `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_retime_oracle_v1`;
-  - missing-Me: `112.47s`;
-  - delta vs best live-implementable: `18.50s`;
-  - delta vs split oracle: `17.34s`;
+  - missing-Me: `85.69s`;
+  - delta vs best live-implementable: `14.54s`;
+  - delta vs split oracle: `0.00s`;
   - remote leak: `0.00s`;
   - contentful order mismatches: `4`;
   - added suppressed-mic turn seconds: `71.26s`;
@@ -423,29 +422,28 @@ Online remote-overlap shadow filter, 2026-07-09:
   - rejected because of suspected remote leak: `0.00s`.
 
 Conclusion: the online filter closes the current measured remote-leak symptom without batch truth,
-and the `target_me_possible_timeline_safe` profile converts most of the former broad Target-Me gap
-into order-safe live shadow material. The goal remains blocked by local recall, order risk, review
-burden and draft readiness, not by lack of another raw recording. The best oracle improves the best
-live-implementable profile by `18.50s`, but only by using batch timing. Plain local-island split
-recovers `1.16s`; batch-time retime recovers the full `17.34s` candidate. Therefore the next useful
-work is not another broad threshold: it is online local-island timeline repair/retiming evidence
-that can approximate the batch-time oracle without using batch truth. Duplicate-heavy or
-remote-dominant mixed rows should remain blocked until stronger speaker evidence exists.
-The corpus report now records this as `live_local_island_timing_gap/v1`, including the `17.34s`
-retime gain over split and the exact online evidence still missing before any live publication.
-It also records `live_local_island_audio_anchor_lab/v1`: the accepted retime candidate has `3.96s`
-of live-available audio anchors, so the next blocker is not raw audio evidence alone, but online
-candidate selection and timing without batch labels.
+and the relaxed remote-forbidden boundary classifier lowers the best live-implementable missing-Me
+to `100.23s`. The goal remains blocked by local recall, order risk, review burden and draft
+readiness, not by lack of another raw recording. The best local-island oracle improves the best
+live-implementable profile by `14.54s`, but the current live local-island lab has no accepted
+token-recall rows. Therefore the next useful work is not another broad threshold: it is online
+local-speaker and boundary evidence for mixed regions without using batch labels. Duplicate-heavy
+or remote-dominant mixed rows should remain blocked until stronger speaker evidence exists.
+The corpus report records this as `live_local_island_timing_gap/v1`, including the current
+`14.54s` oracle gap and the online evidence still missing before any live publication.
+It also records `live_local_island_audio_anchor_lab/v1`, which currently has
+`no_accepted_local_island_rows`; the next blocker is online candidate selection and speaker/boundary
+evidence, not raw audio availability alone.
 The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 
-- accepted rows: `1`;
-- batch Me interval: `17.34s`;
-- live-available local-island audio: `3.96s`;
-- anchor span: `6.64s`;
-- context expansion needed to match batch timing: `10.70s`;
-- max leading gap before the first anchor: `9.748s`;
-- max trailing gap after the last anchor: `0.952s`;
-- max inter-island gap: `2.54s`.
+- accepted rows: `0`;
+- batch Me interval: `0.00s`;
+- live-available local-island audio: `0.00s`;
+- anchor span: `0.00s`;
+- context expansion needed to match batch timing: `0.00s`;
+- max leading gap before the first anchor: `0.00s`;
+- max trailing gap after the last anchor: `0.00s`;
+- max inter-island gap: `0.00s`.
 
 This means additional recordings are not the current unlock. The corpus already proves the shape of
 the missing work: build online evidence that can safely expand short local anchors into a publishable
@@ -480,12 +478,13 @@ The strict profile is now also materialized into ordinary live-shadow drafts:
 - strict policy:
   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_strict_live_only_local_island_v1`;
 - strict profile result: `0.00s` added after deduplication against existing live/Target-Me turns,
-  `144.35s` missing-Me, `0.00s` remote leak, `4` contentful order mismatches, `41` non-passing
+  `117.57s` missing-Me, `0.00s` remote leak, `4` contentful order mismatches, `41` non-passing
   gates;
 - combined policy:
   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_strict_live_only_local_island_v1`;
-- combined profile result: `52.76s` added, `110.13s` missing-Me, `0.00s` remote leak, `4`
-  contentful order mismatches, `41` non-passing gates;
+- combined profile result: `52.76s` added, `104.19s` missing-Me, `0.00s` remote leak, `4`
+  contentful order mismatches, `41` non-passing gates. This is now a baseline, not the best
+  live-implementable profile;
 - strict shadow delta lab: `0.00s` incremental strict turns and `0.00s` closed missing-Me.
 
 Conclusion: no additional recordings are required to unblock the current design question. The
@@ -528,11 +527,27 @@ That materialization is now present as
 The ordinary parity gates show that it is not yet a promotion candidate:
 
 - guarded boundary turns added: `1.48s`;
-- missing-Me remains worse than the current best live-implementable `110.13s`;
+- missing-Me remains worse than the previous best live-implementable `110.13s`;
 - measured remote leak stays `0.00s`;
 - contentful order mismatches stay at `4`;
 - non-passing gates remain `41`;
 - rejected boundary turns: `12`.
+
+The next materialized variant,
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_relaxed_boundary_classifier_v1`,
+keeps the remote-forbidden multi-cut classifier but accepts anchor pieces down to `-6dB`
+mic-minus-remote when the surrounding remote-forbidden cuts pass. It is now the best
+live-implementable shadow:
+
+- boundary turns added: `4.10s`;
+- missing-Me: `100.23s`;
+- measured remote leak: `0.00s`;
+- contentful order mismatches: `4`;
+- non-passing gates remain `41`.
+
+This closes `9.90s` versus the previous best `audio_safe_union_v1` profile without weakening
+promotion policy. It does not finish the goal: live remains blocked by local recall, order/readiness
+and historical capture/artifact evidence.
 
 The first unguarded materialization is still useful as a negative test: it added `12.68s` and lowered
 missing-Me to `127.01s`, but it increased contentful order mismatches from `4` to `5`. The current
@@ -549,11 +564,11 @@ visible for the local-recall fix.
 The comparison now evaluates normal live turns and rescue-shadow candidates at ASR-segment
 granularity when the source ASR JSON is present, with chunk-level fallback for older artifacts. This
 exposes order and remote-leakage risks that the earlier chunk-level comparison could hide.
-Order risk is mostly local to a single live chunk: `28/30` strict mismatches are same-chunk reorder,
-with `17` inside one source and `11` between mic/remote segments. Only `2/30` are cross-chunk or
-overlap context. The primary-risk split is even more useful: `16/30` are role conflict / possible
-remote leak, `8/30` are weak text matches that may be false positives, and only `6/30` look like
-direct timeline reorder. Batch-interval overlap ambiguity is now counted separately: `4` rows in
+Order risk is mostly local to a single live chunk: `26/28` strict mismatches are same-chunk reorder,
+with `15` inside one source and `11` between mic/remote segments. Only `2/28` are cross-chunk or
+overlap context. The primary-risk split is even more useful: `14/28` are role conflict / possible
+remote leak, `8/28` are weak text matches that may be false positives, and only `6/28` look like
+direct timeline reorder. Batch-interval overlap ambiguity is now counted separately: `6` rows in
 all order checks, `1` in same-role checks and `0` in contentful same-role checks. A stricter
 same-role matcher confirms `8` strict role-constrained order mismatches (`5` same-source and `3`
 cross-source, all inside one live chunk); after filtering short/generic phrases, only `4`
@@ -651,9 +666,10 @@ New Target-Me diagnostic, 2026-07-08:
   is safe but too weak (`278.52s` profile missing-Me remains). `audio_low_corr_text_guard_v1` recovers
   much more (`117.52s` missing-Me remains), but leaks `210.10s` of remote-like text, so it is not a
   viable promotion path. Combining `target_me_possible_timeline_safe_v1`, online remote-overlap
-  cleanup and `audio_safe_union_v1` gives the current best live-implementable shadow at `110.13s`
-  missing-Me. The next online design therefore needs stronger local-speaker evidence for visible
-  suppressed mic regions that still have no Target-Me policy.
+  cleanup and `audio_safe_union_v1` gave the previous best live-implementable shadow at `110.13s`
+  missing-Me. The current relaxed remote-forbidden boundary classifier improves that to `100.23s`.
+  The next online design therefore needs stronger local-speaker evidence for visible suppressed mic
+  regions that still have no Target-Me policy.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
 existing corpus already contains enough suppressed live mic material and enough Target-Me evidence.

@@ -15,8 +15,9 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.27.0"
+SCRIPT_VERSION = "0.28.0"
 EPSILON = 1.0e-12
+LIVE_BATCH_BOUNDARY_TOLERANCE_SEC = 2.5
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 KNOWN_HALLUCINATION_RE = re.compile(
     r"("
@@ -114,6 +115,10 @@ REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_"
     "remote_forbidden_boundary_classifier_v1"
 )
+REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_"
+    "remote_forbidden_relaxed_boundary_classifier_v1"
+)
 TARGET_ME_DERIVED_POLICY_BASE = {
     "target_me_confirmed_remote_guard_timeline_safe_v1": "target_me_confirmed_remote_guard_v1",
     "target_me_possible_timeline_safe_v1": "target_me_possible_v1",
@@ -135,6 +140,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
     REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
+    REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
     (
@@ -178,6 +184,9 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     (
@@ -261,6 +270,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
     REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
+    REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     (
         "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
         "batch_remote_forbidden_local_island_split_oracle_v1"
@@ -294,6 +304,9 @@ STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICIES = {
 }
 REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICIES = {
     REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
+}
+REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICIES = {
+    REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
 }
 MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 
@@ -2069,10 +2082,12 @@ def order_mismatch_batch_interval_context(previous: dict[str, Any], current: dic
         and interval_overlap(previous_live_start, previous_live_end, overlap_start - 0.5, overlap_end + 0.5) > 0
     )
     current_live_inside_own_batch = (
-        current_live_start >= current_batch_start - 1.0 and current_live_start <= current_batch_end + 1.0
+        current_live_start >= current_batch_start - LIVE_BATCH_BOUNDARY_TOLERANCE_SEC
+        and current_live_start <= current_batch_end + LIVE_BATCH_BOUNDARY_TOLERANCE_SEC
     )
     previous_live_inside_own_batch = (
-        previous_live_start >= previous_batch_start - 1.0 and previous_live_start <= previous_batch_end + 1.0
+        previous_live_start >= previous_batch_start - LIVE_BATCH_BOUNDARY_TOLERANCE_SEC
+        and previous_live_start <= previous_batch_end + LIVE_BATCH_BOUNDARY_TOLERANCE_SEC
     )
     explains_reorder = (
         batch_overlap >= 1.0
@@ -2092,6 +2107,7 @@ def order_mismatch_batch_interval_context(previous: dict[str, Any], current: dic
         "previous_live_inside_own_batch_interval": previous_live_inside_own_batch,
         "current_live_inside_batch_overlap_or_near": current_live_overlap,
         "previous_live_inside_batch_overlap_or_near": previous_live_overlap,
+        "live_batch_boundary_tolerance_sec": LIVE_BATCH_BOUNDARY_TOLERANCE_SEC,
         "batch_interval_overlap_explains_reorder": explains_reorder,
     }
 
@@ -2445,6 +2461,10 @@ def subtract_intervals(
 
 def remote_forbidden_boundary_classifier_turns(
     segments: list[dict[str, Any]],
+    *,
+    min_piece_anchor_mic_minus_remote_db: float = -3.0,
+    classifier_name: str = "remote_forbidden_multi_cut_v1",
+    source_name: str = "mic_suppressed_remote_forbidden_boundary_classifier",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     max_anchor_gap_sec = 3.0
     left_context_sec = 10.0
@@ -2454,7 +2474,6 @@ def remote_forbidden_boundary_classifier_turns(
     min_remote_forbidden_row_count = 2
     min_anchor_span_sec = 3.0
     min_candidate_sec_after_trim = 6.0
-    min_piece_anchor_mic_minus_remote_db = -3.0
     relaxed_anchor_rows = [
         row
         for row in segments
@@ -2613,18 +2632,18 @@ def remote_forbidden_boundary_classifier_turns(
             turns.append(
                 {
                     "id": (
-                        f"live_remote_forbidden_boundary_classifier_"
+                        f"live_{classifier_name}_"
                         f"{chunk_index:06d}_{group_index:06d}_{piece_index:03d}"
                     ),
                     "chunk_index": chunk_index,
-                    "source": "mic_suppressed_remote_forbidden_boundary_classifier",
+                    "source": source_name,
                     "role": "Me",
                     "start": round(publish_start, 3),
                     "end": round(publish_end, 3),
                     "text": text,
                     "tokens": text_tokens,
                     "remote_forbidden_boundary_classifier": True,
-                    "live_group_classifier": "remote_forbidden_multi_cut_v1",
+                    "live_group_classifier": classifier_name,
                     "publish_interval_policy": "anchor_bounds_within_remote_forbidden_piece",
                     "safe_piece_start": piece_start,
                     "safe_piece_end": piece_end,
@@ -3891,6 +3910,18 @@ def target_me_shadow_profile_components(
     elif policy in REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICIES:
         boundary_turns, rejected_boundary_turns = remote_forbidden_boundary_classifier_turns(
             suppressed_mic_asr_segments,
+        )
+        supplemental_turns = filter_supplemental_turns_already_in_base(
+            boundary_turns,
+            live_turns + target_turns,
+        )
+        rejected_supplemental_turns.extend(rejected_boundary_turns)
+    elif policy in REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICIES:
+        boundary_turns, rejected_boundary_turns = remote_forbidden_boundary_classifier_turns(
+            suppressed_mic_asr_segments,
+            min_piece_anchor_mic_minus_remote_db=-6.0,
+            classifier_name="remote_forbidden_relaxed_multi_cut_v1",
+            source_name="mic_suppressed_remote_forbidden_relaxed_boundary_classifier",
         )
         supplemental_turns = filter_supplemental_turns_already_in_base(
             boundary_turns,
