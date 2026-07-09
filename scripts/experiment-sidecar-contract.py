@@ -494,7 +494,32 @@ def run_compare(session: Path) -> int:
     if not script.exists():
         print(f"missing comparison script: {script}", file=sys.stderr)
         return 1
-    return subprocess.call([sys.executable, str(script), str(session)])
+    timeout = float(os.environ.get("MURMURMARK_LIVE_BATCH_COMPARE_TIMEOUT_SEC", "300"))
+    try:
+        return subprocess.run([sys.executable, str(script), str(session)], timeout=timeout, check=False).returncode
+    except subprocess.TimeoutExpired:
+        experiment_id = DEFAULT_EXPERIMENT_ID
+        append_jsonl(
+            session / "derived" / "experiments" / experiment_id / "events.jsonl",
+            {
+                "schema": EVENT_SCHEMA,
+                "created_at": utc_now(),
+                "event": "live_batch_compare.timeout",
+                "experiment_id": experiment_id,
+                "status": "warning",
+                "details": {
+                    "timeout_sec": timeout,
+                    "script": str(script),
+                    "reason": "comparison_timeout",
+                },
+            },
+        )
+        print(
+            f"warning: live/batch comparison timed out after {timeout:.1f}s; "
+            "using existing comparison artifacts",
+            file=sys.stderr,
+        )
+        return 0
 
 
 def ready_commit_indexes(rows: list[dict[str, Any]]) -> set[int]:

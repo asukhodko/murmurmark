@@ -68,6 +68,18 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def session_is_closed(session: Path) -> bool:
+    session_json = session / "session.json"
+    try:
+        payload = json.loads(session_json.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return False
+    status = str(payload.get("status") or "")
+    if status in {"completed", "completed_with_warnings", "failed"}:
+        return True
+    return bool(payload.get("ended_at"))
+
+
 def rewrite_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -361,7 +373,8 @@ def main() -> int:
                 grouped = grouped_commits(commits)
                 ready = [index for index, pair in grouped.items() if {"mic", "remote"} <= set(pair)]
                 ready_unprocessed = sorted(index for index in ready if index not in processed)
-                if len(ready_unprocessed) > max(1, args.max_ready_backlog):
+                session_closed = session_is_closed(session)
+                if not session_closed and len(ready_unprocessed) > max(1, args.max_ready_backlog):
                     status = "disabled_backpressure"
                     reason = "ready commit backlog exceeded"
                     append_event(session, experiment, "raw_sidecar_worker.disabled", status, reason=reason)

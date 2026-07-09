@@ -108,6 +108,8 @@ mkdir -p "$backlog_session/audio/mic" "$backlog_session/audio/remote" "$backlog_
 cp "$session/audio/mic/000001.caf" "$backlog_session/audio/mic/000001.caf"
 cp "$session/audio/remote/000001.caf" "$backlog_session/audio/remote/000001.caf"
 cp "$session/session.json" "$backlog_session/session.json"
+jq '.status = "recording" | del(.ended_at)' "$backlog_session/session.json" >"$backlog_session/session.json.tmp"
+mv "$backlog_session/session.json.tmp" "$backlog_session/session.json"
 cat >"$backlog_session/derived/experiments/$experiment/raw_segment_commits.jsonl" <<'JSONL'
 {"schema":"murmurmark.raw_segment_commit/v1","experiment_id":"live-shadow-v1","source":"mic","index":1,"start_sec":0.0,"end_sec":1.0,"duration_sec":1.0,"raw_path":"audio/mic/000001.caf","frames_committed":48000,"total_frames_committed":48000,"sample_rate":48000,"status":"committed","final":false}
 {"schema":"murmurmark.raw_segment_commit/v1","experiment_id":"live-shadow-v1","source":"remote","index":1,"start_sec":0.0,"end_sec":1.0,"duration_sec":1.0,"raw_path":"audio/remote/000001.caf","frames_committed":48000,"total_frames_committed":48000,"sample_rate":48000,"status":"committed","final":false}
