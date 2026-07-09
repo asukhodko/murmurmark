@@ -4483,8 +4483,8 @@ def live_session_next_commands(session: Path, payload: dict[str, Any]) -> list[s
         commands.append(f"jq '.risk_examples' {comparison_path}")
     if not metrics.get("meaningful_live_comparison") or not metrics.get("all_parity_gates_passed"):
         commands.append(
-            "murmurmark status latest  # production meetings still use normal record/process; "
-            "controlled Live Evidence uses live pilot"
+            'murmurmark status "$SESSION"  # production meetings still use normal record/process; '
+            "controlled Live Evidence uses record --experiment live-shadow-v1"
         )
     commands.append(coverage_command)
     deduped: list[str] = []

@@ -160,18 +160,19 @@ live_recording_gate:
     - murmurmark doctor
     - murmurmark self-test
     - murmurmark config init
-    - murmurmark record --target-bundle system
-    - murmurmark inspect latest
-    - murmurmark process latest
-    - murmurmark status latest
-    - murmurmark next latest
-    - murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json
+    - SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+    - murmurmark record --out "$SESSION" --target-bundle system
+    - murmurmark inspect "$SESSION"
+    - murmurmark process "$SESSION"
+    - murmurmark status "$SESSION"
+    - murmurmark next "$SESSION"
+    - murmurmark acceptance --live-session "$SESSION" --report /tmp/murmurmark-live-session.json
     - follow printed review command when readiness says review_first
-    - murmurmark finish latest
+    - murmurmark finish "$SESSION"
   pass_when:
     - recording creates separate non-empty mic and remote tracks
-    - process latest completes or prints a concrete next command
-    - status latest reports a clear readiness state
+    - process completes or prints a concrete next command for the same SESSION
+    - status reports a clear readiness state for the same SESSION
     - acceptance --live-session reports status ok
     - risky transcript regions remain explicit review items
     - export is blocked while required review/export blockers exist
@@ -319,7 +320,7 @@ echo "acceptance_cli_mvp:"
 install_output="$("$repo_root/scripts/install-local.sh" --prefix "$prefix")"
 echo "$install_output" | grep -q '^  murmurmark acceptance --skip-release$'
 echo "$install_output" | grep -q '^  murmurmark acceptance --live-checklist$'
-echo "$install_output" | grep -q '^  murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json$'
+echo "$install_output" | grep -q '^  murmurmark acceptance --live-session "\$SESSION" --report /tmp/murmurmark-live-session.json$'
 echo "  install_wrapper: ok"
 checks+=("install_wrapper:passed")
 

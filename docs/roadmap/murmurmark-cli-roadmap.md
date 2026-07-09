@@ -282,11 +282,12 @@ flowchart LR
 - Make the everyday path boring:
 
   ```bash
-  murmurmark record --target-bundle system
-  murmurmark process latest
-  murmurmark next latest
-  murmurmark review next latest   # only when printed
-  murmurmark finish latest
+  SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+  murmurmark record --out "$SESSION" --target-bundle system
+  murmurmark process "$SESSION"
+  murmurmark next "$SESSION"
+  murmurmark review next "$SESSION"   # only when printed
+  murmurmark finish "$SESSION"
   ```
 
 - Keep documentation aligned with the actual command surface.
@@ -295,7 +296,8 @@ flowchart LR
 
 - Current Pipeline Stabilization v1:
   - freeze new product work and use only the supported production command sequence:
-    `record --target-bundle system`, `process latest`, `next`, `status`, `finish`;
+    set `SESSION`, then `record --out "$SESSION" --target-bundle system`, `process`, `next`,
+    `status`, `finish` against the same session;
   - prove at least one fresh short non-live recording with audible content reaches a non-empty
     transcript;
   - prove silent/partial/interrupted captures block before ASR and never look like successful empty

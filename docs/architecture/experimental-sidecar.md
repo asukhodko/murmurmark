@@ -296,17 +296,19 @@ Until then, the sidecar may collect evidence, not change user-facing truth.
 Stable path:
 
 ```bash
-murmurmark record --target-bundle system
-murmurmark process latest
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+murmurmark record --out "$SESSION" --target-bundle system
+murmurmark process "$SESSION"
 ```
 
 Current controlled experimental path:
 
 ```bash
-murmurmark record --target-bundle system --experiment live-shadow-v1
-murmurmark process latest
-murmurmark experiment status latest
-murmurmark experiment compare latest --experiment live-shadow-v1
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live"
+murmurmark record --out "$SESSION" --target-bundle system --experiment live-shadow-v1
+murmurmark process "$SESSION"
+murmurmark experiment status "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
 Existing live session analysis path:

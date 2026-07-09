@@ -102,8 +102,10 @@ murmurmark doctor
 murmurmark self-test
 murmurmark config init
 murmurmark acceptance --live-checklist
-murmurmark record --target-bundle system
-murmurmark inspect latest
+
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+murmurmark record --out "$SESSION" --target-bundle system
+murmurmark inspect "$SESSION"
 ```
 
 `acceptance --live-checklist` intentionally prints two gates. Use `live_recording_gate` for normal
@@ -126,11 +128,12 @@ and must not be used for valuable meetings. The new controlled experiment path k
 writer as the only source of truth and lets the sidecar consume committed raw intervals:
 
 ```bash
-murmurmark record --target-bundle system --duration 120 --experiment live-shadow-v1
-murmurmark process latest
-murmurmark experiment status latest
-murmurmark experiment report latest
-murmurmark experiment compare latest --experiment live-shadow-v1
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live-lab"
+murmurmark record --out "$SESSION" --target-bundle system --duration 120 --experiment live-shadow-v1
+murmurmark process "$SESSION"
+murmurmark experiment status "$SESSION"
+murmurmark experiment report "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
 The runtime shape is:
@@ -221,7 +224,7 @@ murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 After batch processing, `derived/live/live_parity_session_report.md` explains whether the session can
 count as a passing live comparison and lists the exact non-passing gates.
 
-`murmurmark status latest` prints the live worker, stage, captured/preprocessed/asr seconds, lag,
+`murmurmark status "$SESSION"` prints the live worker, stage, captured/preprocessed/asr seconds, lag,
 chunk count and final-reconcile status when these artifacts exist.
 
 Each live segment has two timelines:
@@ -380,21 +383,23 @@ Without `--out`, MurmurMark creates a fresh directory under `./sessions`, for ex
 recording until Ctrl-C -> ./sessions/<session>
 ```
 
-Use that printed path for processing and export. If the terminal scrollback is gone,
-`murmurmark latest` prints a copyable `SESSION="..."` assignment. For normal work, `latest` is also
-safe when the newest session is the one you just recorded.
+Use that printed path for processing and export. For real meetings, the safer pattern is to set
+`SESSION` before recording and pass it with `--out "$SESSION"`; then every later command uses the
+same variable. If the terminal scrollback is gone, `murmurmark latest` prints a copyable
+`SESSION="..."` assignment, but `latest` is unsafe when another terminal may have started a newer
+session.
 
 ```bash
-murmurmark process latest
-murmurmark status latest
-murmurmark next latest
-murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json
+murmurmark process "$SESSION"
+murmurmark status "$SESSION"
+murmurmark next "$SESSION"
+murmurmark acceptance --live-session "$SESSION" --report /tmp/murmurmark-live-session.json
 
 # If readiness says review_first, follow the printed review command first.
-murmurmark notes latest --kind verdict
-murmurmark notes latest
-murmurmark transcript latest
-murmurmark finish latest
+murmurmark notes "$SESSION" --kind verdict
+murmurmark notes "$SESSION"
+murmurmark transcript "$SESSION"
+murmurmark finish "$SESSION"
 ```
 
 `--mic-backend voice-processing` and `--remote-backend audio-input` are experimental comparison modes. They are not the main product path and should not be used to judge the algorithmic subtraction problem unless the test explicitly says so.

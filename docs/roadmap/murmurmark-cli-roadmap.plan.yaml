@@ -70,8 +70,8 @@ nodes:
       Chunked/Resumable Processing v1 уже сделали outcome/next/export gate и ASR chunk-resume
       честным пользовательским контрактом. Ближайший крупный шаг теперь — Current Pipeline
       Stabilization v1: заморозить новые продуктовые ветки, оставить один production path
-      (`record --target-bundle system` без live, затем `process latest`) и доказать, что он либо
-      даёт transcript/notes, либо честно блокируется с причиной.
+      (`record --out "$SESSION" --target-bundle system` без live, затем `process "$SESSION"`)
+      и доказать, что он либо даёт transcript/notes, либо честно блокируется с причиной.
 
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
@@ -196,7 +196,7 @@ nodes:
     deps: [cli-process-command]
     status: done
     effort: 4
-    notes: "Путь для обычной работы: записать новую сессию и обработать её через process latest."
+    notes: "Путь для обычной работы: заранее задать SESSION, записать новую сессию через --out и обработать тот же SESSION."
 
   cli-recording-reliability:
     title: "Recording Reliability"
@@ -324,8 +324,9 @@ nodes:
     status: done
     effort: 6
     notes: |
-      Завершено 2026-07-06. Production path: `murmurmark record --target-bundle system` без
-      `--live-pipeline`, затем `murmurmark process latest`, `next`, `status`, `finish`.
+      Завершено 2026-07-06. Production path: заранее задать `SESSION`, выполнить
+      `murmurmark record --out "$SESSION" --target-bundle system` без `--live-pipeline`,
+      затем `murmurmark process "$SESSION"`, `next`, `status`, `finish`.
       Live-pipeline quarantined behind `MURMURMARK_ENABLE_UNSAFE_LIVE_PIPELINE=1`. Silent, sparse,
       partial and interrupted captures block before ASR; `status`/`next` do not suggest review or
       export for failed capture; stale readiness/outcome/live reports cannot override a newer

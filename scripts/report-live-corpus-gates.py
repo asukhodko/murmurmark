@@ -7811,7 +7811,10 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         ).get("recommended_next")
     elif coverage_target["passing_compared_sessions_remaining"] > 0:
         coverage_path_status = "needs_new_controlled_live_evidence"
-        coverage_recommended_next = "murmurmark record --target-bundle system --experiment live-shadow-v1"
+        coverage_recommended_next = (
+            'SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live"; '
+            'murmurmark record --out "$SESSION" --target-bundle system --experiment live-shadow-v1'
+        )
     else:
         coverage_path_status = "coverage_target_met_shadow_still_locked"
         coverage_recommended_next = "murmurmark live gate"
@@ -8149,7 +8152,7 @@ def recommended_next_commands(
     gate_issues: list[dict[str, Any]],
 ) -> list[str]:
     live_quarantine_note = (
-        "murmurmark status latest  # production meetings still use normal record/process; "
+        'murmurmark status "$SESSION"  # production meetings still use normal record/process; '
         "controlled Live Evidence uses record --experiment live-shadow-v1 and batch stays authoritative"
     )
     if summary.get("live_quarantined") is True:
@@ -8158,12 +8161,18 @@ def recommended_next_commands(
             and safe_int(summary.get("coverage_target_passing_sessions_remaining")) > 0
             and not (summary.get("real_capture_safe_candidate_blocking_dimensions") or [])
         ):
+            record_command = (
+                'SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live"; '
+                'murmurmark record --out "$SESSION" --target-bundle system --experiment live-shadow-v1'
+            )
             return [
-                "murmurmark record --target-bundle system --experiment live-shadow-v1",
-                "murmurmark process latest",
-                "murmurmark experiment status latest",
-                "murmurmark experiment report latest",
-                "murmurmark experiment compare latest --experiment live-shadow-v1",
+                record_command,
+                'SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live"',
+                'murmurmark record --out "$SESSION" --target-bundle system --experiment live-shadow-v1',
+                'murmurmark process "$SESSION"',
+                'murmurmark experiment status "$SESSION"',
+                'murmurmark experiment report "$SESSION"',
+                'murmurmark experiment compare "$SESSION" --experiment live-shadow-v1',
                 "murmurmark corpus live all --refresh",
                 "jq '.capture_safe_candidate_scope, .coverage_target, .promotion_policy' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
                 live_quarantine_note,
@@ -8236,7 +8245,7 @@ def recommended_next_commands(
         ]
     if safe_int(summary.get("real_compared_sessions")) == 0:
         return [
-            "murmurmark process latest",
+            'murmurmark process "$SESSION"',
             coverage_command,
         ]
     if safe_int(summary.get("real_meaningful_compared_sessions")) == 0:

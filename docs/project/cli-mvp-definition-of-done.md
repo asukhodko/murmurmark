@@ -74,19 +74,20 @@ Run this on a machine with macOS recording permissions granted:
 murmurmark doctor
 murmurmark self-test
 murmurmark config init
-murmurmark record --target-bundle system
-murmurmark inspect latest
-murmurmark process latest
-murmurmark status latest
-murmurmark next latest
-murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+murmurmark record --out "$SESSION" --target-bundle system
+murmurmark inspect "$SESSION"
+murmurmark process "$SESSION"
+murmurmark status "$SESSION"
+murmurmark next "$SESSION"
+murmurmark acceptance --live-session "$SESSION" --report /tmp/murmurmark-live-session.json
 ```
 
 Then follow the printed review command when readiness says `review_first`.
 When the session is exportable, run:
 
 ```bash
-murmurmark finish latest
+murmurmark finish "$SESSION"
 ```
 
 Do not use `--live-pipeline` for this production gate. Before any near-realtime coverage attempt,
@@ -108,11 +109,11 @@ the selected batch transcript authoritative.
 The manual gate passes when:
 
 - the recording creates separate non-empty mic and remote tracks;
-- the recording status is not `partial`, and `inspect latest` shows an explicit stop reason such as
+- the recording status is not `partial`, and `inspect "$SESSION"` shows an explicit stop reason such as
   `sigint` or `duration_elapsed`;
-- `process latest` completes or prints a concrete next command;
-- `status latest` reports a clear readiness state;
-- `acceptance --live-session latest` reports `status: ok` and writes a report with
+- `process "$SESSION"` completes or prints a concrete next command;
+- `status "$SESSION"` reports a clear readiness state;
+- `acceptance --live-session "$SESSION"` reports `status: ok` and writes a report with
   `manual_gates.live_recording.status = passed`;
 - risky transcript regions remain explicit review items;
 - export is blocked while required review/export blockers exist;
@@ -140,9 +141,9 @@ The gate was last proven with these checks:
 
 - `murmurmark acceptance --report /tmp/murmurmark-acceptance-full.json` finished with `status: ok`
   and verified the release bundle.
-- `murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session-final.json`
+- `murmurmark acceptance --live-session sessions/2026-06-26_17-31-17 --report /tmp/murmurmark-live-session-final.json`
   passed for `sessions/2026-06-26_17-31-17`.
-- `murmurmark finish latest` wrote a local export bundle plus retention and payload manifests.
+- `murmurmark finish sessions/2026-06-26_17-31-17` wrote a local export bundle plus retention and payload manifests.
 
 Remaining publication work is outside this CLI MVP gate: decide the public security contact and
 choose the repository history/push strategy.

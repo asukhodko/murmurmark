@@ -1055,12 +1055,13 @@ jq -e '
   and .coverage_target.status == "needs_more_live_coverage"
   and .coverage_target.live_sessions_remaining == 2
   and .coverage_target.passing_compared_sessions_remaining == 2
-  and .recommended_next == "murmurmark record --target-bundle system --experiment live-shadow-v1"
-  and (.next_commands | index("murmurmark record --target-bundle system --experiment live-shadow-v1") != null)
-  and (.next_commands | index("murmurmark process latest") != null)
-  and (.next_commands | index("murmurmark experiment status latest") != null)
-  and (.next_commands | index("murmurmark experiment report latest") != null)
-  and (.next_commands | index("murmurmark experiment compare latest --experiment live-shadow-v1") != null)
+  and .recommended_next == "SESSION=\"sessions/$(date +%Y-%m-%d_%H-%M-%S)-live\"; murmurmark record --out \"$SESSION\" --target-bundle system --experiment live-shadow-v1"
+  and (.next_commands | index("SESSION=\"sessions/$(date +%Y-%m-%d_%H-%M-%S)-live\"") != null)
+  and (.next_commands | index("murmurmark record --out \"$SESSION\" --target-bundle system --experiment live-shadow-v1") != null)
+  and (.next_commands | index("murmurmark process \"$SESSION\"") != null)
+  and (.next_commands | index("murmurmark experiment status \"$SESSION\"") != null)
+  and (.next_commands | index("murmurmark experiment report \"$SESSION\"") != null)
+  and (.next_commands | index("murmurmark experiment compare \"$SESSION\" --experiment live-shadow-v1") != null)
   and ([.next_commands[] | select(contains("--min-live-sessions"))] | length) == 0
   and ([.next_commands[] | select(contains("murmurmark corpus live all --refresh"))] | length) == 1
   and .real_blocker_triage_summary.total_items == 0
@@ -1155,12 +1156,13 @@ jq -e '
   and .summary.coverage_path_status == "needs_new_controlled_live_evidence"
   and .coverage_path.status == "needs_new_controlled_live_evidence"
   and .coverage_path.controlled_real_live_pilot_allowed == true
-  and .recommended_next == "murmurmark record --target-bundle system --experiment live-shadow-v1"
-  and (.next_commands | index("murmurmark record --target-bundle system --experiment live-shadow-v1") != null)
-  and (.next_commands | index("murmurmark process latest") != null)
-  and (.next_commands | index("murmurmark experiment status latest") != null)
-  and (.next_commands | index("murmurmark experiment report latest") != null)
-  and (.next_commands | index("murmurmark experiment compare latest --experiment live-shadow-v1") != null)
+  and .recommended_next == "SESSION=\"sessions/$(date +%Y-%m-%d_%H-%M-%S)-live\"; murmurmark record --out \"$SESSION\" --target-bundle system --experiment live-shadow-v1"
+  and (.next_commands | index("SESSION=\"sessions/$(date +%Y-%m-%d_%H-%M-%S)-live\"") != null)
+  and (.next_commands | index("murmurmark record --out \"$SESSION\" --target-bundle system --experiment live-shadow-v1") != null)
+  and (.next_commands | index("murmurmark process \"$SESSION\"") != null)
+  and (.next_commands | index("murmurmark experiment status \"$SESSION\"") != null)
+  and (.next_commands | index("murmurmark experiment report \"$SESSION\"") != null)
+  and (.next_commands | index("murmurmark experiment compare \"$SESSION\" --experiment live-shadow-v1") != null)
   and ([.next_commands[] | select(contains("--min-live-sessions"))] | length) == 0
   and ([.next_commands[] | select(contains("murmurmark corpus live all --refresh"))] | length) == 1
 ' "$workdir/live-report-strict/live_corpus_gates_report.json" >/dev/null

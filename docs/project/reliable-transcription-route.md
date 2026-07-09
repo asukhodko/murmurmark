@@ -55,10 +55,11 @@ The user should not have to watch ASR progress or understand which repair profil
 able to run:
 
 ```bash
-murmurmark record --target-bundle system
-murmurmark process latest
-murmurmark status latest
-murmurmark finish latest
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+murmurmark record --out "$SESSION" --target-bundle system
+murmurmark process "$SESSION"
+murmurmark status "$SESSION"
+murmurmark finish "$SESSION"
 ```
 
 The pipeline can still take time. The reliability requirement is that it is resumable, observable and

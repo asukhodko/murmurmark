@@ -161,8 +161,9 @@ if [[ "$record_new" == "1" && "$controlled_real" == "1" && "$allow_unsafe_contro
 live parity pilot failed: controlled-real live recording is disabled for valuable meetings.
 
 Use the reliable production path:
-  murmurmark record --target-bundle system
-  murmurmark process latest
+  SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+  murmurmark record --out "$SESSION" --target-bundle system
+  murmurmark process "$SESSION"
 
 Existing live sessions can still be analyzed:
   murmurmark live pilot sessions/<session-id> --controlled-real
@@ -235,8 +236,9 @@ if [[ "$preflight_only" == "1" ]]; then
     echo "new_real_live_collection_allowed: $(jq -r '.promotion_policy.new_real_live_collection_allowed // false' "$corpus_report")"
     echo "coverage_passing_remaining: $(jq -r '.coverage_target.passing_compared_sessions_remaining // 0' "$corpus_report")"
     echo "next: murmurmark live pilot --controlled-real --skip-safety-gate"
-    echo "after_stop: murmurmark experiment status latest"
-    echo "after_stop: murmurmark experiment compare latest --experiment live-shadow-v1"
+    echo "after_stop: set SESSION to the recorded session path"
+    echo "after_stop: murmurmark experiment status \"\$SESSION\""
+    echo "after_stop: murmurmark experiment compare \"\$SESSION\" --experiment live-shadow-v1"
     echo "final_source: batch transcript remains authoritative"
   else
     echo "next: murmurmark live pilot --duration $duration --skip-safety-gate"

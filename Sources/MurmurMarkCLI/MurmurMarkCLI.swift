@@ -107,16 +107,18 @@ struct MurmurMark {
           murmurmark self-test
           murmurmark config init
           murmurmark acceptance --skip-release
-          murmurmark record --target-bundle system
-          murmurmark process latest
-          murmurmark next latest
+          SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+          murmurmark record --out "$SESSION" --target-bundle system
+          murmurmark process "$SESSION"
+          murmurmark next "$SESSION"
           murmurmark next corpus
-          murmurmark status latest
+          murmurmark status "$SESSION"
           # follow printed review commands when the gate is review_first
-          murmurmark finish latest
+          murmurmark finish "$SESSION"
 
         Handoff rule:
           When a command ends with `next: ...`, that final line is the primary command to run next.
+          Avoid `latest` after recording if another terminal can start a newer session.
 
         Everyday usage:
           murmurmark doctor [--strict]
@@ -525,8 +527,9 @@ enum Commands {
 
         Normal meeting path:
           murmurmark doctor --strict
-          murmurmark record --target-bundle system
-          murmurmark process latest
+          SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+          murmurmark record --out "$SESSION" --target-bundle system
+          murmurmark process "$SESSION"
 
         The record command keeps macOS display/system idle sleep disabled while capture is active,
         because ScreenCaptureKit needs an awake desktop capture source.
@@ -536,6 +539,9 @@ enum Commands {
 
         --experiment live-shadow-v1 keeps raw CAF authoritative and starts a best-effort sidecar
         from committed raw segments. If the sidecar fails, process the session normally.
+
+        `latest` is a mutable pointer to the newest session. For real meetings, especially with
+        multiple terminals, set SESSION before recording and pass --out "$SESSION".
         """)
     }
 }
@@ -601,11 +607,12 @@ struct DoctorReport {
         print("  murmurmark self-test")
         print("  murmurmark config init")
         print("  murmurmark acceptance --skip-release")
-        print("  murmurmark record --target-bundle system")
-        print("  murmurmark inspect latest")
-        print("  murmurmark process latest")
-        print("  murmurmark status latest")
-        print("  murmurmark acceptance --live-session latest --report /tmp/murmurmark-live-session.json")
+        print("  SESSION=\"sessions/$(date +%Y-%m-%d_%H-%M-%S)\"")
+        print("  murmurmark record --out \"$SESSION\" --target-bundle system")
+        print("  murmurmark inspect \"$SESSION\"")
+        print("  murmurmark process \"$SESSION\"")
+        print("  murmurmark status \"$SESSION\"")
+        print("  murmurmark acceptance --live-session \"$SESSION\" --report /tmp/murmurmark-live-session.json")
     }
 }
 
@@ -1272,6 +1279,8 @@ enum PipelineHelp {
           SESSION="./sessions/<id>"
 
         The command ignores internal report directories whose names start with `_`.
+        `latest` is convenient for recovery, but it is not stable if another terminal starts a
+        newer recording. Prefer `record --out "$SESSION"` for real meetings.
         """)
     }
 
@@ -1289,9 +1298,9 @@ enum PipelineHelp {
         Interrupted partial captures are blocked by default; use --allow-partial only for debugging.
 
         Common:
-          murmurmark process latest
           murmurmark process ./sessions/<id> --plan-only --skip-build
           murmurmark process ./sessions/<id> --progress-interval-sec 30
+          murmurmark process latest  # only when no newer session can appear
         """)
     }
 
@@ -1304,8 +1313,8 @@ enum PipelineHelp {
 
         Common:
           murmurmark status
-          murmurmark status latest
           murmurmark status ./sessions/<id>
+          murmurmark status latest  # only when no newer session can appear
         """)
     }
 
@@ -1337,11 +1346,11 @@ enum PipelineHelp {
 
         Common:
           murmurmark next
-          murmurmark next latest
           murmurmark next corpus
           murmurmark next corpus --refresh
           murmurmark next ./sessions/<id> --export-manifest ./exports/private/<id>/export_manifest.json
           murmurmark next ./sessions/<id> --refresh
+          murmurmark next latest  # only when no newer session can appear
         """)
     }
 
@@ -2515,12 +2524,12 @@ enum ReviewHelp {
         separate reviewed transcript profile, and refreshes readiness reports.
 
         Common flow:
-          murmurmark review next latest
-          murmurmark review suggested latest
-          murmurmark review suggested apply latest
-          murmurmark review first-lane --session latest
+          murmurmark review next "$SESSION"
+          murmurmark review suggested "$SESSION"
+          murmurmark review suggested apply "$SESSION"
+          murmurmark review first-lane --session "$SESSION"
           # listen/edit the generated answer sheet
-          murmurmark review lane apply first --session latest
+          murmurmark review lane apply first --session "$SESSION"
           murmurmark review apply --session latest
 
         Use --allow-partial-review to materialize already closed rows while keeping the

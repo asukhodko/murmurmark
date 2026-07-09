@@ -832,11 +832,12 @@ Goal:
 Plainly: MurmurMark must become boring before it becomes smarter. The supported path is:
 
 ```bash
-murmurmark record --target-bundle system
-murmurmark process latest
-murmurmark next latest
-murmurmark status latest
-murmurmark finish latest
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+murmurmark record --out "$SESSION" --target-bundle system
+murmurmark process "$SESSION"
+murmurmark next "$SESSION"
+murmurmark status "$SESSION"
+murmurmark finish "$SESSION"
 ```
 
 Current scope:
@@ -858,7 +859,7 @@ Definition of done:
 - live/capture regression smoke passes, but live remains diagnostic;
 - at least one fresh short non-live recording with audible content produces a non-empty transcript;
 - at least one fresh failed/silent capture fixture blocks before ASR;
-- `murmurmark status latest` and `murmurmark next latest` give one non-conflicting next step;
+- `murmurmark status "$SESSION"` and `murmurmark next "$SESSION"` give one non-conflicting next step;
 - README and runbooks describe the supported production path without stale live-first guidance.
 - `doctor --strict` blocks recording when ScreenCaptureKit sees no shareable display, including the
   case where macOS permissions exist but the display/session is asleep.
@@ -876,7 +877,7 @@ Goal:
 
 ```text
 Reliable Processing UX v1: сделать post-recording путь MurmurMark надёжным и понятным для
-ежедневного использования. После записи пользователь запускает `murmurmark process latest` и
+ежедневного использования. После записи пользователь запускает `murmurmark process "$SESSION"` и
 получает не поток догадок, а ясный результат: `ready_for_notes`, `review_first` или `blocked`,
 путь к transcript/notes, точный review burden, причину блокировки экспорта и одну следующую
 команду. Пайплайн должен нормально возобновляться после прерывания, показывать понятный прогресс

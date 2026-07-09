@@ -231,7 +231,9 @@ source .venv/bin/activate
 export PATH="$HOME/.local/bin:$PATH"
 
 murmurmark doctor
-murmurmark record --target-bundle system
+
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+murmurmark record --out "$SESSION" --target-bundle system
 ```
 
 For real meetings, run recording from a logged-in desktop session with an awake display. If
@@ -252,6 +254,10 @@ SESSION="sessions/<timestamp>"
 recommended_next: murmurmark process sessions/<timestamp>
 ```
 
+Use the same `$SESSION` for every command after recording. `latest` is only a convenience pointer to
+the newest session directory; it is unsafe when another terminal may start a newer recording before
+the current processing finishes.
+
 If capture stops before `Ctrl-C`, if written CAF tracks cover far less time than the wall-clock
 recording, if both mic and remote tracks are effectively silent, or if a long recording contains only
 a tiny amount of active audio, MurmurMark finalizes or blocks the session instead of pretending it is
@@ -261,9 +267,9 @@ normal processing is blocked unless you explicitly pass `--allow-partial` for de
 Run only one `murmurmark record` process at a time. ScreenCaptureKit is not treated as a reliable
 multi-client capture source for MurmurMark: starting a safe recording and a live recording in
 parallel can leave both sessions unfinalized or empty. The CLI keeps a recording lock and rejects a
-second concurrent `record` before it creates a broken session. For valuable meetings, do not attach
-the live sidecar yet. The supported production path is one durable raw capture followed by batch
-processing.
+second concurrent `record` before it creates a broken session. The supported production path is one
+durable raw capture followed by batch processing. Add `--experiment live-shadow-v1` only when you
+want sidecar evidence; the batch transcript remains authoritative either way.
 
 ScreenCaptureKit may skip audio buffers during silence or source inactivity. MurmurMark preserves
 the meeting timeline in raw CAF files by inserting silence for timestamp gaps instead of compressing
@@ -276,15 +282,15 @@ the CAF duration correct but ScreenCaptureKit delivered almost no useful audio.
 Then run:
 
 ```bash
-murmurmark process latest
-murmurmark next latest
-murmurmark status latest
-murmurmark outcome latest
+murmurmark process "$SESSION"
+murmurmark next "$SESSION"
+murmurmark status "$SESSION"
+murmurmark outcome "$SESSION"
 
-murmurmark notes latest --kind verdict
-murmurmark notes latest
-murmurmark transcript latest
-murmurmark finish latest
+murmurmark notes "$SESSION" --kind verdict
+murmurmark notes "$SESSION"
+murmurmark transcript "$SESSION"
+murmurmark finish "$SESSION"
 ```
 
 If `next` or `status` prints a review command, follow that command before relying on the result for
@@ -305,11 +311,12 @@ captures and remains quarantined.
 The new controlled experiment path keeps the normal raw writer as the only source of truth:
 
 ```bash
-murmurmark record --target-bundle system --experiment live-shadow-v1
-murmurmark process latest
-murmurmark experiment status latest
-murmurmark experiment report latest
-murmurmark experiment compare latest --experiment live-shadow-v1
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live"
+murmurmark record --out "$SESSION" --target-bundle system --experiment live-shadow-v1
+murmurmark process "$SESSION"
+murmurmark experiment status "$SESSION"
+murmurmark experiment report "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
 The shape is:
@@ -358,9 +365,9 @@ sidecar seconds exist, whether backpressure disabled the sidecar, whether raw ca
 and which command recovers processing from the existing raw CAF files. Inspect it with:
 
 ```bash
-murmurmark experiment status latest
-murmurmark experiment report latest
-murmurmark experiment compare latest --experiment live-shadow-v1
+murmurmark experiment status "$SESSION"
+murmurmark experiment report "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
 `experiment compare` also resumes missing sidecar materialization from `raw_segment_commits.jsonl`.
@@ -378,9 +385,10 @@ scripts/compare-live-batch.py sessions/<session-id> --with-labs
 For lab evidence, prefer the raw-commit experiment over the unsafe legacy live path:
 
 ```bash
-murmurmark record --target-bundle system --duration 120 --experiment live-shadow-v1
-murmurmark process latest
-murmurmark experiment compare latest --experiment live-shadow-v1
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live-lab"
+murmurmark record --out "$SESSION" --target-bundle system --duration 120 --experiment live-shadow-v1
+murmurmark process "$SESSION"
+murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
 `murmurmark live pilot --controlled-real` still refuses to start a new real recording unless the
@@ -882,18 +890,18 @@ The handoff rule is simple: when a command ends with `next: ...`, run that comma
 Common review commands:
 
 ```bash
-murmurmark next latest
-murmurmark review next latest
+murmurmark next "$SESSION"
+murmurmark review next "$SESSION"
 
 # First close only high-confidence generated suggestions, then inspect the exact manual remainder:
-murmurmark review suggested latest
-murmurmark review suggested apply latest
+murmurmark review suggested "$SESSION"
+murmurmark review suggested apply "$SESSION"
 
 # If manual review is still required, listen/edit the generated answer sheet, then:
-murmurmark review first-lane --session latest
-murmurmark review lane apply first --session latest
-murmurmark review apply --session latest
-murmurmark status latest
+murmurmark review first-lane --session "$SESSION"
+murmurmark review lane apply first --session "$SESSION"
+murmurmark review apply --session "$SESSION"
+murmurmark status "$SESSION"
 murmurmark report corpus
 ```
 
@@ -933,7 +941,7 @@ batch during suggested review:
 ```bash
 MURMURMARK_TARGETED_JUDGE_COMPUTE=1 \
 MURMURMARK_TARGETED_JUDGE_MAX_COMPUTED=4 \
-murmurmark review suggested apply latest
+murmurmark review suggested apply "$SESSION"
 ```
 
 ## Export And Retention
@@ -951,7 +959,7 @@ Obsidian format writes one self-contained frontmatter note with the same section
 archive locally: raw audio is not copied into the export bundle.
 
 ```bash
-murmurmark finish latest
+murmurmark finish "$SESSION"
 murmurmark finish "$SESSION" --format obsidian
 ```
 
@@ -1017,15 +1025,16 @@ Most users should need only these commands:
 
 ```bash
 murmurmark doctor
-murmurmark record --target-bundle system
-murmurmark process latest
-murmurmark next latest
-murmurmark status latest
-murmurmark notes latest --kind verdict
-murmurmark notes latest
-murmurmark transcript latest
-murmurmark review next latest
-murmurmark finish latest
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+murmurmark record --out "$SESSION" --target-bundle system
+murmurmark process "$SESSION"
+murmurmark next "$SESSION"
+murmurmark status "$SESSION"
+murmurmark notes "$SESSION" --kind verdict
+murmurmark notes "$SESSION"
+murmurmark transcript "$SESSION"
+murmurmark review next "$SESSION"
+murmurmark finish "$SESSION"
 ```
 
 For the full command surface:
@@ -1240,8 +1249,9 @@ rule and need corpus gates before any automatic review decision.
 
 Current focus:
 
-- stabilize the current production path first: `record --target-bundle system`, then
-  `process latest`, `next`, `status`, `finish`;
+- stabilize the current production path first: set `SESSION`, run
+  `record --out "$SESSION" --target-bundle system`, then `process`, `next`, `status`, `finish`
+  against the same session;
 - keep every failed capture explicit: silent/partial/interrupted recordings must block before ASR
   and must not look like empty successful transcripts;
 - keep the operational corpus at `pilot_ready_with_review` or better;
@@ -1488,8 +1498,8 @@ scripts/check-open-source-readiness.sh
 audio contract pinned so `remote` capture does not silently regress back to digital silence.
 When `sessions/_reports/session-quality/session_quality_report.json` exists, it also runs the
 current-pipeline stabilization audit: no usable/review-first session may have an empty transcript,
-incomplete sessions must not expose normal notes/transcript handoff, and `status latest` must agree
-with `next latest`.
+incomplete sessions must not expose normal notes/transcript handoff, and `status` must agree with
+`next` for the checked session.
 
 When changing recording code, also run one local system-audio and live fail-open probe:
 

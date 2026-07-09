@@ -90,18 +90,19 @@ processed fixture and then walks `process --plan-only`, review workspace/lane ap
 For the usual record-then-process flow:
 
 ```bash
-murmurmark record --target-bundle system
-murmurmark process latest
-murmurmark status latest
-murmurmark notes latest --kind verdict
-murmurmark notes latest
-murmurmark transcript latest
-murmurmark finish latest
+SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)"
+murmurmark record --out "$SESSION" --target-bundle system
+murmurmark process "$SESSION"
+murmurmark status "$SESSION"
+murmurmark notes "$SESSION" --kind verdict
+murmurmark notes "$SESSION"
+murmurmark transcript "$SESSION"
+murmurmark finish "$SESSION"
 ```
 
 After a successful recording, `record` prints `SESSION="..."`, `recommended_next` and the exact
-`murmurmark process ...` command for that session. `process latest` remains a convenient shortcut when the newest session is
-the one you just recorded. If capture ended unexpectedly, `record` exits with an error after writing
+`murmurmark process ...` command for that session. Use the same `$SESSION` for the whole handoff;
+`latest` is only a recovery shortcut when no newer session can appear. If capture ended unexpectedly, `record` exits with an error after writing
 a partial session. In that state, use `murmurmark inspect SESSION` first; `status`, `next` and
 `process` do not treat the session as complete, and `process` requires explicit `--allow-partial`
 for debugging.
@@ -894,11 +895,11 @@ murmurmark corpus gate \
 murmurmark corpus gate \
   --baseline sessions/_reports/corpus-gates/baseline.local.json
 
-murmurmark review next latest
+murmurmark review next "$SESSION"
 murmurmark review first-lane
-murmurmark review latest --lane fast_confirm_drop
-murmurmark review progress --session latest
-murmurmark review apply --session latest
+murmurmark review "$SESSION" --lane fast_confirm_drop
+murmurmark review progress --session "$SESSION"
+murmurmark review apply --session "$SESSION"
 murmurmark export sessions/<session> --format markdown --include-json
 
 less sessions/_reports/regression-corpus/regression_corpus.md
