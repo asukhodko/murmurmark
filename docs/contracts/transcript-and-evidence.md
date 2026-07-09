@@ -5773,6 +5773,21 @@ Current actionability labels include
 `speaker_confirmation_candidate`. The report is diagnostic only; it does not change live drafts or
 parity gates.
 
+The same report writes `live_next_unlock` with schema `murmurmark.live_next_unlock/v1`. This is the
+machine-readable handoff for the next live-parity step. It records:
+
+- whether additional recordings are required for the current blocker;
+- whether batch remains authoritative and live promotion remains blocked;
+- the best live-implementable policy and its missing-Me / remote-leak / order counters;
+- top `actionability` and `segmentability` groups from the remaining gap;
+- the diagnostic oracle gap and live-only evidence counts;
+- `next_actions` that are safe to pursue and `blocked_buckets` that must not be published without
+  stronger evidence.
+
+For the current corpus, `additional_recordings_required_for_current_blocker` is `false`; the first
+next action is `build_online_local_speaker_boundary_evidence`, and `remote_dominant` /
+`known_hallucination` buckets stay blocked.
+
 The same report may include `live_local_island_split_lab` with schema
 `murmurmark.live_local_island_split_lab/v1`. It is a diagnostic estimate over
 `local_island_split_candidate` rows: it joins local-island texts, computes token recall against the

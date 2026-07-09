@@ -14,7 +14,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.22.0"
+SCRIPT_VERSION = "1.23.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -2100,6 +2100,203 @@ def local_island_split_lab(remaining_gap: dict[str, Any], *, recall_threshold: f
                 safe_float(row.get("start")),
             ),
         ),
+    }
+
+
+def largest_group(grouped: dict[str, Any]) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    for label, payload in grouped.items():
+        if not isinstance(payload, dict):
+            continue
+        rows.append(
+            {
+                "label": label,
+                "count": safe_int(payload.get("count")),
+                "seconds": round(safe_float(payload.get("seconds")), 3),
+            }
+        )
+    rows.sort(key=lambda row: (-safe_float(row.get("seconds")), str(row.get("label") or "")))
+    return rows[0] if rows else {"label": "(none)", "count": 0, "seconds": 0.0}
+
+
+def live_next_unlock_report(
+    *,
+    summary: dict[str, Any],
+    remaining_gap: dict[str, Any],
+    local_island_split: dict[str, Any],
+    live_only_local_island: dict[str, Any],
+    timing_gap: dict[str, Any],
+) -> dict[str, Any]:
+    by_actionability = (
+        remaining_gap.get("by_actionability")
+        if isinstance(remaining_gap.get("by_actionability"), dict)
+        else {}
+    )
+    by_segmentability = (
+        remaining_gap.get("by_segmentability")
+        if isinstance(remaining_gap.get("by_segmentability"), dict)
+        else {}
+    )
+    top_actionability = largest_group(by_actionability)
+    top_segmentability = largest_group(by_segmentability)
+
+    missing_me_seconds = safe_float(remaining_gap.get("seconds"))
+    remote_leak_seconds = safe_float(
+        summary.get("real_live_target_me_shadow_profile_best_live_implementable_remote_leak_seconds")
+    )
+    contentful_order_mismatches = safe_int(
+        summary.get("real_live_target_me_shadow_profile_best_live_implementable_contentful_order_mismatch_count")
+    )
+    live_sessions_remaining = safe_int(summary.get("coverage_target_live_sessions_remaining"))
+    meaningful_remaining = safe_int(summary.get("coverage_target_meaningful_compared_sessions_remaining"))
+    passing_remaining = safe_int(summary.get("coverage_target_passing_sessions_remaining"))
+    new_recordings_needed = live_sessions_remaining > 0 or meaningful_remaining > 0
+
+    blockers: list[dict[str, Any]] = []
+    if missing_me_seconds > 0:
+        blockers.append(
+            {
+                "dimension": "local_recall",
+                "severity": "blocking",
+                "seconds": round(missing_me_seconds, 3),
+                "reason": "best live-implementable profile still misses batch Me speech",
+            }
+        )
+    if contentful_order_mismatches > 0:
+        blockers.append(
+            {
+                "dimension": "order_risk",
+                "severity": "blocking",
+                "count": contentful_order_mismatches,
+                "reason": "contentful same-role order mismatches remain in live/batch comparison",
+            }
+        )
+    if remote_leak_seconds > 0:
+        blockers.append(
+            {
+                "dimension": "remote_leakage",
+                "severity": "blocking",
+                "seconds": round(remote_leak_seconds, 3),
+                "reason": "remote-like text remains published as live Me",
+            }
+        )
+
+    mixed_seconds = safe_float(
+        (by_actionability.get("mixed_needs_segmentation_or_speaker_evidence") or {}).get("seconds")
+    )
+    speaker_seconds = safe_float((by_actionability.get("speaker_confirmation_candidate") or {}).get("seconds"))
+    remote_dominant_seconds = safe_float(
+        (by_actionability.get("remote_dominant_not_rescuable_without_new_evidence") or {}).get("seconds")
+    )
+    hallucination_seconds = safe_float((by_actionability.get("asr_hallucination_not_rescuable") or {}).get("seconds"))
+    local_island_candidate_seconds = safe_float(local_island_split.get("candidate_batch_seconds"))
+    local_island_accepted_seconds = safe_float(local_island_split.get("accepted_batch_seconds"))
+    live_only_candidate_seconds = safe_float(live_only_local_island.get("candidate_seconds"))
+    live_only_remote_risk_seconds = safe_float(live_only_local_island.get("remote_risk_seconds"))
+    strict_profile = (
+        live_only_local_island.get("stricter_profiles", {}).get("strict_zero_remote_risk_text_audio_v1")
+        if isinstance(live_only_local_island.get("stricter_profiles"), dict)
+        else {}
+    )
+    strict_zero_remote_seconds = (
+        safe_float(strict_profile.get("candidate_seconds")) if isinstance(strict_profile, dict) else 0.0
+    )
+    oracle_gain = safe_float(timing_gap.get("retime_gain_vs_best_live_implementable_seconds"))
+
+    next_actions: list[dict[str, Any]] = []
+    if mixed_seconds > 0:
+        next_actions.append(
+            {
+                "id": "build_online_local_speaker_boundary_evidence",
+                "priority": 1,
+                "scope_seconds": round(mixed_seconds, 3),
+                "why": "largest actionable remaining bucket is mixed speech that needs segmentation or speaker evidence",
+                "must_preserve": ["remote_leakage == 0", "contentful_order_mismatches must not increase"],
+            }
+        )
+    if speaker_seconds > 0:
+        next_actions.append(
+            {
+                "id": "confirm_speaker_confirmation_candidates",
+                "priority": 2,
+                "scope_seconds": round(speaker_seconds, 3),
+                "why": "me-dominant suppressed-mic rows lack Target-Me evidence and need confirmation before publication",
+            }
+        )
+    if local_island_candidate_seconds > 0:
+        next_actions.append(
+            {
+                "id": "improve_local_island_candidate_selection",
+                "priority": 3,
+                "scope_seconds": round(local_island_candidate_seconds, 3),
+                "accepted_seconds": round(local_island_accepted_seconds, 3),
+                "why": "current local-island candidate exists, but token recall does not pass the publication threshold",
+            }
+        )
+    if strict_zero_remote_seconds > 0:
+        next_actions.append(
+            {
+                "id": "reuse_strict_zero_remote_evidence_without_broad_publication",
+                "priority": 4,
+                "scope_seconds": round(strict_zero_remote_seconds, 3),
+                "why": "strict live-only candidates are zero-remote-risk under batch evaluation, but not enough after deduplication",
+            }
+        )
+
+    blocked_buckets = []
+    if remote_dominant_seconds > 0:
+        blocked_buckets.append(
+            {
+                "id": "remote_dominant_without_new_evidence",
+                "seconds": round(remote_dominant_seconds, 3),
+                "reason": "do not publish without stronger speaker evidence",
+            }
+        )
+    if hallucination_seconds > 0:
+        blocked_buckets.append(
+            {
+                "id": "known_hallucination",
+                "seconds": round(hallucination_seconds, 3),
+                "reason": "must stay excluded from rescue",
+            }
+        )
+
+    return {
+        "schema": "murmurmark.live_next_unlock/v1",
+        "status": "needs_quality_work" if blockers else "ready_for_promotion_review",
+        "batch_authoritative": True,
+        "promotion_allowed": False,
+        "promotion_decision": summary.get("promotion_decision"),
+        "additional_recordings_required_for_current_blocker": new_recordings_needed,
+        "new_real_live_collection_allowed": bool(summary.get("new_real_live_collection_allowed")),
+        "controlled_real_live_pilot_allowed": bool(summary.get("controlled_real_live_pilot_allowed")),
+        "coverage": {
+            "live_sessions_remaining": live_sessions_remaining,
+            "meaningful_compared_sessions_remaining": meaningful_remaining,
+            "passing_compared_sessions_remaining": passing_remaining,
+        },
+        "best_live_implementable": {
+            "policy": remaining_gap.get("profile"),
+            "missing_me_seconds": round(missing_me_seconds, 3),
+            "remote_leak_seconds": round(remote_leak_seconds, 3),
+            "contentful_order_mismatch_count": contentful_order_mismatches,
+            "remaining_gap_count": safe_int(remaining_gap.get("item_count")),
+        },
+        "top_actionability": top_actionability,
+        "top_segmentability": top_segmentability,
+        "oracle_gap": {
+            "diagnostic_gain_seconds": round(oracle_gain, 3),
+            "requires_batch_timing": bool(timing_gap.get("requires_batch_timing")),
+            "requires_batch_role_labels": bool(timing_gap.get("requires_batch_role_labels")),
+        },
+        "live_only_evidence": {
+            "candidate_seconds": round(live_only_candidate_seconds, 3),
+            "remote_risk_seconds": round(live_only_remote_risk_seconds, 3),
+            "strict_zero_remote_candidate_seconds": round(strict_zero_remote_seconds, 3),
+        },
+        "blockers": blockers,
+        "next_actions": next_actions,
+        "blocked_buckets": blocked_buckets,
     }
 
 
@@ -5109,6 +5306,13 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             "but cannot be promoted because it uses authoritative batch timing and batch labels"
         ),
     }
+    live_next_unlock = live_next_unlock_report(
+        summary=summary,
+        remaining_gap=best_live_profile_remaining_gap,
+        local_island_split=local_island_split_lab_report,
+        live_only_local_island=live_only_local_island_candidate_lab_report,
+        timing_gap=local_island_timing_gap_report,
+    )
     remaining_by_bucket = (
         best_live_profile_remaining_gap.get("by_bucket")
         if isinstance(best_live_profile_remaining_gap.get("by_bucket"), dict)
@@ -5234,6 +5438,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_only_retime_boundary_candidate_lab": live_only_retime_boundary_lab_report,
         "live_strict_local_island_shadow_delta_lab": strict_local_island_shadow_delta_lab_report,
         "live_local_island_timing_gap": local_island_timing_gap_report,
+        "live_next_unlock": live_next_unlock,
         "live_local_recall_gap_examples": local_recall_examples,
         "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
         "capture_safe_evaluable_local_recall_gap_examples": evaluable_local_recall_examples,
@@ -5487,6 +5692,7 @@ def recommended_next_commands(
                 live_quarantine_note,
             ]
         commands = [
+            "jq '.live_next_unlock' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
             "jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json",
             "less sessions/_reports/live-pipeline/live_corpus_gates_report.md",
             live_quarantine_note,
@@ -5594,6 +5800,22 @@ def recommended_next_commands(
 
 def write_markdown(path: Path, report: dict[str, Any]) -> None:
     summary = report["summary"]
+    live_next_unlock = report.get("live_next_unlock") if isinstance(report.get("live_next_unlock"), dict) else {}
+    best_live = (
+        live_next_unlock.get("best_live_implementable")
+        if isinstance(live_next_unlock.get("best_live_implementable"), dict)
+        else {}
+    )
+    top_actionability = (
+        live_next_unlock.get("top_actionability")
+        if isinstance(live_next_unlock.get("top_actionability"), dict)
+        else {}
+    )
+    top_segmentability = (
+        live_next_unlock.get("top_segmentability")
+        if isinstance(live_next_unlock.get("top_segmentability"), dict)
+        else {}
+    )
     lines = [
         "# Live Pipeline Corpus Gates",
         "",
@@ -5766,6 +5988,57 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- new real live collection allowed: `{summary.get('new_real_live_collection_allowed')}`",
         f"- controlled real live pilot allowed: `{summary.get('controlled_real_live_pilot_allowed')}`",
         f"- promotion blocking dimensions: {', '.join(summary.get('promotion_blocking_dimensions') or []) or 'none'}",
+        "",
+        "## Next Unlock",
+        "",
+        "This block is diagnostic. It names the next unblocker for live parity, but does not allow "
+        "live promotion.",
+        "",
+        f"- status: `{live_next_unlock.get('status')}`",
+        f"- batch authoritative: `{live_next_unlock.get('batch_authoritative')}`",
+        f"- additional recordings required for current blocker: "
+        f"`{live_next_unlock.get('additional_recordings_required_for_current_blocker')}`",
+        f"- best live-implementable profile: `{best_live.get('policy')}`",
+        f"- best live-implementable missing-Me: {best_live.get('missing_me_seconds')} sec",
+        f"- best live-implementable remote leak: {best_live.get('remote_leak_seconds')} sec",
+        f"- best live-implementable contentful order mismatches: "
+        f"{best_live.get('contentful_order_mismatch_count')}",
+        f"- top actionability: `{top_actionability.get('label')}` / "
+        f"{top_actionability.get('seconds')} sec",
+        f"- top segmentability: `{top_segmentability.get('label')}` / "
+        f"{top_segmentability.get('seconds')} sec",
+        "",
+        "Next actions:",
+    ]
+    next_actions = (
+        live_next_unlock.get("next_actions")
+        if isinstance(live_next_unlock.get("next_actions"), list)
+        else []
+    )
+    if next_actions:
+        for action in next_actions:
+            if not isinstance(action, dict):
+                continue
+            lines.append(
+                f"- `{action.get('id')}`: priority {action.get('priority')}, "
+                f"scope {action.get('scope_seconds')} sec; {action.get('why')}"
+            )
+    else:
+        lines.append("- none")
+    blocked_buckets = (
+        live_next_unlock.get("blocked_buckets")
+        if isinstance(live_next_unlock.get("blocked_buckets"), list)
+        else []
+    )
+    if blocked_buckets:
+        lines += ["", "Blocked buckets:"]
+        for bucket in blocked_buckets:
+            if not isinstance(bucket, dict):
+                continue
+            lines.append(
+                f"- `{bucket.get('id')}`: {bucket.get('seconds')} sec; {bucket.get('reason')}"
+            )
+    lines += [
         "",
         "## Promotion Policy",
         "",

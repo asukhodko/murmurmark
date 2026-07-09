@@ -384,6 +384,14 @@ Online remote-overlap shadow filter, 2026-07-09:
   - `needs_speaker_evidence`: `5.36s`;
   - `remote_dominant_mixed_not_rescuable`: `3.22s`;
   - `short_low_value_tail`: `1.64s`.
+- `live_next_unlock`:
+  - schema: `murmurmark.live_next_unlock/v1`;
+  - additional recordings required for the current blocker: `false`;
+  - top actionability: `mixed_needs_segmentation_or_speaker_evidence` / `43.08s`;
+  - top segmentability: `duplicate_heavy_needs_speaker_evidence` / `22.28s`;
+  - first next action: `build_online_local_speaker_boundary_evidence`;
+  - blocked buckets: `remote_dominant_without_new_evidence` (`29.68s`) and
+    `known_hallucination` (`12.42s`).
 - Local-island split lab:
   - candidate batch rows: `1 / 10.58s`;
   - candidate local-island audio/text: `5.10s`;

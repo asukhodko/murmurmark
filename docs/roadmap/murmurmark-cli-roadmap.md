@@ -528,7 +528,11 @@ newer run-state exists.
    has only `1` candidate / `10.58s` with `5.10s` of local-island evidence and rejects it by token
    recall. The diagnostic split/retime oracle still reaches `85.69s` missing-Me, a `14.54s` gain
    over the best live-implementable profile, but there are no accepted live anchor rows yet. The
-   nearest work is therefore online local-speaker and boundary evidence for mixed regions. The first
+   nearest work is therefore online local-speaker and boundary evidence for mixed regions.
+   `live_next_unlock` now records this as the machine-readable next step:
+   `additional_recordings_required_for_current_blocker = false`, first action
+   `build_online_local_speaker_boundary_evidence`, and blocked buckets
+   `remote_dominant_without_new_evidence` / `known_hallucination`. The first
    live-only
    candidate lab finds `99.40s` of suppressed mic candidates and `83.04s` local/mixed evidence, but
    still carries `16.36s` remote-risk. Its stricter zero-risk profile finds `36.12s` with `0.00s`
