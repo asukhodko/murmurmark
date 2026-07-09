@@ -427,6 +427,8 @@ recovers `1.16s`; batch-time retime recovers the full `17.34s` candidate. Theref
 work is not another broad threshold: it is online local-island timeline repair/retiming evidence
 that can approximate the batch-time oracle without using batch truth. Duplicate-heavy or
 remote-dominant mixed rows should remain blocked until stronger speaker evidence exists.
+The corpus report now records this as `live_local_island_timing_gap/v1`, including the `17.34s`
+retime gain over split and the exact online evidence still missing before any live publication.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not

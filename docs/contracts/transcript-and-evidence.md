@@ -5790,6 +5790,21 @@ live-implementable profile and `17.34s` over the split oracle, without new measu
 contentful order regressions. This proves that the next implementation should seek online timing
 evidence that can approximate batch retiming without using batch truth.
 
+The corpus report also writes `live_local_island_timing_gap` with schema
+`murmurmark.live_local_island_timing_gap/v1`. It compares the best live-implementable profile,
+the split oracle and the retime oracle, then records:
+
+- `retime_gain_vs_best_live_implementable_seconds`;
+- `retime_gain_vs_split_oracle_seconds`;
+- `requires_batch_timing: true`;
+- `requires_batch_role_labels: true`;
+- `required_online_evidence`, currently including live-only local-island detection, an online timing
+  anchor, a remote-forbidden publication guard and a contentful-order gate that does not use batch
+  intervals.
+
+This block is the handoff from oracle diagnostics to implementation design. It is explicitly
+non-promotable and must not relax live parity gates.
+
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the
 best live-implementable profile and records `missing_me_seconds_gap`, both profile names, remote leak

@@ -3556,6 +3556,41 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         summary["real_live_local_island_retime_oracle_profile_contentful_order_mismatch_count"] = None
         summary["real_live_local_island_retime_oracle_profile_added_turn_seconds"] = None
         summary["real_live_local_island_retime_oracle_profile_rejected_turn_count"] = None
+    local_island_timing_gap_report = {
+        "schema": "murmurmark.live_local_island_timing_gap/v1",
+        "status": "ok" if real_local_island_retime_profile else "missing_retime_oracle_profile",
+        "promotion_allowed": False,
+        "split_oracle_policy": LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICY,
+        "retime_oracle_policy": LOCAL_ISLAND_RETIME_ORACLE_PROFILE_POLICY,
+        "best_live_implementable_policy": summary.get("real_live_target_me_shadow_profile_best_live_implementable_policy"),
+        "best_live_implementable_missing_me_seconds": summary.get(
+            "real_live_target_me_shadow_profile_best_live_implementable_missing_me_seconds"
+        ),
+        "split_oracle_missing_me_seconds": summary.get("real_live_local_island_split_oracle_profile_missing_me_seconds"),
+        "retime_oracle_missing_me_seconds": summary.get("real_live_local_island_retime_oracle_profile_missing_me_seconds"),
+        "retime_gain_vs_best_live_implementable_seconds": summary.get(
+            "real_live_local_island_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds"
+        ),
+        "retime_gain_vs_split_oracle_seconds": summary.get(
+            "real_live_local_island_retime_oracle_profile_delta_vs_split_oracle_seconds"
+        ),
+        "retime_oracle_remote_leak_seconds": summary.get("real_live_local_island_retime_oracle_profile_remote_leak_seconds"),
+        "retime_oracle_contentful_order_mismatch_count": summary.get(
+            "real_live_local_island_retime_oracle_profile_contentful_order_mismatch_count"
+        ),
+        "requires_batch_timing": True,
+        "requires_batch_role_labels": True,
+        "required_online_evidence": [
+            "live-local-island detection without batch_role_label",
+            "online timing anchor for local islands inside mixed remote-active chunks",
+            "remote-forbidden guard before publication",
+            "contentful-order gate that does not need authoritative batch intervals",
+        ],
+        "interpretation": (
+            "diagnostic only: retime oracle proves local-island timing is the next blocker, "
+            "but cannot be promoted because it uses authoritative batch timing and batch labels"
+        ),
+    }
     remaining_by_bucket = (
         best_live_profile_remaining_gap.get("by_bucket")
         if isinstance(best_live_profile_remaining_gap.get("by_bucket"), dict)
@@ -3675,6 +3710,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_target_me_shadow_profile_diagnostics": target_me_shadow_profile_diagnostics_report,
         "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
         "live_local_island_split_lab": local_island_split_lab_report,
+        "live_local_island_timing_gap": local_island_timing_gap_report,
         "live_local_recall_gap_examples": local_recall_examples,
         "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
         "capture_safe_evaluable_local_recall_gap_examples": evaluable_local_recall_examples,
@@ -4539,6 +4575,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         else {}
     )
     if local_island_lab:
+        timing_gap = (
+            report.get("live_local_island_timing_gap")
+            if isinstance(report.get("live_local_island_timing_gap"), dict)
+            else {}
+        )
         lines += [
             "## Local Island Split Lab",
             "",
@@ -4573,6 +4614,9 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             f"{summary.get('real_live_local_island_retime_oracle_profile_remote_leak_seconds')} sec, "
             "contentful order mismatches "
             f"{summary.get('real_live_local_island_retime_oracle_profile_contentful_order_mismatch_count')}",
+            "- timing gap: "
+            f"{timing_gap.get('retime_gain_vs_split_oracle_seconds')} sec require batch timing; "
+            "future live work needs online local-island timing anchors before publication",
             f"- recall threshold: {safe_float(local_island_lab.get('recall_threshold')):.2f}",
             f"- promotion allowed: `{local_island_lab.get('promotion_allowed')}`",
             "",
