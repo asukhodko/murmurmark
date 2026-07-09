@@ -559,6 +559,11 @@ missing-Me drops to `112.47s` without new measured remote leak or contentful ord
 That confirms the next blocker: online timeline/retiming evidence around local islands, not island
 detection alone. The accepted retime candidate already has `3.96s` of live-available audio anchors,
 so the missing piece is live candidate selection and timing, not raw audio evidence by itself.
+The first live-only candidate lab now selects `99.40s` of suppressed mic candidates using only
+live-available gates; `83.04s` are local or mixed, but `16.36s` are still remote-risk
+(`precision_proxy = 0.835412`). This is useful evidence for the next implementation, but not enough
+for publication. The next live work should narrow candidate selection and add online timing /
+remote-forbidden guards, not collect more recordings or relax gates.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1201,7 +1206,8 @@ Active goal and near-term candidates:
    those batch rows from `3.96s` of local islands. Plain split recovers only `1.16s`, while the
    batch-time retime oracle recovers the full `17.34s` without new remote/order regressions. The
    next implementation should focus on online local-island timeline repair/retiming evidence, not
-   broad rescue. Batch remains authoritative.
+   broad rescue. The live-only candidate lab selects `99.40s`, but still carries `16.36s`
+   remote-risk, so it is diagnostic only. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

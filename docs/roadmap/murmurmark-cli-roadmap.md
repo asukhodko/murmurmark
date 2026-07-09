@@ -530,8 +530,11 @@ newer run-state exists.
    oracle places the same text on the authoritative batch timeline and recovers the full `17.34s`
    without new measured remote leak or contentful order regressions. The nearest work is therefore
    online local-island candidate selection plus timeline repair/retiming evidence; the accepted
-   retime candidate already has `3.96s` of live-available audio anchors. This is not a call for more
-   live recording, broader rescue or relaxed publication gates.
+   retime candidate already has `3.96s` of live-available audio anchors. The first live-only
+   candidate lab finds `99.40s` of suppressed mic candidates and `83.04s` local/mixed evidence, but
+   still carries `16.36s` remote-risk. This is not a call for more live recording, broader rescue or
+   relaxed publication gates; it is a call for stricter live-only candidate selection and online
+   timing anchors.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

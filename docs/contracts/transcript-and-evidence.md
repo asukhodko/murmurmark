@@ -5812,6 +5812,23 @@ margin. Current corpus evidence shows `3.96s` of such anchors for the accepted `
 candidate. This is useful implementation evidence, but it still depends on batch-backed candidate
 selection and does not prove publication safety.
 
+The report also writes `live_only_local_island_candidate_lab` with schema
+`murmurmark.live_only_local_island_candidate_lab/v1`. This is the first diagnostic pass that selects
+suppressed mic segments only with live-available text/audio gates, then uses batch role labels only
+for evaluation. Current criteria are:
+
+- `segment_gate_reason == segment_has_local_tokens_not_seen_in_overlapping_remote`;
+- `token_count >= 2`;
+- `audio_mic_remote_zero_lag_abs_corr <= 0.03`;
+- `audio_mic_minus_remote_rms_db >= -6.0`;
+- audio metrics must be present and finite.
+
+Current corpus evidence selects `99.40s` of candidates: `83.04s` local or mixed and `16.36s`
+remote-risk, with `precision_proxy = 0.835412`. This is enough to prove that live-only candidate
+selection can find substantial local speech, but not enough for publication: `remote_risk_seconds`
+must be driven close to zero, or the selected rows must be routed through a stronger remote-forbidden
+guard before any live profile can use them.
+
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the
 best live-implementable profile and records `missing_me_seconds_gap`, both profile names, remote leak

@@ -61,7 +61,8 @@ Completion evidence:
 
 ## Current Goal: Near-Realtime Live Parity Coverage v1
 
-Status, 2026-07-08: active, blocked by parity gates rather than capture loss.
+Status, 2026-07-09: active, blocked by live-only local-island precision and timing evidence rather
+than by capture loss or lack of more recordings.
 
 Goal:
 
@@ -432,6 +433,25 @@ retime gain over split and the exact online evidence still missing before any li
 It also records `live_local_island_audio_anchor_lab/v1`: the accepted retime candidate has `3.96s`
 of live-available audio anchors, so the next blocker is not raw audio evidence alone, but online
 candidate selection and timing without batch labels.
+
+The corpus report now also records `live_only_local_island_candidate_lab/v1`. It selects suppressed
+mic segments using only live-available text/audio gates and uses batch labels only to estimate
+precision. Current result:
+
+- selected candidates: `15` segments / `99.40s`;
+- local or mixed: `83.04s`;
+- remote-risk: `16.36s`;
+- precision proxy: `0.835412`;
+- excluded because audio metrics were missing: `6` segments;
+- largest source session: `2026-07-03_10-15-18` with `92.52s` selected;
+- observed failure mode: live-only gates still select `remote_dominant` segments when text looks
+  locally novel but audio is weakly correlated with remote.
+
+Conclusion: no additional recordings are required to unblock the current design question. The
+corpus already proves both sides of the trade-off: live-only gates can recover meaningful local
+speech, but they are not precise enough for publication. The next implementation should narrow
+candidate selection and add an online timing anchor / remote-forbidden guard. Live promotion remains
+blocked until `remote_risk_seconds` is close to zero and ordinary parity gates pass.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not

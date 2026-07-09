@@ -768,8 +768,11 @@ nodes:
       full `17.34s` candidate without new measured remote leak or contentful order regressions.
       The accepted retime candidate already has `3.96s` of live-available audio anchors. Next
       implementation should focus on online local-island candidate selection plus timeline
-      repair/retiming evidence. Keep duplicate-heavy or remote-dominant rows blocked, do not collect
-      more recordings for this blocker and do not promote live output.
+      repair/retiming evidence. The live-only candidate lab now selects `99.40s` of suppressed mic
+      candidates and `83.04s` local/mixed evidence, but still carries `16.36s` remote-risk
+      (`precision_proxy = 0.835412`), so it is diagnostic only. Keep duplicate-heavy or
+      remote-dominant rows blocked, do not collect more recordings for this blocker and do not
+      promote live output.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful
