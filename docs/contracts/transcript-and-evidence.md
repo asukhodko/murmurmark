@@ -5791,10 +5791,10 @@ machine-readable handoff for the next live-parity step. It records:
 - `next_actions` that are safe to pursue and `blocked_buckets` that must not be published without
   stronger evidence.
 
-For the current corpus, `additional_recordings_required_for_current_blocker` is `false`; the first
-next action is `build_same_session_local_only_voice_enrollment_probe`, followed by speaker
-confirmation, local-island candidate selection and strict zero-remote evidence reuse.
-`remote_dominant` / `known_hallucination` buckets stay blocked.
+`live_next_unlock` is a full-corpus diagnostic. It may still list actions for historical unsafe or
+debug runs. For the current promotion path, consumers should prefer `capture_safe_candidate_scope`
+and `capture_safe_candidate_order_risk_triage`: they describe the capture-safe candidate slice that
+can actually move the goal forward. `remote_dominant` / `known_hallucination` buckets stay blocked.
 
 The report also writes `live_order_risk_triage` with schema
 `murmurmark.live_order_risk_triage/v1`. By default it reads the contentful same-role order-risk
@@ -5816,21 +5816,20 @@ weak/short/generic match candidates. Promotion remains blocked by the original s
 triage only explains whether the next work is a real boundary repair or matcher/readiness
 tightening.
 
+The same schema is also emitted as `capture_safe_candidate_order_risk_triage`, scoped only to
+capture-safe candidate sessions. This lets the goal runner separate historical unsafe/debug evidence
+from the current unlock path. If the candidate-scope order triage has `blocking_count == 0` and only
+advisory rows, `capture_safe_candidate_scope.next_focus` may point to the next hard blocker such as
+`local_recall`. That does not pass the strict order gate and does not permit promotion; it only makes
+the next implementation step more honest.
+
 `live_next_unlock.boundary_order_retime_oracle` records an intentionally non-promotable diagnostic
-profile:
+profile when boundary rows exist:
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1`.
-It uses batch comparison evidence to retime the two blocking boundary rows, so it is not an online
-algorithm. Current corpus result:
-
-- retimed turns: `2`;
-- trimmed leading overlap: `22.40s`;
-- contentful order mismatches: `2` instead of `4`;
-- measured remote leak: `0.00s`;
-- missing-Me: `92.93s`, which is `6.08s` worse than the best live-implementable profile.
-
-This proves that boundary retiming can remove part of the order-risk signal, but also that blind
-retiming loses local speech. The next implementation must combine timing repair with local-speaker
-evidence; the oracle itself cannot be promoted.
+It uses batch comparison evidence, so it is not an online algorithm. Historical runs showed that
+blind retiming can remove part of the order-risk signal while losing local speech. The oracle itself
+cannot be promoted; current candidate-scope focus is local recall because order-risk triage there is
+advisory-only.
 
 The report also records the paired diagnostic
 `live_next_unlock.boundary_order_split_retime_oracle`:
@@ -6048,12 +6047,10 @@ useful.
 `live_target_me_enrollment_lab_summary.json`, and classifies the reason tight voice evidence still
 cannot be published. It is diagnostic only and cannot promote live output.
 
-Current corpus evidence classifies all `4` rows / `25.00s` as
-`needs_same_session_local_only_enrollment_probe`: affected sessions have `0` positive same-session
-live `Me` enrollment examples, while negative enrollment exists. `live_next_unlock.next_actions[0]`
-therefore becomes `build_same_session_local_only_voice_enrollment_probe`. That next step should
-try to build causal same-session Target-Me evidence from high-confidence local-only mic intervals
-before any publication policy is changed.
+Older corpus evidence used this lab to ask for same-session Target-Me enrollment probes. Current
+reports keep that evidence diagnostic-only; the active candidate-scope unlock is `local_recall`
+because order-risk triage is advisory-only in capture-safe candidate sessions. Do not change
+publication policy until local speech recovery passes remote-forbidden and order gates.
 
 `report-live-local-only-enrollment-probe.py` writes corpus schema
 `murmurmark.live_local_only_enrollment_probe_corpus/v1` and per-session schema
@@ -6332,7 +6329,8 @@ historical evidence; it is not enough to start a new real live recording while t
 quarantine is active. `capture_safe_candidate_scope.next_focus` identifies the first candidate-level
 parity blocker after capture safety and required artifacts have already passed, or points to
 `collect_controlled_capture_safe_live_pilot` when the candidate slice is clean and coverage is still
-incomplete.
+incomplete. It also includes `order_risk_triage` counters so consumers can tell whether order risk is
+a blocking boundary/timeline problem or advisory weak-match noise in the candidate slice.
 `coverage_path` is the compact answer to “can old live sessions still close the coverage target?”.
 It separates capture-safe candidate sessions from historical real live sessions that remain useful
 as diagnostics but are not reliable promotion evidence. When `coverage_path.status` is

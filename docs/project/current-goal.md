@@ -61,8 +61,8 @@ Completion evidence:
 
 ## Current Goal: Near-Realtime Live Parity Coverage v1
 
-Status, 2026-07-09: active, blocked by live-only local-island precision and timing evidence rather
-than by capture loss or lack of more recordings.
+Status, 2026-07-09: active, blocked by live local-recall precision/coverage rather than by capture
+loss or lack of more recordings.
 
 Goal:
 
@@ -80,10 +80,10 @@ batch output and does not break on chunk boundaries.
 
 Current state:
 
-- real live sessions in the corpus: `11`;
+- real live sessions in the corpus: `12`;
 - diagnostic/lab live sessions kept out of promotion scope: `9`;
-- real live-vs-batch compared sessions: `8`;
-- meaningful real comparisons: `4`;
+- real live-vs-batch compared sessions: `9`;
+- meaningful real comparisons: `5`;
 - real passing comparisons: `1`;
 - capture-safe candidate sessions: `2`;
 - capture-safe candidate passing sessions: `1`;
@@ -96,6 +96,8 @@ Current state:
   `review_burden`, `selected_notes_readiness`, `chunk_boundary_risks`, `draft_text_recall`,
   `required_artifacts`.
 - capture-safe candidate blocking dimensions: `order_risk`, `local_recall`, `selected_notes_readiness`.
+- capture-safe candidate order-risk triage: `1` advisory weak/generic match, `0` blocking rows;
+- capture-safe candidate local-recall gaps: `5` examples / `18.27 sec`;
 - current objective next focus: `fix_live_local_recall_gap`.
 
 Safety constraint:
@@ -136,62 +138,17 @@ Current result:
 - `promotion_decision = shadow_only_do_not_promote`;
 - `promotion_allowed_sessions = 0`;
 - live/batch comparison granularity: ASR segment when available, chunk fallback otherwise;
-- `real_live_order_mismatch_count = 28`;
-- `real_live_batch_interval_overlap_order_ambiguity_count = 6`;
-- `real_live_order_mismatch_by_category = {"same_chunk_same_source_reorder": 15,
-  "same_chunk_cross_source_reorder": 11, "cross_chunk_reorder": 1,
-  "chunk_overlap_context_reorder": 1}`;
-- `real_live_order_mismatch_by_primary_risk = {"role_conflict_or_remote_leak": 14,
-  "weak_text_match_possible_false_positive": 8, "same_source_timeline_reorder": 3,
-  "cross_source_timeline_reorder": 3}`;
-- `real_live_order_mismatch_by_confidence = {"role_conflict": 14, "low": 8, "high": 3,
-  "medium": 3}`;
-- `real_live_role_constrained_order_mismatch_count = 8`;
-- `real_live_role_constrained_batch_interval_overlap_order_ambiguity_count = 1`;
-- `real_live_role_constrained_order_mismatch_by_category = {"same_chunk_same_source_reorder": 5,
-  "same_chunk_cross_source_reorder": 3}`;
-- `real_live_role_constrained_order_mismatch_by_confidence = {"high": 3, "medium": 5}`;
-- `real_live_contentful_role_constrained_order_mismatch_count = 4`;
-- `real_live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count = 0`;
-- `real_live_contentful_role_constrained_order_mismatch_by_category =
-  {"same_chunk_same_source_reorder": 2, "same_chunk_cross_source_reorder": 2}`;
-- `real_live_contentful_role_constrained_order_mismatch_by_confidence = {"high": 1,
-  "medium": 3}`;
-- `real_live_contentful_role_constrained_order_mismatch_by_ambiguity = {"ambiguous": 2,
-  "unambiguous": 2}`;
-- `real_live_unambiguous_contentful_role_constrained_order_mismatch_count = 2`;
-- `real_live_missing_me_seconds = 395.72`;
-- `real_live_missing_me_visible_in_suppressed_mic_seconds = 382.52`;
-- `real_live_missing_me_not_visible_in_suppressed_mic_seconds = 37.21`;
-- `real_live_suspicious_batch_me_missing_seconds = 24.01`;
-- `real_live_suppressed_mic_turn_count = 31`;
-- `real_live_segment_role_gate_candidate_chunk_count = 9`;
-- `real_live_segment_role_gate_candidate_kept_segment_count = 54`;
-- `real_live_rescue_shadow_candidate_chunk_count = 2`;
-- `real_live_rescue_shadow_candidate_segment_count = 9`;
-- `real_live_rescue_shadow_missing_me_recovered_seconds = 45.36`;
-- `real_live_rescue_shadow_missing_me_seconds_after = 350.36`;
-- `real_live_rescue_shadow_suspected_remote_leak_in_me_seconds = 0.00`;
-- `real_live_rescue_shadow_order_mismatch_count = 30`;
-- `real_live_suppressed_mic_asr_me_dominant_segment_count = 47 / 149.62 sec`;
-- `real_live_suppressed_mic_asr_mixed_segment_count = 44 / 199.92 sec`;
-- current text-only rescue policy: `152.60 sec` local / `73.62 sec` remote-risk;
-- strict unique-token text policy: `143.52 sec` local / `118.74 sec` remote-risk;
-- remote-silent text policy: `34.16 sec` local / `2.58 sec` remote-risk;
-- audio remote-quiet policy: `51.14 sec` local / `2.58 sec` remote-risk;
-- audio mic-dominant policy: `24.00 sec` local / `0.00 sec` remote-risk;
-- audio low-coherence policy: `176.98 sec` local / `193.18 sec` remote-risk;
-- audio safe union policy: `50.18 sec` local / `2.58 sec` remote-risk,
-  `68.42 sec` missing-Me recovered;
-- batch-oracle local ceiling: `349.54 sec` local;
-- scoped capture-safe candidate rescue status: `no_material_live_candidate`;
-- scoped capture-safe candidate best live policy: `current_text_segment_gate`
-  (`1.80 sec` local / `0.00 sec` remote-risk), below the material threshold;
-- scoped capture-safe candidate batch-oracle ceiling: `13.06 sec` local;
-- `real_live_suspected_remote_leak_in_me_seconds = 15.96`;
+- `real_live_order_mismatch_count = 55`;
+- `real_live_contentful_role_constrained_order_mismatch_count = 8`;
+- `real_live_unambiguous_contentful_role_constrained_order_mismatch_count = 4`;
+- `real_live_order_risk_triage = 8 rows`: `3` blocking (`2` boundary-retime candidates and
+  `1` cross-source order risk), `5` advisory weak/short/generic match rows;
+- `capture_safe_candidate_order_risk_triage = 1 advisory / 0 blocking`;
+- `real_live_missing_me_seconds = 844.62`;
+- `capture_safe_candidate_local_recall_gap_examples = 5 / 18.27 sec`;
+- `real_live_suspected_remote_leak_in_me_seconds = 74.40`;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
 - `objective_next_focus = fix_live_local_recall_gap`.
-- `capture_safe_evaluable_local_recall_gap_examples = 12 / 47.44 sec`.
 
 Latest suppressed-mic threshold lab, 2026-07-09:
 
@@ -389,24 +346,11 @@ Online remote-overlap shadow filter, 2026-07-09:
   - `short_low_value_tail`: `1.64s`.
 - `live_next_unlock`:
   - schema: `murmurmark.live_next_unlock/v1`;
-  - additional recordings required for the current blocker: `false`;
-  - top actionability: `mixed_needs_segmentation_or_speaker_evidence` / `25.00s`;
-  - top segmentability: `local_island_split_candidate` / `10.58s`;
-  - first next action: `build_same_session_local_only_voice_enrollment_probe`;
-  - tight voice/remote guard: `0.00s` candidates, `25.00s` blocked;
-  - tight guard top blocker: `blocked_target_me_audit_not_same_session_ok` / `13.94s`;
-  - order risk triage after live split/retime: `0` blocking `boundary_retime_candidate` rows and
-    `2` advisory weak/short/generic match rows;
-  - boundary-order retime oracle:
-    - profile:
-      `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1`;
-    - retimed turns: `2`;
-    - trimmed leading overlap: `22.40s`;
-    - contentful order mismatches after retime: `2`;
-    - missing-Me after retime: `92.93s`;
-    - delta vs best live-implementable: `-6.08s`;
-    - conclusion: timing repair helps order risk, but simple retime loses too much local speech and
-      stays diagnostic-only;
+  - full-corpus diagnostics still include historical unsafe/debug blockers;
+  - candidate-scope order triage: `1` advisory weak/generic row, `0` blocking rows;
+  - current objective next action: `fix_live_local_recall_gap`;
+  - conclusion: historical timing-repair labs remain diagnostic-only; the active unlock path is
+    local-speech recovery in capture-safe live candidates without weakening remote-forbidden gates;
   - boundary-order split/retime oracle:
     - profile:
       `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_batch_order_boundary_split_retime_oracle_v1`;
@@ -544,8 +488,8 @@ candidates. Current result after both extensions:
 - weak or ambiguous voice evidence: `25.00s`;
 - Target-Me enrollment-not-ready: `0.00s`;
 - no-overlap Target-Me coverage: `0.00s`;
-- recommended next:
-  `build_same_session_local_only_voice_enrollment_probe`.
+- current objective next:
+  `fix_live_local_recall_gap`.
 
 Conclusion: new recordings are not needed for the current blocker. The voice audit now covers all
 remaining mixed intervals. The very small remote-guarded candidate is already materialized as a

@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.27.0"
+SCRIPT_VERSION = "1.28.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -939,6 +939,60 @@ def metric_aware_next_focus(
             "real_live_suspected_remote_leak_in_me_seconds": round(remote_leak_seconds, 3),
         },
     }
+
+
+def order_risk_triage_counts(report: dict[str, Any] | None) -> dict[str, Any]:
+    report = report if isinstance(report, dict) else {}
+    return {
+        "status": report.get("status"),
+        "profile": report.get("profile"),
+        "item_count": safe_int(report.get("item_count")),
+        "blocking_count": safe_int(report.get("blocking_count")),
+        "advisory_count": safe_int(report.get("advisory_count")),
+        "boundary_retime_candidate_count": safe_int(report.get("boundary_retime_candidate_count")),
+        "likely_false_positive_count": safe_int(report.get("likely_false_positive_count")),
+    }
+
+
+def candidate_scope_next_focus(
+    dimensions: list[str],
+    summary: dict[str, Any],
+    order_risk_triage_report: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    focus = metric_aware_next_focus(dimensions, summary)
+    if not focus or focus.get("dimension") != "order_risk":
+        return focus
+
+    triage_counts = order_risk_triage_counts(order_risk_triage_report)
+    if (
+        safe_int(triage_counts.get("item_count")) > 0
+        and safe_int(triage_counts.get("blocking_count")) == 0
+        and safe_int(triage_counts.get("advisory_count")) > 0
+    ):
+        remaining_dimensions = [dimension for dimension in dimensions if dimension != "order_risk"]
+        alternate = metric_aware_next_focus(remaining_dimensions, summary)
+        override_reason = (
+            "capture-safe candidate order risk has advisory-only triage; strict order gates stay blocking, "
+            "but the next implementation focus should move to the next hard candidate blocker"
+        )
+        if alternate:
+            return {
+                **alternate,
+                "source": "capture_safe_candidate_order_triage_override",
+                "previous_focus": focus,
+                "override_reason": override_reason,
+                "order_risk_triage": triage_counts,
+            }
+        return {
+            **focus,
+            "source": "capture_safe_candidate_order_triage_advisory_only",
+            "recommended_next": (
+                "tighten live order matcher for short/generic advisory rows; strict order gate remains blocking "
+                "until comparison no longer reports order risk"
+            ),
+            "order_risk_triage": triage_counts,
+        }
+    return focus
 
 
 def objective_audit_row(row_id: str, status: str, title: str, evidence: dict[str, Any]) -> dict[str, Any]:
@@ -6281,6 +6335,11 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         root=root,
         policy=real_best_live_profile_policy,
     )
+    capture_safe_candidate_order_risk_triage_report = live_order_risk_triage(
+        capture_safe_candidate_rows,
+        root=root,
+        policy=real_best_live_profile_policy,
+    )
     speaker_boundary_lab_report = live_speaker_boundary_evidence_lab(best_live_profile_remaining_gap)
     local_island_split_lab_report = local_island_split_lab(best_live_profile_remaining_gap)
     online_speaker_boundary_design_lab_report = live_online_speaker_boundary_evidence_design_lab(
@@ -6669,7 +6728,12 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "passing_sessions": summary["real_capture_safe_candidate_passing_sessions"],
         "blocking_dimensions": candidate_blocking_dimensions,
         "session_ids": [str(row.get("session") or "") for row in capture_safe_candidate_rows],
-        "next_focus": metric_aware_next_focus(candidate_blocking_dimensions, summary),
+        "next_focus": candidate_scope_next_focus(
+            candidate_blocking_dimensions,
+            summary,
+            capture_safe_candidate_order_risk_triage_report,
+        ),
+        "order_risk_triage": order_risk_triage_counts(capture_safe_candidate_order_risk_triage_report),
         "promotion_decision": "shadow_only_do_not_promote",
         "new_real_live_collection_allowed": False,
         "controlled_real_live_pilot_allowed": pilot_allowed,
@@ -6715,6 +6779,21 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     )
     summary["real_live_order_risk_triage_likely_false_positive_count"] = safe_int(
         live_order_risk_triage_report.get("likely_false_positive_count")
+    )
+    summary["capture_safe_candidate_order_risk_triage_item_count"] = safe_int(
+        capture_safe_candidate_order_risk_triage_report.get("item_count")
+    )
+    summary["capture_safe_candidate_order_risk_triage_blocking_count"] = safe_int(
+        capture_safe_candidate_order_risk_triage_report.get("blocking_count")
+    )
+    summary["capture_safe_candidate_order_risk_triage_advisory_count"] = safe_int(
+        capture_safe_candidate_order_risk_triage_report.get("advisory_count")
+    )
+    summary["capture_safe_candidate_order_risk_triage_boundary_retime_candidate_count"] = safe_int(
+        capture_safe_candidate_order_risk_triage_report.get("boundary_retime_candidate_count")
+    )
+    summary["capture_safe_candidate_order_risk_triage_likely_false_positive_count"] = safe_int(
+        capture_safe_candidate_order_risk_triage_report.get("likely_false_positive_count")
     )
     summary["real_live_local_island_split_lab_candidate_count"] = safe_int(
         local_island_split_lab_report.get("candidate_count")
@@ -7423,7 +7502,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     elif candidate_blocking_dimensions:
         coverage_path_status = "resolve_capture_safe_candidate_blockers"
         coverage_recommended_next = (
-            metric_aware_next_focus(candidate_blocking_dimensions, summary) or {}
+            candidate_scope.get("next_focus") if isinstance(candidate_scope.get("next_focus"), dict) else {}
         ).get("recommended_next")
     elif coverage_target["passing_compared_sessions_remaining"] > 0:
         coverage_path_status = "needs_new_controlled_live_evidence"
@@ -7516,6 +7595,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_target_me_shadow_profile_diagnostics": target_me_shadow_profile_diagnostics_report,
         "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
         "live_order_risk_triage": live_order_risk_triage_report,
+        "capture_safe_candidate_order_risk_triage": capture_safe_candidate_order_risk_triage_report,
         "live_soft_local_speaker_boundary_shadow_lab": soft_boundary_shadow_lab,
         "live_speaker_boundary_evidence_lab": speaker_boundary_lab_report,
         "live_online_speaker_boundary_evidence_design_lab": online_speaker_boundary_design_lab_report,

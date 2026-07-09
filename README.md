@@ -554,30 +554,18 @@ into `10.58s` boundary-island micro-ASR work, `5.36s` mixed boundary voice gatin
 duplicate-heavy voice disambiguation, `0.32s` speaker confirmation and `0.48s` low-value tail.
 The `0.32s` speaker-confirmation candidate is already materialized in a diagnostic remote-guarded
 voice-boundary shadow profile; it remains non-promotable.
-The report now also writes `live_next_unlock` (`murmurmark.live_next_unlock/v1`): it says
-`additional_recordings_required_for_current_blocker = false`, keeps batch authoritative, and names
-the next action as `build_same_session_local_only_voice_enrollment_probe`. The tighter
-voice/remote guard found `0.00s` publishable mixed candidates and blocked the remaining `25.00s`:
-`13.94s` depend on non-authoritative persistent Target-Me fallback, `10.58s` have too little
-Target-Me-vs-remote separation, and `0.48s` are a low-value tail. Keep these rows review-only until
-stronger same-session voice evidence exists.
+The report also writes `live_next_unlock` (`murmurmark.live_next_unlock/v1`). It keeps batch
+authoritative and explains full-corpus blockers, including historical unsafe/debug runs. For the
+current unlock path, prefer `capture_safe_candidate_scope`: it excludes broken-capture evidence and
+now points to `fix_live_local_recall_gap`.
 It now also includes `order_risk_triage`. The default triage reads base live-vs-batch comparison,
 not the expensive target-me labs, and classifies the current `8` contentful order-risk rows into
 `3` blocking rows and `5` advisory weak/short/generic match rows. The strict order gate is
 unchanged; this triage tells us which rows need real timing repair and which are likely matcher
 noise.
-The diagnostic `boundary_order_retime_oracle` then retimes those `2` boundary rows and trims
-`22.40s` of leading overlap. It lowers contentful order mismatches from `4` to `2`, keeps measured
-remote leak at `0.00s`, but worsens missing-Me from `51.50s` to `57.58s` (`-6.08s` delta). So the
-next implementation must preserve the recovered local speech while repairing boundary order; simple
-retiming alone is not safe enough for promotion.
-The paired `boundary_order_split_retime_oracle` keeps that local prefix instead of dropping it. It
-also trims/reorders the same `2` boundary rows, preserves `6.62s` of local prefix, keeps missing-Me
-at `51.50s`, keeps remote leak at `0.00s`, and leaves only `2` contentful order mismatches. Those
-remaining `2` are the advisory weak/short/generic rows from order-risk triage. A live-only version
-of this shape is now materialized as the current best live-implementable shadow. It retimes `4`
-turns, trims `51.916s`, splits `3` turns and preserves `2` local prefixes / `7.832s` without adding
-measured remote leak or missing-Me.
+In the capture-safe candidate slice, order triage has only `1` advisory weak/generic row and `0`
+blocking rows. Strict order gates are unchanged, but the next implementation should recover lost
+local speech without weakening remote-forbidden guards.
 The paired `live_speaker_boundary_evidence_lab` now splits the current real-live remaining gap into
 `16.74s` future shadow-probe candidates and `34.76s` blocked rows. It still marks
 `publication_ready_seconds = 0.0`, so this is design evidence for the next profile, not permission
@@ -756,7 +744,10 @@ When the capture fail-open proof has passed, the same report also writes
 view counts only real live sessions that were meaningfully compared, passed capture safety, and have
 the required live/batch artifacts. It is useful for seeing the remaining parity blockers without
 mixing in old broken-capture evidence. It still does not permit promotion or normal production
-live use; batch remains authoritative. Older reports may still expose
+live use; batch remains authoritative. The report also writes
+`capture_safe_candidate_order_risk_triage`; if candidate order-risk rows are advisory-only, strict
+order gates still stay red, but `objective_next_focus` can move to the next hard candidate blocker
+instead of chasing old or weak-match order examples first. Older reports may still expose
 `controlled_real_live_pilot_allowed`, but the runner now refuses to start a new real live recording
 without `--allow-unsafe-controlled-real-recording`. Treat that flag as a lab-only escape hatch, not a
 meeting command.
@@ -1266,13 +1257,14 @@ Active goal and near-term candidates:
    chunk fallback for older artifacts. Current next focus is `fix_live_local_recall_gap`: metric-aware
    triage keeps order risk visible but points the next implementation at lost local speech and the
    coarse live role gate. Segment-level parity still exposes ordering drift, suspected remote leakage
-   in live `Me`, and lost local speech on controlled real evidence. The order-risk split is now visible: `20` same-chunk/same-source,
-   `11` same-chunk/cross-source, `2` cross-chunk and `1` overlap-context mismatches. The corpus
-   also separates primary risk: `19` role-conflict/remote-leak, `8` weak-match possible false
-   positives and `7` direct timeline-reorder cases. A stricter same-role matcher confirms `9`
-   role-constrained order mismatches (`6` same-source and `3` cross-source, all inside one live
-   chunk), and the contentful same-role slice narrows this to `4` actionable order-risk examples.
-   Ambiguity scoring narrows the stable contentful subset further to `2` examples.
+   in live `Me`, and lost local speech on controlled real evidence. The current real corpus has `55`
+   order mismatches: `33` same-chunk/same-source, `20` same-chunk/cross-source, `1` cross-chunk and
+   `1` overlap-context mismatch. Primary risk is split into `18` role-conflict/remote-leak, `19`
+   weak-match possible false positives, `14` same-source timeline reorders and `4` cross-source
+   timeline reorders. The contentful same-role slice narrows this to `8` order-risk examples, with
+   `4` unambiguous rows. Base order-risk triage sees `3` blocking rows and `5` advisory rows; the
+   capture-safe candidate slice has only `1` advisory weak/generic match and `0` blocking order rows,
+   so the next objective focus is local recall rather than boundary retime.
    The corpus report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
    visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic
@@ -1373,26 +1365,12 @@ Active goal and near-term candidates:
    The remote-forbidden boundary classifier is now also materialized as
    `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_boundary_classifier_v1`;
    the guarded version adds `1.48s`, keeps remote leak at `0.00s`
-   and does not increase contentful order mismatches. The relaxed materialized variant
-   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_relaxed_boundary_classifier_v1`
-   adds `4.10s`, leaves `100.23s` missing-Me, keeps remote leak at `0.00s` and keeps contentful
-   order mismatches at `4`. The local-speaker boundary profile is now the pre-split/retime
-   baseline at `51.50s` missing-Me with the same `0.00s` remote leak and `4` contentful order
-   mismatches. The current best live-implementable profile adds live-only boundary split/retime:
-   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_v1`.
-   It keeps `51.50s` missing-Me and `0.00s` remote leak, but lowers contentful order mismatches to
-   `2`. Batch remains authoritative. Current order-risk triage treats both remaining contentful rows
-   as advisory weak/short/generic matches, with `0` blocking boundary-retime rows.
-   The diagnostic boundary-order retime oracle retimes those `2` candidates and trims `22.40s`,
-   lowering contentful order mismatches to `2`, but it worsens missing-Me by `6.08s`; keep it as an
-   oracle for the next design, not as a promotion candidate.
-   The split/retime version preserves `6.62s` of local prefix and keeps missing-Me unchanged
-   (`51.50s`) while still reducing contentful order mismatches to `2`. A live-only version of that
-   idea is now the best live-implementable shadow, so the next unlock moves from boundary-retime
-   repair to `build_same_session_local_only_voice_enrollment_probe`.
-   A soft local-speaker boundary shadow was tested next and produced `no_incremental_gain`
-   (`0.00s` missing-Me delta, `0.00s` remote-leak delta). Do not spend the next round on weaker
-   loudness thresholds; the remaining work needs stronger speaker/boundary evidence.
+   and does not increase contentful order mismatches. Historical boundary-retime and split/retime
+   labs remain useful as diagnostics, but they are not promotion candidates because they depend on
+   batch-derived timing or lose local speech in some cases. The current capture-safe candidate
+   order-risk slice has `0` blocking rows and `1` advisory weak/generic row, so the next unlock moves
+   to local recall: recover lost `Me` speech from live chunks while preserving remote-forbidden
+   guards and keeping batch authoritative.
    The current mixed/speaker-boundary queue is now `25.32s`: `0.32s` has been materialized in a
    diagnostic remote-guarded voice-boundary profile, and `25.00s` remain weak or ambiguous. The
    tight voice/remote guard lab finds `0.00s` safe candidates: `13.94s` are blocked by persistent

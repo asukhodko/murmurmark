@@ -773,26 +773,23 @@ nodes:
       lab now has `1` candidate / `10.58s` with `5.10s` of local-island evidence and rejects it by
       token recall. The diagnostic split/retime oracle no longer closes extra missing-Me on the
       real-live subset; ordinary parity gates still block promotion.
-      `live_next_unlock` now records this as the machine-readable next step:
-      `additional_recordings_required_for_current_blocker = false`, first action
-      `build_same_session_local_only_voice_enrollment_probe`, followed by speaker confirmation,
-      local-island candidate selection and strict zero-remote evidence reuse. The tight voice/remote
-      guard lab found `0.00s` candidates and blocked all `25.00s`; the same-session disambiguation
-      lab then classified the full `25.00s` as `needs_same_session_local_only_enrollment_probe`,
-      because affected sessions have `0` positive same-session live `Me` enrollment examples.
+      `live_next_unlock` records full-corpus diagnostics, but the current unlock path now uses
+      `capture_safe_candidate_scope`. That scope has `0` blocking order-risk rows and `1` advisory
+      weak/generic row, so the next implementation focus is `fix_live_local_recall_gap`: recover
+      lost `Me` speech from live chunks while keeping remote-forbidden guards strict.
       The first local-only enrollment probe is now available and finds ready seed material in all
       `3` affected sessions (`144.00s` accepted positive local-only audio). The probe supports
       `24.52s` of the `25.00s` blocked mixed rows, leaving only the `0.48s` low-value tail
       unsupported. The next step is to materialize a diagnostic local-only-seed mixed-row shadow and
       run parity gates while keeping promotion blocked.
       `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked.
-      `live_order_risk_triage/v1` now sees `2` contentful order-risk rows after live split/retime:
-      `0` blocking boundary-retime rows and `2` advisory weak/short/generic match rows; strict
-      order gates are unchanged.
-      The diagnostic boundary-order retime oracle retimes those `2` boundary rows and trims
-      `22.40s`, reducing contentful order mismatches to `2` with `0.00s` measured remote leak, but
-      it worsens missing-Me to `92.93s` (`-6.08s` vs best live-implementable). It is evidence for
-      the next design, not a promotable live profile.
+      `live_order_risk_triage/v1` now sees `8` contentful order-risk rows in the full real corpus:
+      `3` blocking rows (`2` boundary-retime candidates and `1` cross-source order risk) and `5`
+      advisory weak/short/generic match rows. In the capture-safe candidate slice, order-risk triage
+      has only `1` advisory weak/generic row and `0` blocking rows. Strict order gates are unchanged,
+      but the implementation focus moves to live local recall instead of historical boundary retime.
+      The diagnostic boundary-order retime oracle remains non-promotable evidence: timing repair
+      needs local-speaker preservation and must not relax remote-forbidden gates.
       The split/retime oracle preserves `1 / 6.62s` of local prefix and keeps missing-Me unchanged
       at `86.85s`, while still reducing contentful order mismatches to `2` and keeping remote leak
       at `0.00s`. The live-only implementation now materializes this target shape as a shadow
@@ -854,11 +851,10 @@ nodes:
       check now shows `5` mixed/speaker rows / `25.32s`. After Target-Me is rerun with
       `--include-remaining-gap` and diagnostic `--fallback-persistent-profile`, all rows have
       Target-Me coverage; `0.32s` have been materialized in the diagnostic remote-guarded boundary
-      profile and `25.00s` stay weak or ambiguous. The tight voice/remote guard lab then finds no
-      publishable mixed row; the same-session disambiguation lab classifies the full `25.00s` as
-      `needs_same_session_local_only_enrollment_probe`. The next concrete step is
-      `build_same_session_local_only_voice_enrollment_probe`, not more live recordings and not a
-      relaxed publication gate.
+      profile and `25.00s` stay weak or ambiguous. Those labs remain diagnostic-only. The current
+      candidate-scope report has no blocking order-risk rows, so the next concrete step is
+      `fix_live_local_recall_gap`: recover lost local speech from capture-safe live chunks while
+      keeping remote-forbidden gates strict.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware
       triage держит order risk видимым и отделяет слабые совпадения от настоящих блокеров. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful
