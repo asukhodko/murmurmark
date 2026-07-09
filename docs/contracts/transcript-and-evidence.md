@@ -5823,6 +5823,23 @@ This proves that boundary retiming can remove part of the order-risk signal, but
 retiming loses local speech. The next implementation must combine timing repair with local-speaker
 evidence; the oracle itself cannot be promoted.
 
+The report also records the paired diagnostic
+`live_next_unlock.boundary_order_split_retime_oracle`:
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_batch_order_boundary_split_retime_oracle_v1`.
+It uses the same batch-derived boundary evidence, but preserves the local prefix before retiming the
+boundary suffix. Current corpus result:
+
+- retimed turns: `2`;
+- preserved local prefixes: `1 / 6.62s`;
+- trimmed/reordered boundary overlap: `22.40s`;
+- contentful order mismatches: `2` instead of `4`;
+- measured remote leak: `0.00s`;
+- missing-Me: `86.85s`, unchanged from the best live-implementable profile.
+
+The split/retime oracle is still not promotable because it uses batch comparison evidence, but it
+proves the safer target shape for an online implementation: do not move a whole `Me` turn across a
+remote boundary; split it, preserve local speech, and only retime the boundary suffix.
+
 The report also writes `live_speaker_boundary_evidence_lab` with schema
 `murmurmark.live_speaker_boundary_evidence_lab/v1`. It classifies the current best
 live-implementable remaining gap into:

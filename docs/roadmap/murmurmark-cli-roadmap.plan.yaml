@@ -781,6 +781,9 @@ nodes:
       `22.40s`, reducing contentful order mismatches to `2` with `0.00s` measured remote leak, but
       it worsens missing-Me to `92.93s` (`-6.08s` vs best live-implementable). It is evidence for
       the next design, not a promotable live profile.
+      The split/retime oracle preserves `1 / 6.62s` of local prefix and keeps missing-Me unchanged
+      at `86.85s`, while still reducing contentful order mismatches to `2` and keeping remote leak
+      at `0.00s`. This is the better target shape for an online boundary repair.
       `live_speaker_boundary_evidence_lab` now splits the same gap into `17.90s` future
       shadow-probe candidates, `68.95s` blocked rows and `0.0s` publication-ready. Next
       implementation should focus on boundary-retime repair plus online local-speaker and boundary
@@ -817,7 +820,8 @@ nodes:
       blocking boundary-retime candidates. The next implementation target is targeted live
       boundary-retime repair plus stronger online local-speaker evidence. The boundary-retime
       oracle lowers contentful order mismatches to `2`, but loses `6.08s` of local speech, so the
-      profile stays shadow-only.
+      profile stays shadow-only. The split/retime oracle preserves that speech and should guide the
+      future live-only implementation.
       Следующий фокус: boundary-retime order repair и `fix_live_local_recall_gap`; metric-aware
       triage держит order risk видимым и отделяет слабые совпадения от настоящих блокеров. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

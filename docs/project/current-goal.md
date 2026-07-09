@@ -400,6 +400,16 @@ Online remote-overlap shadow filter, 2026-07-09:
     - delta vs best live-implementable: `-6.08s`;
     - conclusion: timing repair helps order risk, but simple retime loses too much local speech and
       stays diagnostic-only;
+  - boundary-order split/retime oracle:
+    - profile:
+      `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_batch_order_boundary_split_retime_oracle_v1`;
+    - retimed turns: `2`;
+    - preserved local prefixes: `1 / 6.62s`;
+    - contentful order mismatches after split/retime: `2`;
+    - missing-Me after split/retime: `86.85s`;
+    - delta vs best live-implementable: `0.00s`;
+    - conclusion: split/retime is the safer target shape; the remaining `2` order rows are advisory
+      weak/short/generic matches, not boundary-retime blockers;
   - blocked buckets: `remote_dominant_without_new_evidence` (`29.68s`) and
     `known_hallucination` (`12.42s`).
 - `live_speaker_boundary_evidence_lab`:
@@ -454,8 +464,11 @@ of another raw recording. The best local-island oracle is now only `1.16s` bette
 live-implementable profile, so the next useful work is not another broad threshold: it is targeted
 boundary-retime order repair plus online local-speaker and boundary evidence for mixed regions
 without using batch labels. The boundary-order retime oracle confirms the direction but also shows
-the trap: it fixes two timing rows while increasing missing-Me by `6.08s`. Duplicate-heavy or
-remote-dominant mixed rows should remain blocked until stronger speaker evidence exists.
+the trap: it fixes two timing rows while increasing missing-Me by `6.08s`. The split/retime oracle
+keeps missing-Me unchanged by preserving a `6.62s` local prefix, so the next non-oracle version
+should approximate split/retime using only live-available boundary and speaker evidence.
+Duplicate-heavy or remote-dominant mixed rows should remain blocked until stronger speaker evidence
+exists.
 The corpus report records this as `live_local_island_timing_gap/v1`, including the current
 `1.16s` oracle gap and the online evidence still missing before any live publication.
 It also records `live_local_island_audio_anchor_lab/v1`, which currently has

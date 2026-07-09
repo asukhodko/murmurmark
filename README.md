@@ -558,6 +558,12 @@ The diagnostic `boundary_order_retime_oracle` then retimes those `2` boundary ro
 remote leak at `0.00s`, but worsens missing-Me from `86.85s` to `92.93s` (`-6.08s` delta). So the
 next implementation must preserve the recovered local speech while repairing boundary order; simple
 retiming alone is not safe enough for promotion.
+The paired `boundary_order_split_retime_oracle` keeps that local prefix instead of dropping it. It
+also trims/reorders the same `2` boundary rows, preserves `6.62s` of local prefix, keeps missing-Me
+at `86.85s`, keeps remote leak at `0.00s`, and leaves only `2` contentful order mismatches. Those
+remaining `2` are the advisory weak/short/generic rows from order-risk triage. This makes the next
+implementation target sharper: build an online, non-batch version of split/retime boundary repair
+with local-speaker preservation.
 The paired `live_speaker_boundary_evidence_lab` now splits the current `86.85s` remaining gap into
 `17.90s` future shadow-probe candidates and `68.95s` blocked rows. It still marks
 `publication_ready_seconds = 0.0`, so this is design evidence for the next profile, not permission
@@ -1287,6 +1293,9 @@ Active goal and near-term candidates:
    The diagnostic boundary-order retime oracle retimes those `2` candidates and trims `22.40s`,
    lowering contentful order mismatches to `2`, but it worsens missing-Me by `6.08s`; keep it as an
    oracle for the next design, not as a promotion candidate.
+   The split/retime version preserves `6.62s` of local prefix and keeps missing-Me unchanged
+   (`86.85s`) while still reducing contentful order mismatches to `2`. This is the better design
+   target for a future online repair.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as

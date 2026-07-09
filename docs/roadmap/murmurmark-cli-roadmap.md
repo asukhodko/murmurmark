@@ -541,6 +541,9 @@ newer run-state exists.
    reducing contentful order mismatches to `2` while keeping measured remote leak at `0.00s`.
    It also worsens missing-Me from `86.85s` to `92.93s`, so it is proof that timing repair needs
    local-speaker preservation, not a promotable live profile.
+   The split/retime oracle preserves the local prefix (`1 / 6.62s`) and keeps missing-Me unchanged
+   at `86.85s`, while still lowering contentful order mismatches to `2` with `0.00s` remote leak.
+   That makes online split/retime boundary repair the next concrete quality-hardening target.
    `live_speaker_boundary_evidence_lab` now splits the same gap into `17.90s` future shadow-probe
    candidates, `68.95s` blocked rows and `0.0s` publication-ready. The first
    live-only
@@ -576,7 +579,8 @@ newer run-state exists.
    only `2` as blocking boundary-retime candidates. So the next roadmap item is targeted live
    boundary-retime repair plus stronger online local-speaker evidence. The boundary retime oracle
    cuts the order-risk count to `2`, but loses `6.08s` of local speech; the profile stays
-   shadow-only until ordinary parity gates improve.
+   shadow-only until ordinary parity gates improve. The split/retime oracle preserves that local
+   speech and identifies the future implementation shape.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

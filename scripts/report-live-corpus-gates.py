@@ -86,6 +86,10 @@ BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1"
 )
+BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_batch_order_boundary_split_retime_oracle_v1"
+)
 TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_v1",
     "target_me_possible_timeline_safe_v1",
@@ -106,6 +110,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
+    BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
     LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICY,
@@ -174,6 +179,9 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "visible_suppressed_mic_rejected_turn_count",
     "boundary_order_retime_oracle_turn_count",
     "boundary_order_retime_oracle_trimmed_seconds",
+    "boundary_order_split_retime_oracle_turn_count",
+    "boundary_order_split_retime_oracle_preserved_prefix_count",
+    "boundary_order_split_retime_oracle_preserved_prefix_seconds",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -1369,6 +1377,18 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
             evaluated_rows,
             f"{base}_boundary_order_retime_oracle_trimmed_seconds",
         )
+        summary[f"{out}_boundary_order_split_retime_oracle_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_boundary_order_split_retime_oracle_turn_count",
+        )
+        summary[f"{out}_boundary_order_split_retime_oracle_preserved_prefix_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_boundary_order_split_retime_oracle_preserved_prefix_count",
+        )
+        summary[f"{out}_boundary_order_split_retime_oracle_preserved_prefix_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_boundary_order_split_retime_oracle_preserved_prefix_seconds",
+        )
         summary[f"{out}_visible_suppressed_mic_added_turn_count"] = sum_int_metric(
             evaluated_rows,
             f"{base}_visible_suppressed_mic_added_turn_count",
@@ -1493,6 +1513,15 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             ),
             "boundary_order_retime_oracle_trimmed_seconds": safe_float(
                 summary.get(f"{base}_boundary_order_retime_oracle_trimmed_seconds")
+            ),
+            "boundary_order_split_retime_oracle_turn_count": safe_int(
+                summary.get(f"{base}_boundary_order_split_retime_oracle_turn_count")
+            ),
+            "boundary_order_split_retime_oracle_preserved_prefix_count": safe_int(
+                summary.get(f"{base}_boundary_order_split_retime_oracle_preserved_prefix_count")
+            ),
+            "boundary_order_split_retime_oracle_preserved_prefix_seconds": safe_float(
+                summary.get(f"{base}_boundary_order_split_retime_oracle_preserved_prefix_seconds")
             ),
         }
         rows.append(row)
@@ -2474,6 +2503,29 @@ def live_next_unlock_report(
     boundary_order_retime_oracle_trimmed = safe_float(
         summary.get("real_live_boundary_order_retime_oracle_profile_retimed_trimmed_seconds")
     )
+    boundary_order_split_retime_oracle_missing = safe_float(
+        summary.get("real_live_boundary_order_split_retime_oracle_profile_missing_me_seconds")
+    )
+    boundary_order_split_retime_oracle_missing_delta = safe_float(
+        summary.get(
+            "real_live_boundary_order_split_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds"
+        )
+    )
+    boundary_order_split_retime_oracle_order_count = safe_int(
+        summary.get("real_live_boundary_order_split_retime_oracle_profile_contentful_order_mismatch_count")
+    )
+    boundary_order_split_retime_oracle_turn_count = safe_int(
+        summary.get("real_live_boundary_order_split_retime_oracle_profile_retimed_turn_count")
+    )
+    boundary_order_split_retime_oracle_trimmed = safe_float(
+        summary.get("real_live_boundary_order_split_retime_oracle_profile_retimed_trimmed_seconds")
+    )
+    boundary_order_split_retime_preserved_prefix_count = safe_int(
+        summary.get("real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_count")
+    )
+    boundary_order_split_retime_preserved_prefix_seconds = safe_float(
+        summary.get("real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_seconds")
+    )
 
     next_actions: list[dict[str, Any]] = []
     if order_triage_boundary_count > 0:
@@ -2488,6 +2540,14 @@ def live_next_unlock_report(
                     "retimed_trimmed_seconds": round(boundary_order_retime_oracle_trimmed, 3),
                     "contentful_order_mismatch_count_after": boundary_order_retime_oracle_order_count,
                     "missing_me_delta_seconds": round(boundary_order_retime_oracle_missing_delta, 3),
+                },
+                "split_oracle_evidence": {
+                    "retimed_turn_count": boundary_order_split_retime_oracle_turn_count,
+                    "retimed_trimmed_seconds": round(boundary_order_split_retime_oracle_trimmed, 3),
+                    "preserved_prefix_count": boundary_order_split_retime_preserved_prefix_count,
+                    "preserved_prefix_seconds": round(boundary_order_split_retime_preserved_prefix_seconds, 3),
+                    "contentful_order_mismatch_count_after": boundary_order_split_retime_oracle_order_count,
+                    "missing_me_delta_seconds": round(boundary_order_split_retime_oracle_missing_delta, 3),
                 },
                 "must_preserve": ["remote_leakage == 0", "strict order gates must remain authoritative"],
             }
@@ -2614,6 +2674,24 @@ def live_next_unlock_report(
             "contentful_order_mismatch_count": boundary_order_retime_oracle_order_count,
             "retimed_turn_count": boundary_order_retime_oracle_turn_count,
             "retimed_trimmed_seconds": round(boundary_order_retime_oracle_trimmed, 3),
+        },
+        "boundary_order_split_retime_oracle": {
+            "profile": summary.get("real_live_boundary_order_split_retime_oracle_profile_policy"),
+            "diagnostic_only": True,
+            "missing_me_seconds": round(boundary_order_split_retime_oracle_missing, 3),
+            "missing_me_delta_vs_best_live_implementable_seconds": round(
+                boundary_order_split_retime_oracle_missing_delta,
+                3,
+            ),
+            "remote_leak_seconds": round(
+                safe_float(summary.get("real_live_boundary_order_split_retime_oracle_profile_remote_leak_seconds")),
+                3,
+            ),
+            "contentful_order_mismatch_count": boundary_order_split_retime_oracle_order_count,
+            "retimed_turn_count": boundary_order_split_retime_oracle_turn_count,
+            "retimed_trimmed_seconds": round(boundary_order_split_retime_oracle_trimmed, 3),
+            "preserved_prefix_count": boundary_order_split_retime_preserved_prefix_count,
+            "preserved_prefix_seconds": round(boundary_order_split_retime_preserved_prefix_seconds, 3),
         },
         "live_only_evidence": {
             "candidate_seconds": round(live_only_candidate_seconds, 3),
@@ -5655,6 +5733,54 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         summary["real_live_boundary_order_retime_oracle_profile_contentful_order_mismatch_count"] = None
         summary["real_live_boundary_order_retime_oracle_profile_retimed_turn_count"] = None
         summary["real_live_boundary_order_retime_oracle_profile_retimed_trimmed_seconds"] = None
+    real_boundary_order_split_retime_oracle_profile = target_me_shadow_profile_row(
+        target_me_shadow_profile_diagnostics_report.get("real")
+        if isinstance(target_me_shadow_profile_diagnostics_report.get("real"), dict)
+        else {},
+        BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
+    )
+    summary["real_live_boundary_order_split_retime_oracle_profile_policy"] = (
+        BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY
+    )
+    if real_boundary_order_split_retime_oracle_profile:
+        split_retime_missing = safe_float(real_boundary_order_split_retime_oracle_profile.get("live_missing_me_seconds"))
+        summary["real_live_boundary_order_split_retime_oracle_profile_missing_me_seconds"] = split_retime_missing
+        summary["real_live_boundary_order_split_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds"] = round(
+            safe_float(summary.get("real_live_target_me_shadow_profile_best_live_implementable_missing_me_seconds"))
+            - split_retime_missing,
+            3,
+        )
+        summary["real_live_boundary_order_split_retime_oracle_profile_remote_leak_seconds"] = safe_float(
+            real_boundary_order_split_retime_oracle_profile.get("live_suspected_remote_leak_in_me_seconds")
+        )
+        summary["real_live_boundary_order_split_retime_oracle_profile_contentful_order_mismatch_count"] = safe_int(
+            real_boundary_order_split_retime_oracle_profile.get("live_contentful_role_constrained_order_mismatch_count")
+        )
+        summary["real_live_boundary_order_split_retime_oracle_profile_retimed_turn_count"] = safe_int(
+            real_boundary_order_split_retime_oracle_profile.get("boundary_order_retime_oracle_turn_count")
+        )
+        summary["real_live_boundary_order_split_retime_oracle_profile_retimed_trimmed_seconds"] = safe_float(
+            real_boundary_order_split_retime_oracle_profile.get("boundary_order_retime_oracle_trimmed_seconds")
+        )
+        summary["real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_count"] = safe_int(
+            real_boundary_order_split_retime_oracle_profile.get(
+                "boundary_order_split_retime_oracle_preserved_prefix_count"
+            )
+        )
+        summary["real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_seconds"] = safe_float(
+            real_boundary_order_split_retime_oracle_profile.get(
+                "boundary_order_split_retime_oracle_preserved_prefix_seconds"
+            )
+        )
+    else:
+        summary["real_live_boundary_order_split_retime_oracle_profile_missing_me_seconds"] = None
+        summary["real_live_boundary_order_split_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds"] = None
+        summary["real_live_boundary_order_split_retime_oracle_profile_remote_leak_seconds"] = None
+        summary["real_live_boundary_order_split_retime_oracle_profile_contentful_order_mismatch_count"] = None
+        summary["real_live_boundary_order_split_retime_oracle_profile_retimed_turn_count"] = None
+        summary["real_live_boundary_order_split_retime_oracle_profile_retimed_trimmed_seconds"] = None
+        summary["real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_count"] = None
+        summary["real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_seconds"] = None
     local_island_timing_gap_report = {
         "schema": "murmurmark.live_local_island_timing_gap/v1",
         "status": "ok" if real_local_island_retime_profile else "missing_retime_oracle_profile",
@@ -7449,6 +7575,22 @@ def main() -> int:
     print(
         "real_live_boundary_order_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds: "
         f"{summary.get('real_live_boundary_order_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds')}"
+    )
+    print(
+        "real_live_boundary_order_split_retime_oracle_profile_contentful_order_mismatch_count: "
+        f"{summary.get('real_live_boundary_order_split_retime_oracle_profile_contentful_order_mismatch_count', 0)}"
+    )
+    print(
+        "real_live_boundary_order_split_retime_oracle_profile_retimed_turn_count: "
+        f"{summary.get('real_live_boundary_order_split_retime_oracle_profile_retimed_turn_count', 0)}"
+    )
+    print(
+        "real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_seconds: "
+        f"{summary.get('real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_seconds', 0.0)}"
+    )
+    print(
+        "real_live_boundary_order_split_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds: "
+        f"{summary.get('real_live_boundary_order_split_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds')}"
     )
     print(
         "real_live_unambiguous_contentful_role_constrained_order_mismatch_count: "

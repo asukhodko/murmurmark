@@ -127,6 +127,10 @@ BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_batch_order_boundary_retime_oracle_v1"
 )
+BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_batch_order_boundary_split_retime_oracle_v1"
+)
 TARGET_ME_DERIVED_POLICY_BASE = {
     "target_me_confirmed_remote_guard_timeline_safe_v1": "target_me_confirmed_remote_guard_v1",
     "target_me_possible_timeline_safe_v1": "target_me_possible_v1",
@@ -151,6 +155,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
+    BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
     (
@@ -203,6 +208,9 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     (
@@ -289,6 +297,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
+    BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
     (
         "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
         "batch_remote_forbidden_local_island_split_oracle_v1"
@@ -331,6 +340,9 @@ LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES = {
 }
 BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES = {
     BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICY,
+}
+BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICIES = {
+    BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
 }
 MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 
@@ -1281,8 +1293,10 @@ def boundary_order_retime_oracle_adjustments(
             "current_end": round(current_end, 3),
             "current_source": current.get("source"),
             "current_role": current.get("role"),
+            "current_text": current.get("text"),
             "previous_source": previous.get("source"),
             "previous_role": previous.get("role"),
+            "previous_text": previous.get("text"),
             "batch_start_delta_sec": item.get("batch_start_delta_sec"),
             "live_start_delta_sec": item.get("live_start_delta_sec"),
             "match_ambiguity": item.get("match_ambiguity"),
@@ -1313,6 +1327,137 @@ def apply_boundary_order_retime_oracle(
             continue
         new_turn = dict(turn)
         new_turn["start"] = safe_float(adjustment.get("retimed_start"))
+        new_turn["boundary_order_retime_oracle"] = True
+        new_turn["boundary_order_retime_original_start"] = adjustment.get("original_start")
+        new_turn["boundary_order_retime_original_end"] = adjustment.get("original_end")
+        new_turn["boundary_order_retime_trimmed_leading_seconds"] = adjustment.get("trimmed_leading_seconds")
+        new_turn["boundary_order_retime_overlap_seconds"] = adjustment.get("overlap_seconds")
+        new_turn["boundary_order_retime_counterpart_id"] = adjustment.get("current_live_id")
+        new_turn["boundary_order_retime_reason"] = adjustment.get("reason")
+        adjusted.append(new_turn)
+    return sorted(
+        adjusted,
+        key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+    )
+
+
+def split_text_for_boundary_retime(
+    text: str,
+    *,
+    original_start: float,
+    original_end: float,
+    prefix_end: float | None,
+    suffix_start: float | None,
+    counterpart_text: str | None = None,
+) -> tuple[str, str]:
+    words = text.split()
+    if len(words) <= 1 or original_end <= original_start:
+        return text, text
+    duration = original_end - original_start
+    prefix_count = 0
+    suffix_start_index = len(words)
+    if prefix_end is not None and prefix_end > original_start:
+        prefix_ratio = max(0.0, min(1.0, (prefix_end - original_start) / duration))
+        prefix_count = max(1, min(len(words), round(len(words) * prefix_ratio)))
+    if suffix_start is not None and suffix_start < original_end:
+        suffix_ratio = max(0.0, min(1.0, (suffix_start - original_start) / duration))
+        suffix_start_index = max(0, min(len(words) - 1, round(len(words) * suffix_ratio)))
+    counterpart_content = set(content_tokens(str(counterpart_text or "")))
+    if counterpart_content and prefix_count > 0:
+        overlap_index: int | None = None
+        for index, word in enumerate(words):
+            word_tokens = tokens(word)
+            if not word_tokens:
+                continue
+            if word_tokens[0] in counterpart_content and index >= max(0, prefix_count - 3):
+                overlap_index = index
+                break
+        if overlap_index is not None:
+            if overlap_index > 0 and tokens(words[overlap_index - 1])[:1] in (["с"], ["со"]):
+                overlap_index -= 1
+            prefix_count = max(1, min(prefix_count, overlap_index))
+    boundary_tail_tokens = {"тоже", "так", "это", "окей", "ну", "вот"}
+    while prefix_count > 1:
+        tail = tokens(words[prefix_count - 1])
+        if not tail or tail[0] not in boundary_tail_tokens:
+            break
+        prefix_count -= 1
+    prefix = " ".join(words[:prefix_count]).strip()
+    suffix = " ".join(words[suffix_start_index:]).strip()
+    return prefix or text, suffix or text
+
+
+def apply_boundary_order_split_retime_oracle(
+    turns: list[dict[str, Any]],
+    batch_utterances: list[dict[str, Any]],
+    adjustments: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    if adjustments is None:
+        adjustments = boundary_order_retime_oracle_adjustments(turns, batch_utterances)
+    if not adjustments:
+        return turns
+    adjusted: list[dict[str, Any]] = []
+    for turn in turns:
+        turn_id = str(turn.get("id") or "")
+        adjustment = adjustments.get(turn_id)
+        if not adjustment:
+            adjusted.append(turn)
+            continue
+        original_start = safe_float(adjustment.get("original_start"))
+        original_end = safe_float(adjustment.get("original_end"))
+        retimed_start = safe_float(adjustment.get("retimed_start"))
+        current_start = safe_float(adjustment.get("current_start"))
+        current_end = safe_float(adjustment.get("current_end"))
+        if str(turn.get("role") or "") == "Me" and original_start < current_start < original_end:
+            prefix_end = min(current_start, original_end)
+            suffix_start = max(current_end, original_start)
+            prefix_text, suffix_text = split_text_for_boundary_retime(
+                str(turn.get("text") or ""),
+                original_start=original_start,
+                original_end=original_end,
+                prefix_end=prefix_end,
+                suffix_start=suffix_start if suffix_start < original_end else None,
+                counterpart_text=str(adjustment.get("current_text") or ""),
+            )
+            if prefix_end - original_start >= 0.3:
+                prefix_turn = dict(turn)
+                prefix_turn["id"] = f"{turn_id}_boundary_prefix"
+                prefix_turn["start"] = original_start
+                prefix_turn["end"] = prefix_end
+                prefix_turn["text"] = prefix_text
+                prefix_turn["tokens"] = tokens(prefix_text)
+                prefix_turn["boundary_order_split_retime_oracle"] = True
+                prefix_turn["boundary_order_split_part"] = "preserved_prefix"
+                prefix_turn["boundary_order_split_original_id"] = turn_id
+                prefix_turn["boundary_order_split_original_start"] = adjustment.get("original_start")
+                prefix_turn["boundary_order_split_original_end"] = adjustment.get("original_end")
+                prefix_turn["boundary_order_split_counterpart_id"] = adjustment.get("current_live_id")
+                prefix_turn["boundary_order_split_reason"] = "preserve_local_prefix_before_cross_source_boundary"
+                adjusted.append(prefix_turn)
+            if suffix_start < original_end and original_end - suffix_start >= 0.3:
+                suffix_turn = dict(turn)
+                suffix_turn["id"] = f"{turn_id}_boundary_suffix"
+                suffix_turn["start"] = max(suffix_start, retimed_start)
+                suffix_turn["end"] = original_end
+                suffix_turn["text"] = suffix_text
+                suffix_turn["tokens"] = tokens(suffix_text)
+                suffix_turn["boundary_order_retime_oracle"] = True
+                suffix_turn["boundary_order_split_retime_oracle"] = True
+                suffix_turn["boundary_order_split_part"] = "retimed_suffix"
+                suffix_turn["boundary_order_split_original_id"] = turn_id
+                suffix_turn["boundary_order_retime_original_start"] = adjustment.get("original_start")
+                suffix_turn["boundary_order_retime_original_end"] = adjustment.get("original_end")
+                suffix_turn["boundary_order_retime_trimmed_leading_seconds"] = round(
+                    safe_float(suffix_turn.get("start")) - original_start,
+                    3,
+                )
+                suffix_turn["boundary_order_retime_overlap_seconds"] = adjustment.get("overlap_seconds")
+                suffix_turn["boundary_order_retime_counterpart_id"] = adjustment.get("current_live_id")
+                suffix_turn["boundary_order_retime_reason"] = "retime_local_suffix_after_cross_source_boundary"
+                adjusted.append(suffix_turn)
+            continue
+        new_turn = dict(turn)
+        new_turn["start"] = retimed_start
         new_turn["boundary_order_retime_oracle"] = True
         new_turn["boundary_order_retime_original_start"] = adjustment.get("original_start")
         new_turn["boundary_order_retime_original_end"] = adjustment.get("original_end")
@@ -4039,6 +4184,13 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "boundary_order_retime_overlap_seconds",
         "boundary_order_retime_counterpart_id",
         "boundary_order_retime_reason",
+        "boundary_order_split_retime_oracle",
+        "boundary_order_split_part",
+        "boundary_order_split_original_id",
+        "boundary_order_split_original_start",
+        "boundary_order_split_original_end",
+        "boundary_order_split_counterpart_id",
+        "boundary_order_split_reason",
         "segment_gate_status",
         "segment_gate_reason",
         "segment_gate_unique_token_count",
@@ -4054,15 +4206,27 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
 
 
 def target_me_shadow_profile_is_oracle(policy: str) -> bool:
-    return policy in TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES or policy in BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES
+    return (
+        policy in TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES
+        or policy in BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES
+        or policy in BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICIES
+    )
 
 
 def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]:
     retimed = [turn for turn in turns if turn.get("boundary_order_retime_oracle")]
+    split = [turn for turn in turns if turn.get("boundary_order_split_retime_oracle")]
+    preserved_prefix = [turn for turn in split if turn.get("boundary_order_split_part") == "preserved_prefix"]
     return {
         "boundary_order_retime_oracle_turn_count": len(retimed),
         "boundary_order_retime_oracle_trimmed_seconds": round(
             sum(safe_float(turn.get("boundary_order_retime_trimmed_leading_seconds")) for turn in retimed),
+            3,
+        ),
+        "boundary_order_split_retime_oracle_turn_count": len(split),
+        "boundary_order_split_retime_oracle_preserved_prefix_count": len(preserved_prefix),
+        "boundary_order_split_retime_oracle_preserved_prefix_seconds": round(
+            sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in preserved_prefix),
             3,
         ),
     }
@@ -4190,7 +4354,11 @@ def target_me_shadow_profile_components(
             live_turns + target_turns,
         )
         rejected_supplemental_turns.extend(rejected_boundary_turns)
-    elif policy in LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES or policy in BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES:
+    elif (
+        policy in LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES
+        or policy in BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES
+        or policy in BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICIES
+    ):
         audio_safe_union_turns = online_suppressed_mic_policy_turns(
             suppressed_mic_asr_segments,
             "audio_safe_union_v1",
@@ -4236,6 +4404,15 @@ def target_me_shadow_profile_components(
         live_turns = apply_boundary_order_retime_oracle(live_turns, batch_utterances, adjustments)
         target_turns = apply_boundary_order_retime_oracle(target_turns, batch_utterances, adjustments)
         supplemental_turns = apply_boundary_order_retime_oracle(supplemental_turns, batch_utterances, adjustments)
+    if policy in BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICIES:
+        combined_for_retime = sorted(
+            live_turns + target_turns + supplemental_turns,
+            key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+        )
+        adjustments = boundary_order_retime_oracle_adjustments(combined_for_retime, batch_utterances)
+        live_turns = apply_boundary_order_split_retime_oracle(live_turns, batch_utterances, adjustments)
+        target_turns = apply_boundary_order_split_retime_oracle(target_turns, batch_utterances, adjustments)
+        supplemental_turns = apply_boundary_order_split_retime_oracle(supplemental_turns, batch_utterances, adjustments)
     return live_turns, target_turns, supplemental_turns, removed_live_turns, rejected_supplemental_turns
 
 
@@ -4505,6 +4682,15 @@ def build_target_me_shadow_profiles(
         ]
         top_level_metrics[f"{base}_boundary_order_retime_oracle_trimmed_seconds"] = retime_metrics[
             "boundary_order_retime_oracle_trimmed_seconds"
+        ]
+        top_level_metrics[f"{base}_boundary_order_split_retime_oracle_turn_count"] = retime_metrics[
+            "boundary_order_split_retime_oracle_turn_count"
+        ]
+        top_level_metrics[f"{base}_boundary_order_split_retime_oracle_preserved_prefix_count"] = retime_metrics[
+            "boundary_order_split_retime_oracle_preserved_prefix_count"
+        ]
+        top_level_metrics[f"{base}_boundary_order_split_retime_oracle_preserved_prefix_seconds"] = retime_metrics[
+            "boundary_order_split_retime_oracle_preserved_prefix_seconds"
         ]
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_count"] = len(supplemental_turns)
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_seconds"] = supplemental_seconds
