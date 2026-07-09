@@ -5788,6 +5788,18 @@ For the current corpus, `additional_recordings_required_for_current_blocker` is 
 next action is `build_online_local_speaker_boundary_evidence`, and `remote_dominant` /
 `known_hallucination` buckets stay blocked.
 
+The report also writes `live_speaker_boundary_evidence_lab` with schema
+`murmurmark.live_speaker_boundary_evidence_lab/v1`. It classifies the current best
+live-implementable remaining gap into:
+
+- `shadow_probe` rows that may be used to design a future shadow profile;
+- blocked rows that must not be published without stronger speaker evidence;
+- `publication_ready_seconds`, which remains `0.0` until a normal parity-checked profile exists.
+
+Current corpus evidence: `24 / 100.23s` remaining rows, `8 / 31.28s` future shadow-probe candidates,
+`16 / 68.95s` blocked rows and `0.0s` publication-ready. The recommended design candidate is
+`online_local_speaker_boundary_shadow_v1`, but it is not implemented or promotable yet.
+
 The same report may include `live_local_island_split_lab` with schema
 `murmurmark.live_local_island_split_lab/v1`. It is a diagnostic estimate over
 `local_island_split_candidate` rows: it joins local-island texts, computes token recall against the

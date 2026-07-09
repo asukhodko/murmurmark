@@ -392,6 +392,14 @@ Online remote-overlap shadow filter, 2026-07-09:
   - first next action: `build_online_local_speaker_boundary_evidence`;
   - blocked buckets: `remote_dominant_without_new_evidence` (`29.68s`) and
     `known_hallucination` (`12.42s`).
+- `live_speaker_boundary_evidence_lab`:
+  - schema: `murmurmark.live_speaker_boundary_evidence_lab/v1`;
+  - remaining rows: `24 / 100.23s`;
+  - future shadow-probe candidates: `8 / 31.28s`;
+  - publication-ready seconds: `0.00s`;
+  - blocked rows: `16 / 68.95s`;
+  - largest candidate class: `speaker_confirmation_shadow_candidate` (`13.70s`);
+  - largest blocked class: `blocked_remote_dominant` (`29.68s`).
 - Local-island split lab:
   - candidate batch rows: `1 / 10.58s`;
   - candidate local-island audio/text: `5.10s`;

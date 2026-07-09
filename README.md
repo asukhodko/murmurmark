@@ -548,6 +548,10 @@ The report now also writes `live_next_unlock` (`murmurmark.live_next_unlock/v1`)
 `additional_recordings_required_for_current_blocker = false`, keeps batch authoritative, and names
 the next actions as online local-speaker/boundary evidence, speaker confirmation, local-island
 candidate selection, and reuse of strict zero-remote evidence without broad publication.
+The paired `live_speaker_boundary_evidence_lab` now splits the current `100.23s` remaining gap into
+`31.28s` future shadow-probe candidates and `68.95s` blocked rows. It still marks
+`publication_ready_seconds = 0.0`, so this is design evidence for the next profile, not permission
+to publish more live `Me`.
 The current diagnostic `live_local_island_split_lab` narrows this further: it finds `1` candidate
 batch row / `10.58s` with `5.10s` of local-island audio/text, but token-recall rejects it
 (`0.143 < 0.35`). This is enough to justify a timing/speaker-evidence prototype, not enough to

@@ -2123,6 +2123,7 @@ def live_next_unlock_report(
     *,
     summary: dict[str, Any],
     remaining_gap: dict[str, Any],
+    speaker_boundary_lab: dict[str, Any],
     local_island_split: dict[str, Any],
     live_only_local_island: dict[str, Any],
     timing_gap: dict[str, Any],
@@ -2284,6 +2285,12 @@ def live_next_unlock_report(
         },
         "top_actionability": top_actionability,
         "top_segmentability": top_segmentability,
+        "speaker_boundary_evidence": {
+            "status": speaker_boundary_lab.get("status"),
+            "shadow_probe_seconds": round(safe_float(speaker_boundary_lab.get("shadow_probe_seconds")), 3),
+            "publication_ready_seconds": round(safe_float(speaker_boundary_lab.get("publication_ready_seconds")), 3),
+            "blocked_seconds": round(safe_float(speaker_boundary_lab.get("blocked_seconds")), 3),
+        },
         "oracle_gap": {
             "diagnostic_gain_seconds": round(oracle_gain, 3),
             "requires_batch_timing": bool(timing_gap.get("requires_batch_timing")),
@@ -2297,6 +2304,155 @@ def live_next_unlock_report(
         "blockers": blockers,
         "next_actions": next_actions,
         "blocked_buckets": blocked_buckets,
+    }
+
+
+def live_speaker_boundary_evidence_lab(remaining_gap: dict[str, Any], *, limit: int = 80) -> dict[str, Any]:
+    examples = remaining_gap.get("examples") if isinstance(remaining_gap.get("examples"), list) else []
+    rows: list[dict[str, Any]] = []
+
+    for item in examples:
+        if not isinstance(item, dict):
+            continue
+        actionability = item.get("actionability") if isinstance(item.get("actionability"), dict) else {}
+        segmentability = (
+            actionability.get("segmentability")
+            if isinstance(actionability.get("segmentability"), dict)
+            else {}
+        )
+        label = str(actionability.get("label") or "(none)")
+        segment_label = str(segmentability.get("label") or "")
+        suppressed_labels = (
+            actionability.get("suppressed_label_overlap_seconds")
+            if isinstance(actionability.get("suppressed_label_overlap_seconds"), dict)
+            else {}
+        )
+        local_like_seconds = round(
+            safe_float(suppressed_labels.get("me_dominant"))
+            + safe_float(suppressed_labels.get("mixed")),
+            3,
+        )
+        remote_like_seconds = round(safe_float(suppressed_labels.get("remote_dominant")), 3)
+        duration_sec = safe_float(item.get("duration_sec"))
+        duplicate_seconds = safe_float(actionability.get("duplicate_overlap_seconds"))
+        local_island_seconds = safe_float(segmentability.get("local_island_seconds"))
+        local_island_count = safe_int(segmentability.get("local_island_count"))
+
+        classification = "needs_human_design"
+        candidate_kind = "blocked"
+        reason = "unclassified remaining-gap row"
+        if label == "speaker_confirmation_candidate":
+            classification = "speaker_confirmation_shadow_candidate"
+            candidate_kind = "shadow_probe_candidate"
+            reason = "me-dominant suppressed mic evidence without Target-Me evidence"
+        elif label == "mixed_needs_segmentation_or_speaker_evidence":
+            if segment_label == "local_island_split_candidate":
+                classification = "local_island_boundary_probe_candidate"
+                candidate_kind = "shadow_probe_candidate"
+                reason = "local-looking island exists inside mixed row, but text recall is insufficient"
+            elif segment_label == "needs_speaker_evidence":
+                classification = "mixed_speaker_boundary_probe_candidate"
+                candidate_kind = "shadow_probe_candidate"
+                reason = "mixed row has some local-looking evidence and needs speaker/boundary confirmation"
+            elif segment_label == "short_low_value_tail":
+                classification = "short_tail_low_value_probe_candidate"
+                candidate_kind = "low_value_shadow_probe"
+                reason = "short local-looking tail is low value but may help boundary diagnostics"
+            elif segment_label == "duplicate_heavy_needs_speaker_evidence":
+                classification = "blocked_duplicate_heavy_needs_speaker_evidence"
+                reason = "duplicate-heavy mixed row must not publish without stronger speaker evidence"
+            elif segment_label == "remote_dominant_mixed_not_rescuable":
+                classification = "blocked_remote_dominant_mixed"
+                reason = "remote-dominant mixed row is not rescuable with current evidence"
+        elif label == "remote_dominant_not_rescuable_without_new_evidence":
+            classification = "blocked_remote_dominant"
+            reason = "dominant evidence is remote-like"
+        elif label == "asr_hallucination_not_rescuable":
+            classification = "blocked_known_hallucination"
+            reason = "known hallucination must stay excluded"
+        elif label == "not_visible_needs_asr_or_boundary_repair":
+            classification = "not_visible_needs_asr_or_boundary_repair"
+            reason = "missing Me is not visible in suppressed mic evidence"
+
+        publication_ready = False
+        shadow_probe = candidate_kind in {"shadow_probe_candidate", "low_value_shadow_probe"}
+        rows.append(
+            {
+                "session": item.get("session"),
+                "batch_id": item.get("batch_id"),
+                "start": item.get("start"),
+                "end": item.get("end"),
+                "duration_sec": round(duration_sec, 3),
+                "text": item.get("text"),
+                "actionability": label,
+                "segmentability": segment_label or None,
+                "classification": classification,
+                "candidate_kind": candidate_kind,
+                "reason": reason,
+                "shadow_probe": shadow_probe,
+                "publication_ready": publication_ready,
+                "local_like_seconds": local_like_seconds,
+                "remote_like_seconds": remote_like_seconds,
+                "duplicate_overlap_seconds": round(duplicate_seconds, 3),
+                "local_island_seconds": round(local_island_seconds, 3),
+                "local_island_count": local_island_count,
+                "dominant_suppressed_label": actionability.get("dominant_suppressed_label"),
+                "comparison": item.get("comparison"),
+            }
+        )
+
+    def aggregate(items: list[dict[str, Any]], key: str) -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for row in items:
+            group = str(row.get(key) or "(none)")
+            group_row = grouped.setdefault(group, {"count": 0, "seconds": 0.0})
+            group_row["count"] += 1
+            group_row["seconds"] = round(
+                safe_float(group_row.get("seconds")) + safe_float(row.get("duration_sec")),
+                3,
+            )
+        return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
+
+    shadow_probe_rows = [row for row in rows if row.get("shadow_probe")]
+    blocked_rows = [row for row in rows if not row.get("shadow_probe")]
+    return {
+        "schema": "murmurmark.live_speaker_boundary_evidence_lab/v1",
+        "status": "ok" if rows else "no_remaining_gap_rows",
+        "promotion_allowed": False,
+        "interpretation": (
+            "diagnostic only: classifies the current best live-implementable remaining gap into "
+            "shadow-probe candidates and blocked rows; it does not publish live Me text"
+        ),
+        "row_count": len(rows),
+        "seconds": round(sum(safe_float(row.get("duration_sec")) for row in rows), 3),
+        "shadow_probe_count": len(shadow_probe_rows),
+        "shadow_probe_seconds": round(sum(safe_float(row.get("duration_sec")) for row in shadow_probe_rows), 3),
+        "publication_ready_seconds": 0.0,
+        "blocked_count": len(blocked_rows),
+        "blocked_seconds": round(sum(safe_float(row.get("duration_sec")) for row in blocked_rows), 3),
+        "by_classification": aggregate(rows, "classification"),
+        "by_candidate_kind": aggregate(rows, "candidate_kind"),
+        "recommended_shadow_profile": {
+            "name": "online_local_speaker_boundary_shadow_v1",
+            "status": "design_candidate",
+            "source": "shadow_probe rows only",
+            "must_preserve": ["remote_leakage == 0", "contentful_order_mismatches must not increase"],
+            "must_exclude_classifications": [
+                "blocked_remote_dominant",
+                "blocked_remote_dominant_mixed",
+                "blocked_duplicate_heavy_needs_speaker_evidence",
+                "blocked_known_hallucination",
+            ],
+        },
+        "examples": sorted(
+            rows,
+            key=lambda row: (
+                not bool(row.get("shadow_probe")),
+                -safe_float(row.get("duration_sec")),
+                str(row.get("session") or ""),
+                safe_float(row.get("start")),
+            ),
+        )[:limit],
     }
 
 
@@ -4500,6 +4656,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         root=root,
         policy=real_best_live_profile_policy,
     )
+    speaker_boundary_lab_report = live_speaker_boundary_evidence_lab(best_live_profile_remaining_gap)
     local_island_split_lab_report = local_island_split_lab(best_live_profile_remaining_gap)
     local_island_audio_anchor_lab_report = live_local_island_audio_anchor_lab(local_island_split_lab_report)
     local_island_retime_anchor_lab_report = live_local_island_retime_anchor_lab(local_island_split_lab_report)
@@ -5309,6 +5466,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     live_next_unlock = live_next_unlock_report(
         summary=summary,
         remaining_gap=best_live_profile_remaining_gap,
+        speaker_boundary_lab=speaker_boundary_lab_report,
         local_island_split=local_island_split_lab_report,
         live_only_local_island=live_only_local_island_candidate_lab_report,
         timing_gap=local_island_timing_gap_report,
@@ -5431,6 +5589,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_target_me_shadow_policy_diagnostics": target_me_shadow_diagnostics_report,
         "live_target_me_shadow_profile_diagnostics": target_me_shadow_profile_diagnostics_report,
         "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
+        "live_speaker_boundary_evidence_lab": speaker_boundary_lab_report,
         "live_local_island_split_lab": local_island_split_lab_report,
         "live_local_island_audio_anchor_lab": local_island_audio_anchor_lab_report,
         "live_local_island_retime_anchor_lab": local_island_retime_anchor_lab_report,
@@ -5816,6 +5975,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         if isinstance(live_next_unlock.get("top_segmentability"), dict)
         else {}
     )
+    speaker_boundary = (
+        report.get("live_speaker_boundary_evidence_lab")
+        if isinstance(report.get("live_speaker_boundary_evidence_lab"), dict)
+        else {}
+    )
     lines = [
         "# Live Pipeline Corpus Gates",
         "",
@@ -6038,6 +6202,32 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             lines.append(
                 f"- `{bucket.get('id')}`: {bucket.get('seconds')} sec; {bucket.get('reason')}"
             )
+    if speaker_boundary:
+        lines += [
+            "",
+            "## Speaker Boundary Evidence Lab",
+            "",
+            "Diagnostic only. It classifies the current remaining gap into future shadow-probe "
+            "candidates and rows that must stay blocked.",
+            "",
+            f"- status: `{speaker_boundary.get('status')}`",
+            f"- remaining rows: {speaker_boundary.get('row_count')} / {speaker_boundary.get('seconds')} sec",
+            f"- shadow-probe candidates: {speaker_boundary.get('shadow_probe_count')} / "
+            f"{speaker_boundary.get('shadow_probe_seconds')} sec",
+            f"- publication-ready seconds: {speaker_boundary.get('publication_ready_seconds')}",
+            f"- blocked: {speaker_boundary.get('blocked_count')} / {speaker_boundary.get('blocked_seconds')} sec",
+            "",
+            "By classification:",
+        ]
+        by_classification = (
+            speaker_boundary.get("by_classification")
+            if isinstance(speaker_boundary.get("by_classification"), dict)
+            else {}
+        )
+        for label, payload in by_classification.items():
+            if not isinstance(payload, dict):
+                continue
+            lines.append(f"- `{label}`: {payload.get('count')} / {payload.get('seconds')} sec")
     lines += [
         "",
         "## Promotion Policy",

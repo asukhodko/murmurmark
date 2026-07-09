@@ -532,7 +532,9 @@ newer run-state exists.
    `live_next_unlock` now records this as the machine-readable next step:
    `additional_recordings_required_for_current_blocker = false`, first action
    `build_online_local_speaker_boundary_evidence`, and blocked buckets
-   `remote_dominant_without_new_evidence` / `known_hallucination`. The first
+   `remote_dominant_without_new_evidence` / `known_hallucination`.
+   `live_speaker_boundary_evidence_lab` now splits the same gap into `31.28s` future shadow-probe
+   candidates, `68.95s` blocked rows and `0.0s` publication-ready. The first
    live-only
    candidate lab finds `99.40s` of suppressed mic candidates and `83.04s` local/mixed evidence, but
    still carries `16.36s` remote-risk. Its stricter zero-risk profile finds `36.12s` with `0.00s`
