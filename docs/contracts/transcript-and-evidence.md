@@ -6072,8 +6072,10 @@ diagnostic only:
 
 Current corpus evidence for the three affected sessions is promising: all `3` sessions are
 `local_only_enrollment_probe_ready`, with `144.00s` of accepted positive local-only seed audio. The
-next safe step is to evaluate those seed models against the blocked mixed rows; they still cannot
-publish live text by themselves.
+probe supports `3` of `4` blocked mixed rows / `24.52s` of `25.00s`; the unsupported row is the
+short `0.48s` low-value tail. The next safe step is to materialize a diagnostic local-only-seed
+mixed-row shadow and run the normal parity gates. The probe still cannot publish live text by
+itself.
 
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`
 is the first profile-level local-island split oracle. It starts from the current best

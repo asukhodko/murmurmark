@@ -239,14 +239,17 @@ def embed_candidates(
     return selected, embeddings
 
 
-def score_embeddings(tm: Any, positives: list[np.ndarray], negatives: list[np.ndarray]) -> dict[str, Any]:
+def build_target_model(tm: Any, positives: list[np.ndarray], negatives: list[np.ndarray]) -> dict[str, Any]:
     positive_centroid = tm.make_centroid(positives)
     negative_centroid = tm.make_centroid(negatives)
-    model = {
+    return {
         "positive_centroid": positive_centroid,
         "negative_centroid": negative_centroid,
         "scoring": "contrastive" if negative_centroid is not None else "cosine",
     }
+
+
+def score_embeddings(tm: Any, positives: list[np.ndarray], negatives: list[np.ndarray], model: dict[str, Any]) -> dict[str, Any]:
     positive_scores = [tm.model_score(vector, model) for vector in positives]
     negative_scores = [tm.model_score(vector, model) for vector in negatives]
     positive_target = [safe_float(row.get("target_similarity")) for row in positive_scores]
@@ -280,6 +283,126 @@ def score_embeddings(tm: Any, positives: list[np.ndarray], negatives: list[np.nd
         "margin_p50": round_float(margin_p50),
         "margin_p10_p90": round_float(margin_p10_p90),
     }
+
+
+def blocked_rows_by_session(report: dict[str, Any] | None) -> dict[str, list[dict[str, Any]]]:
+    lab = (report or {}).get("live_same_session_voice_disambiguation_lab")
+    examples = lab.get("examples") if isinstance(lab, dict) and isinstance(lab.get("examples"), list) else []
+    result: dict[str, list[dict[str, Any]]] = {}
+    for row in examples:
+        if not isinstance(row, dict):
+            continue
+        session_id = str(row.get("session") or "")
+        if not session_id:
+            continue
+        result.setdefault(session_id, []).append(row)
+    return result
+
+
+def target_thresholds(scores: dict[str, Any]) -> dict[str, float]:
+    positive_target = scores.get("positive_target_similarity") if isinstance(scores.get("positive_target_similarity"), dict) else {}
+    negative_target = scores.get("negative_target_similarity") if isinstance(scores.get("negative_target_similarity"), dict) else {}
+    positive_to_centroid = (
+        scores.get("positive_similarity_to_positive_centroid")
+        if isinstance(scores.get("positive_similarity_to_positive_centroid"), dict)
+        else {}
+    )
+    negative_to_centroid = (
+        scores.get("negative_similarity_to_positive_centroid")
+        if isinstance(scores.get("negative_similarity_to_positive_centroid"), dict)
+        else {}
+    )
+    positive_target_p10 = safe_float(positive_target.get("p10"))
+    negative_target_p90 = safe_float(negative_target.get("p90"))
+    positive_centroid_p10 = safe_float(positive_to_centroid.get("p10"))
+    negative_centroid_p90 = safe_float(negative_to_centroid.get("p90"))
+    return {
+        "target_similarity": round((positive_target_p10 + negative_target_p90) / 2.0, 6),
+        "positive_similarity": round(max(0.0, positive_centroid_p10 - 0.05), 6),
+        "negative_similarity_max": round(negative_centroid_p90 + 0.05, 6),
+    }
+
+
+def evaluate_blocked_mixed_rows(
+    *,
+    session: Path,
+    rows: list[dict[str, Any]],
+    source: Path,
+    source_name: str,
+    state_rows: list[dict[str, Any]],
+    model: dict[str, Any],
+    thresholds: dict[str, float],
+    out_dir: Path,
+    backend: Any,
+    tm: Any,
+    args: argparse.Namespace,
+) -> list[dict[str, Any]]:
+    evaluations: list[dict[str, Any]] = []
+    for index, row in enumerate(rows, start=1):
+        start = safe_float(row.get("start"))
+        end = safe_float(row.get("end"), start)
+        if end <= start:
+            continue
+        clip_start = max(0.0, start - args.padding_sec)
+        clip_end = end + args.padding_sec
+        clip = out_dir / "clips/blocked_mixed" / f"blocked_{index:04d}_{start:.3f}_{end:.3f}.wav"
+        ok = tm.extract_wav(source, clip, clip_start, clip_end - clip_start)
+        embedding = None
+        info: dict[str, Any]
+        if ok:
+            embedding, info = backend.embed(clip)
+        else:
+            info = {"error": "extract_failed"}
+        scores = tm.model_score(embedding, model)
+        state = tm.interval_state_features(state_rows, start, end)
+        target_score = safe_float(scores.get("target_similarity"))
+        positive_score = safe_float(scores.get("positive_similarity"))
+        negative_score = safe_float(scores.get("negative_similarity"))
+        reasons: list[str] = []
+        if embedding is None:
+            reasons.append(info.get("error") or "embedding_failed")
+        if target_score < safe_float(thresholds.get("target_similarity")):
+            reasons.append("below_target_similarity_threshold")
+        if positive_score < safe_float(thresholds.get("positive_similarity")):
+            reasons.append("below_positive_similarity_threshold")
+        if negative_score > safe_float(thresholds.get("negative_similarity_max")):
+            reasons.append("too_close_to_remote_negative")
+        if safe_float(state.get("remote_active_ratio")) > 0.20:
+            reasons.append("remote_active_state_overlap")
+        if safe_float(state.get("local_score_proxy")) < 0.65:
+            reasons.append("weak_local_state")
+        if not reasons:
+            classification = "local_only_seed_supports_blocked_mixed_row"
+        elif any(reason in reasons for reason in ("too_close_to_remote_negative", "remote_active_state_overlap")):
+            classification = "blocked_mixed_row_remote_ambiguous"
+        elif embedding is None:
+            classification = "blocked_mixed_row_embedding_failed"
+        else:
+            classification = "blocked_mixed_row_not_supported_by_seed"
+        evaluations.append(
+            {
+                "session": session.name,
+                "batch_id": row.get("batch_id"),
+                "start": row.get("start"),
+                "end": row.get("end"),
+                "duration_sec": row.get("duration_sec"),
+                "text": row.get("text"),
+                "source_audio": source_name,
+                "clip": str(clip) if args.write_clips else "",
+                "classification": classification,
+                "reasons": reasons,
+                "thresholds": thresholds,
+                "scores": {
+                    "target_similarity": round(target_score, 6),
+                    "positive_similarity": round(positive_score, 6),
+                    "negative_similarity": round(negative_score, 6),
+                },
+                "state": state,
+                "embedding_info": info,
+                "publication_allowed": False,
+            }
+        )
+    return evaluations
 
 
 def classify_probe(accepted_positive: int, accepted_negative: int, scores: dict[str, Any]) -> tuple[str, list[str]]:
@@ -316,7 +439,14 @@ def classify_probe(accepted_positive: int, accepted_negative: int, scores: dict[
     return "local_only_enrollment_probe_ready", reasons
 
 
-def session_report(session: Path, tm: Any, backend: Any, backend_status: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+def session_report(
+    session: Path,
+    tm: Any,
+    backend: Any,
+    backend_status: dict[str, Any],
+    args: argparse.Namespace,
+    blocked_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
     out_dir = session / "derived/audit/live-local-only-enrollment-probe"
     states = read_jsonl(session / "derived/preprocess/echo/speaker_state.jsonl")
     sources = tm.source_audio(session)
@@ -364,10 +494,30 @@ def session_report(session: Path, tm: Any, backend: Any, backend_status: dict[st
         tm=tm,
         args=args,
     )
-    scores = score_embeddings(tm, positive_embeddings, negative_embeddings)
+    model = build_target_model(tm, positive_embeddings, negative_embeddings)
+    scores = score_embeddings(tm, positive_embeddings, negative_embeddings, model)
     accepted_positive = sum(1 for item in positives if item.get("accepted"))
     accepted_negative = sum(1 for item in negatives if item.get("accepted"))
     classification, reasons = classify_probe(accepted_positive, accepted_negative, scores)
+    thresholds = target_thresholds(scores)
+    blocked_mixed_evaluations = evaluate_blocked_mixed_rows(
+        session=session,
+        rows=blocked_rows,
+        source=mic_source,
+        source_name=source_name,
+        state_rows=states,
+        model=model,
+        thresholds=thresholds,
+        out_dir=out_dir,
+        backend=backend,
+        tm=tm,
+        args=args,
+    )
+    supported = [
+        row
+        for row in blocked_mixed_evaluations
+        if row.get("classification") == "local_only_seed_supports_blocked_mixed_row"
+    ]
     report = {
         "schema": SCHEMA,
         "generator": {"name": "report-live-local-only-enrollment-probe", "version": SCRIPT_VERSION},
@@ -403,6 +553,14 @@ def session_report(session: Path, tm: Any, backend: Any, backend_status: dict[st
         "negative_accepted_count": accepted_negative,
         "negative_accepted_seconds": round(sum(safe_float(item.get("duration_sec")) for item in negatives if item.get("accepted")), 3),
         "scores": scores,
+        "thresholds": thresholds,
+        "blocked_mixed_row_count": len(blocked_mixed_evaluations),
+        "blocked_mixed_supported_count": len(supported),
+        "blocked_mixed_supported_seconds": round(
+            sum(safe_float(row.get("duration_sec")) for row in supported),
+            3,
+        ),
+        "blocked_mixed_evaluations": blocked_mixed_evaluations,
         "positive_segments": positives,
         "negative_segments": negatives,
     }
@@ -412,6 +570,9 @@ def session_report(session: Path, tm: Any, backend: Any, backend_status: dict[st
 
 def corpus_summary(session_reports: list[dict[str, Any]], backend_status: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     by_status: dict[str, dict[str, Any]] = {}
+    supported_seconds = 0.0
+    supported_count = 0
+    evaluated_count = 0
     for report in session_reports:
         status = str(report.get("status") or "unknown")
         payload = by_status.setdefault(status, {"count": 0, "positive_seconds": 0.0})
@@ -420,12 +581,21 @@ def corpus_summary(session_reports: list[dict[str, Any]], backend_status: dict[s
             safe_float(payload.get("positive_seconds")) + safe_float(report.get("positive_accepted_seconds")),
             3,
         )
+        supported_count += safe_int(report.get("blocked_mixed_supported_count"))
+        supported_seconds += safe_float(report.get("blocked_mixed_supported_seconds"))
+        evaluated_count += safe_int(report.get("blocked_mixed_row_count"))
     ready = [report for report in session_reports if report.get("status") == "local_only_enrollment_probe_ready"]
     ambiguous = [report for report in session_reports if "ambiguous" in str(report.get("status") or "")]
-    if ready:
+    if supported_seconds > 0:
         recommended_next = {
-            "id": "evaluate_local_only_enrollment_probe_against_blocked_mixed_rows",
-            "why": "some sessions have enough local-only voice evidence to test blocked mixed intervals",
+            "id": "materialize_local_only_seed_mixed_row_shadow",
+            "why": "local-only seed models support some blocked mixed rows; materialize a diagnostic shadow and run parity gates",
+            "supported_seconds": round(supported_seconds, 3),
+        }
+    elif ready:
+        recommended_next = {
+            "id": "tighten_or_recalibrate_local_only_seed_mixed_row_scoring",
+            "why": "same-session local-only seeds are ready, but they do not support the blocked mixed rows under current thresholds",
             "ready_sessions": len(ready),
         }
     elif ambiguous:
@@ -447,6 +617,9 @@ def corpus_summary(session_reports: list[dict[str, Any]], backend_status: dict[s
         "embedding_backend": backend_status,
         "session_count": len(session_reports),
         "by_status": by_status,
+        "blocked_mixed_evaluated_count": evaluated_count,
+        "blocked_mixed_supported_count": supported_count,
+        "blocked_mixed_supported_seconds": round(supported_seconds, 3),
         "recommended_next": recommended_next,
         "sessions": [
             {
@@ -457,6 +630,9 @@ def corpus_summary(session_reports: list[dict[str, Any]], backend_status: dict[s
                 "positive_accepted_seconds": report.get("positive_accepted_seconds"),
                 "negative_accepted_count": report.get("negative_accepted_count"),
                 "negative_accepted_seconds": report.get("negative_accepted_seconds"),
+                "blocked_mixed_row_count": report.get("blocked_mixed_row_count"),
+                "blocked_mixed_supported_count": report.get("blocked_mixed_supported_count"),
+                "blocked_mixed_supported_seconds": report.get("blocked_mixed_supported_seconds"),
                 "scores": report.get("scores"),
                 "summary_path": (
                     f"sessions/{report.get('session')}/derived/audit/live-local-only-enrollment-probe/"
@@ -474,9 +650,20 @@ def main() -> int:
     backend, backend_status = tm.resolve_embedding_backend(args)
     corpus_report = read_json(args.corpus_report)
     sessions = normalize_sessions(args.sessions, corpus_report)
+    blocked_by_session = blocked_rows_by_session(corpus_report)
     if not sessions:
         raise SystemExit("no sessions provided and no same-session lab examples found")
-    reports = [session_report(session, tm, backend, backend_status, args) for session in sessions]
+    reports = [
+        session_report(
+            session,
+            tm,
+            backend,
+            backend_status,
+            args,
+            blocked_by_session.get(session.name, []),
+        )
+        for session in sessions
+    ]
     summary = corpus_summary(reports, backend_status, args)
     write_json(args.out, summary)
     print(f"live_local_only_enrollment_probe: {args.out}")

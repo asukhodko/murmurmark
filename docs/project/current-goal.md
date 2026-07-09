@@ -561,9 +561,10 @@ review-only until that probe proves safe under the same remote-leak and order ga
 
 `report-live-local-only-enrollment-probe.py` now performs that first probe. On the current affected
 sessions it finds `local_only_enrollment_probe_ready` in all `3` sessions, with `144.00s` of
-accepted positive local-only seed audio and remote-negative separation. This does not unlock
-promotion yet; it changes the next work from “find same-session enrollment material” to “evaluate
-these local-only seed models against the blocked mixed rows”.
+accepted positive local-only seed audio and remote-negative separation. It supports `24.52s` of the
+`25.00s` blocked mixed rows; only the `0.48s` low-value tail remains unsupported. This does not
+unlock promotion yet; it changes the next work to “materialize a diagnostic local-only-seed
+mixed-row shadow and run parity gates”.
 The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 
 - accepted rows: `0`;

@@ -671,8 +671,9 @@ It reads the same-session `speaker_state.jsonl`, uses high-confidence `local_onl
 positive seed audio and `remote_only` intervals as negative audio, and writes
 `sessions/_reports/live-pipeline/live_local_only_enrollment_probe.json`. On the current affected
 sessions it finds ready local-only enrollment seeds in all `3` sessions (`144.00s` accepted positive
-audio total). The next step after that is to evaluate those seed models against the blocked mixed
-rows; promotion stays blocked meanwhile.
+audio total) and supports `24.52s` of the `25.00s` blocked mixed rows. The remaining unsupported row
+is the low-value `0.48s` tail. The next step is to materialize a diagnostic local-only-seed mixed-row
+shadow and run the normal parity gates; promotion stays blocked meanwhile.
 
 The follow-up `live_only_retime_boundary_candidate_lab/v1` tests this more directly against the
 current best-live-implementable remaining gap. Strict zero-remote anchors are safe but do not touch
