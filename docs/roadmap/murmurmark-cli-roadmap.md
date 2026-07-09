@@ -511,30 +511,31 @@ newer run-state exists.
    non-passing gates. It keeps a remote-forbidden multi-cut boundary classifier around relaxed
    suppressed-mic local anchors and closes `9.90s` versus the previous best live-implementable
    profile without measured remote leak or contentful order regressions. The current local-speaker
-   boundary shadow improves this to `86.85s` missing-Me. The current live-only split/retime
-   variant keeps that `86.85s` missing-Me and `0.00s` remote leak while reducing contentful order
+   boundary shadow improves this to `51.50s` missing-Me on real live sessions. The current
+   live-only split/retime variant keeps that `51.50s` missing-Me and `0.00s` remote leak while reducing contentful order
    mismatches from `4` to `2`. Its residual missing-Me splits into
-   `73.08s` visible without Target-Me evidence and `13.77s` not visible in suppressed mic. The
+   `37.73s` visible without Target-Me evidence and `13.77s` not visible in suppressed mic. The
    remaining-gap report now identifies no-policy rows as the largest bucket
-   (`86.85s`) and also groups their overlapping suppressed-mic evidence: top gate reason
+   (`51.50s`) and also groups their overlapping suppressed-mic evidence: top gate reason
    `(none)` (`34.45s`), top batch-role labels `remote_dominant` (`32.90s`), `mixed` (`29.28s`)
    and `me_dominant` (`10.90s`), plus `known_hallucination` (`12.42s`) that is explicitly
-   forbidden from rescue. The best diagnostic split/retime oracle family reaches `85.69s`
-   missing-Me, so the remaining live-implementable-to-oracle gap is `1.16s`.
-   Actionability now points at `43.08s`
-   `mixed_needs_segmentation_or_speaker_evidence`, not a clean speaker-confirmation queue. That
-   mixed bucket is now split by segmentability: `10.58s` are `local_island_split_candidate`,
-   `22.28s` are duplicate-heavy and need speaker evidence, `5.36s` need speaker evidence, `3.22s`
-   are remote-dominant mixed rows, and `1.64s` are short low-value tails. This proves the
-   materialization and online remote-forbidden mechanism, not parity. The local-island split lab now
+   forbidden from rescue. The local-island split/retime oracle family now stays at `51.50s`
+   missing-Me on the real-live subset, so it no longer proves an additional missing-Me gain.
+   After the diagnostic remote-guarded voice-boundary materialization, actionability points at
+   `25.00s` `mixed_needs_segmentation_or_speaker_evidence`, not at a clean publication queue. The
+   mixed/speaker subset is `25.32s`: `10.58s` are `local_island_split_candidate`, `5.36s` need
+   mixed boundary voice gating, `8.58s` are duplicate-heavy voice-disambiguation rows, `0.32s` are
+   already materialized in the diagnostic remote-guarded boundary profile, and `0.48s` are low-value
+   tail. This proves the materialization and online remote-forbidden mechanism, not parity. The
+   local-island split lab now
    has only `1` candidate / `10.58s` with `5.10s` of local-island evidence and rejects it by token
-   recall. The diagnostic split/retime oracle still reaches `85.69s` missing-Me; the current
-   live-implementable gap is now only `1.16s`, but ordinary parity gates still block promotion. The
+   recall. The diagnostic split/retime oracle no longer closes extra missing-Me on the real-live
+   subset, but ordinary parity gates still block promotion. The
    nearest work is therefore online local-speaker and boundary evidence for mixed regions, with
    stricter order-matcher handling for the remaining advisory weak/short/generic rows.
    `live_next_unlock` now records this as the machine-readable next step:
    `additional_recordings_required_for_current_blocker = false`, first action
-   `build_online_local_speaker_boundary_evidence`, followed by speaker confirmation, local-island
+   `tighten_voice_remote_guard_for_mixed_rows`, followed by speaker confirmation, local-island
    candidate selection and strict zero-remote evidence reuse.
    `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked. The new
    `live_order_risk_triage/v1` now sees `2` contentful order-risk rows after live split/retime:
@@ -542,7 +543,7 @@ newer run-state exists.
    gates are unchanged.
    The diagnostic boundary-order retime oracle retimes those `2` boundary rows and trims `22.40s`,
    reducing contentful order mismatches to `2` while keeping measured remote leak at `0.00s`.
-   It also worsens missing-Me from `86.85s` to `92.93s`, so it is proof that timing repair needs
+   It also worsens missing-Me from `51.50s` to `57.58s`, so it is proof that timing repair needs
    local-speaker preservation, not a promotable live profile.
    The split/retime oracle preserves the local prefix (`1 / 6.62s`) and keeps missing-Me unchanged
    at `86.85s`, while still lowering contentful order mismatches to `2` with `0.00s` remote leak.
@@ -602,12 +603,13 @@ newer run-state exists.
    to `2`. Order-risk triage now has no blocking boundary-retime rows, only `2` advisory weak/
    short/generic rows. So the next roadmap item is stronger online local-speaker and boundary
    evidence for mixed missing-Me regions, plus later matcher tightening. The first voice-coverage
-   check narrows that further: `live_mixed_speaker_boundary_voice_coverage_lab` sees `8`
-   mixed/speaker rows / `43.40s`. After Target-Me is rerun with `--include-remaining-gap` and the
-   diagnostic `--fallback-persistent-profile`, all rows have Target-Me coverage; only `0.32s` are
-   remote-guard candidates and `43.08s` stay weak or ambiguous. The next implementable step is
-   therefore `materialize_remote_guarded_voice_boundary_candidates`, not more live recordings and
-   not a relaxed publication gate.
+   check now narrows that further: `live_mixed_speaker_boundary_voice_coverage_lab` sees `5`
+   mixed/speaker rows / `25.32s`. After Target-Me is rerun with `--include-remaining-gap` and the
+   diagnostic `--fallback-persistent-profile`, all rows have Target-Me coverage; `0.32s` have been
+   materialized in the diagnostic remote-guarded boundary profile and `25.00s` stay weak or
+   ambiguous. The next implementable step is therefore
+   `tighten_voice_remote_guard_for_mixed_rows`, not more live recordings and not a relaxed
+   publication gate.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

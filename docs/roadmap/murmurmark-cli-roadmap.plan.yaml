@@ -754,27 +754,28 @@ nodes:
       `audio_safe_union_v1` shadow without adding measured remote leak or contentful order
       regressions. The current local-speaker boundary shadow
       `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_v1`
-      improves this to `86.85s` missing-Me with the same `0.00s` remote leak and `4` contentful
-      order mismatches. The current live-only split/retime variant keeps `86.85s` missing-Me and
+      improves this to `51.50s` missing-Me on real live sessions with the same `0.00s` remote leak and `4` contentful
+      order mismatches. The current live-only split/retime variant keeps `51.50s` missing-Me and
       `0.00s` remote leak while lowering contentful order mismatches to `2`. Its residual
-      missing-Me splits into `73.08s` visible without Target-Me evidence and `13.77s` not visible
+      missing-Me splits into `37.73s` visible without Target-Me evidence and `13.77s` not visible
       in suppressed mic. The remaining-gap report now identifies no-policy
-      rows as the largest bucket (`86.85s`) and groups their overlapping suppressed-mic evidence: top gate reason
+      rows as the largest bucket (`51.50s`) and groups their overlapping suppressed-mic evidence: top gate reason
       `(none)` (`34.45s`), top batch-role labels `remote_dominant` (`32.90s`), `mixed`
       (`29.28s`) and `me_dominant` (`10.90s`), plus `known_hallucination` (`12.42s`)
-      explicitly forbidden from rescue. The best diagnostic split/retime oracle family reaches
-      `85.69s` missing-Me, so the remaining live-implementable-to-oracle gap is `1.16s`.
-      Actionability points at `43.08s`
-      `mixed_needs_segmentation_or_speaker_evidence`, not a clean speaker-confirmation queue. That
-      mixed bucket now has a segmentability split: `10.58s` `local_island_split_candidate`,
-      `22.28s` duplicate-heavy needing speaker evidence, `5.36s` needing speaker evidence,
-      `3.22s` remote-dominant mixed rows and `1.64s` short low-value tails. The local-island split
+      explicitly forbidden from rescue. The local-island split/retime oracle family now stays at
+      `51.50s` missing-Me on the real-live subset, so it no longer proves an additional missing-Me
+      gain.
+      After the diagnostic remote-guarded voice-boundary materialization, actionability points at
+      `25.00s` `mixed_needs_segmentation_or_speaker_evidence`, not a clean publication queue. The
+      mixed/speaker subset is `25.32s`: `10.58s` `local_island_split_candidate`, `5.36s` mixed
+      boundary voice gating, `8.58s` duplicate-heavy voice-disambiguation rows, `0.32s` already
+      materialized in the diagnostic remote-guarded boundary profile and `0.48s` low-value tail. The local-island split
       lab now has `1` candidate / `10.58s` with `5.10s` of local-island evidence and rejects it by
-      token recall. The diagnostic split/retime oracle still reaches `85.69s` missing-Me, but the
-      live-implementable gap is now only `1.16s`; ordinary parity gates still block promotion.
+      token recall. The diagnostic split/retime oracle no longer closes extra missing-Me on the
+      real-live subset; ordinary parity gates still block promotion.
       `live_next_unlock` now records this as the machine-readable next step:
       `additional_recordings_required_for_current_blocker = false`, first action
-      `build_online_local_speaker_boundary_evidence`, followed by speaker confirmation,
+      `tighten_voice_remote_guard_for_mixed_rows`, followed by speaker confirmation,
       local-island candidate selection and strict zero-remote evidence reuse.
       `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked.
       `live_order_risk_triage/v1` now sees `2` contentful order-risk rows after live split/retime:
@@ -842,12 +843,12 @@ nodes:
       blocking boundary-retime rows, only `2` advisory weak/short/generic rows. The next
       implementation target is stronger online local-speaker and boundary evidence for mixed
       missing-Me regions, while keeping the advisory order rows visible. The first voice-coverage
-      check now shows `8` mixed/speaker rows / `43.40s`. After Target-Me is rerun with
+      check now shows `5` mixed/speaker rows / `25.32s`. After Target-Me is rerun with
       `--include-remaining-gap` and diagnostic `--fallback-persistent-profile`, all rows have
-      Target-Me coverage; only `0.32s` are remote-guard candidates and `43.08s` stay weak or
-      ambiguous. The next concrete step is
-      `materialize_remote_guarded_voice_boundary_candidates`, not more live recordings and not a
-      relaxed publication gate.
+      Target-Me coverage; `0.32s` have been materialized in the diagnostic remote-guarded boundary
+      profile and `25.00s` stay weak or ambiguous. The next concrete step is
+      `tighten_voice_remote_guard_for_mixed_rows`, not more live recordings and not a relaxed
+      publication gate.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware
       triage держит order risk видимым и отделяет слабые совпадения от настоящих блокеров. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

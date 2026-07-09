@@ -86,6 +86,10 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_v1"
 )
+REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
+)
 SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "soft_local_speaker_boundary_shadow_live_boundary_split_retime_v1"
@@ -126,6 +130,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
@@ -203,6 +208,9 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "live_boundary_micro_asr_live_only_added_turn_count",
     "live_boundary_micro_asr_live_only_added_turn_seconds",
     "live_boundary_micro_asr_live_only_rejected_turn_count",
+    "remote_guarded_voice_boundary_added_turn_count",
+    "remote_guarded_voice_boundary_added_turn_seconds",
+    "remote_guarded_voice_boundary_rejected_turn_count",
     "boundary_order_retime_oracle_turn_count",
     "boundary_order_retime_oracle_trimmed_seconds",
     "boundary_order_split_retime_oracle_turn_count",
@@ -1471,6 +1479,18 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
         summary[f"{out}_live_boundary_micro_asr_live_only_rejected_turn_count"] = sum_int_metric(
             evaluated_rows,
             f"{base}_live_boundary_micro_asr_live_only_rejected_turn_count",
+        )
+        summary[f"{out}_remote_guarded_voice_boundary_added_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_remote_guarded_voice_boundary_added_turn_count",
+        )
+        summary[f"{out}_remote_guarded_voice_boundary_added_turn_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_remote_guarded_voice_boundary_added_turn_seconds",
+        )
+        summary[f"{out}_remote_guarded_voice_boundary_rejected_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_remote_guarded_voice_boundary_rejected_turn_count",
         )
 
 
@@ -6672,6 +6692,23 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     summary["real_live_mixed_speaker_boundary_voice_coverage_enrollment_not_ready_seconds"] = safe_float(
         mixed_speaker_boundary_voice_coverage_lab_report.get("target_me_enrollment_not_ready_seconds")
     )
+    remote_guarded_profile_prefix = f"real_live_target_me_shadow_profile_{REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY}"
+    remote_guarded_added_seconds = safe_float(
+        summary.get(f"{remote_guarded_profile_prefix}_remote_guarded_voice_boundary_added_turn_seconds")
+    )
+    publication_candidate_seconds = safe_float(
+        mixed_speaker_boundary_voice_coverage_lab_report.get("publication_candidate_seconds")
+    )
+    if publication_candidate_seconds > 0 and remote_guarded_added_seconds + 0.001 >= publication_candidate_seconds:
+        mixed_speaker_boundary_voice_coverage_lab_report["recommended_next"] = {
+            "id": "tighten_voice_remote_guard_for_mixed_rows",
+            "why": (
+                "remote-guarded boundary candidates are already materialized in the diagnostic "
+                "shadow profile; remaining rows still need stronger voice/remote guard evidence"
+            ),
+            "materialized_remote_guarded_voice_boundary_seconds": round(remote_guarded_added_seconds, 3),
+            "weak_seconds": round(safe_float(mixed_speaker_boundary_voice_coverage_lab_report.get("weak_or_ambiguous_seconds")), 3),
+        }
     mixed_voice_next = (
         mixed_speaker_boundary_voice_coverage_lab_report.get("recommended_next")
         if isinstance(mixed_speaker_boundary_voice_coverage_lab_report.get("recommended_next"), dict)

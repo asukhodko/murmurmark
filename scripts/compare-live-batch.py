@@ -127,6 +127,10 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_v1"
 )
+REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
+)
 SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "soft_local_speaker_boundary_shadow_live_boundary_split_retime_v1"
@@ -171,6 +175,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     REMOTE_FORBIDDEN_RELAXED_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
@@ -228,6 +233,9 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY: (
@@ -376,9 +384,13 @@ LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES = {
 }
 LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
+}
+REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
+    REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
 }
 LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES = {
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
@@ -1166,6 +1178,152 @@ def target_me_shadow_turns(rows: list[dict[str, Any]], policy: str) -> list[dict
             }
         )
     return sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")))
+
+
+def target_me_rows_for_interval(
+    rows: list[dict[str, Any]],
+    start: float,
+    end: float,
+) -> list[tuple[dict[str, Any], float]]:
+    matched: list[tuple[dict[str, Any], float]] = []
+    for row in rows:
+        interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+        overlap = interval_overlap(
+            start,
+            end,
+            safe_float(interval.get("start")),
+            safe_float(interval.get("end")),
+        )
+        if overlap > 0:
+            matched.append((row, overlap))
+    matched.sort(key=lambda pair: (-pair[1], safe_float((pair[0].get("interval") or {}).get("start"))))
+    return matched
+
+
+def remote_guarded_voice_boundary_turns(
+    *,
+    suppressed_mic_asr_segments: list[dict[str, Any]],
+    target_me_rows: list[dict[str, Any]],
+    batch_utterances: list[dict[str, Any]],
+    base_turns: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    turns: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    missing_rows = local_missing_rows_for_turns(batch_utterances, base_turns)
+    for batch_row in missing_rows:
+        start = safe_float(batch_row.get("start"))
+        end = safe_float(batch_row.get("end"), start)
+        duration = max(0.0, end - start)
+        text = clean_text(str(batch_row.get("text") or ""))
+        text_tokens = tokens(text)
+        context = {
+            "id": f"remote_guarded_voice_boundary_rejected_{batch_row.get('batch_id')}",
+            "batch_id": batch_row.get("batch_id"),
+            "batch_start": start,
+            "batch_end": end,
+            "duration_sec": round(duration, 3),
+            "text": text,
+        }
+        if duration <= 0 or duration > 1.5:
+            rejected.append({**context, "reason": "duration_outside_short_boundary_range"})
+            continue
+        if len(text_tokens) < 2 or len(text_tokens) > 8:
+            rejected.append({**context, "reason": "token_count_outside_short_boundary_range"})
+            continue
+        suppressed = suppressed_mic_evidence_for_interval(suppressed_mic_asr_segments, start, end)
+        local_like_seconds = round(
+            sum(
+                safe_float(row.get("overlap_sec"))
+                for row in suppressed
+                if row.get("batch_role_label") in {"me_dominant", "mixed"}
+            ),
+            3,
+        )
+        remote_like_seconds = round(
+            sum(
+                safe_float(row.get("overlap_sec"))
+                for row in suppressed
+                if row.get("batch_role_label") == "remote_dominant"
+            ),
+            3,
+        )
+        if local_like_seconds < max(0.25, duration * 0.75):
+            rejected.append(
+                {
+                    **context,
+                    "reason": "insufficient_local_like_suppressed_mic_overlap",
+                    "local_like_seconds": local_like_seconds,
+                    "remote_like_seconds": remote_like_seconds,
+                }
+            )
+            continue
+        if remote_like_seconds > min(0.10, duration * 0.20):
+            rejected.append(
+                {
+                    **context,
+                    "reason": "remote_like_overlap_present",
+                    "local_like_seconds": local_like_seconds,
+                    "remote_like_seconds": remote_like_seconds,
+                }
+            )
+            continue
+        matched_target_rows = [
+            (row, overlap)
+            for row, overlap in target_me_rows_for_interval(target_me_rows, start, end)
+            if overlap >= max(0.25, duration * 0.75)
+        ]
+        remote_guard_rows = [
+            (row, overlap)
+            for row, overlap in matched_target_rows
+            if "target_me_confirmed_remote_guard_v1" in (row.get("target_me_rescue_policy_candidates") or [])
+            and row.get("batch_role_label") != "remote_dominant"
+        ]
+        if not remote_guard_rows:
+            rejected.append(
+                {
+                    **context,
+                    "reason": "missing_target_me_remote_guard_evidence",
+                    "local_like_seconds": local_like_seconds,
+                    "remote_like_seconds": remote_like_seconds,
+                    "matched_target_me_rows": len(matched_target_rows),
+                }
+            )
+            continue
+        target_row, target_overlap = remote_guard_rows[0]
+        classification = target_row.get("classification") if isinstance(target_row.get("classification"), dict) else {}
+        turns.append(
+            {
+                "id": f"live_remote_guarded_voice_boundary_{batch_row.get('batch_id')}",
+                "chunk_index": (suppressed[0] if suppressed else target_row).get("chunk_index"),
+                "source": "mic_remote_guarded_voice_boundary_shadow",
+                "role": "Me",
+                "start": start,
+                "end": end,
+                "text": text,
+                "tokens": text_tokens,
+                "remote_guarded_voice_boundary_shadow": True,
+                "live_group_classifier": "remote_guarded_voice_boundary_shadow_v1",
+                "batch_id": batch_row.get("batch_id"),
+                "batch_start": start,
+                "batch_end": end,
+                "batch_text": text,
+                "local_island_seconds": local_like_seconds,
+                "local_island_count": len(suppressed),
+                "token_recall_from_local_islands": batch_row.get("recall_in_suppressed_mic"),
+                "target_me_audit_id": target_row.get("id"),
+                "target_me_overlap_sec": round(target_overlap, 3),
+                "target_me_label": classification.get("label"),
+                "target_me_confidence": classification.get("confidence"),
+                "target_me_remote_guard": True,
+                "remote_like_seconds": remote_like_seconds,
+                "local_like_seconds": local_like_seconds,
+                "suppressed_mic_evidence": suppressed[:5],
+            }
+        )
+    return (
+        sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or ""))),
+        rejected,
+    )
 
 
 def suppressed_mic_composite_shadow_turns(
@@ -4473,7 +4631,16 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "remote_forbidden_boundary_classifier",
         "local_speaker_boundary_shadow",
         "soft_local_speaker_boundary_shadow",
+        "remote_guarded_voice_boundary_shadow",
         "live_group_classifier",
+        "target_me_audit_id",
+        "target_me_overlap_sec",
+        "target_me_label",
+        "target_me_confidence",
+        "target_me_remote_guard",
+        "local_like_seconds",
+        "remote_like_seconds",
+        "suppressed_mic_evidence",
         "anchor_start",
         "anchor_end",
         "anchor_span_seconds",
@@ -4538,6 +4705,7 @@ def target_me_shadow_profile_is_live_implementable(policy: str) -> bool:
     return not (
         target_me_shadow_profile_is_oracle(policy)
         or policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
+        or policy in REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES
     )
 
 
@@ -4546,6 +4714,8 @@ def target_me_shadow_profile_promotion_reason(policy: str) -> str:
         return "batch_oracle_shadow_profile_is_not_live_promotable"
     if policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES:
         return "live_boundary_micro_asr_lab_shadow_is_diagnostic_only"
+    if policy in REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES:
+        return "remote_guarded_voice_boundary_shadow_uses_batch_anchor_and_is_diagnostic_only"
     return "target_me_shadow_profile_never_promotes_by_default"
 
 
@@ -4869,6 +5039,25 @@ def target_me_shadow_profile_components(
             supplemental_turns.extend(soft_speaker_boundary_turns)
             rejected_supplemental_turns.extend(rejected_soft_speaker_boundary_turns)
             rejected_supplemental_turns.extend(rejected_soft_timeline_turns)
+    if policy in REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES:
+        remote_guarded_turns, rejected_remote_guarded_turns = remote_guarded_voice_boundary_turns(
+            suppressed_mic_asr_segments=suppressed_mic_asr_segments,
+            target_me_rows=target_me_rows,
+            batch_utterances=batch_utterances,
+            base_turns=live_turns + target_turns + supplemental_turns,
+        )
+        remote_guarded_turns = filter_supplemental_turns_already_in_base(
+            remote_guarded_turns,
+            live_turns + target_turns + supplemental_turns,
+        )
+        remote_guarded_turns, rejected_timeline_remote_guarded_turns = timeline_safe_visible_suppressed_mic_turns(
+            candidates=remote_guarded_turns,
+            base_turns=live_turns + target_turns + supplemental_turns,
+            batch_utterances=batch_utterances,
+        )
+        supplemental_turns.extend(remote_guarded_turns)
+        rejected_supplemental_turns.extend(rejected_remote_guarded_turns)
+        rejected_supplemental_turns.extend(rejected_timeline_remote_guarded_turns)
     if policy in LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES:
         combined_for_retime = sorted(
             live_turns + target_turns + supplemental_turns,
@@ -5006,6 +5195,15 @@ def write_target_me_shadow_drafts(
         micro_asr_lab_rejected_turns = [
             turn for turn in micro_asr_rejected_turns if turn not in micro_asr_live_only_rejected_turns
         ]
+        remote_guarded_voice_boundary_turns = [
+            turn for turn in supplemental_turns if turn.get("remote_guarded_voice_boundary_shadow")
+        ]
+        remote_guarded_voice_boundary_rejected_turns = [
+            turn
+            for turn in rejected_supplemental_turns
+            if "remote_guarded_voice_boundary" in str(turn.get("id") or "")
+            or str(turn.get("live_group_classifier") or "") == "remote_guarded_voice_boundary_shadow_v1"
+        ]
         micro_asr_seconds = round(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in micro_asr_turns),
             3,
@@ -5018,6 +5216,13 @@ def write_target_me_shadow_drafts(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in micro_asr_live_only_turns),
             3,
         )
+        remote_guarded_voice_boundary_seconds = round(
+            sum(
+                safe_float(turn.get("end")) - safe_float(turn.get("start"))
+                for turn in remote_guarded_voice_boundary_turns
+            ),
+            3,
+        )
         retime_metrics = boundary_order_retime_metrics(live_turns + target_turns + supplemental_turns)
         payload = {
             "schema": "murmurmark.live_target_me_shadow_draft/v1",
@@ -5026,7 +5231,10 @@ def write_target_me_shadow_drafts(
             "policy": policy,
             "base_policy": base_policy,
             "diagnostic_oracle": target_me_shadow_profile_is_oracle(policy),
-            "diagnostic_lab": policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES,
+            "diagnostic_lab": (
+                policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
+                or policy in REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES
+            ),
             "live_implementable": target_me_shadow_profile_is_live_implementable(policy),
             "promotion_allowed": False,
             "promotion_reason": target_me_shadow_profile_promotion_reason(policy),
@@ -5043,6 +5251,9 @@ def write_target_me_shadow_drafts(
                 "live_boundary_micro_asr_live_only_added_turn_seconds": micro_asr_live_only_seconds,
                 "live_boundary_micro_asr_lab_rejected_turn_count": len(micro_asr_lab_rejected_turns),
                 "live_boundary_micro_asr_live_only_rejected_turn_count": len(micro_asr_live_only_rejected_turns),
+                "remote_guarded_voice_boundary_added_turn_count": len(remote_guarded_voice_boundary_turns),
+                "remote_guarded_voice_boundary_added_turn_seconds": remote_guarded_voice_boundary_seconds,
+                "remote_guarded_voice_boundary_rejected_turn_count": len(remote_guarded_voice_boundary_rejected_turns),
                 "removed_live_turn_count": len(removed_live_turns),
                 "removed_live_turn_seconds": removed_seconds,
                 **retime_metrics,
@@ -5076,6 +5287,8 @@ def write_target_me_shadow_drafts(
             f"- live boundary micro-ASR lab added turns: `{len(micro_asr_lab_turns)}` / `{micro_asr_lab_seconds}s`",
             f"- live boundary micro-ASR live-only added turns: `{len(micro_asr_live_only_turns)}` / "
             f"`{micro_asr_live_only_seconds}s`",
+            f"- remote-guarded voice boundary added turns: `{len(remote_guarded_voice_boundary_turns)}` / "
+            f"`{remote_guarded_voice_boundary_seconds}s`",
             f"- visible suppressed mic rejected turns: `{len(rejected_supplemental_turns)}`",
             f"- removed live turns: `{len(removed_live_turns)}` / `{removed_seconds}s`",
             f"- boundary retimed turns: `{retime_metrics['boundary_order_retime_oracle_turn_count']}` / "
@@ -5169,6 +5382,15 @@ def build_target_me_shadow_profiles(
         micro_asr_lab_rejected_turns = [
             turn for turn in micro_asr_rejected_turns if turn not in micro_asr_live_only_rejected_turns
         ]
+        remote_guarded_voice_boundary_turns = [
+            turn for turn in supplemental_turns if turn.get("remote_guarded_voice_boundary_shadow")
+        ]
+        remote_guarded_voice_boundary_rejected_turns = [
+            turn
+            for turn in rejected_supplemental_turns
+            if "remote_guarded_voice_boundary" in str(turn.get("id") or "")
+            or str(turn.get("live_group_classifier") or "") == "remote_guarded_voice_boundary_shadow_v1"
+        ]
         micro_asr_seconds = round(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in micro_asr_turns),
             3,
@@ -5179,6 +5401,13 @@ def build_target_me_shadow_profiles(
         )
         micro_asr_live_only_seconds = round(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in micro_asr_live_only_turns),
+            3,
+        )
+        remote_guarded_voice_boundary_seconds = round(
+            sum(
+                safe_float(turn.get("end")) - safe_float(turn.get("start"))
+                for turn in remote_guarded_voice_boundary_turns
+            ),
             3,
         )
         removed_seconds = round(
@@ -5303,6 +5532,15 @@ def build_target_me_shadow_profiles(
         top_level_metrics[f"{base}_live_boundary_micro_asr_live_only_rejected_turn_count"] = len(
             micro_asr_live_only_rejected_turns
         )
+        top_level_metrics[f"{base}_remote_guarded_voice_boundary_added_turn_count"] = len(
+            remote_guarded_voice_boundary_turns
+        )
+        top_level_metrics[f"{base}_remote_guarded_voice_boundary_added_turn_seconds"] = (
+            remote_guarded_voice_boundary_seconds
+        )
+        top_level_metrics[f"{base}_remote_guarded_voice_boundary_rejected_turn_count"] = len(
+            remote_guarded_voice_boundary_rejected_turns
+        )
         for key in (
             "live_turn_count",
             "live_me_turn_count",
@@ -5340,7 +5578,10 @@ def build_target_me_shadow_profiles(
             "policy": policy,
             "status": status,
             "live_implementable": target_me_shadow_profile_is_live_implementable(policy),
-            "diagnostic_lab": policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES,
+            "diagnostic_lab": (
+                policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
+                or policy in REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES
+            ),
             "promotion_allowed": False,
             "promotion_reason": target_me_shadow_profile_promotion_reason(policy),
             "batch_authoritative": True,
@@ -5361,6 +5602,11 @@ def build_target_me_shadow_profiles(
                 "live_boundary_micro_asr_live_only_added_turn_count": len(micro_asr_live_only_turns),
                 "live_boundary_micro_asr_live_only_added_turn_seconds": micro_asr_live_only_seconds,
                 "live_boundary_micro_asr_live_only_rejected_turn_count": len(micro_asr_live_only_rejected_turns),
+                "remote_guarded_voice_boundary_added_turn_count": len(remote_guarded_voice_boundary_turns),
+                "remote_guarded_voice_boundary_added_turn_seconds": remote_guarded_voice_boundary_seconds,
+                "remote_guarded_voice_boundary_rejected_turn_count": len(
+                    remote_guarded_voice_boundary_rejected_turns
+                ),
             },
             "removed_live_turns": removed_live_turns[:50],
             "rejected_visible_suppressed_mic_turns": rejected_supplemental_turns[:50],

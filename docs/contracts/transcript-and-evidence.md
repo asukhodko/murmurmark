@@ -5740,10 +5740,10 @@ live-implementable profile is
 it reaches `100.23s` missing-Me with `0.00s` measured remote leak and `4` contentful order
 mismatches. The current best live-implementable profile is
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_v1`:
-it reaches `86.85s` missing-Me with the same `0.00s` measured remote leak and `2` contentful order
+it reaches `51.50s` missing-Me with the same `0.00s` measured remote leak and `2` contentful order
 mismatches. It adds a live-only boundary split/retime pass to the local-speaker boundary profile:
 `4` turns retimed, `51.916s` trimmed, `3` turns split, and `2` local prefixes / `7.832s`
-preserved. Its remaining missing-Me splits into `73.08s` visible without Target-Me evidence and
+preserved. Its remaining missing-Me splits into `37.73s` visible without Target-Me evidence and
 `13.77s` not visible in suppressed mic. The previous local-speaker boundary profile remains the
 pre-split/retime baseline with the same missing-Me / remote-leak numbers and `4` contentful order
 mismatches. The underlying `target_me_possible_timeline_safe_v1`
@@ -5792,7 +5792,7 @@ machine-readable handoff for the next live-parity step. It records:
   stronger evidence.
 
 For the current corpus, `additional_recordings_required_for_current_blocker` is `false`; the first
-next action is `build_online_local_speaker_boundary_evidence`, followed by speaker confirmation,
+next action is `tighten_voice_remote_guard_for_mixed_rows`, followed by speaker confirmation,
 local-island candidate selection and strict zero-remote evidence reuse. `remote_dominant` /
 `known_hallucination` buckets stay blocked.
 
@@ -5984,7 +5984,7 @@ Current corpus evidence:
 - `live_boundary_micro_asr_live_only_added_turn_count = 0`;
 - `live_boundary_micro_asr_live_only_added_turn_seconds = 0.00`;
 - `live_boundary_micro_asr_live_only_rejected_turn_count = 8`;
-- missing-Me remains `86.85s`;
+- missing-Me remains `51.50s`;
 - measured remote leak remains `0.00s`;
 - contentful role-constrained order mismatches remain `2`;
 - promotion remains blocked.
@@ -6015,10 +6015,13 @@ intervals. `--fallback-persistent-profile` can then copy diagnostic classificati
 `persistent_target_me_profile_lab` for sessions where same-session Target-Me enrollment is not
 ready. Fallback rows set `fallback_source = "persistent_target_me_profile_lab"` and
 `fallback_policy.publication_allowed = false`; they never create `target_me_rescue_policy_candidates`.
-Current corpus evidence after both extensions: the mixed/speaker blocker has `8` rows / `43.40s`;
-Target-Me coverage exists for the whole set; a remote-guard candidate covers `0.32s`; `43.08s`
-remain weak or ambiguous voice evidence; `0.00s` remain blocked by enrollment not being ready. The
-report therefore recommends `materialize_remote_guarded_voice_boundary_candidates` before any
+Current corpus evidence after the diagnostic remote-guarded boundary materialization: the
+mixed/speaker blocker has `5` rows / `25.32s`; Target-Me coverage exists for the whole set; `0.32s`
+are already materialized in
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1`;
+`25.00s` remain weak or ambiguous voice evidence; `0.00s` remain blocked by enrollment not being
+ready. That profile is diagnostic only: it uses a batch anchor, is not live-implementable and cannot
+be promoted. The report therefore recommends `tighten_voice_remote_guard_for_mixed_rows` before any
 broader live publication-gate change.
 
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`
@@ -6037,9 +6040,9 @@ uses the same local-island candidate family, but places candidates on the author
 interval before parity evaluation. It writes `local_island_retime_oracle: true`,
 `batch_start`, `batch_end`, `live_island_start`, `live_island_end` and the original
 `local_islands` evidence on added turns. It is a stronger diagnostic ceiling, not an online
-algorithm. Current corpus evidence also reaches `85.69s` missing-Me, the same `1.16s` diagnostic
-gain as the split oracle, without new measured remote leak or contentful order regressions. It no
-longer proves a separate retime-only win; it shows that the next implementation needs online
+algorithm. Current real-live corpus evidence also stays at `51.50s` missing-Me, without new measured
+remote leak or contentful order regressions. It no longer proves a separate retime-only win; it
+shows that the next implementation needs online
 local-speaker and boundary evidence before any timing expansion can be trusted.
 
 The corpus report also writes `live_local_island_timing_gap` with schema
@@ -6207,9 +6210,8 @@ local-speaker boundary candidate, and a live-only boundary split/retime pass. Th
 candidate is accepted only when live evidence contains a speaker/audio rescue policy and token
 overlap with the overlapping remote text is zero. The split/retime pass adjusts only raw
 `mic_segment` / `remote_segment` boundary overlaps inside the same live chunk. Current corpus
-result: `86.85s` missing-Me, `0.00s` measured remote leak, `2` contentful order mismatches and `41`
-non-passing gates. It narrows the live-implementable-to-oracle gap to `1.16s`, but it is still
-shadow-only: normal parity gates continue to block promotion.
+result: `51.50s` missing-Me, `0.00s` measured remote leak, `2` contentful order mismatches and `41`
+non-passing gates. It is still shadow-only: normal parity gates continue to block promotion.
 
 Each `shadow_profiles.target_me.<policy>.risk_examples` block includes `local_missing`,
 `remote_leak`, `order_mismatches`, `role_constrained_order_mismatches` and

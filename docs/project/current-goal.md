@@ -350,7 +350,7 @@ Online remote-overlap shadow filter, 2026-07-09:
 - current best live-implementable profile is
   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_v1`:
   - remaining measured remote leak: `0.00s`;
-  - missing-Me: `86.85s`;
+  - missing-Me on real live sessions: `51.50s`;
   - contentful role-constrained order mismatches: `2`;
   - non-passing gates: `41`;
   - live-only boundary split/retime retimed `4` turns, trimmed `51.916s`, split `3` turns and
@@ -374,12 +374,13 @@ Online remote-overlap shadow filter, 2026-07-09:
   `(none)` (`34.45s`) by gate reason, and
   `remote_dominant` (`32.90s`) by suppressed batch-role label. Known live ASR hallucinations are
   split out as `known_hallucination` (`12.42s`) and cannot become rescue candidates.
-- Remaining-gap actionability:
-  - `mixed_needs_segmentation_or_speaker_evidence`: `43.08s`;
-  - `remote_dominant_not_rescuable_without_new_evidence`: `29.68s`;
+- Remaining-gap actionability on real live sessions after the diagnostic remote-guarded boundary
+  materialization:
+  - `mixed_needs_segmentation_or_speaker_evidence`: `25.00s`;
+  - `remote_dominant_not_rescuable_without_new_evidence`: `12.41s`;
   - `asr_hallucination_not_rescuable`: `12.42s`;
-  - `not_visible_needs_asr_or_boundary_repair`: `1.35s`;
-  - `speaker_confirmation_candidate`: `0.32s`.
+  - the previous `0.32s` speaker-confirmation candidate is now materialized in the diagnostic
+    `remote_guarded_voice_boundary` shadow profile and remains non-promotable.
 - Mixed-region segmentability:
   - `local_island_split_candidate`: `10.58s`, including `5.10s` of local-looking islands;
   - `duplicate_heavy_needs_speaker_evidence`: `22.28s`;
@@ -389,9 +390,9 @@ Online remote-overlap shadow filter, 2026-07-09:
 - `live_next_unlock`:
   - schema: `murmurmark.live_next_unlock/v1`;
   - additional recordings required for the current blocker: `false`;
-  - top actionability: `mixed_needs_segmentation_or_speaker_evidence` / `43.08s`;
-  - top segmentability: `duplicate_heavy_needs_speaker_evidence` / `22.28s`;
-  - first next action: `build_online_local_speaker_boundary_evidence`;
+  - top actionability: `mixed_needs_segmentation_or_speaker_evidence` / `25.00s`;
+  - top segmentability: `local_island_split_candidate` / `10.58s`;
+  - first next action: `tighten_voice_remote_guard_for_mixed_rows`;
   - order risk triage after live split/retime: `0` blocking `boundary_retime_candidate` rows and
     `2` advisory weak/short/generic match rows;
   - boundary-order retime oracle:
@@ -470,11 +471,12 @@ Online remote-overlap shadow filter, 2026-07-09:
   - rejected because of suspected remote leak: `0.00s`.
 
 Conclusion: the online filter closes the current measured remote-leak symptom without batch truth,
-and the local-speaker boundary profile lowers the best live-implementable missing-Me to `86.85s`.
+and the local-speaker boundary / split-retime family lowers the best live-implementable missing-Me
+to `51.50s` on real live sessions.
 The goal remains blocked by local recall, order risk, review burden and draft readiness, not by lack
-of another raw recording. The best local-island oracle is now only `1.16s` better than the best
-live-implementable profile, so the next useful work is not another broad threshold: it is targeted
-online local-speaker and boundary evidence for mixed regions without using batch labels. The
+of another raw recording. The best local-island oracle no longer proves an extra real-live
+missing-Me gain, so the next useful work is not another broad threshold: it is targeted
+voice/remote-guard evidence for mixed rows without using batch labels. The
 boundary-order retime oracle confirmed the direction but also showed the trap: it fixed two timing
 rows while increasing missing-Me by `6.08s`. The live-only split/retime shadow now preserves that
 local speech and lowers contentful order mismatches to `2`, so boundary-retime is no longer the
@@ -534,19 +536,20 @@ remaining mixed intervals into the same voice backend. It also has
 enrollment is not ready. This fallback is diagnostic-only: it never creates rescue policy
 candidates. Current result after both extensions:
 
-- rows in scope: `8` / `43.40s`;
+- rows in scope: `5` / `25.32s`;
 - Target-Me voice evidence exists for the whole set;
-- remote-guard publication candidate: `0.32s`;
-- weak or ambiguous voice evidence: `43.08s`;
+- remote-guard boundary materialized in diagnostic shadow: `0.32s`;
+- weak or ambiguous voice evidence: `25.00s`;
 - Target-Me enrollment-not-ready: `0.00s`;
 - no-overlap Target-Me coverage: `0.00s`;
 - recommended next:
-  `materialize_remote_guarded_voice_boundary_candidates`.
+  `tighten_voice_remote_guard_for_mixed_rows`.
 
 Conclusion: new recordings are not needed for the current blocker. The voice audit now covers all
-remaining mixed intervals, but almost everything is still weak or ambiguous. The next useful step is
-to materialize the very small remote-guarded candidate, keep the rest review-only, and preserve the
-same remote-leak/order gates.
+remaining mixed intervals. The very small remote-guarded candidate is already materialized as a
+diagnostic non-promotable profile, so the next useful step is to tighten voice/remote-guard evidence
+for the remaining weak rows, keep them review-only until proven, and preserve the same remote-leak
+and order gates.
 The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 
 - accepted rows: `0`;
