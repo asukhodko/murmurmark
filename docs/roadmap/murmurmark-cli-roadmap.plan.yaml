@@ -794,6 +794,11 @@ nodes:
       A soft local-speaker boundary shadow was tested and produced `no_incremental_gain`
       (`0.00s` missing-Me delta, `0.00s` remote-leak delta), so weaker loudness thresholds are not
       the next useful path.
+      `live_online_speaker_boundary_evidence_design_lab/v1` now narrows the next implementation:
+      `40.18s` actionable mixed/speaker rows, `14.132s` potential publishable seconds after new
+      evidence, `0.0s` publish-ready now, and top unit `boundary_island_micro_asr` (`10.58s`, potential
+      `5.10s`). The next concrete target is local-island micro-ASR/alignment plus strict
+      remote-forbidden gates.
       The
       live-only candidate lab now selects `99.40s` of suppressed mic
       candidates and `83.04s` local/mixed evidence, but still carries `16.36s` remote-risk

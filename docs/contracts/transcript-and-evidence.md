@@ -5869,6 +5869,25 @@ vs the best live-implementable profile is `0.00s`, remote-leak delta is `0.00s`,
 order mismatch delta is `0`. The conclusion is negative but useful: the next work should add
 stronger speaker/boundary evidence, not simply weaken loudness thresholds.
 
+The report also writes `live_online_speaker_boundary_evidence_design_lab` with schema
+`murmurmark.live_online_speaker_boundary_evidence_design_lab/v1`. This is a diagnostic design layer,
+not a profile and not promotion evidence. It reads the current best live-implementable remaining gap
+and classifies mixed/speaker rows into implementation units such as:
+
+- `boundary_island_micro_asr`;
+- `mixed_boundary_voice_gate`;
+- `duplicate_heavy_voice_disambiguation`;
+- `speaker_confirmation_voice_gate`;
+- `low_value_tail_policy`;
+- `remote_dominant_keep_blocked`.
+
+Each row records `design_unit`, `required_evidence`, `blocker`, `next_experiment`,
+`potential_publish_seconds`, local/remote/duplicate ratios and `online_publication_safe_now`.
+`publication_ready_seconds` must remain `0.0` until a materialized shadow profile passes normal live
+parity gates. Current corpus output: `40.18s` actionable mixed/speaker rows, `14.132s` potential
+publish seconds after new evidence, top unit `boundary_island_micro_asr` with `10.58s` row scope and
+`5.10s` potential publish seconds.
+
 The same report may include `live_local_island_split_lab` with schema
 `murmurmark.live_local_island_split_lab/v1`. It is a diagnostic estimate over
 `local_island_split_candidate` rows: it joins local-island texts, computes token recall against the

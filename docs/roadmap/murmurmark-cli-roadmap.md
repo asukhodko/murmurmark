@@ -552,7 +552,11 @@ newer run-state exists.
    candidates, `68.95s` blocked rows and `0.0s` publication-ready. A soft local-speaker boundary
    shadow was also tested and produced `no_incremental_gain`: `0.00s` missing-Me delta and `0.00s`
    remote-leak delta versus the best live-implementable profile. This rules out the cheap path of
-   merely weakening loudness thresholds. The first
+   merely weakening loudness thresholds. The new online speaker/boundary design lab splits the
+   remaining queue into `40.18s` actionable mixed/speaker rows and `14.132s` potential publishable
+   seconds after new evidence, with `0.0s` publication-ready now. Its top unit is
+   `boundary_island_micro_asr` (`10.58s`, potential `5.10s`), so the nearest useful target is
+   local-island micro-ASR/alignment, not broad rescue. The first
    live-only
    candidate lab finds `99.40s` of suppressed mic candidates and `83.04s` local/mixed evidence, but
    still carries `16.36s` remote-risk. Its stricter zero-risk profile finds `36.12s` with `0.00s`

@@ -488,6 +488,12 @@ The corpus report records this as `live_local_island_timing_gap/v1`, including t
 It also records `live_local_island_audio_anchor_lab/v1`, which currently has
 `no_accepted_local_island_rows`; the next blocker is online candidate selection and speaker/boundary
 evidence, not raw audio availability alone.
+The new `live_online_speaker_boundary_evidence_design_lab/v1` narrows that blocker further:
+`40.18s` of mixed/speaker rows are actionable, but only `14.132s` are plausible publish candidates
+after new evidence, and `0.0s` are publish-ready now. Its top implementation unit is
+`boundary_island_micro_asr` (`10.58s` row scope, `5.10s` potential publishable local island). This is
+now the smallest useful next target: decode and align local-island spans, keep duplicate-heavy rows
+blocked unless voice evidence proves unique local speech, and preserve `remote_leakage == 0`.
 The paired `live_local_island_retime_anchor_lab/v1` makes that blocker concrete:
 
 - accepted rows: `0`;

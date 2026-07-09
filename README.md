@@ -1316,6 +1316,11 @@ Active goal and near-term candidates:
    A soft local-speaker boundary shadow was tested next and produced `no_incremental_gain`
    (`0.00s` missing-Me delta, `0.00s` remote-leak delta). Do not spend the next round on weaker
    loudness thresholds; the remaining work needs stronger speaker/boundary evidence.
+   `live_online_speaker_boundary_evidence_design_lab/v1` now decomposes that queue into concrete
+   implementation units: `40.18s` actionable mixed/speaker rows, `14.132s` potential publishable
+   seconds after new evidence, and `0.0s` publication-ready now. The top unit is
+   `boundary_island_micro_asr` (`10.58s`, potential `5.10s`), so the next useful implementation
+   should decode and align local-island spans rather than publish whole mixed rows.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
