@@ -39,7 +39,8 @@ def main() -> int:
     compare = load_compare_module()
     sample_rate = 16_000
     with tempfile.TemporaryDirectory(prefix="murmurmark-live-retime-") as temporary:
-        session = Path(temporary)
+        session = Path(temporary) / "sessions/fixture-session"
+        session.mkdir(parents=True)
         chunks_dir = session / "derived/live/chunks"
 
         remote_delayed = tone(sample_rate, 10.0, 4.0, 8.0, 0.20)
@@ -294,6 +295,73 @@ def main() -> int:
         assert len(gap_turns) == 1, gap_turns
         assert gap_turns[0]["text"] == "local answer remains", gap_turns[0]
         assert float(gap_turns[0]["start"]) >= 103.2, gap_turns[0]
+
+        micro_report_path = session.parent / "_reports/live-pipeline/live_target_me_remote_gap_micro_asr_lab.json"
+        micro_report_path.parent.mkdir(parents=True, exist_ok=True)
+        micro_report_path.write_text(
+            json.dumps(
+                {
+                    "items": [
+                        {
+                            "session": session.name,
+                            "start": 200.0,
+                            "end": 204.0,
+                            "existing_island_text": "local answer",
+                            "decision": {
+                                "label": "micro_asr_live_only_alignment_candidate",
+                                "source_text_token_recall": 1.0,
+                                "remote_text_recall_in_micro": 0.0,
+                            },
+                            "best_live_attempt": {
+                                "status": "ok",
+                                "chunk_index": 5,
+                                "text": "full local answer remains",
+                                "score": 0.95,
+                                "remote_similarity": 0.05,
+                            },
+                        },
+                        {
+                            "session": session.name,
+                            "start": 210.0,
+                            "end": 214.0,
+                            "decision": {"label": "blocked_remote_similarity"},
+                            "best_live_attempt": {
+                                "status": "ok",
+                                "chunk_index": 5,
+                                "text": "remote duplicate",
+                                "score": 0.90,
+                                "remote_similarity": 0.50,
+                            },
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        micro_turns, micro_rejected = compare.live_boundary_micro_asr_lab_shadow_turns(
+            session,
+            candidate_source="target-me-remote-gap",
+        )
+        assert len(micro_turns) == 1, micro_turns
+        assert micro_turns[0].get("target_me_remote_gap_micro_asr_shadow") is True, micro_turns[0]
+        assert micro_turns[0].get("used_batch_fields_for_selection") is False, micro_turns[0]
+        assert len(micro_rejected) == 1, micro_rejected
+
+        covered, covered_rejected = compare.filter_micro_asr_turns_covered_by_base(
+            micro_turns,
+            [
+                {
+                    "id": "base-covers-micro",
+                    "chunk_index": 5,
+                    "role": "Me",
+                    "start": 199.0,
+                    "end": 205.0,
+                    "text": "full local answer remains in the base turn",
+                }
+            ],
+        )
+        assert not covered, covered
+        assert covered_rejected[0].get("reason") == "micro_asr_already_covered_by_base_turn", covered_rejected
 
     print("live voice activity retime checks passed")
     return 0

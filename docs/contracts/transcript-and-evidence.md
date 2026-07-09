@@ -5850,6 +5850,14 @@ removes adjacent remote word stems before publishing a piece. Selection uses clo
 audio, live remote turns, mic ASR token JSON and Target-Me evidence; batch timestamps are used only
 afterward by parity evaluation. Rejected or remote-dominant spans remain unpublished.
 
+The next `target_me_remote_gap_trim_micro_asr_v1` shadow profile re-decodes only compact remote-gap
+pieces selected from those same live-only inputs. The laboratory selector requires a strongly
+confirmed Target-Me interval, a `2.5s+` remote-free gap and a short weak source text. Micro-ASR
+publication requires score `>= 0.68`, remote similarity `<= 0.30`, remote text recall `<= 0.10`
+and source-text recall `>= 0.25`. A candidate is also rejected when at least 60% of its interval and
+80% of its tokens are already covered by a same-role base turn. The selector and publication gate
+do not use batch text, role or timing; batch is used afterward only for parity measurement.
+
 The order gate now distinguishes:
 
 - `live_blocking_contentful_role_constrained_order_mismatch_count`: unambiguous contradictions or
@@ -5862,9 +5870,11 @@ mismatches: `0` gate-blocking and `5` advisory. The active capture-safe unlock s
 blocking / `2` advisory triage rows; historical full-corpus triage retains one blocking row outside
 that active slice. Promotion remains blocked by local recall, remote leakage, review burden and
 notes readiness. Remote-gap trim materializes `42` pieces / `176.262s`, closes `15.38s` of missing
-Me and leaves remote/order metrics unchanged. The full profile misses `719.49s` of batch `Me`; the
-classified remaining-gap set is `81` rows / `272.06s`. The next implementation action targets the
-remaining remote-dominant Target-Me row / `4.68s` with frame-level speaker/double-talk evidence.
+Me and leaves remote/order metrics unchanged. Focused micro-ASR adds `3` non-duplicate pieces /
+`10.74s`, rejects `3` unsafe or already-covered candidates and closes another `4.68s`. The full
+profile misses `714.81s` of batch `Me`; the classified remaining-gap set is `81` rows / `268.01s`.
+The next implementation action returns to the broader local-recall queue; remote-dominant rows stay
+blocked without stronger speaker evidence.
 
 The same schema is also emitted as `capture_safe_candidate_order_risk_triage`, scoped only to
 capture-safe candidate sessions. This lets the goal runner separate historical unsafe/debug evidence
@@ -5878,7 +5888,9 @@ noise floor and source chunk path on adjusted turns. Token-density adjustments a
 `token_density_boundary_retime`, original start, shift, dense-token start/count and ASR JSON path.
 Remote-gap pieces record `target_me_remote_gap_trim`, original interval, local-activity start,
 guarded gap, retained token count, adjacent-remote token recall, removed remote-stem groups and mic
-ASR JSON path. Corpus summaries aggregate retimed-turn counts, piece counts and durations. These
+ASR JSON path. Micro-ASR replacements additionally record `target_me_remote_gap_micro_asr_shadow`,
+score, remote similarity, source-text recall, source/window labels and generated WAV/JSON paths.
+Corpus summaries aggregate accepted, rejected and already-covered counts and durations. These
 fields are evidence only and cannot make live output authoritative.
 
 `live_next_unlock.boundary_order_retime_oracle` records an intentionally non-promotable diagnostic
@@ -6051,7 +6063,24 @@ Current corpus evidence:
 
 This is a negative but useful contract result: the live-only micro-ASR hook exists and is evaluated
 by the normal parity gates, but current candidate selection does not yet produce publishable
-incremental `Me` turns.
+incremental turns.
+
+The same script now supports the narrower Target-Me remote-gap source:
+
+```bash
+scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source target-me-remote-gap \
+  --source-scope live
+```
+
+It writes `live_target_me_remote_gap_micro_asr_lab.{json,md}` and
+`live_target_me_remote_gap_micro_asr_lab_attempts.jsonl` under
+`sessions/_reports/live-pipeline/`. Selection and acceptance stay live-only; batch fields are not
+used. The materialized profile is
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1`.
+On the current real corpus it materializes `3` turns / `10.74s`, rejects `3`, improves missing-Me
+from `719.49s` to `714.81s`, leaves remote-like Me at `40.29s`, and keeps the active order slice at
+`0` blocking / `2` advisory rows. Promotion remains blocked.
 
 The same script also supports `--candidate-source blocker-analysis` for the current
 duplicate-heavy local-recall blocker:

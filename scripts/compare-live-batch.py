@@ -16,7 +16,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.33.0"
+SCRIPT_VERSION = "0.34.0"
 EPSILON = 1.0e-12
 LIVE_BATCH_BOUNDARY_TOLERANCE_SEC = 2.5
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -141,6 +141,11 @@ TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY = (
     "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
     "target_me_remote_gap_trim_v1"
 )
+TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
+    "target_me_remote_gap_trim_micro_asr_v1"
+)
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -192,6 +197,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
+    TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -259,6 +265,9 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY: (
@@ -413,6 +422,7 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
+    TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
@@ -422,13 +432,19 @@ VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICIES = {
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
+    TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
 }
 TOKEN_DENSITY_BOUNDARY_RETIME_PROFILE_POLICIES = {
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
+    TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
 }
 TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICIES = {
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
+    TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
+}
+TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICIES = {
+    TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
 }
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
@@ -4217,6 +4233,51 @@ def filter_supplemental_turns_already_in_base(
     return filtered
 
 
+def filter_micro_asr_turns_covered_by_base(
+    candidates: list[dict[str, Any]],
+    base_turns: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    kept: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for candidate in candidates:
+        start = safe_float(candidate.get("start"))
+        end = safe_float(candidate.get("end"), start)
+        duration = max(0.0, end - start)
+        candidate_tokens = tokens(str(candidate.get("text") or ""))
+        covering: dict[str, Any] | None = None
+        for base in base_turns:
+            if base.get("role") != candidate.get("role"):
+                continue
+            if safe_int(base.get("chunk_index")) != safe_int(candidate.get("chunk_index")):
+                continue
+            base_start = safe_float(base.get("start"))
+            base_end = safe_float(base.get("end"), base_start)
+            if duration <= 0 or interval_overlap(start, end, base_start, base_end) / duration < 0.60:
+                continue
+            base_tokens = tokens(str(base.get("text") or ""))
+            similarity = bag_recall(candidate_tokens, base_tokens) or 0.0
+            if similarity >= 0.80:
+                covering = {
+                    "id": base.get("id"),
+                    "start": base.get("start"),
+                    "end": base.get("end"),
+                    "text": base.get("text"),
+                    "text_similarity": round(similarity, 6),
+                }
+                break
+        if covering is None:
+            kept.append(candidate)
+        else:
+            rejected.append(
+                {
+                    **candidate,
+                    "reason": "micro_asr_already_covered_by_base_turn",
+                    "covered_by_base_turn": covering,
+                }
+            )
+    return kept, rejected
+
+
 def local_island_split_oracle_turns(
     *,
     segments: list[dict[str, Any]],
@@ -5385,6 +5446,7 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "target_me_remote_gap_remote_token_recall",
         "target_me_remote_gap_removed_remote_stem_groups",
         "target_me_remote_gap_asr_json",
+        "target_me_remote_gap_micro_asr_shadow",
         "segment_gate_status",
         "segment_gate_reason",
         "segment_gate_unique_token_count",
@@ -5430,7 +5492,16 @@ def live_boundary_micro_asr_lab_shadow_turns(
     *,
     candidate_source: str = "design-lab",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    if candidate_source == "live-only":
+    live_only_candidate_sources = {"live-only", "target-me-remote-gap"}
+    if candidate_source == "target-me-remote-gap":
+        report_path = session.parent / "_reports/live-pipeline/live_target_me_remote_gap_micro_asr_lab.json"
+        accepted_label = "micro_asr_live_only_alignment_candidate"
+        id_prefix = "live_target_me_remote_gap_micro_asr_shadow"
+        rejected_prefix = "live_target_me_remote_gap_micro_asr_rejected"
+        source_name = "mic_target_me_remote_gap_micro_asr_shadow"
+        classifier_name = "target_me_remote_gap_micro_asr_shadow_v1"
+        flag_name = "target_me_remote_gap_micro_asr_shadow"
+    elif candidate_source == "live-only":
         report_path = session.parent / "_reports/live-pipeline/live_boundary_micro_asr_live_candidates_lab.json"
         accepted_label = "micro_asr_live_only_alignment_candidate"
         id_prefix = "live_boundary_micro_asr_live_only_shadow"
@@ -5503,12 +5574,16 @@ def live_boundary_micro_asr_lab_shadow_turns(
         if safe_float(decision.get("remote_text_recall_in_micro")) > 0.10:
             rejected.append({**context, "reason": "remote_text_recall_too_high"})
             continue
-        if candidate_source != "live-only" and safe_float(decision.get("batch_token_recall")) <= safe_float(
+        if candidate_source not in live_only_candidate_sources and safe_float(
+            decision.get("batch_token_recall")
+        ) <= safe_float(
             decision.get("existing_island_batch_token_recall")
         ) + 0.05:
             rejected.append({**context, "reason": "no_alignment_gain"})
             continue
-        if candidate_source == "live-only" and safe_float(decision.get("source_text_token_recall")) < 0.25:
+        if candidate_source in live_only_candidate_sources and safe_float(
+            decision.get("source_text_token_recall")
+        ) < 0.25:
             rejected.append({**context, "reason": "source_text_recall_too_low"})
             continue
         start = safe_float(item.get("start"))
@@ -5539,7 +5614,7 @@ def live_boundary_micro_asr_lab_shadow_turns(
                 ),
                 flag_name: True,
                 "candidate_source": candidate_source,
-                "used_batch_fields_for_selection": candidate_source != "live-only",
+                "used_batch_fields_for_selection": candidate_source not in live_only_candidate_sources,
                 "live_group_classifier": classifier_name,
                 "micro_asr_score": best_live.get("score"),
                 "micro_asr_remote_similarity": best_live.get("remote_similarity"),
@@ -5570,6 +5645,9 @@ def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]
     voice_activity_retimed = [turn for turn in turns if turn.get("voice_activity_boundary_retime")]
     token_density_retimed = [turn for turn in turns if turn.get("token_density_boundary_retime")]
     target_me_remote_gap_trimmed = [turn for turn in turns if turn.get("target_me_remote_gap_trim")]
+    target_me_remote_gap_micro_asr = [
+        turn for turn in turns if turn.get("target_me_remote_gap_micro_asr_shadow")
+    ]
     return {
         "boundary_order_retime_oracle_turn_count": len(retimed),
         "boundary_order_retime_oracle_trimmed_seconds": round(
@@ -5597,6 +5675,14 @@ def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]
             sum(
                 max(0.0, safe_float(turn.get("end")) - safe_float(turn.get("start")))
                 for turn in target_me_remote_gap_trimmed
+            ),
+            3,
+        ),
+        "target_me_remote_gap_micro_asr_turn_count": len(target_me_remote_gap_micro_asr),
+        "target_me_remote_gap_micro_asr_seconds": round(
+            sum(
+                max(0.0, safe_float(turn.get("end")) - safe_float(turn.get("start")))
+                for turn in target_me_remote_gap_micro_asr
             ),
             3,
         ),
@@ -5816,6 +5902,24 @@ def target_me_shadow_profile_components(
             supplemental_turns + remote_gap_turns,
         )
         rejected_supplemental_turns.extend(rejected_remote_gap_turns)
+    if policy in TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICIES:
+        micro_asr_turns, rejected_micro_asr_turns = live_boundary_micro_asr_lab_shadow_turns(
+            session,
+            candidate_source="target-me-remote-gap",
+        )
+        micro_asr_turns = filter_supplemental_turns_already_in_base(
+            micro_asr_turns,
+            live_turns + target_turns,
+        )
+        micro_asr_turns, rejected_covered_micro_asr_turns = filter_micro_asr_turns_covered_by_base(
+            micro_asr_turns,
+            live_turns + target_turns,
+        )
+        supplemental_turns = dedupe_supplemental_turns_by_interval(
+            supplemental_turns + micro_asr_turns,
+        )
+        rejected_supplemental_turns.extend(rejected_micro_asr_turns)
+        rejected_supplemental_turns.extend(rejected_covered_micro_asr_turns)
     if (
         policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
         or policy in LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICIES
@@ -5929,7 +6033,14 @@ def write_target_me_shadow_drafts(
         micro_asr_live_only_turns = [
             turn for turn in supplemental_turns if turn.get("live_boundary_micro_asr_live_only_shadow")
         ]
-        micro_asr_turns = micro_asr_lab_turns + micro_asr_live_only_turns
+        target_me_remote_gap_micro_asr_turns = [
+            turn for turn in supplemental_turns if turn.get("target_me_remote_gap_micro_asr_shadow")
+        ]
+        micro_asr_turns = (
+            micro_asr_lab_turns
+            + micro_asr_live_only_turns
+            + target_me_remote_gap_micro_asr_turns
+        )
         micro_asr_rejected_turns = [
             turn
             for turn in rejected_supplemental_turns
@@ -5942,8 +6053,17 @@ def write_target_me_shadow_drafts(
             for turn in micro_asr_rejected_turns
             if "live_only" in str(turn.get("id") or "") or str(turn.get("candidate_source") or "") == "live-only"
         ]
+        target_me_remote_gap_micro_asr_rejected_turns = [
+            turn
+            for turn in micro_asr_rejected_turns
+            if "target_me_remote_gap" in str(turn.get("id") or "")
+            or str(turn.get("candidate_source") or "") == "target-me-remote-gap"
+        ]
         micro_asr_lab_rejected_turns = [
-            turn for turn in micro_asr_rejected_turns if turn not in micro_asr_live_only_rejected_turns
+            turn
+            for turn in micro_asr_rejected_turns
+            if turn not in micro_asr_live_only_rejected_turns
+            and turn not in target_me_remote_gap_micro_asr_rejected_turns
         ]
         remote_guarded_voice_boundary_turns = [
             turn for turn in supplemental_turns if turn.get("remote_guarded_voice_boundary_shadow")
@@ -5964,6 +6084,13 @@ def write_target_me_shadow_drafts(
         )
         micro_asr_live_only_seconds = round(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in micro_asr_live_only_turns),
+            3,
+        )
+        target_me_remote_gap_micro_asr_seconds = round(
+            sum(
+                safe_float(turn.get("end")) - safe_float(turn.get("start"))
+                for turn in target_me_remote_gap_micro_asr_turns
+            ),
             3,
         )
         remote_guarded_voice_boundary_seconds = round(
@@ -6001,6 +6128,13 @@ def write_target_me_shadow_drafts(
                 "live_boundary_micro_asr_live_only_added_turn_seconds": micro_asr_live_only_seconds,
                 "live_boundary_micro_asr_lab_rejected_turn_count": len(micro_asr_lab_rejected_turns),
                 "live_boundary_micro_asr_live_only_rejected_turn_count": len(micro_asr_live_only_rejected_turns),
+                "target_me_remote_gap_micro_asr_added_turn_count": len(
+                    target_me_remote_gap_micro_asr_turns
+                ),
+                "target_me_remote_gap_micro_asr_added_turn_seconds": target_me_remote_gap_micro_asr_seconds,
+                "target_me_remote_gap_micro_asr_rejected_turn_count": len(
+                    target_me_remote_gap_micro_asr_rejected_turns
+                ),
                 "remote_guarded_voice_boundary_added_turn_count": len(remote_guarded_voice_boundary_turns),
                 "remote_guarded_voice_boundary_added_turn_seconds": remote_guarded_voice_boundary_seconds,
                 "remote_guarded_voice_boundary_rejected_turn_count": len(remote_guarded_voice_boundary_rejected_turns),
@@ -6037,6 +6171,10 @@ def write_target_me_shadow_drafts(
             f"- live boundary micro-ASR lab added turns: `{len(micro_asr_lab_turns)}` / `{micro_asr_lab_seconds}s`",
             f"- live boundary micro-ASR live-only added turns: `{len(micro_asr_live_only_turns)}` / "
             f"`{micro_asr_live_only_seconds}s`",
+            f"- Target-Me remote-gap micro-ASR added turns: `{len(target_me_remote_gap_micro_asr_turns)}` / "
+            f"`{target_me_remote_gap_micro_asr_seconds}s`",
+            f"- Target-Me remote-gap micro-ASR rejected turns: "
+            f"`{len(target_me_remote_gap_micro_asr_rejected_turns)}`",
             f"- remote-guarded voice boundary added turns: `{len(remote_guarded_voice_boundary_turns)}` / "
             f"`{remote_guarded_voice_boundary_seconds}s`",
             f"- visible suppressed mic rejected turns: `{len(rejected_supplemental_turns)}`",
@@ -6117,7 +6255,14 @@ def build_target_me_shadow_profiles(
         micro_asr_live_only_turns = [
             turn for turn in supplemental_turns if turn.get("live_boundary_micro_asr_live_only_shadow")
         ]
-        micro_asr_turns = micro_asr_lab_turns + micro_asr_live_only_turns
+        target_me_remote_gap_micro_asr_turns = [
+            turn for turn in supplemental_turns if turn.get("target_me_remote_gap_micro_asr_shadow")
+        ]
+        micro_asr_turns = (
+            micro_asr_lab_turns
+            + micro_asr_live_only_turns
+            + target_me_remote_gap_micro_asr_turns
+        )
         micro_asr_rejected_turns = [
             turn
             for turn in rejected_supplemental_turns
@@ -6130,8 +6275,17 @@ def build_target_me_shadow_profiles(
             for turn in micro_asr_rejected_turns
             if "live_only" in str(turn.get("id") or "") or str(turn.get("candidate_source") or "") == "live-only"
         ]
+        target_me_remote_gap_micro_asr_rejected_turns = [
+            turn
+            for turn in micro_asr_rejected_turns
+            if "target_me_remote_gap" in str(turn.get("id") or "")
+            or str(turn.get("candidate_source") or "") == "target-me-remote-gap"
+        ]
         micro_asr_lab_rejected_turns = [
-            turn for turn in micro_asr_rejected_turns if turn not in micro_asr_live_only_rejected_turns
+            turn
+            for turn in micro_asr_rejected_turns
+            if turn not in micro_asr_live_only_rejected_turns
+            and turn not in target_me_remote_gap_micro_asr_rejected_turns
         ]
         remote_guarded_voice_boundary_turns = [
             turn for turn in supplemental_turns if turn.get("remote_guarded_voice_boundary_shadow")
@@ -6152,6 +6306,13 @@ def build_target_me_shadow_profiles(
         )
         micro_asr_live_only_seconds = round(
             sum(safe_float(turn.get("end")) - safe_float(turn.get("start")) for turn in micro_asr_live_only_turns),
+            3,
+        )
+        target_me_remote_gap_micro_asr_seconds = round(
+            sum(
+                safe_float(turn.get("end")) - safe_float(turn.get("start"))
+                for turn in target_me_remote_gap_micro_asr_turns
+            ),
             3,
         )
         remote_guarded_voice_boundary_seconds = round(
@@ -6284,6 +6445,12 @@ def build_target_me_shadow_profiles(
         top_level_metrics[f"{base}_target_me_remote_gap_trim_seconds"] = retime_metrics[
             "target_me_remote_gap_trim_seconds"
         ]
+        top_level_metrics[f"{base}_target_me_remote_gap_micro_asr_turn_count"] = retime_metrics[
+            "target_me_remote_gap_micro_asr_turn_count"
+        ]
+        top_level_metrics[f"{base}_target_me_remote_gap_micro_asr_seconds"] = retime_metrics[
+            "target_me_remote_gap_micro_asr_seconds"
+        ]
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_count"] = len(supplemental_turns)
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_seconds"] = supplemental_seconds
         top_level_metrics[f"{base}_visible_suppressed_mic_rejected_turn_count"] = len(rejected_supplemental_turns)
@@ -6300,6 +6467,15 @@ def build_target_me_shadow_profiles(
         )
         top_level_metrics[f"{base}_live_boundary_micro_asr_live_only_rejected_turn_count"] = len(
             micro_asr_live_only_rejected_turns
+        )
+        top_level_metrics[f"{base}_target_me_remote_gap_micro_asr_added_turn_count"] = len(
+            target_me_remote_gap_micro_asr_turns
+        )
+        top_level_metrics[f"{base}_target_me_remote_gap_micro_asr_added_turn_seconds"] = (
+            target_me_remote_gap_micro_asr_seconds
+        )
+        top_level_metrics[f"{base}_target_me_remote_gap_micro_asr_rejected_turn_count"] = len(
+            target_me_remote_gap_micro_asr_rejected_turns
         )
         top_level_metrics[f"{base}_remote_guarded_voice_boundary_added_turn_count"] = len(
             remote_guarded_voice_boundary_turns
@@ -6373,6 +6549,11 @@ def build_target_me_shadow_profiles(
                 "live_boundary_micro_asr_live_only_added_turn_count": len(micro_asr_live_only_turns),
                 "live_boundary_micro_asr_live_only_added_turn_seconds": micro_asr_live_only_seconds,
                 "live_boundary_micro_asr_live_only_rejected_turn_count": len(micro_asr_live_only_rejected_turns),
+                "target_me_remote_gap_micro_asr_added_turn_count": len(target_me_remote_gap_micro_asr_turns),
+                "target_me_remote_gap_micro_asr_added_turn_seconds": target_me_remote_gap_micro_asr_seconds,
+                "target_me_remote_gap_micro_asr_rejected_turn_count": len(
+                    target_me_remote_gap_micro_asr_rejected_turns
+                ),
                 "remote_guarded_voice_boundary_added_turn_count": len(remote_guarded_voice_boundary_turns),
                 "remote_guarded_voice_boundary_added_turn_seconds": remote_guarded_voice_boundary_seconds,
                 "remote_guarded_voice_boundary_rejected_turn_count": len(

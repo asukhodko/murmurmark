@@ -161,12 +161,21 @@ The default comparison computes the required parity gates. For a focused shadow 
 materialize only the selected policy:
 
 ```bash
-POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_v1
+POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1
+.venv/bin/python scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source target-me-remote-gap \
+  --source-scope live
 scripts/compare-live-batch.py "$SESSION" --lab-policy "$POLICY"
 ```
 
 `--lab-policy` is repeatable. Keep `--with-labs` for deliberate full laboratory sweeps; it runs all
 exploratory profiles and can take many minutes on a long meeting.
+
+The current profile first trims strongly confirmed Target-Me spans to gaps between guarded live
+remote turns, then runs short-window micro-ASR only for compact weak-text gaps. It publishes a
+micro-ASR replacement only with local-source support and low remote similarity, and rejects text
+already covered by a base `Me` turn. The generated draft is still shadow evidence; use the batch
+transcript for notes and export.
 
 Existing experiment sessions can still be analyzed without starting capture:
 
@@ -269,7 +278,10 @@ It does not modify raw capture or the authoritative batch transcript.
 To refresh one materialized profile instead of every laboratory profile:
 
 ```bash
-POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_v1
+POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1
+.venv/bin/python scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source target-me-remote-gap \
+  --source-scope live
 scripts/report-live-corpus-gates.py all --refresh --refresh-lab-policy "$POLICY"
 ```
 

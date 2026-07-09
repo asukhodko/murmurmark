@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.4.0"
 SCHEMA = "murmurmark.live_boundary_island_micro_asr_lab/v1"
 DEFAULT_MODEL = "~/.local/share/murmurmark/models/whisper.cpp/ggml-large-v3-q5_0.bin"
 TOKEN_RE = re.compile(r"[0-9A-Za-zА-Яа-яЁё_./+-]+")
@@ -36,12 +36,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-candidates", type=int, default=10)
     parser.add_argument(
         "--candidate-source",
-        choices=("design-lab", "live-only", "live-duplicate-heavy", "blocker-analysis"),
+        choices=("design-lab", "live-only", "live-duplicate-heavy", "target-me-remote-gap", "blocker-analysis"),
         default="design-lab",
         help=(
             "design-lab uses batch-informed design examples; live-only selects candidates "
             "from live comparison rows using only live/audio evidence; live-duplicate-heavy "
-            "selects live-only duplicate-heavy suppressed mic rows; blocker-analysis uses "
+            "selects live-only duplicate-heavy suppressed mic rows; target-me-remote-gap selects "
+            "strongly confirmed Target-Me gaps with weak full-chunk token alignment; blocker-analysis uses "
             "capture-safe local recall blocker rows from the live corpus report."
         ),
     )
@@ -62,6 +63,8 @@ def output_paths(out_dir: Path, candidate_source: str) -> dict[str, Path]:
         stem = "live_duplicate_heavy_micro_asr_live_candidates_lab"
     elif candidate_source == "blocker-analysis":
         stem = "live_duplicate_heavy_micro_asr_lab"
+    elif candidate_source == "target-me-remote-gap":
+        stem = "live_target_me_remote_gap_micro_asr_lab"
     else:
         stem = "live_boundary_island_micro_asr_lab"
     return {
@@ -76,6 +79,17 @@ def load_transcribe_bridge() -> Any:
     spec = importlib.util.spec_from_file_location("murmurmark_transcribe_bridge_for_live_boundary_lab", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot import transcribe bridge: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_compare_bridge() -> Any:
+    path = Path(__file__).resolve().parent / "compare-live-batch.py"
+    spec = importlib.util.spec_from_file_location("murmurmark_compare_bridge_for_target_me_gap_lab", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot import live comparison bridge: {path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -538,6 +552,97 @@ def select_blocker_analysis_candidates(report: dict[str, Any], max_candidates: i
     return candidates[:max_candidates]
 
 
+def select_target_me_remote_gap_candidates(
+    sessions_root: Path,
+    max_candidates: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    compare = load_compare_bridge()
+    candidates: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for session in sorted(path for path in sessions_root.iterdir() if path.is_dir()):
+        target_path = (
+            session
+            / "derived/audit/live-local-recall-target-me/live_local_recall_target_me_audit.jsonl"
+        )
+        chunks_path = session / "derived/live/chunks.jsonl"
+        if not target_path.exists() or not chunks_path.exists():
+            continue
+        target_rows = compare.read_jsonl(target_path)
+        chunks = compare.read_jsonl(chunks_path)
+        remote_turns = [turn for turn in compare.live_turns(session, chunks) if turn.get("role") == "Colleagues"]
+        remote_turns = compare.apply_voice_activity_boundary_retime(session, remote_turns)
+        remote_turns = compare.apply_token_density_boundary_retime(session, remote_turns)
+        pieces, piece_rejections = compare.target_me_remote_gap_trim_turns(
+            session,
+            target_me_rows=target_rows,
+            remote_turns=remote_turns,
+        )
+        rejected.extend(
+            {
+                "session": session.name,
+                "candidate_source": "target-me-remote-gap",
+                **row,
+            }
+            for row in piece_rejections
+        )
+        for piece in pieces:
+            start = max(
+                safe_float(piece.get("start")),
+                safe_float(piece.get("target_me_remote_gap_activity_start")),
+            )
+            end = safe_float(piece.get("end"), start)
+            source_text = clean_text(str(piece.get("text") or ""))
+            source_tokens = tokens(source_text)
+            content_count = sum(1 for token in source_tokens if len(token) >= 3)
+            if end - start < 2.5 or content_count < 2 or content_count > 4:
+                rejected.append(
+                    {
+                        "session": session.name,
+                        "candidate_source": "target-me-remote-gap",
+                        "target_me_audit_id": piece.get("target_me_audit_id"),
+                        "start": round(start, 3),
+                        "end": round(end, 3),
+                        "text": source_text,
+                        "reason": "outside_micro_asr_gap_shape",
+                        "content_token_count": content_count,
+                    }
+                )
+                continue
+            candidates.append(
+                {
+                    "session": session.name,
+                    "batch_id": None,
+                    "text": source_text,
+                    "local_island_examples": [
+                        {
+                            "start": round(start, 3),
+                            "end": round(end, 3),
+                            "duration_sec": round(end - start, 3),
+                            "text": source_text,
+                        }
+                    ],
+                    "selection_features": {
+                        "candidate_source": "target-me-remote-gap",
+                        "target_me_audit_id": piece.get("target_me_audit_id"),
+                        "target_me_confidence": piece.get("target_me_confidence"),
+                        "remote_token_recall": piece.get("target_me_remote_gap_remote_token_recall"),
+                        "activity_start": piece.get("target_me_remote_gap_activity_start"),
+                        "gap_start": piece.get("target_me_remote_gap_start"),
+                        "gap_end": piece.get("target_me_remote_gap_end"),
+                        "asr_json": piece.get("target_me_remote_gap_asr_json"),
+                    },
+                }
+            )
+    candidates.sort(
+        key=lambda row: (
+            -safe_float((row.get("local_island_examples") or [{}])[0].get("duration_sec")),
+            str(row.get("session") or ""),
+            safe_float((row.get("local_island_examples") or [{}])[0].get("start")),
+        )
+    )
+    return candidates[:max_candidates], rejected
+
+
 def output_stem(*, candidate_index: int, island_index: int, source_label: str, window_label: str) -> str:
     safe_label = re.sub(r"[^0-9A-Za-z_.-]+", "_", source_label)
     safe_window = re.sub(r"[^0-9A-Za-z_.-]+", "_", window_label)
@@ -973,6 +1078,11 @@ def main() -> int:
             args.max_candidates,
             candidate_source=args.candidate_source,
         )
+    elif args.candidate_source == "target-me-remote-gap":
+        candidates, rejected_candidates = select_target_me_remote_gap_candidates(
+            args.sessions_root,
+            args.max_candidates,
+        )
     elif args.candidate_source == "blocker-analysis":
         candidates = select_blocker_analysis_candidates(corpus_report, args.max_candidates)
     else:
@@ -982,7 +1092,8 @@ def main() -> int:
     attempts_jsonl = paths["attempts_jsonl"]
     report_json = paths["report_json"]
     report_md = paths["report_md"]
-    effective_source_scope = "live" if args.candidate_source in {"live-only", "live-duplicate-heavy"} else args.source_scope
+    live_only_sources = {"live-only", "live-duplicate-heavy", "target-me-remote-gap"}
+    effective_source_scope = "live" if args.candidate_source in live_only_sources else args.source_scope
 
     windows = [
         ("tight", 0.3, 0.3),
@@ -1070,7 +1181,7 @@ def main() -> int:
             best_reference = reference_successful[0] if reference_successful else None
             best = best_live or best_reference or (successful[0] if successful else None)
             remote_text = str(best.get("remote_text") or "") if isinstance(best, dict) else ""
-            if args.candidate_source == "live-only":
+            if args.candidate_source in {"live-only", "target-me-remote-gap"}:
                 decision = classify_best_live_only_attempt(
                     best=best,
                     source_text=island_text or batch_text,
@@ -1104,10 +1215,7 @@ def main() -> int:
                 {
                     "schema": "murmurmark.live_boundary_island_micro_asr_item/v1",
                     "candidate_source": args.candidate_source,
-                    "used_batch_fields_for_selection": args.candidate_source not in {
-                        "live-only",
-                        "live-duplicate-heavy",
-                    },
+                    "used_batch_fields_for_selection": args.candidate_source not in live_only_sources,
                     "selection_features": candidate.get("selection_features"),
                     "candidate_index": candidate_index,
                     "island_index": island_index,
@@ -1150,7 +1258,7 @@ def main() -> int:
         "source_scope": args.source_scope,
         "effective_source_scope": effective_source_scope,
         "rejected_candidate_count": len(rejected_candidates),
-        "used_batch_fields_for_selection": args.candidate_source not in {"live-only", "live-duplicate-heavy"},
+        "used_batch_fields_for_selection": args.candidate_source not in live_only_sources,
     }
     payload = {
         "schema": SCHEMA,

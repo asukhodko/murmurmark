@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.32.0"
+SCRIPT_VERSION = "1.33.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -99,6 +99,11 @@ TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY = (
     "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
     "target_me_remote_gap_trim_v1"
 )
+TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
+    "target_me_remote_gap_trim_micro_asr_v1"
+)
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -146,6 +151,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
     TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
+    TARGET_ME_REMOTE_GAP_MICRO_ASR_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -240,6 +246,11 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "token_density_boundary_retime_shift_seconds",
     "target_me_remote_gap_trim_turn_count",
     "target_me_remote_gap_trim_seconds",
+    "target_me_remote_gap_micro_asr_turn_count",
+    "target_me_remote_gap_micro_asr_seconds",
+    "target_me_remote_gap_micro_asr_added_turn_count",
+    "target_me_remote_gap_micro_asr_added_turn_seconds",
+    "target_me_remote_gap_micro_asr_rejected_turn_count",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -1578,6 +1589,26 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
             evaluated_rows,
             f"{base}_target_me_remote_gap_trim_seconds",
         )
+        summary[f"{out}_target_me_remote_gap_micro_asr_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_target_me_remote_gap_micro_asr_turn_count",
+        )
+        summary[f"{out}_target_me_remote_gap_micro_asr_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_target_me_remote_gap_micro_asr_seconds",
+        )
+        summary[f"{out}_target_me_remote_gap_micro_asr_added_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_target_me_remote_gap_micro_asr_added_turn_count",
+        )
+        summary[f"{out}_target_me_remote_gap_micro_asr_added_turn_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_target_me_remote_gap_micro_asr_added_turn_seconds",
+        )
+        summary[f"{out}_target_me_remote_gap_micro_asr_rejected_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_target_me_remote_gap_micro_asr_rejected_turn_count",
+        )
         summary[f"{out}_visible_suppressed_mic_added_turn_count"] = sum_int_metric(
             evaluated_rows,
             f"{base}_visible_suppressed_mic_added_turn_count",
@@ -1793,6 +1824,21 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             ),
             "target_me_remote_gap_trim_seconds": safe_float(
                 summary.get(f"{base}_target_me_remote_gap_trim_seconds")
+            ),
+            "target_me_remote_gap_micro_asr_turn_count": safe_int(
+                summary.get(f"{base}_target_me_remote_gap_micro_asr_turn_count")
+            ),
+            "target_me_remote_gap_micro_asr_seconds": safe_float(
+                summary.get(f"{base}_target_me_remote_gap_micro_asr_seconds")
+            ),
+            "target_me_remote_gap_micro_asr_added_turn_count": safe_int(
+                summary.get(f"{base}_target_me_remote_gap_micro_asr_added_turn_count")
+            ),
+            "target_me_remote_gap_micro_asr_added_turn_seconds": safe_float(
+                summary.get(f"{base}_target_me_remote_gap_micro_asr_added_turn_seconds")
+            ),
+            "target_me_remote_gap_micro_asr_rejected_turn_count": safe_int(
+                summary.get(f"{base}_target_me_remote_gap_micro_asr_rejected_turn_count")
             ),
         }
         rows.append(row)

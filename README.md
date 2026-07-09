@@ -570,7 +570,7 @@ After Target-Me evidence and the best live-implementable profile were materializ
 capture-safe sessions, the blocking order rows in the active unlock slice were repaired without
 relaxing batch authority. The
 current profile is
-`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_v1`.
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1`.
 It combines sustained voice activity with a causal token-density boundary check over already-written
 live ASR JSON. Long remote segments are moved past low-confidence leading spans only when at least
 five reliable lexical tokens occur inside a six-second window. A temporal prior also prevents short
@@ -581,15 +581,19 @@ blocking / `2` advisory rows; the historical full-corpus triage retains one bloc
 that active slice. The profile additionally keeps only token-timestamped pieces of strongly
 confirmed Target-Me segments that fall between guarded live remote intervals. It materializes `42`
 pieces / `176.262s` across the real corpus and closes `15.38s` of missing Me without increasing
-remote leakage or order risk. The full profile now misses `719.49s` of batch `Me`; the classified
-remaining-gap set is `81` rows / `272.06s`, and `40.29s` of remote-like `Me` remains. Two of the
-three live-visible Target-Me rows are closed. The remaining `1` row / `4.68s` is remote-dominant and
-needs frame-level speaker/double-talk evidence. Promotion stays blocked.
+remote leakage or order risk. A live-only short-window micro-ASR pass now re-decodes only compact
+Target-Me gaps. It accepts `3` pieces / `10.74s`, rejects `3` unsafe or already covered candidates,
+and closes the last known remote-dominant Target-Me row / `4.68s`. The full profile now misses
+`714.81s` of batch `Me`; the classified remaining-gap set is `81` rows / `268.01s`, and `40.29s`
+of remote-like `Me` remains. Promotion stays blocked.
 
 For a focused refresh, avoid the expensive all-profile lab and evaluate only the current profile:
 
 ```bash
-POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_v1
+POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1
+.venv/bin/python scripts/report-live-boundary-island-micro-asr-lab.py \
+  --candidate-source target-me-remote-gap \
+  --source-scope live
 .venv/bin/python scripts/report-live-corpus-gates.py all \
   --refresh \
   --refresh-lab-policy "$POLICY"
@@ -1312,18 +1316,19 @@ Active goal and near-term candidates:
    live sessions. The active capture-safe unlock slice has `0` blocking / `2` advisory rows, while
    one historical full-corpus triage row stays blocking outside that slice. Segment-level
    parity still exposes ordering drift, suspected remote leakage in live `Me`, and lost local speech
-   on controlled real evidence. The current real corpus has `95` order mismatches: `60`
-   same-chunk/same-source, `25` same-chunk/cross-source, `8` cross-chunk and `2` overlap-context
-   mismatches. Primary risk is split into `24` role-conflict/remote-leak, `27` weak-match possible
-   false positives, `32` same-source timeline reorders, `9` cross-source timeline reorders and `3`
-   cross-chunk timeline reorders. The contentful same-role slice narrows this to `14` order-risk
-   examples, with `6` unambiguous rows in the base comparison. The current token-density profile
+   on controlled real evidence. The current real corpus has `60` base order mismatches: `30`
+   same-chunk/same-source, `22` same-chunk/cross-source, `7` cross-chunk and `1` overlap-context
+   mismatch. Primary risk is split into `19` role-conflict/remote-leak, `21` weak-match possible
+   false positives, `9` same-source timeline reorders, `8` cross-source timeline reorders and `3`
+   cross-chunk timeline reorders. The contentful same-role slice narrows this to `6` order-risk
+   examples, with `3` unambiguous rows in the base comparison. The current micro-ASR profile
    leaves only advisory timing/match ambiguities in the active capture-safe path and clears its
-   blocking order gate. Remote-gap token trimming closes two of the three live-visible Target-Me
-   rows (`15.38s`) without increasing remote leakage or order risk. `live_next_unlock.next_actions[0]`
-   now targets the remaining remote-dominant row / `4.68s` with frame-level speaker/double-talk
-   evidence. The classified remaining gap is `81` rows / `272.06s` and the full profile missing-Me
-   total is `719.49s`.
+   blocking order gate. Remote-gap token trimming closes two live-visible Target-Me rows (`15.38s`)
+   without increasing remote leakage or order risk. Focused live-only micro-ASR closes the third
+   row / `4.68s`, while its duplicate guard rejects candidates already covered by a base turn. The
+   classified remaining gap is `81` rows / `268.01s` and the full-profile missing-Me total is
+   `714.81s`. `live_next_unlock.next_actions[0]` returns to the broader
+   `fix_live_local_recall_gap`; remote leakage remains a parallel blocker.
    The corpus report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
    visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic
