@@ -14,7 +14,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.20.0"
+SCRIPT_VERSION = "1.21.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -2636,6 +2636,17 @@ def live_only_retime_boundary_candidate_lab(
             "remote_forbidden_gate": True,
             "min_interval_sec": 0.35,
         },
+        "remote_forbidden_boundary_classifier_v1": {
+            "left_sec": 10.0,
+            "right_sec": 1.0,
+            "remote_forbidden_gate": True,
+            "live_group_classifier": "remote_forbidden_multi_cut_v1",
+            "min_interval_sec": 0.35,
+            "min_remote_forbidden_cut_sec": 3.5,
+            "min_remote_forbidden_row_count": 2,
+            "min_anchor_span_sec": 3.0,
+            "min_candidate_sec_after_trim": 6.0,
+        },
     }
 
     local_segments = [row for row in segments if row.get("batch_role_label") in {"me_dominant", "mixed"}]
@@ -2695,6 +2706,31 @@ def live_only_retime_boundary_candidate_lab(
                         forbidden,
                         min_interval_sec=safe_float(config.get("min_interval_sec"), 0.35),
                     )
+                raw_candidate_seconds = round(max(0.0, end - start), 3)
+                candidate_seconds_after_trim = round(
+                    sum(max(0.0, piece_end - piece_start) for piece_start, piece_end in kept_pieces),
+                    3,
+                )
+                remote_forbidden_cut_seconds = round(max(0.0, raw_candidate_seconds - candidate_seconds_after_trim), 3)
+                anchor_span_seconds = round(max(0.0, anchor_end - anchor_start), 3)
+                classifier_reasons: list[str] = []
+                classifier_passed = True
+                if config.get("live_group_classifier") == "remote_forbidden_multi_cut_v1":
+                    if remote_forbidden_cut_seconds < safe_float(config.get("min_remote_forbidden_cut_sec")):
+                        classifier_passed = False
+                        classifier_reasons.append("insufficient_remote_forbidden_cut")
+                    if len(forbidden) < safe_int(config.get("min_remote_forbidden_row_count")):
+                        classifier_passed = False
+                        classifier_reasons.append("insufficient_remote_forbidden_rows")
+                    if anchor_span_seconds < safe_float(config.get("min_anchor_span_sec")):
+                        classifier_passed = False
+                        classifier_reasons.append("anchor_span_too_short")
+                    if candidate_seconds_after_trim < safe_float(config.get("min_candidate_sec_after_trim")):
+                        classifier_passed = False
+                        classifier_reasons.append("candidate_after_trim_too_short")
+                    if not classifier_passed:
+                        kept_pieces = []
+                        candidate_seconds_after_trim = 0.0
                 for piece_start, piece_end in kept_pieces:
                     raw_intervals.append({"session": session, "start": round(piece_start, 3), "end": round(piece_end, 3)})
                 group_intervals = [
@@ -2707,19 +2743,18 @@ def live_only_retime_boundary_candidate_lab(
                         "chunk_index": group.get("chunk_index"),
                         "start": round(start, 3),
                         "end": round(end, 3),
-                        "candidate_seconds": round(sum(max(0.0, piece_end - piece_start) for piece_start, piece_end in kept_pieces), 3),
-                        "raw_candidate_seconds": round(max(0.0, end - start), 3),
+                        "candidate_seconds": candidate_seconds_after_trim,
+                        "raw_candidate_seconds": raw_candidate_seconds,
                         "remote_forbidden_gate": bool(config.get("remote_forbidden_gate")),
-                        "remote_forbidden_cut_seconds": round(
-                            max(0.0, end - start)
-                            - sum(max(0.0, piece_end - piece_start) for piece_start, piece_end in kept_pieces),
-                            3,
-                        ),
+                        "live_group_classifier": config.get("live_group_classifier"),
+                        "live_group_classifier_passed": classifier_passed,
+                        "live_group_classifier_reasons": classifier_reasons,
+                        "remote_forbidden_cut_seconds": remote_forbidden_cut_seconds,
                         "remote_forbidden_row_count": len(forbidden),
                         "intervals": group_intervals,
                         "anchor_start": round(anchor_start, 3),
                         "anchor_end": round(anchor_end, 3),
-                        "anchor_span_seconds": round(max(0.0, anchor_end - anchor_start), 3),
+                        "anchor_span_seconds": anchor_span_seconds,
                         "anchor_seconds": round(sum(safe_float(row.get("duration_sec")) for row in anchors), 3),
                         "anchor_count": len(anchors),
                         "anchor_set": anchor_set_name,
@@ -2763,6 +2798,17 @@ def live_only_retime_boundary_candidate_lab(
                 "left_context_sec": config.get("left_sec"),
                 "right_context_sec": config.get("right_sec"),
                 "remote_forbidden_gate": bool(config.get("remote_forbidden_gate")),
+                "live_group_classifier": config.get("live_group_classifier"),
+                "live_group_classifier_criteria": (
+                    {
+                        "min_remote_forbidden_cut_sec": config.get("min_remote_forbidden_cut_sec"),
+                        "min_remote_forbidden_row_count": config.get("min_remote_forbidden_row_count"),
+                        "min_anchor_span_sec": config.get("min_anchor_span_sec"),
+                        "min_candidate_sec_after_trim": config.get("min_candidate_sec_after_trim"),
+                    }
+                    if config.get("live_group_classifier")
+                    else None
+                ),
                 "remote_forbidden_gate_criteria": (
                     {
                         "known_hallucination": True,

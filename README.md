@@ -578,16 +578,21 @@ materialization.
 
 The follow-up `live_only_retime_boundary_candidate_lab/v1` tests this more directly against the
 current best-live-implementable remaining gap. Strict zero-remote anchors are safe but do not touch
-that gap yet: `recommended_profile = null`, `0.00s` missing-Me overlap, `0.00s` remote-risk. The
-best relaxed probe, `relaxed_audio_text_anchor_oracle_gap_probe_v1`, reaches `18.69s` of missing-Me
-overlap, close to the oracle-sized gap, but also brings `27.20s` of remote-risk. That makes the next
-target sharper: build a remote-forbidden context/boundary gate around relaxed anchors. Relaxed
-anchors must not be published as-is, and more recordings are not the current unlock.
+that gap yet: `0.00s` missing-Me overlap, `0.00s` remote-risk. The best relaxed probe,
+`relaxed_audio_text_anchor_oracle_gap_probe_v1`, reaches `18.69s` of missing-Me overlap, close to
+the oracle-sized gap, but also brings `27.20s` of remote-risk. That makes the next target sharper:
+use a remote-forbidden context/boundary gate around relaxed anchors. Relaxed anchors must not be
+published as-is, and more recordings are not the current unlock.
 The same lab now includes an evaluation-only ceiling,
 `relaxed_audio_text_anchor_remote_forbidden_trimmed_zero_remote_evaluated_gate_v1`: after trimming
 remote-forbidden intervals and accepting only zero-remote-risk groups under batch evaluation, it
 recovers `14.79s` missing-Me with `0.00s` remote-risk from `31.28s` of candidate span. This is not a
-publication rule; it is the concrete target for the next live classifier.
+publication rule; it is the comparison target for the live classifier.
+The first live-only classifier,
+`relaxed_audio_text_anchor_remote_forbidden_boundary_classifier_v1`, now approximates that target
+without batch labels: it recovers `13.44s` missing-Me with `0.00s` remote-risk by requiring multiple
+remote-forbidden cuts around a relaxed anchor. It is still only a report diagnostic. The next step is
+to materialize it as a normal shadow profile and run the ordinary parity gates.
 
 To inspect whether suppressed live mic segments contain your voice:
 

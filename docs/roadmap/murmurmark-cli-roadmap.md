@@ -550,7 +550,9 @@ newer run-state exists.
    next implementation target is therefore a remote-forbidden context/boundary gate around relaxed
    anchors, not additional recordings or relaxed live publication. The evaluation-only ceiling now
    shows the target shape: `14.79s` missing-Me can be recovered at `0.00s` remote-risk if the future
-   live classifier learns to keep the same zero-risk groups without batch labels.
+   live classifier learns to keep the same zero-risk groups without batch labels. The first
+   live-only classifier now recovers `13.44s` at `0.00s` remote-risk. The next roadmap item is
+   materialization into a real shadow profile, not promotion.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

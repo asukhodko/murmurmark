@@ -5896,16 +5896,16 @@ keeps `promotion_allowed: false`.
   "anchor_sets": {
     "strict_zero_remote_anchor": {
       "anchor_segment_count": 3,
-      "anchor_group_count": 1,
+      "anchor_group_count": 2,
       "anchor_seconds": 36.12
     },
     "relaxed_audio_text_anchor": {
       "anchor_segment_count": 18,
-      "anchor_group_count": 5,
+      "anchor_group_count": 10,
       "anchor_seconds": 103.36
     }
   },
-  "recommended_profile": null,
+  "recommended_profile": "relaxed_audio_text_anchor_remote_forbidden_boundary_classifier_v1",
   "best_missing_overlap_profile": "relaxed_audio_text_anchor_oracle_gap_probe_v1",
   "best_zero_remote_evaluated_profile": "relaxed_audio_text_anchor_remote_forbidden_trimmed_zero_remote_evaluated_gate_v1"
 }
@@ -5920,6 +5920,13 @@ first trims live-forbidden intervals, then uses batch labels to keep only groups
 remote-risk. Current value: `14.79s` missing-Me overlap, `31.28s` candidate span and `0.00s`
 remote-risk. This is not publication evidence; it defines the target for a future live
 remote-forbidden boundary/context classifier.
+
+Current `recommended_profile` is the first live-only approximation of that target. It uses no batch
+labels for acceptance. The classifier requires remote-forbidden trimming, at least `3.5s` cut away,
+at least `2` forbidden rows, an anchor span of at least `3.0s` and at least `6.0s` left after
+trimming. Current corpus result: `13.44s` missing-Me overlap, `23.50s` candidate span and `0.00s`
+remote-risk. It remains diagnostic until materialized as a normal shadow profile and evaluated by
+ordinary live parity gates.
 
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the

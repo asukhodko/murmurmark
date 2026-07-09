@@ -784,12 +784,13 @@ nodes:
       local islands, not more recordings, broader rescue or live promotion. The
       `live_only_retime_boundary_candidate_lab/v1` follow-up evaluates that idea against the current
       best-live-implementable remaining gap: strict zero-remote anchors recover `0.00s`, so there is
-      no safe recommended profile yet; the relaxed `oracle_gap_probe_v1` recovers `18.69s` but also
-      carries `27.20s` remote-risk. The next implementation target is a remote-forbidden
+      no strict recommended profile yet; the relaxed `oracle_gap_probe_v1` recovers `18.69s` but
+      also carries `27.20s` remote-risk. The next implementation target is a remote-forbidden
       context/boundary gate around relaxed anchors, not publication of relaxed anchors as-is. The
       evaluation-only zero-remote ceiling recovers `14.79s` at `0.00s` remote-risk from `31.28s` of
-      candidate span, so the next classifier target is concrete: reproduce that selection without
-      batch labels.
+      candidate span. The first live-only classifier now recovers `13.44s` at `0.00s` remote-risk
+      without batch labels. The next implementation target is materializing that classifier as an
+      ordinary shadow profile and running parity gates, not promotion.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful
