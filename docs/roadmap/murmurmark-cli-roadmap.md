@@ -541,8 +541,8 @@ newer run-state exists.
    remote-risk. That strict profile is now materialized as a normal shadow draft: after
    deduplication against existing live/Target-Me turns, the standalone version adds `0.00s`, leaves
    `117.57s` missing-Me and `0.00s` remote leak; the combined strict+audio-safe version adds the same
-   `52.76s` as `audio_safe_union_v1`, while the current relaxed boundary profile leaves `100.23s` with `0.00s` remote
-   leak. `live_strict_local_island_shadow_delta_lab/v1` records `0.00s` incremental strict turns and
+   `52.76s` as `audio_safe_union_v1`, while the current local-speaker boundary profile leaves
+   `86.85s` with `0.00s` remote leak. `live_strict_local_island_shadow_delta_lab/v1` records `0.00s` incremental strict turns and
    `13.38s` closed missing-Me, but a negative net delta versus the current relaxed profile. This is
    not a call for more live recording, broader rescue or relaxed
    publication gates; the next step is online timing anchors / remote-forbidden evidence for
@@ -561,7 +561,10 @@ newer run-state exists.
    The relaxed materialized variant
    `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_relaxed_boundary_classifier_v1`
    adds `4.10s`, leaves `100.23s` missing-Me, keeps measured remote leak at `0.00s` and keeps
-   contentful order mismatches at `4`. Order-risk triage now separates strict reorder from
+   contentful order mismatches at `4`. The local-speaker boundary materialized variant
+   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_v1`
+   is now best live-implementable: `86.85s` missing-Me, `0.00s` measured remote leak and `4`
+   contentful order mismatches. Order-risk triage now separates strict reorder from
    batch-interval overlap ambiguity: real live has `28`
    strict order mismatches plus `6` overlap ambiguities; contentful same-role remains `4` strict
    mismatches plus `0` overlap ambiguities. So the next roadmap item is stronger online timing/local-speaker evidence for

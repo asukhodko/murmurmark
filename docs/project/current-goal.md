@@ -348,10 +348,9 @@ Online remote-overlap shadow filter, 2026-07-09:
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
 - current best live-implementable profile is
-  `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_relaxed_boundary_classifier_v1`:
+  `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_v1`:
   - remaining measured remote leak: `0.00s`;
-  - visible suppressed mic added: `4.10s`;
-  - missing-Me: `100.23s`;
+  - missing-Me: `86.85s`;
   - contentful role-constrained order mismatches: `4`;
   - non-passing gates: `41`.
 - best diagnostic oracle profile is
@@ -552,8 +551,7 @@ The ordinary parity gates show that it is not yet a promotion candidate:
 The next materialized variant,
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_remote_forbidden_relaxed_boundary_classifier_v1`,
 keeps the remote-forbidden multi-cut classifier but accepts anchor pieces down to `-6dB`
-mic-minus-remote when the surrounding remote-forbidden cuts pass. It is now the best
-live-implementable shadow:
+mic-minus-remote when the surrounding remote-forbidden cuts pass:
 
 - boundary turns added: `4.10s`;
 - missing-Me: `100.23s`;
@@ -561,9 +559,20 @@ live-implementable shadow:
 - contentful order mismatches: `4`;
 - non-passing gates remain `41`.
 
-This closes `9.90s` versus the previous best `audio_safe_union_v1` profile without weakening
-promotion policy. It does not finish the goal: live remains blocked by local recall, order/readiness
-and historical capture/artifact evidence.
+The current best live-implementable shadow is now
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_v1`.
+It combines `audio_safe_union_v1`, relaxed remote-forbidden boundary evidence and a stricter
+local-speaker boundary candidate that requires live speaker evidence plus zero token overlap with
+overlapping remote text:
+
+- missing-Me: `86.85s`;
+- measured remote leak: `0.00s`;
+- contentful order mismatches: `4`;
+- non-passing gates remain `41`;
+- live-implementable-to-oracle gap: `1.16s`.
+
+This closes most of the previous `100.23s -> 85.69s` oracle gap without weakening promotion policy.
+It does not finish the goal: live remains blocked by order/readiness and other parity gates.
 
 The first unguarded materialization is still useful as a negative test: it added `12.68s` and lowered
 missing-Me to `127.01s`, but it increased contentful order mismatches from `4` to `5`. The current
@@ -682,10 +691,11 @@ New Target-Me diagnostic, 2026-07-08:
   is safe but too weak (`278.52s` profile missing-Me remains). `audio_low_corr_text_guard_v1` recovers
   much more (`117.52s` missing-Me remains), but leaks `210.10s` of remote-like text, so it is not a
   viable promotion path. Combining `target_me_possible_timeline_safe_v1`, online remote-overlap
-  cleanup and `audio_safe_union_v1` gave the previous best live-implementable shadow at `110.13s`
-  missing-Me. The current relaxed remote-forbidden boundary classifier improves that to `100.23s`.
-  The next online design therefore needs stronger local-speaker evidence for visible suppressed mic
-  regions that still have no Target-Me policy.
+  cleanup and `audio_safe_union_v1` gave an earlier live-implementable shadow at `110.13s`
+  missing-Me. The relaxed remote-forbidden boundary classifier improved that to `100.23s`, and the
+  current local-speaker boundary profile improves it to `86.85s` while keeping measured remote leak
+  at `0.00s`. The next online design therefore needs to reduce the remaining order/readiness
+  blockers and keep the small residual local-recall gap explicit.
 
 Interpretation: more new recordings are not needed to unblock the next implementation step. The
 existing corpus already contains enough suppressed live mic material and enough Target-Me evidence.

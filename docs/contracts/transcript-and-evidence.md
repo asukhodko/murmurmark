@@ -5796,9 +5796,10 @@ live-implementable remaining gap into:
 - blocked rows that must not be published without stronger speaker evidence;
 - `publication_ready_seconds`, which remains `0.0` until a normal parity-checked profile exists.
 
-Current corpus evidence: `24 / 100.23s` remaining rows, `8 / 31.28s` future shadow-probe candidates,
-`16 / 68.95s` blocked rows and `0.0s` publication-ready. The recommended design candidate is
-`online_local_speaker_boundary_shadow_v1`, but it is not implemented or promotable yet.
+Current corpus evidence after materializing the local-speaker boundary shadow: `24 / 86.85s`
+remaining rows, `5 / 17.84s` future shadow-probe candidates, `19 / 69.01s` blocked rows and `0.0s`
+publication-ready. The implemented profile is useful shadow evidence, but the lab still keeps
+publication-ready seconds at zero until ordinary parity gates pass.
 
 The same report may include `live_local_island_split_lab` with schema
 `murmurmark.live_local_island_split_lab/v1`. It is a diagnostic estimate over
@@ -5812,7 +5813,7 @@ is the first profile-level local-island split oracle. It starts from the current
 live-implementable profile, adds batch-backed local-island candidates, then runs the normal
 timeline/order/remote-risk gates. It is intentionally marked as a batch-remote-forbidden oracle and
 is never promotable. Current corpus evidence keeps measured remote leak at `0.00s` and reaches
-`85.69s` missing-Me, a `14.54s` diagnostic gain over the best live-implementable profile. The
+`85.69s` missing-Me, a `1.16s` diagnostic gain over the best live-implementable profile. The
 current live local-island split lab itself has only `1` candidate / `10.58s` with `5.10s` of
 local-island evidence and rejects it by token recall (`0.143 < 0.35`). This means the next useful
 work is online local-speaker and boundary evidence for mixed regions, not broader island detection
@@ -5985,6 +5986,15 @@ It uses the same remote-forbidden multi-cut group classifier, but accepts anchor
 result: `4.10s` added, `100.23s` missing-Me, `0.00s` measured remote leak, `4` contentful order
 mismatches and `41` non-passing gates. It is live-implementable shadow evidence only:
 `promotion_allowed` remains false and batch remains authoritative.
+
+The current best live-implementable materialized variant is
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_v1`.
+It unions `audio_safe_union_v1`, the relaxed remote-forbidden boundary classifier and a strict
+local-speaker boundary candidate. The local-speaker candidate is accepted only when live evidence
+contains a speaker/audio rescue policy and token overlap with the overlapping remote text is zero.
+Current corpus result: `86.85s` missing-Me, `0.00s` measured remote leak, `4` contentful order
+mismatches and `41` non-passing gates. It narrows the live-implementable-to-oracle gap to `1.16s`,
+but it is still shadow-only: normal parity gates continue to block promotion.
 
 Each `shadow_profiles.target_me.<policy>.risk_examples` block includes `local_missing`,
 `remote_leak`, `order_mismatches`, `role_constrained_order_mismatches` and
