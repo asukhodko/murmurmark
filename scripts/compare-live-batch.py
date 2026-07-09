@@ -2332,6 +2332,33 @@ def dedupe_supplemental_turns_by_interval(turns: list[dict[str, Any]]) -> list[d
     return deduped
 
 
+def filter_supplemental_turns_already_in_base(
+    supplemental_turns: list[dict[str, Any]],
+    base_turns: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    base_keys = {
+        (
+            safe_int(turn.get("chunk_index")),
+            round(safe_float(turn.get("start")), 3),
+            round(safe_float(turn.get("end")), 3),
+            str(turn.get("role") or ""),
+        )
+        for turn in base_turns
+    }
+    filtered: list[dict[str, Any]] = []
+    for turn in supplemental_turns:
+        key = (
+            safe_int(turn.get("chunk_index")),
+            round(safe_float(turn.get("start")), 3),
+            round(safe_float(turn.get("end")), 3),
+            str(turn.get("role") or ""),
+        )
+        if key in base_keys:
+            continue
+        filtered.append(turn)
+    return filtered
+
+
 def local_island_split_oracle_turns(
     *,
     segments: list[dict[str, Any]],
@@ -3353,11 +3380,21 @@ def target_me_shadow_profile_components(
             persistent_target_me_rows=persistent_target_me_rows,
         )
     elif policy in STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICIES:
-        supplemental_turns = strict_live_only_local_island_turns(suppressed_mic_asr_segments)
+        supplemental_turns = filter_supplemental_turns_already_in_base(
+            strict_live_only_local_island_turns(suppressed_mic_asr_segments),
+            live_turns + target_turns,
+        )
     elif policy in STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICIES:
+        audio_safe_union_turns = online_suppressed_mic_policy_turns(
+            suppressed_mic_asr_segments,
+            "audio_safe_union_v1",
+        )
+        strict_turns = filter_supplemental_turns_already_in_base(
+            strict_live_only_local_island_turns(suppressed_mic_asr_segments),
+            live_turns + target_turns + audio_safe_union_turns,
+        )
         supplemental_turns = dedupe_supplemental_turns_by_interval(
-            strict_live_only_local_island_turns(suppressed_mic_asr_segments)
-            + online_suppressed_mic_policy_turns(suppressed_mic_asr_segments, "audio_safe_union_v1")
+            audio_safe_union_turns + strict_turns,
         )
     if policy in LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICIES or policy in LOCAL_ISLAND_RETIME_ORACLE_PROFILE_POLICIES:
         local_island_candidates, rejected_local_island_candidates = local_island_split_oracle_turns(

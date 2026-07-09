@@ -461,20 +461,23 @@ The strict profile is now also materialized into ordinary live-shadow drafts:
 
 - strict policy:
   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_strict_live_only_local_island_v1`;
-- strict profile result: `36.12s` added, `144.35s` missing-Me, `0.00s` remote leak, `4`
-  contentful order mismatches, `41` non-passing gates;
+- strict profile result: `0.00s` added after deduplication against existing live/Target-Me turns,
+  `144.35s` missing-Me, `0.00s` remote leak, `4` contentful order mismatches, `41` non-passing
+  gates;
 - combined policy:
   `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_strict_live_only_local_island_v1`;
-- combined profile result: `67.52s` added, `130.97s` missing-Me, `0.00s` remote leak, `4`
-  contentful order mismatches, `41` non-passing gates.
+- combined profile result: `52.76s` added, `130.97s` missing-Me, `0.00s` remote leak, `4`
+  contentful order mismatches, `41` non-passing gates;
+- strict shadow delta lab: `0.00s` incremental strict turns and `0.00s` closed missing-Me.
 
 Conclusion: no additional recordings are required to unblock the current design question. The
 corpus already proves both sides of the trade-off: live-only gates can recover meaningful local
 speech, but the broader gates are not precise enough for publication. The stricter profile shows a
-small zero-risk materialization candidate, but the combined materialized profile does not reduce
-corpus missing-Me below the existing best live-implementable `130.97s`. The next implementation
-should add an online timing anchor / remote-forbidden guard for local islands, not another broad
-threshold and not more recordings. Live promotion remains blocked until ordinary parity gates pass.
+small zero-risk candidate set, but the materialized strict turns are already covered by existing
+Target-Me/audio-safe live-shadow materialization and do not close additional missing-Me. The next
+implementation should add an online timing anchor / remote-forbidden guard for still-uncovered local
+islands, not another broad threshold and not more recordings. Live promotion remains blocked until
+ordinary parity gates pass.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not

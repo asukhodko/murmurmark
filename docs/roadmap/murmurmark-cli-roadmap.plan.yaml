@@ -772,11 +772,13 @@ nodes:
       candidates and `83.04s` local/mixed evidence, but still carries `16.36s` remote-risk
       (`precision_proxy = 0.835412`). Its stricter zero-risk profile selects `36.12s` with `0.00s`
       remote-risk under batch evaluation. The strict profile is now materialized as shadow output:
-      standalone strict adds `36.12s`, leaves `144.35s` missing-Me and `0.00s` remote leak; combined
-      strict+audio-safe adds `67.52s`, but still leaves `130.97s` missing-Me with `0.00s` remote
-      leak. Keep duplicate-heavy or remote-dominant rows blocked; the next implementation target is
-      online timing anchors / remote-forbidden evidence for local islands, not more recordings,
-      broader rescue or live promotion.
+      after deduplication against existing live/Target-Me turns, standalone strict adds `0.00s`,
+      leaves `144.35s` missing-Me and `0.00s` remote leak; combined strict+audio-safe adds the same
+      `52.76s` as `audio_safe_union_v1`, still leaving `130.97s` missing-Me with `0.00s` remote
+      leak. `live_strict_local_island_shadow_delta_lab/v1` records `0.00s` incremental strict turns
+      and `0.00s` closed missing-Me. Keep duplicate-heavy or remote-dominant rows blocked; the next
+      implementation target is online timing anchors / remote-forbidden evidence for still-uncovered
+      local islands, not more recordings, broader rescue or live promotion.
       Следующий фокус: `fix_live_local_recall_gap`; metric-aware triage держит order risk видимым,
       но переносит ближайшую работу на потерянную Me-речь и грубый `live_role_gate`. Targeted
       role-constrained reconciliation/per-chunk timeline repair всё ещё нужен для stable contentful

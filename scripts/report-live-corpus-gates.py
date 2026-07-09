@@ -499,6 +499,10 @@ def safe_float(value: Any) -> float:
         return 0.0
 
 
+def interval_overlap(start_a: float, end_a: float, start_b: float, end_b: float) -> float:
+    return max(0.0, min(end_a, end_b) - max(start_a, start_b))
+
+
 def optional_finite_float(value: Any) -> float | None:
     try:
         result = float(value)
@@ -2310,6 +2314,220 @@ def live_only_local_island_candidate_lab(rows: list[dict[str, Any]], *, limit: i
     }
 
 
+def live_strict_local_island_shadow_delta_lab(
+    rows: list[dict[str, Any]],
+    *,
+    root: Path,
+    base_policy: str,
+    combined_policy: str,
+    limit: int = 30,
+) -> dict[str, Any]:
+    examples: list[dict[str, Any]] = []
+    missing_inputs: list[str] = []
+    total_extra_turn_seconds = 0.0
+    total_closed_missing_seconds = 0.0
+    total_new_missing_seconds = 0.0
+
+    def target_profile(comparison: dict[str, Any], policy: str) -> dict[str, Any]:
+        shadow_profiles = comparison.get("shadow_profiles") if isinstance(comparison.get("shadow_profiles"), dict) else {}
+        target_profiles = shadow_profiles.get("target_me") if isinstance(shadow_profiles.get("target_me"), dict) else {}
+        profile = target_profiles.get(policy) if isinstance(target_profiles.get(policy), dict) else {}
+        return profile
+
+    def profile_missing(profile: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        risk_examples = profile.get("risk_examples") if isinstance(profile.get("risk_examples"), dict) else {}
+        result: dict[str, dict[str, Any]] = {}
+        for item in risk_examples.get("local_missing") or []:
+            if not isinstance(item, dict):
+                continue
+            batch_id = str(item.get("batch_id") or "")
+            if batch_id:
+                result[batch_id] = item
+        return result
+
+    def profile_draft_turns(session_root: Path, profile: dict[str, Any]) -> list[dict[str, Any]]:
+        outputs = profile.get("outputs") if isinstance(profile.get("outputs"), dict) else {}
+        draft_rel = outputs.get("draft_json")
+        if not draft_rel:
+            return []
+        draft = read_json(session_root / str(draft_rel))
+        if not isinstance(draft, dict):
+            return []
+        turns = draft.get("turns")
+        return [turn for turn in turns if isinstance(turn, dict)] if isinstance(turns, list) else []
+
+    def turn_key(turn: dict[str, Any]) -> tuple[int, float, float, str]:
+        return (
+            safe_int(turn.get("chunk_index")),
+            round(safe_float(turn.get("start")), 3),
+            round(safe_float(turn.get("end")), 3),
+            str(turn.get("role") or ""),
+        )
+
+    def segment_key(segment: dict[str, Any]) -> tuple[int, float, float]:
+        return (
+            safe_int(segment.get("chunk_index")),
+            round(safe_float(segment.get("start")), 3),
+            round(safe_float(segment.get("end")), 3),
+        )
+
+    def classify_turn(
+        turn: dict[str, Any],
+        *,
+        segment: dict[str, Any],
+        base_missing: dict[str, dict[str, Any]],
+        combined_missing: dict[str, dict[str, Any]],
+    ) -> str:
+        start = safe_float(turn.get("start"))
+        end = safe_float(turn.get("end"), start)
+        if segment.get("batch_role_label") in {"remote_dominant", "none"}:
+            return "remote_risk"
+        closed_overlap = 0.0
+        unclosed_overlap = 0.0
+        for batch_id, item in base_missing.items():
+            overlap = interval_overlap(start, end, safe_float(item.get("start")), safe_float(item.get("end")))
+            if overlap <= 0:
+                continue
+            if batch_id in combined_missing:
+                unclosed_overlap += overlap
+            else:
+                closed_overlap += overlap
+        if closed_overlap > 0 and unclosed_overlap == 0:
+            return "closed_missing_me"
+        if closed_overlap > 0:
+            return "partially_closed_missing_me"
+        if unclosed_overlap > 0:
+            return "overlaps_unclosed_missing_me"
+        if segment.get("batch_role_label") in {"me_dominant", "mixed"}:
+            return "already_covered_by_base_or_not_counted_missing"
+        return "unclassified"
+
+    for row in rows:
+        session_name = str(row.get("session") or "")
+        if not session_name:
+            continue
+        session_root = root / session_name
+        inputs = row.get("inputs") if isinstance(row.get("inputs"), dict) else {}
+        comparison_rel = inputs.get("live_batch_comparison")
+        comparison_path = session_root / str(comparison_rel or "derived/live/live_batch_comparison.json")
+        comparison = read_json(comparison_path)
+        if not isinstance(comparison, dict):
+            missing_inputs.append(session_name)
+            continue
+        base_profile = target_profile(comparison, base_policy)
+        combined_profile = target_profile(comparison, combined_policy)
+        if not base_profile or not combined_profile:
+            missing_inputs.append(session_name)
+            continue
+        base_missing = profile_missing(base_profile)
+        combined_missing = profile_missing(combined_profile)
+        closed_missing = {
+            batch_id: item
+            for batch_id, item in base_missing.items()
+            if batch_id not in combined_missing
+        }
+        new_missing = {
+            batch_id: item
+            for batch_id, item in combined_missing.items()
+            if batch_id not in base_missing
+        }
+        total_closed_missing_seconds += sum(safe_float(item.get("duration_sec")) for item in closed_missing.values())
+        total_new_missing_seconds += sum(safe_float(item.get("duration_sec")) for item in new_missing.values())
+
+        base_turn_keys = {turn_key(turn) for turn in profile_draft_turns(session_root, base_profile)}
+        combined_turns = profile_draft_turns(session_root, combined_profile)
+        risk_examples = comparison.get("risk_examples") if isinstance(comparison.get("risk_examples"), dict) else {}
+        suppressed_segments = [
+            segment for segment in risk_examples.get("suppressed_mic_asr_segments") or []
+            if isinstance(segment, dict)
+        ]
+        segment_by_key = {segment_key(segment): segment for segment in suppressed_segments}
+
+        for turn in combined_turns:
+            source = str(turn.get("source") or "")
+            if source != "mic_suppressed_strict_live_only_local_island":
+                continue
+            if turn_key(turn) in base_turn_keys:
+                continue
+            start = safe_float(turn.get("start"))
+            end = safe_float(turn.get("end"), start)
+            duration = max(0.0, end - start)
+            total_extra_turn_seconds += duration
+            segment = segment_by_key.get(
+                (
+                    safe_int(turn.get("chunk_index")),
+                    round(start, 3),
+                    round(end, 3),
+                ),
+                {},
+            )
+            classification = classify_turn(
+                turn,
+                segment=segment,
+                base_missing=base_missing,
+                combined_missing=combined_missing,
+            )
+            examples.append(
+                {
+                    "session": session_name,
+                    "chunk_index": turn.get("chunk_index"),
+                    "start": round(start, 3),
+                    "end": round(end, 3),
+                    "duration_sec": round(duration, 3),
+                    "classification": classification,
+                    "batch_role_label": segment.get("batch_role_label"),
+                    "batch_role_evidence": segment.get("batch_role_evidence"),
+                    "segment_gate_reason": segment.get("segment_gate_reason"),
+                    "audio_mic_minus_remote_rms_db": segment.get("audio_mic_minus_remote_rms_db"),
+                    "audio_mic_remote_zero_lag_abs_corr": segment.get("audio_mic_remote_zero_lag_abs_corr"),
+                    "overlapping_base_missing_ids": [
+                        batch_id for batch_id, item in base_missing.items()
+                        if interval_overlap(start, end, safe_float(item.get("start")), safe_float(item.get("end"))) > 0
+                    ],
+                    "closed_missing_ids": list(closed_missing.keys()),
+                    "new_missing_ids": list(new_missing.keys()),
+                    "text": turn.get("text"),
+                    "comparison": str(comparison_rel or "derived/live/live_batch_comparison.json"),
+                }
+            )
+
+    def aggregate_by_classification() -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for item in examples:
+            group = str(item.get("classification") or "unknown")
+            row = grouped.setdefault(group, {"count": 0, "seconds": 0.0})
+            row["count"] += 1
+            row["seconds"] = round(safe_float(row.get("seconds")) + safe_float(item.get("duration_sec")), 3)
+        return dict(sorted(grouped.items(), key=lambda pair: (-safe_float(pair[1].get("seconds")), pair[0])))
+
+    examples.sort(key=lambda item: (-safe_float(item.get("duration_sec")), str(item.get("session") or ""), safe_float(item.get("start"))))
+    extra_turn_seconds = round(total_extra_turn_seconds, 3)
+    closed_seconds = round(total_closed_missing_seconds, 3)
+    new_seconds = round(total_new_missing_seconds, 3)
+    return {
+        "schema": "murmurmark.live_strict_local_island_shadow_delta_lab/v1",
+        "status": "ok" if examples else "no_incremental_strict_turns",
+        "promotion_allowed": False,
+        "base_policy": base_policy,
+        "combined_policy": combined_policy,
+        "incremental_strict_turn_count": len(examples),
+        "incremental_strict_turn_seconds": extra_turn_seconds,
+        "closed_missing_me_seconds": closed_seconds,
+        "new_missing_me_seconds": new_seconds,
+        "net_missing_me_delta_seconds": round(closed_seconds - new_seconds, 3),
+        "missing_reduction_per_added_second": round(closed_seconds / extra_turn_seconds, 6) if extra_turn_seconds > 0 else None,
+        "by_classification": aggregate_by_classification(),
+        "interpretation": (
+            "diagnostic only: explains whether strict live-only local-island turns close batch Me gaps "
+            "or merely add safe but already-covered/non-material shadow text"
+        ),
+        "missing_inputs": sorted(set(missing_inputs)),
+        "examples": examples[:limit],
+        "truncated": len(examples) > limit,
+        "limit": limit,
+    }
+
+
 def local_recall_rescue_lab(rows: list[dict[str, Any]], *, limit: int = 30) -> dict[str, Any]:
     segments = suppressed_mic_segments_from_report_rows(rows)
 
@@ -3329,6 +3547,12 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     local_island_split_lab_report = local_island_split_lab(best_live_profile_remaining_gap)
     local_island_audio_anchor_lab_report = live_local_island_audio_anchor_lab(local_island_split_lab_report)
     live_only_local_island_candidate_lab_report = live_only_local_island_candidate_lab(real_live_rows)
+    strict_local_island_shadow_delta_lab_report = live_strict_local_island_shadow_delta_lab(
+        real_live_rows,
+        root=root,
+        base_policy=real_best_live_profile_policy or "",
+        combined_policy=STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
+    )
     local_recall_rescue_lab_report = local_recall_rescue_lab(real_live_rows)
     candidate_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_candidate_rows)
     evaluable_local_recall_rescue_lab_report = local_recall_rescue_lab(capture_safe_evaluable_rows)
@@ -3939,6 +4163,19 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "combined_strict_audio_safe_union_profile_non_passing_gate_count": summary.get(
             f"{combined_strict_audio_safe_union_profile_summary_prefix}_non_passing_gate_count"
         ),
+        "strict_shadow_delta_lab_status": strict_local_island_shadow_delta_lab_report.get("status"),
+        "strict_shadow_delta_incremental_turn_seconds": strict_local_island_shadow_delta_lab_report.get(
+            "incremental_strict_turn_seconds"
+        ),
+        "strict_shadow_delta_closed_missing_me_seconds": strict_local_island_shadow_delta_lab_report.get(
+            "closed_missing_me_seconds"
+        ),
+        "strict_shadow_delta_net_missing_me_delta_seconds": strict_local_island_shadow_delta_lab_report.get(
+            "net_missing_me_delta_seconds"
+        ),
+        "strict_shadow_delta_by_classification": strict_local_island_shadow_delta_lab_report.get(
+            "by_classification"
+        ),
         "requires_batch_timing": True,
         "requires_batch_role_labels": True,
         "required_online_evidence": [
@@ -4073,6 +4310,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_local_island_split_lab": local_island_split_lab_report,
         "live_local_island_audio_anchor_lab": local_island_audio_anchor_lab_report,
         "live_only_local_island_candidate_lab": live_only_local_island_candidate_lab_report,
+        "live_strict_local_island_shadow_delta_lab": strict_local_island_shadow_delta_lab_report,
         "live_local_island_timing_gap": local_island_timing_gap_report,
         "live_local_recall_gap_examples": local_recall_examples,
         "capture_safe_candidate_local_recall_gap_examples": candidate_local_recall_examples,
@@ -5020,6 +5258,10 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             "contentful order mismatches "
             f"{timing_gap.get('combined_strict_audio_safe_union_profile_contentful_order_mismatch_count')}, "
             f"non-passing gates {timing_gap.get('combined_strict_audio_safe_union_profile_non_passing_gate_count')}",
+            "- strict shadow delta lab: "
+            f"{timing_gap.get('strict_shadow_delta_incremental_turn_seconds')} sec incremental strict turns, "
+            f"{timing_gap.get('strict_shadow_delta_closed_missing_me_seconds')} sec closed missing-Me, "
+            f"net delta {timing_gap.get('strict_shadow_delta_net_missing_me_delta_seconds')} sec",
             "- timing gap: "
             f"{timing_gap.get('retime_gain_vs_split_oracle_seconds')} sec require batch timing; "
             "future live work needs online local-island timing anchors before publication",
@@ -5882,6 +6124,19 @@ def main() -> int:
                 print(
                     "real_live_combined_strict_audio_safe_union_profile_remote_leak_seconds: "
                     f"{summary.get(f'{combined_strict_audio_safe_union_profile_prefix}_live_suspected_remote_leak_in_me_seconds')}"
+                )
+                strict_delta_lab = (
+                    report.get("live_strict_local_island_shadow_delta_lab")
+                    if isinstance(report.get("live_strict_local_island_shadow_delta_lab"), dict)
+                    else {}
+                )
+                print(
+                    "real_live_strict_local_island_shadow_delta_incremental_turn_seconds: "
+                    f"{strict_delta_lab.get('incremental_strict_turn_seconds')}"
+                )
+                print(
+                    "real_live_strict_local_island_shadow_delta_closed_missing_me_seconds: "
+                    f"{strict_delta_lab.get('closed_missing_me_seconds')}"
                 )
                 print(
                     "real_live_local_island_split_oracle_profile_missing_me_seconds: "

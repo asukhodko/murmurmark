@@ -565,13 +565,16 @@ live-available gates; `83.04s` are local or mixed, but `16.36s` are still remote
 for publication. Its stricter `strict_zero_remote_risk_text_audio_v1` profile selects `36.12s` with
 `0.00s` remote-risk under batch evaluation. That strict policy is now materialized as
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_strict_live_only_local_island_v1`:
-it adds `36.12s`, leaves missing-Me at `144.35s`, keeps remote leak at `0.00s`, and remains blocked
-by the same `4` contentful order mismatches / `41` non-passing gates. The combined
+after deduplication against existing live/Target-Me turns it adds `0.00s`, leaves missing-Me at
+`144.35s`, keeps remote leak at `0.00s`, and remains blocked by the same `4` contentful order
+mismatches / `41` non-passing gates. The combined
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_strict_live_only_local_island_v1`
-profile adds `67.52s` of suppressed mic turns, but corpus missing-Me stays at `130.97s` with
-`0.00s` remote leak. So the next useful work is not collecting more recordings or adding another
-publication threshold; it is online timing / remote-forbidden evidence that can decide which local
-islands are real, non-duplicative turns on the live timeline.
+profile adds the same `52.76s` as `audio_safe_union_v1`, and corpus missing-Me stays at `130.97s`
+with `0.00s` remote leak. The `live_strict_local_island_shadow_delta_lab/v1` block records this as
+`0.00s` incremental strict turns and `0.00s` closed missing-Me. So the next useful work is not
+collecting more recordings or adding another publication threshold; it is online timing /
+remote-forbidden evidence that can find local islands not already covered by Target-Me/audio-safe
+materialization.
 
 To inspect whether suppressed live mic segments contain your voice:
 
@@ -1216,10 +1219,11 @@ Active goal and near-term candidates:
    next implementation should focus on online local-island timeline repair/retiming evidence, not
    broad rescue. The live-only candidate lab selects `99.40s`, but still carries `16.36s`
    remote-risk. Its strict zero-risk profile selects `36.12s` with `0.00s` remote-risk. The strict
-   materialized shadow adds `36.12s` and the combined strict+audio-safe shadow adds `67.52s`, but the
-   combined profile still leaves `130.97s` missing-Me with `0.00s` remote leak. This proves the next
-   blocker is live timeline evidence, not another broad add-more-local-speech threshold. Batch
-   remains authoritative.
+   materialized shadow adds `0.00s` after deduplication against existing live/Target-Me turns, and
+   the combined strict+audio-safe shadow adds the same `52.76s` as `audio_safe_union_v1`; it still
+   leaves `130.97s` missing-Me with `0.00s` remote leak. This proves the next blocker is live
+   timeline evidence for still-uncovered local islands, not another broad add-more-local-speech
+   threshold. Batch remains authoritative.
 5. Audio candidate promotion readiness: keep `coverage_v2_remote_gate_local_fir` shadow-only, widen
    the corpus beyond the current six sessions and define the future default-promotion bar.
 6. Target-Me evidence follow-up: keep using `resemblyzer_dvector_v0` and stronger-audio-judge as
