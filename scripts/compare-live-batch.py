@@ -15,7 +15,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.22.0"
+SCRIPT_VERSION = "0.23.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 KNOWN_HALLUCINATION_RE = re.compile(
@@ -122,6 +122,10 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
+    (
+        "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+        "batch_remote_forbidden_local_island_split_oracle_v1"
+    ),
 )
 TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_oracle_v1": (
@@ -148,6 +152,12 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1": (
         "target_me_possible_timeline_safe_v1"
     ),
+    (
+        "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+        "batch_remote_forbidden_local_island_split_oracle_v1"
+    ): (
+        "target_me_possible_timeline_safe_v1"
+    ),
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1": (
         "target_me_confirmed_remote_guard_v1"
     ),
@@ -160,6 +170,10 @@ TARGET_ME_REMOTE_FORBIDDEN_ORACLE_POLICIES = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_audio_safe_union_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_low_corr_text_guard_v1",
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
+    (
+        "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+        "batch_remote_forbidden_local_island_split_oracle_v1"
+    ),
 }
 TARGET_ME_ONLINE_SUPPRESSED_MIC_PROFILE_POLICIES = {
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_online_suppressed_mic_audio_safe_union_v1": (
@@ -172,6 +186,12 @@ TARGET_ME_ONLINE_SUPPRESSED_MIC_PROFILE_POLICIES = {
         "audio_safe_union_v1"
     ),
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1": (
+        "audio_safe_union_v1"
+    ),
+    (
+        "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+        "batch_remote_forbidden_local_island_split_oracle_v1"
+    ): (
         "audio_safe_union_v1"
     ),
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1": (
@@ -194,10 +214,20 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
+    (
+        "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+        "batch_remote_forbidden_local_island_split_oracle_v1"
+    ),
 }
 LIVE_ME_REMOTE_OVERLAP_FILTER_NO_TARGET_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_v1",
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
+}
+LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICIES = {
+    (
+        "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+        "batch_remote_forbidden_local_island_split_oracle_v1"
+    ),
 }
 MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 
@@ -2176,6 +2206,108 @@ def online_suppressed_mic_policy_turns(segments: list[dict[str, Any]], policy: s
     return sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")))
 
 
+def local_island_split_oracle_turns(
+    *,
+    segments: list[dict[str, Any]],
+    batch_utterances: list[dict[str, Any]],
+    base_turns: list[dict[str, Any]],
+    recall_threshold: float = 0.35,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    turns: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    missing_rows = local_missing_rows_for_turns(batch_utterances, base_turns)
+    for batch_row in missing_rows:
+        start = safe_float(batch_row.get("start"))
+        end = safe_float(batch_row.get("end"), start)
+        if end <= start:
+            continue
+        islands: list[dict[str, Any]] = []
+        for segment in segments:
+            if not isinstance(segment, dict):
+                continue
+            segment_start = safe_float(segment.get("start"))
+            segment_end = safe_float(segment.get("end"), segment_start)
+            overlap = interval_overlap(start, end, segment_start, segment_end)
+            if overlap <= 0:
+                continue
+            if segment.get("batch_role_label") not in {"me_dominant", "mixed"}:
+                continue
+            if bool(segment.get("known_hallucination")):
+                continue
+            if segment.get("segment_gate_reason") != "segment_has_local_tokens_not_seen_in_overlapping_remote":
+                continue
+            text = clean_text(str(segment.get("text") or ""))
+            if not text or len(tokens(text)) < 2:
+                continue
+            island = dict(segment)
+            island["overlap_sec"] = round(overlap, 3)
+            islands.append(island)
+        if not islands:
+            continue
+        islands.sort(key=lambda row: (safe_float(row.get("start")), safe_float(row.get("end"))))
+        island_text = clean_text(" ".join(str(row.get("text") or "") for row in islands))
+        batch_text = clean_text(str(batch_row.get("text") or ""))
+        token_recall = bag_recall(tokens(batch_text), tokens(island_text)) or 0.0
+        island_start = min(safe_float(row.get("start")) for row in islands)
+        island_end = max(safe_float(row.get("end")) for row in islands)
+        local_island_seconds = round(sum(safe_float(row.get("overlap_sec")) for row in islands), 3)
+        payload = {
+            "id": f"live_local_island_split_oracle_{batch_row.get('batch_id')}",
+            "batch_id": batch_row.get("batch_id"),
+            "batch_start": start,
+            "batch_end": end,
+            "batch_duration_sec": batch_row.get("duration_sec"),
+            "start": round(island_start, 3),
+            "end": round(island_end, 3),
+            "duration_sec": round(max(0.0, island_end - island_start), 3),
+            "local_island_seconds": local_island_seconds,
+            "local_island_count": len(islands),
+            "token_recall_from_local_islands": round(token_recall, 6),
+            "recall_threshold": recall_threshold,
+            "text": island_text,
+            "batch_text": batch_text,
+            "local_islands": [
+                {
+                    "start": row.get("start"),
+                    "end": row.get("end"),
+                    "overlap_sec": row.get("overlap_sec"),
+                    "text": row.get("text"),
+                    "batch_role_label": row.get("batch_role_label"),
+                    "segment_gate_reason": row.get("segment_gate_reason"),
+                    "audio_mic_minus_remote_rms_db": row.get("audio_mic_minus_remote_rms_db"),
+                    "audio_mic_remote_zero_lag_abs_corr": row.get("audio_mic_remote_zero_lag_abs_corr"),
+                }
+                for row in islands
+            ],
+        }
+        if token_recall < recall_threshold:
+            payload["reason"] = "token_recall_below_threshold"
+            rejected.append(payload)
+            continue
+        turns.append(
+            {
+                "id": payload["id"],
+                "chunk_index": islands[0].get("chunk_index"),
+                "source": "mic_suppressed_local_island_split_oracle",
+                "role": "Me",
+                "start": island_start,
+                "end": island_end,
+                "text": island_text,
+                "tokens": tokens(island_text),
+                "local_island_split_oracle": True,
+                "batch_id": batch_row.get("batch_id"),
+                "token_recall_from_local_islands": round(token_recall, 6),
+                "local_island_seconds": local_island_seconds,
+                "local_island_count": len(islands),
+                "local_islands": payload["local_islands"],
+            }
+        )
+    return (
+        sorted(turns, key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or ""))),
+        rejected,
+    )
+
+
 def timeline_safe_visible_suppressed_mic_turns(
     *,
     candidates: list[dict[str, Any]],
@@ -2201,6 +2333,17 @@ def timeline_safe_visible_suppressed_mic_turns(
     )
     current_missing_seconds = baseline_missing_seconds
     for candidate in candidates:
+        candidate_context = {
+            key: candidate.get(key)
+            for key in (
+                "batch_id",
+                "token_recall_from_local_islands",
+                "local_island_seconds",
+                "local_island_count",
+                "local_islands",
+            )
+            if key in candidate
+        }
         trial = sorted(
             base_turns + accepted + [candidate],
             key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
@@ -2212,6 +2355,7 @@ def timeline_safe_visible_suppressed_mic_turns(
                     "id": candidate.get("id"),
                     "reason": "would_add_suspected_remote_leak",
                     "text": candidate.get("text"),
+                    **candidate_context,
                     "remote_leak": remote_leak[:3],
                 }
             )
@@ -2231,6 +2375,7 @@ def timeline_safe_visible_suppressed_mic_turns(
                     "id": candidate.get("id"),
                     "reason": "would_add_contentful_order_mismatch",
                     "text": candidate.get("text"),
+                    **candidate_context,
                     "contentful_order_mismatch_count": len(contentful_order_mismatches),
                     "baseline_contentful_order_mismatch_count": baseline_contentful_order_count,
                     "examples": contentful_order_mismatches[:3],
@@ -2247,6 +2392,7 @@ def timeline_safe_visible_suppressed_mic_turns(
                     "id": candidate.get("id"),
                     "reason": "no_local_recall_gain",
                     "text": candidate.get("text"),
+                    **candidate_context,
                     "missing_me_seconds_before": current_missing_seconds,
                     "missing_me_seconds_after": missing_after_seconds,
                 }
@@ -2945,7 +3091,7 @@ def fmt_time(seconds: float) -> str:
 
 
 def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> dict[str, Any]:
-    return {
+    payload = {
         "id": turn.get("id"),
         "role": turn.get("role"),
         "start": safe_float(turn.get("start")),
@@ -2957,6 +3103,17 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "shadow_added": added_by_policy is not None,
         "shadow_policy": added_by_policy,
     }
+    for key in (
+        "local_island_split_oracle",
+        "batch_id",
+        "token_recall_from_local_islands",
+        "local_island_seconds",
+        "local_island_count",
+        "local_islands",
+    ):
+        if key in turn:
+            payload[key] = turn.get(key)
+    return payload
 
 
 def target_me_shadow_profile_components(
@@ -3043,6 +3200,20 @@ def target_me_shadow_profile_components(
             target_me_rows=target_me_rows,
             persistent_target_me_rows=persistent_target_me_rows,
         )
+    if policy in LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICIES:
+        local_island_candidates, rejected_local_island_candidates = local_island_split_oracle_turns(
+            segments=suppressed_mic_asr_segments,
+            batch_utterances=batch_utterances,
+            base_turns=live_turns + target_turns + supplemental_turns,
+        )
+        local_island_turns, rejected_timeline_local_island_turns = timeline_safe_visible_suppressed_mic_turns(
+            candidates=local_island_candidates,
+            base_turns=live_turns + target_turns + supplemental_turns,
+            batch_utterances=batch_utterances,
+        )
+        supplemental_turns.extend(local_island_turns)
+        rejected_supplemental_turns.extend(rejected_local_island_candidates)
+        rejected_supplemental_turns.extend(rejected_timeline_local_island_turns)
     return live_turns, target_turns, supplemental_turns, removed_live_turns, rejected_supplemental_turns
 
 

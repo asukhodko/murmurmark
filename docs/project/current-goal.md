@@ -387,6 +387,15 @@ Online remote-overlap shadow filter, 2026-07-09:
   - accepted by token recall >= `0.35`: `1 / 17.34s` batch row;
   - accepted local-island evidence: `3.96s`;
   - promotion allowed: `false`.
+- Profile-level local-island oracle:
+  - policy:
+    `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`;
+  - missing-Me: `129.81s`;
+  - delta vs best live-implementable: `1.16s`;
+  - remote leak: `0.00s`;
+  - contentful order mismatches: `4`;
+  - added suppressed-mic turn seconds: `55.66s`;
+  - rejected supplemental turns: `3`.
 - `target_me_possible_timeline_safe_v1` recovers `251.37s`, rejects `47.38s` of candidates
   (`31.08s` contentful order risk, `16.30s` suspected remote leak), and keeps measured remote leak at
   `0.00s`.
@@ -406,9 +415,10 @@ burden and draft readiness, not by lack of another raw recording. The best oracl
 live-implementable profile by only `14.00s`, so the next useful work is mixed-region segmentation
 and/or a new kind of local-speaker evidence, not another broad threshold. Because the suppressed
 evidence includes many mixed/remote-dominant overlaps and a separate hallucination tail, the next
-step should prototype safe local-island splitting for the `27.92s` `local_island_split_candidate`
-slice, starting with the single `17.34s` token-recall-passing row, and keep duplicate-heavy or
-remote-dominant mixed rows blocked until stronger speaker evidence exists.
+step should focus on local-island timeline repair/retiming: the token lab finds a `17.34s`
+candidate, but the profile-level oracle recovers only `1.16s` because the larger candidate is
+rejected by the contentful order gate. Duplicate-heavy or remote-dominant mixed rows should remain
+blocked until stronger speaker evidence exists.
 
 The report now keeps concrete missing-Me rows under
 `capture_safe_evaluable_local_recall_gap_examples`. This includes capture-safe runs that are not

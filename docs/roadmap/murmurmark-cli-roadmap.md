@@ -523,8 +523,11 @@ newer run-state exists.
    `22.28s` are duplicate-heavy and need speaker evidence, `5.36s` need speaker evidence, `3.22s`
    are remote-dominant mixed rows, and `1.64s` are short low-value tails. This proves the
    materialization and online remote-forbidden mechanism, not parity. The local-island split lab
-   accepts only `1` row / `17.34s` from `3.96s` of local-island evidence, so the nearest work is a
-   tiny split prototype with parity checks, not more live recording or broad rescue.
+   accepts only `1` row / `17.34s` from `3.96s` of local-island evidence. The first profile-level
+   oracle keeps remote leak at `0.00s`, but recovers only `1.16s` (`130.97s -> 129.81s`) because
+   the larger local-island candidate is rejected by the contentful order gate. The nearest work is
+   therefore local-island timeline repair/retiming, not more live recording, broader rescue or
+   relaxed publication gates.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

@@ -5771,6 +5771,15 @@ missing batch `Me` row, and records candidate/accepted batch seconds plus local-
 `promotion_allowed` is always `false`; accepted rows still need a real split profile and normal
 parity gates before live output can use them.
 
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_batch_remote_forbidden_local_island_split_oracle_v1`
+is the first profile-level local-island split oracle. It starts from the current best
+live-implementable profile, adds only token-recall-passing local-island candidates, then runs the
+normal timeline/order/remote-risk gates. It is intentionally marked as a batch-remote-forbidden
+oracle and is never promotable. Current corpus evidence keeps measured remote leak at `0.00s`, but
+reduces missing-Me by only `1.16s` (`130.97s -> 129.81s`): the larger `17.34s` local-island
+candidate is rejected by the contentful order gate. This means the next useful work is local-island
+timeline repair/retiming, not broader island detection or relaxed publication gates.
+
 `live_target_me_shadow_profile_diagnostics.<scope>.best_to_live_implementable_gap` has schema
 `murmurmark.live_shadow_profile_oracle_gap/v1`. It compares the best profile in the scope with the
 best live-implementable profile and records `missing_me_seconds_gap`, both profile names, remote leak
