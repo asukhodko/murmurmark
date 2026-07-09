@@ -557,6 +557,12 @@ newer run-state exists.
    in the active capture-safe path while retaining two advisory rows for audit. Historical
    full-corpus triage still retains one blocking row. Strict order gates continue to block genuine
    contradictions; the active implementation focus now moves to live local recall.
+   The causal Target-Me remote-gap trim follow-up keeps only mic ASR token pieces between guarded
+   remote intervals and after sustained local activity. On the full real corpus it materializes
+   `42` pieces / `176.262s`, closes `15.38s` of missing Me (`734.87s -> 719.49s`) and leaves
+   remote-like Me (`40.29s`) and order counters unchanged. Two of three live-visible Target-Me rows
+   are closed; the remaining remote-dominant row / `4.68s` needs frame-level speaker/double-talk
+   evidence.
    The diagnostic boundary-order retime oracle remains non-promotable evidence: timing repair needs
    local-speaker preservation and must not relax remote-forbidden gates.
    The split/retime oracle preserves the local prefix (`1 / 6.62s`) and keeps missing-Me unchanged
@@ -623,10 +629,11 @@ newer run-state exists.
    mixed/speaker rows / `25.32s`. After Target-Me is rerun with `--include-remaining-gap` and the
    diagnostic `--fallback-persistent-profile`, all rows have Target-Me coverage; `0.32s` have been
    materialized in the diagnostic remote-guarded boundary profile and `25.00s` stay weak or
-   ambiguous. Those labs remain diagnostic-only. Order risk is now closed for the best profile. The
-   next step starts with `3` live-visible Target-Me rows / `20.06s` inside the `81` row / `285.11s`
-   classified remaining gap; full-profile missing Me is `734.87s`, and `40.29s` remote-like Me must
-   also be removed without weakening remote-forbidden gates.
+   ambiguous. Those labs remain diagnostic-only. Order risk is now closed for the active
+   capture-safe path. Remote-gap trim closes two live-visible Target-Me rows / `15.38s`; the next
+   step is frame-level evidence for the remaining remote-dominant row / `4.68s`. The classified gap
+   is now `81` rows / `272.06s`; full-profile missing Me is `719.49s`, and `40.29s` remote-like Me
+   must also be removed without weakening remote-forbidden gates.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

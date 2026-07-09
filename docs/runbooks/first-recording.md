@@ -161,7 +161,7 @@ The default comparison computes the required parity gates. For a focused shadow 
 materialize only the selected policy:
 
 ```bash
-POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1
+POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_v1
 scripts/compare-live-batch.py "$SESSION" --lab-policy "$POLICY"
 ```
 
@@ -269,7 +269,7 @@ It does not modify raw capture or the authoritative batch transcript.
 To refresh one materialized profile instead of every laboratory profile:
 
 ```bash
-POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1
+POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_v1
 scripts/report-live-corpus-gates.py all --refresh --refresh-lab-policy "$POLICY"
 ```
 

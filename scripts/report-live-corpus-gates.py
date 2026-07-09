@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.31.0"
+SCRIPT_VERSION = "1.32.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -94,6 +94,11 @@ VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1"
 )
+TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
+    "target_me_remote_gap_trim_v1"
+)
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -140,6 +145,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
+    TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -232,6 +238,8 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "voice_activity_boundary_retime_shift_seconds",
     "token_density_boundary_retime_turn_count",
     "token_density_boundary_retime_shift_seconds",
+    "target_me_remote_gap_trim_turn_count",
+    "target_me_remote_gap_trim_seconds",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -1562,6 +1570,14 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
             evaluated_rows,
             f"{base}_token_density_boundary_retime_shift_seconds",
         )
+        summary[f"{out}_target_me_remote_gap_trim_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_target_me_remote_gap_trim_turn_count",
+        )
+        summary[f"{out}_target_me_remote_gap_trim_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_target_me_remote_gap_trim_seconds",
+        )
         summary[f"{out}_visible_suppressed_mic_added_turn_count"] = sum_int_metric(
             evaluated_rows,
             f"{base}_visible_suppressed_mic_added_turn_count",
@@ -1771,6 +1787,12 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             ),
             "boundary_order_split_retime_oracle_preserved_prefix_seconds": safe_float(
                 summary.get(f"{base}_boundary_order_split_retime_oracle_preserved_prefix_seconds")
+            ),
+            "target_me_remote_gap_trim_turn_count": safe_int(
+                summary.get(f"{base}_target_me_remote_gap_trim_turn_count")
+            ),
+            "target_me_remote_gap_trim_seconds": safe_float(
+                summary.get(f"{base}_target_me_remote_gap_trim_seconds")
             ),
         }
         rows.append(row)
@@ -3151,10 +3173,15 @@ def live_next_unlock_report(
         )
         visible_remaining_count = safe_int(visible_remaining.get("count"))
         visible_remaining_seconds = safe_float(visible_remaining.get("seconds"))
+        remote_gap_trim_active = str(remaining_gap.get("profile") or "").endswith(
+            "target_me_remote_gap_trim_v1"
+        )
         next_actions.append(
             {
                 "id": (
-                    "materialize_remaining_target_me_visible_rows_and_recheck_recall"
+                    "resolve_remaining_remote_dominant_target_me_with_frame_speaker_evidence"
+                    if visible_remaining_count > 0 and remote_gap_trim_active
+                    else "materialize_remaining_target_me_visible_rows_and_recheck_recall"
                     if visible_remaining_count > 0
                     else candidate_next_action_id or "fix_live_local_recall_gap"
                 ),
@@ -3166,8 +3193,11 @@ def live_next_unlock_report(
                 "remaining_gap_seconds": round(remaining_gap_seconds, 3),
                 "top_label": top_actionability.get("label"),
                 "why": (
-                    "materialize the live-visible Target-Me rows that remain missing from the best live-implementable "
-                    "profile, then recompute all parity gates"
+                    "remote-free token trimming already recovered the safe Target-Me gaps; the remaining row is "
+                    "remote-dominant and needs frame-level Target-Me or double-talk evidence before publication"
+                    if visible_remaining_count > 0 and remote_gap_trim_active
+                    else "materialize the live-visible Target-Me rows that remain missing from the best "
+                    "live-implementable profile, then recompute all parity gates"
                     if visible_remaining_count > 0
                     else candidate_next_focus.get("recommended_next")
                     or "local recall is the next hard blocker for the best live-implementable profile"

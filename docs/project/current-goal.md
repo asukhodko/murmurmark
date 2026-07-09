@@ -21,16 +21,18 @@ fresh corpus report still keeps promotion blocked and says no additional recordi
 the current implementation step. Materializing Target-Me/local-recall candidates exposed a previous
 measurement gap: the active `capture_safe_candidate` order slice was not advisory-only. The current
 best live-implementable profile is
-`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1`.
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_v1`.
 It corrects coarse Whisper starts from committed chunk evidence, then shifts long remote starts past
 low-confidence prefixes only after a dense reliable token cluster. It also uses a temporal prior for
 short generic matches. Profile-level contentful order mismatches are now `2`: `0` blocking and `2`
 advisory in the active capture-safe unlock slice. Across all 14 refreshed real sessions the profile
 has `5` advisory gate rows and full historical triage retains one blocking row outside the active
-slice. Full-profile missing Me is `734.87s`; the classified remaining-gap set is `81` rows /
-`285.11s`, and remote-like Me is `40.29s`. The first implementation action now targets `3`
-live-visible Target-Me rows / `20.06s`; local recall is the next hard gate. Batch remains
-authoritative.
+slice. The remote-gap trim layer keeps token-timestamped pieces of strongly confirmed Target-Me
+segments only between guarded remote intervals. It closes two live-visible rows / `15.38s` without
+increasing remote leakage or order risk. Full-profile missing Me is now `719.49s`; the classified
+remaining-gap set is `81` rows / `272.06s`, and remote-like Me is `40.29s`. The next implementation
+action targets the final remote-dominant Target-Me row / `4.68s` with frame-level speaker/double-talk
+evidence. Batch remains authoritative.
 
 ## Latest Completed Goal: Experimental Sidecar Contract v1
 
@@ -125,12 +127,12 @@ Current state:
   `required_artifacts`.
 - capture-safe candidate blocking dimensions: `local_recall`, `remote_leakage`, `review_burden`,
   `selected_notes_readiness`;
-- current best live-implementable profile: voice-activity plus token-density boundary retime over
-  the existing local-speaker/split-retime shadow;
+- current best live-implementable profile: voice-activity plus token-density boundary retime and
+  Target-Me remote-gap trim over the existing local-speaker/split-retime shadow;
 - active capture-safe order-risk triage: `2` advisory timing/match ambiguities and `0` blocking rows;
 - historical full-corpus triage: `4` advisory rows and `1` blocking row outside the active slice;
-- best-profile full-real gaps: `734.87 sec` missing Me and `40.29 sec` remote-like Me;
-- classified remaining-gap set: `81` rows / `285.11 sec` missing Me;
+- best-profile full-real gaps: `719.49 sec` missing Me and `40.29 sec` remote-like Me;
+- classified remaining-gap set: `81` rows / `272.06 sec` missing Me;
 - current objective next focus: `fix_live_local_recall_gap`.
 
 Safety constraint:
@@ -162,7 +164,7 @@ Definition of done:
 Latest verification:
 
 ```bash
-POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1
+POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_v1
 .venv/bin/python scripts/report-live-corpus-gates.py all \
   --refresh \
   --refresh-lab-policy "$POLICY"
@@ -179,12 +181,13 @@ Current result:
   the refreshed real corpus;
 - active capture-safe order triage: `2` advisory timing/match rows and `0` blocking rows;
 - historical full-corpus triage: `4` advisory rows and `1` blocking row outside the active slice;
-- best-profile full-real gaps: `734.87 sec` missing Me and `40.29 sec` remote-like Me;
-- classified remaining-gap set: `81` rows / `285.11 sec` missing Me;
+- remote-gap trim materializes `42` pieces / `176.262 sec` and closes `15.38 sec` of missing Me;
+- best-profile full-real gaps: `719.49 sec` missing Me and `40.29 sec` remote-like Me;
+- classified remaining-gap set: `81` rows / `272.06 sec` missing Me;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
 - `objective_next_focus = fix_live_local_recall_gap`;
-- `live_next_unlock.next_actions[0] = materialize_remaining_target_me_visible_rows_and_recheck_recall`;
-- first action scope: `3` rows / `20.06 sec`.
+- `live_next_unlock.next_actions[0] = resolve_remaining_remote_dominant_target_me_with_frame_speaker_evidence`;
+- first action scope: `1` row / `4.68 sec`.
 
 `--refresh-lab-policy` evaluates one selected shadow profile. Use `--with-labs` only for deliberate
 full laboratory sweeps: it materializes every exploratory policy and is too expensive for routine

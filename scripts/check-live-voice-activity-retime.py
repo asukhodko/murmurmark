@@ -76,6 +76,27 @@ def main() -> int:
             ),
             encoding="utf-8",
         )
+        mic_gap_json = chunks_dir / "000004/mic.json"
+        mic_gap_json.parent.mkdir(parents=True, exist_ok=True)
+        mic_gap_json.write_text(
+            json.dumps(
+                {
+                    "transcription": [
+                        {
+                            "offsets": {"from": 0, "to": 10000},
+                            "tokens": [
+                                {"text": " remote", "p": 0.95, "offsets": {"from": 0, "to": 1300}},
+                                {"text": " phrase", "p": 0.95, "offsets": {"from": 1300, "to": 3000}},
+                                {"text": " local", "p": 0.98, "offsets": {"from": 3400, "to": 4700}},
+                                {"text": " answer", "p": 0.98, "offsets": {"from": 4700, "to": 6200}},
+                                {"text": " remains", "p": 0.98, "offsets": {"from": 6200, "to": 8000}},
+                            ],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
 
         rows = [
             {
@@ -94,6 +115,11 @@ def main() -> int:
                 "index": 3,
                 "clip_start_sec": 20.0,
                 "remote": {"asr": {"json": "derived/live/chunks/000003/remote.json"}},
+            },
+            {
+                "index": 4,
+                "clip_start_sec": 100.0,
+                "mic": {"asr": {"json": "derived/live/chunks/000004/mic.json"}},
             },
         ]
         chunks_path = session / "derived/live/chunks.jsonl"
@@ -240,6 +266,34 @@ def main() -> int:
         )
         order_gate = next(row for row in gates if row.get("name") == "order_risk")
         assert order_gate.get("status") == "passed", order_gate
+
+        gap_turns, gap_rejected = compare.target_me_remote_gap_trim_turns(
+            session,
+            target_me_rows=[
+                {
+                    "id": "target-confirmed",
+                    "chunk_index": 4,
+                    "interval": {"start": 100.0, "end": 110.0},
+                    "text": "remote phrase local answer remains",
+                    "classification": {"label": "target_me_confirmed", "confidence": 0.94},
+                    "target_me_rescue_policy_candidates": ["target_me_confirmed_v1"],
+                }
+            ],
+            remote_turns=[
+                {
+                    "id": "remote-prefix",
+                    "chunk_index": 4,
+                    "role": "Colleagues",
+                    "start": 100.0,
+                    "end": 103.0,
+                    "text": "remote phrase",
+                }
+            ],
+        )
+        assert not gap_rejected, gap_rejected
+        assert len(gap_turns) == 1, gap_turns
+        assert gap_turns[0]["text"] == "local answer remains", gap_turns[0]
+        assert float(gap_turns[0]["start"]) >= 103.2, gap_turns[0]
 
     print("live voice activity retime checks passed")
     return 0

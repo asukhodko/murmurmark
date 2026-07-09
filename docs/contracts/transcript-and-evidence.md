@@ -5843,6 +5843,13 @@ segment past a low-confidence prefix when at least five reliable lexical tokens 
 six-second window. Neither check reads raw CAF, batch timestamps or future chunks. A temporal prior
 for short generic phrases also prefers a nearby partial batch match over a distant exact match.
 
+The follow-up `target_me_remote_gap_trim_v1` layer processes only `target_me_confirmed` mic
+segments with confidence at least `0.90`. It intersects their Whisper token timestamps with gaps
+between guarded live remote intervals, advances the first gap to sustained local mic activity, and
+removes adjacent remote word stems before publishing a piece. Selection uses closed live chunk
+audio, live remote turns, mic ASR token JSON and Target-Me evidence; batch timestamps are used only
+afterward by parity evaluation. Rejected or remote-dominant spans remain unpublished.
+
 The order gate now distinguishes:
 
 - `live_blocking_contentful_role_constrained_order_mismatch_count`: unambiguous contradictions or
@@ -5854,9 +5861,10 @@ On the refreshed 14-session real corpus the token-density profile has `5` conten
 mismatches: `0` gate-blocking and `5` advisory. The active capture-safe unlock slice has `0`
 blocking / `2` advisory triage rows; historical full-corpus triage retains one blocking row outside
 that active slice. Promotion remains blocked by local recall, remote leakage, review burden and
-notes readiness. The full profile misses `734.87s` of batch `Me`; the classified remaining-gap set
-is `81` rows / `285.11s`. The next implementation action targets `3` live-visible Target-Me rows /
-`20.06s`.
+notes readiness. Remote-gap trim materializes `42` pieces / `176.262s`, closes `15.38s` of missing
+Me and leaves remote/order metrics unchanged. The full profile misses `719.49s` of batch `Me`; the
+classified remaining-gap set is `81` rows / `272.06s`. The next implementation action targets the
+remaining remote-dominant Target-Me row / `4.68s` with frame-level speaker/double-talk evidence.
 
 The same schema is also emitted as `capture_safe_candidate_order_risk_triage`, scoped only to
 capture-safe candidate sessions. This lets the goal runner separate historical unsafe/debug evidence
@@ -5868,8 +5876,10 @@ the next implementation step more honest.
 The profile records `voice_activity_boundary_retime`, original start, applied shift, threshold,
 noise floor and source chunk path on adjusted turns. Token-density adjustments additionally record
 `token_density_boundary_retime`, original start, shift, dense-token start/count and ASR JSON path.
-Corpus summaries aggregate retimed-turn counts and total shifts. These fields are evidence only and
-cannot make live output authoritative.
+Remote-gap pieces record `target_me_remote_gap_trim`, original interval, local-activity start,
+guarded gap, retained token count, adjacent-remote token recall, removed remote-stem groups and mic
+ASR JSON path. Corpus summaries aggregate retimed-turn counts, piece counts and durations. These
+fields are evidence only and cannot make live output authoritative.
 
 `live_next_unlock.boundary_order_retime_oracle` records an intentionally non-promotable diagnostic
 profile when boundary rows exist:

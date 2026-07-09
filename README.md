@@ -570,7 +570,7 @@ After Target-Me evidence and the best live-implementable profile were materializ
 capture-safe sessions, the blocking order rows in the active unlock slice were repaired without
 relaxing batch authority. The
 current profile is
-`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1`.
+`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_v1`.
 It combines sustained voice activity with a causal token-density boundary check over already-written
 live ASR JSON. Long remote segments are moved past low-confidence leading spans only when at least
 five reliable lexical tokens occur inside a six-second window. A temporal prior also prevents short
@@ -578,15 +578,18 @@ generic live phrases from matching a distant batch phrase only because its text 
 the refreshed 14-session real corpus this profile has `5` contentful order mismatches: `0` are
 gate-blocking and `5` remain advisory. In the active capture-safe unlock slice, triage has `0`
 blocking / `2` advisory rows; the historical full-corpus triage retains one blocking row outside
-that active slice. The full profile misses `734.87s` of batch `Me`; the currently classified
-remaining-gap set is `81` rows / `285.11s`, and `40.29s` of remote-like `Me` remains. The next focus
-is `fix_live_local_recall_gap`, starting with `3` already visible Target-Me rows / `20.06s`.
-Promotion stays blocked.
+that active slice. The profile additionally keeps only token-timestamped pieces of strongly
+confirmed Target-Me segments that fall between guarded live remote intervals. It materializes `42`
+pieces / `176.262s` across the real corpus and closes `15.38s` of missing Me without increasing
+remote leakage or order risk. The full profile now misses `719.49s` of batch `Me`; the classified
+remaining-gap set is `81` rows / `272.06s`, and `40.29s` of remote-like `Me` remains. Two of the
+three live-visible Target-Me rows are closed. The remaining `1` row / `4.68s` is remote-dominant and
+needs frame-level speaker/double-talk evidence. Promotion stays blocked.
 
 For a focused refresh, avoid the expensive all-profile lab and evaluate only the current profile:
 
 ```bash
-POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1
+POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_v1
 .venv/bin/python scripts/report-live-corpus-gates.py all \
   --refresh \
   --refresh-lab-policy "$POLICY"
@@ -1316,9 +1319,11 @@ Active goal and near-term candidates:
    cross-chunk timeline reorders. The contentful same-role slice narrows this to `14` order-risk
    examples, with `6` unambiguous rows in the base comparison. The current token-density profile
    leaves only advisory timing/match ambiguities in the active capture-safe path and clears its
-   blocking order gate. `live_next_unlock.next_actions[0]` now targets the `3` live-visible
-   Target-Me rows / `20.06s`; the classified remaining gap is `81` rows / `285.11s` and the full
-   profile missing-Me total is `734.87s`.
+   blocking order gate. Remote-gap token trimming closes two of the three live-visible Target-Me
+   rows (`15.38s`) without increasing remote leakage or order risk. `live_next_unlock.next_actions[0]`
+   now targets the remaining remote-dominant row / `4.68s` with frame-level speaker/double-talk
+   evidence. The classified remaining gap is `81` rows / `272.06s` and the full profile missing-Me
+   total is `719.49s`.
    The corpus report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
    visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic

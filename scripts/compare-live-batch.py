@@ -5,7 +5,7 @@ import argparse
 import json
 import os
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -16,7 +16,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.32.0"
+SCRIPT_VERSION = "0.33.0"
 EPSILON = 1.0e-12
 LIVE_BATCH_BOUNDARY_TOLERANCE_SEC = 2.5
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -136,6 +136,11 @@ VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_v1"
 )
+TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
+    "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
+    "target_me_remote_gap_trim_v1"
+)
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -186,6 +191,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
+    TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -250,6 +256,9 @@ TARGET_ME_SHADOW_PROFILE_BASE_POLICY = {
         "target_me_possible_timeline_safe_v1"
     ),
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY: (
+        "target_me_possible_timeline_safe_v1"
+    ),
+    TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY: (
         "target_me_possible_timeline_safe_v1"
     ),
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY: (
@@ -403,6 +412,7 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
+    TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     SOFT_LOCAL_SPEAKER_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
@@ -411,9 +421,14 @@ LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
 VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICIES = {
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
+    TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
 }
 TOKEN_DENSITY_BOUNDARY_RETIME_PROFILE_POLICIES = {
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
+    TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
+}
+TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICIES = {
+    TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICY,
 }
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
@@ -2104,6 +2119,267 @@ def apply_token_density_boundary_retime(
     return sorted(
         adjusted,
         key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+    )
+
+
+def remote_free_intervals(
+    start: float,
+    end: float,
+    remote_turns: list[dict[str, Any]],
+    *,
+    guard_before_sec: float = 0.15,
+    guard_after_sec: float = 0.20,
+) -> list[tuple[float, float]]:
+    blocked = sorted(
+        (
+            max(start, safe_float(turn.get("start")) - guard_before_sec),
+            min(end, safe_float(turn.get("end"), safe_float(turn.get("start"))) + guard_after_sec),
+        )
+        for turn in remote_turns
+        if interval_overlap(
+            start,
+            end,
+            safe_float(turn.get("start")) - guard_before_sec,
+            safe_float(turn.get("end"), safe_float(turn.get("start"))) + guard_after_sec,
+        )
+        > 0
+    )
+    gaps: list[tuple[float, float]] = []
+    cursor = start
+    for blocked_start, blocked_end in blocked:
+        if blocked_start > cursor:
+            gaps.append((cursor, blocked_start))
+        cursor = max(cursor, blocked_end)
+    if cursor < end:
+        gaps.append((cursor, end))
+    return gaps
+
+
+def whisper_word_groups(segment: dict[str, Any], clip_start: float) -> list[dict[str, Any]]:
+    groups: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    for token in segment.get("tokens") or []:
+        if not isinstance(token, dict):
+            continue
+        token_text = str(token.get("text") or "")
+        if token_text.startswith("[_") or not TOKEN_RE.search(token_text):
+            continue
+        offsets = token.get("offsets") if isinstance(token.get("offsets"), dict) else {}
+        token_start = clip_start + safe_float(offsets.get("from")) / 1000.0
+        token_end = clip_start + safe_float(offsets.get("to")) / 1000.0
+        starts_word = bool(token_text[:1].isspace())
+        if current is None or starts_word:
+            if current is not None:
+                current["text"] = clean_text(str(current.get("text") or ""))
+                if current["text"]:
+                    groups.append(current)
+            current = {
+                "text": token_text,
+                "start": token_start,
+                "end": token_end,
+                "probabilities": [safe_float(token.get("p"))],
+            }
+        else:
+            current["text"] = str(current.get("text") or "") + token_text
+            current["end"] = token_end
+            current["probabilities"].append(safe_float(token.get("p")))
+    if current is not None:
+        current["text"] = clean_text(str(current.get("text") or ""))
+        if current["text"]:
+            groups.append(current)
+    for group in groups:
+        probabilities = group.pop("probabilities", [])
+        group["p"] = round(sum(probabilities) / len(probabilities), 6) if probabilities else 0.0
+    return groups
+
+
+def target_me_remote_gap_trim_turns(
+    session: Path,
+    *,
+    target_me_rows: list[dict[str, Any]],
+    remote_turns: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    chunks = {
+        safe_int(row.get("index")): row
+        for row in read_jsonl(session / "derived/live/chunks.jsonl")
+        if safe_int(row.get("index")) > 0
+    }
+    remote_by_chunk: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for turn in remote_turns:
+        if turn.get("role") == "Colleagues":
+            remote_by_chunk[safe_int(turn.get("chunk_index"))].append(turn)
+    json_cache: dict[Path, dict[str, Any] | None] = {}
+    accepted: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+
+    for row in target_me_rows:
+        classification = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+        interval = row.get("interval") if isinstance(row.get("interval"), dict) else {}
+        start = safe_float(interval.get("start"))
+        end = safe_float(interval.get("end"), start)
+        row_id = str(row.get("id") or "")
+        context = {
+            "id": f"target_me_remote_gap_trim_rejected_{row_id}",
+            "target_me_audit_id": row_id,
+            "chunk_index": row.get("chunk_index"),
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "text": clean_text(str(row.get("text") or "")),
+        }
+        if (
+            classification.get("label") != "target_me_confirmed"
+            or safe_float(classification.get("confidence")) < 0.90
+            or "target_me_confirmed_v1" not in (row.get("target_me_rescue_policy_candidates") or [])
+        ):
+            rejected.append({**context, "reason": "target_me_not_strongly_confirmed"})
+            continue
+        if end <= start:
+            rejected.append({**context, "reason": "invalid_target_me_interval"})
+            continue
+        chunk_index = safe_int(row.get("chunk_index"))
+        chunk = chunks.get(chunk_index)
+        mic = chunk.get("mic") if isinstance(chunk, dict) and isinstance(chunk.get("mic"), dict) else {}
+        asr = mic.get("asr") if isinstance(mic.get("asr"), dict) else {}
+        json_value = asr.get("json")
+        if not json_value:
+            rejected.append({**context, "reason": "mic_asr_json_missing"})
+            continue
+        json_path = Path(str(json_value))
+        if not json_path.is_absolute():
+            json_path = session / json_path
+        if json_path not in json_cache:
+            json_cache[json_path] = read_json(json_path)
+        payload = json_cache[json_path]
+        transcription = payload.get("transcription") if isinstance(payload, dict) else None
+        clip_start = safe_float(chunk.get("clip_start_sec"), safe_float(chunk.get("start_sec")))
+        if not isinstance(transcription, list):
+            rejected.append({**context, "reason": "mic_asr_transcription_missing"})
+            continue
+        candidates: list[tuple[float, dict[str, Any]]] = []
+        for segment in transcription:
+            if not isinstance(segment, dict):
+                continue
+            offsets = segment.get("offsets") if isinstance(segment.get("offsets"), dict) else {}
+            segment_start = clip_start + safe_float(offsets.get("from")) / 1000.0
+            segment_end = clip_start + safe_float(offsets.get("to")) / 1000.0
+            distance = abs(segment_start - start) + abs(segment_end - end)
+            if interval_overlap(start, end, segment_start, segment_end) > 0:
+                candidates.append((distance, segment))
+        if not candidates:
+            rejected.append({**context, "reason": "matching_mic_asr_segment_missing"})
+            continue
+        best_distance, segment = min(candidates, key=lambda pair: pair[0])
+        if best_distance > 0.75:
+            rejected.append(
+                {
+                    **context,
+                    "reason": "matching_mic_asr_segment_missing",
+                    "best_interval_distance_sec": round(best_distance, 3),
+                }
+            )
+            continue
+        chunk_remote = remote_by_chunk.get(chunk_index) or []
+        activity_probe = {
+            "id": f"target_me_remote_gap_activity_{row_id}",
+            "chunk_index": chunk_index,
+            "source": "mic_segment",
+            "role": "Me",
+            "start": start,
+            "end": end,
+            "text": context["text"],
+        }
+        activity_result = apply_voice_activity_boundary_retime(session, [activity_probe])[0]
+        activity_start = safe_float(activity_result.get("start"), start)
+        gaps = remote_free_intervals(max(start, activity_start), end, chunk_remote)
+        if not gaps:
+            rejected.append({**context, "reason": "no_remote_free_gap"})
+            continue
+        word_groups = whisper_word_groups(segment, clip_start)
+        accepted_for_row = 0
+        rejection_reasons: Counter[str] = Counter()
+        for gap_index, (gap_start, gap_end) in enumerate(gaps, 1):
+            if gap_end - gap_start < 0.60:
+                rejection_reasons["remote_free_gap_too_short"] += 1
+                continue
+            selected_groups = [
+                group
+                for group in word_groups
+                if gap_start
+                <= (safe_float(group.get("start")) + safe_float(group.get("end"))) / 2.0
+                <= gap_end
+            ]
+            adjacent_remote = [
+                turn
+                for turn in chunk_remote
+                if safe_float(turn.get("end"), safe_float(turn.get("start"))) >= gap_start - 1.0
+                and safe_float(turn.get("start")) <= gap_end + 1.0
+            ]
+            remote_context_tokens = tokens(" ".join(str(turn.get("text") or "") for turn in adjacent_remote))
+            remote_stems = {token[:5] for token in remote_context_tokens if len(token) >= 5}
+            filtered_groups: list[dict[str, Any]] = []
+            removed_remote_stem_groups: list[str] = []
+            for group in selected_groups:
+                group_tokens = tokens(str(group.get("text") or ""))
+                content_group_tokens = [token for token in group_tokens if len(token) >= 5]
+                if content_group_tokens and all(token[:5] in remote_stems for token in content_group_tokens):
+                    removed_remote_stem_groups.append(str(group.get("text") or ""))
+                    continue
+                filtered_groups.append(group)
+            piece_text = clean_text(" ".join(str(group.get("text") or "") for group in filtered_groups))
+            piece_tokens = tokens(piece_text)
+            if len(content_tokens(piece_tokens)) < 2:
+                rejection_reasons["insufficient_content_tokens"] += 1
+                continue
+            remote_recall = bag_recall(piece_tokens, remote_context_tokens) or 0.0
+            if remote_recall > 0.50:
+                rejection_reasons["piece_text_too_similar_to_remote"] += 1
+                continue
+            piece_start = max(gap_start, min(safe_float(group.get("start")) for group in filtered_groups) - 0.05)
+            piece_end = min(gap_end, max(safe_float(group.get("end")) for group in filtered_groups) + 0.05)
+            if piece_end - piece_start < 0.35:
+                rejection_reasons["token_aligned_piece_too_short"] += 1
+                continue
+            accepted_for_row += 1
+            accepted.append(
+                {
+                    "id": f"live_target_me_remote_gap_trim_{row_id}_{gap_index:02d}",
+                    "chunk_index": chunk_index,
+                    "source": "mic_target_me_remote_gap_trim",
+                    "role": "Me",
+                    "start": round(piece_start, 3),
+                    "end": round(piece_end, 3),
+                    "text": piece_text,
+                    "tokens": piece_tokens,
+                    "target_me_remote_gap_trim": True,
+                    "target_me_audit_id": row_id,
+                    "target_me_label": classification.get("label"),
+                    "target_me_confidence": classification.get("confidence"),
+                    "target_me_remote_gap_original_start": round(start, 3),
+                    "target_me_remote_gap_original_end": round(end, 3),
+                    "target_me_remote_gap_start": round(gap_start, 3),
+                    "target_me_remote_gap_end": round(gap_end, 3),
+                    "target_me_remote_gap_activity_start": round(activity_start, 3),
+                    "target_me_remote_gap_token_count": len(filtered_groups),
+                    "target_me_remote_gap_remote_token_recall": round(remote_recall, 6),
+                    "target_me_remote_gap_removed_remote_stem_groups": removed_remote_stem_groups,
+                    "target_me_remote_gap_asr_json": rel(json_path, session),
+                }
+            )
+        if accepted_for_row == 0:
+            rejected.append(
+                {
+                    **context,
+                    "reason": "no_publishable_remote_free_token_piece",
+                    "gap_count": len(gaps),
+                    "rejection_reasons": dict(sorted(rejection_reasons.items())),
+                }
+            )
+    return (
+        sorted(
+            accepted,
+            key=lambda item: (safe_float(item.get("start")), safe_float(item.get("end")), str(item.get("id") or "")),
+        ),
+        rejected,
     )
 
 
@@ -5099,6 +5375,16 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "token_density_boundary_dense_start_seconds",
         "token_density_boundary_token_count",
         "token_density_boundary_asr_json",
+        "target_me_remote_gap_trim",
+        "target_me_remote_gap_original_start",
+        "target_me_remote_gap_original_end",
+        "target_me_remote_gap_start",
+        "target_me_remote_gap_end",
+        "target_me_remote_gap_activity_start",
+        "target_me_remote_gap_token_count",
+        "target_me_remote_gap_remote_token_recall",
+        "target_me_remote_gap_removed_remote_stem_groups",
+        "target_me_remote_gap_asr_json",
         "segment_gate_status",
         "segment_gate_reason",
         "segment_gate_unique_token_count",
@@ -5283,6 +5569,7 @@ def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]
     preserved_prefix = [turn for turn in split if turn.get("boundary_order_split_part") == "preserved_prefix"]
     voice_activity_retimed = [turn for turn in turns if turn.get("voice_activity_boundary_retime")]
     token_density_retimed = [turn for turn in turns if turn.get("token_density_boundary_retime")]
+    target_me_remote_gap_trimmed = [turn for turn in turns if turn.get("target_me_remote_gap_trim")]
     return {
         "boundary_order_retime_oracle_turn_count": len(retimed),
         "boundary_order_retime_oracle_trimmed_seconds": round(
@@ -5303,6 +5590,14 @@ def boundary_order_retime_metrics(turns: list[dict[str, Any]]) -> dict[str, Any]
         "token_density_boundary_retime_turn_count": len(token_density_retimed),
         "token_density_boundary_retime_shift_seconds": round(
             sum(safe_float(turn.get("token_density_boundary_shift_seconds")) for turn in token_density_retimed),
+            3,
+        ),
+        "target_me_remote_gap_trim_turn_count": len(target_me_remote_gap_trimmed),
+        "target_me_remote_gap_trim_seconds": round(
+            sum(
+                max(0.0, safe_float(turn.get("end")) - safe_float(turn.get("start")))
+                for turn in target_me_remote_gap_trimmed
+            ),
             3,
         ),
     }
@@ -5507,6 +5802,20 @@ def target_me_shadow_profile_components(
         live_turns = apply_token_density_boundary_retime(session, live_turns)
         target_turns = apply_token_density_boundary_retime(session, target_turns)
         supplemental_turns = apply_token_density_boundary_retime(session, supplemental_turns)
+    if policy in TARGET_ME_REMOTE_GAP_TRIM_PROFILE_POLICIES:
+        remote_gap_turns, rejected_remote_gap_turns = target_me_remote_gap_trim_turns(
+            session,
+            target_me_rows=target_me_rows,
+            remote_turns=live_turns,
+        )
+        remote_gap_turns = filter_supplemental_turns_already_in_base(
+            remote_gap_turns,
+            live_turns + target_turns + supplemental_turns,
+        )
+        supplemental_turns = dedupe_supplemental_turns_by_interval(
+            supplemental_turns + remote_gap_turns,
+        )
+        rejected_supplemental_turns.extend(rejected_remote_gap_turns)
     if (
         policy in LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICIES
         or policy in LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICIES
@@ -5968,6 +6277,12 @@ def build_target_me_shadow_profiles(
         ]
         top_level_metrics[f"{base}_token_density_boundary_retime_shift_seconds"] = retime_metrics[
             "token_density_boundary_retime_shift_seconds"
+        ]
+        top_level_metrics[f"{base}_target_me_remote_gap_trim_turn_count"] = retime_metrics[
+            "target_me_remote_gap_trim_turn_count"
+        ]
+        top_level_metrics[f"{base}_target_me_remote_gap_trim_seconds"] = retime_metrics[
+            "target_me_remote_gap_trim_seconds"
         ]
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_count"] = len(supplemental_turns)
         top_level_metrics[f"{base}_visible_suppressed_mic_added_turn_seconds"] = supplemental_seconds

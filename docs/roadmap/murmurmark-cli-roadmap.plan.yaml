@@ -793,6 +793,12 @@ nodes:
       blocking order risk in the active capture-safe path while retaining `2` advisory rows for
       audit. Historical full-corpus triage still retains one blocking row. Strict order gates still
       block genuine contradictions; the active implementation focus now moves to live local recall.
+      The causal Target-Me remote-gap trim follow-up keeps only mic ASR token pieces between guarded
+      remote intervals and after sustained local activity. On the full real corpus it materializes
+      `42` pieces / `176.262s`, closes `15.38s` missing Me (`734.87s -> 719.49s`) and leaves
+      remote-like Me (`40.29s`) and order counters unchanged. Two of three live-visible Target-Me
+      rows are closed; the remaining remote-dominant row / `4.68s` needs frame-level
+      speaker/double-talk evidence.
       The diagnostic boundary-order retime oracle remains non-promotable evidence: timing repair
       needs local-speaker preservation and must not relax remote-forbidden gates.
       The split/retime oracle preserves `1 / 6.62s` of local prefix and keeps missing-Me unchanged
@@ -866,9 +872,10 @@ nodes:
       `--include-remaining-gap` and diagnostic `--fallback-persistent-profile`, all rows have
       Target-Me coverage; `0.32s` have been materialized in the diagnostic remote-guarded boundary
       profile and `25.00s` stay weak or ambiguous. Those labs remain diagnostic-only. Следующий
-      фокус: `fix_live_local_recall_gap`, начиная с `3` live-visible Target-Me строк / `20.06s`
-      внутри классифицированного остатка `81` строка / `285.11s`. Полный missing-Me профиля равен
-      `734.87s`; remote-like-Me остаётся `40.29s`. Promotion остаётся blocked.
+      фокус: `fix_live_local_recall_gap`. Remote-gap trim уже закрыл `2` live-visible Target-Me
+      строки / `15.38s`; далее нужно frame-level evidence для оставшейся remote-dominant строки /
+      `4.68s`. Классифицированный остаток равен `81` строка / `272.06s`, полный missing-Me профиля
+      `719.49s`; remote-like-Me остаётся `40.29s`. Promotion остаётся blocked.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
