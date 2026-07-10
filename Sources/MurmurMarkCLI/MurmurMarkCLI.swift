@@ -238,6 +238,7 @@ struct MurmurMark {
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live watch SESSION|latest [--poll-sec SEC] [--sessions-root ./sessions]
+          murmurmark live evidence SESSION|latest [--refresh] [--strict] [--sessions-root ./sessions]
           murmurmark live gate [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--controlled-real] [--preflight-only] [--skip-safety-gate]
           murmurmark experiment status|report|compare|recover-draft SESSION|latest [--experiment live-shadow-v1]
@@ -718,6 +719,7 @@ enum DoctorChecks {
             "scripts/evaluate-outcome.py",
             "scripts/live-pipeline-shadow.py",
             "scripts/watch-live-draft.py",
+            "scripts/report-live-session-evidence.py",
             "scripts/live-progressive-target-me.py",
             "scripts/raw-sidecar-worker.py",
             "scripts/compare-live-batch.py",
@@ -5161,6 +5163,27 @@ enum LiveCommands {
                 try PythonRuntime.resolve(),
                 [try script("watch-live-draft.py").path, session.path, "--poll-sec", pollSec]
             )
+        case "evidence":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                printEvidenceHelp()
+                return
+            }
+            var evidenceArgs = forwarded
+            let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &evidenceArgs) ?? "sessions")
+            guard let target = evidenceArgs.first else {
+                printEvidenceHelp()
+                return
+            }
+            evidenceArgs.removeFirst()
+            let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+            let status = try Tooling.runPathAllowingExitCodes(
+                try PythonRuntime.resolve(),
+                [try script("report-live-session-evidence.py").path, session.path] + evidenceArgs,
+                allowedExitCodes: [0, 2]
+            )
+            if status != 0 {
+                Foundation.exit(status)
+            }
         case "pilot":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 printPilotHelp()
@@ -5201,6 +5224,7 @@ enum LiveCommands {
           murmurmark live next [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live gate [--sessions-root ./sessions]
           murmurmark live watch SESSION|latest [--poll-sec SEC] [--sessions-root ./sessions]
+          murmurmark live evidence SESSION|latest [--refresh] [--strict] [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--duration SEC] [--segment-sec SEC] [--overlap-sec SEC]
                                [--controlled-real] [--preflight-only] [--skip-safety-gate]
 
@@ -5252,6 +5276,20 @@ enum LiveCommands {
 
         Prints new shadow draft text and worker heartbeat/lag until recording-time preview reaches a
         terminal state. Batch transcript remains authoritative.
+        """)
+    }
+
+    static func printEvidenceHelp() {
+        Swift.print("""
+        usage:
+          murmurmark live evidence SESSION|latest [--refresh] [--strict]
+                                           [--max-final-lag-sec 60]
+                                           [--max-first-chunk-latency-sec 120]
+                                           [--sessions-root ./sessions]
+
+        Writes a compact per-session verdict for capture health, pre-stop committed-PCM provenance,
+        worker termination/lag, fallback isolation and live-vs-batch parity. --strict exits 2 until
+        all parity gates pass. Batch remains authoritative and promotion remains disabled.
         """)
     }
 

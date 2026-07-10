@@ -376,6 +376,7 @@ and which command recovers processing from the existing raw CAF files. Inspect i
 murmurmark experiment status "$SESSION"
 murmurmark experiment report "$SESSION"
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
+murmurmark live evidence "$SESSION"
 murmurmark experiment recover-draft "$SESSION" --experiment live-shadow-v1  # explicit fallback only
 ```
 
@@ -383,6 +384,9 @@ murmurmark experiment recover-draft "$SESSION" --experiment live-shadow-v1  # ex
 whatever was actually produced by the recording-time worker and must finish without starting ASR.
 Use `experiment recover-draft` only when a separate post-stop diagnostic draft is useful. Recovery
 is never counted as pre-stop evidence and does not make the live result authoritative.
+`live evidence` writes `derived/live/live_session_evidence.{json,md}` and gives one compact verdict
+for capture health, pre-stop provenance, worker lag/termination, fallback isolation and parity. Use
+`--strict` in an acceptance run when a non-passing session must return exit code `2`.
 The default comparison computes the required parity gates. Expensive exploratory target-me shadow
 profiles are opt-in:
 

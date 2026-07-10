@@ -193,11 +193,19 @@ murmurmark experiment status SESSION|latest
 murmurmark experiment report SESSION|latest
 murmurmark experiment compare SESSION|latest --experiment live-shadow-v1
 murmurmark experiment recover-draft SESSION|latest --experiment live-shadow-v1
+murmurmark live evidence SESSION|latest [--refresh] [--strict]
 ```
 
 `compare` runs the existing live-vs-batch comparison first, then refreshes the experiment contract.
 It must not materialize audio or start ASR. `recover-draft` is the only command allowed to run
 post-stop fallback ASR.
+
+`live evidence` writes `murmurmark.live_session_evidence/v1` to
+`derived/live/live_session_evidence.json` plus a Markdown view. The report separates
+`transport_evidence_passed` from `all_parity_gates_passed` and checks capture safety, required
+artifacts, authoritative batch, pre-stop chunks, terminal worker state, bounded lag/latency,
+committed-PCM provenance, fallback isolation and meaningful comparison. It always keeps
+`promotion_allowed: false`; `--strict` returns exit code `2` until every parity gate passes.
 The default comparison includes `online_live_me_remote_overlap_filter_v1` as the direct baseline and
 `live_runtime_causal_target_me_direct_v1` as the runtime candidate, so the corpus report can compute
 a paired no-regression verdict without offline Target-Me anchors. Other expensive or batch-informed

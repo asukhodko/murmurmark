@@ -37,6 +37,8 @@ fail-open. A controlled worker-enabled ScreenCaptureKit run produced chunks befo
 all committed segments without final lag. This proves the implementation path, not the real-meeting
 coverage gate. The next required evidence is at least three fresh meaningful meetings with healthy
 raw CAF, pre-stop live artifacts, successful batch output and live-vs-batch comparison.
+`murmurmark live evidence SESSION` now writes the compact per-session acceptance artifact used to
+classify each new meeting before the corpus refresh.
 
 The current live-parity blocker has two layers: fresh temporal evidence after the reliability fix,
 then profile quality. The historical corpus is sufficient for algorithmic work, but it cannot prove

@@ -657,7 +657,8 @@ newer run-state exists.
    timeouts, immutable realtime provenance, explicit fallback recovery and a pre-stop integration
    smoke with the worker enabled. The implementation unit is complete; the next evidence gate is
    three fresh meaningful real meetings with healthy raw/batch output, pre-stop artifacts and
-   live-vs-batch comparison.
+   live-vs-batch comparison. `murmurmark live evidence SESSION` is the compact per-session gate for
+   this collection loop.
    Post-stop latency is reduced conservatively by applying cheap cleanup before the stronger audio
    judge, rebuilding only the residual review pack and using two-source triage by default; exhaustive
    four-source decoding remains opt-in.

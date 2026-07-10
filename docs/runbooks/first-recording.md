@@ -125,6 +125,7 @@ murmurmark process "$SESSION"
 murmurmark experiment status "$SESSION"
 murmurmark experiment report "$SESSION"
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
+murmurmark live evidence "$SESSION"
 ```
 
 This command still writes the normal raw CAF session first. The live draft is shadow evidence and
@@ -164,6 +165,9 @@ shows worker heartbeat and lag; it must make a stalled preview visible while raw
 worker timed out and a diagnostic post-stop draft is useful, run
 `murmurmark experiment recover-draft ...` explicitly. Recovery writes a separate fallback namespace
 and cannot satisfy pre-stop parity gates.
+`murmurmark live evidence "$SESSION"` is the per-session acceptance view. It writes a compact JSON
+and Markdown verdict and distinguishes transport evidence from full transcript parity. After three
+fresh sessions, refresh the corpus once with `murmurmark corpus live all --refresh`.
 The default comparison computes the required parity gates and a paired direct comparison between
 `online_live_me_remote_overlap_filter_v1` and `live_runtime_causal_target_me_direct_v1`.
 For an additional focused shadow experiment, materialize the selected policy explicitly:
