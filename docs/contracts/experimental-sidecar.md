@@ -188,6 +188,17 @@ derived/experiments/live-shadow-v1/audio/remote/000001.caf
 For compatibility, it also writes `derived/live/segments.jsonl` rows pointing back to those canonical
 experiment audio files.
 
+The recording-time worker writes two Markdown views:
+
+```text
+derived/live/transcript.preview.md  # conservative default for live watch
+derived/live/transcript.draft.md    # complete candidate-only diagnostics
+```
+
+`transcript.preview.md` may include a causal Target-Me candidate only when its
+`murmurmark.live_remote_audio_guard/v1.status` is `passed`. Missing or rejected guard evidence must
+remain absent from the preview and available in the diagnostic draft. Neither file is authoritative.
+
 `raw_segment_commits.jsonl` remains a fallback and audit trail. If committed-PCM preview is missing
 or partial, explicit `experiment recover-draft` may run the raw sidecar worker after recording stops.
 Fallback outputs are isolated under:

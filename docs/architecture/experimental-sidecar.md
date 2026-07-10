@@ -77,14 +77,20 @@ derived/experiments/live-shadow-v1/
     remote/000001.caf
   report.json
   report.md
-  transcript.draft.md
-  transcript.draft.json
   worker.log
   live_batch_comparison.json
+
+derived/live/
+  transcript.preview.md
+  transcript.draft.md
+  chunks.jsonl
+  live_pipeline_report.json
 ```
 
 The existing `derived/live/` path stays as a compatibility alias for `segments.jsonl`, chunks and
-draft output. Canonical experiment audio lives under `derived/experiments/live-shadow-v1/audio/`.
+preview/draft output. `transcript.preview.md` is the conservative recording-time view;
+`transcript.draft.md` retains all candidate-only diagnostics. Canonical experiment audio lives under
+`derived/experiments/live-shadow-v1/audio/`.
 
 Implemented v1 contract:
 
@@ -177,13 +183,17 @@ murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 Realtime and recovery are separate branches:
 
 ```text
-committed PCM -> derived/live/segments.jsonl -> live worker -> derived/live/transcript.draft.md
+committed PCM -> derived/live/segments.jsonl -> live worker -> derived/live/transcript.preview.md
+                                                   +-------> derived/live/transcript.draft.md
 raw commit log -> explicit recover-draft -> derived/experiments/live-shadow-v1/fallback/
 ```
 
 The second branch is post-stop diagnostic recovery. It cannot replace or amend the first branch,
 and `experiment compare` never invokes it implicitly. This keeps temporal provenance auditable and
 prevents a replay from looking like near-realtime output.
+The conservative preview keeps normal role-gated mic/remote text and only causal Target-Me
+candidates whose `murmurmark.live_remote_audio_guard/v1` status is `passed`. Missing or rejected
+guard evidence is retained in the diagnostic draft, not shown in the normal preview.
 
 ## Known Failure Modes
 

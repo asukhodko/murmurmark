@@ -22,8 +22,9 @@ exists, while three passing sessions are still required.
 - realtime rows are synchronized after append and carry `recording_time_committed_pcm` provenance;
 - the live worker writes heartbeat, current stage/index, child PID and bounded ffmpeg/Whisper
   timeouts;
-- `murmurmark live watch SESSION` exposes draft updates, lag and stalled-worker state while capture
-  continues;
+- `murmurmark live watch SESSION` exposes the conservative remote-energy preview, lag and
+  stalled-worker state while capture continues; `--diagnostic-draft` exposes all candidate-only
+  evidence;
 - worker SIGTERM terminates the active child process and persists `completed_partial_draft` instead
   of leaving stale `running`;
 - `experiment compare` no longer starts ASR or materializes missing audio;

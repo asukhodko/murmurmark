@@ -117,6 +117,8 @@ wait_for 5 test -s "$session/derived/live/live_pipeline_state.json" \
 append_segment_pair "$session" "2026-07-10T10:00:02Z"
 wait_for 10 grep -q "удаленная тестовая реплика" "$session/derived/live/transcript.draft.md" \
   || { cat "$workdir/worker.log" >&2; fail "draft did not appear before session stop"; }
+wait_for 10 grep -q "удаленная тестовая реплика" "$session/derived/live/transcript.preview.md" \
+  || { cat "$workdir/worker.log" >&2; fail "conservative preview did not appear before session stop"; }
 [[ ! -e "$session/session.json" ]] || fail "fixture stopped before proving pre-stop draft"
 jq -e '
   .status == "running"
@@ -139,6 +141,9 @@ wait "$worker_pid" || fail "worker exited non-zero"
 jq -e '.status == "completed" and .current_stage == "completed"' \
   "$session/derived/live/live_pipeline_state.json" >/dev/null \
   || fail "worker did not persist terminal state"
+jq -e '.outputs.preview_transcript == "derived/live/transcript.preview.md"' \
+  "$session/derived/live/live_pipeline_report.json" >/dev/null \
+  || fail "live report does not expose the conservative preview"
 "$python_bin" scripts/watch-live-draft.py "$session" --poll-sec 0.1 >"$workdir/watch.log"
 grep -q 'удаленная тестовая реплика' "$workdir/watch.log" \
   || fail "live watch did not print the draft"
@@ -200,6 +205,8 @@ jq -e '
   || fail "lag budget telemetry is missing from the live report"
 grep -q 'удаленная тестовая реплика' "$lag_session/derived/live/transcript.draft.md" \
   || fail "lag budget removed the base live draft"
+grep -q 'удаленная тестовая реплика' "$lag_session/derived/live/transcript.preview.md" \
+  || fail "lag budget removed the conservative base preview"
 
 shutdown_session="$workdir/session-shutdown"
 make_session "$shutdown_session"

@@ -21,10 +21,11 @@ from scipy.io import wavfile
 
 
 SCHEMA = "murmurmark.live_pipeline_report/v1"
-SCRIPT_VERSION = "0.6.0"
+SCRIPT_VERSION = "0.7.0"
 EPSILON = 1.0e-12
 LIVE_ROLE_DUPLICATE_THRESHOLD = 0.55
 LIVE_RESCUE_SHADOW_POLICY = "audio_safe_union_v1"
+LIVE_PREVIEW_POLICY = "live_runtime_causal_target_me_remote_energy_v1"
 KNOWN_HALLUCINATIONS = {
     "редактор субтитров",
     "продолжение следует",
@@ -126,6 +127,7 @@ class WorkerHeartbeat:
             "batch_authoritative": True,
             "promotion_allowed": False,
             "draft_transcript": str(self.output_dir / "transcript.draft.md"),
+            "preview_transcript": str(self.output_dir / "transcript.preview.md"),
             "report": str(self.output_dir / "live_pipeline_report.json"),
         }
         if progress is not None:
@@ -1219,6 +1221,65 @@ def write_draft(output_dir: Path, chunks: list[dict[str, Any]], commit_delay_sec
     draft.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+def candidate_passes_preview_gate(candidate: dict[str, Any]) -> bool:
+    guard = candidate.get("remote_audio_guard")
+    return bool(
+        isinstance(guard, dict)
+        and guard.get("schema") == "murmurmark.live_remote_audio_guard/v1"
+        and guard.get("status") == "passed"
+    )
+
+
+def write_preview(output_dir: Path, chunks: list[dict[str, Any]], commit_delay_sec: float) -> None:
+    preview = output_dir / "transcript.preview.md"
+    lines = [
+        "# Live Preview Transcript",
+        "",
+        "Conservative shadow preview. The batch pipeline remains authoritative.",
+        f"Policy: `{LIVE_PREVIEW_POLICY}`.",
+        "",
+    ]
+    if not chunks:
+        lines += ["_Waiting for closed audio segments._", ""]
+    max_end = max(float(chunk.get("end_sec") or 0.0) for chunk in chunks) if chunks else 0.0
+    for chunk in sorted(chunks, key=lambda item: int(item.get("index") or 0)):
+        provisional = max_end - float(chunk.get("end_sec") or 0.0) < commit_delay_sec
+        marker = " provisional" if provisional else ""
+        lines += [f"## {fmt_time(float(chunk.get('start_sec') or 0.0))}{marker}", ""]
+        mic_row = chunk.get("mic") if isinstance(chunk.get("mic"), dict) else {}
+        remote_row = chunk.get("remote") if isinstance(chunk.get("remote"), dict) else {}
+        mic = clean_text(str(mic_row.get("text") or ""))
+        remote = clean_text(str(remote_row.get("text") or ""))
+        causal = (
+            mic_row.get("causal_target_me_shadow")
+            if isinstance(mic_row.get("causal_target_me_shadow"), dict)
+            else {}
+        )
+        candidates = causal.get("candidates") if isinstance(causal.get("candidates"), list) else []
+        accepted = [
+            candidate
+            for candidate in candidates
+            if isinstance(candidate, dict) and candidate_passes_preview_gate(candidate)
+        ]
+        if mic:
+            lines += ["**Me**", "", mic, ""]
+        for candidate in accepted:
+            text = clean_text(str(candidate.get("text") or ""))
+            if text:
+                lines += ["**Me**", "", text, ""]
+        if remote:
+            lines += ["**Colleagues**", "", remote, ""]
+        if not mic and not accepted and not remote:
+            lines += ["_No speech decoded in this segment._", ""]
+    preview.parent.mkdir(parents=True, exist_ok=True)
+    preview.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def write_live_views(output_dir: Path, chunks: list[dict[str, Any]], commit_delay_sec: float) -> None:
+    write_draft(output_dir, chunks, commit_delay_sec)
+    write_preview(output_dir, chunks, commit_delay_sec)
+
+
 def process_segment(
     session: Path,
     index: int,
@@ -1346,6 +1407,9 @@ def live_rescue_shadow_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
 def causal_target_me_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
     candidate_count = 0
     candidate_seconds = 0.0
+    preview_candidate_count = 0
+    preview_rejected_count = 0
+    preview_not_evaluated_count = 0
     evaluated_segments = 0
     skipped_lag_budget_count = 0
     failed_open_count = 0
@@ -1364,11 +1428,25 @@ def causal_target_me_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
             for row in candidates
             if isinstance(row, dict)
         )
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            guard = candidate.get("remote_audio_guard")
+            if candidate_passes_preview_gate(candidate):
+                preview_candidate_count += 1
+            elif isinstance(guard, dict) and guard.get("status") == "rejected":
+                preview_rejected_count += 1
+            else:
+                preview_not_evaluated_count += 1
     return {
         "policy": "live_runtime_causal_target_me_direct_v1",
         "publish_policy": "shadow_only_not_live_me",
+        "preview_policy": LIVE_PREVIEW_POLICY,
         "candidate_count": candidate_count,
         "candidate_seconds": round(candidate_seconds, 3),
+        "preview_candidate_count": preview_candidate_count,
+        "preview_rejected_count": preview_rejected_count,
+        "preview_not_evaluated_count": preview_not_evaluated_count,
         "evaluated_segment_count": evaluated_segments,
         "skipped_lag_budget_count": skipped_lag_budget_count,
         "failed_open_count": failed_open_count,
@@ -1450,6 +1528,7 @@ def write_report(
         },
         "outputs": {
             "draft_transcript": rel(output_dir / "transcript.draft.md", session),
+            "preview_transcript": rel(output_dir / "transcript.preview.md", session),
             "chunks_jsonl": rel(output_dir / "chunks.jsonl", session),
             "segments_jsonl": rel(resolve_output_path(session, args.segments_path), session),
         },
@@ -1477,7 +1556,7 @@ def main() -> int:
     chunks: list[dict[str, Any]] = []
     last_new_work = time.monotonic()
     heartbeat.update(status="running", stage="initializing")
-    write_draft(output_dir, chunks, args.commit_delay_sec)
+    write_live_views(output_dir, chunks, args.commit_delay_sec)
     write_report(session, output_dir, "running", chunks, [], args)
     progressive_target_me: Any | None = None
     if not args.no_causal_target_me:
@@ -1552,7 +1631,7 @@ def main() -> int:
                 default=0.0,
             )
             write_chunks(output_dir, chunks)
-            write_draft(output_dir, chunks, args.commit_delay_sec)
+            write_live_views(output_dir, chunks, args.commit_delay_sec)
             write_report(session, output_dir, "running", chunks, latest_rows, args)
             heartbeat.update(status="running", stage="base_chunk_written", index=index)
             last_new_work = time.monotonic()
@@ -1619,13 +1698,13 @@ def main() -> int:
                     )
                     heartbeat.update(status="running", stage="target_me_written", index=index)
                 write_chunks(output_dir, chunks)
-                write_draft(output_dir, chunks, args.commit_delay_sec)
+                write_live_views(output_dir, chunks, args.commit_delay_sec)
                 write_report(session, output_dir, "running", chunks, latest_rows, args)
 
         if SHUTDOWN_REQUESTED:
             status = "completed_partial_draft"
             completed = max((float(row.get("end_sec") or 0.0) for row in chunks), default=0.0)
-            write_draft(output_dir, chunks, args.commit_delay_sec)
+            write_live_views(output_dir, chunks, args.commit_delay_sec)
             write_report(session, output_dir, status, chunks, rows, args)
             heartbeat.update(
                 status=status,
@@ -1646,7 +1725,7 @@ def main() -> int:
         idle_after_finish = session_finished and all_ready_done and (time.monotonic() - last_new_work >= args.idle_after_session_json_sec)
         if idle_after_finish or (args.max_segments and len(processed) >= args.max_segments):
             status = "completed" if session_finished else "stopped_by_limit"
-            write_draft(output_dir, chunks, args.commit_delay_sec)
+            write_live_views(output_dir, chunks, args.commit_delay_sec)
             write_report(session, output_dir, status, chunks, rows, args)
             if progressive_target_me is not None:
                 progressive_target_me.persist(status="completed")

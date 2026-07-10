@@ -4528,6 +4528,7 @@ while recording.
     "segments_seen": 18
   },
   "outputs": {
+    "preview_transcript": "derived/live/transcript.preview.md",
     "draft_transcript": "derived/live/transcript.draft.md",
     "chunks_jsonl": "derived/live/chunks.jsonl"
   }
@@ -4548,7 +4549,7 @@ after the bounded finalization wait, the report must be patched to `status: term
 `finalization_wait_timeout`. This is not a capture failure by itself; it only means the live
 sidecar stopped producing advisory draft evidence and the batch pipeline remains authoritative.
 
-### Live Chunks And Draft Transcript
+### Live Chunks, Preview And Diagnostic Draft
 
 Each processed index writes:
 
@@ -4562,9 +4563,11 @@ derived/live/chunks/<index>/remote.wav
 contain `provisional: true` when it is inside the delayed commit window and may be rewritten by a
 later worker version.
 
-`derived/live/transcript.draft.md` is a read-only draft for early orientation. It must not be used as
-the final transcript, synthesis input or export source until a future corpus gate explicitly promotes
-the live path.
+`derived/live/transcript.preview.md` is the conservative file shown by `murmurmark live watch`.
+It excludes causal Target-Me candidates that lack a passed recording-time remote-energy gate.
+`derived/live/transcript.draft.md` retains all candidate-only evidence for diagnostics. Both are
+read-only, non-authoritative artifacts and must not be used as the final transcript, synthesis input
+or export source until a future corpus gate explicitly promotes the live path.
 
 ### Final Reconcile Report
 

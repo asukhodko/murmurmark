@@ -22,6 +22,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Watch a MurmurMark shadow live draft and worker heartbeat.")
     parser.add_argument("session", type=Path)
     parser.add_argument("--poll-sec", type=float, default=1.0)
+    parser.add_argument(
+        "--diagnostic-draft",
+        action="store_true",
+        help="Watch transcript.draft.md with all candidate-only evidence instead of the conservative preview.",
+    )
     return parser.parse_args()
 
 
@@ -65,13 +70,22 @@ def state_line(state: dict[str, Any]) -> str:
 def main() -> int:
     args = parse_args()
     session = args.session.expanduser().resolve()
-    draft_path = session / "derived/live/transcript.draft.md"
+    diagnostic_path = session / "derived/live/transcript.draft.md"
+    preview_path = session / "derived/live/transcript.preview.md"
+    draft_path = diagnostic_path if args.diagnostic_draft else preview_path
+    if not draft_path.exists() and diagnostic_path.exists():
+        draft_path = diagnostic_path
     state_path = session / "derived/live/live_pipeline_state.json"
     previous_draft = ""
     previous_state_line = ""
     print(f"watching: {draft_path}", flush=True)
     try:
         while True:
+            desired_path = diagnostic_path if args.diagnostic_draft else preview_path
+            if desired_path.exists() and desired_path != draft_path:
+                draft_path = desired_path
+                previous_draft = ""
+                print(f"\n[live] switched to: {draft_path}\n", flush=True)
             current_draft = read_text(draft_path)
             if current_draft != previous_draft:
                 suffix = changed_suffix(previous_draft, current_draft)

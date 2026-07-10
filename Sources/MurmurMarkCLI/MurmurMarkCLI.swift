@@ -237,7 +237,7 @@ struct MurmurMark {
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
-          murmurmark live watch SESSION|latest [--poll-sec SEC] [--sessions-root ./sessions]
+          murmurmark live watch SESSION|latest [--poll-sec SEC] [--diagnostic-draft] [--sessions-root ./sessions]
           murmurmark live evidence SESSION|latest [--refresh] [--strict] [--sessions-root ./sessions]
           murmurmark live gate [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--controlled-real] [--preflight-only] [--skip-safety-gate]
@@ -5151,17 +5151,19 @@ enum LiveCommands {
             var watchArgs = forwarded
             let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &watchArgs) ?? "sessions")
             let pollSec = ArgumentEditing.takeOption("poll-sec", from: &watchArgs) ?? "1"
+            let diagnosticDraft = ArgumentEditing.takeFlag("diagnostic-draft", from: &watchArgs)
             guard let target = watchArgs.first else {
                 printWatchHelp()
                 return
             }
             guard watchArgs.count == 1 else {
-                throw CLIError("live watch accepts one session and optional --poll-sec/--sessions-root")
+                throw CLIError("live watch accepts one session and optional --poll-sec/--diagnostic-draft/--sessions-root")
             }
             let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
             try Tooling.runPathForwardingInterrupts(
                 try PythonRuntime.resolve(),
                 [try script("watch-live-draft.py").path, session.path, "--poll-sec", pollSec]
+                    + (diagnosticDraft ? ["--diagnostic-draft"] : [])
             )
         case "evidence":
             if ArgumentEditing.hasHelpFlag(forwarded) {
@@ -5223,7 +5225,8 @@ enum LiveCommands {
           murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live next [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live gate [--sessions-root ./sessions]
-          murmurmark live watch SESSION|latest [--poll-sec SEC] [--sessions-root ./sessions]
+          murmurmark live watch SESSION|latest [--poll-sec SEC] [--diagnostic-draft]
+                                              [--sessions-root ./sessions]
           murmurmark live evidence SESSION|latest [--refresh] [--strict] [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--duration SEC] [--segment-sec SEC] [--overlap-sec SEC]
                                [--controlled-real] [--preflight-only] [--skip-safety-gate]
@@ -5272,10 +5275,12 @@ enum LiveCommands {
     static func printWatchHelp() {
         Swift.print("""
         usage:
-          murmurmark live watch SESSION|latest [--poll-sec SEC] [--sessions-root ./sessions]
+          murmurmark live watch SESSION|latest [--poll-sec SEC] [--diagnostic-draft]
+                                              [--sessions-root ./sessions]
 
-        Prints new shadow draft text and worker heartbeat/lag until recording-time preview reaches a
-        terminal state. Batch transcript remains authoritative.
+        Prints the conservative remote-energy preview plus worker heartbeat/lag until recording-time
+        preview reaches a terminal state. Use --diagnostic-draft to include all candidate-only
+        evidence. Batch transcript remains authoritative.
         """)
     }
 
@@ -8467,7 +8472,8 @@ extension SessionRecorder {
             } else {
                 print("live_pipeline: shadow")
             }
-            print("live_draft: \(session)/derived/live/transcript.draft.md")
+            print("live_preview: \(session)/derived/live/transcript.preview.md")
+            print("live_draft_diagnostic: \(session)/derived/live/transcript.draft.md")
             print("live_report: \(session)/derived/live/live_pipeline_report.json")
             print("live_watch: murmurmark live watch \(session)")
             if finalReportExists {
@@ -8486,7 +8492,8 @@ extension SessionRecorder {
         print("next:")
         print("  murmurmark process \(session)")
         if livePipelineEnabled || experimentID != nil {
-            print("  less \(session)/derived/live/transcript.draft.md")
+            print("  less \(session)/derived/live/transcript.preview.md")
+            print("  less \(session)/derived/live/transcript.draft.md  # diagnostic candidates")
             print("  less \(session)/derived/live/live_pipeline_report.json")
             print("  murmurmark live watch \(session)")
             if let experimentID {
@@ -8974,6 +8981,7 @@ final class RawSegmentCommitTracker: @unchecked Sendable {
                     "experiment_audio": "derived/experiments/\(experimentID)/audio",
                     "compat_live_dir": "derived/live",
                     "segments": "derived/live/segments.jsonl",
+                    "preview_transcript": "derived/live/transcript.preview.md",
                     "draft_transcript": "derived/live/transcript.draft.md",
                 ],
                 "raw_capture_affected": "unknown",
@@ -9494,6 +9502,7 @@ final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
                 "segments": "derived/live/segments.jsonl",
                 "compat_live_dir": "derived/live",
                 "experiment_audio": "derived/experiments/\(experimentID)/audio",
+                "preview_transcript": "derived/live/transcript.preview.md",
                 "draft_transcript": "derived/live/transcript.draft.md",
                 "live_pipeline_report": "derived/live/live_pipeline_report.json",
                 "raw_segment_commits": "derived/experiments/\(experimentID)/raw_segment_commits.jsonl",
@@ -9883,6 +9892,7 @@ final class LiveSegmentCapture {
                 "segment_sec": segmentSeconds,
                 "overlap_sec": overlapSeconds,
                 "segments": "derived/live/segments.jsonl",
+                "preview_transcript": "derived/live/transcript.preview.md",
                 "draft_transcript": "derived/live/transcript.draft.md",
                 "report": "derived/live/live_pipeline_report.json",
                 "updated_at": DateStrings.iso8601(Date()),
@@ -12650,6 +12660,8 @@ enum ReadinessPrinter {
         print("    chunks: \(int(progress["chunks_processed"]) ?? 0)")
         if let targetMe = payload["causal_target_me_shadow"] as? [String: Any] {
             print("    target_me_candidates: \(int(targetMe["candidate_count"]) ?? 0)")
+            print("    target_me_preview_kept: \(int(targetMe["preview_candidate_count"]) ?? 0)")
+            print("    target_me_preview_rejected: \(int(targetMe["preview_rejected_count"]) ?? 0)")
             print("    target_me_lag_skips: \(int(targetMe["skipped_lag_budget_count"]) ?? 0)")
             print("    target_me_failures: \(int(targetMe["failed_open_count"]) ?? 0)")
         }
@@ -12663,8 +12675,11 @@ enum ReadinessPrinter {
                 print(String(format: "    target_me_median: %.1fs", median))
             }
         }
+        if let preview = string(outputs["preview_transcript"]) {
+            print("    preview: \(PathDisplay.display(session.appendingPathComponent(preview)))")
+        }
         if let draft = string(outputs["draft_transcript"]) {
-            print("    draft: \(PathDisplay.display(session.appendingPathComponent(draft)))")
+            print("    diagnostic_draft: \(PathDisplay.display(session.appendingPathComponent(draft)))")
         }
         print("    report: \(PathDisplay.display(reportURL))")
         if FileManager.default.fileExists(atPath: finalURL.path),

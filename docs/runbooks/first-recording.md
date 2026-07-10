@@ -153,13 +153,15 @@ capture -> durable raw writer -> stable session
 ```
 
 The sidecar writes closed segment files into `derived/experiments/live-shadow-v1/audio/` and keeps
-compatibility rows in `derived/live/segments.jsonl`. `derived/live/transcript.draft.md` may update
-during the meeting, but the batch transcript from raw CAF remains authoritative. The raw commit log is
-still written as evidence and as a post-stop fallback; normal preview no longer reads still-open CAF
-files.
+compatibility rows in `derived/live/segments.jsonl`. `derived/live/transcript.preview.md` updates
+during the meeting and keeps only causal Target-Me candidates accepted by the remote-energy gate.
+The fuller `derived/live/transcript.draft.md` is diagnostic evidence and may include rejected
+candidate-only text. The batch transcript from raw CAF remains authoritative. The raw commit log is
+still written as evidence and as a post-stop fallback; preview never reads still-open CAF files.
 
-Watch the draft from a second terminal with `murmurmark live watch "$SESSION"`. The command also
-shows worker heartbeat and lag; it must make a stalled preview visible while raw capture continues.
+Watch the conservative preview from a second terminal with `murmurmark live watch "$SESSION"`.
+Use `--diagnostic-draft` only when investigating all candidate evidence. Both modes show worker
+heartbeat and lag; they must make a stalled preview visible while raw capture continues.
 
 `murmurmark experiment compare ...` reads existing realtime artifacts only. If the recording-time
 worker timed out and a diagnostic post-stop draft is useful, run

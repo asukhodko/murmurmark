@@ -171,6 +171,51 @@ def main() -> int:
     assert compare.runtime_remote_audio_guard(
         {"mic_db": -30.0, "remote_db": -40.0, "mic_minus_remote_db": 10.0, "corr": 0.01}
     ).get("status") == "rejected"
+    with tempfile.TemporaryDirectory(prefix="murmurmark-live-preview-") as temp:
+        output_dir = Path(temp)
+        preview_chunks = [
+            {
+                "index": 1,
+                "start_sec": 0.0,
+                "end_sec": 10.0,
+                "mic": {
+                    "text": "ordinary local phrase",
+                    "causal_target_me_shadow": {
+                        "status": "candidate",
+                        "candidates": [
+                            {
+                                "text": "safe recovered phrase",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "remote_audio_guard": {
+                                    "schema": "murmurmark.live_remote_audio_guard/v1",
+                                    "status": "passed",
+                                },
+                            },
+                            {
+                                "text": "unsafe remote-like phrase",
+                                "start": 3.0,
+                                "end": 4.0,
+                                "remote_audio_guard": {
+                                    "schema": "murmurmark.live_remote_audio_guard/v1",
+                                    "status": "rejected",
+                                },
+                            },
+                        ],
+                    },
+                },
+                "remote": {"text": "colleague phrase"},
+            }
+        ]
+        live.write_live_views(output_dir, preview_chunks, 0.0)
+        diagnostic = (output_dir / "transcript.draft.md").read_text(encoding="utf-8")
+        preview = (output_dir / "transcript.preview.md").read_text(encoding="utf-8")
+        assert "safe recovered phrase" in diagnostic and "unsafe remote-like phrase" in diagnostic
+        assert "safe recovered phrase" in preview
+        assert "unsafe remote-like phrase" not in preview
+        summary = live.causal_target_me_summary(preview_chunks)
+        assert summary.get("preview_candidate_count") == 1, summary
+        assert summary.get("preview_rejected_count") == 1, summary
     within_budget = live.causal_target_me_lag_decision(
         captured_sec=90.0,
         chunk_end_sec=30.0,

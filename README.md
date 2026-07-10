@@ -337,13 +337,19 @@ In this mode the capture callback writes raw CAF first. Only after `AudioFileWri
 frames does the experiment enqueue a copied committed PCM packet into a bounded nonblocking queue.
 That queue writes closed segment files under `derived/experiments/live-shadow-v1/audio/` and appends
 compatible rows to `derived/live/segments.jsonl`; `scripts/live-pipeline-shadow.py` then consumes
-those closed segments and updates `derived/live/transcript.draft.md`. The raw commit log still exists
-as evidence and as a post-stop fallback, but the normal preview path no longer reads a still-open CAF.
-The worker writes the base mic/remote chunk and refreshes the draft before it runs the optional
+those closed segments and updates `derived/live/transcript.preview.md`. `murmurmark live watch`
+shows this conservative preview by default. The complete candidate-only diagnostic view remains in
+`derived/live/transcript.draft.md` and is available through `live watch --diagnostic-draft`. The raw
+commit log still exists as evidence and as a post-stop fallback; neither preview path reads a
+still-open CAF. The worker writes the base mic/remote chunk and refreshes both views before it runs the optional
 causal Target-Me shadow. Target-Me micro-ASR has a bounded child timeout and is skipped when the
 worker is already more than `60s` behind captured audio. The report exposes
 `skipped_lag_budget_count`; losing optional speaker evidence is preferable to letting it delay the
 base draft without bound.
+The conservative preview publishes causal Target-Me only when its recording-time remote-energy
+gate passes. A candidate is withheld when contemporary remote audio is active and mic does not
+dominate it by at least `20 dB`; the diagnostic draft still retains the evidence for later parity
+analysis. Batch remains authoritative in both files.
 Realtime files under `derived/live/` are immutable evidence after recording stops. Post-stop recovery
 writes under `derived/experiments/live-shadow-v1/fallback/` and never replaces realtime segments,
 chunks, draft text, state or timestamps.

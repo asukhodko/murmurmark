@@ -677,6 +677,10 @@ newer run-state exists.
    three fresh meaningful real meetings with healthy raw/batch output, pre-stop artifacts and
    live-vs-batch comparison. `murmurmark live evidence SESSION` is the compact per-session gate for
    this collection loop.
+   The normal `murmurmark live watch` path now reads `transcript.preview.md`: ordinary role-gated
+   chunks plus only causal Target-Me candidates accepted by recording-time remote energy. The full
+   `transcript.draft.md` remains available through `--diagnostic-draft`, so conservative user preview
+   and complete parity evidence no longer conflict.
    Post-stop latency is reduced conservatively by applying cheap cleanup before the stronger audio
    judge, rebuilding only the residual review pack and using two-source triage by default; exhaustive
    four-source decoding remains opt-in.

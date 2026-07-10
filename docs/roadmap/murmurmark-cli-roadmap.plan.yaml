@@ -608,12 +608,14 @@ nodes:
     status: done
     effort: 4
     notes: |
-      Пишет `derived/live/transcript.draft.md`, `derived/live/chunks/*.jsonl` и
+      Пишет консервативный `derived/live/transcript.preview.md`, полный диагностический
+      `derived/live/transcript.draft.md`, `derived/live/chunks/*.jsonl` и
       `derived/live/live_pipeline_report.json`. Последние `5-10s` не считать окончательно
       опубликованными: delayed commit защищает от потери начал/концов фраз и дублей на overlap
       границах. Base mic/remote chunk и draft durable до optional Target-Me; Target-Me timeout/lag
       skips отражаются в report и не блокируют следующие base chunks. Draft можно читать, но он не
-      заменяет reviewed/final transcript.
+      заменяет reviewed/final transcript. Обычный `live watch` показывает preview, где causal
+      Target-Me проходит recording-time remote-energy gate; полный draft включается только явно.
 
   realtime-final-reconcile:
     title: "Final reconcile after stop"
