@@ -805,6 +805,9 @@ nodes:
       Progressive enrollment is integrated into the running sidecar and evaluated through the
       direct live profile `live_runtime_causal_target_me_direct_v1`: it evaluates the current chunk
       before enrollment and publishes only candidates localized outside live remote intervals.
+      A conservative follow-up, `live_runtime_causal_target_me_remote_energy_v1`, additionally
+      requires quiet contemporary remote audio or at least 20 dB mic dominance. It is a separate
+      shadow profile, uses no batch fields and may trade ambiguous double-talk recall for role safety.
       Speaker-confirmed sliding-window candidates remain diagnostic. On 10 comparable real sessions
       it improves missing Me `2426.91s -> 1869.02s` (`557.89s`) with unchanged `35.42s` remote-like
       Me and unchanged `1` blocking / `5` advisory order rows. Weighted recall improves by
@@ -820,13 +823,19 @@ nodes:
       cross-profile ranking. The current runtime profile has `72` total / `66` comparable
       non-passing gates, so it stays the best live-implementable candidate without making promotion
       appear ready.
-      A stricter speaker-overlap follow-up is now the best live-implementable profile:
+      A stricter speaker-overlap follow-up previously became the best live-implementable profile:
       `live_runtime_causal_target_me_speaker_overlap_v1` admits only speaker-confirmed windows with
       strong source alignment and short or known-hallucination remote context. Against the direct
       runtime profile it reduces missing Me `1881.44s -> 1829.64s` (`51.80s`), keeps remote-like Me
       at `35.42s`, keeps blocking/advisory order at `1 / 5`, raises weighted F1 by `0.001874`, and has
       zero per-session F1 regression. Its profile-specific pre-stop evidence count is `0`, so status
       remains `historical_replay_only` and promotion remains blocked.
+      The first long real runtime session changed that ranking. The separate
+      `live_runtime_causal_target_me_remote_energy_v1` profile is now the best live-implementable
+      candidate: across 11 comparable sessions it recovers 634.43s missing Me, keeps remote-like Me
+      at 126.30s, keeps blocking/advisory order at 2/14, improves weighted F1 by 0.029584 and has no
+      per-session F1 regression. Its first pre-stop evidence makes it `safe_shadow_candidate`.
+      Promotion still has zero passing real sessions and remains blocked.
       The 2026-07-10 strict refresh classifies `14` real sessions, `7` meaningful comparisons and
       `0` passing comparisons; the coverage target remains `3` fresh passing comparisons.
       The immediate reliability unit separates immutable realtime artifacts from explicit post-stop

@@ -176,16 +176,18 @@ Current state:
   `required_artifacts`.
 - capture-safe candidate blocking dimensions: `local_recall`, `remote_leakage`, `review_burden`,
   `selected_notes_readiness`;
-- current aggregate best live-implementable profile: `online_live_me_remote_overlap_filter_v1`;
+- current aggregate best live-implementable profile:
+  `live_runtime_causal_target_me_remote_energy_v1`;
 - direct runtime Target-Me now has one real pre-stop evidence session but is `regression_detected`
   because the fresh meeting exposed worse remote/order behavior;
-- speaker-overlap has one real pre-stop evidence session and remains `safe_shadow_candidate` only
-  relative to direct Target-Me;
+- remote-energy Target-Me has one real pre-stop evidence session and is `safe_shadow_candidate`;
+- across `11` comparable sessions it recovers `634.43s` missing `Me`, keeps remote-like `Me` at
+  `126.30s`, keeps blocking/advisory order at `2 / 14`, raises weighted F1 by `0.029584`, and has
+  zero per-session F1 regressions;
+- speaker-overlap remains `safe_shadow_candidate` only relative to direct Target-Me;
 - active capture-safe order-risk triage: `2` advisory timing/match ambiguities and `0` blocking rows;
 - historical full-corpus triage: `4` advisory rows and `1` blocking row outside the active slice;
-- paired comparable-session gaps: `1829.64 sec` missing Me and `35.42 sec` remote-like Me;
-- direct runtime causal Target-Me delta: `557.89 sec` missing Me recovered, with unchanged remote and
-  order counters and `+0.039337` weighted token F1;
+- best live-implementable paired gaps: `2324.26 sec` missing Me and `126.30 sec` remote-like Me;
 - current corpus quality focus: `fix_live_local_recall_gap`;
 - current coverage target: `3` additional passing meaningful comparisons;
 - latest runtime proof: `131` pre-stop chunks, `56` pre-stop accepted candidates, complete raw/batch,
@@ -241,19 +243,19 @@ Current result:
 - live/batch comparison granularity: ASR segment when available, chunk fallback otherwise;
 - the corpus contains `15` real live sessions, `8` meaningful comparisons and `0` passing ones;
 - `2026-07-10_16-00-29-live` is the first real session with timestamped pre-stop causal evidence:
-  `36` direct and `37` speaker-overlap profile candidates;
+  `36` direct, `23` remote-energy and `37` speaker-overlap profile candidates;
 - direct runtime Target-Me is now `regression_detected` against the base live policy because the
   fresh session exposed additional remote/order risk despite its recall gain;
-- speaker-overlap is `safe_shadow_candidate` relative to direct and has one pre-stop evidence
-  session, but the aggregate best live-implementable profile is currently the base
-  `online_live_me_remote_overlap_filter_v1`;
+- remote-energy is `safe_shadow_candidate` against the base and is the aggregate best
+  live-implementable profile; speaker-overlap remains safe only relative to direct;
 - active capture-safe order triage: `2` advisory timing/match rows and `0` blocking rows;
 - historical full-corpus triage: `4` advisory rows and `1` blocking row outside the active slice;
 - remote-gap trim materializes `42` pieces / `176.262 sec` and closes `15.38 sec` of missing Me;
 - focused live-only micro-ASR adds `3` non-duplicate pieces / `10.74 sec`, rejects `3`, and closes
   another `4.68 sec` of missing Me;
-- direct runtime parity closes `557.89 sec` of missing Me (`2426.91 -> 1869.02 sec`) with unchanged
-  remote/order metrics;
+- remote-energy runtime parity closes `634.43 sec` of missing Me (`2958.69 -> 2324.26 sec`) with
+  unchanged `126.30 sec` remote-like Me and unchanged `2 / 14` blocking/advisory order metrics;
+- its weighted token F1 rises `0.783762 -> 0.813346`; maximum per-session F1 regression is `0`;
 - strict speaker-overlap recovery closes another `51.80 sec` (`1881.44 -> 1829.64 sec`) with
   unchanged remote/order metrics and `+0.001874` weighted token F1;
 - the paired 10-session text gate reports recall `+0.058710`, F1 `+0.039337`, precision

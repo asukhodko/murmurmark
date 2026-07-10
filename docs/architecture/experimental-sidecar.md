@@ -299,6 +299,12 @@ Batch remains authoritative even when the direct runtime profile wins the shadow
 Each runtime enrollment, evaluation and candidate row has a UTC `created_at`. Comparison against the
 session stop time prevents a post-stop replay from being mistaken for near-realtime evidence.
 
+`live_runtime_causal_target_me_remote_energy_v1` is the conservative publication variant. It uses
+the same causal candidates and closed-chunk audio, but accepts a candidate only when `remote` is at
+most `-65 dBFS` or `mic - remote` is at least `20 dB`. A missing audio measurement rejects the
+candidate. This leaves uncertain double-talk out of the live draft while preserving the direct
+profile as an explicit diagnostic reference.
+
 ### Disable Sidecar Instead Of Saving Every Experiment
 
 When backpressure happens, v1 should disable the sidecar instead of trying to preserve every

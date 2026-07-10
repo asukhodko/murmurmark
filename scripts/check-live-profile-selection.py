@@ -54,12 +54,23 @@ def main() -> int:
     extracted = module.target_me_shadow_profile_metric_values(
         {
             f"live_target_me_shadow_profile_{runtime}_causal_pre_stop_direct_profile_candidate_count": 36,
+            (
+                "live_target_me_shadow_profile_"
+                f"{module.RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY}_"
+                "causal_pre_stop_remote_energy_profile_candidate_count"
+            ): 23,
         }
     )
     assert (
         extracted[f"live_target_me_shadow_profile_{runtime}_causal_pre_stop_direct_profile_candidate_count"]
         == 36
     ), extracted
+    energy_metric = (
+        "live_target_me_shadow_profile_"
+        f"{module.RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY}_"
+        "causal_pre_stop_remote_energy_profile_candidate_count"
+    )
+    assert extracted[energy_metric] == 23, extracted
 
     diagnostics = module.target_me_shadow_profile_diagnostics(profile_summary(module), "real")
     selected = diagnostics.get("best_live_implementable_profile") or {}

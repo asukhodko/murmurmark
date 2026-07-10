@@ -160,6 +160,17 @@ def main() -> int:
     compare = load_compare_module()
     corpus = load_corpus_module()
     live = load_live_module()
+    assert module.REMOTE_AUDIO_QUIET_MAX_DB == compare.REMOTE_AUDIO_QUIET_MAX_DB
+    assert module.MIC_REMOTE_DOMINANCE_MIN_DB == compare.MIC_REMOTE_DOMINANCE_MIN_DB
+    assert module.remote_audio_guard(
+        {"mic_db": -35.0, "remote_db": -70.0, "mic_minus_remote_db": 35.0, "corr": 0.01}
+    ).get("status") == "passed"
+    assert module.remote_audio_guard(
+        {"mic_db": -35.0, "remote_db": -30.0, "mic_minus_remote_db": -5.0, "corr": 0.01}
+    ).get("status") == "rejected"
+    assert compare.runtime_remote_audio_guard(
+        {"mic_db": -30.0, "remote_db": -40.0, "mic_minus_remote_db": 10.0, "corr": 0.01}
+    ).get("status") == "rejected"
     within_budget = live.causal_target_me_lag_decision(
         captured_sec=90.0,
         chunk_end_sec=30.0,
@@ -259,6 +270,7 @@ def main() -> int:
         assert candidate.get("text") == "recovered local action phrase", candidate
         assert candidate.get("used_batch_fields_for_selection") is False, candidate
         assert candidate.get("timeline_causal") is True, candidate
+        assert (candidate.get("remote_audio_guard") or {}).get("status") == "rejected", candidate
         localization = candidate.get("remote_free_localization") or {}
         assert localization.get("status") == "localized", localization
         assert localization.get("reason") == "past_target_voice_in_remote_free_gap", localization
@@ -298,6 +310,15 @@ def main() -> int:
         assert rejected[0].get("reason") == "runtime_candidate_not_remote_free", rejected
         assert len(turns) == 1, turns
         assert turns[0].get("runtime_causal_target_me_micro_asr_shadow") is True, turns[0]
+        energy_turns, energy_rejected = compare.runtime_causal_target_me_shadow_turns(
+            session,
+            require_remote_audio_guard=True,
+        )
+        assert not energy_turns, energy_turns
+        assert any(
+            row.get("reason") == "runtime_remote_audio_guard_failed"
+            for row in energy_rejected
+        ), energy_rejected
         assert turns[0].get("used_batch_fields_for_selection") is False, turns[0]
         speaker_turns, speaker_rejected = compare.runtime_causal_target_me_shadow_turns(
             session,
@@ -314,6 +335,9 @@ def main() -> int:
             compare.RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY
         ) is True
         assert compare.target_me_shadow_profile_is_live_implementable(
+            compare.RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY
+        ) is True
+        assert compare.target_me_shadow_profile_is_live_implementable(
             compare.RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY
         ) is True
         assert compare.selected_lab_policies(
@@ -321,6 +345,7 @@ def main() -> int:
         ) == (
             compare.RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
             compare.RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+            compare.RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
             compare.RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
         )
 

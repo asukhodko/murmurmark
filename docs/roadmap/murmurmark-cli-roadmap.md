@@ -554,6 +554,12 @@ newer run-state exists.
    historical full-corpus triage retains one blocking row outside that active slice. The next
    implementation focus is `fix_live_local_recall_gap`; remote leakage remains a parallel gate, and
    no extra recording is required for this step.
+   The first long pre-stop runtime proof exposed remote/order regressions in direct Target-Me. The
+   conservative `live_runtime_causal_target_me_remote_energy_v1` profile now gates those candidates
+   by contemporary remote loudness or 20 dB mic dominance. Across 11 comparable sessions it recovers
+   634.43s missing Me with no increase in remote leakage or order mismatches, improves weighted F1
+   by 0.029584 and has no per-session F1 regression. It is the current best live-implementable
+   `safe_shadow_candidate`; promotion remains blocked until three fresh real sessions pass all gates.
    `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked. Historical base
    triage had `14` contentful rows; the former voice-activity profile exposed `9` blocking boundary
    candidates and `12` advisory weak matches. The token-density follow-up clears blocking order risk

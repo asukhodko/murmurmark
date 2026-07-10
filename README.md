@@ -629,9 +629,19 @@ transcript. It is not a passing comparison: final row-derived lag is `82.752s`, 
 
 This fresh evidence also changes the algorithmic conclusion. Direct runtime Target-Me improves
 recall but regresses remote/order safety relative to the base policy, so its aggregate status is
-`regression_detected`. Speaker-overlap remains safe relative to direct and has pre-stop evidence,
-but the aggregate best live-implementable policy falls back to
-`online_live_me_remote_overlap_filter_v1`. Live output remains shadow-only and batch authoritative.
+`regression_detected`. Speaker-overlap remains safe only relative to direct. The remote-energy
+follow-up restores remote/order metrics to the base level and is now the aggregate best
+live-implementable policy. Live output remains shadow-only and batch authoritative.
+
+The conservative follow-up `live_runtime_causal_target_me_remote_energy_v1` keeps the same causal
+Target-Me candidates but publishes one only when the contemporary live `remote` interval is quiet
+(`<= -65 dBFS`) or `mic` exceeds it by at least `20 dB`. The gate uses only closed live chunk audio;
+it does not inspect batch labels. This profile is evaluated separately from the direct profile so a
+failed experiment cannot weaken the existing baseline. It intentionally gives up ambiguous
+double-talk recall to protect role attribution. Across `11` comparable sessions it recovers
+`634.43s` of missing `Me`, keeps remote-like `Me` at `126.30s`, keeps blocking/advisory order at
+`2 / 14`, improves weighted F1 by `0.029584`, and has zero per-session F1 regressions. The fresh
+meeting provides its first pre-stop evidence, so its corpus status is `safe_shadow_candidate`.
 
 Corpus profile ranking compares `comparable_*` gate counters so a runtime-only provenance gate does
 not make the runtime algorithm look worse than a baseline that has no such gate. Promotion still

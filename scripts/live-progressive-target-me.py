@@ -19,8 +19,10 @@ from scipy.io import wavfile
 
 
 SCHEMA = "murmurmark.live_progressive_target_me/v1"
-SCRIPT_VERSION = "0.5.0"
+SCRIPT_VERSION = "0.6.0"
 EPSILON = 1.0e-12
+REMOTE_AUDIO_QUIET_MAX_DB = -65.0
+MIC_REMOTE_DOMINANCE_MIN_DB = 20.0
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 KNOWN_HALLUCINATIONS = {
     "редактор субтитров",
@@ -249,6 +251,40 @@ def rms_db(data: np.ndarray) -> float:
         return -120.0
     rms = float(np.sqrt(np.mean(np.square(data), dtype=np.float64) + EPSILON))
     return 20.0 * np.log10(rms + EPSILON)
+
+
+def remote_audio_guard(features: dict[str, Any]) -> dict[str, Any]:
+    remote_db = features.get("remote_db")
+    mic_minus_remote_db = features.get("mic_minus_remote_db")
+    evaluable = remote_db is not None and mic_minus_remote_db is not None
+    passed = bool(
+        evaluable
+        and (
+            safe_float(remote_db) <= REMOTE_AUDIO_QUIET_MAX_DB
+            or safe_float(mic_minus_remote_db) >= MIC_REMOTE_DOMINANCE_MIN_DB
+        )
+    )
+    return {
+        "schema": "murmurmark.live_remote_audio_guard/v1",
+        "status": "passed" if passed else ("rejected" if evaluable else "not_evaluated"),
+        "reason": (
+            "remote_quiet_or_mic_dominant"
+            if passed
+            else ("remote_audio_active_without_mic_dominance" if evaluable else "audio_features_unavailable")
+        ),
+        "remote_db": round(safe_float(remote_db), 3) if remote_db is not None else None,
+        "mic_db": features.get("mic_db"),
+        "mic_minus_remote_db": (
+            round(safe_float(mic_minus_remote_db), 3) if mic_minus_remote_db is not None else None
+        ),
+        "corr": features.get("corr"),
+        "thresholds": {
+            "remote_quiet_max_db": REMOTE_AUDIO_QUIET_MAX_DB,
+            "mic_remote_dominance_min_db": MIC_REMOTE_DOMINANCE_MIN_DB,
+        },
+        "live_accessible": True,
+        "used_batch_fields_for_selection": False,
+    }
 
 
 def zero_lag_abs_corr(left: np.ndarray, right: np.ndarray) -> float | None:
@@ -870,6 +906,7 @@ class ProgressiveTargetMeShadow:
         group_index: int,
         group: list[dict[str, Any]],
         mic: dict[str, Any],
+        remote: dict[str, Any],
         remote_segments: list[dict[str, Any]],
     ) -> dict[str, Any]:
         source_start = safe_float(group[0].get("start"))
@@ -925,6 +962,7 @@ class ProgressiveTargetMeShadow:
         micro_tokens = tokens(text)
         remote_recall = bag_recall(remote_tokens, micro_tokens) if remote_text else 0.0
         remote_match_count = bag_match_count(remote_tokens, micro_tokens) if remote_text else 0
+        audio_guard = remote_audio_guard(self.segment_audio_features(mic, remote, start, end))
         reasons: list[str] = []
         if localization.get("status") == "rejected":
             reasons.append(str(localization.get("reason") or "remote_free_localization_failed"))
@@ -976,6 +1014,7 @@ class ProgressiveTargetMeShadow:
             "selected_asr_row_count": len(selected_rows),
             "remote_free_localization": localization,
             "remote_context_prefix_trim": prefix_trim,
+            "remote_audio_guard": audio_guard,
         }
 
     def add_seed(
@@ -1145,6 +1184,7 @@ class ProgressiveTargetMeShadow:
                 group_index,
                 group,
                 mic,
+                remote,
                 remote_segments,
             )
             self.candidates.append(candidate)

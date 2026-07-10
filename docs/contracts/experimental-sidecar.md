@@ -8,6 +8,7 @@ Schema versions:
 - `murmurmark.experimental_sidecar_event/v1`
 - `murmurmark.raw_segment_commit/v1`
 - `murmurmark.live_progressive_target_me/v1`
+- `murmurmark.live_remote_audio_guard/v1`
 
 The contract lives under:
 
@@ -43,8 +44,11 @@ derived/live/causal-target-me/
 These files use `murmurmark.live_progressive_target_me/v1`. Every candidate must state
 `timeline_causal: true`, `used_batch_fields_for_selection: false`, `batch_authoritative: true` and
 `publication_allowed: false`. Seed counts describe the past-only enrollment available before the
-candidate interval. A candidate is evidence for parity comparison, not an authoritative transcript
-turn.
+candidate interval. A candidate may also carry `remote_audio_guard` with schema
+`murmurmark.live_remote_audio_guard/v1`. The guard records `mic_db`, `remote_db`,
+`mic_minus_remote_db`, correlation, thresholds and `status`. The current conservative profile passes
+when `remote_db <= -65` or `mic_minus_remote_db >= 20`; unavailable measurements are not accepted.
+A candidate is evidence for parity comparison, not an authoritative transcript turn.
 
 The base live chunk is persisted before progressive Target-Me runs. When the current base chunk is
 already outside the configured lag budget, its mic record contains:
@@ -228,9 +232,10 @@ artifacts, authoritative batch, pre-stop chunks, terminal worker state, bounded 
 committed-PCM provenance, fallback isolation and meaningful comparison. It always keeps
 `promotion_allowed: false`; `--strict` returns exit code `2` until every parity gate passes.
 The default comparison includes `online_live_me_remote_overlap_filter_v1` as the direct baseline and
-`live_runtime_causal_target_me_direct_v1` as the runtime candidate, so the corpus report can compute
-a paired no-regression verdict without offline Target-Me anchors. Other expensive or batch-informed
-shadow policies remain opt-in.
+`live_runtime_causal_target_me_direct_v1` plus
+`live_runtime_causal_target_me_remote_energy_v1` as runtime candidates, so the corpus report can
+compute paired no-regression verdicts without offline Target-Me anchors. Other expensive or
+batch-informed shadow policies remain opt-in.
 
 ## Invariants
 

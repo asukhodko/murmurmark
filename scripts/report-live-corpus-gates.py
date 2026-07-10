@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.42.0"
+SCRIPT_VERSION = "1.43.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-live)?$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -121,6 +121,9 @@ CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY = (
 )
 RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY = "live_runtime_causal_target_me_micro_asr_v1"
 RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY = "live_runtime_causal_target_me_direct_v1"
+RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY = (
+    "live_runtime_causal_target_me_remote_energy_v1"
+)
 RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY = (
     "live_runtime_causal_target_me_speaker_overlap_v1"
 )
@@ -178,6 +181,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
@@ -292,6 +296,8 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "causal_accepted_candidate_count",
     "causal_pre_stop_accepted_candidate_count",
     "causal_pre_stop_direct_profile_candidate_count",
+    "causal_remote_energy_profile_candidate_count",
+    "causal_pre_stop_remote_energy_profile_candidate_count",
     "causal_pre_stop_speaker_overlap_profile_candidate_count",
 )
 LIVE_QUARANTINE_REASON = (
@@ -7219,6 +7225,12 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         for key, value in dialogue_token_aggregate(text_rows).items():
             summary[f"{text_prefix}{key}"] = value
     runtime_no_regression_report = runtime_profile_no_regression(real_live_rows)
+    remote_energy_no_regression_report = runtime_profile_no_regression(
+        real_live_rows,
+        policy=RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
+        baseline_policy=RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
+        pre_stop_metric="causal_pre_stop_remote_energy_profile_candidate_count",
+    )
     speaker_overlap_no_regression_report = runtime_profile_no_regression(
         real_live_rows,
         policy=RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
@@ -7231,6 +7243,15 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     )
     summary["real_runtime_causal_target_me_pre_stop_evidence_session_count"] = (
         runtime_no_regression_report.get("pre_stop_runtime_evidence_session_count")
+    )
+    summary["real_runtime_remote_energy_no_regression_status"] = (
+        remote_energy_no_regression_report.get("status")
+    )
+    summary["real_runtime_remote_energy_algorithmic_status"] = (
+        remote_energy_no_regression_report.get("algorithmic_status")
+    )
+    summary["real_runtime_remote_energy_pre_stop_evidence_session_count"] = (
+        remote_energy_no_regression_report.get("pre_stop_runtime_evidence_session_count")
     )
     summary["real_live_pre_stop_artifact_session_count"] = sum(
         1
@@ -8596,6 +8617,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_target_me_shadow_policy_diagnostics": target_me_shadow_diagnostics_report,
         "live_target_me_shadow_profile_diagnostics": target_me_shadow_profile_diagnostics_report,
         "live_runtime_profile_no_regression": runtime_no_regression_report,
+        "live_remote_energy_profile_no_regression": remote_energy_no_regression_report,
         "live_speaker_overlap_profile_no_regression": speaker_overlap_no_regression_report,
         "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
         "live_order_risk_triage": live_order_risk_triage_report,
@@ -9044,6 +9066,16 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         if isinstance(runtime_no_regression.get("delta"), dict)
         else {}
     )
+    remote_energy_no_regression = (
+        report.get("live_remote_energy_profile_no_regression")
+        if isinstance(report.get("live_remote_energy_profile_no_regression"), dict)
+        else {}
+    )
+    remote_energy_delta = (
+        remote_energy_no_regression.get("delta")
+        if isinstance(remote_energy_no_regression.get("delta"), dict)
+        else {}
+    )
     speaker_overlap_no_regression = (
         report.get("live_speaker_overlap_profile_no_regression")
         if isinstance(report.get("live_speaker_overlap_profile_no_regression"), dict)
@@ -9245,6 +9277,26 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"{runtime_delta.get('batch_token_recall_in_live')} / {runtime_delta.get('live_batch_token_f1')}",
         f"- maximum per-session F1 regression: {runtime_delta.get('max_per_session_f1_regression')}",
         f"- promotion allowed: `{runtime_no_regression.get('promotion_allowed')}`",
+        "",
+        "## Runtime Remote-Energy No-Regression",
+        "",
+        "This paired check adds a live-only remote-energy guard to causal Target-Me. It rejects "
+        "ambiguous remote-active candidates and never promotes live output.",
+        "",
+        f"- status: `{remote_energy_no_regression.get('status')}`",
+        f"- algorithmic status: `{remote_energy_no_regression.get('algorithmic_status')}`",
+        f"- evaluated sessions: {remote_energy_no_regression.get('evaluated_session_count', 0)}",
+        "- sessions with pre-stop remote-energy candidates: "
+        f"{remote_energy_no_regression.get('pre_stop_runtime_evidence_session_count', 0)}",
+        f"- missing-Me delta: {remote_energy_delta.get('missing_me_seconds')} sec",
+        f"- remote-leak delta: {remote_energy_delta.get('remote_leak_seconds')} sec",
+        f"- blocking/advisory order delta: {remote_energy_delta.get('blocking_order_mismatch_count')} / "
+        f"{remote_energy_delta.get('advisory_order_mismatch_count')}",
+        f"- token precision/recall/F1 delta: {remote_energy_delta.get('live_token_precision_against_batch')} / "
+        f"{remote_energy_delta.get('batch_token_recall_in_live')} / "
+        f"{remote_energy_delta.get('live_batch_token_f1')}",
+        f"- maximum per-session F1 regression: {remote_energy_delta.get('max_per_session_f1_regression')}",
+        f"- promotion allowed: `{remote_energy_no_regression.get('promotion_allowed')}`",
         "",
         "## Runtime Speaker-Overlap No-Regression",
         "",
@@ -10784,6 +10836,41 @@ def main() -> int:
         print(
             "real_runtime_causal_target_me_max_per_session_f1_regression: "
             f"{runtime_delta.get('max_per_session_f1_regression')}"
+        )
+    remote_energy_no_regression = (
+        report.get("live_remote_energy_profile_no_regression")
+        if isinstance(report.get("live_remote_energy_profile_no_regression"), dict)
+        else {}
+    )
+    if remote_energy_no_regression:
+        remote_energy_delta = (
+            remote_energy_no_regression.get("delta")
+            if isinstance(remote_energy_no_regression.get("delta"), dict)
+            else {}
+        )
+        print(
+            "real_runtime_remote_energy_no_regression_status: "
+            f"{remote_energy_no_regression.get('status')}"
+        )
+        print(
+            "real_runtime_remote_energy_algorithmic_status: "
+            f"{remote_energy_no_regression.get('algorithmic_status')}"
+        )
+        print(
+            "real_runtime_remote_energy_pre_stop_evidence_session_count: "
+            f"{remote_energy_no_regression.get('pre_stop_runtime_evidence_session_count')}"
+        )
+        print(
+            "real_runtime_remote_energy_missing_me_delta_seconds: "
+            f"{remote_energy_delta.get('missing_me_seconds')}"
+        )
+        print(
+            "real_runtime_remote_energy_remote_leak_delta_seconds: "
+            f"{remote_energy_delta.get('remote_leak_seconds')}"
+        )
+        print(
+            "real_runtime_remote_energy_token_f1_delta: "
+            f"{remote_energy_delta.get('live_batch_token_f1')}"
         )
     speaker_overlap_no_regression = (
         report.get("live_speaker_overlap_profile_no_regression")

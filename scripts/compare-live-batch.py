@@ -16,8 +16,10 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.42.0"
+SCRIPT_VERSION = "0.43.0"
 EPSILON = 1.0e-12
+REMOTE_AUDIO_QUIET_MAX_DB = -65.0
+MIC_REMOTE_DOMINANCE_MIN_DB = 20.0
 LIVE_BATCH_BOUNDARY_TOLERANCE_SEC = 2.5
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 KNOWN_HALLUCINATION_RE = re.compile(
@@ -163,6 +165,9 @@ CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY = (
 )
 RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY = "live_runtime_causal_target_me_micro_asr_v1"
 RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY = "live_runtime_causal_target_me_direct_v1"
+RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY = (
+    "live_runtime_causal_target_me_remote_energy_v1"
+)
 RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY = (
     "live_runtime_causal_target_me_speaker_overlap_v1"
 )
@@ -225,6 +230,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
@@ -407,6 +413,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
@@ -432,6 +439,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_NO_TARGET_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_v1",
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
 }
 LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICIES = {
@@ -522,6 +530,7 @@ CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES = {
 RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICIES = {
     RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
 }
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
@@ -546,6 +555,7 @@ MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 DEFAULT_TARGET_ME_SHADOW_POLICIES = (
     RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
 )
 
@@ -723,6 +733,19 @@ def live_temporal_provenance(session: Path, chunks: list[dict[str, Any]]) -> dic
             allow_speaker_confirmed_overlap=False,
         )[0]
     ]
+    remote_energy_audio_cache: dict[Path, tuple[int, np.ndarray] | None] = {}
+    remote_energy_chunk_cache: dict[int, dict[str, Any]] = {}
+    remote_energy_profile_candidates = [
+        row
+        for row in direct_profile_candidates
+        if runtime_candidate_remote_audio_guard(
+            session,
+            row,
+            audio_cache=remote_energy_audio_cache,
+            chunk_cache=remote_energy_chunk_cache,
+        ).get("status")
+        == "passed"
+    ]
     speaker_overlap_profile_candidates = [
         row
         for row in candidate_rows
@@ -739,6 +762,9 @@ def live_temporal_provenance(session: Path, chunks: list[dict[str, Any]]) -> dic
         return len(known), len(before_stop)
 
     direct_created_at_count, direct_pre_stop_count = pre_stop_count(direct_profile_candidates)
+    remote_energy_created_at_count, remote_energy_pre_stop_count = pre_stop_count(
+        remote_energy_profile_candidates
+    )
     speaker_created_at_count, speaker_pre_stop_count = pre_stop_count(speaker_overlap_profile_candidates)
     state = read_json(session / "derived/live/causal-target-me/state.json") or {}
     state_updated_at = parse_datetime(state.get("updated_at"))
@@ -781,6 +807,9 @@ def live_temporal_provenance(session: Path, chunks: list[dict[str, Any]]) -> dic
         "causal_direct_profile_candidate_count": len(direct_profile_candidates),
         "causal_direct_profile_candidate_created_at_count": direct_created_at_count,
         "causal_pre_stop_direct_profile_candidate_count": direct_pre_stop_count,
+        "causal_remote_energy_profile_candidate_count": len(remote_energy_profile_candidates),
+        "causal_remote_energy_profile_candidate_created_at_count": remote_energy_created_at_count,
+        "causal_pre_stop_remote_energy_profile_candidate_count": remote_energy_pre_stop_count,
         "causal_speaker_overlap_profile_candidate_count": len(speaker_overlap_profile_candidates),
         "causal_speaker_overlap_profile_candidate_created_at_count": speaker_created_at_count,
         "causal_pre_stop_speaker_overlap_profile_candidate_count": speaker_pre_stop_count,
@@ -991,6 +1020,93 @@ def segment_audio_features(
         else None,
         "mic_remote_zero_lag_abs_corr": zero_lag_abs_corr(mic_slice, remote_slice),
     }
+
+
+def runtime_remote_audio_guard(features: dict[str, Any]) -> dict[str, Any]:
+    remote_db = features.get("remote_db")
+    mic_db = features.get("mic_db")
+    mic_minus_remote_db = features.get("mic_minus_remote_db")
+    evaluable = remote_db is not None and mic_minus_remote_db is not None
+    passed = bool(
+        evaluable
+        and (
+            safe_float(remote_db) <= REMOTE_AUDIO_QUIET_MAX_DB
+            or safe_float(mic_minus_remote_db) >= MIC_REMOTE_DOMINANCE_MIN_DB
+        )
+    )
+    return {
+        "schema": "murmurmark.live_remote_audio_guard/v1",
+        "status": "passed" if passed else ("rejected" if evaluable else "not_evaluated"),
+        "reason": (
+            "remote_quiet_or_mic_dominant"
+            if passed
+            else ("remote_audio_active_without_mic_dominance" if evaluable else "audio_features_unavailable")
+        ),
+        "remote_db": round(safe_float(remote_db), 3) if remote_db is not None else None,
+        "mic_db": round(safe_float(mic_db), 3) if mic_db is not None else None,
+        "mic_minus_remote_db": (
+            round(safe_float(mic_minus_remote_db), 3) if mic_minus_remote_db is not None else None
+        ),
+        "corr": features.get("corr"),
+        "thresholds": {
+            "remote_quiet_max_db": REMOTE_AUDIO_QUIET_MAX_DB,
+            "mic_remote_dominance_min_db": MIC_REMOTE_DOMINANCE_MIN_DB,
+        },
+        "live_accessible": True,
+        "used_batch_fields_for_selection": False,
+    }
+
+
+def runtime_candidate_remote_audio_guard(
+    session: Path,
+    row: dict[str, Any],
+    *,
+    audio_cache: dict[Path, tuple[int, np.ndarray] | None],
+    chunk_cache: dict[int, dict[str, Any]],
+) -> dict[str, Any]:
+    stored = row.get("remote_audio_guard")
+    if isinstance(stored, dict) and stored.get("schema") == "murmurmark.live_remote_audio_guard/v1":
+        return stored
+    chunk_index = safe_int(row.get("chunk_index"))
+    if chunk_index not in chunk_cache:
+        chunk_cache[chunk_index] = read_json(
+            session / "derived/live/chunks" / f"{chunk_index:06d}" / "chunk.json"
+        ) or {}
+    chunk = chunk_cache[chunk_index]
+    mic = chunk.get("mic") if isinstance(chunk.get("mic"), dict) else {}
+    remote = chunk.get("remote") if isinstance(chunk.get("remote"), dict) else {}
+    mic_audio = read_audio(
+        resolve_source_path(session, mic, ("asr_wav", "wav", "input")),
+        audio_cache,
+    )
+    remote_audio = read_audio(
+        resolve_source_path(session, remote, ("wav", "input")),
+        audio_cache,
+    )
+    start = safe_float(row.get("start"))
+    end = safe_float(row.get("end"), start)
+    mic_clip_start = safe_float(mic.get("clip_start_sec"), safe_float(chunk.get("clip_start_sec")))
+    remote_clip_start = safe_float(remote.get("clip_start_sec"), safe_float(chunk.get("clip_start_sec")))
+    mic_slice = audio_slice(mic_audio, max(0.0, start - mic_clip_start), max(0.0, end - mic_clip_start))
+    remote_slice = audio_slice(
+        remote_audio,
+        max(0.0, start - remote_clip_start),
+        max(0.0, end - remote_clip_start),
+    )
+    mic_db = rms_db(mic_slice)
+    remote_db = rms_db(remote_slice)
+    return runtime_remote_audio_guard(
+        {
+            "mic_db": mic_db,
+            "remote_db": remote_db,
+            "mic_minus_remote_db": (
+                round(mic_db - remote_db, 3)
+                if mic_db is not None and remote_db is not None
+                else None
+            ),
+            "corr": zero_lag_abs_corr(mic_slice, remote_slice),
+        }
+    )
 
 
 def classify_suppressed_boundary_duplicate(
@@ -5445,6 +5561,9 @@ def parity_gates(
         if runtime_causal_profile_scope == "speaker_overlap":
             accepted_key = "causal_speaker_overlap_profile_candidate_count"
             pre_stop_key = "causal_pre_stop_speaker_overlap_profile_candidate_count"
+        elif runtime_causal_profile_scope == "remote_energy":
+            accepted_key = "causal_remote_energy_profile_candidate_count"
+            pre_stop_key = "causal_pre_stop_remote_energy_profile_candidate_count"
         else:
             accepted_key = "causal_direct_profile_candidate_count"
             pre_stop_key = "causal_pre_stop_direct_profile_candidate_count"
@@ -5904,6 +6023,7 @@ def shadow_turn_payload(turn: dict[str, Any], added_by_policy: str | None) -> di
         "local_only_seed_live_segment_micro_asr_shadow",
         "causal_local_only_seed_live_segment_micro_asr_shadow",
         "runtime_causal_target_me_micro_asr_shadow",
+        "remote_audio_guard",
         "segment_gate_status",
         "segment_gate_reason",
         "segment_gate_unique_token_count",
@@ -6140,10 +6260,13 @@ def runtime_causal_target_me_shadow_turns(
     session: Path,
     *,
     allow_speaker_confirmed_overlap: bool = False,
+    require_remote_audio_guard: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     rows = read_jsonl(session / "derived/live/causal-target-me/candidates.jsonl")
     turns: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
+    audio_cache: dict[Path, tuple[int, np.ndarray] | None] = {}
+    chunk_cache: dict[int, dict[str, Any]] = {}
     for index, row in enumerate(rows, start=1):
         if not isinstance(row, dict):
             continue
@@ -6165,6 +6288,22 @@ def runtime_causal_target_me_shadow_turns(
         speaker_confirmed_overlap = diagnostics.get("speaker_confirmed_overlap") is True
         if not eligible:
             rejected.append({**context, "reason": reason, **diagnostics})
+            continue
+        remote_audio_guard = runtime_candidate_remote_audio_guard(
+            session,
+            row,
+            audio_cache=audio_cache,
+            chunk_cache=chunk_cache,
+        )
+        if require_remote_audio_guard and remote_audio_guard.get("status") != "passed":
+            rejected.append(
+                {
+                    **context,
+                    "reason": "runtime_remote_audio_guard_failed",
+                    "remote_audio_guard": remote_audio_guard,
+                    **diagnostics,
+                }
+            )
             continue
         start = safe_float(row.get("start"))
         end = safe_float(row.get("end"), start)
@@ -6212,6 +6351,7 @@ def runtime_causal_target_me_shadow_turns(
                 "micro_asr_source_text_token_recall": row.get("source_text_token_recall"),
                 "micro_asr_json": row.get("asr_json"),
                 "micro_asr_wav": row.get("wav"),
+                "remote_audio_guard": remote_audio_guard,
                 "selection_features": {
                     "enrollment": row.get("enrollment"),
                     "speaker_scores": row.get("speaker_scores"),
@@ -6573,6 +6713,9 @@ def target_me_shadow_profile_components(
             session,
             allow_speaker_confirmed_overlap=(
                 policy == RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY
+            ),
+            require_remote_audio_guard=(
+                policy == RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY
             ),
         )
         runtime_turns, rejected_covered_runtime_turns = filter_micro_asr_turns_covered_by_base(
@@ -7113,6 +7256,12 @@ def build_target_me_shadow_profiles(
                 "causal_pre_stop_direct_profile_candidate_count": temporal_provenance.get(
                     "causal_pre_stop_direct_profile_candidate_count"
                 ),
+                "causal_remote_energy_profile_candidate_count": temporal_provenance.get(
+                    "causal_remote_energy_profile_candidate_count"
+                ),
+                "causal_pre_stop_remote_energy_profile_candidate_count": temporal_provenance.get(
+                    "causal_pre_stop_remote_energy_profile_candidate_count"
+                ),
                 "causal_speaker_overlap_profile_candidate_count": temporal_provenance.get(
                     "causal_speaker_overlap_profile_candidate_count"
                 ),
@@ -7151,13 +7300,18 @@ def build_target_me_shadow_profiles(
                 policy
                 in {
                     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+                    RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
                     RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
                 }
             ),
             runtime_causal_profile_scope=(
                 "speaker_overlap"
                 if policy == RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY
-                else "direct"
+                else (
+                    "remote_energy"
+                    if policy == RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY
+                    else "direct"
+                )
             ),
             runtime_gates=runtime_gates,
         )
@@ -7301,6 +7455,8 @@ def build_target_me_shadow_profiles(
             "causal_pre_stop_accepted_candidate_count",
             "causal_direct_profile_candidate_count",
             "causal_pre_stop_direct_profile_candidate_count",
+            "causal_remote_energy_profile_candidate_count",
+            "causal_pre_stop_remote_energy_profile_candidate_count",
             "causal_speaker_overlap_profile_candidate_count",
             "causal_pre_stop_speaker_overlap_profile_candidate_count",
         ):
@@ -7433,6 +7589,12 @@ def main() -> int:
                 ),
                 "causal_pre_stop_direct_profile_candidate_count": temporal_provenance.get(
                     "causal_pre_stop_direct_profile_candidate_count"
+                ),
+                "causal_remote_energy_profile_candidate_count": temporal_provenance.get(
+                    "causal_remote_energy_profile_candidate_count"
+                ),
+                "causal_pre_stop_remote_energy_profile_candidate_count": temporal_provenance.get(
+                    "causal_pre_stop_remote_energy_profile_candidate_count"
                 ),
                 "causal_speaker_overlap_profile_candidate_count": temporal_provenance.get(
                     "causal_speaker_overlap_profile_candidate_count"
