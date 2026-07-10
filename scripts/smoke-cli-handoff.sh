@@ -878,6 +878,24 @@ cat >"$live_parity_session/derived/live/chunks.jsonl" <<'JSONL'
 {"schema":"murmurmark.live_chunk/v1","index":1,"start_sec":0.0,"end_sec":10.0,"created_at":"2026-07-06T00:00:11.000Z","mic":{"text":"привет проверю задачу","hard_start_sec":0.0,"hard_end_sec":10.0},"remote":{"text":"привет обсудим план","hard_start_sec":0.0,"hard_end_sec":10.0}}
 {"schema":"murmurmark.live_chunk/v1","index":2,"start_sec":10.0,"end_sec":12.0,"created_at":"2026-07-06T00:00:14.000Z","mic":{"text":"","hard_start_sec":10.0,"hard_end_sec":12.0,"live_boundary_gate":{"status":"passed","reason":"too_short_for_boundary_gate"}},"remote":{"text":"","raw_text_before_boundary_gate":"привет обсудим план","hard_start_sec":10.0,"hard_end_sec":12.0,"live_boundary_gate":{"status":"suppressed","reason":"adjacent_chunk_duplicate","duplicate_score":1.0,"current_token_recall_in_previous":1.0,"previous_token_recall_in_current":1.0}}}
 JSONL
+cat >"$live_parity_session/derived/live/transcript.preview.md" <<'MD'
+# Live Preview
+
+Conservative shadow preview. The batch pipeline remains authoritative.
+
+## 00:00
+
+**Me**
+
+привет проверю задачу
+
+**Colleagues**
+
+привет обсудим план
+MD
+cat >"$live_parity_session/derived/live/preview_snapshots.jsonl" <<'JSONL'
+{"schema":"murmurmark.live_preview_snapshot/v1","created_at":"2026-07-06T00:00:14.500Z","provenance":"recording_time_committed_pcm","preview_policy":"fixture","chunk_count":2,"processed_end_sec":12.0,"preview_candidate_count":0,"batch_authoritative":true,"promotion_allowed":false}
+JSONL
 cat >"$live_parity_session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v4.json" <<'JSON'
 {
   "schema": "murmurmark.clean_dialogue/v1",
@@ -966,6 +984,10 @@ cp "$live_parity_session/derived/live/live_pipeline_state.json" \
   "$live_boundary_risk_session/derived/live/live_pipeline_state.json"
 cp "$live_parity_session/derived/live/segments.jsonl" \
   "$live_boundary_risk_session/derived/live/segments.jsonl"
+cp "$live_parity_session/derived/live/transcript.preview.md" \
+  "$live_boundary_risk_session/derived/live/transcript.preview.md"
+cp "$live_parity_session/derived/live/preview_snapshots.jsonl" \
+  "$live_boundary_risk_session/derived/live/preview_snapshots.jsonl"
 cp "$live_parity_session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v4.json" \
   "$live_boundary_risk_session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v4.json"
 cp "$live_parity_session/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v4.md" \

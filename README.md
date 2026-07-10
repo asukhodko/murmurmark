@@ -346,6 +346,9 @@ causal Target-Me shadow. Target-Me micro-ASR has a bounded child timeout and is 
 worker is already more than `60s` behind captured audio. The report exposes
 `skipped_lag_budget_count`; losing optional speaker evidence is preferable to letting it delay the
 base draft without bound.
+The base `mic` and `remote` decodes are independent: on hosts with at least twelve logical CPUs the
+worker runs them concurrently with four threads per decoder; smaller hosts keep the sequential path.
+Each decoder remains in a bounded child process, so shutdown and fail-open behavior are unchanged.
 The conservative preview publishes causal Target-Me only when its recording-time remote-energy
 gate passes. A candidate is withheld when contemporary remote audio is active and mic does not
 dominate it by at least `20 dB`; the diagnostic draft still retains the evidence for later parity

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import hashlib
 import importlib.util
 import json
@@ -11,6 +12,7 @@ import signal as process_signal
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,7 +24,7 @@ from scipy.io import wavfile
 
 
 SCHEMA = "murmurmark.live_pipeline_report/v1"
-SCRIPT_VERSION = "0.7.0"
+SCRIPT_VERSION = "0.7.1"
 EPSILON = 1.0e-12
 LIVE_ROLE_DUPLICATE_THRESHOLD = 0.55
 LIVE_RESCUE_SHADOW_POLICY = "audio_safe_union_v1"
@@ -34,7 +36,8 @@ KNOWN_HALLUCINATIONS = {
 }
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 SHUTDOWN_REQUESTED = False
-ACTIVE_CHILD: subprocess.Popen[str] | None = None
+ACTIVE_CHILDREN: dict[int, subprocess.Popen[str]] = {}
+ACTIVE_CHILDREN_LOCK = threading.Lock()
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,6 +55,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--heartbeat-sec", type=float, default=2.0)
     parser.add_argument("--ffmpeg-timeout-sec", type=float, default=45.0)
     parser.add_argument("--whisper-timeout-sec", type=float, default=180.0)
+    parser.add_argument("--asr-threads", type=int, default=4)
+    parser.add_argument(
+        "--asr-parallelism",
+        type=int,
+        choices=(0, 1, 2),
+        default=0,
+        help="Base mic/remote ASR concurrency. 0 selects 2 only on hosts with at least 12 logical CPUs.",
+    )
     parser.add_argument(
         "--causal-target-me-timeout-sec",
         type=float,
@@ -73,7 +84,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable the optional past-only Target-Me speaker shadow. Raw/live base processing is unchanged.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.asr_parallelism == 0:
+        args.asr_parallelism = 2 if (os.cpu_count() or 1) >= 12 else 1
+    args.asr_threads = max(1, args.asr_threads)
+    return args
 
 
 def load_progressive_target_me() -> Any:
@@ -104,8 +119,13 @@ class WorkerHeartbeat:
         self.events_path = output_dir / "worker_events.jsonl"
         self.last_event: tuple[str, str, int | None] | None = None
         self.last_progress: dict[str, Any] = {}
+        self.lock = threading.Lock()
 
-    def update(
+    def update(self, **kwargs: Any) -> None:
+        with self.lock:
+            self._update(**kwargs)
+
+    def _update(
         self,
         *,
         status: str,
@@ -121,6 +141,7 @@ class WorkerHeartbeat:
             "current_stage": stage,
             "current_index": index,
             "child_pid": child_pid,
+            "child_pids": active_child_pids(),
             "detail": detail,
             "heartbeat_at": utc_now(),
             "worker_pid": os.getpid(),
@@ -147,6 +168,7 @@ class WorkerHeartbeat:
                     "stage": stage,
                     "index": index,
                     "child_pid": child_pid,
+                    "child_pids": active_child_pids(),
                     "detail": detail,
                     "provenance": self.provenance,
                 },
@@ -154,16 +176,40 @@ class WorkerHeartbeat:
             self.last_event = event_key
 
 
+def active_child_pids() -> list[int]:
+    with ACTIVE_CHILDREN_LOCK:
+        return sorted(ACTIVE_CHILDREN)
+
+
+def register_active_child(process: subprocess.Popen[str]) -> None:
+    with ACTIVE_CHILDREN_LOCK:
+        ACTIVE_CHILDREN[process.pid] = process
+
+
+def unregister_active_child(process: subprocess.Popen[str]) -> None:
+    with ACTIVE_CHILDREN_LOCK:
+        ACTIVE_CHILDREN.pop(process.pid, None)
+
+
+def terminate_process_group(process: subprocess.Popen[str], signal: int) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        os.killpg(process.pid, signal)
+    except (ProcessLookupError, PermissionError):
+        if signal == process_signal.SIGKILL:
+            process.kill()
+        else:
+            process.terminate()
+
+
 def request_worker_shutdown(_signum: int, _frame: Any) -> None:
     global SHUTDOWN_REQUESTED
     SHUTDOWN_REQUESTED = True
-    child = ACTIVE_CHILD
-    if child is None or child.poll() is not None:
-        return
-    try:
-        os.killpg(child.pid, process_signal.SIGTERM)
-    except (ProcessLookupError, PermissionError):
-        child.terminate()
+    with ACTIVE_CHILDREN_LOCK:
+        children = list(ACTIVE_CHILDREN.values())
+    for child in children:
+        terminate_process_group(child, process_signal.SIGTERM)
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -691,7 +737,6 @@ def run_bounded(
     stage: str,
     index: int,
 ) -> dict[str, Any]:
-    global ACTIVE_CHILD
     if SHUTDOWN_REQUESTED:
         heartbeat.update(
             status="running",
@@ -714,23 +759,17 @@ def run_bounded(
         stderr=subprocess.PIPE,
         start_new_session=True,
     )
-    ACTIVE_CHILD = process
+    register_active_child(process)
     try:
         while True:
             elapsed = time.monotonic() - started
             remaining = timeout_sec - elapsed
             if remaining <= 0:
-                try:
-                    os.killpg(process.pid, process_signal.SIGTERM)
-                except (ProcessLookupError, PermissionError):
-                    process.terminate()
+                terminate_process_group(process, process_signal.SIGTERM)
                 try:
                     stdout, stderr = process.communicate(timeout=5.0)
                 except subprocess.TimeoutExpired:
-                    try:
-                        os.killpg(process.pid, process_signal.SIGKILL)
-                    except (ProcessLookupError, PermissionError):
-                        process.kill()
+                    terminate_process_group(process, process_signal.SIGKILL)
                     stdout, stderr = process.communicate()
                 heartbeat.update(
                     status="running",
@@ -764,8 +803,7 @@ def run_bounded(
             except subprocess.TimeoutExpired:
                 continue
     finally:
-        if ACTIVE_CHILD is process:
-            ACTIVE_CHILD = None
+        unregister_active_child(process)
 
 
 def causal_target_me_lag_decision(
@@ -935,7 +973,7 @@ def transcribe(
         "--language",
         args.language,
         "--threads",
-        "4",
+        str(args.asr_threads),
         "--max-context",
         "0",
         "--output-txt",
@@ -1388,26 +1426,35 @@ def process_segment(
             converted["mic"] = clean_wav
         else:
             record["mic"]["asr_wav"] = record["mic"].get("wav")
-    for source in ("mic", "remote"):
+    def decode_source(source: str) -> tuple[str, dict[str, Any], str]:
         source_record = record[source]
-        wav_for_asr = converted.get(source)
-        if wav_for_asr:
-            asr = transcribe(
-                wav_for_asr,
-                chunk_dir / source,
-                args,
-                heartbeat=heartbeat,
-                index=index,
-                source=source,
-            )
-            source_record["asr"] = asr
-            asr_json = Path(str(asr.get("json"))) if asr.get("json") else None
-            source_record["text"] = text_inside_hard_window(
-                asr_json,
-                clip_start_sec=float(source_record.get("clip_start_sec") or 0.0),
-                hard_start_sec=float(source_record.get("hard_start_sec") or 0.0),
-                hard_end_sec=float(source_record.get("hard_end_sec") or 0.0),
-            ) or asr.get("text", "")
+        wav_for_asr = converted[source]
+        asr = transcribe(
+            wav_for_asr,
+            chunk_dir / source,
+            args,
+            heartbeat=heartbeat,
+            index=index,
+            source=source,
+        )
+        asr_json = Path(str(asr.get("json"))) if asr.get("json") else None
+        text = text_inside_hard_window(
+            asr_json,
+            clip_start_sec=float(source_record.get("clip_start_sec") or 0.0),
+            hard_start_sec=float(source_record.get("hard_start_sec") or 0.0),
+            hard_end_sec=float(source_record.get("hard_end_sec") or 0.0),
+        ) or asr.get("text", "")
+        return source, asr, text
+
+    decode_sources = [source for source in ("mic", "remote") if source in converted]
+    if args.asr_parallelism >= 2 and len(decode_sources) == 2:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            decoded = list(executor.map(decode_source, decode_sources))
+    else:
+        decoded = [decode_source(source) for source in decode_sources]
+    for source, asr, text in decoded:
+        record[source]["asr"] = asr
+        record[source]["text"] = text
     apply_live_role_gate(session, record)
     write_json(chunk_dir / "chunk.json", record)
     return record
@@ -1552,6 +1599,9 @@ def write_report(
             "commit_delay_sec": args.commit_delay_sec,
             "language": args.language,
             "model": str(args.model),
+            "asr_threads": args.asr_threads,
+            "asr_parallelism": args.asr_parallelism,
+            "logical_cpu_count": os.cpu_count(),
             "causal_target_me_timeout_sec": args.causal_target_me_timeout_sec,
             "causal_target_me_max_live_lag_sec": args.causal_target_me_max_live_lag_sec,
         },

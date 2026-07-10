@@ -109,6 +109,7 @@ make_fake_whisper "$workdir/fake-whisper"
   --heartbeat-sec 0.1 \
   --ffmpeg-timeout-sec 5 \
   --whisper-timeout-sec 5 \
+  --asr-parallelism 2 \
   --no-causal-target-me >"$workdir/worker.log" 2>&1 &
 worker_pid=$!
 
@@ -171,6 +172,7 @@ JSON
   --heartbeat-sec 0.1 \
   --ffmpeg-timeout-sec 5 \
   --whisper-timeout-sec 0.5 \
+  --asr-parallelism 2 \
   --no-causal-target-me >"$workdir/worker-timeout.log" 2>&1
 
 jq -e '
@@ -195,6 +197,7 @@ JSON
   --heartbeat-sec 0.1 \
   --ffmpeg-timeout-sec 5 \
   --whisper-timeout-sec 5 \
+  --asr-parallelism 2 \
   --causal-target-me-timeout-sec 5 \
   --causal-target-me-max-live-lag-sec 1 >"$workdir/worker-lag-budget.log" 2>&1
 
@@ -224,21 +227,24 @@ append_segment_pair "$shutdown_session" "2026-07-10T10:02:02Z"
   --heartbeat-sec 0.1 \
   --ffmpeg-timeout-sec 5 \
   --whisper-timeout-sec 30 \
+  --asr-parallelism 2 \
   --no-causal-target-me >"$workdir/worker-shutdown.log" 2>&1 &
 shutdown_worker_pid=$!
 wait_for 10 jq -e '
-  .current_stage == "asr_mic"
-  and (.child_pid // 0) > 0
+  (.current_stage == "asr_mic" or .current_stage == "asr_remote")
+  and (.child_pids | length) == 2
   and (.progress.live_lag_sec // -1) >= 0
 ' \
   "$shutdown_session/derived/live/live_pipeline_state.json" >/dev/null 2>&1 \
   || fail "shutdown fixture did not reach child ASR"
-shutdown_child_pid="$(jq -r '.child_pid' "$shutdown_session/derived/live/live_pipeline_state.json")"
+shutdown_child_pids="$(jq -r '.child_pids[]' "$shutdown_session/derived/live/live_pipeline_state.json")"
 kill -TERM "$shutdown_worker_pid"
 wait_for_process_exit "$shutdown_worker_pid" || fail "worker ignored SIGTERM"
 wait "$shutdown_worker_pid" || fail "worker SIGTERM path exited non-zero"
-kill -0 "$shutdown_child_pid" 2>/dev/null \
-  && fail "worker SIGTERM left the child ASR process running"
+for shutdown_child_pid in $shutdown_child_pids; do
+  kill -0 "$shutdown_child_pid" 2>/dev/null \
+    && fail "worker SIGTERM left child ASR process $shutdown_child_pid running"
+done
 jq -e '.status == "completed_partial_draft" and .current_stage == "terminated"' \
   "$shutdown_session/derived/live/live_pipeline_state.json" >/dev/null \
   || fail "worker SIGTERM did not persist terminal partial state"
