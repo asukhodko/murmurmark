@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.35.0"
+SCRIPT_VERSION = "1.36.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -119,6 +119,7 @@ CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY = (
     "local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_"
     "target_me_remote_gap_trim_micro_asr_causal_local_seed_live_lab_v1"
 )
+RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY = "live_runtime_causal_target_me_micro_asr_v1"
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -170,6 +171,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY,
     LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
     CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -269,6 +271,9 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "target_me_remote_gap_micro_asr_added_turn_count",
     "target_me_remote_gap_micro_asr_added_turn_seconds",
     "target_me_remote_gap_micro_asr_rejected_turn_count",
+    "runtime_causal_target_me_added_turn_count",
+    "runtime_causal_target_me_added_turn_seconds",
+    "runtime_causal_target_me_rejected_turn_count",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -1627,6 +1632,18 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
             evaluated_rows,
             f"{base}_target_me_remote_gap_micro_asr_rejected_turn_count",
         )
+        summary[f"{out}_runtime_causal_target_me_added_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_runtime_causal_target_me_added_turn_count",
+        )
+        summary[f"{out}_runtime_causal_target_me_added_turn_seconds"] = sum_metric(
+            evaluated_rows,
+            f"{base}_runtime_causal_target_me_added_turn_seconds",
+        )
+        summary[f"{out}_runtime_causal_target_me_rejected_turn_count"] = sum_int_metric(
+            evaluated_rows,
+            f"{base}_runtime_causal_target_me_rejected_turn_count",
+        )
         summary[f"{out}_visible_suppressed_mic_added_turn_count"] = sum_int_metric(
             evaluated_rows,
             f"{base}_visible_suppressed_mic_added_turn_count",
@@ -1865,6 +1882,15 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             ),
             "target_me_remote_gap_micro_asr_rejected_turn_count": safe_int(
                 summary.get(f"{base}_target_me_remote_gap_micro_asr_rejected_turn_count")
+            ),
+            "runtime_causal_target_me_added_turn_count": safe_int(
+                summary.get(f"{base}_runtime_causal_target_me_added_turn_count")
+            ),
+            "runtime_causal_target_me_added_turn_seconds": safe_float(
+                summary.get(f"{base}_runtime_causal_target_me_added_turn_seconds")
+            ),
+            "runtime_causal_target_me_rejected_turn_count": safe_int(
+                summary.get(f"{base}_runtime_causal_target_me_rejected_turn_count")
             ),
         }
         rows.append(row)

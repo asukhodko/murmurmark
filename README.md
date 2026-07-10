@@ -66,8 +66,10 @@ write validated chunk reports, interrupted `process` runs can resume from verifi
 corpus gates treat failed chunk rebuilds as hard failures. Batch processing remains authoritative.
 The live/near-realtime branch is still quarantined as a source of truth. Its segment writer now runs
 behind a bounded committed-PCM queue after durable raw writes, not inside the ScreenCaptureKit
-callback, and the full fail-open proof allows controlled Live Evidence runs on real meetings. Live
-promotion still requires broader passing real coverage. The latest audio milestone,
+callback. A progressive past-only Target-Me shadow now evaluates suppressed mic segments inside the
+live worker and runs focused micro-ASR without using batch fields. The full fail-open proof allows
+controlled Live Evidence runs on real meetings, but live promotion still requires passing parity
+coverage. The latest audio milestone,
 ASR-Positive Echo Candidate Hardening v1, remains important but shadow-only:
 `coverage_v2_remote_gate_local_fir` improved `5/6` candidate-corpus sessions without local-recall
 regression, yet `local_fir` is still the default ASR input until promotion gates are defined and
@@ -587,12 +589,14 @@ and closes the last known remote-dominant Target-Me row / `4.68s`. The full prof
 `714.81s` of batch `Me`; the classified remaining-gap set is `81` rows / `268.01s`, and `40.29s`
 of remote-like `Me` remains. Promotion stays blocked.
 
-A causal local-speaker follow-up now uses only enrollment audio committed before each closed live
-mic segment. The probe supports `33` segments / `111.18s`; focused micro-ASR accepts `13` groups /
-`62.54s`. On the 14-session real corpus the diagnostic shadow reduces missing Me from `714.81s` to
-`683.55s` without increasing the measured `40.29s` remote-like Me or order risk. This is a design
-ceiling, not a live feature yet: the progressive enrollment model is still built offline and must be
-integrated into the sidecar before the profile can be considered live-implementable.
+A causal local-speaker follow-up now runs inside the live worker. It uses only enrollment audio from
+closed earlier chunks, evaluates the current chunk before enrollment, and sends only ordinary-gate
+suppressed groups to focused micro-ASR. Runtime artifacts live under
+`derived/live/causal-target-me/`; the draft marks them as candidate-only. On the refreshed
+14-session real corpus, `live_runtime_causal_target_me_micro_asr_v1` improves missing Me from
+`714.81s` to `702.05s` while remote-like Me remains `40.29s`, blocking order risk remains `0`, and
+advisory order risk remains `5`. The wider `683.55s` offline result remains a batch-informed ceiling,
+not a runtime claim. Live output is still shadow-only and batch remains authoritative.
 
 ```bash
 .venv/bin/python scripts/report-live-local-only-enrollment-probe.py --method resemblyzer_dvector
@@ -601,16 +605,18 @@ integrated into the sidecar before the profile can be considered live-implementa
   --source-scope live
 ```
 
-For a focused refresh, avoid the expensive all-profile lab and evaluate only the current profile:
+For a focused refresh, compare the previous and runtime profiles without running every lab policy:
 
 ```bash
-POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1
+CURRENT=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1
+RUNTIME=live_runtime_causal_target_me_micro_asr_v1
 .venv/bin/python scripts/report-live-boundary-island-micro-asr-lab.py \
   --candidate-source target-me-remote-gap \
   --source-scope live
 .venv/bin/python scripts/report-live-corpus-gates.py all \
   --refresh \
-  --refresh-lab-policy "$POLICY"
+  --refresh-lab-policy "$CURRENT" \
+  --refresh-lab-policy "$RUNTIME"
 ```
 The paired `live_speaker_boundary_evidence_lab` now splits the current real-live remaining gap into
 `16.74s` future shadow-probe candidates and `34.76s` blocked rows. It still marks

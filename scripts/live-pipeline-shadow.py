@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,7 +20,7 @@ from scipy.io import wavfile
 
 
 SCHEMA = "murmurmark.live_pipeline_report/v1"
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.3.0"
 EPSILON = 1.0e-12
 LIVE_ROLE_DUPLICATE_THRESHOLD = 0.55
 LIVE_RESCUE_SHADOW_POLICY = "audio_safe_union_v1"
@@ -40,7 +42,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--idle-after-session-json-sec", type=float, default=6.0)
     parser.add_argument("--commit-delay-sec", type=float, default=10.0)
     parser.add_argument("--max-segments", type=int, default=0, help="Debug limit. 0 means no limit.")
+    parser.add_argument(
+        "--no-causal-target-me",
+        action="store_true",
+        help="Disable the optional past-only Target-Me speaker shadow. Raw/live base processing is unchanged.",
+    )
     return parser.parse_args()
+
+
+def load_progressive_target_me() -> Any:
+    path = Path(__file__).with_name("live-progressive-target-me.py")
+    spec = importlib.util.spec_from_file_location("murmurmark_live_progressive_target_me", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot import progressive Target-Me worker: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def utc_now() -> str:
@@ -203,6 +221,13 @@ def segment_audio_features(
 def safe_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
     except (TypeError, ValueError):
         return default
 
@@ -471,6 +496,8 @@ def apply_live_role_gate(session: Path, record: dict[str, Any]) -> None:
     remote_text = clean_text(str(remote.get("text") or ""))
     mic_tokens = tokens(mic_text)
     remote_tokens = tokens(remote_text)
+    segment_gate = segment_level_role_rescue(session, record)
+    mic["live_segment_role_gate"] = segment_gate
     if len(mic_tokens) < 3 or len(remote_tokens) < 3:
         mic["live_role_gate"] = {"status": "passed", "reason": "too_short_for_duplicate_gate"}
         return
@@ -479,8 +506,6 @@ def apply_live_role_gate(session: Path, record: dict[str, Any]) -> None:
     duplicate_score = max(mic_in_remote, remote_in_mic)
     if duplicate_score >= LIVE_ROLE_DUPLICATE_THRESHOLD:
         mic["raw_text_before_role_gate"] = mic_text
-        segment_gate = segment_level_role_rescue(session, record)
-        mic["live_segment_role_gate"] = segment_gate
         shadow_text = clean_text(str(segment_gate.get("shadow_text") or ""))
         if shadow_text:
             mic["live_rescue_shadow"] = {
@@ -858,6 +883,8 @@ def write_draft(session: Path, chunks: list[dict[str, Any]], commit_delay_sec: f
         mic = clean_text(str(mic_row.get("text") or ""))
         shadow = mic_row.get("live_rescue_shadow") if isinstance(mic_row.get("live_rescue_shadow"), dict) else {}
         shadow_text = clean_text(str(shadow.get("text") or ""))
+        causal = mic_row.get("causal_target_me_shadow") if isinstance(mic_row.get("causal_target_me_shadow"), dict) else {}
+        causal_candidates = causal.get("candidates") if isinstance(causal.get("candidates"), list) else []
         remote = clean_text(str((chunk.get("remote") or {}).get("text") or ""))
         if mic:
             lines += ["**Me draft**", "", mic, ""]
@@ -871,15 +898,35 @@ def write_draft(session: Path, chunks: list[dict[str, Any]], commit_delay_sec: f
                 shadow_text,
                 "",
             ]
+        for candidate in causal_candidates:
+            if not isinstance(candidate, dict):
+                continue
+            candidate_text = clean_text(str(candidate.get("text") or ""))
+            if not candidate_text:
+                continue
+            lines += [
+                "**Me causal speaker shadow**",
+                "",
+                "_Candidate only: past chunks + local speaker evidence; batch remains authoritative._",
+                "",
+                candidate_text,
+                "",
+            ]
         if remote:
             lines += ["**Colleagues draft**", "", remote, ""]
-        if not mic and not shadow_text and not remote:
+        if not mic and not shadow_text and not causal_candidates and not remote:
             lines += ["_No speech decoded in this segment._", ""]
     draft.parent.mkdir(parents=True, exist_ok=True)
     draft.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
-def process_segment(session: Path, index: int, pair: dict[str, dict[str, Any]], args: argparse.Namespace) -> dict[str, Any]:
+def process_segment(
+    session: Path,
+    index: int,
+    pair: dict[str, dict[str, Any]],
+    args: argparse.Namespace,
+    progressive_target_me: Any | None = None,
+) -> dict[str, Any]:
     chunk_dir = session / "derived/live/chunks" / f"{index:06d}"
     start_sec = min(float(pair[source].get("start_sec") or 0.0) for source in pair)
     end_sec = max(float(pair[source].get("end_sec") or 0.0) for source in pair)
@@ -943,6 +990,17 @@ def process_segment(session: Path, index: int, pair: dict[str, dict[str, Any]], 
                 hard_end_sec=float(source_record.get("hard_end_sec") or 0.0),
             ) or asr.get("text", "")
     apply_live_role_gate(session, record)
+    if progressive_target_me is not None:
+        try:
+            progressive_target_me.process_chunk(record)
+        except Exception as error:
+            record["mic"]["causal_target_me_shadow"] = {
+                "schema": "murmurmark.live_progressive_target_me/v1",
+                "status": "failed_open",
+                "reason": str(error),
+                "batch_authoritative": True,
+                "promotion_allowed": False,
+            }
     write_json(chunk_dir / "chunk.json", record)
     return record
 
@@ -980,10 +1038,37 @@ def live_rescue_shadow_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def causal_target_me_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
+    candidate_count = 0
+    candidate_seconds = 0.0
+    evaluated_segments = 0
+    for chunk in chunks:
+        mic = chunk.get("mic") if isinstance(chunk.get("mic"), dict) else {}
+        shadow = mic.get("causal_target_me_shadow") if isinstance(mic.get("causal_target_me_shadow"), dict) else {}
+        evaluated_segments += safe_int(shadow.get("evaluated_segment_count"))
+        candidates = shadow.get("candidates") if isinstance(shadow.get("candidates"), list) else []
+        candidate_count += len(candidates)
+        candidate_seconds += sum(
+            max(0.0, safe_float(row.get("end")) - safe_float(row.get("start")))
+            for row in candidates
+            if isinstance(row, dict)
+        )
+    return {
+        "policy": "live_runtime_causal_target_me_micro_asr_v1",
+        "publish_policy": "shadow_only_not_live_me",
+        "candidate_count": candidate_count,
+        "candidate_seconds": round(candidate_seconds, 3),
+        "evaluated_segment_count": evaluated_segments,
+        "batch_authoritative": True,
+        "promotion_allowed": False,
+    }
+
+
 def write_report(session: Path, status: str, chunks: list[dict[str, Any]], rows: list[dict[str, Any]], args: argparse.Namespace) -> None:
     captured = max((float(row.get("end_sec") or 0.0) for row in rows), default=0.0)
     processed = max((float(row.get("end_sec") or 0.0) for row in chunks), default=0.0)
     rescue_shadow = live_rescue_shadow_summary(chunks)
+    causal_shadow = causal_target_me_summary(chunks)
     report = {
         "schema": SCHEMA,
         "generator": {"name": "live-pipeline-shadow", "version": SCRIPT_VERSION},
@@ -1001,6 +1086,7 @@ def write_report(session: Path, status: str, chunks: list[dict[str, Any]], rows:
             "model": str(args.model),
         },
         "live_rescue_shadow": rescue_shadow,
+        "causal_target_me_shadow": causal_shadow,
         "progress": {
             "captured_sec": round(captured, 3),
             "preprocessed_sec": round(processed, 3),
@@ -1038,6 +1124,27 @@ def main() -> int:
     last_new_work = time.monotonic()
     write_draft(session, chunks, args.commit_delay_sec)
     write_report(session, "running", chunks, [], args)
+    progressive_target_me: Any | None = None
+    if not args.no_causal_target_me:
+        try:
+            progressive_module = load_progressive_target_me()
+            progressive_target_me = progressive_module.ProgressiveTargetMeShadow(
+                session,
+                model=str(args.model),
+                language=args.language,
+                whisper_cli=args.whisper_cli,
+            )
+        except Exception as error:
+            write_json(
+                session / "derived/live/causal-target-me/state.json",
+                {
+                    "schema": "murmurmark.live_progressive_target_me/v1",
+                    "status": "failed_open",
+                    "reason": str(error),
+                    "batch_authoritative": True,
+                    "promotion_allowed": False,
+                },
+            )
 
     while True:
         rows = read_jsonl(segments_path)
@@ -1048,7 +1155,7 @@ def main() -> int:
                 continue
             if args.max_segments and len(processed) >= args.max_segments:
                 break
-            chunk = process_segment(session, index, grouped[index], args)
+            chunk = process_segment(session, index, grouped[index], args, progressive_target_me)
             processed.add(index)
             apply_adjacent_boundary_gate(chunks[-1] if chunks else None, chunk)
             chunks.append(chunk)
@@ -1064,6 +1171,8 @@ def main() -> int:
             status = "completed" if session_finished else "stopped_by_limit"
             write_draft(session, chunks, args.commit_delay_sec)
             write_report(session, status, chunks, rows, args)
+            if progressive_target_me is not None:
+                progressive_target_me.persist(status="completed")
             return 0
 
         write_report(session, "running", chunks, rows, args)

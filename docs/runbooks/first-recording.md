@@ -157,8 +157,8 @@ files.
 If the recording-time sidecar worker timed out before live draft completion, rerun
 `murmurmark experiment compare ...`; it can use the raw commit log as a fallback and then compares the
 draft with authoritative batch output.
-The default comparison computes the required parity gates. For a focused shadow experiment,
-materialize only the selected policy:
+The default comparison computes the required parity gates and the runtime causal Target-Me profile.
+For an additional focused shadow experiment, materialize the selected policy explicitly:
 
 ```bash
 POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1
@@ -177,18 +177,26 @@ micro-ASR replacement only with local-source support and low remote similarity, 
 already covered by a base `Me` turn. The generated draft is still shadow evidence; use the batch
 transcript for notes and export.
 
-To reproduce the current past-only local-speaker ceiling without touching raw capture or batch
-outputs:
+The live worker now runs the causal past-only local-speaker path directly. It evaluates each chunk
+using positive and remote-negative seeds from closed earlier chunks, then enrolls the current chunk.
+Focused micro-ASR is limited to groups containing an ordinary-gate-suppressed mic segment. Inspect
+its state and accepted/rejected candidates with:
 
 ```bash
-.venv/bin/python scripts/report-live-local-only-enrollment-probe.py --method resemblyzer_dvector
-.venv/bin/python scripts/report-live-boundary-island-micro-asr-lab.py \
-  --candidate-source causal-local-only-seed-live-segment \
-  --source-scope live
+jq '.' "$SESSION/derived/live/causal-target-me/state.json"
+less "$SESSION/derived/live/causal-target-me/candidates.jsonl"
 ```
 
-This remains an offline diagnostic until progressive enrollment is integrated into the live
-sidecar. Do not use its transcript as the final meeting result.
+Replay the same causal logic over existing closed live chunks without touching raw capture or batch:
+
+```bash
+.venv/bin/python scripts/live-progressive-target-me.py "$SESSION"
+.venv/bin/python scripts/compare-live-batch.py "$SESSION" \
+  --lab-policy live_runtime_causal_target_me_micro_asr_v1
+```
+
+The runtime profile remains shadow-only. Corpus parity, not candidate count, decides whether it
+improves local recall without increasing remote leakage or order risk.
 
 Existing experiment sessions can still be analyzed without starting capture:
 
@@ -199,9 +207,9 @@ murmurmark experiment report "$SESSION"
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
-`murmurmark live pilot --controlled-real` still blocks new real recording without the explicit
-`--allow-unsafe-controlled-real-recording` escape hatch. Keep it for old evidence and compatibility,
-not for the normal workflow.
+Use direct `record --experiment live-shadow-v1` for the current committed-PCM controlled evidence
+path. `murmurmark live pilot --controlled-real` still guards the older pilot workflow with its
+explicit unsafe escape hatch; keep that command for compatibility, not as the normal recorder.
 
 If recording finished but post-stop processing was interrupted, resume the same evidence collection
 without starting another recording:

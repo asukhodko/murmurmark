@@ -33,11 +33,10 @@ The optional UI/app path is deliberately late. It should not block the useful CL
 ## Current Strategic Focus
 
 The major product route remains [Reliable Transcription Route](../project/reliable-transcription-route.md):
-turn a complete recording into a truthful result without the user watching every stage.
-Outcome Contract v1 and Reliable Processing UX v1 are now implemented. The next meaningful gap is
-not another report layer. Chunked/resumable ASR processing is now implemented; the immediate gap is
-to stabilize the current production path end to end before returning to echo promotion, new repair
-layers or a redesigned live path.
+turn a complete recording into a truthful result without the user watching every stage. The batch
+route, outcome contract, observable processing and resumable ASR are implemented. The active goal is
+now Near-Realtime Live Parity Coverage v1: reduce post-meeting waiting while preserving the same
+truthfulness guarantees.
 
 The target outcome is:
 
@@ -50,12 +49,12 @@ roadmap point it means:
 
 - `process` is progress-aware and interruption-safe;
 - ASR/heavy-stage work is chunk-addressed, cacheable and safely resumable;
-- near-realtime chunks remain diagnostic/shadow-only and are not the normal meeting command during
-  current stabilization;
-- live local-recall work is currently narrowed to duplicate-heavy mixed intervals: the
-  `live-duplicate-heavy` micro-ASR lab now selects those rows from live-only features, while
-  `blocker-analysis` remains the batch-informed ceiling check; both are diagnostic-only until a
-  materialized shadow split profile passes parity gates;
+- near-realtime chunks remain shadow-only; committed-PCM transport protects raw capture and batch
+  remains authoritative;
+- progressive Target-Me enrollment uses only closed earlier chunks and focused micro-ASR; the
+  runtime profile is judged by the same corpus gates as every other live candidate;
+- historical replay is not a latency proof; one fresh controlled run must show causal artifacts
+  before stop, bounded lag and intact raw/batch output;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -72,13 +71,13 @@ boring and repeatable:
    or failed session;
 3. add a resumable run manifest for long ASR stages;
 4. add ASR/window-level cache and resume, with stable metadata hashes;
-5. prove normal non-live capture/process/status/next/finish on fresh sessions;
-6. prove silent/partial/interrupted captures block before ASR and never look successful;
+5. keep normal non-live capture/process/status/next/finish as the production baseline;
+6. keep silent/partial/interrupted captures blocked before ASR;
 7. keep the experimental sidecar contract as the boundary for live work:
    `derived/experiments/live-shadow-v1` must prove fail-open behavior and raw capture isolation;
    real live-pipeline coverage returns only through controlled Live Evidence runs with that proof;
-8. reuse live/near-realtime chunks only when strict metadata and corpus parity gates pass;
-9. only then promote audio candidates or heavier validators.
+8. improve live local recall only with causal runtime evidence and no per-session parity regression;
+9. reuse or promote live output only after every required corpus gate passes.
 
 The explicit non-goal for this phase is changing the default ASR, default `local_fir`, UI, cloud
 services or broad repair heuristics before the outcome contract can measure the effect.

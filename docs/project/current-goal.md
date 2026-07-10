@@ -17,29 +17,25 @@ writes closed experiment segments and the live worker drafts from those files. `
 remain evidence and fallback, while batch remains authoritative.
 
 The current live-parity blocker is profile quality, not raw capture or lack of more recordings. The
-fresh corpus report still keeps promotion blocked and says no additional recording is required for
-the current implementation step. Materializing Target-Me/local-recall candidates exposed a previous
-measurement gap: the active `capture_safe_candidate` order slice was not advisory-only. The current
-best live-implementable profile is
-`online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1`.
-It corrects coarse Whisper starts from committed chunk evidence, then shifts long remote starts past
-low-confidence prefixes only after a dense reliable token cluster. It also uses a temporal prior for
-short generic matches. Profile-level contentful order mismatches are now `2`: `0` blocking and `2`
-advisory in the active capture-safe unlock slice. Across all 14 refreshed real sessions the profile
-has `5` advisory gate rows and full historical triage retains one blocking row outside the active
-slice. The remote-gap trim layer keeps token-timestamped pieces of strongly confirmed Target-Me
-segments only between guarded remote intervals. It closes two live-visible rows / `15.38s` without
-increasing remote leakage or order risk. A live-only short-window micro-ASR follow-up accepts `3`
-pieces / `10.74s`, rejects `3` unsafe or already covered candidates, and closes the final known
-remote-dominant Target-Me row / `4.68s`. Full-profile missing Me is now `714.81s`; the classified
-remaining-gap set is `81` rows / `268.01s`, and remote-like Me is `40.29s`. The next implementation
-action returns to the broader `fix_live_local_recall_gap`. A new past-only local-speaker probe now
-supports `33` closed live mic segments / `111.18s`. Its causal micro-ASR shadow accepts `13`
-candidate groups / `62.54s`; after ordinary deduplication, timeline and remote-leak gates it reduces
-full-corpus missing Me from `714.81s` to `683.55s` (`31.26s` recovered), while remote-like Me stays
-at `40.29s` and order counters do not grow. The gain currently comes from one real session, and the
-speaker enrollment is not integrated into the running sidecar, so this profile remains a
-non-promotable lab ceiling. Batch remains authoritative.
+past-only Target-Me experiment is now integrated into the running live worker as a separate causal
+shadow. It enrolls only from closed earlier chunks, evaluates the current chunk before adding its
+seeds, and runs focused micro-ASR only for groups containing a segment suppressed by the ordinary
+live segment gate. This avoids duplicating already published `Me` turns.
+
+The current best live-implementable profile is `live_runtime_causal_target_me_micro_asr_v1`. Across
+all 14 refreshed real sessions it lowers missing `Me` from `714.81s` to `702.05s` (`12.76s`
+recovered), while remote-like `Me` stays at `40.29s`, blocking order mismatches stay at `0`, and
+advisory order mismatches stay at `5`. The runtime writes `10` accepted causal candidates / `61.44s`
+in three sessions, but only the parity-measured `12.76s` gain counts as progress. Two sessions show
+the measured gain (`11.74s` and `1.02s`); no evaluated session regresses on local recall, remote
+leakage or order risk. The wider offline lab ceiling (`683.55s`) remains diagnostic because it uses
+batch-informed selection after candidate generation. Promotion is still blocked by the ordinary
+parity dimensions and batch remains authoritative.
+
+Historical replay proves the algorithmic delta, not recording-time latency. The next evidence gate
+is one fresh controlled Live Evidence session that shows `derived/live/causal-target-me/state.json`
+and candidate/draft updates before stop, bounded live lag, intact raw capture and a successful batch
+comparison after stop. Sidecar lag or failure must remain fail-open.
 
 ## Latest Completed Goal: Experimental Sidecar Contract v1
 
@@ -134,16 +130,18 @@ Current state:
   `required_artifacts`.
 - capture-safe candidate blocking dimensions: `local_recall`, `remote_leakage`, `review_burden`,
   `selected_notes_readiness`;
-- current best live-implementable profile: voice-activity plus token-density boundary retime,
-  Target-Me remote-gap trim and focused live-only micro-ASR over the existing
-  local-speaker/split-retime shadow;
+- current best live-implementable profile: `live_runtime_causal_target_me_micro_asr_v1`, which adds
+  progressive past-only Target-Me enrollment and focused micro-ASR over the existing
+  voice-activity/token-density/remote-gap profile;
 - active capture-safe order-risk triage: `2` advisory timing/match ambiguities and `0` blocking rows;
 - historical full-corpus triage: `4` advisory rows and `1` blocking row outside the active slice;
-- best-profile full-real gaps: `714.81 sec` missing Me and `40.29 sec` remote-like Me;
-- causal past-only local-speaker lab ceiling: `683.55 sec` missing Me, `40.29 sec` remote-like Me,
-  `31.26 sec` recovered without new order risk; runtime integration is still absent;
+- best live-implementable full-real gaps: `702.05 sec` missing Me and `40.29 sec` remote-like Me;
+- runtime causal Target-Me delta: `12.76 sec` missing Me recovered, with unchanged remote and order
+  counters; offline batch-informed ceiling remains `683.55 sec`;
 - classified remaining-gap set: `81` rows / `268.01 sec` missing Me;
 - current objective next focus: `fix_live_local_recall_gap`.
+- next runtime proof: fresh controlled Live Evidence with pre-stop causal artifacts, bounded lag and
+  unchanged raw/batch reliability.
 
 Safety constraint:
 
@@ -174,13 +172,15 @@ Definition of done:
 Latest verification:
 
 ```bash
-POLICY=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1
+CURRENT=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1
+RUNTIME=live_runtime_causal_target_me_micro_asr_v1
 .venv/bin/python scripts/report-live-boundary-island-micro-asr-lab.py \
   --candidate-source target-me-remote-gap \
   --source-scope live
 .venv/bin/python scripts/report-live-corpus-gates.py all \
   --refresh \
-  --refresh-lab-policy "$POLICY"
+  --refresh-lab-policy "$CURRENT" \
+  --refresh-lab-policy "$RUNTIME"
 ```
 
 Current result:
@@ -189,7 +189,8 @@ Current result:
 - `promotion_decision = shadow_only_do_not_promote`;
 - `promotion_allowed_sessions = 0`;
 - live/batch comparison granularity: ASR segment when available, chunk fallback otherwise;
-- current best profile evaluates all `14` real live sessions and passes all parity gates on `1`;
+- current best live-implementable profile is `live_runtime_causal_target_me_micro_asr_v1`; it
+  evaluates all `14` real live sessions and passes all parity gates on `1`;
 - the profile has `5` advisory gate-level contentful order mismatches and `0` blocking ones across
   the refreshed real corpus;
 - active capture-safe order triage: `2` advisory timing/match rows and `0` blocking rows;
@@ -197,9 +198,9 @@ Current result:
 - remote-gap trim materializes `42` pieces / `176.262 sec` and closes `15.38 sec` of missing Me;
 - focused live-only micro-ASR adds `3` non-duplicate pieces / `10.74 sec`, rejects `3`, and closes
   another `4.68 sec` of missing Me;
-- best-profile full-real gaps: `714.81 sec` missing Me and `40.29 sec` remote-like Me;
-- causal past-only local-speaker micro-ASR accepts `13` groups / `62.54 sec` and establishes a
-  diagnostic corpus ceiling of `683.55 sec` missing Me, with unchanged remote/order metrics;
+- runtime causal Target-Me writes `10` accepted candidates / `61.44 sec`; parity gates count a
+  `12.76 sec` missing-Me improvement (`714.81 -> 702.05 sec`) with unchanged remote/order metrics;
+- the batch-informed causal lab remains a diagnostic ceiling at `683.55 sec` missing Me;
 - classified remaining-gap set: `81` rows / `268.01 sec` missing Me;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;
 - `objective_next_focus = fix_live_local_recall_gap`;

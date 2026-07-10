@@ -177,8 +177,9 @@ murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 Risk: sidecar file IO, JSON writes or ASR work happens too close to the ScreenCaptureKit callback and
 starves raw capture.
 
-Mitigation: raw write first; the callback only records committed-frame progress. A separate worker
-reads `raw_segment_commits.jsonl` and materializes WAV from raw CAF.
+Mitigation: raw write first; a bounded nonblocking queue receives a copy of committed PCM only after
+the writer succeeds. A separate segment writer closes experiment audio files. The raw commit worker
+is post-stop fallback only and normal preview never reads an open CAF.
 
 ### CPU Contention
 
@@ -258,6 +259,23 @@ Lower-latency transcription can come later after:
 - controlled Live Evidence runs pass;
 - CPU and queue budgets are measured on long meetings;
 - live-vs-batch parity is good enough.
+
+## Progressive Target-Me Shadow
+
+The live worker has a candidate-only `Me` recovery path for mic segments suppressed by the ordinary
+live role gate:
+
+1. closed kept mic segments provide positive speaker seeds;
+2. closed remote segments provide negative speaker seeds;
+3. the current chunk is evaluated using only seeds from earlier chunks;
+4. the current chunk is enrolled only after evaluation;
+5. focused micro-ASR runs only for a group containing a suppressed mic segment;
+6. remote similarity and local-source alignment gates reject unsafe candidates.
+
+Artifacts are written under `derived/live/causal-target-me/`. They never edit raw audio, batch
+transcripts or export inputs. `live_runtime_causal_target_me_micro_asr_v1` is evaluated by the same
+live-vs-batch corpus gates as other shadow profiles. Batch remains authoritative even when the
+runtime profile wins the shadow comparison.
 
 ### Disable Sidecar Instead Of Saving Every Experiment
 

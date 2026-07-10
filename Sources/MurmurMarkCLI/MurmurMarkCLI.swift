@@ -715,6 +715,7 @@ enum DoctorChecks {
             "scripts/run-session-pipeline.py",
             "scripts/evaluate-outcome.py",
             "scripts/live-pipeline-shadow.py",
+            "scripts/live-progressive-target-me.py",
             "scripts/raw-sidecar-worker.py",
             "scripts/compare-live-batch.py",
             "scripts/materialize-live-asr-cache.py",

@@ -530,7 +530,7 @@ nodes:
     kind: phase
     parent: murmurmark-cli
     deps: [cli-orchestration, cli-recording-reliability, corpus-regression]
-    status: later
+    status: current
     effort: 16
     notes: |
       Потоковая ветка CLI: не ждать окончания встречи, а обрабатывать уже закрытые audio segments
@@ -540,8 +540,9 @@ nodes:
       `murmurmark process` остаются source of truth. Старый `--live-pipeline` quarantined. Новый
       путь — `record --experiment live-shadow-v1`: callback сначала пишет raw CAF, затем bounded
       committed-PCM queue пишет закрытые experiment segments, а `raw_segment_commits.jsonl`
-      остаётся audit/fallback. Поэтому ближайшая live-работа — soak/parity gates для committed-PCM
-      sidecar, пока promotion остаётся blocked и batch transcript authoritative.
+      остаётся audit/fallback. Committed-PCM transport и live draft уже работают. Текущая работа —
+      parity hardening через progressive past-only Target-Me, focused micro-ASR и corpus gates,
+      пока promotion остаётся blocked и batch transcript authoritative.
 
   realtime-segment-writer:
     title: "Durable committed PCM sidecar"
@@ -581,22 +582,22 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [experimental-sidecar-contract-v1]
-    status: later
+    status: done
     effort: 5
     notes: |
-      Worker теперь стартует как best-effort consumer закрытых committed-PCM segments. Следующий
-      слой должен аккуратно укрепить Echo/ASR draft поверх segments, per-stage state, restartability,
-      явный lag и безопасный skip, если live отстаёт.
+      Worker стартует как best-effort consumer закрытых committed-PCM segments, пишет per-stage
+      state и fail-open завершает sidecar при отставании. Raw capture и batch route от него не
+      зависят.
 
   realtime-live-draft:
     title: "Live draft transcript"
     kind: task
     parent: near-realtime-pipeline
     deps: [realtime-worker-queue]
-    status: later
+    status: done
     effort: 4
     notes: |
-      Писать `derived/live/transcript.draft.md`, `derived/live/chunks/*.jsonl` и
+      Пишет `derived/live/transcript.draft.md`, `derived/live/chunks/*.jsonl` и
       `derived/live/live_pipeline_report.json`. Последние `5-10s` не считать окончательно
       опубликованными: delayed commit защищает от потери начал/концов фраз и дублей на overlap
       границах. Draft можно читать, но он не заменяет reviewed/final transcript.
@@ -618,12 +619,12 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [realtime-final-reconcile, corpus-regression-gate]
-    status: later
+    status: current
     effort: 4
     notes: |
-      Первый `live_batch_comparison.json` уже пишет advisory parity gates, а `murmurmark corpus live`
-      агрегирует их в corpus-level report. Пока live branch quarantined, эти отчёты являются
-      историческим диагностическим слоем. После redesign нужно сравнить live draft/finalized output
+      `live_batch_comparison.json` пишет parity gates, а `murmurmark corpus live` агрегирует их в
+      corpus-level report. Пока live branch quarantined, эти отчёты остаются shadow evidence. Они
+      сравнивают live draft/finalized output
       с batch baseline по capture safety, order risk, local recall, remote duplicate/leak, review
       burden, transcript chunk duplicates, source-level `live_boundary_gate` suppression и missing
       boundary speech. Promotion rule: live branch can
@@ -787,10 +788,15 @@ nodes:
       `24.52s` of the `25.00s` blocked mixed rows, leaving only the `0.48s` low-value tail
       unsupported. A causal follow-up now uses only enrollment seeds ending before each closed live
       segment: it supports `33` segments / `111.18s`. Its micro-ASR lab accepts `13` groups /
-      `62.54s`; after parity gates the corpus missing-Me ceiling improves `714.81s -> 683.55s`
-      (`31.26s`) with unchanged `40.29s` remote-like Me and no new order risk. The gain comes from
-      one session and the progressive model is not integrated into the running sidecar, so the next
-      step is runtime integration plus the same corpus gates; promotion remains blocked.
+      `62.54s`; batch-informed selection keeps the diagnostic missing-Me ceiling at `683.55s`.
+      Progressive enrollment is now integrated into the running sidecar as
+      `live_runtime_causal_target_me_micro_asr_v1`: it evaluates the current chunk before enrollment
+      and re-decodes only groups containing ordinary-gate-suppressed mic segments. On all 14 real
+      sessions it improves missing Me `714.81s -> 702.05s` (`12.76s`) with unchanged `40.29s`
+      remote-like Me, `0` blocking and `5` advisory order rows. It is the best live-implementable
+      shadow profile. Historical replay proves algorithmic parity, but a fresh controlled Live
+      Evidence run must still prove pre-stop artifacts, bounded lag and fail-open capture behavior;
+      promotion remains blocked by ordinary parity gates.
       `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked. Historical base
       triage had `14` contentful rows; the former voice-activity profile exposed `9` blocking
       boundary candidates and `12` advisory weak matches. The token-density follow-up clears
@@ -1756,8 +1762,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Process Observability & Run Monitor v1: сделать долгий `murmurmark process` наблюдаемым из status/next, с live run-state, ASR chunk progress, safe interrupt и понятным resume."
-      success_by_next_sync: "Во время длинного process пользователь видит текущий шаг и прогресс без чтения логов; stale readiness/outcome не перекрывают running/interrupted run-state; docs описывают watch/interruption/resume path."
+      nearest_goal: "Near-Realtime Live Parity Coverage v1: снижать live missing-Me causal runtime-алгоритмами без роста remote leakage, order risk или review burden; batch остаётся authoritative."
+      success_by_next_sync: "Лучший live-implementable профиль измерен на полном real corpus, не регрессирует ни в одной сессии и остаётся shadow-only до прохождения всех parity gates."
     defaults:
       status_progress:
         done: 1.0
@@ -1783,8 +1789,8 @@ x:
         kind: main
         mgmt:
           health: green
-          sync_note: "CLI MVP, readiness reconciliation, Recording Reliability, Export Bundle Quality v1, Outcome Contract v1, Reliable Processing UX v1, Chunked/Resumable Processing v1 и Current Pipeline Stabilization v1 закрыты. Live quarantined; production path снова non-live."
-          next_sync_goal: "Сделать Process Observability & Run Monitor v1: running/interrupted process state, status/next visibility, ASR chunk progress и ясный resume path."
+          sync_note: "CLI MVP и batch reliability закрыты. Committed-PCM live sidecar, draft worker и progressive causal Target-Me работают как shadow; production output остаётся batch."
+          next_sync_goal: "Уменьшать live local-recall gap только через runtime-causal evidence и corpus parity, не продвигая live output преждевременно."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]

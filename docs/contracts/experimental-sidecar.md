@@ -7,6 +7,7 @@ Schema versions:
 - `murmurmark.experimental_sidecar_report/v1`
 - `murmurmark.experimental_sidecar_event/v1`
 - `murmurmark.raw_segment_commit/v1`
+- `murmurmark.live_progressive_target_me/v1`
 
 The contract lives under:
 
@@ -26,6 +27,24 @@ For the current live shadow experiment, `<experiment-id>` is `live-shadow-v1`.
 `derived/live/` is a compatibility alias for existing draft/chunk tools: draft transcript, segment
 list, live-vs-batch comparison and final reconcile. User-facing transcripts, notes, export and
 retention continue to use batch artifacts.
+
+The live worker may additionally write progressive local-speaker evidence:
+
+```text
+derived/live/causal-target-me/
+  state.json
+  enrollment.jsonl
+  evaluations.jsonl
+  candidates.jsonl
+  clips/
+  micro_asr/
+```
+
+These files use `murmurmark.live_progressive_target_me/v1`. Every candidate must state
+`timeline_causal: true`, `used_batch_fields_for_selection: false`, `batch_authoritative: true` and
+`publication_allowed: false`. Seed counts describe the past-only enrollment available before the
+candidate interval. A candidate is evidence for parity comparison, not an authoritative transcript
+turn.
 
 ## Manifest
 
@@ -163,11 +182,16 @@ murmurmark experiment compare SESSION|latest --experiment live-shadow-v1
 ```
 
 `compare` runs the existing live-vs-batch comparison first, then refreshes the experiment contract.
+The default comparison includes `live_runtime_causal_target_me_micro_asr_v1`; other expensive or
+batch-informed shadow policies remain opt-in.
 
 ## Invariants
 
 - Raw CAF is the only capture source of truth.
 - Sidecar receives committed PCM packets after raw write; raw commit rows are fallback evidence.
+- Progressive Target-Me evaluates a chunk before enrolling any seed from that chunk.
+- Progressive micro-ASR is limited to groups containing an ordinary-gate-suppressed mic segment;
+  already kept `Me` groups are not duplicated.
 - Sidecar artifacts never overwrite batch outputs.
 - Batch transcript is authoritative until separate parity gates promote an experiment.
 - Sidecar failure is fail-open: raw capture must finalize and `murmurmark process SESSION` must work
