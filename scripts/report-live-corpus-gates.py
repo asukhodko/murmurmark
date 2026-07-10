@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.36.0"
+SCRIPT_VERSION = "1.40.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -120,6 +120,8 @@ CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY = (
     "target_me_remote_gap_trim_micro_asr_causal_local_seed_live_lab_v1"
 )
 RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY = "live_runtime_causal_target_me_micro_asr_v1"
+RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY = "live_runtime_causal_target_me_direct_v1"
+RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY = "online_live_me_remote_overlap_filter_v1"
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -172,6 +174,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
     CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -210,6 +213,12 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "all_parity_gates_passed",
     "non_passing_gate_count",
     "live_token_recall_in_batch",
+    "live_dialogue_token_count",
+    "batch_dialogue_token_count",
+    "matched_dialogue_token_count",
+    "live_token_precision_against_batch",
+    "batch_token_recall_in_live",
+    "live_batch_token_f1",
     "live_turn_count",
     "live_me_turn_count",
     "live_remote_turn_count",
@@ -318,7 +327,7 @@ PARITY_DIMENSIONS: dict[str, dict[str, Any]] = {
     },
     "draft_text_recall": {
         "title": "Draft text recall",
-        "gates": ["live_token_recall"],
+        "gates": ["live_token_recall", "live_token_f1"],
         "promotion_required": True,
     },
     "required_artifacts": {
@@ -1402,6 +1411,152 @@ def sum_counter_metric(rows: list[dict[str, Any]], metric: str) -> dict[str, int
     return dict(sorted(counts.items()))
 
 
+def dialogue_token_aggregate(rows: list[dict[str, Any]], metric_prefix: str = "") -> dict[str, Any]:
+    live_count = sum_int_metric(rows, f"{metric_prefix}live_dialogue_token_count")
+    batch_count = sum_int_metric(rows, f"{metric_prefix}batch_dialogue_token_count")
+    matched_count = sum_int_metric(rows, f"{metric_prefix}matched_dialogue_token_count")
+    precision = matched_count / live_count if live_count else None
+    recall = matched_count / batch_count if batch_count else None
+    f1 = (
+        2.0 * precision * recall / (precision + recall)
+        if precision is not None and recall is not None and precision + recall > 0.0
+        else None
+    )
+    return {
+        "live_dialogue_token_count": live_count,
+        "batch_dialogue_token_count": batch_count,
+        "matched_dialogue_token_count": matched_count,
+        "live_token_precision_against_batch": round(precision, 6) if precision is not None else None,
+        "batch_token_recall_in_live": round(recall, 6) if recall is not None else None,
+        "live_batch_token_f1": round(f1, 6) if f1 is not None else None,
+    }
+
+
+def runtime_profile_no_regression(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    policy = RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY
+    baseline_policy = RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY
+    prefix = f"live_target_me_shadow_profile_{policy}_"
+    baseline_prefix = f"live_target_me_shadow_profile_{baseline_policy}_"
+    evaluated = [
+        row
+        for row in rows
+        if (row.get("metrics") or {}).get(f"{prefix}non_passing_gate_count") is not None
+        and (row.get("metrics") or {}).get(f"{baseline_prefix}non_passing_gate_count") is not None
+        and (row.get("metrics") or {}).get(f"{baseline_prefix}live_batch_token_f1") is not None
+        and (row.get("metrics") or {}).get(f"{prefix}live_batch_token_f1") is not None
+    ]
+    baseline_text = dialogue_token_aggregate(evaluated, baseline_prefix)
+    runtime_text = dialogue_token_aggregate(evaluated, prefix)
+    per_session: list[dict[str, Any]] = []
+    for row in evaluated:
+        metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
+        baseline_f1 = safe_float(metrics.get(f"{baseline_prefix}live_batch_token_f1"))
+        runtime_f1 = safe_float(metrics.get(f"{prefix}live_batch_token_f1"))
+        per_session.append(
+            {
+                "session": row.get("session"),
+                "baseline_f1": round(baseline_f1, 6),
+                "runtime_f1": round(runtime_f1, 6),
+                "f1_delta": round(runtime_f1 - baseline_f1, 6),
+            }
+        )
+    max_f1_regression = max((max(0.0, -safe_float(row.get("f1_delta"))) for row in per_session), default=0.0)
+    baseline_missing = sum_metric(evaluated, f"{baseline_prefix}live_missing_me_seconds")
+    runtime_missing = sum_metric(evaluated, f"{prefix}live_missing_me_seconds")
+    baseline_remote = sum_metric(evaluated, f"{baseline_prefix}live_suspected_remote_leak_in_me_seconds")
+    runtime_remote = sum_metric(evaluated, f"{prefix}live_suspected_remote_leak_in_me_seconds")
+    baseline_blocking = sum_int_metric(
+        evaluated,
+        f"{baseline_prefix}live_blocking_contentful_role_constrained_order_mismatch_count",
+    )
+    runtime_blocking = sum_int_metric(
+        evaluated,
+        f"{prefix}live_blocking_contentful_role_constrained_order_mismatch_count",
+    )
+    baseline_advisory = sum_int_metric(
+        evaluated,
+        f"{baseline_prefix}live_advisory_contentful_role_constrained_order_mismatch_count",
+    )
+    runtime_advisory = sum_int_metric(
+        evaluated,
+        f"{prefix}live_advisory_contentful_role_constrained_order_mismatch_count",
+    )
+    aggregate_f1_delta = safe_float(runtime_text.get("live_batch_token_f1")) - safe_float(
+        baseline_text.get("live_batch_token_f1")
+    )
+    algorithmic_checks = {
+        "missing_me_improved": runtime_missing < baseline_missing,
+        "remote_leak_not_worse": runtime_remote <= baseline_remote + 0.001,
+        "blocking_order_not_worse": runtime_blocking <= baseline_blocking,
+        "advisory_order_not_worse": runtime_advisory <= baseline_advisory,
+        "aggregate_f1_not_worse": aggregate_f1_delta >= -0.001,
+        "per_session_f1_regression_bounded": max_f1_regression <= 0.015,
+    }
+    pre_stop_runtime_evidence_sessions = sum(
+        1
+        for row in evaluated
+        if safe_int((row.get("metrics") or {}).get("causal_pre_stop_accepted_candidate_count")) > 0
+    )
+    pre_stop_runtime_evidence_available = pre_stop_runtime_evidence_sessions > 0
+    checks = {
+        **algorithmic_checks,
+        "pre_stop_runtime_evidence_available": pre_stop_runtime_evidence_available,
+    }
+    algorithmically_passed = bool(evaluated) and all(algorithmic_checks.values())
+    if algorithmically_passed and pre_stop_runtime_evidence_available:
+        status = "safe_shadow_candidate"
+    elif algorithmically_passed:
+        status = "historical_replay_only"
+    else:
+        status = "regression_detected" if evaluated else "not_evaluated"
+    return {
+        "schema": "murmurmark.live_runtime_profile_no_regression/v1",
+        "status": status,
+        "algorithmic_status": "safe_shadow_candidate" if algorithmically_passed else status,
+        "promotion_allowed": False,
+        "batch_authoritative": True,
+        "policy": policy,
+        "baseline_policy": baseline_policy,
+        "evaluated_session_count": len(evaluated),
+        "pre_stop_runtime_evidence_session_count": pre_stop_runtime_evidence_sessions,
+        "checks": checks,
+        "baseline": {
+            **baseline_text,
+            "missing_me_seconds": baseline_missing,
+            "remote_leak_seconds": baseline_remote,
+            "blocking_order_mismatch_count": baseline_blocking,
+            "advisory_order_mismatch_count": baseline_advisory,
+        },
+        "runtime": {
+            **runtime_text,
+            "missing_me_seconds": runtime_missing,
+            "remote_leak_seconds": runtime_remote,
+            "blocking_order_mismatch_count": runtime_blocking,
+            "advisory_order_mismatch_count": runtime_advisory,
+        },
+        "delta": {
+            "missing_me_seconds": round(runtime_missing - baseline_missing, 3),
+            "remote_leak_seconds": round(runtime_remote - baseline_remote, 3),
+            "blocking_order_mismatch_count": runtime_blocking - baseline_blocking,
+            "advisory_order_mismatch_count": runtime_advisory - baseline_advisory,
+            "live_token_precision_against_batch": round(
+                safe_float(runtime_text.get("live_token_precision_against_batch"))
+                - safe_float(baseline_text.get("live_token_precision_against_batch")),
+                6,
+            ),
+            "batch_token_recall_in_live": round(
+                safe_float(runtime_text.get("batch_token_recall_in_live"))
+                - safe_float(baseline_text.get("batch_token_recall_in_live")),
+                6,
+            ),
+            "live_batch_token_f1": round(aggregate_f1_delta, 6),
+            "max_per_session_f1_regression": round(max_f1_regression, 6),
+            "sessions_with_f1_regression": sum(1 for row in per_session if safe_float(row.get("f1_delta")) < 0.0),
+        },
+        "per_session": per_session,
+    }
+
+
 def add_suppressed_mic_rescue_policy_summary(summary: dict[str, Any], rows: list[dict[str, Any]], prefix: str) -> None:
     oracle_local_seconds = sum_metric(rows, "live_rescue_policy_batch_oracle_local_ceiling_local_seconds")
     for policy in SUPPRESSED_MIC_RESCUE_POLICIES:
@@ -1493,6 +1648,26 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
             1 for row in evaluated_rows if (row.get("metrics") or {}).get(f"{base}_all_parity_gates_passed") is True
         )
         summary[f"{out}_non_passing_gate_count"] = sum_int_metric(evaluated_rows, f"{base}_non_passing_gate_count")
+        live_token_count = sum_int_metric(evaluated_rows, f"{base}_live_dialogue_token_count")
+        batch_token_count = sum_int_metric(evaluated_rows, f"{base}_batch_dialogue_token_count")
+        matched_token_count = sum_int_metric(evaluated_rows, f"{base}_matched_dialogue_token_count")
+        token_precision = matched_token_count / live_token_count if live_token_count else None
+        token_recall = matched_token_count / batch_token_count if batch_token_count else None
+        token_f1 = (
+            2.0 * token_precision * token_recall / (token_precision + token_recall)
+            if token_precision is not None and token_recall is not None and token_precision + token_recall > 0.0
+            else None
+        )
+        summary[f"{out}_live_dialogue_token_count"] = live_token_count
+        summary[f"{out}_batch_dialogue_token_count"] = batch_token_count
+        summary[f"{out}_matched_dialogue_token_count"] = matched_token_count
+        summary[f"{out}_live_token_precision_against_batch"] = (
+            round(token_precision, 6) if token_precision is not None else None
+        )
+        summary[f"{out}_batch_token_recall_in_live"] = (
+            round(token_recall, 6) if token_recall is not None else None
+        )
+        summary[f"{out}_live_batch_token_f1"] = round(token_f1, 6) if token_f1 is not None else None
         summary[f"{out}_live_missing_me_seconds"] = sum_metric(evaluated_rows, f"{base}_live_missing_me_seconds")
         summary[f"{out}_live_missing_me_visible_in_suppressed_mic_seconds"] = sum_metric(
             evaluated_rows,
@@ -1754,6 +1929,7 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             and policy != LOCAL_ONLY_SEED_MIXED_ROW_MICRO_ASR_LAB_PROFILE_POLICY
             and policy != LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY
             and policy != CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY
+            and policy != RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY
         )
         diagnostic_kind = (
             "live_implementable"
@@ -1780,6 +1956,12 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
                 summary.get(f"{base}_all_parity_gates_passed_session_count")
             ),
             "non_passing_gate_count": safe_int(summary.get(f"{base}_non_passing_gate_count")),
+            "live_dialogue_token_count": safe_int(summary.get(f"{base}_live_dialogue_token_count")),
+            "batch_dialogue_token_count": safe_int(summary.get(f"{base}_batch_dialogue_token_count")),
+            "matched_dialogue_token_count": safe_int(summary.get(f"{base}_matched_dialogue_token_count")),
+            "live_token_precision_against_batch": summary.get(f"{base}_live_token_precision_against_batch"),
+            "batch_token_recall_in_live": summary.get(f"{base}_batch_token_recall_in_live"),
+            "live_batch_token_f1": summary.get(f"{base}_live_batch_token_f1"),
             "live_missing_me_seconds": safe_float(summary.get(f"{base}_live_missing_me_seconds")),
             "live_missing_me_visible_in_suppressed_mic_seconds": safe_float(
                 summary.get(f"{base}_live_missing_me_visible_in_suppressed_mic_seconds")
@@ -6213,6 +6395,35 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
         "metrics": {
             "live_chunks": metrics.get("live_chunks") if isinstance(metrics, dict) else None,
             "live_token_recall_in_batch": metrics.get("live_token_recall_in_batch") if isinstance(metrics, dict) else None,
+            "live_dialogue_token_count": metrics.get("live_dialogue_token_count") if isinstance(metrics, dict) else None,
+            "batch_dialogue_token_count": metrics.get("batch_dialogue_token_count") if isinstance(metrics, dict) else None,
+            "matched_dialogue_token_count": metrics.get("matched_dialogue_token_count") if isinstance(metrics, dict) else None,
+            "live_token_precision_against_batch": (
+                metrics.get("live_token_precision_against_batch") if isinstance(metrics, dict) else None
+            ),
+            "batch_token_recall_in_live": metrics.get("batch_token_recall_in_live") if isinstance(metrics, dict) else None,
+            "live_batch_token_f1": metrics.get("live_batch_token_f1") if isinstance(metrics, dict) else None,
+            "live_pre_stop_chunk_count": (
+                metrics.get("live_pre_stop_chunk_count") if isinstance(metrics, dict) else None
+            ),
+            "live_post_stop_chunk_count": (
+                metrics.get("live_post_stop_chunk_count") if isinstance(metrics, dict) else None
+            ),
+            "live_chunk_created_at_count": (
+                metrics.get("live_chunk_created_at_count") if isinstance(metrics, dict) else None
+            ),
+            "causal_accepted_candidate_count": (
+                metrics.get("causal_accepted_candidate_count") if isinstance(metrics, dict) else None
+            ),
+            "causal_pre_stop_accepted_candidate_count": (
+                metrics.get("causal_pre_stop_accepted_candidate_count") if isinstance(metrics, dict) else None
+            ),
+            "causal_post_stop_accepted_candidate_count": (
+                metrics.get("causal_post_stop_accepted_candidate_count") if isinstance(metrics, dict) else None
+            ),
+            "causal_unstamped_accepted_candidate_count": (
+                metrics.get("causal_unstamped_accepted_candidate_count") if isinstance(metrics, dict) else None
+            ),
             "adjacent_duplicate_chunk_count": metrics.get("adjacent_duplicate_chunk_count") if isinstance(metrics, dict) else None,
             "live_boundary_gate_issue_count": (
                 metrics.get("live_boundary_gate_issue_count") if isinstance(metrics, dict) else None
@@ -6956,6 +7167,33 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     add_target_me_shadow_profile_summary(summary, real_live_rows, "real")
     add_target_me_shadow_profile_summary(summary, capture_safe_candidate_rows, "capture_safe_candidate")
     add_target_me_shadow_profile_summary(summary, capture_safe_evaluable_rows, "capture_safe_evaluable")
+    for text_prefix, text_rows in (
+        ("", rows),
+        ("real_", real_live_rows),
+        ("capture_safe_candidate_", capture_safe_candidate_rows),
+        ("capture_safe_evaluable_", capture_safe_evaluable_rows),
+    ):
+        for key, value in dialogue_token_aggregate(text_rows).items():
+            summary[f"{text_prefix}{key}"] = value
+    runtime_no_regression_report = runtime_profile_no_regression(real_live_rows)
+    summary["real_runtime_causal_target_me_no_regression_status"] = runtime_no_regression_report.get("status")
+    summary["real_runtime_causal_target_me_algorithmic_status"] = runtime_no_regression_report.get(
+        "algorithmic_status"
+    )
+    summary["real_runtime_causal_target_me_pre_stop_evidence_session_count"] = (
+        runtime_no_regression_report.get("pre_stop_runtime_evidence_session_count")
+    )
+    summary["real_live_pre_stop_artifact_session_count"] = sum(
+        1
+        for row in real_live_rows
+        if safe_int((row.get("metrics") or {}).get("live_pre_stop_chunk_count")) > 0
+    )
+    summary["real_runtime_causal_target_me_missing_me_delta_seconds"] = (
+        (runtime_no_regression_report.get("delta") or {}).get("missing_me_seconds")
+    )
+    summary["real_runtime_causal_target_me_token_f1_delta"] = (
+        (runtime_no_regression_report.get("delta") or {}).get("live_batch_token_f1")
+    )
     local_recall_rescue_policy_diagnostics = {
         "real": rescue_policy_diagnostics(summary, "real"),
         "capture_safe_candidate": rescue_policy_diagnostics(summary, "capture_safe_candidate"),
@@ -8293,6 +8531,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_local_recall_target_me_diagnostics": target_me_diagnostics_report,
         "live_target_me_shadow_policy_diagnostics": target_me_shadow_diagnostics_report,
         "live_target_me_shadow_profile_diagnostics": target_me_shadow_profile_diagnostics_report,
+        "live_runtime_profile_no_regression": runtime_no_regression_report,
         "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
         "live_order_risk_triage": live_order_risk_triage_report,
         "capture_safe_candidate_order_risk_triage": capture_safe_candidate_order_risk_triage_report,
@@ -8389,7 +8628,7 @@ def triage_categories_for_gate(row: dict[str, Any], gate: dict[str, Any]) -> lis
         return ["live_local_recall_gap"]
     if name == "remote_duplicate_leak":
         return ["live_remote_leakage"]
-    if name == "live_token_recall":
+    if name in {"live_token_recall", "live_token_f1"}:
         return ["live_draft_text_drift"]
     if name in {"chunk_boundary_risks", "duplicate_chunks"}:
         return ["chunk_boundary_risk"]
@@ -8730,6 +8969,16 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         if isinstance(report.get("live_same_session_voice_disambiguation_lab"), dict)
         else {}
     )
+    runtime_no_regression = (
+        report.get("live_runtime_profile_no_regression")
+        if isinstance(report.get("live_runtime_profile_no_regression"), dict)
+        else {}
+    )
+    runtime_delta = (
+        runtime_no_regression.get("delta")
+        if isinstance(runtime_no_regression.get("delta"), dict)
+        else {}
+    )
     lines = [
         "# Live Pipeline Corpus Gates",
         "",
@@ -8902,6 +9151,25 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- new real live collection allowed: `{summary.get('new_real_live_collection_allowed')}`",
         f"- controlled real live pilot allowed: `{summary.get('controlled_real_live_pilot_allowed')}`",
         f"- promotion blocking dimensions: {', '.join(summary.get('promotion_blocking_dimensions') or []) or 'none'}",
+        "",
+        "## Runtime Target-Me No-Regression",
+        "",
+        "This paired corpus check compares the previous live-implementable profile with the runtime "
+        "causal Target-Me profile. It never promotes live output.",
+        "",
+        f"- status: `{runtime_no_regression.get('status')}`",
+        f"- algorithmic status: `{runtime_no_regression.get('algorithmic_status')}`",
+        f"- evaluated sessions: {runtime_no_regression.get('evaluated_session_count', 0)}",
+        "- sessions with pre-stop runtime causal candidates: "
+        f"{runtime_no_regression.get('pre_stop_runtime_evidence_session_count', 0)}",
+        f"- missing-Me delta: {runtime_delta.get('missing_me_seconds')} sec",
+        f"- remote-leak delta: {runtime_delta.get('remote_leak_seconds')} sec",
+        f"- blocking/advisory order delta: {runtime_delta.get('blocking_order_mismatch_count')} / "
+        f"{runtime_delta.get('advisory_order_mismatch_count')}",
+        f"- token precision/recall/F1 delta: {runtime_delta.get('live_token_precision_against_batch')} / "
+        f"{runtime_delta.get('batch_token_recall_in_live')} / {runtime_delta.get('live_batch_token_f1')}",
+        f"- maximum per-session F1 regression: {runtime_delta.get('max_per_session_f1_regression')}",
+        f"- promotion allowed: `{runtime_no_regression.get('promotion_allowed')}`",
         "",
         "## Next Unlock",
         "",
@@ -10393,6 +10661,35 @@ def main() -> int:
                 "real_live_target_me_shadow_recommended_policy_rejected_order_seconds: "
                 f"{safe_float(recommended_target_me_shadow.get('rejected_would_add_contentful_order_mismatch_seconds'))}"
             )
+    runtime_no_regression = (
+        report.get("live_runtime_profile_no_regression")
+        if isinstance(report.get("live_runtime_profile_no_regression"), dict)
+        else {}
+    )
+    if runtime_no_regression:
+        runtime_delta = (
+            runtime_no_regression.get("delta")
+            if isinstance(runtime_no_regression.get("delta"), dict)
+            else {}
+        )
+        print(f"real_runtime_causal_target_me_no_regression_status: {runtime_no_regression.get('status')}")
+        print(
+            "real_runtime_causal_target_me_algorithmic_status: "
+            f"{runtime_no_regression.get('algorithmic_status')}"
+        )
+        print(
+            "real_runtime_causal_target_me_pre_stop_evidence_session_count: "
+            f"{runtime_no_regression.get('pre_stop_runtime_evidence_session_count')}"
+        )
+        print(
+            "real_runtime_causal_target_me_missing_me_delta_seconds: "
+            f"{runtime_delta.get('missing_me_seconds')}"
+        )
+        print(f"real_runtime_causal_target_me_token_f1_delta: {runtime_delta.get('live_batch_token_f1')}")
+        print(
+            "real_runtime_causal_target_me_max_per_session_f1_regression: "
+            f"{runtime_delta.get('max_per_session_f1_regression')}"
+        )
     target_me_shadow_profile_diagnostics = (
         report.get("live_target_me_shadow_profile_diagnostics")
         if isinstance(report.get("live_target_me_shadow_profile_diagnostics"), dict)

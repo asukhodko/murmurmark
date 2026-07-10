@@ -4815,6 +4815,12 @@ Schema:
     "live_token_count": 1200,
     "batch_token_count": 1350,
     "live_token_recall_in_batch": 0.82,
+    "live_dialogue_token_count": 1180,
+    "batch_dialogue_token_count": 1320,
+    "matched_dialogue_token_count": 1050,
+    "live_token_precision_against_batch": 0.889831,
+    "batch_token_recall_in_live": 0.795455,
+    "live_batch_token_f1": 0.84,
     "adjacent_duplicate_chunk_count": 0,
     "live_boundary_gate_issue_count": 0,
     "live_boundary_gate_suppressed_count": 1,
@@ -5102,7 +5108,9 @@ dialogue:
 - `selected_notes_readiness`: reads the authoritative batch readiness/outcome;
 - `chunk_boundary_risks`: detects adjacent live chunk duplicates and unresolved boundary
   suppressions; fully covered suppressed repeats are counted as resolved evidence, not blockers;
-- `draft_text_recall`: checks that live draft tokens mostly appear in the selected batch transcript;
+- `draft_text_recall`: keeps the legacy `live_token_recall_in_batch` precision-like check for
+  compatibility and adds a real dialogue-token F1 gate. The report exposes candidate precision,
+  batch recall and F1 separately, using `clean_dialogue` text rather than Markdown headings;
 - `required_artifacts`: checks that live and batch comparison inputs exist.
 
 Even when all gates pass, `promotion_allowed` remains `false` in v1. A passing comparison only means
@@ -5128,6 +5136,23 @@ top-level `live_comparison_refresh` block.
 `--refresh-lab-policy POLICY` forwards one or more selected policies to each comparison. The report
 records them in `summary.live_comparison_refresh_lab_policies`. This is the routine way to recheck a
 single candidate without paying for every historical laboratory profile.
+
+The default comparison evaluates `online_live_me_remote_overlap_filter_v1` and the direct runtime
+profile `live_runtime_causal_target_me_direct_v1`. The corpus report writes
+`live_runtime_profile_no_regression` (`murmurmark.live_runtime_profile_no_regression/v1`) with
+weighted dialogue-token precision/recall/F1, missing-Me, remote leakage, blocking/advisory order
+deltas and per-session F1 deltas. `algorithmic_status: safe_shadow_candidate` requires better
+missing-Me, no remote/order regression, nonnegative aggregate F1 within tolerance, and no
+per-session F1 drop over `0.015`. Overall `status` remains `historical_replay_only` until at least
+one accepted runtime causal candidate has trustworthy pre-stop provenance. It never sets
+`promotion_allowed: true`.
+
+`live_batch_comparison.json` also writes `temporal_provenance` with schema
+`murmurmark.live_temporal_provenance/v1`. Chunk and causal-candidate timestamps are compared with
+`session.json.ended_at`. The `pre_stop_live_artifacts` gate passes only when a live chunk was created
+before stop. The direct runtime profile additionally uses `pre_stop_runtime_causal_target_me`; when
+it publishes accepted causal candidates, at least one must have a pre-stop `created_at`. Missing,
+unstamped or post-stop-only evidence cannot satisfy promotion gates.
 
 Schema:
 
@@ -6092,10 +6117,18 @@ Both modes select segment boundaries and source audio from live artifacts only. 
 writes `live_causal_local_only_seed_live_segment_micro_asr_lab.{json,md}` and the matching attempts
 JSONL under `sessions/_reports/live-pipeline/`. Every selected row records
 `used_batch_fields_for_selection = false`, `enrollment_scope = past_only`, the cutoff and seed
-counts. It is still a diagnostic profile because the progressive enrollment loop is not wired into
-the recording sidecar. Current corpus evidence: `33` causally supported segments / `111.18s`, `13`
-accepted micro-ASR groups / `62.54s`, and a missing-Me reduction `714.81s -> 683.55s` with unchanged
-remote/order metrics. Promotion remains blocked.
+counts. This batch-informed lab remains diagnostic; its progressive past-only mechanism is now wired
+into the recording sidecar. Its live-implementable comparison profile is
+`live_runtime_causal_target_me_direct_v1`; the older
+`live_runtime_causal_target_me_micro_asr_v1` combines offline anchors and is diagnostic only. The
+historical lab evidence is `33` causally supported
+segments / `111.18s`, `13` accepted micro-ASR groups / `62.54s`, and a missing-Me reduction
+`714.81s -> 683.55s` with unchanged remote/order metrics. Promotion remains blocked.
+
+`audit-live-local-recall-target-me.py --include-remaining-gap` defaults to
+`live_runtime_causal_target_me_direct_v1`, so voice-coverage diagnostics follow the actual
+live-implementable profile selected by corpus parity. Older profiles require an explicit
+`--remaining-gap-profile` override.
 
 The same script also supports `--candidate-source blocker-analysis` for the current
 duplicate-heavy local-recall blocker:

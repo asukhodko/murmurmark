@@ -157,7 +157,8 @@ files.
 If the recording-time sidecar worker timed out before live draft completion, rerun
 `murmurmark experiment compare ...`; it can use the raw commit log as a fallback and then compares the
 draft with authoritative batch output.
-The default comparison computes the required parity gates and the runtime causal Target-Me profile.
+The default comparison computes the required parity gates and a paired direct comparison between
+`online_live_me_remote_overlap_filter_v1` and `live_runtime_causal_target_me_direct_v1`.
 For an additional focused shadow experiment, materialize the selected policy explicitly:
 
 ```bash
@@ -179,20 +180,22 @@ transcript for notes and export.
 
 The live worker now runs the causal past-only local-speaker path directly. It evaluates each chunk
 using positive and remote-negative seeds from closed earlier chunks, then enrolls the current chunk.
-Focused micro-ASR is limited to groups containing an ordinary-gate-suppressed mic segment. Inspect
+Focused micro-ASR is limited to unpublished groups from chunk-level suppressed mic chunks. It first
+uses remote-free gaps and then, only as a fallback, speaker-confirmed sliding windows. Inspect
 its state and accepted/rejected candidates with:
 
 ```bash
 jq '.' "$SESSION/derived/live/causal-target-me/state.json"
 less "$SESSION/derived/live/causal-target-me/candidates.jsonl"
+jq '.temporal_provenance, [.parity_gates.gates[] | select(.name | startswith("pre_stop"))]' \
+  "$SESSION/derived/live/live_batch_comparison.json"
 ```
 
 Replay the same causal logic over existing closed live chunks without touching raw capture or batch:
 
 ```bash
 .venv/bin/python scripts/live-progressive-target-me.py "$SESSION"
-.venv/bin/python scripts/compare-live-batch.py "$SESSION" \
-  --lab-policy live_runtime_causal_target_me_micro_asr_v1
+.venv/bin/python scripts/compare-live-batch.py "$SESSION"
 ```
 
 The runtime profile remains shadow-only. Corpus parity, not candidate count, decides whether it

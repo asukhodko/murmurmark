@@ -789,12 +789,17 @@ nodes:
       unsupported. A causal follow-up now uses only enrollment seeds ending before each closed live
       segment: it supports `33` segments / `111.18s`. Its micro-ASR lab accepts `13` groups /
       `62.54s`; batch-informed selection keeps the diagnostic missing-Me ceiling at `683.55s`.
-      Progressive enrollment is now integrated into the running sidecar as
-      `live_runtime_causal_target_me_micro_asr_v1`: it evaluates the current chunk before enrollment
-      and re-decodes only groups containing ordinary-gate-suppressed mic segments. On all 14 real
-      sessions it improves missing Me `714.81s -> 702.05s` (`12.76s`) with unchanged `40.29s`
-      remote-like Me, `0` blocking and `5` advisory order rows. It is the best live-implementable
-      shadow profile. Historical replay proves algorithmic parity, but a fresh controlled Live
+      Progressive enrollment is integrated into the running sidecar and evaluated through the
+      direct live profile `live_runtime_causal_target_me_direct_v1`: it evaluates the current chunk
+      before enrollment and publishes only candidates localized outside live remote intervals.
+      Speaker-confirmed sliding-window candidates remain diagnostic. On 10 comparable real sessions
+      it improves missing Me `2426.91s -> 1869.02s` (`557.89s`) with unchanged `35.42s` remote-like
+      Me and unchanged `1` blocking / `5` advisory order rows. Weighted recall improves by
+      `0.058710` and F1 by `0.039337`; maximum per-session F1 regression is `0.001712`. The profile
+      has `algorithmic_status = safe_shadow_candidate` and is the best live-implementable shadow
+      profile. Overall status remains `historical_replay_only`: temporal provenance finds one sparse
+      session with ordinary pre-stop chunks but `0` sessions with accepted causal candidates produced
+      before stop and a usable batch comparison. A fresh controlled Live
       Evidence run must still prove pre-stop artifacts, bounded lag and fail-open capture behavior;
       promotion remains blocked by ordinary parity gates.
       `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked. Historical base
@@ -885,9 +890,11 @@ nodes:
       profile and `25.00s` stay weak or ambiguous. Those labs remain diagnostic-only. Следующий
       фокус: `fix_live_local_recall_gap`. Remote-gap trim уже закрыл `2` live-visible Target-Me
       строки / `15.38s`; focused live-only micro-ASR закрыл третью / `4.68s` и отфильтровал
-      remote-like/covered варианты. Классифицированный остаток равен `81` строка / `268.01s`,
-      полный missing-Me профиля `714.81s`; remote-like-Me остаётся `40.29s`. Promotion остаётся
-      blocked.
+      remote-like/covered варианты. Runtime-causal follow-up с локализацией по remote-free и
+      remote-free окнам уменьшил comparable-session missing-Me `2426.91s -> 1869.02s` без изменения
+      remote/order counters и поднял weighted F1 `0.746153 -> 0.785490`. Paired no-regression status
+      имеет `algorithmic_status = safe_shadow_candidate`, но общий status —
+      `historical_replay_only`; promotion остаётся blocked до свежего soak и обычных parity gates.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"

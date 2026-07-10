@@ -20,7 +20,7 @@ from scipy.io import wavfile
 
 
 SCHEMA = "murmurmark.live_pipeline_report/v1"
-SCRIPT_VERSION = "0.3.0"
+SCRIPT_VERSION = "0.4.0"
 EPSILON = 1.0e-12
 LIVE_ROLE_DUPLICATE_THRESHOLD = 0.55
 LIVE_RESCUE_SHADOW_POLICY = "audio_safe_union_v1"
@@ -1054,7 +1054,7 @@ def causal_target_me_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
             if isinstance(row, dict)
         )
     return {
-        "policy": "live_runtime_causal_target_me_micro_asr_v1",
+        "policy": "live_runtime_causal_target_me_direct_v1",
         "publish_policy": "shadow_only_not_live_me",
         "candidate_count": candidate_count,
         "candidate_seconds": round(candidate_seconds, 3),

@@ -19,7 +19,7 @@ from scipy.io import wavfile
 
 
 SCHEMA = "murmurmark.live_progressive_target_me/v1"
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.5.0"
 EPSILON = 1.0e-12
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
 KNOWN_HALLUCINATIONS = {
@@ -73,6 +73,61 @@ def bag_recall(source: list[str], target: list[str]) -> float:
             matched += 1
             remaining[token] -= 1
     return matched / len(source)
+
+
+def bag_match_count(source: list[str], target: list[str]) -> int:
+    remaining: dict[str, int] = {}
+    for token in target:
+        remaining[token] = remaining.get(token, 0) + 1
+    matched = 0
+    for token in source:
+        if remaining.get(token, 0) > 0:
+            matched += 1
+            remaining[token] -= 1
+    return matched
+
+
+def token_related(left: str, right: str) -> bool:
+    if left == right:
+        return True
+    if min(len(left), len(right)) < 5:
+        return False
+    return len(os.path.commonprefix([left, right])) >= 5
+
+
+def trim_remote_context_prefix(text: str, remote_text: str) -> tuple[str, dict[str, Any]]:
+    matches = list(TOKEN_RE.finditer(text))
+    remote_tokens = tokens(remote_text)
+    if len(matches) < 4 or not remote_tokens:
+        return text, {"status": "not_applied", "reason": "insufficient_tokens"}
+    max_prefix = min(6, len(matches) - 3)
+    selected = 0
+    for prefix_length in range(1, max_prefix + 1):
+        prefix = [match.group(0).casefold() for match in matches[:prefix_length]]
+        related = [
+            token
+            for token in prefix
+            if any(token_related(token, remote_token) for remote_token in remote_tokens)
+        ]
+        coverage = len(related) / prefix_length
+        has_long_related = any(len(token) >= 5 for token in related)
+        strong_single = prefix_length == 1 and len(prefix[0]) >= 5 and coverage == 1.0
+        strong_multi = prefix_length >= 2 and coverage >= 0.75 and has_long_related
+        if strong_single or strong_multi:
+            selected = prefix_length
+    if selected == 0:
+        return text, {"status": "not_applied", "reason": "no_remote_like_prefix"}
+    trimmed = text[matches[selected - 1].end() :].lstrip(" \t,.;:!?-—")
+    if len(tokens(trimmed)) < 3:
+        return text, {"status": "not_applied", "reason": "trim_would_leave_too_little_text"}
+    return clean_text(trimmed), {
+        "status": "applied",
+        "reason": "remote_context_prefix_before_confirmed_local_gap",
+        "removed_token_count": selected,
+        "removed_text": clean_text(text[: matches[selected - 1].end()]),
+        "original_text": text,
+        "trimmed_text": clean_text(trimmed),
+    }
 
 
 def text_similarity(left: Any, right: Any) -> float:
@@ -546,6 +601,7 @@ class ProgressiveTargetMeShadow:
             )
             evaluation: dict[str, Any] = {
                 "schema": SCHEMA,
+                "created_at": now_iso(),
                 "kind": "segment_evaluation",
                 "chunk_index": chunk_index,
                 "segment_index": segment_index,
@@ -626,13 +682,15 @@ class ProgressiveTargetMeShadow:
                 current = [row]
         if current:
             groups.append(current)
-        # Progressive speaker evidence is a recovery path. A group that the
-        # ordinary segment gate already kept would only duplicate a published
-        # Me turn and can introduce a wider, less precise timeline interval.
+        # Progressive speaker evidence is a recovery path. The chunk-level
+        # duplicate gate currently suppresses the whole mic chunk even when
+        # its segment gate found a safe local island. Recover groups only from
+        # such unpublished chunks; passed chunks already have a published Me
+        # turn and a second wider interval can damage timeline order.
         groups = [
             group
             for group in groups
-            if any(row.get("segment_gate_status") == "suppressed" for row in group)
+            if any(row.get("chunk_role_gate_status") == "suppressed" for row in group)
         ]
         groups.sort(
             key=lambda group: (
@@ -643,15 +701,187 @@ class ProgressiveTargetMeShadow:
         )
         return groups[:2]
 
+    def localize_remote_free_interval(
+        self,
+        *,
+        chunk_index: int,
+        group_index: int,
+        mic: dict[str, Any],
+        remote_segments: list[dict[str, Any]],
+        start: float,
+        end: float,
+    ) -> tuple[float, float, dict[str, Any]]:
+        overlaps = sorted(
+            (
+                max(start, safe_float(row.get("start"))),
+                min(end, safe_float(row.get("end"), safe_float(row.get("start")))),
+            )
+            for row in remote_segments
+            if min(end, safe_float(row.get("end"))) - max(start, safe_float(row.get("start"))) > 0
+        )
+        if not overlaps:
+            return start, end, {"status": "not_needed", "reason": "no_remote_overlap"}
+
+        guard_sec = 0.10
+        merged: list[tuple[float, float]] = []
+        for overlap_start, overlap_end in overlaps:
+            overlap_start = max(start, overlap_start - guard_sec)
+            overlap_end = min(end, overlap_end + guard_sec)
+            if merged and overlap_start <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], overlap_end))
+            else:
+                merged.append((overlap_start, overlap_end))
+        gaps: list[tuple[float, float]] = []
+        cursor = start
+        for overlap_start, overlap_end in merged:
+            if overlap_start - cursor >= 0.60:
+                gaps.append((cursor, overlap_start))
+            cursor = max(cursor, overlap_end)
+        if end - cursor >= 0.60:
+            gaps.append((cursor, end))
+
+        model, thresholds = self.model()
+        def score_interval(
+            interval_start: float,
+            interval_end: float,
+            *,
+            label: str,
+        ) -> dict[str, Any]:
+            vector, info, clip = self.embedding_for(
+                mic,
+                mic=True,
+                start=interval_start,
+                end=interval_end,
+                label=label,
+                chunk_index=chunk_index,
+            )
+            scores = self.score(vector, model) if vector is not None and model is not None else {}
+            accepted = bool(
+                vector is not None
+                and thresholds is not None
+                and scores.get("target", -1.0) >= thresholds["target"]
+                and scores.get("positive", -1.0) >= thresholds["positive"]
+                and scores.get("negative", 2.0) <= thresholds["negative_max"]
+            )
+            return {
+                "start": round(interval_start, 3),
+                "end": round(interval_end, 3),
+                "duration_sec": round(interval_end - interval_start, 3),
+                "accepted": accepted,
+                "scores": {key: round(value, 6) for key, value in scores.items()},
+                "embedding_info": info,
+                "clip": str(clip),
+            }
+
+        scored = [
+            score_interval(
+                gap_start,
+                gap_end,
+                label=f"boundary_{group_index:02d}_{gap_index:02d}",
+            )
+            for gap_index, (gap_start, gap_end) in enumerate(gaps, start=1)
+        ]
+        accepted_gaps = [row for row in scored if row.get("accepted")]
+        if accepted_gaps:
+            selected = max(
+                accepted_gaps,
+                key=lambda row: (
+                    safe_float((row.get("scores") or {}).get("target"), -1.0),
+                    safe_float(row.get("duration_sec")),
+                ),
+            )
+            return safe_float(selected.get("start")), safe_float(selected.get("end")), {
+                "status": "localized",
+                "reason": "past_target_voice_in_remote_free_gap",
+                "remote_intervals": [[round(left, 3), round(right, 3)] for left, right in merged],
+                "gaps": scored,
+                "selected": selected,
+            }
+
+        duration = end - start
+        window_sec = min(2.0, duration)
+        starts: list[float] = []
+        cursor = start
+        while window_sec >= 0.80 and cursor + window_sec <= end + 1.0e-6:
+            starts.append(cursor)
+            cursor += 1.0
+        final_start = end - window_sec
+        if window_sec >= 0.80 and (not starts or final_start - starts[-1] >= 0.25):
+            starts.append(final_start)
+        sliding = [
+            score_interval(
+                window_start,
+                min(end, window_start + window_sec),
+                label=f"sliding_{group_index:02d}_{window_index:02d}",
+            )
+            for window_index, window_start in enumerate(starts, start=1)
+        ]
+        accepted_windows = [row for row in sliding if row.get("accepted")]
+        clusters: list[dict[str, Any]] = []
+        for row in accepted_windows:
+            if clusters and safe_float(row.get("start")) <= safe_float(clusters[-1].get("end")) + 0.05:
+                clusters[-1]["end"] = max(safe_float(clusters[-1].get("end")), safe_float(row.get("end")))
+                clusters[-1]["windows"].append(row)
+            else:
+                clusters.append(
+                    {
+                        "start": safe_float(row.get("start")),
+                        "end": safe_float(row.get("end")),
+                        "windows": [row],
+                    }
+                )
+        for cluster in clusters:
+            cluster["duration_sec"] = round(safe_float(cluster.get("end")) - safe_float(cluster.get("start")), 3)
+            cluster["mean_target_score"] = round(
+                float(
+                    np.mean(
+                        [
+                            safe_float((row.get("scores") or {}).get("target"))
+                            for row in cluster.get("windows") or []
+                        ]
+                    )
+                ),
+                6,
+            )
+        if clusters:
+            selected_cluster = max(
+                clusters,
+                key=lambda row: (safe_float(row.get("mean_target_score")), safe_float(row.get("duration_sec"))),
+            )
+            return safe_float(selected_cluster.get("start")), safe_float(selected_cluster.get("end")), {
+                "status": "localized",
+                "reason": "past_target_voice_sliding_window",
+                "remote_intervals": [[round(left, 3), round(right, 3)] for left, right in merged],
+                "gaps": scored,
+                "sliding_windows": sliding,
+                "selected": selected_cluster,
+            }
+        return start, end, {
+            "status": "rejected",
+            "reason": "no_target_supported_remote_free_or_sliding_window",
+            "remote_intervals": [[round(left, 3), round(right, 3)] for left, right in merged],
+            "gaps": scored,
+            "sliding_windows": sliding,
+        }
+
     def micro_candidate(
         self,
         chunk_index: int,
         group_index: int,
         group: list[dict[str, Any]],
         mic: dict[str, Any],
+        remote_segments: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        start = safe_float(group[0].get("start"))
-        end = safe_float(group[-1].get("end"), start)
+        source_start = safe_float(group[0].get("start"))
+        source_end = safe_float(group[-1].get("end"), source_start)
+        start, end, localization = self.localize_remote_free_interval(
+            chunk_index=chunk_index,
+            group_index=group_index,
+            mic=mic,
+            remote_segments=remote_segments,
+            start=source_start,
+            end=source_end,
+        )
         source_text = clean_text(" ".join(str(row.get("text") or "") for row in group))
         remote_text = clean_text(" ".join(str(row.get("remote_text") or "") for row in group))
         wav = self.out_dir / "micro_asr" / f"chunk_{chunk_index:06d}_{group_index:02d}.wav"
@@ -683,29 +913,44 @@ class ProgressiveTargetMeShadow:
         text = clean_text(" ".join(str(row.get("text") or "") for row in selected_rows))
         if not text:
             text = clean_text(result.get("text"))
+        prefix_trim: dict[str, Any] = {"status": "not_applied", "reason": "not_remote_free_gap"}
+        if localization.get("reason") == "past_target_voice_in_remote_free_gap":
+            text, prefix_trim = trim_remote_context_prefix(text, remote_text)
         selected_scores = [safe_float(row.get("score")) for row in selected_rows if safe_float(row.get("score")) > 0]
         score = float(np.mean(selected_scores)) if selected_scores else safe_float(result.get("score"))
         source_recall = bag_recall(tokens(source_text), tokens(text))
         micro_source_recall = bag_recall(tokens(text), tokens(source_text))
         remote_similarity = asr_text_similarity(text, remote_text) if remote_text else 0.0
-        remote_recall = bag_recall(tokens(remote_text), tokens(text)) if remote_text else 0.0
+        remote_tokens = tokens(remote_text)
+        micro_tokens = tokens(text)
+        remote_recall = bag_recall(remote_tokens, micro_tokens) if remote_text else 0.0
+        remote_match_count = bag_match_count(remote_tokens, micro_tokens) if remote_text else 0
         reasons: list[str] = []
+        if localization.get("status") == "rejected":
+            reasons.append(str(localization.get("reason") or "remote_free_localization_failed"))
         if result.get("status") != "passed" or not text:
             reasons.append(result.get("reason") or "micro_asr_failed")
         if score < 0.68:
             reasons.append("low_micro_asr_score")
         if source_recall < 0.25 and micro_source_recall < 0.25:
             reasons.append("low_live_source_alignment")
-        if remote_similarity > 0.30 or remote_recall > 0.10:
+        remote_free_small_overlap = bool(
+            localization.get("reason") == "past_target_voice_in_remote_free_gap"
+            and remote_match_count <= 2
+        )
+        if remote_similarity > 0.30 or (remote_recall > 0.10 and not remote_free_small_overlap):
             reasons.append("remote_similarity_guard")
         return {
             "schema": SCHEMA,
+            "created_at": now_iso(),
             "kind": "micro_asr_candidate",
             "id": f"live_runtime_causal_target_me_{chunk_index:06d}_{group_index:02d}",
             "chunk_index": chunk_index,
             "start": round(start, 3),
             "end": round(end, 3),
             "duration_sec": round(max(0.0, end - start), 3),
+            "source_start": round(source_start, 3),
+            "source_end": round(source_end, 3),
             "source_text": source_text,
             "remote_text": remote_text,
             "text": text,
@@ -716,6 +961,8 @@ class ProgressiveTargetMeShadow:
             "micro_text_token_recall_in_source": round(micro_source_recall, 6),
             "remote_similarity": round(remote_similarity, 6),
             "remote_text_recall_in_micro": round(remote_recall, 6),
+            "remote_text_matched_token_count": remote_match_count,
+            "remote_free_small_token_overlap_allowed": remote_free_small_overlap,
             "enrollment": group[0].get("enrollment"),
             "speaker_scores": group[0].get("scores"),
             "used_batch_fields_for_selection": False,
@@ -727,6 +974,8 @@ class ProgressiveTargetMeShadow:
             "selection_local_start_sec": round(selection_start, 3),
             "selection_local_end_sec": round(selection_end, 3),
             "selected_asr_row_count": len(selected_rows),
+            "remote_free_localization": localization,
+            "remote_context_prefix_trim": prefix_trim,
         }
 
     def add_seed(
@@ -751,6 +1000,7 @@ class ProgressiveTargetMeShadow:
         )
         item = {
             "schema": SCHEMA,
+            "created_at": now_iso(),
             "kind": f"{kind}_seed",
             "chunk_index": chunk_index,
             "start": round(start, 3),
@@ -820,6 +1070,7 @@ class ProgressiveTargetMeShadow:
                 self.enrollment_rows.append(
                     {
                         "schema": SCHEMA,
+                        "created_at": now_iso(),
                         "kind": "positive_seed_probe",
                         "chunk_index": chunk_index,
                         "start": round(start, 3),
@@ -889,13 +1140,20 @@ class ProgressiveTargetMeShadow:
         accepted_segments = self.evaluate_segments(chunk_index, mic, remote, mic_segments, remote_segments)
         chunk_candidates: list[dict[str, Any]] = []
         for group_index, group in enumerate(self.group_segments(accepted_segments), start=1):
-            candidate = self.micro_candidate(chunk_index, group_index, group, mic)
+            candidate = self.micro_candidate(
+                chunk_index,
+                group_index,
+                group,
+                mic,
+                remote_segments,
+            )
             self.candidates.append(candidate)
             if candidate.get("status") == "accepted":
                 chunk_candidates.append(candidate)
         self.enroll_after_chunk(chunk_index, mic, remote, mic_segments, remote_segments)
         result = {
             "schema": SCHEMA,
+            "created_at": now_iso(),
             "status": "candidate" if chunk_candidates else "no_candidate",
             "mode": "past_chunks_only",
             "backend": self.backend_status,

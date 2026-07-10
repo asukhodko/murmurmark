@@ -67,7 +67,8 @@ corpus gates treat failed chunk rebuilds as hard failures. Batch processing rema
 The live/near-realtime branch is still quarantined as a source of truth. Its segment writer now runs
 behind a bounded committed-PCM queue after durable raw writes, not inside the ScreenCaptureKit
 callback. A progressive past-only Target-Me shadow now evaluates suppressed mic segments inside the
-live worker and runs focused micro-ASR without using batch fields. The full fail-open proof allows
+live worker, localizes candidate text to remote-free or speaker-confirmed subwindows, and runs focused
+micro-ASR without using batch fields. The full fail-open proof allows
 controlled Live Evidence runs on real meetings, but live promotion still requires passing parity
 coverage. The latest audio milestone,
 ASR-Positive Echo Candidate Hardening v1, remains important but shadow-only:
@@ -571,7 +572,7 @@ current unlock path, prefer `capture_safe_candidate_scope`: it excludes broken-c
 After Target-Me evidence and the best live-implementable profile were materialized for the latest
 capture-safe sessions, the blocking order rows in the active unlock slice were repaired without
 relaxing batch authority. The
-current profile is
+previous remote-gap baseline profile is
 `online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1`.
 It combines sustained voice activity with a causal token-density boundary check over already-written
 live ASR JSON. Long remote segments are moved past low-confidence leading spans only when at least
@@ -590,13 +591,30 @@ and closes the last known remote-dominant Target-Me row / `4.68s`. The full prof
 of remote-like `Me` remains. Promotion stays blocked.
 
 A causal local-speaker follow-up now runs inside the live worker. It uses only enrollment audio from
-closed earlier chunks, evaluates the current chunk before enrollment, and sends only ordinary-gate
-suppressed groups to focused micro-ASR. Runtime artifacts live under
-`derived/live/causal-target-me/`; the draft marks them as candidate-only. On the refreshed
-14-session real corpus, `live_runtime_causal_target_me_micro_asr_v1` improves missing Me from
-`714.81s` to `702.05s` while remote-like Me remains `40.29s`, blocking order risk remains `0`, and
-advisory order risk remains `5`. The wider `683.55s` offline result remains a batch-informed ceiling,
-not a runtime claim. Live output is still shadow-only and batch remains authoritative.
+closed earlier chunks, evaluates the current chunk before enrollment, and examines unpublished groups
+from chunk-level suppressed mic chunks. Runtime artifacts live under
+`derived/live/causal-target-me/`; the draft marks them as candidate-only. The direct comparison
+profile `live_runtime_causal_target_me_direct_v1` publishes only candidates localized outside live
+remote intervals. Speaker-confirmed sliding-window candidates remain diagnostic because they have no
+safe insertion point in the live timeline.
+
+On the refreshed 14-session real corpus, 10 sessions have comparable live and batch dialogue. The
+direct profile improves missing Me from `2426.91s` to `1869.02s` (`557.89s` recovered), while
+remote-like Me remains `35.42s` and blocking/advisory order risk remains `1 / 5`. Weighted
+batch-token recall rises `0.629573 -> 0.688283` and token F1 rises `0.746153 -> 0.785490`; precision
+changes `0.915721 -> 0.914669`. The largest per-session F1 regression is `0.001712`.
+The algorithmic no-regression status is `safe_shadow_candidate`, but the overall runtime evidence
+status is `historical_replay_only`: none of these accepted causal candidates has a trustworthy
+pre-stop `created_at`. One real session proves that ordinary live chunks can appear before stop, but
+that recording was sparse and has no usable batch comparison. Live output is still shadow-only and
+batch remains authoritative.
+
+After comparison, verify that evidence was produced before stop rather than reconstructed later:
+
+```bash
+jq '.temporal_provenance, [.parity_gates.gates[] | select(.name | startswith("pre_stop"))]' \
+  "$SESSION/derived/live/live_batch_comparison.json"
+```
 
 ```bash
 .venv/bin/python scripts/report-live-local-only-enrollment-probe.py --method resemblyzer_dvector
@@ -608,8 +626,8 @@ not a runtime claim. Live output is still shadow-only and batch remains authorit
 For a focused refresh, compare the previous and runtime profiles without running every lab policy:
 
 ```bash
-CURRENT=online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_local_speaker_boundary_shadow_live_boundary_split_retime_voice_activity_token_density_target_me_remote_gap_trim_micro_asr_v1
-RUNTIME=live_runtime_causal_target_me_micro_asr_v1
+CURRENT=online_live_me_remote_overlap_filter_v1
+RUNTIME=live_runtime_causal_target_me_direct_v1
 .venv/bin/python scripts/report-live-boundary-island-micro-asr-lab.py \
   --candidate-source target-me-remote-gap \
   --source-scope live
@@ -791,6 +809,10 @@ jq -r '.real_blocker_triage_summary.by_category.live_local_recall_gap.sessions[]
 
 less sessions/_reports/live-local-recall-target-me/live_local_recall_target_me_corpus_report.md
 ```
+
+`--include-remaining-gap` defaults to the current direct runtime-causal profile
+`live_runtime_causal_target_me_direct_v1`; pass `--remaining-gap-profile` only when comparing a
+different shadow profile deliberately.
 
 The expected v1 result is still `shadow_only_do_not_promote`: the report should explain which gates
 are evaluated and which remain blockers. Current live comparison checks the live draft against the
@@ -1346,8 +1368,11 @@ Active goal and near-term candidates:
    blocking order gate. Remote-gap token trimming closes two live-visible Target-Me rows (`15.38s`)
    without increasing remote leakage or order risk. Focused live-only micro-ASR closes the third
    row / `4.68s`, while its duplicate guard rejects candidates already covered by a base turn. The
-   classified remaining gap is `81` rows / `268.01s` and the full-profile missing-Me total is
-   `714.81s`. `live_next_unlock.next_actions[0]` returns to the broader
+   direct runtime profile reduces comparable-session missing Me from `2426.91s` to `1869.02s`,
+   preserves remote/order counters and raises weighted token F1 from `0.746153` to `0.785490`.
+   Its paired algorithmic result is `safe_shadow_candidate`; the overall status remains
+   `historical_replay_only` until a pre-stop runtime candidate is observed. Therefore
+   `live_next_unlock.next_actions[0]` still returns to the broader
    `fix_live_local_recall_gap`; remote leakage remains a parallel blocker.
    The corpus report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are

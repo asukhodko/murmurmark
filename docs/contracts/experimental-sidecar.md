@@ -182,16 +182,21 @@ murmurmark experiment compare SESSION|latest --experiment live-shadow-v1
 ```
 
 `compare` runs the existing live-vs-batch comparison first, then refreshes the experiment contract.
-The default comparison includes `live_runtime_causal_target_me_micro_asr_v1`; other expensive or
-batch-informed shadow policies remain opt-in.
+The default comparison includes `online_live_me_remote_overlap_filter_v1` as the direct baseline and
+`live_runtime_causal_target_me_direct_v1` as the runtime candidate, so the corpus report can compute
+a paired no-regression verdict without offline Target-Me anchors. Other expensive or batch-informed
+shadow policies remain opt-in.
 
 ## Invariants
 
 - Raw CAF is the only capture source of truth.
 - Sidecar receives committed PCM packets after raw write; raw commit rows are fallback evidence.
 - Progressive Target-Me evaluates a chunk before enrolling any seed from that chunk.
-- Progressive micro-ASR is limited to groups containing an ordinary-gate-suppressed mic segment;
-  already kept `Me` groups are not duplicated.
+- Progressive enrollment, evaluation and candidate rows carry `created_at`, allowing parity reports
+  to distinguish recording-time work from post-stop replay.
+- Progressive micro-ASR is limited to unpublished groups from chunk-level suppressed mic chunks.
+  The direct publish profile accepts only no-remote-overlap or remote-free-gap intervals; past-speaker-
+  confirmed sliding windows remain diagnostic. Passed chunks are never duplicated.
 - Sidecar artifacts never overwrite batch outputs.
 - Batch transcript is authoritative until separate parity gates promote an experiment.
 - Sidecar failure is fail-open: raw capture must finalize and `murmurmark process SESSION` must work

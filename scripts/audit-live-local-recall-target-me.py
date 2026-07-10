@@ -16,12 +16,9 @@ from typing import Any
 SCHEMA_ROW = "murmurmark.live_local_recall_target_me_audit/v1"
 SCHEMA_SUMMARY = "murmurmark.live_local_recall_target_me_summary/v1"
 SCHEMA_CORPUS = "murmurmark.live_local_recall_target_me_corpus_report/v1"
-SCRIPT_VERSION = "0.2.0"
+SCRIPT_VERSION = "0.4.0"
 LOCAL_LABELS = {"me_dominant", "mixed"}
-DEFAULT_REMAINING_GAP_PROFILE = (
-    "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
-    "local_speaker_boundary_shadow_live_boundary_split_retime_v1"
-)
+DEFAULT_REMAINING_GAP_PROFILE = "live_runtime_causal_target_me_direct_v1"
 LIVE_IMPLEMENTABLE_POLICIES = {
     "current_text_segment_gate",
     "strict_text_unique_v1",

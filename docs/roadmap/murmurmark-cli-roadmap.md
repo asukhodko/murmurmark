@@ -52,7 +52,8 @@ roadmap point it means:
 - near-realtime chunks remain shadow-only; committed-PCM transport protects raw capture and batch
   remains authoritative;
 - progressive Target-Me enrollment uses only closed earlier chunks and focused micro-ASR; the
-  runtime profile is judged by the same corpus gates as every other live candidate;
+  runtime profile localizes candidates to remote-free or speaker-confirmed subwindows and is judged
+  by paired text/local-recall/remote/order no-regression gates;
 - historical replay is not a latency proof; one fresh controlled run must show causal artifacts
   before stop, bounded lag and intact raw/batch output;
 - `status`, `next`, `finish`, session report and corpus report agree;
@@ -638,8 +639,15 @@ newer run-state exists.
    ambiguous. Those labs remain diagnostic-only. Order risk is now closed for the active
    capture-safe path. Remote-gap trim closes two live-visible Target-Me rows / `15.38s`; focused
    live-only micro-ASR closes the third / `4.68s` and rejects covered or remote-like alternatives.
-   The classified gap is now `81` rows / `268.01s`; full-profile missing Me is `714.81s`, and
-   `40.29s` remote-like Me must also be removed without weakening remote-forbidden gates.
+   The direct runtime causal profile starts from the ordinary online remote-overlap filter and
+   publishes only candidates localized outside live remote intervals. On 10 comparable real
+   sessions it reduces missing Me `2426.91s -> 1869.02s`, keeps remote-like Me and order counters
+   unchanged, and raises weighted token F1 `0.746153 -> 0.785490`; maximum per-session regression is
+   `0.001712`. Speaker-confirmed sliding-window candidates remain diagnostic because their insertion
+   point is ambiguous. Algorithmic no-regression passes, but temporal provenance reports
+   `historical_replay_only`: one sparse session has ordinary pre-stop live chunks, but `0` sessions
+   have both pre-stop causal candidates and a usable batch comparison. Live remains shadow-only until
+   a fresh controlled soak proves latency and fail-open behavior.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

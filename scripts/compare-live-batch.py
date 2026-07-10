@@ -16,7 +16,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.36.0"
+SCRIPT_VERSION = "0.40.0"
 EPSILON = 1.0e-12
 LIVE_BATCH_BOUNDARY_TOLERANCE_SEC = 2.5
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -162,6 +162,8 @@ CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY = (
     "target_me_remote_gap_trim_micro_asr_causal_local_seed_live_lab_v1"
 )
 RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY = "live_runtime_causal_target_me_micro_asr_v1"
+RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY = "live_runtime_causal_target_me_direct_v1"
+RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY = "online_live_me_remote_overlap_filter_v1"
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -218,6 +220,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
     CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -398,6 +401,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_plus_target_me_timeline_safe_audio_safe_union_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
+    RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
     REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
@@ -421,6 +425,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
 LIVE_ME_REMOTE_OVERLAP_FILTER_NO_TARGET_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_v1",
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
+    RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
 }
 LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICIES = {
     (
@@ -509,6 +514,7 @@ CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES = {
 }
 RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICIES = {
     RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
 }
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
@@ -529,7 +535,10 @@ BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICIES = {
     BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICY,
 }
 MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
-DEFAULT_TARGET_ME_SHADOW_POLICIES = (RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY,)
+DEFAULT_TARGET_ME_SHADOW_POLICIES = (
+    RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -592,6 +601,85 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def parse_datetime(value: Any) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def live_temporal_provenance(session: Path, chunks: list[dict[str, Any]]) -> dict[str, Any]:
+    metadata = read_json(session / "session.json") or {}
+    started_at = parse_datetime(metadata.get("created_at"))
+    ended_at = parse_datetime(metadata.get("ended_at"))
+    chunk_times = [parse_datetime(row.get("created_at")) for row in chunks]
+    known_chunk_times = [value for value in chunk_times if value is not None]
+    pre_stop_chunks = [value for value in known_chunk_times if ended_at is not None and value < ended_at]
+    post_stop_chunks = [value for value in known_chunk_times if ended_at is not None and value >= ended_at]
+
+    candidate_rows = read_jsonl(session / "derived/live/causal-target-me/candidates.jsonl")
+    accepted_candidates = [row for row in candidate_rows if row.get("status") == "accepted"]
+    accepted_candidate_times = [parse_datetime(row.get("created_at")) for row in accepted_candidates]
+    known_candidate_times = [value for value in accepted_candidate_times if value is not None]
+    pre_stop_candidates = [
+        value for value in known_candidate_times if ended_at is not None and value < ended_at
+    ]
+    post_stop_candidates = [
+        value for value in known_candidate_times if ended_at is not None and value >= ended_at
+    ]
+    state = read_json(session / "derived/live/causal-target-me/state.json") or {}
+    state_updated_at = parse_datetime(state.get("updated_at"))
+
+    first_chunk_latency = None
+    if started_at is not None and known_chunk_times:
+        first_chunk_latency = round((min(known_chunk_times) - started_at).total_seconds(), 3)
+    last_pre_stop_lead = None
+    if ended_at is not None and pre_stop_chunks:
+        last_pre_stop_lead = round((ended_at - max(pre_stop_chunks)).total_seconds(), 3)
+
+    if pre_stop_chunks and pre_stop_candidates:
+        status = "pre_stop_live_chunks_and_causal_candidates"
+    elif pre_stop_chunks and accepted_candidates:
+        status = "pre_stop_live_chunks_post_stop_or_unstamped_causal_candidates"
+    elif pre_stop_chunks:
+        status = "pre_stop_live_chunks_no_causal_candidate"
+    elif known_chunk_times:
+        status = "post_stop_live_replay_only"
+    else:
+        status = "timestamps_unavailable"
+
+    return {
+        "schema": "murmurmark.live_temporal_provenance/v1",
+        "status": status,
+        "session_started_at": metadata.get("created_at"),
+        "session_ended_at": metadata.get("ended_at"),
+        "live_chunk_count": len(chunks),
+        "live_chunk_created_at_count": len(known_chunk_times),
+        "live_pre_stop_chunk_count": len(pre_stop_chunks),
+        "live_post_stop_chunk_count": len(post_stop_chunks),
+        "live_unstamped_chunk_count": len(chunks) - len(known_chunk_times),
+        "first_live_chunk_latency_sec": first_chunk_latency,
+        "last_pre_stop_chunk_lead_sec": last_pre_stop_lead,
+        "causal_accepted_candidate_count": len(accepted_candidates),
+        "causal_accepted_candidate_created_at_count": len(known_candidate_times),
+        "causal_pre_stop_accepted_candidate_count": len(pre_stop_candidates),
+        "causal_post_stop_accepted_candidate_count": len(post_stop_candidates),
+        "causal_unstamped_accepted_candidate_count": len(accepted_candidates) - len(known_candidate_times),
+        "causal_state_updated_at": state.get("updated_at"),
+        "causal_state_updated_pre_stop": bool(
+            state_updated_at is not None and ended_at is not None and state_updated_at < ended_at
+        ),
+        "batch_authoritative": True,
+        "promotion_allowed": False,
+    }
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -645,6 +733,29 @@ def bag_recall(source_tokens: list[str], target_tokens: list[str]) -> float | No
     target = Counter(target_tokens)
     matched = sum(min(count, target[token]) for token, count in source.items())
     return matched / max(1, sum(source.values()))
+
+
+def bag_overlap_metrics(candidate_tokens: list[str], reference_tokens: list[str]) -> dict[str, Any]:
+    candidate = Counter(candidate_tokens)
+    reference = Counter(reference_tokens)
+    matched = sum(min(count, reference[token]) for token, count in candidate.items())
+    candidate_count = sum(candidate.values())
+    reference_count = sum(reference.values())
+    precision = matched / candidate_count if candidate_count else None
+    recall = matched / reference_count if reference_count else None
+    f1 = (
+        2.0 * precision * recall / (precision + recall)
+        if precision is not None and recall is not None and precision + recall > 0.0
+        else None
+    )
+    return {
+        "live_dialogue_token_count": candidate_count,
+        "batch_dialogue_token_count": reference_count,
+        "matched_dialogue_token_count": matched,
+        "live_token_precision_against_batch": round(precision, 6) if precision is not None else None,
+        "batch_token_recall_in_live": round(recall, 6) if recall is not None else None,
+        "live_batch_token_f1": round(f1, 6) if f1 is not None else None,
+    }
 
 
 def chunk_text(row: dict[str, Any]) -> str:
@@ -5094,6 +5205,11 @@ def parity_gates(
     live_assessment: dict[str, Any],
     readiness: dict[str, Any] | None,
     outcome: dict[str, Any] | None,
+    token_precision: float | None = None,
+    batch_recall: float | None = None,
+    token_f1: float | None = None,
+    temporal_provenance: dict[str, Any] | None = None,
+    requires_runtime_causal_provenance: bool = False,
 ) -> list[dict[str, Any]]:
     gates: list[dict[str, Any]] = [
         capture_safety_gate,
@@ -5108,6 +5224,51 @@ def parity_gates(
         gates.append(gate("required_artifacts", "blocked", "comparison inputs are missing", {"blockers": blockers}))
     else:
         gates.append(gate("required_artifacts", "passed", "live and batch artifacts are present"))
+    temporal = temporal_provenance or {}
+    pre_stop_chunk_count = safe_int(temporal.get("live_pre_stop_chunk_count"))
+    stamped_chunk_count = safe_int(temporal.get("live_chunk_created_at_count"))
+    gates.append(
+        gate(
+            "pre_stop_live_artifacts",
+            "passed" if pre_stop_chunk_count > 0 else ("warning" if stamped_chunk_count > 0 else "not_evaluated"),
+            (
+                "at least one live chunk was produced before recording stopped"
+                if pre_stop_chunk_count > 0
+                else "live chunks are post-stop replay or lack trustworthy creation timestamps"
+            ),
+            {
+                "temporal_status": temporal.get("status"),
+                "live_pre_stop_chunk_count": pre_stop_chunk_count,
+                "live_chunk_created_at_count": stamped_chunk_count,
+                "first_live_chunk_latency_sec": temporal.get("first_live_chunk_latency_sec"),
+                "last_pre_stop_chunk_lead_sec": temporal.get("last_pre_stop_chunk_lead_sec"),
+            },
+        )
+    )
+    if requires_runtime_causal_provenance:
+        accepted_count = safe_int(temporal.get("causal_accepted_candidate_count"))
+        pre_stop_candidate_count = safe_int(temporal.get("causal_pre_stop_accepted_candidate_count"))
+        if accepted_count == 0:
+            causal_status = "passed"
+            causal_reason = "this session has no accepted runtime causal candidate to publish"
+        elif pre_stop_candidate_count > 0:
+            causal_status = "passed"
+            causal_reason = "runtime causal candidates were produced before recording stopped"
+        else:
+            causal_status = "warning"
+            causal_reason = "accepted runtime candidates are post-stop replay or lack creation timestamps"
+        gates.append(
+            gate(
+                "pre_stop_runtime_causal_target_me",
+                causal_status,
+                causal_reason,
+                {
+                    "causal_accepted_candidate_count": accepted_count,
+                    "causal_pre_stop_accepted_candidate_count": pre_stop_candidate_count,
+                    "causal_state_updated_pre_stop": temporal.get("causal_state_updated_pre_stop"),
+                },
+            )
+        )
     gates.append(
         gate(
             "duplicate_chunks",
@@ -5125,6 +5286,23 @@ def parity_gates(
                 "passed" if recall >= 0.60 else "warning",
                 "bag-of-words live draft tokens should mostly appear in selected batch transcript",
                 {"live_token_recall_in_batch": round(recall, 6)},
+            )
+        )
+    if token_f1 is None:
+        gates.append(gate("live_token_f1", "not_evaluated", "live/batch dialogue token F1 is unavailable"))
+    else:
+        gates.append(
+            gate(
+                "live_token_f1",
+                "passed" if token_f1 >= 0.60 else "warning",
+                "live dialogue should preserve batch coverage without adding excessive unmatched text",
+                {
+                    "live_token_precision_against_batch": (
+                        round(token_precision, 6) if token_precision is not None else None
+                    ),
+                    "batch_token_recall_in_live": round(batch_recall, 6) if batch_recall is not None else None,
+                    "live_batch_token_f1": round(token_f1, 6),
+                },
             )
         )
     assessment_metrics = live_assessment.get("metrics") if isinstance(live_assessment, dict) else {}
@@ -5551,6 +5729,7 @@ def target_me_shadow_profile_is_live_implementable(policy: str) -> bool:
         or policy in LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES
         or policy in CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES
         or policy in REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES
+        or policy == RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY
     )
 
 
@@ -5567,6 +5746,8 @@ def target_me_shadow_profile_promotion_reason(policy: str) -> str:
         return "causal_local_only_seed_live_segment_not_runtime_integrated"
     if policy in REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES:
         return "remote_guarded_voice_boundary_shadow_uses_batch_anchor_and_is_diagnostic_only"
+    if policy == RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY:
+        return "runtime_causal_composite_uses_offline_target_me_shadow_base"
     return "target_me_shadow_profile_never_promotes_by_default"
 
 
@@ -5773,6 +5954,21 @@ def runtime_causal_target_me_shadow_turns(session: Path) -> tuple[list[dict[str,
         if row.get("used_batch_fields_for_selection") is not False or row.get("timeline_causal") is not True:
             rejected.append({**context, "reason": "runtime_causality_contract_failed"})
             continue
+        localization = row.get("remote_free_localization") or {}
+        localization_reason = str(localization.get("reason") or "")
+        localization_status = str(localization.get("status") or "")
+        if localization_reason not in {
+            "no_remote_overlap",
+            "past_target_voice_in_remote_free_gap",
+        } or localization_status not in {"not_needed", "localized"}:
+            rejected.append(
+                {
+                    **context,
+                    "reason": "runtime_candidate_not_remote_free",
+                    "remote_free_localization": localization,
+                }
+            )
+            continue
         start = safe_float(row.get("start"))
         end = safe_float(row.get("end"), start)
         text = clean_text(str(row.get("text") or ""))
@@ -5816,6 +6012,7 @@ def runtime_causal_target_me_shadow_turns(session: Path) -> tuple[list[dict[str,
                     "enrollment": row.get("enrollment"),
                     "speaker_scores": row.get("speaker_scores"),
                     "source_text": row.get("source_text"),
+                    "remote_free_localization": localization,
                 },
             }
         )
@@ -6510,6 +6707,7 @@ def build_target_me_shadow_profiles(
     batch_quality: dict[str, Any] | None,
     readiness: dict[str, Any] | None,
     outcome: dict[str, Any] | None,
+    temporal_provenance: dict[str, Any],
     policies: tuple[str, ...] = MATERIALIZED_TARGET_ME_SHADOW_POLICIES,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     profiles: dict[str, Any] = {}
@@ -6689,10 +6887,29 @@ def build_target_me_shadow_profiles(
             target_me_turns_by_policy=target_me_turns_by_policy,
         )
         metrics.update(missing_diagnostics)
+        metrics.update(
+            {
+                "live_pre_stop_chunk_count": temporal_provenance.get("live_pre_stop_chunk_count"),
+                "live_chunk_created_at_count": temporal_provenance.get("live_chunk_created_at_count"),
+                "causal_accepted_candidate_count": temporal_provenance.get(
+                    "causal_accepted_candidate_count"
+                ),
+                "causal_pre_stop_accepted_candidate_count": temporal_provenance.get(
+                    "causal_pre_stop_accepted_candidate_count"
+                ),
+            }
+        )
         recall = bag_recall(
             tokens("\n".join(clean_text(str(turn.get("text") or "")) for turn in combined_turns)),
             batch_final_tokens,
         )
+        profile_dialogue_tokens = tokens(
+            "\n".join(clean_text(str(turn.get("text") or "")) for turn in combined_turns)
+        )
+        batch_dialogue_tokens = tokens(
+            "\n".join(clean_text(str(turn.get("text") or "")) for turn in batch_utterances)
+        )
+        text_overlap = bag_overlap_metrics(profile_dialogue_tokens, batch_dialogue_tokens)
         profile_assessment = {"metrics": metrics}
         gates = parity_gates(
             capture_safety_gate=capture_safety_gate,
@@ -6700,10 +6917,17 @@ def build_target_me_shadow_profiles(
             duplicate_count=duplicate_count,
             boundary_summary=boundary_summary,
             recall=recall,
+            token_precision=text_overlap.get("live_token_precision_against_batch"),
+            batch_recall=text_overlap.get("batch_token_recall_in_live"),
+            token_f1=text_overlap.get("live_batch_token_f1"),
             batch_quality=batch_quality,
             live_assessment=profile_assessment,
             readiness=readiness,
             outcome=outcome,
+            temporal_provenance=temporal_provenance,
+            requires_runtime_causal_provenance=(
+                policy == RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY
+            ),
         )
         all_gates_passed = bool(gates) and all(row.get("status") == "passed" for row in gates)
         gate_statuses = {str(row.get("status")) for row in gates}
@@ -6712,6 +6936,8 @@ def build_target_me_shadow_profiles(
         top_level_metrics[f"{base}_all_parity_gates_passed"] = all_gates_passed
         top_level_metrics[f"{base}_non_passing_gate_count"] = sum(1 for row in gates if row.get("status") != "passed")
         top_level_metrics[f"{base}_live_token_recall_in_batch"] = round(recall, 6) if recall is not None else None
+        for key, value in text_overlap.items():
+            top_level_metrics[f"{base}_{key}"] = value
         top_level_metrics[f"{base}_removed_live_turn_count"] = len(removed_live_turns)
         top_level_metrics[f"{base}_removed_live_turn_seconds"] = removed_seconds
         top_level_metrics[f"{base}_boundary_order_retime_oracle_turn_count"] = retime_metrics[
@@ -6829,6 +7055,10 @@ def build_target_me_shadow_profiles(
             "live_missing_me_not_visible_without_target_me_candidate_seconds",
             "live_suspected_remote_leak_in_me_count",
             "live_suspected_remote_leak_in_me_seconds",
+            "live_pre_stop_chunk_count",
+            "live_chunk_created_at_count",
+            "causal_accepted_candidate_count",
+            "causal_pre_stop_accepted_candidate_count",
         ):
             top_level_metrics[f"{base}_{key}"] = metrics.get(key)
         profiles[policy] = {
@@ -6850,6 +7080,7 @@ def build_target_me_shadow_profiles(
             "metrics": {
                 **metrics,
                 "live_token_recall_in_batch": round(recall, 6) if recall is not None else None,
+                **text_overlap,
                 "all_parity_gates_passed": all_gates_passed,
                 "removed_live_turn_count": len(removed_live_turns),
                 "removed_live_turn_seconds": removed_seconds,
@@ -6935,7 +7166,32 @@ def main() -> int:
     recall = bag_recall(live_tokens, final_tokens)
     duplicate_count = duplicate_adjacent_chunks(chunks)
     boundary_summary = live_boundary_gate_summary(chunks)
+    temporal_provenance = live_temporal_provenance(session, chunks)
     live_assessment = assess_live_vs_batch(session, chunks, batch_utterances, include_labs=include_labs)
+    if isinstance(live_assessment.get("metrics"), dict):
+        live_assessment["metrics"].update(
+            {
+                "live_pre_stop_chunk_count": temporal_provenance.get("live_pre_stop_chunk_count"),
+                "live_chunk_created_at_count": temporal_provenance.get("live_chunk_created_at_count"),
+                "causal_accepted_candidate_count": temporal_provenance.get(
+                    "causal_accepted_candidate_count"
+                ),
+                "causal_pre_stop_accepted_candidate_count": temporal_provenance.get(
+                    "causal_pre_stop_accepted_candidate_count"
+                ),
+            }
+        )
+    baseline_live_tokens = tokens(
+        "\n".join(
+            clean_text(str(turn.get("text") or ""))
+            for turn in (live_assessment.get("live_turns") or [])
+            if isinstance(turn, dict)
+        )
+    )
+    batch_dialogue_tokens = tokens(
+        "\n".join(clean_text(str(turn.get("text") or "")) for turn in batch_utterances)
+    )
+    text_overlap = bag_overlap_metrics(baseline_live_tokens, batch_dialogue_tokens)
     blockers: list[str] = []
     warnings: list[str] = []
     if live_report is None:
@@ -6961,16 +7217,22 @@ def main() -> int:
     capture_safety_gate = build_capture_safety_gate(session)
     if capture_safety_gate.get("status") != "passed":
         warnings.append("capture_safety_not_passed")
+    if safe_int(temporal_provenance.get("live_pre_stop_chunk_count")) == 0:
+        warnings.append("pre_stop_live_artifacts_not_proven")
     gates = parity_gates(
         capture_safety_gate=capture_safety_gate,
         blockers=blockers,
         duplicate_count=duplicate_count,
         boundary_summary=boundary_summary,
         recall=recall,
+        token_precision=text_overlap.get("live_token_precision_against_batch"),
+        batch_recall=text_overlap.get("batch_token_recall_in_live"),
+        token_f1=text_overlap.get("live_batch_token_f1"),
         batch_quality=batch_quality,
         live_assessment=live_assessment,
         readiness=readiness,
         outcome=outcome,
+        temporal_provenance=temporal_provenance,
     )
     gate_statuses = {str(row.get("status")) for row in gates}
     live_metrics = live_assessment.get("metrics") if isinstance(live_assessment, dict) else {}
@@ -7021,6 +7283,7 @@ def main() -> int:
             batch_quality=batch_quality,
             readiness=readiness,
             outcome=outcome,
+            temporal_provenance=temporal_provenance,
             policies=lab_policies,
         )
     promotion_blockers = [
@@ -7042,6 +7305,7 @@ def main() -> int:
         "promotion_blockers": promotion_blockers,
         "blockers": blockers,
         "warnings": warnings,
+        "temporal_provenance": temporal_provenance,
         "inputs": {
             "live_report": rel(live_report_path, session) if live_report_path.exists() else None,
             "live_chunks": rel(chunks_path, session) if chunks_path.exists() else None,
@@ -7059,6 +7323,7 @@ def main() -> int:
             "live_token_count": len(live_tokens),
             "batch_token_count": len(final_tokens),
             "live_token_recall_in_batch": round(recall, 6) if recall is not None else None,
+            **text_overlap,
             "adjacent_duplicate_chunk_count": duplicate_count,
             "live_boundary_gate_evaluated_count": boundary_summary.get("evaluated_count"),
             "live_boundary_gate_issue_count": boundary_summary.get("issue_count"),
@@ -7074,6 +7339,19 @@ def main() -> int:
             "capture_safety_status": capture_safety_gate.get("status"),
             "screen_capture_restart_count": (capture_safety_gate.get("evidence") or {}).get("screen_capture_restart_count"),
             "capture_safety_warning_count": (capture_safety_gate.get("evidence") or {}).get("safety_warning_count"),
+            "live_pre_stop_chunk_count": temporal_provenance.get("live_pre_stop_chunk_count"),
+            "live_post_stop_chunk_count": temporal_provenance.get("live_post_stop_chunk_count"),
+            "live_chunk_created_at_count": temporal_provenance.get("live_chunk_created_at_count"),
+            "causal_accepted_candidate_count": temporal_provenance.get("causal_accepted_candidate_count"),
+            "causal_pre_stop_accepted_candidate_count": temporal_provenance.get(
+                "causal_pre_stop_accepted_candidate_count"
+            ),
+            "causal_post_stop_accepted_candidate_count": temporal_provenance.get(
+                "causal_post_stop_accepted_candidate_count"
+            ),
+            "causal_unstamped_accepted_candidate_count": temporal_provenance.get(
+                "causal_unstamped_accepted_candidate_count"
+            ),
             **live_metrics,
             **target_me_shadow_profile_metrics,
         },

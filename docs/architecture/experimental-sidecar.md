@@ -269,13 +269,18 @@ live role gate:
 2. closed remote segments provide negative speaker seeds;
 3. the current chunk is evaluated using only seeds from earlier chunks;
 4. the current chunk is enrolled only after evaluation;
-5. focused micro-ASR runs only for a group containing a suppressed mic segment;
-6. remote similarity and local-source alignment gates reject unsafe candidates.
+5. focused micro-ASR runs only for unpublished groups from a chunk-level suppressed mic chunk;
+6. remote-free gaps or past-speaker-confirmed sliding windows narrow coarse candidate intervals;
+7. remote similarity and local-source alignment gates reject unsafe candidates.
 
 Artifacts are written under `derived/live/causal-target-me/`. They never edit raw audio, batch
-transcripts or export inputs. `live_runtime_causal_target_me_micro_asr_v1` is evaluated by the same
-live-vs-batch corpus gates as other shadow profiles. Batch remains authoritative even when the
-runtime profile wins the shadow comparison.
+transcripts or export inputs. `live_runtime_causal_target_me_direct_v1` evaluates the actual
+live-implementable composition: ordinary live remote-overlap filtering plus runtime causal
+candidates localized outside live remote intervals. The older
+`live_runtime_causal_target_me_micro_asr_v1` is an offline composite and remains diagnostic only.
+Batch remains authoritative even when the direct runtime profile wins the shadow comparison.
+Each runtime enrollment, evaluation and candidate row has a UTC `created_at`. Comparison against the
+session stop time prevents a post-stop replay from being mistaken for near-realtime evidence.
 
 ### Disable Sidecar Instead Of Saving Every Experiment
 
