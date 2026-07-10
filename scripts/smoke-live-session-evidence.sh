@@ -52,6 +52,16 @@ cat >"$live/transcript.draft.md" <<'MARKDOWN'
 
 Проверка live evidence.
 MARKDOWN
+cat >"$live/transcript.preview.md" <<'MARKDOWN'
+# Live Preview Transcript
+
+## 00:00 Colleagues
+
+Проверка live evidence.
+MARKDOWN
+cat >"$live/preview_snapshots.jsonl" <<'JSONL'
+{"schema":"murmurmark.live_preview_snapshot/v1","created_at":"2026-07-10T10:00:36Z","provenance":"recording_time_committed_pcm","preview_policy":"live_runtime_causal_target_me_remote_energy_v1","chunk_count":1,"processed_end_sec":30.0,"content_sha256":"fixture","batch_authoritative":true,"promotion_allowed":false}
+JSONL
 cat >"$live/live_batch_comparison.json" <<'JSON'
 {
   "schema":"murmurmark.live_batch_comparison/v1",
@@ -62,6 +72,11 @@ cat >"$live/live_batch_comparison.json" <<'JSON'
     "live_pre_stop_chunk_count":1,
     "live_post_stop_chunk_count":0,
     "live_chunk_created_at_count":1,
+    "live_preview_snapshot_count":1,
+    "live_preview_snapshot_created_at_count":1,
+    "live_pre_stop_preview_snapshot_count":1,
+    "live_post_stop_preview_snapshot_count":0,
+    "live_preview_snapshot_provenance":["recording_time_committed_pcm"],
     "first_live_chunk_latency_sec":35.0,
     "last_pre_stop_chunk_lead_sec":85.0
   },
@@ -119,6 +134,8 @@ jq '
   .temporal_provenance.status = "post_stop_live_replay_only"
   | .temporal_provenance.live_pre_stop_chunk_count = 0
   | .temporal_provenance.live_post_stop_chunk_count = 1
+  | .temporal_provenance.live_pre_stop_preview_snapshot_count = 0
+  | .temporal_provenance.live_post_stop_preview_snapshot_count = 1
   | .temporal_provenance.first_live_chunk_latency_sec = 130
   | .parity_gates.status = "not_promotable"
   | (.parity_gates.gates[] | select(.name == "pre_stop_live_artifacts") | .status) = "warning"

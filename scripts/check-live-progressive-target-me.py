@@ -216,6 +216,35 @@ def main() -> int:
         summary = live.causal_target_me_summary(preview_chunks)
         assert summary.get("preview_candidate_count") == 1, summary
         assert summary.get("preview_rejected_count") == 1, summary
+    with tempfile.TemporaryDirectory(prefix="murmurmark-live-preview-provenance-") as temp:
+        session = Path(temp)
+        (session / "derived/live").mkdir(parents=True)
+        (session / "session.json").write_text(
+            json.dumps(
+                {
+                    "created_at": "2026-07-10T10:00:00Z",
+                    "ended_at": "2026-07-10T10:10:00Z",
+                }
+            ),
+            encoding="utf-8",
+        )
+        snapshot_path = session / "derived/live/preview_snapshots.jsonl"
+        snapshot = {
+            "schema": "murmurmark.live_preview_snapshot/v1",
+            "created_at": "2026-07-10T10:01:00Z",
+            "chunk_count": 1,
+            "provenance": "post_stop_raw_commit_recovery",
+        }
+        snapshot_path.write_text(json.dumps(snapshot) + "\n", encoding="utf-8")
+        chunks = [{"created_at": "2026-07-10T10:00:30Z"}]
+        temporal = compare.live_temporal_provenance(session, chunks)
+        assert temporal.get("live_pre_stop_preview_snapshot_count") == 0, temporal
+        assert temporal.get("live_invalid_provenance_preview_snapshot_count") == 1, temporal
+        snapshot["provenance"] = "recording_time_committed_pcm"
+        snapshot_path.write_text(json.dumps(snapshot) + "\n", encoding="utf-8")
+        temporal = compare.live_temporal_provenance(session, chunks)
+        assert temporal.get("live_pre_stop_preview_snapshot_count") == 1, temporal
+        assert temporal.get("live_invalid_provenance_preview_snapshot_count") == 0, temporal
     within_budget = live.causal_target_me_lag_decision(
         captured_sec=90.0,
         chunk_end_sec=30.0,

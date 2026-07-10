@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -1230,7 +1231,12 @@ def candidate_passes_preview_gate(candidate: dict[str, Any]) -> bool:
     )
 
 
-def write_preview(output_dir: Path, chunks: list[dict[str, Any]], commit_delay_sec: float) -> None:
+def write_preview(
+    output_dir: Path,
+    chunks: list[dict[str, Any]],
+    commit_delay_sec: float,
+    provenance: str = "recording_time_committed_pcm",
+) -> None:
     preview = output_dir / "transcript.preview.md"
     lines = [
         "# Live Preview Transcript",
@@ -1242,6 +1248,9 @@ def write_preview(output_dir: Path, chunks: list[dict[str, Any]], commit_delay_s
     if not chunks:
         lines += ["_Waiting for closed audio segments._", ""]
     max_end = max(float(chunk.get("end_sec") or 0.0) for chunk in chunks) if chunks else 0.0
+    preview_candidate_count = 0
+    preview_rejected_count = 0
+    preview_not_evaluated_count = 0
     for chunk in sorted(chunks, key=lambda item: int(item.get("index") or 0)):
         provisional = max_end - float(chunk.get("end_sec") or 0.0) < commit_delay_sec
         marker = " provisional" if provisional else ""
@@ -1261,6 +1270,15 @@ def write_preview(output_dir: Path, chunks: list[dict[str, Any]], commit_delay_s
             for candidate in candidates
             if isinstance(candidate, dict) and candidate_passes_preview_gate(candidate)
         ]
+        preview_candidate_count += len(accepted)
+        for candidate in candidates:
+            if not isinstance(candidate, dict) or candidate in accepted:
+                continue
+            guard = candidate.get("remote_audio_guard")
+            if isinstance(guard, dict) and guard.get("status") == "rejected":
+                preview_rejected_count += 1
+            else:
+                preview_not_evaluated_count += 1
         if mic:
             lines += ["**Me**", "", mic, ""]
         for candidate in accepted:
@@ -1272,12 +1290,36 @@ def write_preview(output_dir: Path, chunks: list[dict[str, Any]], commit_delay_s
         if not mic and not accepted and not remote:
             lines += ["_No speech decoded in this segment._", ""]
     preview.parent.mkdir(parents=True, exist_ok=True)
-    preview.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    content = "\n".join(lines).rstrip() + "\n"
+    preview.write_text(content, encoding="utf-8")
+    append_jsonl(
+        output_dir / "preview_snapshots.jsonl",
+        {
+            "schema": "murmurmark.live_preview_snapshot/v1",
+            "created_at": utc_now(),
+            "provenance": provenance,
+            "preview_policy": LIVE_PREVIEW_POLICY,
+            "chunk_count": len(chunks),
+            "processed_end_sec": round(max_end, 3),
+            "preview_candidate_count": preview_candidate_count,
+            "preview_rejected_count": preview_rejected_count,
+            "preview_not_evaluated_count": preview_not_evaluated_count,
+            "content_bytes": len(content.encode("utf-8")),
+            "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            "batch_authoritative": True,
+            "promotion_allowed": False,
+        },
+    )
 
 
-def write_live_views(output_dir: Path, chunks: list[dict[str, Any]], commit_delay_sec: float) -> None:
+def write_live_views(
+    output_dir: Path,
+    chunks: list[dict[str, Any]],
+    commit_delay_sec: float,
+    provenance: str = "recording_time_committed_pcm",
+) -> None:
     write_draft(output_dir, chunks, commit_delay_sec)
-    write_preview(output_dir, chunks, commit_delay_sec)
+    write_preview(output_dir, chunks, commit_delay_sec, provenance)
 
 
 def process_segment(
@@ -1529,6 +1571,7 @@ def write_report(
         "outputs": {
             "draft_transcript": rel(output_dir / "transcript.draft.md", session),
             "preview_transcript": rel(output_dir / "transcript.preview.md", session),
+            "preview_snapshots": rel(output_dir / "preview_snapshots.jsonl", session),
             "chunks_jsonl": rel(output_dir / "chunks.jsonl", session),
             "segments_jsonl": rel(resolve_output_path(session, args.segments_path), session),
         },
@@ -1556,7 +1599,7 @@ def main() -> int:
     chunks: list[dict[str, Any]] = []
     last_new_work = time.monotonic()
     heartbeat.update(status="running", stage="initializing")
-    write_live_views(output_dir, chunks, args.commit_delay_sec)
+    write_live_views(output_dir, chunks, args.commit_delay_sec, args.provenance)
     write_report(session, output_dir, "running", chunks, [], args)
     progressive_target_me: Any | None = None
     if not args.no_causal_target_me:
@@ -1631,7 +1674,7 @@ def main() -> int:
                 default=0.0,
             )
             write_chunks(output_dir, chunks)
-            write_live_views(output_dir, chunks, args.commit_delay_sec)
+            write_live_views(output_dir, chunks, args.commit_delay_sec, args.provenance)
             write_report(session, output_dir, "running", chunks, latest_rows, args)
             heartbeat.update(status="running", stage="base_chunk_written", index=index)
             last_new_work = time.monotonic()
@@ -1698,13 +1741,13 @@ def main() -> int:
                     )
                     heartbeat.update(status="running", stage="target_me_written", index=index)
                 write_chunks(output_dir, chunks)
-                write_live_views(output_dir, chunks, args.commit_delay_sec)
+                write_live_views(output_dir, chunks, args.commit_delay_sec, args.provenance)
                 write_report(session, output_dir, "running", chunks, latest_rows, args)
 
         if SHUTDOWN_REQUESTED:
             status = "completed_partial_draft"
             completed = max((float(row.get("end_sec") or 0.0) for row in chunks), default=0.0)
-            write_live_views(output_dir, chunks, args.commit_delay_sec)
+            write_live_views(output_dir, chunks, args.commit_delay_sec, args.provenance)
             write_report(session, output_dir, status, chunks, rows, args)
             heartbeat.update(
                 status=status,
@@ -1725,7 +1768,7 @@ def main() -> int:
         idle_after_finish = session_finished and all_ready_done and (time.monotonic() - last_new_work >= args.idle_after_session_json_sec)
         if idle_after_finish or (args.max_segments and len(processed) >= args.max_segments):
             status = "completed" if session_finished else "stopped_by_limit"
-            write_live_views(output_dir, chunks, args.commit_delay_sec)
+            write_live_views(output_dir, chunks, args.commit_delay_sec, args.provenance)
             write_report(session, output_dir, status, chunks, rows, args)
             if progressive_target_me is not None:
                 progressive_target_me.persist(status="completed")

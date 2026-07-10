@@ -350,6 +350,9 @@ The conservative preview publishes causal Target-Me only when its recording-time
 gate passes. A candidate is withheld when contemporary remote audio is active and mic does not
 dominate it by at least `20 dB`; the diagnostic draft still retains the evidence for later parity
 analysis. Batch remains authoritative in both files.
+Every preview rewrite also appends `derived/live/preview_snapshots.jsonl` with UTC creation time,
+covered chunk/end, policy, candidate counters and SHA-256. Session evidence requires a non-empty
+snapshot timestamped before stop; a preview reconstructed after stop cannot satisfy that gate.
 Realtime files under `derived/live/` are immutable evidence after recording stops. Post-stop recovery
 writes under `derived/experiments/live-shadow-v1/fallback/` and never replaces realtime segments,
 chunks, draft text, state or timestamps.

@@ -162,6 +162,10 @@ still written as evidence and as a post-stop fallback; preview never reads still
 Watch the conservative preview from a second terminal with `murmurmark live watch "$SESSION"`.
 Use `--diagnostic-draft` only when investigating all candidate evidence. Both modes show worker
 heartbeat and lag; they must make a stalled preview visible while raw capture continues.
+`murmurmark live evidence "$SESSION"` additionally checks
+`derived/live/preview_snapshots.jsonl`: at least one non-empty snapshot must predate `ended_at` and
+carry `recording_time_committed_pcm`. This is the proof that the visible preview was not rebuilt by
+post-stop replay.
 
 `murmurmark experiment compare ...` reads existing realtime artifacts only. If the recording-time
 worker timed out and a diagnostic post-stop draft is useful, run

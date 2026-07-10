@@ -83,6 +83,7 @@ derived/experiments/live-shadow-v1/
 derived/live/
   transcript.preview.md
   transcript.draft.md
+  preview_snapshots.jsonl
   chunks.jsonl
   live_pipeline_report.json
 ```
@@ -194,6 +195,9 @@ prevents a replay from looking like near-realtime output.
 The conservative preview keeps normal role-gated mic/remote text and only causal Target-Me
 candidates whose `murmurmark.live_remote_audio_guard/v1` status is `passed`. Missing or rejected
 guard evidence is retained in the diagnostic draft, not shown in the normal preview.
+Each rewrite appends `murmurmark.live_preview_snapshot/v1` evidence with a content hash and creation
+time. Comparison uses snapshots with `chunk_count > 0` and `created_at < session.ended_at`; replay
+under the fallback namespace cannot satisfy the recording-time gate.
 
 ## Known Failure Modes
 

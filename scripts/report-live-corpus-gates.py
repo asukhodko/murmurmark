@@ -295,6 +295,10 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "runtime_causal_target_me_rejected_turn_count",
     "causal_accepted_candidate_count",
     "causal_pre_stop_accepted_candidate_count",
+    "live_preview_snapshot_count",
+    "live_recording_time_preview_snapshot_count",
+    "live_invalid_provenance_preview_snapshot_count",
+    "live_pre_stop_preview_snapshot_count",
     "causal_pre_stop_direct_profile_candidate_count",
     "causal_remote_energy_profile_candidate_count",
     "causal_pre_stop_remote_energy_profile_candidate_count",
@@ -6461,6 +6465,22 @@ def summarize_session(session: Path, root: Path) -> dict[str, Any]:
             "live_chunk_created_at_count": (
                 metrics.get("live_chunk_created_at_count") if isinstance(metrics, dict) else None
             ),
+            "live_preview_snapshot_count": (
+                metrics.get("live_preview_snapshot_count") if isinstance(metrics, dict) else None
+            ),
+            "live_recording_time_preview_snapshot_count": (
+                metrics.get("live_recording_time_preview_snapshot_count")
+                if isinstance(metrics, dict)
+                else None
+            ),
+            "live_invalid_provenance_preview_snapshot_count": (
+                metrics.get("live_invalid_provenance_preview_snapshot_count")
+                if isinstance(metrics, dict)
+                else None
+            ),
+            "live_pre_stop_preview_snapshot_count": (
+                metrics.get("live_pre_stop_preview_snapshot_count") if isinstance(metrics, dict) else None
+            ),
             "causal_accepted_candidate_count": (
                 metrics.get("causal_accepted_candidate_count") if isinstance(metrics, dict) else None
             ),
@@ -7257,6 +7277,11 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         1
         for row in real_live_rows
         if safe_int((row.get("metrics") or {}).get("live_pre_stop_chunk_count")) > 0
+    )
+    summary["real_live_pre_stop_preview_session_count"] = sum(
+        1
+        for row in real_live_rows
+        if safe_int((row.get("metrics") or {}).get("live_pre_stop_preview_snapshot_count")) > 0
     )
     summary["real_runtime_causal_target_me_missing_me_delta_seconds"] = (
         (runtime_no_regression_report.get("delta") or {}).get("missing_me_seconds")
@@ -9093,6 +9118,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"- live sessions: {summary['live_sessions']}",
         f"- real live sessions: {summary.get('real_live_sessions', 0)}",
         f"- diagnostic live sessions: {summary.get('diagnostic_live_sessions', 0)}",
+        f"- real sessions with pre-stop live chunks: {summary.get('real_live_pre_stop_artifact_session_count', 0)}",
+        f"- real sessions with pre-stop conservative preview: {summary.get('real_live_pre_stop_preview_session_count', 0)}",
         f"- live comparison refresh: `{summary.get('live_comparison_refresh_status')}`",
         f"- live comparison refresh attempted sessions: {summary.get('live_comparison_refresh_attempted_sessions', 0)}",
         f"- live comparison refresh failed sessions: {summary.get('live_comparison_refresh_failed_sessions', 0)}",
@@ -10372,6 +10399,14 @@ def main() -> int:
     print(f"live_sessions: {summary['live_sessions']}/{summary['sessions_total']}")
     print(f"real_live_sessions: {summary.get('real_live_sessions', 0)}")
     print(f"diagnostic_live_sessions: {summary.get('diagnostic_live_sessions', 0)}")
+    print(
+        "real_live_pre_stop_artifact_sessions: "
+        f"{summary.get('real_live_pre_stop_artifact_session_count', 0)}"
+    )
+    print(
+        "real_live_pre_stop_preview_sessions: "
+        f"{summary.get('real_live_pre_stop_preview_session_count', 0)}"
+    )
     print(f"live_comparison_refresh: {summary.get('live_comparison_refresh_status')}")
     print(f"live_comparison_refresh_attempted_sessions: {summary.get('live_comparison_refresh_attempted_sessions', 0)}")
     print(f"live_comparison_refresh_failed_sessions: {summary.get('live_comparison_refresh_failed_sessions', 0)}")

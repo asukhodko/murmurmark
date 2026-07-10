@@ -715,6 +715,27 @@ def live_temporal_provenance(session: Path, chunks: list[dict[str, Any]]) -> dic
     pre_stop_chunks = [value for value in known_chunk_times if ended_at is not None and value < ended_at]
     post_stop_chunks = [value for value in known_chunk_times if ended_at is not None and value >= ended_at]
 
+    preview_snapshots = [
+        row
+        for row in read_jsonl(session / "derived/live/preview_snapshots.jsonl")
+        if safe_int(row.get("chunk_count")) > 0
+    ]
+    recording_time_preview_snapshots = [
+        row
+        for row in preview_snapshots
+        if row.get("provenance") == "recording_time_committed_pcm"
+    ]
+    preview_times = [
+        parse_datetime(row.get("created_at")) for row in recording_time_preview_snapshots
+    ]
+    known_preview_times = [value for value in preview_times if value is not None]
+    pre_stop_preview_times = [
+        value for value in known_preview_times if ended_at is not None and value < ended_at
+    ]
+    post_stop_preview_times = [
+        value for value in known_preview_times if ended_at is not None and value >= ended_at
+    ]
+
     candidate_rows = read_jsonl(session / "derived/live/causal-target-me/candidates.jsonl")
     accepted_candidates = [row for row in candidate_rows if row.get("status") == "accepted"]
     accepted_candidate_times = [parse_datetime(row.get("created_at")) for row in accepted_candidates]
@@ -799,6 +820,20 @@ def live_temporal_provenance(session: Path, chunks: list[dict[str, Any]]) -> dic
         "live_unstamped_chunk_count": len(chunks) - len(known_chunk_times),
         "first_live_chunk_latency_sec": first_chunk_latency,
         "last_pre_stop_chunk_lead_sec": last_pre_stop_lead,
+        "live_preview_snapshot_count": len(preview_snapshots),
+        "live_recording_time_preview_snapshot_count": len(recording_time_preview_snapshots),
+        "live_invalid_provenance_preview_snapshot_count": (
+            len(preview_snapshots) - len(recording_time_preview_snapshots)
+        ),
+        "live_preview_snapshot_created_at_count": len(known_preview_times),
+        "live_pre_stop_preview_snapshot_count": len(pre_stop_preview_times),
+        "live_post_stop_preview_snapshot_count": len(post_stop_preview_times),
+        "live_unstamped_preview_snapshot_count": (
+            len(recording_time_preview_snapshots) - len(known_preview_times)
+        ),
+        "live_preview_snapshot_provenance": sorted(
+            {str(row.get("provenance") or "") for row in preview_snapshots}
+        ),
         "causal_accepted_candidate_count": len(accepted_candidates),
         "causal_accepted_candidate_created_at_count": len(known_candidate_times),
         "causal_pre_stop_accepted_candidate_count": len(pre_stop_candidates),
@@ -5539,19 +5574,29 @@ def parity_gates(
     temporal = temporal_provenance or {}
     pre_stop_chunk_count = safe_int(temporal.get("live_pre_stop_chunk_count"))
     stamped_chunk_count = safe_int(temporal.get("live_chunk_created_at_count"))
+    pre_stop_preview_count = safe_int(temporal.get("live_pre_stop_preview_snapshot_count"))
+    stamped_preview_count = safe_int(temporal.get("live_preview_snapshot_created_at_count"))
+    pre_stop_live_artifacts_passed = pre_stop_chunk_count > 0 and pre_stop_preview_count > 0
     gates.append(
         gate(
             "pre_stop_live_artifacts",
-            "passed" if pre_stop_chunk_count > 0 else ("warning" if stamped_chunk_count > 0 else "not_evaluated"),
             (
-                "at least one live chunk was produced before recording stopped"
-                if pre_stop_chunk_count > 0
-                else "live chunks are post-stop replay or lack trustworthy creation timestamps"
+                "passed"
+                if pre_stop_live_artifacts_passed
+                else ("warning" if stamped_chunk_count > 0 or stamped_preview_count > 0 else "not_evaluated")
+            ),
+            (
+                "live chunks and conservative preview were produced before recording stopped"
+                if pre_stop_live_artifacts_passed
+                else "live chunks or conservative preview are post-stop replay or lack trustworthy timestamps"
             ),
             {
                 "temporal_status": temporal.get("status"),
                 "live_pre_stop_chunk_count": pre_stop_chunk_count,
                 "live_chunk_created_at_count": stamped_chunk_count,
+                "live_pre_stop_preview_snapshot_count": pre_stop_preview_count,
+                "live_preview_snapshot_created_at_count": stamped_preview_count,
+                "live_preview_snapshot_provenance": temporal.get("live_preview_snapshot_provenance"),
                 "first_live_chunk_latency_sec": temporal.get("first_live_chunk_latency_sec"),
                 "last_pre_stop_chunk_lead_sec": temporal.get("last_pre_stop_chunk_lead_sec"),
             },
@@ -7244,6 +7289,16 @@ def build_target_me_shadow_profiles(
             {
                 "live_pre_stop_chunk_count": temporal_provenance.get("live_pre_stop_chunk_count"),
                 "live_chunk_created_at_count": temporal_provenance.get("live_chunk_created_at_count"),
+                "live_preview_snapshot_count": temporal_provenance.get("live_preview_snapshot_count"),
+                "live_recording_time_preview_snapshot_count": temporal_provenance.get(
+                    "live_recording_time_preview_snapshot_count"
+                ),
+                "live_invalid_provenance_preview_snapshot_count": temporal_provenance.get(
+                    "live_invalid_provenance_preview_snapshot_count"
+                ),
+                "live_pre_stop_preview_snapshot_count": temporal_provenance.get(
+                    "live_pre_stop_preview_snapshot_count"
+                ),
                 "causal_accepted_candidate_count": temporal_provenance.get(
                     "causal_accepted_candidate_count"
                 ),
@@ -7451,6 +7506,10 @@ def build_target_me_shadow_profiles(
             "live_suspected_remote_leak_in_me_seconds",
             "live_pre_stop_chunk_count",
             "live_chunk_created_at_count",
+            "live_preview_snapshot_count",
+            "live_recording_time_preview_snapshot_count",
+            "live_invalid_provenance_preview_snapshot_count",
+            "live_pre_stop_preview_snapshot_count",
             "causal_accepted_candidate_count",
             "causal_pre_stop_accepted_candidate_count",
             "causal_direct_profile_candidate_count",
@@ -7578,6 +7637,16 @@ def main() -> int:
             {
                 "live_pre_stop_chunk_count": temporal_provenance.get("live_pre_stop_chunk_count"),
                 "live_chunk_created_at_count": temporal_provenance.get("live_chunk_created_at_count"),
+                "live_preview_snapshot_count": temporal_provenance.get("live_preview_snapshot_count"),
+                "live_recording_time_preview_snapshot_count": temporal_provenance.get(
+                    "live_recording_time_preview_snapshot_count"
+                ),
+                "live_invalid_provenance_preview_snapshot_count": temporal_provenance.get(
+                    "live_invalid_provenance_preview_snapshot_count"
+                ),
+                "live_pre_stop_preview_snapshot_count": temporal_provenance.get(
+                    "live_pre_stop_preview_snapshot_count"
+                ),
                 "causal_accepted_candidate_count": temporal_provenance.get(
                     "causal_accepted_candidate_count"
                 ),

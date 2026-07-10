@@ -147,6 +147,11 @@ def main() -> int:
     worker_report = read_json(live_dir / "live_pipeline_report.json")
     chunks = read_jsonl(live_dir / "chunks.jsonl")
     segments = read_jsonl(live_dir / "segments.jsonl")
+    preview_snapshots = [
+        row
+        for row in read_jsonl(live_dir / "preview_snapshots.jsonl")
+        if (optional_float(row.get("chunk_count")) or 0.0) > 0
+    ]
     temporal = comparison.get("temporal_provenance") if isinstance(comparison.get("temporal_provenance"), dict) else {}
     metrics = comparison.get("metrics") if isinstance(comparison.get("metrics"), dict) else {}
     gates = gate_map(comparison)
@@ -161,7 +166,12 @@ def main() -> int:
         metrics.get("batch_authoritative", comparison.get("batch_authoritative", True))
     )
     pre_stop_chunks = int(temporal.get("live_pre_stop_chunk_count") or 0)
-    pre_stop_ok = pre_stop_gate.get("status") == "passed" and pre_stop_chunks > 0
+    pre_stop_preview_snapshots = int(temporal.get("live_pre_stop_preview_snapshot_count") or 0)
+    pre_stop_ok = (
+        pre_stop_gate.get("status") == "passed"
+        and pre_stop_chunks > 0
+        and pre_stop_preview_snapshots > 0
+    )
     meaningful = bool(metrics.get("meaningful_live_comparison"))
     all_parity_passed = bool(metrics.get("all_parity_gates_passed"))
 
@@ -185,8 +195,9 @@ def main() -> int:
     first_chunk_latency = optional_float(temporal.get("first_live_chunk_latency_sec"))
     latency_ok = first_chunk_latency is not None and first_chunk_latency <= max(0.0, args.max_first_chunk_latency_sec)
     draft_exists = (live_dir / "transcript.draft.md").exists()
+    preview_exists = (live_dir / "transcript.preview.md").exists()
 
-    realtime_rows = chunks + segments
+    realtime_rows = chunks + segments + preview_snapshots
     provenance_values = {str(row.get("provenance") or "") for row in realtime_rows}
     provenance_ok = bool(realtime_rows) and provenance_values == {"recording_time_committed_pcm"}
     fallback_contamination = any(
@@ -202,7 +213,7 @@ def main() -> int:
         check(
             "pre_stop_live_artifacts",
             pre_stop_ok,
-            "at least one timestamped live chunk must be produced before stop",
+            "timestamped live chunks and conservative preview must be produced before stop",
             {"gate": pre_stop_gate, "temporal": temporal},
         ),
         check(
@@ -233,7 +244,18 @@ def main() -> int:
             f"first chunk latency must be <= {args.max_first_chunk_latency_sec:.1f}s",
             {"first_chunk_latency_sec": first_chunk_latency},
         ),
-        check("draft_present", draft_exists, "recording-time draft must exist", {"path": "derived/live/transcript.draft.md"}),
+        check(
+            "preview_present",
+            preview_exists,
+            "conservative recording-time preview must exist",
+            {"path": "derived/live/transcript.preview.md"},
+        ),
+        check(
+            "diagnostic_draft_present",
+            draft_exists,
+            "candidate-only recording-time draft must exist",
+            {"path": "derived/live/transcript.draft.md"},
+        ),
         check(
             "realtime_provenance",
             provenance_ok,
@@ -249,7 +271,7 @@ def main() -> int:
         check(
             "meaningful_comparison",
             meaningful,
-            "live draft must be meaningfully comparable with batch output",
+            "live preview evidence must be meaningfully comparable with batch output",
             {"meaningful_live_comparison": meaningful},
         ),
     ]
@@ -285,6 +307,8 @@ def main() -> int:
         "remaining_parity_gates": remaining,
         "metrics": {
             "live_pre_stop_chunk_count": pre_stop_chunks,
+            "live_pre_stop_preview_snapshot_count": pre_stop_preview_snapshots,
+            "live_preview_snapshot_count": len(preview_snapshots),
             "first_live_chunk_latency_sec": first_chunk_latency,
             "final_live_lag_sec": final_lag,
             "report_final_live_lag_sec": report_final_lag,
@@ -314,6 +338,7 @@ def main() -> int:
     print(f"meaningful_comparison: {str(meaningful).lower()}")
     print(f"all_parity_gates_passed: {str(all_parity_passed).lower()}")
     print(f"live_pre_stop_chunk_count: {pre_stop_chunks}")
+    print(f"live_pre_stop_preview_snapshot_count: {pre_stop_preview_snapshots}")
     print(f"first_live_chunk_latency_sec: {first_chunk_latency}")
     print(f"final_live_lag_sec: {final_lag}")
     print(f"remaining_parity_gates: {len(remaining)}")

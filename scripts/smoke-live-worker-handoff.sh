@@ -119,6 +119,9 @@ wait_for 10 grep -q "удаленная тестовая реплика" "$sessi
   || { cat "$workdir/worker.log" >&2; fail "draft did not appear before session stop"; }
 wait_for 10 grep -q "удаленная тестовая реплика" "$session/derived/live/transcript.preview.md" \
   || { cat "$workdir/worker.log" >&2; fail "conservative preview did not appear before session stop"; }
+jq -s -e 'any(.[]; .chunk_count > 0 and .provenance == "recording_time_committed_pcm")' \
+  "$session/derived/live/preview_snapshots.jsonl" >/dev/null \
+  || fail "pre-stop preview snapshot provenance is missing"
 [[ ! -e "$session/session.json" ]] || fail "fixture stopped before proving pre-stop draft"
 jq -e '
   .status == "running"
@@ -141,7 +144,10 @@ wait "$worker_pid" || fail "worker exited non-zero"
 jq -e '.status == "completed" and .current_stage == "completed"' \
   "$session/derived/live/live_pipeline_state.json" >/dev/null \
   || fail "worker did not persist terminal state"
-jq -e '.outputs.preview_transcript == "derived/live/transcript.preview.md"' \
+jq -e '
+  .outputs.preview_transcript == "derived/live/transcript.preview.md"
+  and .outputs.preview_snapshots == "derived/live/preview_snapshots.jsonl"
+' \
   "$session/derived/live/live_pipeline_report.json" >/dev/null \
   || fail "live report does not expose the conservative preview"
 "$python_bin" scripts/watch-live-draft.py "$session" --poll-sec 0.1 >"$workdir/watch.log"

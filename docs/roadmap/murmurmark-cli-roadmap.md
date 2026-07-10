@@ -681,6 +681,9 @@ newer run-state exists.
    chunks plus only causal Target-Me candidates accepted by recording-time remote energy. The full
    `transcript.draft.md` remains available through `--diagnostic-draft`, so conservative user preview
    and complete parity evidence no longer conflict.
+   Append-only `preview_snapshots.jsonl` now records creation time, covered end and content hash.
+   A future passing real session must prove at least one non-empty snapshot before stop; file
+   existence alone is no longer accepted as near-realtime evidence.
    Post-stop latency is reduced conservatively by applying cheap cleanup before the stronger audio
    judge, rebuilding only the residual review pack and using two-source triage by default; exhaustive
    four-source decoding remains opt-in.

@@ -25,6 +25,8 @@ exists, while three passing sessions are still required.
 - `murmurmark live watch SESSION` exposes the conservative remote-energy preview, lag and
   stalled-worker state while capture continues; `--diagnostic-draft` exposes all candidate-only
   evidence;
+- every preview rewrite appends `murmurmark.live_preview_snapshot/v1`; future real evidence must
+  contain a non-empty snapshot created before stop, otherwise it is classified as post-stop replay;
 - worker SIGTERM terminates the active child process and persists `completed_partial_draft` instead
   of leaving stale `running`;
 - `experiment compare` no longer starts ASR or materializes missing audio;
@@ -193,8 +195,10 @@ Current state:
 - current coverage target: `3` additional passing meaningful comparisons;
 - latest runtime proof: `131` pre-stop chunks, `56` pre-stop accepted candidates, complete raw/batch,
   but `82.752s` final lag and non-passing quality gates;
+- historical sessions have no `live_preview_snapshot/v1` rows because the contract was added after
+  recording; they cannot satisfy the new preview-provenance gate by replay;
 - next runtime proof: fresh controlled Live Evidence on the lag-aware worker with bounded lag and
-  unchanged raw/batch reliability.
+  unchanged raw/batch reliability, plus a non-empty preview snapshot created before stop.
 
 Safety constraint:
 

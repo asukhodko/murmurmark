@@ -9,6 +9,7 @@ Schema versions:
 - `murmurmark.raw_segment_commit/v1`
 - `murmurmark.live_progressive_target_me/v1`
 - `murmurmark.live_remote_audio_guard/v1`
+- `murmurmark.live_preview_snapshot/v1`
 
 The contract lives under:
 
@@ -193,11 +194,18 @@ The recording-time worker writes two Markdown views:
 ```text
 derived/live/transcript.preview.md  # conservative default for live watch
 derived/live/transcript.draft.md    # complete candidate-only diagnostics
+derived/live/preview_snapshots.jsonl
 ```
 
 `transcript.preview.md` may include a causal Target-Me candidate only when its
 `murmurmark.live_remote_audio_guard/v1.status` is `passed`. Missing or rejected guard evidence must
 remain absent from the preview and available in the diagnostic draft. Neither file is authoritative.
+
+Each snapshot row contains `created_at`, `provenance`, `preview_policy`, `chunk_count`,
+`processed_end_sec`, candidate counters, `content_bytes` and `content_sha256`. Recording-time proof
+requires `chunk_count > 0`, `provenance == recording_time_committed_pcm` and
+`created_at < session.ended_at`. Snapshot rows are append-only; comparison and evidence commands
+must not create them.
 
 `raw_segment_commits.jsonl` remains a fallback and audit trail. If committed-PCM preview is missing
 or partial, explicit `experiment recover-draft` may run the raw sidecar worker after recording stops.

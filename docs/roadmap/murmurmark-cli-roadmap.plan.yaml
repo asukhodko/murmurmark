@@ -616,6 +616,9 @@ nodes:
       skips отражаются в report и не блокируют следующие base chunks. Draft можно читать, но он не
       заменяет reviewed/final transcript. Обычный `live watch` показывает preview, где causal
       Target-Me проходит recording-time remote-energy gate; полный draft включается только явно.
+      Каждый preview rewrite фиксируется append-only строкой `live_preview_snapshot/v1` с временем,
+      покрытым интервалом и SHA-256. Pre-stop gate требует такую строку до `session.ended_at`, поэтому
+      post-stop replay не может считаться near-realtime доказательством.
 
   realtime-final-reconcile:
     title: "Final reconcile after stop"

@@ -4529,6 +4529,7 @@ while recording.
   },
   "outputs": {
     "preview_transcript": "derived/live/transcript.preview.md",
+    "preview_snapshots": "derived/live/preview_snapshots.jsonl",
     "draft_transcript": "derived/live/transcript.draft.md",
     "chunks_jsonl": "derived/live/chunks.jsonl"
   }
@@ -4568,6 +4569,11 @@ It excludes causal Target-Me candidates that lack a passed recording-time remote
 `derived/live/transcript.draft.md` retains all candidate-only evidence for diagnostics. Both are
 read-only, non-authoritative artifacts and must not be used as the final transcript, synthesis input
 or export source until a future corpus gate explicitly promotes the live path.
+
+`derived/live/preview_snapshots.jsonl` uses `murmurmark.live_preview_snapshot/v1`. A passing
+`pre_stop_live_artifacts` gate requires both a timestamped live chunk and a non-empty preview
+snapshot created before session stop. The row stores SHA-256 of the rendered preview, so a post-stop
+file with no corresponding pre-stop row is explicit replay rather than realtime evidence.
 
 ### Final Reconcile Report
 
