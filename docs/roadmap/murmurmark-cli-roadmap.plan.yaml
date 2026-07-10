@@ -805,6 +805,11 @@ nodes:
       before stop and a usable batch comparison. A fresh controlled Live
       Evidence run must still prove pre-stop artifacts, bounded lag and fail-open capture behavior;
       promotion remains blocked by ordinary parity gates.
+      Profile selection now ranks algorithms by common quality gates: the runtime-only
+      `pre_stop_runtime_causal_target_me` gate remains mandatory for promotion but is excluded from
+      cross-profile ranking. The current runtime profile has `72` total / `66` comparable
+      non-passing gates, so it stays the best live-implementable candidate without making promotion
+      appear ready.
       The 2026-07-10 strict refresh classifies `14` real sessions, `7` meaningful comparisons and
       `0` passing comparisons; the coverage target remains `3` fresh passing comparisons.
       The immediate reliability unit separates immutable realtime artifacts from explicit post-stop

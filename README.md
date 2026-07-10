@@ -624,6 +624,11 @@ pre-stop `created_at`. One real session proves that ordinary live chunks can app
 that recording was sparse and has no usable batch comparison. Live output is still shadow-only and
 batch remains authoritative.
 
+Corpus profile ranking compares `comparable_*` gate counters so a runtime-only provenance gate does
+not make the runtime algorithm look worse than a baseline that has no such gate. Promotion still
+uses the complete gate set. The current runtime profile therefore reports `72` total and `66`
+comparable non-passing gates, remains `historical_replay_only`, and has zero passing real sessions.
+
 After comparison, verify that evidence was produced before stop rather than reconstructed later:
 
 ```bash

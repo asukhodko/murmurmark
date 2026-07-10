@@ -164,6 +164,7 @@ CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY = (
 RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY = "live_runtime_causal_target_me_micro_asr_v1"
 RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY = "live_runtime_causal_target_me_direct_v1"
 RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY = "online_live_me_remote_overlap_filter_v1"
+PROFILE_SELECTION_IGNORED_GATES = {"pre_stop_runtime_causal_target_me"}
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
     "local_speaker_boundary_shadow_live_boundary_split_retime_remote_guarded_voice_boundary_v1"
@@ -6930,11 +6931,19 @@ def build_target_me_shadow_profiles(
             ),
         )
         all_gates_passed = bool(gates) and all(row.get("status") == "passed" for row in gates)
+        comparable_gates = [row for row in gates if row.get("name") not in PROFILE_SELECTION_IGNORED_GATES]
+        comparable_all_gates_passed = bool(comparable_gates) and all(
+            row.get("status") == "passed" for row in comparable_gates
+        )
         gate_statuses = {str(row.get("status")) for row in gates}
         status = "passed_but_shadow_locked" if all_gates_passed else "not_promotable"
         base = f"live_target_me_shadow_profile_{policy}"
         top_level_metrics[f"{base}_all_parity_gates_passed"] = all_gates_passed
+        top_level_metrics[f"{base}_comparable_all_parity_gates_passed"] = comparable_all_gates_passed
         top_level_metrics[f"{base}_non_passing_gate_count"] = sum(1 for row in gates if row.get("status") != "passed")
+        top_level_metrics[f"{base}_comparable_non_passing_gate_count"] = sum(
+            1 for row in comparable_gates if row.get("status") != "passed"
+        )
         top_level_metrics[f"{base}_live_token_recall_in_batch"] = round(recall, 6) if recall is not None else None
         for key, value in text_overlap.items():
             top_level_metrics[f"{base}_{key}"] = value

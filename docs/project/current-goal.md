@@ -63,6 +63,13 @@ checks pass, so its `algorithmic_status` is `safe_shadow_candidate`. The overall
 `historical_replay_only`: the corpus currently contains `0` sessions with a timestamped causal
 candidate produced before stop. Promotion is still blocked and batch remains authoritative.
 
+Profile selection now compares algorithms through common parity gates. The runtime-only
+`pre_stop_runtime_causal_target_me` gate remains part of total promotion readiness, but it no longer
+penalizes the runtime algorithm against a baseline that does not have that gate. On the refreshed
+real corpus the runtime profile has `72` total / `66` comparable non-passing gates and remains the
+best live-implementable profile. This distinction fixes ranking only; it does not make any session
+passing and does not relax temporal provenance.
+
 Temporal provenance does find `1` real session with ordinary live chunks created before stop, but
 its capture is sparse and its batch transcript is unavailable. It proves worker timing only, not a
 usable end-to-end meeting. The required evidence remains a capture-safe pre-stop causal run followed
@@ -228,7 +235,9 @@ Current result:
 - `promotion_allowed_sessions = 0`;
 - live/batch comparison granularity: ASR segment when available, chunk fallback otherwise;
 - current best live-implementable profile is `live_runtime_causal_target_me_direct_v1`; it
-  evaluates all `14` real live sessions and passes all parity gates on `1`;
+  evaluates all `14` real live sessions and passes all parity gates on `0` after temporal provenance;
+- the profile has `72` total / `66` comparable non-passing gates; profile selection excludes only
+  the runtime-specific provenance gate, while promotion still evaluates all `72`;
 - the profile has `5` advisory gate-level contentful order mismatches and `0` blocking ones across
   the refreshed real corpus;
 - active capture-safe order triage: `2` advisory timing/match rows and `0` blocking rows;

@@ -648,6 +648,10 @@ newer run-state exists.
    `historical_replay_only`: one sparse session has ordinary pre-stop live chunks, but `0` sessions
    have both pre-stop causal candidates and a usable batch comparison. Live remains shadow-only until
    a fresh controlled soak proves latency and fail-open behavior.
+   Cross-profile ranking now uses common quality gates. The runtime-only pre-stop provenance gate
+   remains mandatory for promotion but is not counted against the runtime algorithm when comparing
+   it with the baseline. Current result: `72` total / `66` comparable non-passing gates and `0`
+   passing real sessions.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

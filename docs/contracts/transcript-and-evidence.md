@@ -6476,6 +6476,20 @@ corpus evidence shows the Target-Me profile improves local recall. The batch-ora
 reduce measured remote leak to zero in the current real-live corpus, but missing-Me and
 batch-readiness/review gates still block promotion.
 
+Profile metrics separate promotion readiness from cross-profile algorithm comparison:
+
+- `all_parity_gates_passed` and `non_passing_gate_count` include every gate and remain the promotion
+  evidence;
+- `comparable_all_parity_gates_passed` and `comparable_non_passing_gate_count` exclude only gates
+  listed as profile-specific comparison exceptions, currently
+  `pre_stop_runtime_causal_target_me`;
+- corpus diagnostics aggregate both pairs and use the `comparable_*` pair only to rank algorithms;
+- the excluded runtime provenance gate still blocks runtime promotion and still appears in the total
+  counters and gate list.
+
+This prevents a baseline from winning an algorithm comparison merely because it has no runtime-only
+provenance requirement. It cannot turn historical replay into pre-stop evidence.
+
 This audit is evidence only. `promotion_decision` must stay `shadow_only_do_not_promote`; rows must
 not publish live `Me`, edit batch transcripts or relax parity gates. A useful result is evidence for
 the next rescue policy design: it can show which suppressed live mic regions have local-speaker

@@ -211,7 +211,9 @@ TARGET_ME_SHADOW_POLICY_METRICS = (
 )
 TARGET_ME_SHADOW_PROFILE_METRICS = (
     "all_parity_gates_passed",
+    "comparable_all_parity_gates_passed",
     "non_passing_gate_count",
+    "comparable_non_passing_gate_count",
     "live_token_recall_in_batch",
     "live_dialogue_token_count",
     "batch_dialogue_token_count",
@@ -1647,7 +1649,25 @@ def add_target_me_shadow_profile_summary(summary: dict[str, Any], rows: list[dic
         summary[f"{out}_all_parity_gates_passed_session_count"] = sum(
             1 for row in evaluated_rows if (row.get("metrics") or {}).get(f"{base}_all_parity_gates_passed") is True
         )
+        summary[f"{out}_comparable_all_parity_gates_passed_session_count"] = sum(
+            1
+            for row in evaluated_rows
+            if (
+                (row.get("metrics") or {}).get(f"{base}_comparable_all_parity_gates_passed")
+                if (row.get("metrics") or {}).get(f"{base}_comparable_all_parity_gates_passed") is not None
+                else (row.get("metrics") or {}).get(f"{base}_all_parity_gates_passed")
+            )
+            is True
+        )
         summary[f"{out}_non_passing_gate_count"] = sum_int_metric(evaluated_rows, f"{base}_non_passing_gate_count")
+        summary[f"{out}_comparable_non_passing_gate_count"] = sum(
+            safe_int(
+                (row.get("metrics") or {}).get(f"{base}_comparable_non_passing_gate_count")
+                if (row.get("metrics") or {}).get(f"{base}_comparable_non_passing_gate_count") is not None
+                else (row.get("metrics") or {}).get(f"{base}_non_passing_gate_count")
+            )
+            for row in evaluated_rows
+        )
         live_token_count = sum_int_metric(evaluated_rows, f"{base}_live_dialogue_token_count")
         batch_token_count = sum_int_metric(evaluated_rows, f"{base}_batch_dialogue_token_count")
         matched_token_count = sum_int_metric(evaluated_rows, f"{base}_matched_dialogue_token_count")
@@ -1955,7 +1975,17 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
             "all_parity_gates_passed_session_count": safe_int(
                 summary.get(f"{base}_all_parity_gates_passed_session_count")
             ),
+            "comparable_all_parity_gates_passed_session_count": safe_int(
+                summary.get(f"{base}_comparable_all_parity_gates_passed_session_count")
+                if summary.get(f"{base}_comparable_all_parity_gates_passed_session_count") is not None
+                else summary.get(f"{base}_all_parity_gates_passed_session_count")
+            ),
             "non_passing_gate_count": safe_int(summary.get(f"{base}_non_passing_gate_count")),
+            "comparable_non_passing_gate_count": safe_int(
+                summary.get(f"{base}_comparable_non_passing_gate_count")
+                if summary.get(f"{base}_comparable_non_passing_gate_count") is not None
+                else summary.get(f"{base}_non_passing_gate_count")
+            ),
             "live_dialogue_token_count": safe_int(summary.get(f"{base}_live_dialogue_token_count")),
             "batch_dialogue_token_count": safe_int(summary.get(f"{base}_batch_dialogue_token_count")),
             "matched_dialogue_token_count": safe_int(summary.get(f"{base}_matched_dialogue_token_count")),
@@ -2079,13 +2109,13 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
         if row["evaluated_session_count"] > 0 and (
             best is None
             or (
-                row["all_parity_gates_passed_session_count"],
-                -row["non_passing_gate_count"],
+                row["comparable_all_parity_gates_passed_session_count"],
+                -row["comparable_non_passing_gate_count"],
                 -row["live_missing_me_seconds"],
             )
             > (
-                safe_int(best.get("all_parity_gates_passed_session_count")),
-                -safe_int(best.get("non_passing_gate_count")),
+                safe_int(best.get("comparable_all_parity_gates_passed_session_count")),
+                -safe_int(best.get("comparable_non_passing_gate_count")),
                 -safe_float(best.get("live_missing_me_seconds")),
             )
         ):
@@ -2093,15 +2123,15 @@ def target_me_shadow_profile_diagnostics(summary: dict[str, Any], prefix: str) -
         if live_implementable and row["evaluated_session_count"] > 0 and (
             best_live_implementable is None
             or (
-                row["all_parity_gates_passed_session_count"],
-                -row["non_passing_gate_count"],
+                row["comparable_all_parity_gates_passed_session_count"],
+                -row["comparable_non_passing_gate_count"],
                 -row["live_suspected_remote_leak_in_me_seconds"],
                 -row["live_contentful_role_constrained_order_mismatch_count"],
                 -row["live_missing_me_seconds"],
             )
             > (
-                safe_int(best_live_implementable.get("all_parity_gates_passed_session_count")),
-                -safe_int(best_live_implementable.get("non_passing_gate_count")),
+                safe_int(best_live_implementable.get("comparable_all_parity_gates_passed_session_count")),
+                -safe_int(best_live_implementable.get("comparable_non_passing_gate_count")),
                 -safe_float(best_live_implementable.get("live_suspected_remote_leak_in_me_seconds")),
                 -safe_int(best_live_implementable.get("live_contentful_role_constrained_order_mismatch_count")),
                 -safe_float(best_live_implementable.get("live_missing_me_seconds")),

@@ -13,6 +13,7 @@ swiftlint lint --quiet
 "$python_bin" -m py_compile scripts/*.py
 "$python_bin" scripts/check-live-voice-activity-retime.py
 "$python_bin" scripts/check-live-progressive-target-me.py
+"$python_bin" scripts/check-live-profile-selection.py
 scripts/check-open-source-readiness.sh
 scripts/check-capture-regressions.sh
 scripts/smoke-experimental-sidecar-contract.sh
