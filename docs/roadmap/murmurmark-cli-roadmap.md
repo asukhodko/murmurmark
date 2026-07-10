@@ -652,6 +652,11 @@ newer run-state exists.
    remains mandatory for promotion but is not counted against the runtime algorithm when comparing
    it with the baseline. Current result: `72` total / `66` comparable non-passing gates and `0`
    passing real sessions.
+   The stricter `live_runtime_causal_target_me_speaker_overlap_v1` profile now adds
+   speaker-confirmed windows only across short backchannel or known-hallucination remote context. It
+   reduces missing Me `1881.44s -> 1829.64s`, leaves remote/order unchanged, improves F1 by
+   `0.001874`, and has zero per-session F1 regression. It remains `historical_replay_only` because
+   no qualifying candidate has pre-stop provenance.
 5. **Operational Corpus Green follow-up.** Keep `murmurmark report corpus` as the source of truth,
    preserve the short irreducible review queue, keep `0` `do_not_use_without_manual_review`
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.

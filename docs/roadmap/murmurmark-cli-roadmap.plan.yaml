@@ -810,6 +810,13 @@ nodes:
       cross-profile ranking. The current runtime profile has `72` total / `66` comparable
       non-passing gates, so it stays the best live-implementable candidate without making promotion
       appear ready.
+      A stricter speaker-overlap follow-up is now the best live-implementable profile:
+      `live_runtime_causal_target_me_speaker_overlap_v1` admits only speaker-confirmed windows with
+      strong source alignment and short or known-hallucination remote context. Against the direct
+      runtime profile it reduces missing Me `1881.44s -> 1829.64s` (`51.80s`), keeps remote-like Me
+      at `35.42s`, keeps blocking/advisory order at `1 / 5`, raises weighted F1 by `0.001874`, and has
+      zero per-session F1 regression. Its profile-specific pre-stop evidence count is `0`, so status
+      remains `historical_replay_only` and promotion remains blocked.
       The 2026-07-10 strict refresh classifies `14` real sessions, `7` meaningful comparisons and
       `0` passing comparisons; the coverage target remains `3` fresh passing comparisons.
       The immediate reliability unit separates immutable realtime artifacts from explicit post-stop

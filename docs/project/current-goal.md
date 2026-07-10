@@ -49,10 +49,13 @@ seeds, and runs focused micro-ASR only for unpublished groups from a chunk-level
 chunk. Passed chunks are excluded; remote-free or speaker-confirmed subwindows prevent a coarse
 chunk interval from disturbing the live timeline.
 
-The current best live-implementable profile is `live_runtime_causal_target_me_direct_v1`. It starts
-from the ordinary live remote-overlap filter and adds only accepted runtime candidates localized in
-remote-free intervals. Candidates found only by speaker-confirmed sliding windows remain diagnostic:
-their speech may be real, but the live timeline does not provide a safe insertion point.
+The direct runtime profile `live_runtime_causal_target_me_direct_v1` starts from the ordinary live
+remote-overlap filter and adds only accepted runtime candidates localized in remote-free intervals.
+The current best live-implementable profile is now
+`live_runtime_causal_target_me_speaker_overlap_v1`. It additionally admits speaker-confirmed
+sliding windows only when micro-ASR has strong source alignment and the overlapping remote context
+is a short backchannel or a known subtitle hallucination. Contentful overlapping remote speech stays
+excluded.
 
 The paired text no-regression check covers 10 sessions where both profiles and batch dialogue are
 comparable. Missing Me falls `2426.91s -> 1869.02s`, remote-like Me remains `35.42s`, and
@@ -69,6 +72,13 @@ penalizes the runtime algorithm against a baseline that does not have that gate.
 real corpus the runtime profile has `72` total / `66` comparable non-passing gates and remains the
 best live-implementable profile. This distinction fixes ranking only; it does not make any session
 passing and does not relax temporal provenance.
+
+The speaker-overlap follow-up is paired against the direct profile on the same 10 comparable real
+sessions. It reduces missing Me `1881.44s -> 1829.64s` (`51.80s`), keeps remote-like Me at `35.42s`,
+keeps blocking/advisory order at `1 / 5`, and raises weighted F1 `0.772660 -> 0.774524`. The maximum
+per-session F1 regression is `0.0`. Its algorithmic status is `safe_shadow_candidate`; overall
+status remains `historical_replay_only` because `0` sessions have a qualifying speaker-overlap
+candidate with pre-stop provenance.
 
 Temporal provenance does find `1` real session with ordinary live chunks created before stop, but
 its capture is sparse and its batch transcript is unavailable. It proves worker timing only, not a
@@ -175,12 +185,11 @@ Current state:
   `required_artifacts`.
 - capture-safe candidate blocking dimensions: `local_recall`, `remote_leakage`, `review_burden`,
   `selected_notes_readiness`;
-- current best live-implementable profile: `live_runtime_causal_target_me_direct_v1`, which adds
-  progressive past-only Target-Me enrollment and focused micro-ASR directly to the ordinary live
-  remote-overlap-filter baseline;
+- current best live-implementable profile: `live_runtime_causal_target_me_speaker_overlap_v1`, which
+  extends the direct runtime profile with strictly gated speaker-confirmed overlap windows;
 - active capture-safe order-risk triage: `2` advisory timing/match ambiguities and `0` blocking rows;
 - historical full-corpus triage: `4` advisory rows and `1` blocking row outside the active slice;
-- paired comparable-session gaps: `1869.02 sec` missing Me and `35.42 sec` remote-like Me;
+- paired comparable-session gaps: `1829.64 sec` missing Me and `35.42 sec` remote-like Me;
 - direct runtime causal Target-Me delta: `557.89 sec` missing Me recovered, with unchanged remote and
   order counters and `+0.039337` weighted token F1;
 - current corpus quality focus: `fix_live_local_recall_gap`;
@@ -234,7 +243,7 @@ Current result:
 - `promotion_decision = shadow_only_do_not_promote`;
 - `promotion_allowed_sessions = 0`;
 - live/batch comparison granularity: ASR segment when available, chunk fallback otherwise;
-- current best live-implementable profile is `live_runtime_causal_target_me_direct_v1`; it
+- current best live-implementable profile is `live_runtime_causal_target_me_speaker_overlap_v1`; it
   evaluates all `14` real live sessions and passes all parity gates on `0` after temporal provenance;
 - the profile has `72` total / `66` comparable non-passing gates; profile selection excludes only
   the runtime-specific provenance gate, while promotion still evaluates all `72`;
@@ -247,6 +256,8 @@ Current result:
   another `4.68 sec` of missing Me;
 - direct runtime parity closes `557.89 sec` of missing Me (`2426.91 -> 1869.02 sec`) with unchanged
   remote/order metrics;
+- strict speaker-overlap recovery closes another `51.80 sec` (`1881.44 -> 1829.64 sec`) with
+  unchanged remote/order metrics and `+0.001874` weighted token F1;
 - the paired 10-session text gate reports recall `+0.058710`, F1 `+0.039337`, precision
   `-0.001052`, and maximum per-session F1 regression `0.001712`;
 - `coverage_path = resolve_capture_safe_candidate_blockers`;

@@ -629,6 +629,13 @@ not make the runtime algorithm look worse than a baseline that has no such gate.
 uses the complete gate set. The current runtime profile therefore reports `72` total and `66`
 comparable non-passing gates, remains `historical_replay_only`, and has zero passing real sessions.
 
+The next live-only profile, `live_runtime_causal_target_me_speaker_overlap_v1`, also accepts
+speaker-confirmed windows inside remote-active intervals, but only with strong micro-ASR/source
+alignment and short backchannel or known-hallucination remote context. On the same corpus it reduces
+missing Me `1881.44s -> 1829.64s`, keeps remote-like Me at `35.42s`, keeps blocking/advisory order at
+`1 / 5`, and raises weighted F1 `0.772660 -> 0.774524`; maximum per-session F1 regression is `0`.
+Its pre-stop evidence count is still zero, so it remains shadow-only.
+
 After comparison, verify that evidence was produced before stop rather than reconstructed later:
 
 ```bash

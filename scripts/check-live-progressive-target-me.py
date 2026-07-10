@@ -224,6 +224,7 @@ def main() -> int:
                         "remote_free_localization": {
                             "status": "localized",
                             "reason": "past_target_voice_sliding_window",
+                            "remote_intervals": [[0.0, 1.0]],
                         },
                     },
                     ensure_ascii=False,
@@ -237,17 +238,29 @@ def main() -> int:
         assert len(turns) == 1, turns
         assert turns[0].get("runtime_causal_target_me_micro_asr_shadow") is True, turns[0]
         assert turns[0].get("used_batch_fields_for_selection") is False, turns[0]
+        speaker_turns, speaker_rejected = compare.runtime_causal_target_me_shadow_turns(
+            session,
+            allow_speaker_confirmed_overlap=True,
+        )
+        assert len(speaker_rejected) == 0, speaker_rejected
+        assert len(speaker_turns) == 2, speaker_turns
+        assert speaker_turns[1].get("runtime_causal_target_me_speaker_overlap_shadow") is True
+        assert speaker_turns[1].get("candidate_source") == "runtime-causal-target-me-speaker-overlap"
         assert compare.target_me_shadow_profile_is_live_implementable(
             compare.RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY
         ) is False
         assert compare.target_me_shadow_profile_is_live_implementable(
             compare.RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY
         ) is True
+        assert compare.target_me_shadow_profile_is_live_implementable(
+            compare.RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY
+        ) is True
         assert compare.selected_lab_policies(
             SimpleNamespace(with_labs=False, lab_policy=[])
         ) == (
             compare.RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
             compare.RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+            compare.RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
         )
 
         overlap = compare.bag_overlap_metrics(
@@ -286,13 +299,49 @@ def main() -> int:
                         f"{runtime_prefix}live_suspected_remote_leak_in_me_seconds": 1.0,
                         f"{runtime_prefix}live_blocking_contentful_role_constrained_order_mismatch_count": 0,
                         f"{runtime_prefix}live_advisory_contentful_role_constrained_order_mismatch_count": 1,
-                        "causal_pre_stop_accepted_candidate_count": 1,
+                        f"{runtime_prefix}causal_pre_stop_direct_profile_candidate_count": 1,
                     },
                 }
             ]
         )
         assert no_regression.get("status") == "safe_shadow_candidate", no_regression
         assert (no_regression.get("delta") or {}).get("missing_me_seconds") == -2.0, no_regression
+
+        speaker_policy = corpus.RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY
+        speaker_prefix = f"live_target_me_shadow_profile_{speaker_policy}_"
+        speaker_no_regression = corpus.runtime_profile_no_regression(
+            [
+                {
+                    "session": "fixture",
+                    "metrics": {
+                        f"{runtime_prefix}non_passing_gate_count": 1,
+                        f"{runtime_prefix}live_dialogue_token_count": 11,
+                        f"{runtime_prefix}batch_dialogue_token_count": 10,
+                        f"{runtime_prefix}matched_dialogue_token_count": 9,
+                        f"{runtime_prefix}live_batch_token_f1": 0.857143,
+                        f"{runtime_prefix}live_missing_me_seconds": 8.0,
+                        f"{runtime_prefix}live_suspected_remote_leak_in_me_seconds": 1.0,
+                        f"{runtime_prefix}live_blocking_contentful_role_constrained_order_mismatch_count": 0,
+                        f"{runtime_prefix}live_advisory_contentful_role_constrained_order_mismatch_count": 1,
+                        f"{speaker_prefix}non_passing_gate_count": 1,
+                        f"{speaker_prefix}live_dialogue_token_count": 12,
+                        f"{speaker_prefix}batch_dialogue_token_count": 10,
+                        f"{speaker_prefix}matched_dialogue_token_count": 10,
+                        f"{speaker_prefix}live_batch_token_f1": 0.909091,
+                        f"{speaker_prefix}live_missing_me_seconds": 6.0,
+                        f"{speaker_prefix}live_suspected_remote_leak_in_me_seconds": 1.0,
+                        f"{speaker_prefix}live_blocking_contentful_role_constrained_order_mismatch_count": 0,
+                        f"{speaker_prefix}live_advisory_contentful_role_constrained_order_mismatch_count": 1,
+                        f"{speaker_prefix}causal_pre_stop_speaker_overlap_profile_candidate_count": 1,
+                    },
+                }
+            ],
+            policy=speaker_policy,
+            baseline_policy=runtime,
+            pre_stop_metric="causal_pre_stop_speaker_overlap_profile_candidate_count",
+        )
+        assert speaker_no_regression.get("status") == "safe_shadow_candidate", speaker_no_regression
+        assert (speaker_no_regression.get("delta") or {}).get("missing_me_seconds") == -2.0
 
     print("live progressive Target-Me checks passed")
     return 0

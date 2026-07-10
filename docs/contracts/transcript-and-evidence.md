@@ -5137,8 +5137,9 @@ top-level `live_comparison_refresh` block.
 records them in `summary.live_comparison_refresh_lab_policies`. This is the routine way to recheck a
 single candidate without paying for every historical laboratory profile.
 
-The default comparison evaluates `online_live_me_remote_overlap_filter_v1` and the direct runtime
-profile `live_runtime_causal_target_me_direct_v1`. The corpus report writes
+The default comparison evaluates `online_live_me_remote_overlap_filter_v1`, the direct runtime
+profile `live_runtime_causal_target_me_direct_v1`, and the strict speaker-overlap profile
+`live_runtime_causal_target_me_speaker_overlap_v1`. The corpus report writes
 `live_runtime_profile_no_regression` (`murmurmark.live_runtime_profile_no_regression/v1`) with
 weighted dialogue-token precision/recall/F1, missing-Me, remote leakage, blocking/advisory order
 deltas and per-session F1 deltas. `algorithmic_status: safe_shadow_candidate` requires better
@@ -5147,11 +5148,20 @@ per-session F1 drop over `0.015`. Overall `status` remains `historical_replay_on
 one accepted runtime causal candidate has trustworthy pre-stop provenance. It never sets
 `promotion_allowed: true`.
 
+`live_speaker_overlap_profile_no_regression` uses the same schema and compares the speaker-overlap
+profile with the direct runtime profile. A speaker-overlap candidate must already be accepted by the
+causal Target-Me worker, have micro-ASR score `>= 0.80`, source recall `>= 0.50`, reverse source
+recall `>= 0.60`, remote similarity `<= 0.20`, remote token recall `<= 0.08`, and remote context of
+at most four tokens or a known subtitle hallucination. This profile is still shadow-only.
+
 `live_batch_comparison.json` also writes `temporal_provenance` with schema
 `murmurmark.live_temporal_provenance/v1`. Chunk and causal-candidate timestamps are compared with
 `session.json.ended_at`. The `pre_stop_live_artifacts` gate passes only when a live chunk was created
-before stop. The direct runtime profile additionally uses `pre_stop_runtime_causal_target_me`; when
-it publishes accepted causal candidates, at least one must have a pre-stop `created_at`. Missing,
+before stop. Runtime profiles additionally use `pre_stop_runtime_causal_target_me`. Temporal
+provenance records separate eligible and pre-stop counts for the direct and speaker-overlap profiles:
+`causal_*_direct_profile_candidate_count` and
+`causal_*_speaker_overlap_profile_candidate_count`. Each profile gate reads its own counters, so a
+pre-stop candidate rejected by that profile cannot satisfy its provenance requirement. Missing,
 unstamped or post-stop-only evidence cannot satisfy promotion gates.
 
 Schema:

@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.40.0"
+SCRIPT_VERSION = "1.41.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -121,6 +121,9 @@ CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY = (
 )
 RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY = "live_runtime_causal_target_me_micro_asr_v1"
 RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY = "live_runtime_causal_target_me_direct_v1"
+RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY = (
+    "live_runtime_causal_target_me_speaker_overlap_v1"
+)
 RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY = "online_live_me_remote_overlap_filter_v1"
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
@@ -175,6 +178,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -1434,9 +1438,13 @@ def dialogue_token_aggregate(rows: list[dict[str, Any]], metric_prefix: str = ""
     }
 
 
-def runtime_profile_no_regression(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    policy = RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY
-    baseline_policy = RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY
+def runtime_profile_no_regression(
+    rows: list[dict[str, Any]],
+    *,
+    policy: str = RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    baseline_policy: str = RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
+    pre_stop_metric: str = "causal_pre_stop_direct_profile_candidate_count",
+) -> dict[str, Any]:
     prefix = f"live_target_me_shadow_profile_{policy}_"
     baseline_prefix = f"live_target_me_shadow_profile_{baseline_policy}_"
     evaluated = [
@@ -1497,7 +1505,7 @@ def runtime_profile_no_regression(rows: list[dict[str, Any]]) -> dict[str, Any]:
     pre_stop_runtime_evidence_sessions = sum(
         1
         for row in evaluated
-        if safe_int((row.get("metrics") or {}).get("causal_pre_stop_accepted_candidate_count")) > 0
+        if safe_int((row.get("metrics") or {}).get(f"{prefix}{pre_stop_metric}")) > 0
     )
     pre_stop_runtime_evidence_available = pre_stop_runtime_evidence_sessions > 0
     checks = {
@@ -1519,6 +1527,7 @@ def runtime_profile_no_regression(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "batch_authoritative": True,
         "policy": policy,
         "baseline_policy": baseline_policy,
+        "pre_stop_metric": pre_stop_metric,
         "evaluated_session_count": len(evaluated),
         "pre_stop_runtime_evidence_session_count": pre_stop_runtime_evidence_sessions,
         "checks": checks,
@@ -7206,6 +7215,12 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         for key, value in dialogue_token_aggregate(text_rows).items():
             summary[f"{text_prefix}{key}"] = value
     runtime_no_regression_report = runtime_profile_no_regression(real_live_rows)
+    speaker_overlap_no_regression_report = runtime_profile_no_regression(
+        real_live_rows,
+        policy=RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
+        baseline_policy=RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+        pre_stop_metric="causal_pre_stop_speaker_overlap_profile_candidate_count",
+    )
     summary["real_runtime_causal_target_me_no_regression_status"] = runtime_no_regression_report.get("status")
     summary["real_runtime_causal_target_me_algorithmic_status"] = runtime_no_regression_report.get(
         "algorithmic_status"
@@ -7223,6 +7238,18 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     )
     summary["real_runtime_causal_target_me_token_f1_delta"] = (
         (runtime_no_regression_report.get("delta") or {}).get("live_batch_token_f1")
+    )
+    summary["real_runtime_speaker_overlap_no_regression_status"] = (
+        speaker_overlap_no_regression_report.get("status")
+    )
+    summary["real_runtime_speaker_overlap_algorithmic_status"] = (
+        speaker_overlap_no_regression_report.get("algorithmic_status")
+    )
+    summary["real_runtime_speaker_overlap_missing_me_delta_seconds"] = (
+        (speaker_overlap_no_regression_report.get("delta") or {}).get("missing_me_seconds")
+    )
+    summary["real_runtime_speaker_overlap_token_f1_delta"] = (
+        (speaker_overlap_no_regression_report.get("delta") or {}).get("live_batch_token_f1")
     )
     local_recall_rescue_policy_diagnostics = {
         "real": rescue_policy_diagnostics(summary, "real"),
@@ -8562,6 +8589,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_target_me_shadow_policy_diagnostics": target_me_shadow_diagnostics_report,
         "live_target_me_shadow_profile_diagnostics": target_me_shadow_profile_diagnostics_report,
         "live_runtime_profile_no_regression": runtime_no_regression_report,
+        "live_speaker_overlap_profile_no_regression": speaker_overlap_no_regression_report,
         "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
         "live_order_risk_triage": live_order_risk_triage_report,
         "capture_safe_candidate_order_risk_triage": capture_safe_candidate_order_risk_triage_report,
@@ -9009,6 +9037,16 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         if isinstance(runtime_no_regression.get("delta"), dict)
         else {}
     )
+    speaker_overlap_no_regression = (
+        report.get("live_speaker_overlap_profile_no_regression")
+        if isinstance(report.get("live_speaker_overlap_profile_no_regression"), dict)
+        else {}
+    )
+    speaker_overlap_delta = (
+        speaker_overlap_no_regression.get("delta")
+        if isinstance(speaker_overlap_no_regression.get("delta"), dict)
+        else {}
+    )
     lines = [
         "# Live Pipeline Corpus Gates",
         "",
@@ -9200,6 +9238,26 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"{runtime_delta.get('batch_token_recall_in_live')} / {runtime_delta.get('live_batch_token_f1')}",
         f"- maximum per-session F1 regression: {runtime_delta.get('max_per_session_f1_regression')}",
         f"- promotion allowed: `{runtime_no_regression.get('promotion_allowed')}`",
+        "",
+        "## Runtime Speaker-Overlap No-Regression",
+        "",
+        "This paired corpus check compares the direct runtime profile with the stricter "
+        "speaker-confirmed overlap profile. Short remote context is required; batch remains authoritative.",
+        "",
+        f"- status: `{speaker_overlap_no_regression.get('status')}`",
+        f"- algorithmic status: `{speaker_overlap_no_regression.get('algorithmic_status')}`",
+        f"- evaluated sessions: {speaker_overlap_no_regression.get('evaluated_session_count', 0)}",
+        "- sessions with pre-stop speaker-overlap candidates: "
+        f"{speaker_overlap_no_regression.get('pre_stop_runtime_evidence_session_count', 0)}",
+        f"- missing-Me delta: {speaker_overlap_delta.get('missing_me_seconds')} sec",
+        f"- remote-leak delta: {speaker_overlap_delta.get('remote_leak_seconds')} sec",
+        f"- blocking/advisory order delta: {speaker_overlap_delta.get('blocking_order_mismatch_count')} / "
+        f"{speaker_overlap_delta.get('advisory_order_mismatch_count')}",
+        f"- token precision/recall/F1 delta: {speaker_overlap_delta.get('live_token_precision_against_batch')} / "
+        f"{speaker_overlap_delta.get('batch_token_recall_in_live')} / "
+        f"{speaker_overlap_delta.get('live_batch_token_f1')}",
+        f"- maximum per-session F1 regression: {speaker_overlap_delta.get('max_per_session_f1_regression')}",
+        f"- promotion allowed: `{speaker_overlap_no_regression.get('promotion_allowed')}`",
         "",
         "## Next Unlock",
         "",
@@ -10719,6 +10777,41 @@ def main() -> int:
         print(
             "real_runtime_causal_target_me_max_per_session_f1_regression: "
             f"{runtime_delta.get('max_per_session_f1_regression')}"
+        )
+    speaker_overlap_no_regression = (
+        report.get("live_speaker_overlap_profile_no_regression")
+        if isinstance(report.get("live_speaker_overlap_profile_no_regression"), dict)
+        else {}
+    )
+    if speaker_overlap_no_regression:
+        speaker_overlap_delta = (
+            speaker_overlap_no_regression.get("delta")
+            if isinstance(speaker_overlap_no_regression.get("delta"), dict)
+            else {}
+        )
+        print(
+            "real_runtime_speaker_overlap_no_regression_status: "
+            f"{speaker_overlap_no_regression.get('status')}"
+        )
+        print(
+            "real_runtime_speaker_overlap_algorithmic_status: "
+            f"{speaker_overlap_no_regression.get('algorithmic_status')}"
+        )
+        print(
+            "real_runtime_speaker_overlap_pre_stop_evidence_session_count: "
+            f"{speaker_overlap_no_regression.get('pre_stop_runtime_evidence_session_count')}"
+        )
+        print(
+            "real_runtime_speaker_overlap_missing_me_delta_seconds: "
+            f"{speaker_overlap_delta.get('missing_me_seconds')}"
+        )
+        print(
+            "real_runtime_speaker_overlap_token_f1_delta: "
+            f"{speaker_overlap_delta.get('live_batch_token_f1')}"
+        )
+        print(
+            "real_runtime_speaker_overlap_max_per_session_f1_regression: "
+            f"{speaker_overlap_delta.get('max_per_session_f1_regression')}"
         )
     target_me_shadow_profile_diagnostics = (
         report.get("live_target_me_shadow_profile_diagnostics")

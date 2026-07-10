@@ -16,7 +16,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.40.0"
+SCRIPT_VERSION = "0.41.0"
 EPSILON = 1.0e-12
 LIVE_BATCH_BOUNDARY_TOLERANCE_SEC = 2.5
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -163,6 +163,9 @@ CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY = (
 )
 RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY = "live_runtime_causal_target_me_micro_asr_v1"
 RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY = "live_runtime_causal_target_me_direct_v1"
+RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY = (
+    "live_runtime_causal_target_me_speaker_overlap_v1"
+)
 RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY = "online_live_me_remote_overlap_filter_v1"
 PROFILE_SELECTION_IGNORED_GATES = {"pre_stop_runtime_causal_target_me"}
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
@@ -222,6 +225,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LAB_SHADOW_PROFILE_POLICY,
     LIVE_BOUNDARY_MICRO_ASR_LIVE_ONLY_SHADOW_PROFILE_POLICY,
@@ -403,6 +407,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_v1",
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_PROFILE_POLICY,
     STRICT_LIVE_ONLY_LOCAL_ISLAND_AUDIO_SAFE_UNION_PROFILE_POLICY,
     REMOTE_FORBIDDEN_BOUNDARY_CLASSIFIER_PROFILE_POLICY,
@@ -427,6 +432,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_NO_TARGET_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_v1",
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
 }
 LOCAL_ISLAND_SPLIT_ORACLE_PROFILE_POLICIES = {
     (
@@ -516,6 +522,7 @@ CAUSAL_LOCAL_ONLY_SEED_LIVE_SEGMENT_MICRO_ASR_LAB_PROFILE_POLICIES = {
 RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICIES = {
     RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
 }
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
@@ -539,6 +546,7 @@ MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 DEFAULT_TARGET_ME_SHADOW_POLICIES = (
     RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+    RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
 )
 
 
@@ -615,6 +623,79 @@ def parse_datetime(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def runtime_causal_candidate_eligibility(
+    row: dict[str, Any],
+    *,
+    allow_speaker_confirmed_overlap: bool,
+) -> tuple[bool, str | None, dict[str, Any]]:
+    localization = row.get("remote_free_localization") or {}
+    localization_reason = str(localization.get("reason") or "")
+    localization_status = str(localization.get("status") or "")
+    speaker_confirmed_overlap = localization_reason == "past_target_voice_sliding_window"
+    remote_interval_starts = [
+        safe_float(interval[0])
+        for interval in localization.get("remote_intervals") or []
+        if isinstance(interval, list) and len(interval) >= 2
+    ]
+    start = safe_float(row.get("start"))
+    speaker_overlap_start_distance = (
+        min(abs(start - remote_start) for remote_start in remote_interval_starts)
+        if remote_interval_starts
+        else None
+    )
+    remote_text = str(row.get("remote_text") or "")
+    speaker_overlap_remote_token_count = len(tokens(remote_text))
+    speaker_overlap_remote_context_safe = bool(
+        speaker_overlap_remote_token_count <= 4 or KNOWN_HALLUCINATION_RE.search(remote_text)
+    )
+    diagnostics = {
+        "remote_free_localization": localization,
+        "speaker_confirmed_overlap": speaker_confirmed_overlap,
+        "speaker_overlap_start_distance_sec": (
+            round(speaker_overlap_start_distance, 3)
+            if speaker_overlap_start_distance is not None
+            else None
+        ),
+        "speaker_overlap_remote_token_count": speaker_overlap_remote_token_count,
+        "speaker_overlap_remote_context_safe": speaker_overlap_remote_context_safe,
+    }
+    if row.get("status") != "accepted":
+        return False, "runtime_candidate_not_accepted", diagnostics
+    if row.get("used_batch_fields_for_selection") is not False or row.get("timeline_causal") is not True:
+        return False, "runtime_causality_contract_failed", diagnostics
+    allowed_localization_reasons = {
+        "no_remote_overlap",
+        "past_target_voice_in_remote_free_gap",
+    }
+    if allow_speaker_confirmed_overlap:
+        allowed_localization_reasons.add("past_target_voice_sliding_window")
+    if localization_reason not in allowed_localization_reasons or localization_status not in {
+        "not_needed",
+        "localized",
+    }:
+        return False, "runtime_candidate_not_remote_free", diagnostics
+    end = safe_float(row.get("end"), start)
+    text = clean_text(str(row.get("text") or ""))
+    if end <= start or len(tokens(text)) < 2 or KNOWN_HALLUCINATION_RE.search(text):
+        return False, "invalid_runtime_candidate", diagnostics
+    if safe_float(row.get("score")) < 0.68:
+        return False, "runtime_micro_asr_score_too_low", diagnostics
+    if safe_float(row.get("remote_similarity")) > 0.30 or safe_float(
+        row.get("remote_text_recall_in_micro")
+    ) > 0.10:
+        return False, "runtime_remote_guard_failed", diagnostics
+    if speaker_confirmed_overlap and (
+        safe_float(row.get("score")) < 0.80
+        or safe_float(row.get("remote_similarity")) > 0.20
+        or safe_float(row.get("remote_text_recall_in_micro")) > 0.08
+        or safe_float(row.get("source_text_token_recall")) < 0.50
+        or safe_float(row.get("micro_text_token_recall_in_source")) < 0.60
+        or not speaker_overlap_remote_context_safe
+    ):
+        return False, "runtime_speaker_overlap_strict_guard_failed", diagnostics
+    return True, None, diagnostics
+
+
 def live_temporal_provenance(session: Path, chunks: list[dict[str, Any]]) -> dict[str, Any]:
     metadata = read_json(session / "session.json") or {}
     started_at = parse_datetime(metadata.get("created_at"))
@@ -634,6 +715,31 @@ def live_temporal_provenance(session: Path, chunks: list[dict[str, Any]]) -> dic
     post_stop_candidates = [
         value for value in known_candidate_times if ended_at is not None and value >= ended_at
     ]
+    direct_profile_candidates = [
+        row
+        for row in candidate_rows
+        if runtime_causal_candidate_eligibility(
+            row,
+            allow_speaker_confirmed_overlap=False,
+        )[0]
+    ]
+    speaker_overlap_profile_candidates = [
+        row
+        for row in candidate_rows
+        if runtime_causal_candidate_eligibility(
+            row,
+            allow_speaker_confirmed_overlap=True,
+        )[0]
+    ]
+
+    def pre_stop_count(rows: list[dict[str, Any]]) -> tuple[int, int]:
+        values = [parse_datetime(row.get("created_at")) for row in rows]
+        known = [value for value in values if value is not None]
+        before_stop = [value for value in known if ended_at is not None and value < ended_at]
+        return len(known), len(before_stop)
+
+    direct_created_at_count, direct_pre_stop_count = pre_stop_count(direct_profile_candidates)
+    speaker_created_at_count, speaker_pre_stop_count = pre_stop_count(speaker_overlap_profile_candidates)
     state = read_json(session / "derived/live/causal-target-me/state.json") or {}
     state_updated_at = parse_datetime(state.get("updated_at"))
 
@@ -672,6 +778,12 @@ def live_temporal_provenance(session: Path, chunks: list[dict[str, Any]]) -> dic
         "causal_pre_stop_accepted_candidate_count": len(pre_stop_candidates),
         "causal_post_stop_accepted_candidate_count": len(post_stop_candidates),
         "causal_unstamped_accepted_candidate_count": len(accepted_candidates) - len(known_candidate_times),
+        "causal_direct_profile_candidate_count": len(direct_profile_candidates),
+        "causal_direct_profile_candidate_created_at_count": direct_created_at_count,
+        "causal_pre_stop_direct_profile_candidate_count": direct_pre_stop_count,
+        "causal_speaker_overlap_profile_candidate_count": len(speaker_overlap_profile_candidates),
+        "causal_speaker_overlap_profile_candidate_created_at_count": speaker_created_at_count,
+        "causal_pre_stop_speaker_overlap_profile_candidate_count": speaker_pre_stop_count,
         "causal_state_updated_at": state.get("updated_at"),
         "causal_state_updated_pre_stop": bool(
             state_updated_at is not None and ended_at is not None and state_updated_at < ended_at
@@ -5211,6 +5323,7 @@ def parity_gates(
     token_f1: float | None = None,
     temporal_provenance: dict[str, Any] | None = None,
     requires_runtime_causal_provenance: bool = False,
+    runtime_causal_profile_scope: str = "direct",
 ) -> list[dict[str, Any]]:
     gates: list[dict[str, Any]] = [
         capture_safety_gate,
@@ -5247,8 +5360,14 @@ def parity_gates(
         )
     )
     if requires_runtime_causal_provenance:
-        accepted_count = safe_int(temporal.get("causal_accepted_candidate_count"))
-        pre_stop_candidate_count = safe_int(temporal.get("causal_pre_stop_accepted_candidate_count"))
+        if runtime_causal_profile_scope == "speaker_overlap":
+            accepted_key = "causal_speaker_overlap_profile_candidate_count"
+            pre_stop_key = "causal_pre_stop_speaker_overlap_profile_candidate_count"
+        else:
+            accepted_key = "causal_direct_profile_candidate_count"
+            pre_stop_key = "causal_pre_stop_direct_profile_candidate_count"
+        accepted_count = safe_int(temporal.get(accepted_key))
+        pre_stop_candidate_count = safe_int(temporal.get(pre_stop_key))
         if accepted_count == 0:
             causal_status = "passed"
             causal_reason = "this session has no accepted runtime causal candidate to publish"
@@ -5264,6 +5383,9 @@ def parity_gates(
                 causal_status,
                 causal_reason,
                 {
+                    "runtime_causal_profile_scope": runtime_causal_profile_scope,
+                    "candidate_count_metric": accepted_key,
+                    "pre_stop_candidate_count_metric": pre_stop_key,
                     "causal_accepted_candidate_count": accepted_count,
                     "causal_pre_stop_accepted_candidate_count": pre_stop_candidate_count,
                     "causal_state_updated_pre_stop": temporal.get("causal_state_updated_pre_stop"),
@@ -5932,7 +6054,11 @@ def live_boundary_micro_asr_lab_shadow_turns(
     )
 
 
-def runtime_causal_target_me_shadow_turns(session: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def runtime_causal_target_me_shadow_turns(
+    session: Path,
+    *,
+    allow_speaker_confirmed_overlap: bool = False,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     rows = read_jsonl(session / "derived/live/causal-target-me/candidates.jsonl")
     turns: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
@@ -5949,41 +6075,18 @@ def runtime_causal_target_me_shadow_turns(session: Path) -> tuple[list[dict[str,
             "status": row.get("status"),
             "reasons": row.get("reasons"),
         }
-        if row.get("status") != "accepted":
-            rejected.append({**context, "reason": "runtime_candidate_not_accepted"})
-            continue
-        if row.get("used_batch_fields_for_selection") is not False or row.get("timeline_causal") is not True:
-            rejected.append({**context, "reason": "runtime_causality_contract_failed"})
-            continue
-        localization = row.get("remote_free_localization") or {}
-        localization_reason = str(localization.get("reason") or "")
-        localization_status = str(localization.get("status") or "")
-        if localization_reason not in {
-            "no_remote_overlap",
-            "past_target_voice_in_remote_free_gap",
-        } or localization_status not in {"not_needed", "localized"}:
-            rejected.append(
-                {
-                    **context,
-                    "reason": "runtime_candidate_not_remote_free",
-                    "remote_free_localization": localization,
-                }
-            )
+        eligible, reason, diagnostics = runtime_causal_candidate_eligibility(
+            row,
+            allow_speaker_confirmed_overlap=allow_speaker_confirmed_overlap,
+        )
+        localization = diagnostics.get("remote_free_localization") or {}
+        speaker_confirmed_overlap = diagnostics.get("speaker_confirmed_overlap") is True
+        if not eligible:
+            rejected.append({**context, "reason": reason, **diagnostics})
             continue
         start = safe_float(row.get("start"))
         end = safe_float(row.get("end"), start)
         text = clean_text(str(row.get("text") or ""))
-        if end <= start or len(tokens(text)) < 2 or KNOWN_HALLUCINATION_RE.search(text):
-            rejected.append({**context, "reason": "invalid_runtime_candidate"})
-            continue
-        if safe_float(row.get("score")) < 0.68:
-            rejected.append({**context, "reason": "runtime_micro_asr_score_too_low"})
-            continue
-        if safe_float(row.get("remote_similarity")) > 0.30 or safe_float(
-            row.get("remote_text_recall_in_micro")
-        ) > 0.10:
-            rejected.append({**context, "reason": "runtime_remote_guard_failed"})
-            continue
         turns.append(
             {
                 "id": str(row.get("id") or f"runtime_causal_target_me_{index:06d}"),
@@ -5999,10 +6102,28 @@ def runtime_causal_target_me_shadow_turns(session: Path) -> tuple[list[dict[str,
                 "local_island_seconds": round(end - start, 3),
                 "local_island_count": 1,
                 "runtime_causal_target_me_micro_asr_shadow": True,
-                "candidate_source": "runtime-causal-target-me",
+                "runtime_causal_target_me_speaker_overlap_shadow": speaker_confirmed_overlap,
+                "speaker_overlap_start_distance_sec": diagnostics.get(
+                    "speaker_overlap_start_distance_sec"
+                ),
+                "speaker_overlap_remote_token_count": diagnostics.get(
+                    "speaker_overlap_remote_token_count"
+                ),
+                "speaker_overlap_remote_context_safe": diagnostics.get(
+                    "speaker_overlap_remote_context_safe"
+                ),
+                "candidate_source": (
+                    "runtime-causal-target-me-speaker-overlap"
+                    if speaker_confirmed_overlap
+                    else "runtime-causal-target-me"
+                ),
                 "used_batch_fields_for_selection": False,
                 "timeline_causal": True,
-                "live_group_classifier": "runtime_causal_target_me_micro_asr_v1",
+                "live_group_classifier": (
+                    "runtime_causal_target_me_speaker_overlap_v1"
+                    if speaker_confirmed_overlap
+                    else "runtime_causal_target_me_micro_asr_v1"
+                ),
                 "micro_asr_score": row.get("score"),
                 "micro_asr_remote_similarity": row.get("remote_similarity"),
                 "micro_asr_remote_text_recall": row.get("remote_text_recall_in_micro"),
@@ -6366,7 +6487,12 @@ def target_me_shadow_profile_components(
         rejected_supplemental_turns.extend(rejected_covered_causal_seed_turns)
         rejected_supplemental_turns.extend(rejected_timeline_causal_seed_turns)
     if policy in RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICIES:
-        runtime_turns, rejected_runtime_turns = runtime_causal_target_me_shadow_turns(session)
+        runtime_turns, rejected_runtime_turns = runtime_causal_target_me_shadow_turns(
+            session,
+            allow_speaker_confirmed_overlap=(
+                policy == RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY
+            ),
+        )
         runtime_turns, rejected_covered_runtime_turns = filter_micro_asr_turns_covered_by_base(
             runtime_turns,
             live_turns + target_turns + supplemental_turns,
@@ -6898,6 +7024,18 @@ def build_target_me_shadow_profiles(
                 "causal_pre_stop_accepted_candidate_count": temporal_provenance.get(
                     "causal_pre_stop_accepted_candidate_count"
                 ),
+                "causal_direct_profile_candidate_count": temporal_provenance.get(
+                    "causal_direct_profile_candidate_count"
+                ),
+                "causal_pre_stop_direct_profile_candidate_count": temporal_provenance.get(
+                    "causal_pre_stop_direct_profile_candidate_count"
+                ),
+                "causal_speaker_overlap_profile_candidate_count": temporal_provenance.get(
+                    "causal_speaker_overlap_profile_candidate_count"
+                ),
+                "causal_pre_stop_speaker_overlap_profile_candidate_count": temporal_provenance.get(
+                    "causal_pre_stop_speaker_overlap_profile_candidate_count"
+                ),
             }
         )
         recall = bag_recall(
@@ -6927,7 +7065,16 @@ def build_target_me_shadow_profiles(
             outcome=outcome,
             temporal_provenance=temporal_provenance,
             requires_runtime_causal_provenance=(
-                policy == RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY
+                policy
+                in {
+                    RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
+                    RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
+                }
+            ),
+            runtime_causal_profile_scope=(
+                "speaker_overlap"
+                if policy == RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY
+                else "direct"
             ),
         )
         all_gates_passed = bool(gates) and all(row.get("status") == "passed" for row in gates)
@@ -7068,6 +7215,10 @@ def build_target_me_shadow_profiles(
             "live_chunk_created_at_count",
             "causal_accepted_candidate_count",
             "causal_pre_stop_accepted_candidate_count",
+            "causal_direct_profile_candidate_count",
+            "causal_pre_stop_direct_profile_candidate_count",
+            "causal_speaker_overlap_profile_candidate_count",
+            "causal_pre_stop_speaker_overlap_profile_candidate_count",
         ):
             top_level_metrics[f"{base}_{key}"] = metrics.get(key)
         profiles[policy] = {
@@ -7187,6 +7338,18 @@ def main() -> int:
                 ),
                 "causal_pre_stop_accepted_candidate_count": temporal_provenance.get(
                     "causal_pre_stop_accepted_candidate_count"
+                ),
+                "causal_direct_profile_candidate_count": temporal_provenance.get(
+                    "causal_direct_profile_candidate_count"
+                ),
+                "causal_pre_stop_direct_profile_candidate_count": temporal_provenance.get(
+                    "causal_pre_stop_direct_profile_candidate_count"
+                ),
+                "causal_speaker_overlap_profile_candidate_count": temporal_provenance.get(
+                    "causal_speaker_overlap_profile_candidate_count"
+                ),
+                "causal_pre_stop_speaker_overlap_profile_candidate_count": temporal_provenance.get(
+                    "causal_pre_stop_speaker_overlap_profile_candidate_count"
                 ),
             }
         )
