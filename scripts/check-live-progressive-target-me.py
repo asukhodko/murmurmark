@@ -31,6 +31,16 @@ def load_compare_module():
     return module
 
 
+def load_live_module():
+    path = Path(__file__).with_name("live-pipeline-shadow.py")
+    spec = importlib.util.spec_from_file_location("murmurmark_live_progressive_target_me_worker_test", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot import {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def load_corpus_module():
     path = Path(__file__).with_name("report-live-corpus-gates.py")
     spec = importlib.util.spec_from_file_location("murmurmark_live_progressive_target_me_corpus_test", path)
@@ -149,6 +159,26 @@ def main() -> int:
     module = load_module()
     compare = load_compare_module()
     corpus = load_corpus_module()
+    live = load_live_module()
+    within_budget = live.causal_target_me_lag_decision(
+        captured_sec=90.0,
+        chunk_end_sec=30.0,
+        max_live_lag_sec=60.0,
+    )
+    assert within_budget.get("run") is True, within_budget
+    over_budget = live.causal_target_me_lag_decision(
+        captured_sec=90.1,
+        chunk_end_sec=30.0,
+        max_live_lag_sec=60.0,
+    )
+    assert over_budget.get("run") is False, over_budget
+    assert over_budget.get("reason") == "live_lag_budget_exceeded", over_budget
+    unbounded = live.causal_target_me_lag_decision(
+        captured_sec=300.0,
+        chunk_end_sec=30.0,
+        max_live_lag_sec=0.0,
+    )
+    assert unbounded.get("run") is True, unbounded
     trimmed, trim = module.trim_remote_context_prefix(
         "Вроде включить значит как у нас июль до сентября",
         "Вроде включительно.",
@@ -165,6 +195,37 @@ def main() -> int:
         module.tokens("значит как у нас июль до включительно сентябрь"),
     ) == 1
     with tempfile.TemporaryDirectory(prefix="murmurmark-live-progressive-target-me-") as temporary:
+        runtime_session = Path(temporary) / "sessions/runtime-gate"
+        runtime_live = runtime_session / "derived/live"
+        runtime_live.mkdir(parents=True, exist_ok=True)
+        (runtime_live / "segments.jsonl").write_text(
+            json.dumps({"source": "mic", "index": 1, "end_sec": 120.0}) + "\n"
+            + json.dumps({"source": "remote", "index": 1, "end_sec": 120.0}) + "\n",
+            encoding="utf-8",
+        )
+        (runtime_live / "live_pipeline_state.json").write_text(
+            json.dumps(
+                {
+                    "status": "completed",
+                    "current_stage": "completed",
+                    "termination_reason": "finalization_wait_timeout",
+                }
+            ),
+            encoding="utf-8",
+        )
+        runtime_gates = compare.live_runtime_gates(
+            session=runtime_session,
+            live_report={"status": "completed", "progress": {"live_lag_sec": 0.0}},
+            chunks=[{"index": 1, "end_sec": 30.0}],
+        )
+        runtime_by_name = {row.get("name"): row for row in runtime_gates}
+        assert runtime_by_name["worker_terminal_state"].get("status") == "passed", runtime_gates
+        assert (
+            runtime_by_name["worker_terminal_state"].get("evidence") or {}
+        ).get("effective_worker_status") == "completed_partial_draft", runtime_gates
+        assert runtime_by_name["bounded_live_lag"].get("status") == "warning", runtime_gates
+        assert (runtime_by_name["bounded_live_lag"].get("evidence") or {}).get("final_live_lag_sec") == 90.0
+
         session = Path(temporary) / "sessions/fixture"
         session.mkdir(parents=True, exist_ok=True)
         (session / "session.json").write_text(

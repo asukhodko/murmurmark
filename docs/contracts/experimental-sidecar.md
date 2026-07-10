@@ -46,6 +46,27 @@ These files use `murmurmark.live_progressive_target_me/v1`. Every candidate must
 candidate interval. A candidate is evidence for parity comparison, not an authoritative transcript
 turn.
 
+The base live chunk is persisted before progressive Target-Me runs. When the current base chunk is
+already outside the configured lag budget, its mic record contains:
+
+```json
+{
+  "causal_target_me_shadow": {
+    "schema": "murmurmark.live_progressive_target_me/v1",
+    "status": "skipped_lag_budget",
+    "reason": "live_lag_budget_exceeded",
+    "observed_live_lag_sec": 90.0,
+    "max_live_lag_sec": 60.0,
+    "batch_authoritative": true,
+    "promotion_allowed": false
+  }
+}
+```
+
+`live_pipeline_report.json.causal_target_me_shadow.skipped_lag_budget_count` counts these chunks.
+Target-Me micro-ASR also has a bounded child timeout; timeout or failure cannot retract an already
+written base chunk or draft.
+
 ## Manifest
 
 `experiment_manifest.json` is the durable experiment passport.

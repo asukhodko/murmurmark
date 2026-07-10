@@ -16,7 +16,8 @@ segment-level realtime through committed PCM: after raw write succeeds, a bounde
 writes closed experiment segments and the live worker drafts from those files. `raw_segment_commits`
 remain evidence and fallback, while batch remains authoritative.
 
-Reliability unit status, 2026-07-10: implementation complete; fresh real-session coverage pending.
+Reliability unit status, 2026-07-10: implementation complete; one fresh real-session runtime proof
+exists, while three passing sessions are still required.
 
 - realtime rows are synchronized after append and carry `recording_time_committed_pcm` provenance;
 - the live worker writes heartbeat, current stage/index, child PID and bounded ffmpeg/Whisper
@@ -33,16 +34,19 @@ Reliability unit status, 2026-07-10: implementation complete; fresh real-session
 
 Automated evidence covers manifest handoff before stop, worker heartbeat, child timeout, external
 worker termination, compare immutability, fallback isolation, PCM backpressure and raw capture
-fail-open. A controlled worker-enabled ScreenCaptureKit run produced chunks before stop and completed
-all committed segments without final lag. This proves the implementation path, not the real-meeting
-coverage gate. The next required evidence is at least three fresh meaningful meetings with healthy
-raw CAF, pre-stop live artifacts, successful batch output and live-vs-batch comparison.
+fail-open. Real session `2026-07-10_16-00-29-live` produced `131` chunks and `56` accepted causal
+Target-Me candidates before stop, preserved complete `4283.5s` mic/remote CAF despite one recovered
+ScreenCaptureKit restart, and completed the authoritative batch pipeline. It is the first valid
+recording-time causal proof, but it is not a passing parity session: the worker left an `82.752s`
+tail, batch is `review_first`, and live quality gates remain red. The next required evidence is at
+least three fresh meaningful meetings on the lag-aware worker with healthy raw CAF, pre-stop live
+artifacts, successful batch output and live-vs-batch comparison.
 `murmurmark live evidence SESSION` now writes the compact per-session acceptance artifact used to
 classify each new meeting before the corpus refresh.
 
-The current live-parity blocker has two layers: fresh temporal evidence after the reliability fix,
-then profile quality. The historical corpus is sufficient for algorithmic work, but it cannot prove
-the corrected recording-time path. The past-only Target-Me experiment is integrated into the running
+The current live-parity blocker has two layers: bounded recording-time latency after the reliability
+fix, then profile quality. The fresh session proves the corrected recording-time path once. The
+past-only Target-Me experiment is integrated into the running
 live worker as a separate causal shadow. It enrolls only from closed earlier chunks, evaluates the
 current chunk before adding its
 seeds, and runs focused micro-ASR only for unpublished groups from a chunk-level suppressed mic
@@ -51,46 +55,34 @@ chunk interval from disturbing the live timeline.
 
 The direct runtime profile `live_runtime_causal_target_me_direct_v1` starts from the ordinary live
 remote-overlap filter and adds only accepted runtime candidates localized in remote-free intervals.
-The current best live-implementable profile is now
-`live_runtime_causal_target_me_speaker_overlap_v1`. It additionally admits speaker-confirmed
-sliding windows only when micro-ASR has strong source alignment and the overlapping remote context
-is a short backchannel or a known subtitle hallucination. Contentful overlapping remote speech stays
-excluded.
+The fresh real session exposed a regression hidden by the historical slice: direct Target-Me reduced
+missing Me but increased remote-like Me and blocking order risk. The aggregate best
+live-implementable policy therefore falls back to `online_live_me_remote_overlap_filter_v1`.
+`live_runtime_causal_target_me_speaker_overlap_v1` remains safe relative to the direct profile and
+has real pre-stop evidence, but that does not make the whole Target-Me chain safe relative to the
+base policy.
 
-The paired text no-regression check covers 10 sessions where both profiles and batch dialogue are
-comparable. Missing Me falls `2426.91s -> 1869.02s`, remote-like Me remains `35.42s`, and
-blocking/advisory order counters remain `1 / 5`. Weighted batch-token recall rises
-`0.629573 -> 0.688283`, F1 rises `0.746153 -> 0.785490`, and precision changes
-`0.915721 -> 0.914669`; the largest per-session F1 regression is `0.001712`. All paired safety
-checks pass, so its `algorithmic_status` is `safe_shadow_candidate`. The overall status is
-`historical_replay_only`: the corpus currently contains `0` sessions with a timestamped causal
-candidate produced before stop. Promotion is still blocked and batch remains authoritative.
+The refreshed corpus contains `15` real live sessions and `8` meaningful comparisons. The fresh
+session contributes `36` direct and `37` speaker-overlap candidates before stop, so runtime evidence
+is no longer historical-only. Direct Target-Me is now `regression_detected`; speaker-overlap remains
+`safe_shadow_candidate` relative to direct. There are still `0` passing real comparisons, so
+promotion remains blocked and batch remains authoritative.
 
 Profile selection now compares algorithms through common parity gates. The runtime-only
 `pre_stop_runtime_causal_target_me` gate remains part of total promotion readiness, but it no longer
-penalizes the runtime algorithm against a baseline that does not have that gate. On the refreshed
-real corpus the runtime profile has `72` total / `66` comparable non-passing gates and remains the
-best live-implementable profile. This distinction fixes ranking only; it does not make any session
-passing and does not relax temporal provenance.
+penalizes the runtime algorithm against a baseline that does not have that gate. The fresh session
+still makes the direct runtime profile worse than baseline on common remote/order gates, so baseline
+is selected. This distinction keeps ranking honest; it does not relax temporal provenance.
 
-The speaker-overlap follow-up is paired against the direct profile on the same 10 comparable real
-sessions. It reduces missing Me `1881.44s -> 1829.64s` (`51.80s`), keeps remote-like Me at `35.42s`,
-keeps blocking/advisory order at `1 / 5`, and raises weighted F1 `0.772660 -> 0.774524`. The maximum
-per-session F1 regression is `0.0`. Its algorithmic status is `safe_shadow_candidate`; overall
-status remains `historical_replay_only` because `0` sessions have a qualifying speaker-overlap
-candidate with pre-stop provenance.
+The speaker-overlap follow-up is paired against direct Target-Me. Its algorithmic status remains
+`safe_shadow_candidate` and it now has one qualifying pre-stop evidence session. It cannot repair
+the regression introduced earlier in the chain, so it remains shadow-only.
 
-Temporal provenance does find `1` real session with ordinary live chunks created before stop, but
-its capture is sparse and its batch transcript is unavailable. It proves worker timing only, not a
-usable end-to-end meeting. The required evidence remains a capture-safe pre-stop causal run followed
-by a successful authoritative batch comparison.
-
-Historical replay proves the algorithmic delta, not recording-time latency. `compare-live-batch.py`
-now writes `live_temporal_provenance/v1`; parity requires timestamped live chunks before stop and,
-when causal candidates are published, at least one timestamped pre-stop candidate. The next evidence
-gate is one fresh controlled Live Evidence session that satisfies these gates, keeps live lag bounded,
-preserves raw capture and completes a successful batch comparison. Sidecar lag or failure must remain
-fail-open.
+`compare-live-batch.py` writes `live_temporal_provenance/v1`; parity requires timestamped live chunks
+before stop and, when causal candidates are published, at least one timestamped pre-stop candidate.
+That temporal gate is now proven on one real meeting. The next evidence gate is a fresh controlled
+Live Evidence session on the lag-aware worker: it must keep final lag within `60s`, preserve raw
+capture and complete a successful batch comparison. Sidecar lag or failure must remain fail-open.
 
 ## Latest Completed Goal: Experimental Sidecar Contract v1
 
@@ -148,9 +140,8 @@ Completion evidence:
 
 ## Current Goal: Near-Realtime Live Parity Coverage v1
 
-Status, 2026-07-10: active. Blocking live order risk is cleared in the current best profile; local
-recall, remote leakage, review burden and notes readiness still block promotion. Capture loss and
-lack of recordings are not the current blockers.
+Status, 2026-07-10: active. One real pre-stop causal run exists. Bounded lag, order risk, local
+recall, remote leakage, review burden, notes readiness and chunk boundaries still block promotion.
 
 Goal:
 
@@ -168,11 +159,11 @@ batch output and does not break on chunk boundaries.
 
 Current state:
 
-- live sessions in the corpus: `28`;
-- real live sessions in the corpus: `14`;
+- live sessions in the corpus: `29`;
+- real live sessions in the corpus: `15`;
 - diagnostic/lab live sessions kept out of promotion scope: `14`;
 - real live-vs-batch compared sessions: `11`;
-- meaningful real comparisons: `7`;
+- meaningful real comparisons: `8`;
 - real passing comparisons: `0` after enforcing pre-stop temporal provenance;
 - capture-safe candidate sessions: `4`;
 - capture-safe candidate passing sessions: `0`;
@@ -185,8 +176,11 @@ Current state:
   `required_artifacts`.
 - capture-safe candidate blocking dimensions: `local_recall`, `remote_leakage`, `review_burden`,
   `selected_notes_readiness`;
-- current best live-implementable profile: `live_runtime_causal_target_me_speaker_overlap_v1`, which
-  extends the direct runtime profile with strictly gated speaker-confirmed overlap windows;
+- current aggregate best live-implementable profile: `online_live_me_remote_overlap_filter_v1`;
+- direct runtime Target-Me now has one real pre-stop evidence session but is `regression_detected`
+  because the fresh meeting exposed worse remote/order behavior;
+- speaker-overlap has one real pre-stop evidence session and remains `safe_shadow_candidate` only
+  relative to direct Target-Me;
 - active capture-safe order-risk triage: `2` advisory timing/match ambiguities and `0` blocking rows;
 - historical full-corpus triage: `4` advisory rows and `1` blocking row outside the active slice;
 - paired comparable-session gaps: `1829.64 sec` missing Me and `35.42 sec` remote-like Me;
@@ -194,7 +188,9 @@ Current state:
   order counters and `+0.039337` weighted token F1;
 - current corpus quality focus: `fix_live_local_recall_gap`;
 - current coverage target: `3` additional passing meaningful comparisons;
-- next runtime proof: fresh controlled Live Evidence with pre-stop causal artifacts, bounded lag and
+- latest runtime proof: `131` pre-stop chunks, `56` pre-stop accepted candidates, complete raw/batch,
+  but `82.752s` final lag and non-passing quality gates;
+- next runtime proof: fresh controlled Live Evidence on the lag-aware worker with bounded lag and
   unchanged raw/batch reliability.
 
 Safety constraint:
@@ -243,12 +239,14 @@ Current result:
 - `promotion_decision = shadow_only_do_not_promote`;
 - `promotion_allowed_sessions = 0`;
 - live/batch comparison granularity: ASR segment when available, chunk fallback otherwise;
-- current best live-implementable profile is `live_runtime_causal_target_me_speaker_overlap_v1`; it
-  evaluates all `14` real live sessions and passes all parity gates on `0` after temporal provenance;
-- the profile has `72` total / `66` comparable non-passing gates; profile selection excludes only
-  the runtime-specific provenance gate, while promotion still evaluates all `72`;
-- the profile has `5` advisory gate-level contentful order mismatches and `0` blocking ones across
-  the refreshed real corpus;
+- the corpus contains `15` real live sessions, `8` meaningful comparisons and `0` passing ones;
+- `2026-07-10_16-00-29-live` is the first real session with timestamped pre-stop causal evidence:
+  `36` direct and `37` speaker-overlap profile candidates;
+- direct runtime Target-Me is now `regression_detected` against the base live policy because the
+  fresh session exposed additional remote/order risk despite its recall gain;
+- speaker-overlap is `safe_shadow_candidate` relative to direct and has one pre-stop evidence
+  session, but the aggregate best live-implementable profile is currently the base
+  `online_live_me_remote_overlap_filter_v1`;
 - active capture-safe order triage: `2` advisory timing/match rows and `0` blocking rows;
 - historical full-corpus triage: `4` advisory rows and `1` blocking row outside the active slice;
 - remote-gap trim materializes `42` pieces / `176.262 sec` and closes `15.38 sec` of missing Me;

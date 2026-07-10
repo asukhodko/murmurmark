@@ -54,8 +54,11 @@ roadmap point it means:
 - progressive Target-Me enrollment uses only closed earlier chunks and focused micro-ASR; the
   runtime profile localizes candidates to remote-free or speaker-confirmed subwindows and is judged
   by paired text/local-recall/remote/order no-regression gates;
-- historical replay is not a latency proof; one fresh controlled run must show causal artifacts
-  before stop, bounded lag and intact raw/batch output;
+- base live chunks now become visible before optional Target-Me enrichment; Target-Me has a bounded
+  child timeout and a `60s` lag budget, so speaker recovery can degrade to explicit shadow skips
+  without making the draft delay grow without bound;
+- one fresh real run now proves causal artifacts before stop and intact raw/batch output; the next
+  run must validate the lag-aware worker with bounded lag;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;

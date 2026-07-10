@@ -545,7 +545,15 @@ nodes:
       explicit isolated fallback и pre-stop worker integration smoke. Текущая работа — получить
       минимум три свежих meaningful real-session comparison, затем продолжить parity hardening через
       progressive past-only Target-Me, focused micro-ASR и corpus gates. Promotion остаётся blocked,
-      batch transcript authoritative.
+      batch transcript authoritative. Первый длинный recording-time прогон показал отдельный
+      latency-долг: последовательный Target-Me добавлял 6-25 секунд после основного ASR чанка.
+      Базовый чанк теперь публикуется до enrichment, Target-Me child bounded, а lag budget `60s`
+      переводит enrichment в явный `skipped_lag_budget`, не задерживая draft бесконечно. Реальная
+      сессия `2026-07-10_16-00-29-live` дала первый end-to-end pre-stop causal proof (`131` chunks,
+      `56` accepted candidates) и полный authoritative batch, но завершилась с `82.752s` live tail.
+      Она также показала remote/order regression direct Target-Me относительно базового live filter,
+      поэтому aggregate best live-implementable policy снова baseline. Нужны свежие прогоны уже на
+      lag-aware worker и дальнейшее quality hardening без ослабления parity gates.
 
   realtime-segment-writer:
     title: "Durable committed PCM sidecar"
@@ -603,7 +611,9 @@ nodes:
       Пишет `derived/live/transcript.draft.md`, `derived/live/chunks/*.jsonl` и
       `derived/live/live_pipeline_report.json`. Последние `5-10s` не считать окончательно
       опубликованными: delayed commit защищает от потери начал/концов фраз и дублей на overlap
-      границах. Draft можно читать, но он не заменяет reviewed/final transcript.
+      границах. Base mic/remote chunk и draft durable до optional Target-Me; Target-Me timeout/lag
+      skips отражаются в report и не блокируют следующие base chunks. Draft можно читать, но он не
+      заменяет reviewed/final transcript.
 
   realtime-final-reconcile:
     title: "Final reconcile after stop"

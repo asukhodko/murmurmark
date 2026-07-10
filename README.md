@@ -339,6 +339,11 @@ That queue writes closed segment files under `derived/experiments/live-shadow-v1
 compatible rows to `derived/live/segments.jsonl`; `scripts/live-pipeline-shadow.py` then consumes
 those closed segments and updates `derived/live/transcript.draft.md`. The raw commit log still exists
 as evidence and as a post-stop fallback, but the normal preview path no longer reads a still-open CAF.
+The worker writes the base mic/remote chunk and refreshes the draft before it runs the optional
+causal Target-Me shadow. Target-Me micro-ASR has a bounded child timeout and is skipped when the
+worker is already more than `60s` behind captured audio. The report exposes
+`skipped_lag_budget_count`; losing optional speaker evidence is preferable to letting it delay the
+base draft without bound.
 Realtime files under `derived/live/` are immutable evidence after recording stops. Post-stop recovery
 writes under `derived/experiments/live-shadow-v1/fallback/` and never replaces realtime segments,
 chunks, draft text, state or timestamps.
@@ -440,6 +445,9 @@ The live worker is still shadow-grade, but it now has three lightweight protecti
 draft text: per-chunk mic echo cleanup, a role gate that suppresses mic text when it duplicates the
 same chunk's remote text, and a boundary gate that suppresses adjacent chunk repeats. These
 protections reduce obvious live draft mistakes; they do not make live output authoritative.
+The heavier causal Target-Me pass is best-effort: the base chunk is durable first, micro-ASR is
+bounded, and lag pressure produces an explicit `skipped_lag_budget` result instead of holding the
+draft pipeline indefinitely.
 After batch processing, `derived/live/live_parity_session_report.md` explains whether that one
 session can count as a passing live comparison and lists the exact non-passing gates.
 
@@ -613,28 +621,30 @@ profile `live_runtime_causal_target_me_direct_v1` publishes only candidates loca
 remote intervals. Speaker-confirmed sliding-window candidates remain diagnostic because they have no
 safe insertion point in the live timeline.
 
-On the refreshed 14-session real corpus, 10 sessions have comparable live and batch dialogue. The
-direct profile improves missing Me from `2426.91s` to `1869.02s` (`557.89s` recovered), while
-remote-like Me remains `35.42s` and blocking/advisory order risk remains `1 / 5`. Weighted
-batch-token recall rises `0.629573 -> 0.688283` and token F1 rises `0.746153 -> 0.785490`; precision
-changes `0.915721 -> 0.914669`. The largest per-session F1 regression is `0.001712`.
-The algorithmic no-regression status is `safe_shadow_candidate`, but the overall runtime evidence
-status is `historical_replay_only`: none of these accepted causal candidates has a trustworthy
-pre-stop `created_at`. One real session proves that ordinary live chunks can appear before stop, but
-that recording was sparse and has no usable batch comparison. Live output is still shadow-only and
-batch remains authoritative.
+The refreshed corpus now contains `15` real live sessions and `8` meaningful comparisons. Real
+session `2026-07-10_16-00-29-live` proves recording-time execution with `131` pre-stop chunks and
+`56` pre-stop accepted causal candidates while preserving complete raw CAF and a successful batch
+transcript. It is not a passing comparison: final row-derived lag is `82.752s`, batch is
+`review_first`, and live local-recall, remote-leak, order and boundary gates remain red.
+
+This fresh evidence also changes the algorithmic conclusion. Direct runtime Target-Me improves
+recall but regresses remote/order safety relative to the base policy, so its aggregate status is
+`regression_detected`. Speaker-overlap remains safe relative to direct and has pre-stop evidence,
+but the aggregate best live-implementable policy falls back to
+`online_live_me_remote_overlap_filter_v1`. Live output remains shadow-only and batch authoritative.
 
 Corpus profile ranking compares `comparable_*` gate counters so a runtime-only provenance gate does
 not make the runtime algorithm look worse than a baseline that has no such gate. Promotion still
-uses the complete gate set. The current runtime profile therefore reports `72` total and `66`
-comparable non-passing gates, remains `historical_replay_only`, and has zero passing real sessions.
+uses the complete gate set. There are still zero passing real sessions. Runtime provenance is now
+available, but it does not override parity regressions.
 
 The next live-only profile, `live_runtime_causal_target_me_speaker_overlap_v1`, also accepts
 speaker-confirmed windows inside remote-active intervals, but only with strong micro-ASR/source
 alignment and short backchannel or known-hallucination remote context. On the same corpus it reduces
 missing Me `1881.44s -> 1829.64s`, keeps remote-like Me at `35.42s`, keeps blocking/advisory order at
 `1 / 5`, and raises weighted F1 `0.772660 -> 0.774524`; maximum per-session F1 regression is `0`.
-Its pre-stop evidence count is still zero, so it remains shadow-only.
+Its pre-stop evidence count is now one; it remains shadow-only because the full Target-Me path and
+the session parity gates do not pass.
 
 After comparison, verify that evidence was produced before stop rather than reconstructed later:
 
@@ -1397,12 +1407,10 @@ Active goal and near-term candidates:
    blocking order gate. Remote-gap token trimming closes two live-visible Target-Me rows (`15.38s`)
    without increasing remote leakage or order risk. Focused live-only micro-ASR closes the third
    row / `4.68s`, while its duplicate guard rejects candidates already covered by a base turn. The
-   direct runtime profile reduces comparable-session missing Me from `2426.91s` to `1869.02s`,
-   preserves remote/order counters and raises weighted token F1 from `0.746153` to `0.785490`.
-   Its paired algorithmic result is `safe_shadow_candidate`; the overall status remains
-   `historical_replay_only` until a pre-stop runtime candidate is observed. Therefore
-   `live_next_unlock.next_actions[0]` still returns to the broader
-   `fix_live_local_recall_gap`; remote leakage remains a parallel blocker.
+   historical direct runtime results reduced missing Me, but the first fresh pre-stop real meeting
+   exposed worse remote/order behavior. Direct Target-Me is therefore `regression_detected` and the
+   aggregate best live-implementable policy is again the base remote-overlap filter. The next run
+   must validate the lag-aware worker; local recall and remote leakage remain parallel blockers.
    The corpus report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
    visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic

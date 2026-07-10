@@ -864,9 +864,16 @@ cat >"$live_parity_session/derived/live/live_pipeline_report.json" <<'JSON'
   "status": "completed",
   "batch_authoritative": true,
   "promotion_allowed": false,
-  "progress": {"chunks_processed": 1, "draft_sec": 10.0}
+  "progress": {"captured_sec":12.0,"processed_sec":12.0,"live_lag_sec":0.0,"chunks_processed":2,"draft_sec":12.0}
 }
 JSON
+cat >"$live_parity_session/derived/live/live_pipeline_state.json" <<'JSON'
+{"schema":"murmurmark.live_pipeline_state/v1","status":"completed","current_stage":"completed","provenance":"recording_time_committed_pcm"}
+JSON
+cat >"$live_parity_session/derived/live/segments.jsonl" <<'JSONL'
+{"schema":"murmurmark.live_segment/v1","source":"mic","index":1,"start_sec":0.0,"end_sec":12.0,"provenance":"recording_time_committed_pcm"}
+{"schema":"murmurmark.live_segment/v1","source":"remote","index":1,"start_sec":0.0,"end_sec":12.0,"provenance":"recording_time_committed_pcm"}
+JSONL
 cat >"$live_parity_session/derived/live/chunks.jsonl" <<'JSONL'
 {"schema":"murmurmark.live_chunk/v1","index":1,"start_sec":0.0,"end_sec":10.0,"created_at":"2026-07-06T00:00:11.000Z","mic":{"text":"привет проверю задачу","hard_start_sec":0.0,"hard_end_sec":10.0},"remote":{"text":"привет обсудим план","hard_start_sec":0.0,"hard_end_sec":10.0}}
 {"schema":"murmurmark.live_chunk/v1","index":2,"start_sec":10.0,"end_sec":12.0,"created_at":"2026-07-06T00:00:14.000Z","mic":{"text":"","hard_start_sec":10.0,"hard_end_sec":12.0,"live_boundary_gate":{"status":"passed","reason":"too_short_for_boundary_gate"}},"remote":{"text":"","raw_text_before_boundary_gate":"привет обсудим план","hard_start_sec":10.0,"hard_end_sec":12.0,"live_boundary_gate":{"status":"suppressed","reason":"adjacent_chunk_duplicate","duplicate_score":1.0,"current_token_recall_in_previous":1.0,"previous_token_recall_in_current":1.0}}}
@@ -935,6 +942,8 @@ jq -e '
   and .temporal_provenance.status == "pre_stop_live_chunks_no_causal_candidate"
   and .temporal_provenance.live_pre_stop_chunk_count == 2
   and ([.parity_gates.gates[] | select(.name == "capture_safety" and .status == "passed")] | length == 1)
+  and ([.parity_gates.gates[] | select(.name == "worker_terminal_state" and .status == "passed")] | length == 1)
+  and ([.parity_gates.gates[] | select(.name == "bounded_live_lag" and .status == "passed")] | length == 1)
   and ([.parity_gates.gates[] | select(.name == "pre_stop_live_artifacts" and .status == "passed")] | length == 1)
   and ([.parity_gates.gates[] | select(.name == "order_risk" and .status == "passed")] | length == 1)
   and ([.parity_gates.gates[] | select(.name == "local_recall" and .status == "passed")] | length == 1)
@@ -953,6 +962,10 @@ mkdir -p \
 cp "$live_parity_session/session.json" "$live_boundary_risk_session/session.json"
 cp "$live_parity_session/derived/live/live_pipeline_report.json" \
   "$live_boundary_risk_session/derived/live/live_pipeline_report.json"
+cp "$live_parity_session/derived/live/live_pipeline_state.json" \
+  "$live_boundary_risk_session/derived/live/live_pipeline_state.json"
+cp "$live_parity_session/derived/live/segments.jsonl" \
+  "$live_boundary_risk_session/derived/live/segments.jsonl"
 cp "$live_parity_session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v4.json" \
   "$live_boundary_risk_session/derived/transcript-simple/whisper-cpp/resolved/clean_dialogue.audit_cleanup_v4.json"
 cp "$live_parity_session/derived/transcript-simple/whisper-cpp/resolved/transcript.audit_cleanup_v4.md" \

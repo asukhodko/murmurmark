@@ -7767,16 +7767,15 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             payload["generator"] = ["name": "murmurmark-recorder-sidecar", "version": "0.1.0"]
         }
         var progress = payload["progress"] as? [String: Any] ?? [:]
-        if progress["captured_sec"] == nil {
-            let captured = max(
-                liveSegments?.capturedDurationSeconds() ?? 0,
-                experimentLivePreview?.capturedDurationSeconds() ?? 0
-            )
-            if captured > 0 {
-                progress["captured_sec"] = roundedSeconds(captured)
-            }
+        let recorderCaptured = max(
+            liveSegments?.capturedDurationSeconds() ?? 0,
+            experimentLivePreview?.capturedDurationSeconds() ?? 0
+        )
+        let reportCaptured = secondsValue(progress["captured_sec"]) ?? 0
+        let captured = max(recorderCaptured, reportCaptured)
+        if captured > 0 {
+            progress["captured_sec"] = roundedSeconds(captured)
         }
-        let captured = secondsValue(progress["captured_sec"]) ?? 0
         let processed = max(
             secondsValue(progress["processed_sec"]) ?? 0,
             secondsValue(progress["asr_sec"]) ?? 0,
@@ -7786,7 +7785,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         let status = caughtUp ? "completed" : "completed_partial_draft"
 
         payload["status"] = status
-        payload["current_stage"] = caughtUp ? "completed" : "terminated"
+        payload["current_stage"] = "terminated"
         payload["termination_reason"] = reason
         payload["terminated_at"] = DateStrings.iso8601(Date())
         payload["finalization_wait_timeout_sec"] = roundedSeconds(waitSeconds)
@@ -7803,11 +7802,12 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             state["schema"] = "murmurmark.live_pipeline_state/v1"
         }
         state["status"] = status
-        state["current_stage"] = caughtUp ? "completed" : "terminated"
+        state["current_stage"] = "terminated"
         state["termination_reason"] = reason
         state["updated_at"] = DateStrings.iso8601(Date())
         state["heartbeat_at"] = DateStrings.iso8601(Date())
         state["report"] = "derived/live/live_pipeline_report.json"
+        state["progress"] = progress
         try? JSONObject.write(state, to: stateURL)
     }
 
@@ -12648,6 +12648,21 @@ enum ReadinessPrinter {
         print(String(format: "    processed: %.1fs", double(progress["processed_sec"]) ?? 0.0))
         print(String(format: "    lag: %.1fs", double(progress["live_lag_sec"]) ?? 0.0))
         print("    chunks: \(int(progress["chunks_processed"]) ?? 0)")
+        if let targetMe = payload["causal_target_me_shadow"] as? [String: Any] {
+            print("    target_me_candidates: \(int(targetMe["candidate_count"]) ?? 0)")
+            print("    target_me_lag_skips: \(int(targetMe["skipped_lag_budget_count"]) ?? 0)")
+            print("    target_me_failures: \(int(targetMe["failed_open_count"]) ?? 0)")
+        }
+        if let runtime = payload["runtime_cost"] as? [String: Any],
+           let base = runtime["base_chunk"] as? [String: Any] {
+            if let median = double(base["median_sec"]) {
+                print(String(format: "    base_chunk_median: %.1fs", median))
+            }
+            if let target = runtime["causal_target_me"] as? [String: Any],
+               let median = double(target["median_sec"]) {
+                print(String(format: "    target_me_median: %.1fs", median))
+            }
+        }
         if let draft = string(outputs["draft_transcript"]) {
             print("    draft: \(PathDisplay.display(session.appendingPathComponent(draft)))")
         }

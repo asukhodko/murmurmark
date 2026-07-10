@@ -4502,6 +4502,21 @@ while recording.
   "promotion_allowed": false,
   "current_worker": "live-pipeline-shadow",
   "current_stage": "completed",
+  "parameters": {
+    "causal_target_me_timeout_sec": 60.0,
+    "causal_target_me_max_live_lag_sec": 60.0
+  },
+  "causal_target_me_shadow": {
+    "candidate_count": 4,
+    "skipped_lag_budget_count": 3,
+    "failed_open_count": 0,
+    "batch_authoritative": true,
+    "promotion_allowed": false
+  },
+  "runtime_cost": {
+    "base_chunk": {"count": 20, "total_sec": 480.0, "median_sec": 23.0, "max_sec": 39.0},
+    "causal_target_me": {"count": 8, "total_sec": 96.0, "median_sec": 11.0, "max_sec": 22.0}
+  },
   "progress": {
     "captured_sec": 600.0,
     "preprocessed_sec": 540.0,
@@ -4520,6 +4535,13 @@ while recording.
 ```
 
 `batch_authoritative: true` and `promotion_allowed: false` are mandatory in v1.
+The base chunk and draft are written before optional causal Target-Me enrichment. A lag-budget skip
+or Target-Me timeout is therefore visible in `causal_target_me_shadow` but does not retract the base
+chunk and does not block later chunks. `runtime_cost` separates the base chunk cost from optional
+Target-Me cost so corpus evidence can distinguish ASR capacity from enrichment overhead.
+`report-live-session-evidence.py` recomputes final lag from the maximum realtime segment end minus
+the maximum processed chunk end. This row-derived value overrides a stale report value after forced
+worker termination, so an unprocessed final tail cannot appear as `live_lag_sec: 0`.
 `status` is usually `running` or `completed`. If the recorder had to stop a stuck shadow worker
 after the bounded finalization wait, the report must be patched to `status: terminated`,
 `current_stage: terminated`, and include `termination_reason`, for example
@@ -5163,6 +5185,17 @@ provenance records separate eligible and pre-stop counts for the direct and spea
 `causal_*_speaker_overlap_profile_candidate_count`. Each profile gate reads its own counters, so a
 pre-stop candidate rejected by that profile cannot satisfy its provenance requirement. Missing,
 unstamped or post-stop-only evidence cannot satisfy promotion gates.
+
+Every base and Target-Me shadow profile also receives the same runtime gates:
+
+- `worker_terminal_state`: the worker must have a terminal state after the session ends;
+- `bounded_live_lag`: maximum `segments.jsonl.end_sec` minus maximum `chunks.jsonl.end_sec` must be
+  at most `60s`.
+
+The row-derived lag overrides `live_pipeline_report.progress.live_lag_sec`. This prevents a worker
+terminated during finalization from reporting zero lag merely because its last report had not yet
+observed the final committed segments. These gates are common profile gates, so they affect
+promotion readiness without changing algorithm ranking between profiles.
 
 Schema:
 

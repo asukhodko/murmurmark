@@ -21,7 +21,7 @@ from scipy.io import wavfile
 
 
 SCHEMA = "murmurmark.live_pipeline_report/v1"
-SCRIPT_VERSION = "0.5.0"
+SCRIPT_VERSION = "0.6.0"
 EPSILON = 1.0e-12
 LIVE_ROLE_DUPLICATE_THRESHOLD = 0.55
 LIVE_RESCUE_SHADOW_POLICY = "audio_safe_union_v1"
@@ -50,6 +50,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--heartbeat-sec", type=float, default=2.0)
     parser.add_argument("--ffmpeg-timeout-sec", type=float, default=45.0)
     parser.add_argument("--whisper-timeout-sec", type=float, default=180.0)
+    parser.add_argument(
+        "--causal-target-me-timeout-sec",
+        type=float,
+        default=60.0,
+        help="Bound each optional Target-Me micro-ASR child. The base live draft is already durable before this work starts.",
+    )
+    parser.add_argument(
+        "--causal-target-me-max-live-lag-sec",
+        type=float,
+        default=60.0,
+        help=(
+            "Skip optional Target-Me work when captured audio is this far ahead of the newly written base chunk. "
+            "Use 0 only in diagnostics to disable the lag budget."
+        ),
+    )
     parser.add_argument("--max-segments", type=int, default=0, help="Debug limit. 0 means no limit.")
     parser.add_argument(
         "--no-causal-target-me",
@@ -86,6 +101,7 @@ class WorkerHeartbeat:
         self.state_path = output_dir / "live_pipeline_state.json"
         self.events_path = output_dir / "worker_events.jsonl"
         self.last_event: tuple[str, str, int | None] | None = None
+        self.last_progress: dict[str, Any] = {}
 
     def update(
         self,
@@ -112,8 +128,10 @@ class WorkerHeartbeat:
             "draft_transcript": str(self.output_dir / "transcript.draft.md"),
             "report": str(self.output_dir / "live_pipeline_report.json"),
         }
-        if progress:
-            payload["progress"] = progress
+        if progress is not None:
+            self.last_progress = dict(progress)
+        if self.last_progress:
+            payload["progress"] = self.last_progress
         write_json(self.state_path, payload)
         event_key = (status, stage, index)
         if event_key != self.last_event:
@@ -747,6 +765,97 @@ def run_bounded(
             ACTIVE_CHILD = None
 
 
+def causal_target_me_lag_decision(
+    *,
+    captured_sec: float,
+    chunk_end_sec: float,
+    max_live_lag_sec: float,
+) -> dict[str, Any]:
+    observed_lag = max(0.0, captured_sec - chunk_end_sec)
+    enabled = max_live_lag_sec <= 0.0 or observed_lag <= max_live_lag_sec
+    return {
+        "run": enabled,
+        "observed_live_lag_sec": round(observed_lag, 3),
+        "max_live_lag_sec": round(max_live_lag_sec, 3),
+        "reason": "within_lag_budget" if enabled else "live_lag_budget_exceeded",
+    }
+
+
+def bounded_progressive_micro_runner(
+    *,
+    args: argparse.Namespace,
+    heartbeat: WorkerHeartbeat,
+    progressive_module: Any,
+):
+    def run(
+        wav: Path,
+        output_base: Path,
+        model: str,
+        language: str,
+        whisper_cli: str,
+    ) -> dict[str, Any]:
+        model_path = Path(model).expanduser()
+        if not model_path.exists():
+            return {"status": "skipped", "reason": "model_missing", "text": "", "score": 0.0}
+        executable = shutil.which(whisper_cli) or (whisper_cli if Path(whisper_cli).exists() else None)
+        if not executable:
+            return {"status": "skipped", "reason": "whisper_cli_missing", "text": "", "score": 0.0}
+        output_base.parent.mkdir(parents=True, exist_ok=True)
+        match = re.search(r"chunk_(\d+)", output_base.name)
+        index = int(match.group(1)) if match else 0
+        result = run_bounded(
+            [
+                executable,
+                "--model",
+                str(model_path),
+                "--language",
+                language,
+                "--threads",
+                "4",
+                "--max-context",
+                "0",
+                "--output-txt",
+                "--output-json",
+                "--output-json-full",
+                "--output-file",
+                str(output_base),
+                "--no-prints",
+                "--log-score",
+                "--suppress-nst",
+                "--suppress-regex",
+                "^(Редактор субтитров|Продолжение следует|Спасибо за просмотр|Субтитры.*)$",
+                "--file",
+                str(wav),
+            ],
+            timeout_sec=max(0.1, args.causal_target_me_timeout_sec),
+            heartbeat=heartbeat,
+            stage="target_me_micro_asr",
+            index=index,
+        )
+        txt_path = output_base.with_suffix(".txt")
+        json_path = output_base.with_suffix(".json")
+        text = clean_text(txt_path.read_text(encoding="utf-8", errors="ignore")) if txt_path.exists() else ""
+        if progressive_module.is_hallucination(text):
+            text = ""
+        timed_out = bool(result.get("timed_out"))
+        return {
+            "status": "passed" if result.get("returncode") == 0 else "failed",
+            "reason": "target_me_micro_asr_timeout" if timed_out else None,
+            "text": text,
+            "score": round(
+                progressive_module.token_average_probability(json_path if json_path.exists() else None),
+                6,
+            ),
+            "json": str(json_path) if json_path.exists() else None,
+            "rows": progressive_module.asr_rows(json_path if json_path.exists() else None),
+            "stderr_tail": str(result.get("stderr") or "")[-1000:] if result.get("returncode") else "",
+            "timed_out": timed_out,
+            "elapsed_sec": result.get("elapsed_sec"),
+        }
+
+    return run
+
+
 def audio_filter(source_name: str) -> tuple[str, str]:
     if source_name == "mic":
         return "speech", "highpass=f=100,lowpass=f=7600,alimiter=limit=0.98"
@@ -1117,7 +1226,6 @@ def process_segment(
     args: argparse.Namespace,
     output_dir: Path,
     heartbeat: WorkerHeartbeat,
-    progressive_target_me: Any | None = None,
 ) -> dict[str, Any]:
     chunk_dir = output_dir / "chunks" / f"{index:06d}"
     start_sec = min(float(pair[source].get("start_sec") or 0.0) for source in pair)
@@ -1198,17 +1306,6 @@ def process_segment(
                 hard_end_sec=float(source_record.get("hard_end_sec") or 0.0),
             ) or asr.get("text", "")
     apply_live_role_gate(session, record)
-    if progressive_target_me is not None:
-        try:
-            progressive_target_me.process_chunk(record)
-        except Exception as error:
-            record["mic"]["causal_target_me_shadow"] = {
-                "schema": "murmurmark.live_progressive_target_me/v1",
-                "status": "failed_open",
-                "reason": str(error),
-                "batch_authoritative": True,
-                "promotion_allowed": False,
-            }
     write_json(chunk_dir / "chunk.json", record)
     return record
 
@@ -1250,9 +1347,15 @@ def causal_target_me_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
     candidate_count = 0
     candidate_seconds = 0.0
     evaluated_segments = 0
+    skipped_lag_budget_count = 0
+    failed_open_count = 0
     for chunk in chunks:
         mic = chunk.get("mic") if isinstance(chunk.get("mic"), dict) else {}
         shadow = mic.get("causal_target_me_shadow") if isinstance(mic.get("causal_target_me_shadow"), dict) else {}
+        if shadow.get("status") == "skipped_lag_budget":
+            skipped_lag_budget_count += 1
+        if shadow.get("status") == "failed_open":
+            failed_open_count += 1
         evaluated_segments += safe_int(shadow.get("evaluated_segment_count"))
         candidates = shadow.get("candidates") if isinstance(shadow.get("candidates"), list) else []
         candidate_count += len(candidates)
@@ -1267,8 +1370,36 @@ def causal_target_me_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
         "candidate_count": candidate_count,
         "candidate_seconds": round(candidate_seconds, 3),
         "evaluated_segment_count": evaluated_segments,
+        "skipped_lag_budget_count": skipped_lag_budget_count,
+        "failed_open_count": failed_open_count,
         "batch_authoritative": True,
         "promotion_allowed": False,
+    }
+
+
+def runtime_cost_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
+    base_values: list[float] = []
+    target_values: list[float] = []
+    for chunk in chunks:
+        runtime = chunk.get("runtime") if isinstance(chunk.get("runtime"), dict) else {}
+        if runtime.get("base_elapsed_sec") is not None:
+            base_values.append(max(0.0, safe_float(runtime.get("base_elapsed_sec"))))
+        if runtime.get("target_me_elapsed_sec") is not None:
+            target_values.append(max(0.0, safe_float(runtime.get("target_me_elapsed_sec"))))
+
+    def summarize(values: list[float]) -> dict[str, Any]:
+        if not values:
+            return {"count": 0, "total_sec": 0.0, "median_sec": None, "max_sec": None}
+        return {
+            "count": len(values),
+            "total_sec": round(sum(values), 3),
+            "median_sec": round(float(np.median(values)), 3),
+            "max_sec": round(max(values), 3),
+        }
+
+    return {
+        "base_chunk": summarize(base_values),
+        "causal_target_me": summarize(target_values),
     }
 
 
@@ -1284,6 +1415,7 @@ def write_report(
     processed = max((float(row.get("end_sec") or 0.0) for row in chunks), default=0.0)
     rescue_shadow = live_rescue_shadow_summary(chunks)
     causal_shadow = causal_target_me_summary(chunks)
+    runtime_cost = runtime_cost_summary(chunks)
     report = {
         "schema": SCHEMA,
         "generator": {"name": "live-pipeline-shadow", "version": SCRIPT_VERSION},
@@ -1300,9 +1432,12 @@ def write_report(
             "commit_delay_sec": args.commit_delay_sec,
             "language": args.language,
             "model": str(args.model),
+            "causal_target_me_timeout_sec": args.causal_target_me_timeout_sec,
+            "causal_target_me_max_live_lag_sec": args.causal_target_me_max_live_lag_sec,
         },
         "live_rescue_shadow": rescue_shadow,
         "causal_target_me_shadow": causal_shadow,
+        "runtime_cost": runtime_cost,
         "progress": {
             "captured_sec": round(captured, 3),
             "preprocessed_sec": round(processed, 3),
@@ -1353,6 +1488,11 @@ def main() -> int:
                 model=str(args.model),
                 language=args.language,
                 whisper_cli=args.whisper_cli,
+                micro_runner=bounded_progressive_micro_runner(
+                    args=args,
+                    heartbeat=heartbeat,
+                    progressive_module=progressive_module,
+                ),
             )
         except Exception as error:
             write_json(
@@ -1389,6 +1529,7 @@ def main() -> int:
             if args.max_segments and len(processed) >= args.max_segments:
                 break
             heartbeat.update(status="running", stage="chunk_start", index=index)
+            base_started = time.monotonic()
             chunk = process_segment(
                 session,
                 index,
@@ -1396,16 +1537,90 @@ def main() -> int:
                 args,
                 output_dir,
                 heartbeat,
-                progressive_target_me,
             )
+            chunk["runtime"] = {
+                "base_elapsed_sec": round(time.monotonic() - base_started, 3),
+                "target_me_elapsed_sec": None,
+            }
             processed.add(index)
             apply_adjacent_boundary_gate(chunks[-1] if chunks else None, chunk)
             chunks.append(chunk)
+            latest_rows = read_jsonl(segments_path)
+            rows = latest_rows
+            captured = max(
+                (float(row.get("end_sec") or 0.0) for row in latest_rows),
+                default=0.0,
+            )
             write_chunks(output_dir, chunks)
             write_draft(output_dir, chunks, args.commit_delay_sec)
-            write_report(session, output_dir, "running", chunks, rows, args)
-            heartbeat.update(status="running", stage="chunk_written", index=index)
+            write_report(session, output_dir, "running", chunks, latest_rows, args)
+            heartbeat.update(status="running", stage="base_chunk_written", index=index)
             last_new_work = time.monotonic()
+
+            if progressive_target_me is not None:
+                lag_decision = causal_target_me_lag_decision(
+                    captured_sec=captured,
+                    chunk_end_sec=safe_float(chunk.get("end_sec")),
+                    max_live_lag_sec=args.causal_target_me_max_live_lag_sec,
+                )
+                if SHUTDOWN_REQUESTED:
+                    chunk["mic"]["causal_target_me_shadow"] = {
+                        "schema": "murmurmark.live_progressive_target_me/v1",
+                        "status": "skipped_shutdown",
+                        "reason": "worker shutdown requested after base draft was written",
+                        "batch_authoritative": True,
+                        "promotion_allowed": False,
+                    }
+                    heartbeat.update(
+                        status="running",
+                        stage="target_me_skipped_shutdown",
+                        index=index,
+                    )
+                elif not lag_decision["run"]:
+                    chunk["mic"]["causal_target_me_shadow"] = {
+                        "schema": "murmurmark.live_progressive_target_me/v1",
+                        "status": "skipped_lag_budget",
+                        "reason": lag_decision["reason"],
+                        "observed_live_lag_sec": lag_decision["observed_live_lag_sec"],
+                        "max_live_lag_sec": lag_decision["max_live_lag_sec"],
+                        "batch_authoritative": True,
+                        "promotion_allowed": False,
+                    }
+                    heartbeat.update(
+                        status="running",
+                        stage="target_me_skipped_lag_budget",
+                        index=index,
+                        detail=(
+                            f"lag={lag_decision['observed_live_lag_sec']:.1f}s "
+                            f"budget={lag_decision['max_live_lag_sec']:.1f}s"
+                        ),
+                    )
+                else:
+                    heartbeat.update(
+                        status="running",
+                        stage="target_me_start",
+                        index=index,
+                        detail=f"lag={lag_decision['observed_live_lag_sec']:.1f}s",
+                    )
+                    target_me_started = time.monotonic()
+                    try:
+                        progressive_target_me.process_chunk(chunk)
+                    except Exception as error:
+                        chunk["mic"]["causal_target_me_shadow"] = {
+                            "schema": "murmurmark.live_progressive_target_me/v1",
+                            "status": "failed_open",
+                            "reason": str(error),
+                            "batch_authoritative": True,
+                            "promotion_allowed": False,
+                        }
+                    chunk["runtime"]["target_me_elapsed_sec"] = round(
+                        time.monotonic() - target_me_started,
+                        3,
+                    )
+                    heartbeat.update(status="running", stage="target_me_written", index=index)
+                write_chunks(output_dir, chunks)
+                write_draft(output_dir, chunks, args.commit_delay_sec)
+                write_report(session, output_dir, "running", chunks, latest_rows, args)
 
         if SHUTDOWN_REQUESTED:
             status = "completed_partial_draft"

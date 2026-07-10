@@ -52,6 +52,17 @@ append_segment_pair() {
 EOF
 }
 
+append_lag_segment_pairs() {
+  local session="$1"
+  local created_at="$2"
+  cat >>"$session/derived/live/segments.jsonl" <<EOF
+{"schema":"murmurmark.live_segment/v1","source":"mic","index":1,"path":"derived/experiments/live-shadow-v1/audio/mic/000001.wav","start_sec":0.0,"end_sec":2.0,"duration_sec":2.0,"clip_start_sec":0.0,"clip_end_sec":2.0,"clip_duration_sec":2.0,"overlap_before_sec":0.0,"overlap_after_sec":0.0,"frames":32000,"clip_frames":32000,"sample_rate":16000,"closed":true,"final":false,"after_overlap_complete":true,"created_at":"$created_at","provenance":"recording_time_committed_pcm"}
+{"schema":"murmurmark.live_segment/v1","source":"remote","index":1,"path":"derived/experiments/live-shadow-v1/audio/remote/000001.wav","start_sec":0.0,"end_sec":2.0,"duration_sec":2.0,"clip_start_sec":0.0,"clip_end_sec":2.0,"clip_duration_sec":2.0,"overlap_before_sec":0.0,"overlap_after_sec":0.0,"frames":32000,"clip_frames":32000,"sample_rate":16000,"closed":true,"final":false,"after_overlap_complete":true,"created_at":"$created_at","provenance":"recording_time_committed_pcm"}
+{"schema":"murmurmark.live_segment/v1","source":"mic","index":2,"path":"derived/experiments/live-shadow-v1/audio/mic/000001.wav","start_sec":120.0,"end_sec":122.0,"duration_sec":2.0,"clip_start_sec":120.0,"clip_end_sec":122.0,"clip_duration_sec":2.0,"overlap_before_sec":0.0,"overlap_after_sec":0.0,"frames":32000,"clip_frames":32000,"sample_rate":16000,"closed":true,"final":false,"after_overlap_complete":true,"created_at":"$created_at","provenance":"recording_time_committed_pcm"}
+{"schema":"murmurmark.live_segment/v1","source":"remote","index":2,"path":"derived/experiments/live-shadow-v1/audio/remote/000001.wav","start_sec":120.0,"end_sec":122.0,"duration_sec":2.0,"clip_start_sec":120.0,"clip_end_sec":122.0,"clip_duration_sec":2.0,"overlap_before_sec":0.0,"overlap_after_sec":0.0,"frames":32000,"clip_frames":32000,"sample_rate":16000,"closed":true,"final":false,"after_overlap_complete":true,"created_at":"$created_at","provenance":"recording_time_committed_pcm"}
+EOF
+}
+
 make_session() {
   local session="$1"
   mkdir -p \
@@ -109,9 +120,14 @@ wait_for 10 grep -q "удаленная тестовая реплика" "$sessi
 [[ ! -e "$session/session.json" ]] || fail "fixture stopped before proving pre-stop draft"
 jq -e '
   .status == "running"
-  and (.current_stage == "chunk_written" or .current_stage == "waiting_segments")
+  and (
+    .current_stage == "base_chunk_written"
+    or .current_stage == "target_me_written"
+    or .current_stage == "waiting_segments"
+  )
   and .provenance == "recording_time_committed_pcm"
   and (.heartbeat_at | length > 0)
+  and (.progress.live_lag_sec // 0) >= 0
 ' "$session/derived/live/live_pipeline_state.json" >/dev/null \
   || fail "worker state lacks realtime heartbeat provenance"
 
@@ -154,6 +170,37 @@ jq -e '
 jq -e '.status == "completed"' "$timeout_session/derived/live/live_pipeline_state.json" >/dev/null \
   || fail "worker did not fail open after child timeout"
 
+lag_session="$workdir/session-lag-budget"
+make_session "$lag_session"
+append_lag_segment_pairs "$lag_session" "2026-07-10T10:01:32Z"
+cat >"$lag_session/session.json" <<'JSON'
+{"schema":"murmurmark.session/v1","session_id":"live-worker-lag-budget","status":"completed","created_at":"2026-07-10T10:01:30Z","ended_at":"2026-07-10T10:01:40Z","health":{"summary":"ok","partial":false,"actual_duration_sec":10.0}}
+JSON
+"$python_bin" -u scripts/live-pipeline-shadow.py "$lag_session" \
+  --model "$lag_session/fake-model.bin" \
+  --whisper-cli "$workdir/fake-whisper" \
+  --poll-sec 0.1 \
+  --idle-after-session-json-sec 0.2 \
+  --heartbeat-sec 0.1 \
+  --ffmpeg-timeout-sec 5 \
+  --whisper-timeout-sec 5 \
+  --causal-target-me-timeout-sec 5 \
+  --causal-target-me-max-live-lag-sec 1 >"$workdir/worker-lag-budget.log" 2>&1
+
+jq -e '
+  .mic.causal_target_me_shadow.status == "skipped_lag_budget"
+  and .mic.causal_target_me_shadow.reason == "live_lag_budget_exceeded"
+  and .runtime.base_elapsed_sec >= 0
+' "$lag_session/derived/live/chunks/000001/chunk.json" >/dev/null \
+  || { cat "$workdir/worker-lag-budget.log" >&2; fail "lag budget did not preserve the base chunk and skip Target-Me"; }
+jq -e '
+  .causal_target_me_shadow.skipped_lag_budget_count >= 1
+  and .runtime_cost.base_chunk.count == 2
+' "$lag_session/derived/live/live_pipeline_report.json" >/dev/null \
+  || fail "lag budget telemetry is missing from the live report"
+grep -q 'удаленная тестовая реплика' "$lag_session/derived/live/transcript.draft.md" \
+  || fail "lag budget removed the base live draft"
+
 shutdown_session="$workdir/session-shutdown"
 make_session "$shutdown_session"
 append_segment_pair "$shutdown_session" "2026-07-10T10:02:02Z"
@@ -166,7 +213,11 @@ append_segment_pair "$shutdown_session" "2026-07-10T10:02:02Z"
   --whisper-timeout-sec 30 \
   --no-causal-target-me >"$workdir/worker-shutdown.log" 2>&1 &
 shutdown_worker_pid=$!
-wait_for 10 jq -e '.current_stage == "asr_mic" and (.child_pid // 0) > 0' \
+wait_for 10 jq -e '
+  .current_stage == "asr_mic"
+  and (.child_pid // 0) > 0
+  and (.progress.live_lag_sec // -1) >= 0
+' \
   "$shutdown_session/derived/live/live_pipeline_state.json" >/dev/null 2>&1 \
   || fail "shutdown fixture did not reach child ASR"
 shutdown_child_pid="$(jq -r '.child_pid' "$shutdown_session/derived/live/live_pipeline_state.json")"

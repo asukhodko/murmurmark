@@ -15,8 +15,8 @@ from typing import Any
 
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.41.0"
-REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
+SCRIPT_VERSION = "1.42.0"
+REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-live)?$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
 DEFAULT_TARGET_PASSING_COMPARED_SESSIONS = 3
@@ -289,6 +289,10 @@ TARGET_ME_SHADOW_PROFILE_METRICS = (
     "runtime_causal_target_me_added_turn_count",
     "runtime_causal_target_me_added_turn_seconds",
     "runtime_causal_target_me_rejected_turn_count",
+    "causal_accepted_candidate_count",
+    "causal_pre_stop_accepted_candidate_count",
+    "causal_pre_stop_direct_profile_candidate_count",
+    "causal_pre_stop_speaker_overlap_profile_candidate_count",
 )
 LIVE_QUARANTINE_REASON = (
     "live pipeline is quarantined because the async live path has not yet passed capture-safety "
@@ -7244,6 +7248,9 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     )
     summary["real_runtime_speaker_overlap_algorithmic_status"] = (
         speaker_overlap_no_regression_report.get("algorithmic_status")
+    )
+    summary["real_runtime_speaker_overlap_pre_stop_evidence_session_count"] = (
+        speaker_overlap_no_regression_report.get("pre_stop_runtime_evidence_session_count")
     )
     summary["real_runtime_speaker_overlap_missing_me_delta_seconds"] = (
         (speaker_overlap_no_regression_report.get("delta") or {}).get("missing_me_seconds")

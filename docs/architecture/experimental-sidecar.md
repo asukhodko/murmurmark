@@ -44,6 +44,10 @@ batch transcript until separate parity gates pass.
    the batch pipeline until promotion gates explicitly change that policy.
 8. **Comparable output.** Every sidecar transcript/draft must be comparable against batch by time
    interval, source track, model, language and preprocessing profile.
+9. **Base draft before enrichment.** The worker must persist the base mic/remote chunk and refresh
+   the draft before optional speaker recovery or other expensive enrichment starts.
+10. **Bounded enrichment.** Optional Target-Me micro-ASR has its own child timeout and lag budget.
+    When the budget is exceeded, the enrichment is skipped and the base worker continues.
 
 ## Proposed Runtime Shape
 
@@ -197,9 +201,11 @@ is post-stop fallback only and normal preview never reads an open CAF.
 Risk: live ASR or preprocessing uses enough CPU during capture that the OS stops delivering audio
 smoothly.
 
-Mitigation: default sidecar worker priority is low; v1 may write sidecar chunks during capture but
-defer heavy ASR until after stop for controlled pilots. True realtime ASR needs separate CPU-budget
-gates.
+Mitigation: the base worker publishes each decoded mic/remote chunk before causal Target-Me
+enrichment. Target-Me micro-ASR uses a bounded child process and is skipped when captured audio is
+more than `60s` ahead of the current base chunk. This keeps the expensive quality shadow fail-open
+and exposes the trade-off as `skipped_lag_budget_count`. A later dedicated low-priority enrichment
+worker may recover more candidates without holding the base draft path.
 
 ### Memory Growth
 

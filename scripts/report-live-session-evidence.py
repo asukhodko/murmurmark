@@ -166,9 +166,21 @@ def main() -> int:
     all_parity_passed = bool(metrics.get("all_parity_gates_passed"))
 
     worker_status = str(worker_state.get("status") or worker_report.get("status") or "missing")
-    worker_terminal = worker_status in TERMINAL_WORKER_STATUSES
     progress = worker_report.get("progress") if isinstance(worker_report.get("progress"), dict) else {}
-    final_lag = optional_float(progress.get("live_lag_sec"))
+    report_final_lag = optional_float(progress.get("live_lag_sec"))
+    captured_from_rows = max((optional_float(row.get("end_sec")) or 0.0 for row in segments), default=0.0)
+    processed_from_rows = max((optional_float(row.get("end_sec")) or 0.0 for row in chunks), default=0.0)
+    row_final_lag = max(0.0, captured_from_rows - processed_from_rows) if captured_from_rows > 0 else None
+    final_lag = row_final_lag if row_final_lag is not None else report_final_lag
+    termination_reason = str(
+        worker_state.get("termination_reason") or worker_report.get("termination_reason") or ""
+    )
+    effective_worker_status = (
+        "completed_partial_draft"
+        if termination_reason and final_lag is not None and final_lag > 0.5
+        else worker_status
+    )
+    worker_terminal = effective_worker_status in TERMINAL_WORKER_STATUSES
     final_lag_ok = final_lag is not None and final_lag <= max(0.0, args.max_final_lag_sec)
     first_chunk_latency = optional_float(temporal.get("first_live_chunk_latency_sec"))
     latency_ok = first_chunk_latency is not None and first_chunk_latency <= max(0.0, args.max_first_chunk_latency_sec)
@@ -197,13 +209,23 @@ def main() -> int:
             "worker_terminal",
             worker_terminal,
             "worker must not remain stale running",
-            {"worker_status": worker_status, "current_stage": worker_state.get("current_stage")},
+            {
+                "worker_status": worker_status,
+                "effective_worker_status": effective_worker_status,
+                "current_stage": worker_state.get("current_stage"),
+                "termination_reason": termination_reason or None,
+            },
         ),
         check(
             "bounded_final_lag",
             final_lag_ok,
             f"final live lag must be <= {args.max_final_lag_sec:.1f}s",
-            {"final_lag_sec": final_lag},
+            {
+                "final_lag_sec": final_lag,
+                "report_final_lag_sec": report_final_lag,
+                "captured_from_segment_rows_sec": round(captured_from_rows, 3),
+                "processed_from_chunk_rows_sec": round(processed_from_rows, 3),
+            },
         ),
         check(
             "bounded_first_chunk_latency",
@@ -265,6 +287,9 @@ def main() -> int:
             "live_pre_stop_chunk_count": pre_stop_chunks,
             "first_live_chunk_latency_sec": first_chunk_latency,
             "final_live_lag_sec": final_lag,
+            "report_final_live_lag_sec": report_final_lag,
+            "captured_from_segment_rows_sec": round(captured_from_rows, 3),
+            "processed_from_chunk_rows_sec": round(processed_from_rows, 3),
             "live_missing_me_seconds": metrics.get("live_missing_me_seconds"),
             "live_remote_in_me_seconds": metrics.get("live_suspected_remote_leak_in_me_seconds"),
             "live_order_mismatch_count": metrics.get("live_blocking_contentful_role_constrained_order_mismatch_count"),

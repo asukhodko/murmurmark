@@ -96,6 +96,25 @@ jq -e '
 ' "$live/live_session_evidence.json" >/dev/null \
   || fail "passing fixture did not produce parity evidence"
 
+jq '. + {termination_reason:"finalization_wait_timeout"}' \
+  "$live/live_pipeline_state.json" >"$live/live_pipeline_state.json.tmp"
+mv "$live/live_pipeline_state.json.tmp" "$live/live_pipeline_state.json"
+jq -c '. + {start_sec:0.0,end_sec:120.0}' "$live/segments.jsonl" \
+  >"$live/segments.jsonl.tmp"
+mv "$live/segments.jsonl.tmp" "$live/segments.jsonl"
+"$python_bin" scripts/report-live-session-evidence.py "$session" >/dev/null
+jq -e '
+  .status == "incomplete"
+  and .metrics.final_live_lag_sec == 90.0
+  and .metrics.report_final_live_lag_sec == 0.0
+  and any(.checks[];
+    .id == "worker_terminal"
+    and .evidence.effective_worker_status == "completed_partial_draft"
+  )
+  and any(.checks[]; .id == "bounded_final_lag" and .status == "failed")
+' "$live/live_session_evidence.json" >/dev/null \
+  || fail "row-derived final lag did not override a stale completed report"
+
 jq '
   .temporal_provenance.status = "post_stop_live_replay_only"
   | .temporal_provenance.live_pre_stop_chunk_count = 0

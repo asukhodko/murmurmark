@@ -16,7 +16,7 @@ from scipy.io import wavfile
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.41.0"
+SCRIPT_VERSION = "0.42.0"
 EPSILON = 1.0e-12
 LIVE_BATCH_BOUNDARY_TOLERANCE_SEC = 2.5
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
@@ -5307,6 +5307,86 @@ def gate(name: str, status: str, reason: str, evidence: dict[str, Any] | None = 
     return row
 
 
+def live_runtime_gates(
+    *,
+    session: Path,
+    live_report: dict[str, Any] | None,
+    chunks: list[dict[str, Any]],
+    max_final_lag_sec: float = 60.0,
+) -> list[dict[str, Any]]:
+    segments = read_jsonl(session / "derived/live/segments.jsonl")
+    worker_state = read_json(session / "derived/live/live_pipeline_state.json") or {}
+    report = live_report if isinstance(live_report, dict) else {}
+    progress = report.get("progress") if isinstance(report.get("progress"), dict) else {}
+    captured_from_rows = max((safe_float(row.get("end_sec")) for row in segments), default=0.0)
+    processed_from_rows = max((safe_float(row.get("end_sec")) for row in chunks), default=0.0)
+    report_final_lag = safe_float(progress.get("live_lag_sec")) if progress.get("live_lag_sec") is not None else None
+    row_final_lag = (
+        max(0.0, captured_from_rows - processed_from_rows)
+        if captured_from_rows > 0
+        else None
+    )
+    final_lag = row_final_lag if row_final_lag is not None else report_final_lag
+    worker_status = str(worker_state.get("status") or report.get("status") or "missing")
+    termination_reason = str(
+        worker_state.get("termination_reason") or report.get("termination_reason") or ""
+    )
+    effective_worker_status = (
+        "completed_partial_draft"
+        if termination_reason and final_lag is not None and final_lag > 0.5
+        else worker_status
+    )
+    terminal_statuses = {
+        "completed",
+        "completed_partial_draft",
+        "disabled_backpressure",
+        "disabled_pcm_copy",
+        "failed",
+        "stopped_by_limit",
+        "terminated",
+    }
+    worker_terminal = effective_worker_status in terminal_statuses
+    lag_evaluated = final_lag is not None
+    lag_passed = lag_evaluated and final_lag <= max(0.0, max_final_lag_sec)
+    return [
+        gate(
+            "worker_terminal_state",
+            "passed" if worker_terminal else "warning",
+            (
+                "live worker has a terminal state"
+                if worker_terminal
+                else "live worker is missing a terminal state or remains stale running"
+            ),
+            {
+                "worker_status": worker_status,
+                "effective_worker_status": effective_worker_status,
+                "current_stage": worker_state.get("current_stage") or report.get("current_stage"),
+                "termination_reason": termination_reason or None,
+            },
+        ),
+        gate(
+            "bounded_live_lag",
+            "passed" if lag_passed else ("warning" if lag_evaluated else "not_evaluated"),
+            (
+                f"row-derived final live lag is within {max_final_lag_sec:.1f}s"
+                if lag_passed
+                else (
+                    f"row-derived final live lag exceeds {max_final_lag_sec:.1f}s"
+                    if lag_evaluated
+                    else "final live lag cannot be evaluated"
+                )
+            ),
+            {
+                "final_live_lag_sec": round(final_lag, 3) if final_lag is not None else None,
+                "report_final_live_lag_sec": round(report_final_lag, 3) if report_final_lag is not None else None,
+                "captured_from_segment_rows_sec": round(captured_from_rows, 3),
+                "processed_from_chunk_rows_sec": round(processed_from_rows, 3),
+                "max_final_lag_sec": round(max_final_lag_sec, 3),
+            },
+        ),
+    ]
+
+
 def parity_gates(
     *,
     capture_safety_gate: dict[str, Any],
@@ -5324,6 +5404,7 @@ def parity_gates(
     temporal_provenance: dict[str, Any] | None = None,
     requires_runtime_causal_provenance: bool = False,
     runtime_causal_profile_scope: str = "direct",
+    runtime_gates: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     gates: list[dict[str, Any]] = [
         capture_safety_gate,
@@ -5334,6 +5415,7 @@ def parity_gates(
             {"batch_authoritative": True},
         )
     ]
+    gates.extend(runtime_gates or [])
     if blockers:
         gates.append(gate("required_artifacts", "blocked", "comparison inputs are missing", {"blockers": blockers}))
     else:
@@ -6835,6 +6917,7 @@ def build_target_me_shadow_profiles(
     readiness: dict[str, Any] | None,
     outcome: dict[str, Any] | None,
     temporal_provenance: dict[str, Any],
+    runtime_gates: list[dict[str, Any]],
     policies: tuple[str, ...] = MATERIALIZED_TARGET_ME_SHADOW_POLICIES,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     profiles: dict[str, Any] = {}
@@ -7076,6 +7159,7 @@ def build_target_me_shadow_profiles(
                 if policy == RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY
                 else "direct"
             ),
+            runtime_gates=runtime_gates,
         )
         all_gates_passed = bool(gates) and all(row.get("status") == "passed" for row in gates)
         comparable_gates = [row for row in gates if row.get("name") not in PROFILE_SELECTION_IGNORED_GATES]
@@ -7327,6 +7411,11 @@ def main() -> int:
     duplicate_count = duplicate_adjacent_chunks(chunks)
     boundary_summary = live_boundary_gate_summary(chunks)
     temporal_provenance = live_temporal_provenance(session, chunks)
+    runtime_gate_rows = live_runtime_gates(
+        session=session,
+        live_report=live_report,
+        chunks=chunks,
+    )
     live_assessment = assess_live_vs_batch(session, chunks, batch_utterances, include_labs=include_labs)
     if isinstance(live_assessment.get("metrics"), dict):
         live_assessment["metrics"].update(
@@ -7405,6 +7494,7 @@ def main() -> int:
         readiness=readiness,
         outcome=outcome,
         temporal_provenance=temporal_provenance,
+        runtime_gates=runtime_gate_rows,
     )
     gate_statuses = {str(row.get("status")) for row in gates}
     live_metrics = live_assessment.get("metrics") if isinstance(live_assessment, dict) else {}
@@ -7456,6 +7546,7 @@ def main() -> int:
             readiness=readiness,
             outcome=outcome,
             temporal_provenance=temporal_provenance,
+            runtime_gates=runtime_gate_rows,
             policies=lab_policies,
         )
     promotion_blockers = [
