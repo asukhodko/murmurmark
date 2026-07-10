@@ -164,9 +164,22 @@ For compatibility, it also writes `derived/live/segments.jsonl` rows pointing ba
 experiment audio files.
 
 `raw_segment_commits.jsonl` remains a fallback and audit trail. If committed-PCM preview is missing
-or partial, `experiment compare` may run the raw sidecar worker after recording stops to materialize
-missing intervals. That fallback must not read still-open raw CAF files in normal meeting recording,
-because `ffmpeg` can block on growing CAF files.
+or partial, explicit `experiment recover-draft` may run the raw sidecar worker after recording stops.
+Fallback outputs are isolated under:
+
+```text
+derived/experiments/live-shadow-v1/fallback/
+  audio/{mic,remote}/NNNNNN.wav
+  segments.jsonl
+  chunks.jsonl
+  transcript.draft.md
+  live_pipeline_state.json
+  live_pipeline_report.json
+  worker.log
+```
+
+Fallback must not read still-open raw CAF files, overwrite `derived/live/`, or be counted as
+recording-time evidence. Every fallback row carries `provenance: post_stop_raw_commit_recovery`.
 
 ## Report
 
@@ -179,9 +192,12 @@ authoritative over `experiment_manifest.json` and `state.json`.
 murmurmark experiment status SESSION|latest
 murmurmark experiment report SESSION|latest
 murmurmark experiment compare SESSION|latest --experiment live-shadow-v1
+murmurmark experiment recover-draft SESSION|latest --experiment live-shadow-v1
 ```
 
 `compare` runs the existing live-vs-batch comparison first, then refreshes the experiment contract.
+It must not materialize audio or start ASR. `recover-draft` is the only command allowed to run
+post-stop fallback ASR.
 The default comparison includes `online_live_me_remote_overlap_filter_v1` as the direct baseline and
 `live_runtime_causal_target_me_direct_v1` as the runtime candidate, so the corpus report can compute
 a paired no-regression verdict without offline Target-Me anchors. Other expensive or batch-informed
@@ -198,6 +214,9 @@ shadow policies remain opt-in.
   The direct publish profile accepts only no-remote-overlap or remote-free-gap intervals; past-speaker-
   confirmed sliding windows remain diagnostic. Passed chunks are never duplicated.
 - Sidecar artifacts never overwrite batch outputs.
+- Fallback artifacts never overwrite realtime sidecar outputs.
+- `compare` is read-only for audio, segment, chunk and draft artifacts.
+- Worker state has a heartbeat, current stage/index and terminal status even after timeout.
 - Batch transcript is authoritative until separate parity gates promote an experiment.
 - Sidecar failure is fail-open: raw capture must finalize and `murmurmark process SESSION` must work
   from raw files alone.

@@ -183,7 +183,8 @@ struct MurmurMark {
           murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
-                                [--skip-stronger-audio-judge] [--progress-interval-sec 60] [--allow-partial]
+                                [--skip-stronger-audio-judge] [--stronger-audio-judge-exhaustive]
+                                [--progress-interval-sec 60] [--allow-partial]
                                 [--config murmurmark.config.json] [--sessions-root ./sessions]
           murmurmark status [./session|latest] [--sessions-root ./sessions]
           murmurmark outcome [./session|latest] [--refresh] [--sessions-root ./sessions]
@@ -236,9 +237,10 @@ struct MurmurMark {
           murmurmark corpus remote-leak [all|latest|./session...] [--plan] [--sessions-root ./sessions]
           murmurmark corpus live [all|latest|./session...] [--refresh] [--target-live-sessions 3] [--sessions-root ./sessions]
           murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
+          murmurmark live watch SESSION|latest [--poll-sec SEC] [--sessions-root ./sessions]
           murmurmark live gate [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--controlled-real] [--preflight-only] [--skip-safety-gate]
-          murmurmark experiment status|report|compare SESSION|latest [--experiment live-shadow-v1]
+          murmurmark experiment status|report|compare|recover-draft SESSION|latest [--experiment live-shadow-v1]
           murmurmark corpus report
 
         Setup and diagnostics:
@@ -715,6 +717,7 @@ enum DoctorChecks {
             "scripts/run-session-pipeline.py",
             "scripts/evaluate-outcome.py",
             "scripts/live-pipeline-shadow.py",
+            "scripts/watch-live-draft.py",
             "scripts/live-progressive-target-me.py",
             "scripts/raw-sidecar-worker.py",
             "scripts/compare-live-batch.py",
@@ -1340,12 +1343,15 @@ enum PipelineHelp {
         usage: murmurmark process ./session|latest [--model ./model.bin] [--language ru] [--prompt-file ./prompt.txt]
                                 [--force-asr] [--reuse-asr-cache] [--plan-only] [--skip-build]
                                 [--skip-preprocess] [--skip-transcription] [--skip-audits] [--skip-cleanup]
-                                [--skip-stronger-audio-judge] [--progress-interval-sec 60] [--allow-partial]
+                                [--skip-stronger-audio-judge] [--stronger-audio-judge-exhaustive]
+                                [--progress-interval-sec 60] [--allow-partial]
                                 [--config murmurmark.config.json] [--sessions-root ./sessions]
 
         Runs scripts/run-session-pipeline.py for one recorded session, then prints readiness.
         Defaults come from murmurmark.config.json when present; explicit CLI flags win.
         The --skip-* flags are for debugging or refreshing only selected derived layers.
+        The normal stronger-audio-judge pass audits the residual queue with mic_clean+remote.
+        Use --stronger-audio-judge-exhaustive only for deliberate four-source diagnostics.
         Interrupted partial captures are blocked by default; use --allow-partial only for debugging.
 
         Common:
@@ -5135,6 +5141,26 @@ enum LiveCommands {
                 try PythonRuntime.resolve(),
                 [try script("report-live-corpus-gates.py").path] + reportArgs + ["--sessions-root", sessionsRoot.path]
             )
+        case "watch":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                printWatchHelp()
+                return
+            }
+            var watchArgs = forwarded
+            let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &watchArgs) ?? "sessions")
+            let pollSec = ArgumentEditing.takeOption("poll-sec", from: &watchArgs) ?? "1"
+            guard let target = watchArgs.first else {
+                printWatchHelp()
+                return
+            }
+            guard watchArgs.count == 1 else {
+                throw CLIError("live watch accepts one session and optional --poll-sec/--sessions-root")
+            }
+            let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+            try Tooling.runPathForwardingInterrupts(
+                try PythonRuntime.resolve(),
+                [try script("watch-live-draft.py").path, session.path, "--poll-sec", pollSec]
+            )
         case "pilot":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 printPilotHelp()
@@ -5174,6 +5200,7 @@ enum LiveCommands {
           murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live next [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live gate [--sessions-root ./sessions]
+          murmurmark live watch SESSION|latest [--poll-sec SEC] [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--duration SEC] [--segment-sec SEC] [--overlap-sec SEC]
                                [--controlled-real] [--preflight-only] [--skip-safety-gate]
 
@@ -5215,6 +5242,16 @@ enum LiveCommands {
           murmurmark record --target-bundle system --experiment live-shadow-v1
           murmurmark live pilot sessions/<session-id> --controlled-real
           murmurmark record --target-bundle system
+        """)
+    }
+
+    static func printWatchHelp() {
+        Swift.print("""
+        usage:
+          murmurmark live watch SESSION|latest [--poll-sec SEC] [--sessions-root ./sessions]
+
+        Prints new shadow draft text and worker heartbeat/lag until recording-time preview reaches a
+        terminal state. Batch transcript remains authoritative.
         """)
     }
 
@@ -5261,7 +5298,7 @@ enum ExperimentCommands {
         }
         let forwarded = Array(args.dropFirst())
         switch subcommand {
-        case "status", "report", "compare", "refresh":
+        case "status", "report", "compare", "refresh", "recover-draft":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 printSubcommandHelp(subcommand)
                 return
@@ -5312,6 +5349,7 @@ enum ExperimentCommands {
           murmurmark experiment status SESSION|latest [--experiment live-shadow-v1] [--sessions-root ./sessions]
           murmurmark experiment report SESSION|latest [--experiment live-shadow-v1] [--sessions-root ./sessions]
           murmurmark experiment compare SESSION|latest [--experiment live-shadow-v1] [--sessions-root ./sessions]
+          murmurmark experiment recover-draft SESSION|latest [--experiment live-shadow-v1] [--sessions-root ./sessions]
 
         Writes and reads the experimental sidecar contract under
         derived/experiments/<experiment-id>/. Batch transcript remains authoritative.
@@ -5322,8 +5360,8 @@ enum ExperimentCommands {
         Swift.print("""
         usage: murmurmark experiment \(subcommand) SESSION|latest [--experiment live-shadow-v1] [--sessions-root ./sessions]
 
-        The command refreshes derived/experiments/<experiment-id>/experiment_manifest.json,
-        state.json, events.jsonl and report.json before printing the requested view.
+        status/report refresh the sidecar contract. compare reads existing realtime artifacts and
+        never starts ASR. recover-draft explicitly builds an isolated post-stop fallback draft.
         """)
     }
 }
@@ -7270,7 +7308,6 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
     private var experimentLivePreview: AsyncCommittedLiveSegmentCapture?
     private var liveWorker: LivePipelineWorker?
     private var rawSidecarCommits: RawSegmentCommitTracker?
-    private var rawSidecarWorker: RawSidecarWorker?
     private var events: EventLog?
     private var warnings: [String] = []
     private var targetDisplayName = "System Audio"
@@ -7522,6 +7559,9 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             } else {
                 print("recording until Ctrl-C -> \(outputDirectory.path)")
             }
+            if experimentID != nil {
+                print("live preview (second terminal): murmurmark live watch \(PathDisplay.display(outputDirectory))")
+            }
             let stopReason = try await waitForRecordingStop()
             finalStopReason = stopReason
             if stopReason == .interrupt {
@@ -7596,29 +7636,6 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                     )
                 }
             }
-            if let worker = rawSidecarWorker {
-                let exited = worker.wait(seconds: 30)
-                try? eventLog.write(
-                    type: "experiment_sidecar.worker_waited",
-                    fields: [
-                        "experiment_id": experimentID ?? "",
-                        "exited": exited,
-                        "status": worker.terminationStatus.map { Int($0) } as Any? ?? NSNull(),
-                        "timeout_sec": 30.0,
-                    ]
-                )
-                if !exited {
-                    appendWarning("experiment sidecar worker still running after finalization wait")
-                    worker.terminate()
-                    try? eventLog.write(
-                        type: "experiment_sidecar.worker_terminated",
-                        fields: [
-                            "experiment_id": experimentID ?? "",
-                            "reason": "finalization_wait_timeout",
-                        ]
-                    )
-                }
-            }
             if liveFinalizeEnabled, !finalizedAsPartial {
                 runLiveFinalReconcile(eventLog: eventLog)
             }
@@ -7633,11 +7650,11 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             return stopReason
         } catch {
             liveWorker?.terminate()
-            rawSidecarWorker?.terminate()
             await stopScreenCaptureStream()
             try? remoteInputCapture?.stop()
             try? voiceProcessingMic?.stop()
             liveSegments?.closeAll()
+            experimentLivePreview?.closeAll()
             rawSidecarCommits?.closeAll(finalFramesBySource: [:])
             try? eventLog.write(type: "capture.failed", fields: ["error": error.localizedDescription])
             try? fileManager.removeItem(at: outputDirectory.appendingPathComponent("session.lock"))
@@ -7654,24 +7671,6 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             fields: [
                 "log": "derived/live/live_worker.log",
                 "report": "derived/live/live_pipeline_report.json",
-            ]
-        )
-    }
-
-    private func startRawSidecarWorker(eventLog: EventLog) throws {
-        guard let experimentID else { return }
-        let worker = try RawSidecarWorker(
-            sessionDirectory: outputDirectory,
-            experimentID: experimentID
-        )
-        rawSidecarWorker = worker
-        try worker.start()
-        try eventLog.write(
-            type: "experiment_sidecar.worker_started",
-            fields: [
-                "experiment_id": experimentID,
-                "log": "derived/experiments/\(experimentID)/worker.log",
-                "commits": "derived/experiments/\(experimentID)/raw_segment_commits.jsonl",
             ]
         )
     }
@@ -7766,8 +7765,10 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             state["schema"] = "murmurmark.live_pipeline_state/v1"
         }
         state["status"] = status
+        state["current_stage"] = caughtUp ? "completed" : "terminated"
         state["termination_reason"] = reason
         state["updated_at"] = DateStrings.iso8601(Date())
+        state["heartbeat_at"] = DateStrings.iso8601(Date())
         state["report"] = "derived/live/live_pipeline_report.json"
         try? JSONObject.write(state, to: stateURL)
     }
@@ -8430,6 +8431,7 @@ extension SessionRecorder {
             }
             print("live_draft: \(session)/derived/live/transcript.draft.md")
             print("live_report: \(session)/derived/live/live_pipeline_report.json")
+            print("live_watch: murmurmark live watch \(session)")
             if finalReportExists {
                 print("live_final_reconcile: \(session)/derived/live/final_reconcile_report.json")
             }
@@ -8448,6 +8450,7 @@ extension SessionRecorder {
         if livePipelineEnabled || experimentID != nil {
             print("  less \(session)/derived/live/transcript.draft.md")
             print("  less \(session)/derived/live/live_pipeline_report.json")
+            print("  murmurmark live watch \(session)")
             if let experimentID {
                 print("  murmurmark experiment status \(session) --experiment \(experimentID)")
             }
@@ -9121,7 +9124,8 @@ final class AsyncLiveSegmentCapture: @unchecked Sendable {
         writer = try LiveSegmentCapture(
             sessionDirectory: sessionDirectory,
             segmentSeconds: segmentSeconds,
-            overlapSeconds: overlapSeconds
+            overlapSeconds: overlapSeconds,
+            provenance: "recording_time_unsafe_sample_buffer"
         )
         self.maxPendingSamples = max(1, maxPendingSamples)
         self.artificialWriteDelayMilliseconds = max(0, min(artificialWriteDelayMilliseconds, 5000))
@@ -9275,7 +9279,8 @@ final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
             sessionDirectory: sessionDirectory,
             segmentSeconds: segmentSeconds,
             overlapSeconds: overlapSeconds,
-            audioPathPrefix: "derived/experiments/\(experimentID)/audio"
+            audioPathPrefix: "derived/experiments/\(experimentID)/audio",
+            provenance: "recording_time_committed_pcm"
         )
         try writeExperimentState(status: "preview_running", reason: nil)
     }
@@ -9541,6 +9546,7 @@ final class LiveSegmentCapture {
     let segmentSeconds: TimeInterval
     let overlapSeconds: TimeInterval
     let audioPathPrefix: String
+    let provenance: String
 
     private let manifestURL: URL
     private let manifestHandle: FileHandle
@@ -9550,12 +9556,14 @@ final class LiveSegmentCapture {
         sessionDirectory: URL,
         segmentSeconds: TimeInterval,
         overlapSeconds: TimeInterval,
-        audioPathPrefix: String = "derived/live/audio"
+        audioPathPrefix: String = "derived/live/audio",
+        provenance: String
     ) throws {
         self.sessionDirectory = sessionDirectory
         self.segmentSeconds = max(5.0, segmentSeconds)
         self.overlapSeconds = max(0.0, overlapSeconds)
         self.audioPathPrefix = audioPathPrefix
+        self.provenance = provenance
         let liveDirectory = sessionDirectory.appendingPathComponent("derived/live")
         let audioDirectory = sessionDirectory.appendingPathComponent(audioPathPrefix)
         try FileManager.default.createDirectory(at: audioDirectory.appendingPathComponent("mic"), withIntermediateDirectories: true)
@@ -9752,6 +9760,8 @@ final class LiveSegmentCapture {
         try appendJSONLine(
             [
                 "schema": "murmurmark.live_segment/v1",
+                "created_at": DateStrings.iso8601(Date()),
+                "provenance": provenance,
                 "source": row.source,
                 "index": row.index,
                 "path": row.path,
@@ -9772,6 +9782,7 @@ final class LiveSegmentCapture {
             ],
             to: manifestHandle
         )
+        try manifestHandle.synchronize()
     }
 
     private func writePendingAfterOverlap(
@@ -9830,6 +9841,7 @@ final class LiveSegmentCapture {
             [
                 "schema": "murmurmark.live_pipeline_state/v1",
                 "status": status,
+                "provenance": provenance,
                 "segment_sec": segmentSeconds,
                 "overlap_sec": overlapSeconds,
                 "segments": "derived/live/segments.jsonl",
@@ -9872,89 +9884,12 @@ final class LivePipelineWorker {
         logHandle = handle
         process.executableURL = URL(fileURLWithPath: python)
         process.arguments = [script.path, sessionDirectory.path]
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = handle
         process.standardError = handle
-    }
-
-    func start() throws {
-        try process.run()
-    }
-
-    func wait(seconds: TimeInterval) -> Bool {
-        let deadline = Date().addingTimeInterval(seconds)
-        while process.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.25)
-        }
-        if !process.isRunning {
-            try? logHandle?.close()
-            return true
-        }
-        return false
-    }
-
-    func terminate() {
-        if process.isRunning {
-            process.terminate()
-            let deadline = Date().addingTimeInterval(5)
-            while process.isRunning, Date() < deadline {
-                Thread.sleep(forTimeInterval: 0.1)
-            }
-            if process.isRunning {
-                process.interrupt()
-            }
-        }
-        try? logHandle?.close()
-    }
-
-    var terminationStatus: Int32? {
-        process.isRunning ? nil : process.terminationStatus
-    }
-
-    private static func resolvePython() -> String {
-        let env = ProcessInfo.processInfo.environment
-        if let value = env["MURMURMARK_PYTHON"], !value.isEmpty {
-            return value
-        }
-        let venv = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(".venv/bin/python").path
-        if FileManager.default.isExecutableFile(atPath: venv) {
-            return venv
-        }
-        return Tooling.which("python3") ?? "/usr/bin/python3"
-    }
-}
-
-final class RawSidecarWorker {
-    let sessionDirectory: URL
-    let experimentID: String
-    private let process = Process()
-    private var logHandle: FileHandle?
-
-    init(sessionDirectory: URL, experimentID: String) throws {
-        self.sessionDirectory = sessionDirectory
-        self.experimentID = experimentID
-        let script = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("scripts/raw-sidecar-worker.py")
-        guard FileManager.default.fileExists(atPath: script.path) else {
-            throw CLIError("raw sidecar worker script not found: \(script.path)")
-        }
-        let experimentDirectory = sessionDirectory
-            .appendingPathComponent("derived/experiments")
-            .appendingPathComponent(experimentID)
-        let logURL = experimentDirectory.appendingPathComponent("worker.log")
-        try FileManager.default.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: logURL.path, contents: Data())
-        let handle = try FileHandle(forWritingTo: logURL)
-        logHandle = handle
-        process.executableURL = URL(fileURLWithPath: Self.resolvePython())
-        process.arguments = [
-            script.path,
-            sessionDirectory.path,
-            "--experiment",
-            experimentID,
-            "--no-live-worker",
-        ]
-        process.standardOutput = handle
-        process.standardError = handle
+        var environment = ProcessInfo.processInfo.environment
+        environment["PYTHONUNBUFFERED"] = "1"
+        process.environment = environment
     }
 
     func start() throws {
@@ -12321,6 +12256,7 @@ enum ReadinessPrinter {
             let sessionPath = PathDisplay.display(session)
             print("  session: \(sessionPath)")
             print("  expected: \(PathDisplay.display(url))")
+            printCaptureSummary(session)
             printLivePipelineSummary(session)
             printExperimentSidecarSummary(session)
             print("  recommended_next: murmurmark process \(sessionPath)")
@@ -12394,6 +12330,7 @@ enum ReadinessPrinter {
             print(String(format: "  transcript_review_burden: %.2f min / %.2f%%", transcriptReviewSeconds / 60, transcriptReviewRatio))
         }
         ReviewSummaryPrinter.printSynthesisReviewMetrics(metrics, indent: "  ")
+        printCaptureSummary(session)
         printLivePipelineSummary(session)
         printExperimentSidecarSummary(session)
         printStrongerAudioJudgeSummary(session)
@@ -12588,6 +12525,7 @@ enum ReadinessPrinter {
                 print("    - \(String(describing: warning))")
             }
         }
+        printCaptureSummary(session)
         printLivePipelineSummary(session)
         printExperimentSidecarSummary(session)
         print("  open:")
@@ -12601,6 +12539,29 @@ enum ReadinessPrinter {
                 let label = string(item["reason"]) ?? string(item["id"]) ?? "next"
                 print("    \(command) — \(label)")
             }
+        }
+    }
+
+    private static func printCaptureSummary(_ session: URL) {
+        let manifestURL = session.appendingPathComponent("session.json")
+        guard let manifest = try? JSONFiles.object(manifestURL) else {
+            return
+        }
+        let health = manifest["health"] as? [String: Any] ?? [:]
+        let tracks = health["tracks"] as? [String: Any] ?? [:]
+        let mic = tracks["mic"] as? [String: Any] ?? [:]
+        let remote = tracks["remote"] as? [String: Any] ?? [:]
+        print("  capture:")
+        print("    status: \(string(health["summary"]) ?? string(manifest["status"]) ?? "unknown")")
+        print("    partial: \(bool(health["partial"]) ?? false)")
+        if let duration = double(health["actual_duration_sec"]) {
+            print(String(format: "    duration: %.1fs", duration))
+        }
+        if let micDuration = double(mic["duration_sec"]) {
+            print(String(format: "    mic: %.1fs", micDuration))
+        }
+        if let remoteDuration = double(remote["duration_sec"]) {
+            print(String(format: "    remote: %.1fs", remoteDuration))
         }
     }
 

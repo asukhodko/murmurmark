@@ -316,6 +316,9 @@ The new controlled experiment path keeps the normal raw writer as the only sourc
 ```bash
 SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live"
 murmurmark record --out "$SESSION" --target-bundle system --experiment live-shadow-v1
+# While recording, run in a second terminal:
+murmurmark live watch "$SESSION"
+# After Ctrl-C in the recording terminal:
 murmurmark process "$SESSION"
 murmurmark experiment status "$SESSION"
 murmurmark experiment report "$SESSION"
@@ -336,9 +339,15 @@ That queue writes closed segment files under `derived/experiments/live-shadow-v1
 compatible rows to `derived/live/segments.jsonl`; `scripts/live-pipeline-shadow.py` then consumes
 those closed segments and updates `derived/live/transcript.draft.md`. The raw commit log still exists
 as evidence and as a post-stop fallback, but the normal preview path no longer reads a still-open CAF.
+Realtime files under `derived/live/` are immutable evidence after recording stops. Post-stop recovery
+writes under `derived/experiments/live-shadow-v1/fallback/` and never replaces realtime segments,
+chunks, draft text, state or timestamps.
 If the PCM queue or live ASR falls behind, only the experiment is disabled or marked partial. Raw
 `audio/mic/*.caf` and `audio/remote/*.caf` remain the authoritative recording and `murmurmark process`
 remains the authoritative transcript path.
+The transport/worker reliability unit is covered by pre-stop, timeout, termination, backpressure and
+fallback-isolation tests. Promotion still requires at least three fresh meaningful real meetings
+with healthy raw/batch output, timestamped pre-stop artifacts and passing live-vs-batch gates.
 
 `--experiment live-shadow-v1` is controlled evidence, not promotion. It can be used on real
 meetings when you want live evidence, because raw CAF remains the source of truth and
@@ -367,11 +376,13 @@ and which command recovers processing from the existing raw CAF files. Inspect i
 murmurmark experiment status "$SESSION"
 murmurmark experiment report "$SESSION"
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
+murmurmark experiment recover-draft "$SESSION" --experiment live-shadow-v1  # explicit fallback only
 ```
 
-`experiment compare` also uses `raw_segment_commits.jsonl` as a fallback if committed-PCM preview was
-partial. This is intentional: recording should stop quickly, while slower draft recovery can happen
-in the explicit experiment step.
+`experiment compare` is read-only with respect to live audio, chunks and draft text. It compares
+whatever was actually produced by the recording-time worker and must finish without starting ASR.
+Use `experiment recover-draft` only when a separate post-stop diagnostic draft is useful. Recovery
+is never counted as pre-stop evidence and does not make the live result authoritative.
 The default comparison computes the required parity gates. Expensive exploratory target-me shadow
 profiles are opt-in:
 
@@ -1076,9 +1087,11 @@ murmurmark audit stronger-audio-judge latest --max-items 80
 ```
 
 The stronger audio judge is a local second opinion over short review clips. It does not replace the
-main `whisper.cpp` transcript. The normal post-recording pipeline uses a broader `80` item budget by
-default because the earlier `12` item cap left many `check_transcript_order` rows manually queued
-even when local evidence could safely mark them as timing/double-talk.
+main `whisper.cpp` transcript. The normal post-recording pipeline first applies cheap conservative
+cleanup, rebuilds the review pack from the residual queue, and then audits up to `80` items using
+`mic_clean + remote`. This keeps the useful broad coverage while avoiding two redundant source
+decodes per item. Use `murmurmark process "$SESSION" --stronger-audio-judge-exhaustive` only for a
+deliberate four-source diagnostic run; compatible cached rows are reused in either mode.
 
 ## Command Reference
 

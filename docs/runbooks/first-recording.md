@@ -118,6 +118,9 @@ experiment sidecar:
 ```bash
 SESSION="sessions/$(date +%Y-%m-%d_%H-%M-%S)-live-evidence"
 murmurmark record --out "$SESSION" --target-bundle system --duration 120 --experiment live-shadow-v1
+# In a second terminal while recording:
+murmurmark live watch "$SESSION"
+# After recording stops:
 murmurmark process "$SESSION"
 murmurmark experiment status "$SESSION"
 murmurmark experiment report "$SESSION"
@@ -154,9 +157,13 @@ during the meeting, but the batch transcript from raw CAF remains authoritative.
 still written as evidence and as a post-stop fallback; normal preview no longer reads still-open CAF
 files.
 
-If the recording-time sidecar worker timed out before live draft completion, rerun
-`murmurmark experiment compare ...`; it can use the raw commit log as a fallback and then compares the
-draft with authoritative batch output.
+Watch the draft from a second terminal with `murmurmark live watch "$SESSION"`. The command also
+shows worker heartbeat and lag; it must make a stalled preview visible while raw capture continues.
+
+`murmurmark experiment compare ...` reads existing realtime artifacts only. If the recording-time
+worker timed out and a diagnostic post-stop draft is useful, run
+`murmurmark experiment recover-draft ...` explicitly. Recovery writes a separate fallback namespace
+and cannot satisfy pre-stop parity gates.
 The default comparison computes the required parity gates and a paired direct comparison between
 `online_live_me_remote_overlap_filter_v1` and `live_runtime_causal_target_me_direct_v1`.
 For an additional focused shadow experiment, materialize the selected policy explicitly:
@@ -171,6 +178,10 @@ scripts/compare-live-batch.py "$SESSION" --lab-policy "$POLICY"
 
 `--lab-policy` is repeatable. Keep `--with-labs` for deliberate full laboratory sweeps; it runs all
 exploratory profiles and can take many minutes on a long meeting.
+
+Normal `process` keeps the stronger-audio-judge queue broad but bounded: cheap cleanup runs first,
+the review pack is rebuilt from the residual transcript, and the judge decodes `mic_clean + remote`.
+Use `--stronger-audio-judge-exhaustive` only when all four clip sources are needed for diagnosis.
 
 The current profile first trims strongly confirmed Target-Me spans to gaps between guarded live
 remote turns, then runs short-window micro-ASR only for compact weak-text gaps. It publishes a

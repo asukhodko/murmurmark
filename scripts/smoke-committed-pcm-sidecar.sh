@@ -117,4 +117,39 @@ jq -e '
 ' "$backpressure_session/derived/experiments/live-shadow-v1/state.json" >/dev/null \
   || fail "backpressure state does not prove committed PCM fail-open behavior"
 
+if [[ "${MURMURMARK_RUN_LIVE_WORKER_CAPTURE_TEST:-0}" == "1" ]]; then
+  worker_session="$workdir/session-worker"
+  worker_log="$workdir/record-worker.log"
+  "$bin" record \
+    --target-bundle system \
+    --duration 35 \
+    --experiment live-shadow-v1 \
+    --live-segment-sec 10 \
+    --live-overlap-sec 2 \
+    --out "$worker_session" >"$worker_log" 2>&1 &
+  worker_record_pid=$!
+  draft_seen_before_stop=0
+  for _ in {1..240}; do
+    if [[ -s "$worker_session/derived/live/chunks.jsonl" && ! -e "$worker_session/session.json" ]]; then
+      draft_seen_before_stop=1
+      break
+    fi
+    kill -0 "$worker_record_pid" 2>/dev/null || break
+    sleep 0.25
+  done
+  wait "$worker_record_pid" || {
+    cat "$worker_log" >&2
+    fail "worker-enabled record command failed"
+  }
+  [[ "$draft_seen_before_stop" == "1" ]] \
+    || fail "worker-enabled capture produced no chunk before recording stop"
+  jq -e '
+    .status == "completed"
+    and .provenance == "recording_time_committed_pcm"
+    and (.progress.chunks_processed // 0) > 0
+    and (.progress.processed_sec // 0) >= 30
+  ' "$worker_session/derived/live/live_pipeline_report.json" >/dev/null \
+    || fail "worker-enabled capture did not complete realtime draft processing"
+fi
+
 echo "committed PCM sidecar smoke ok"

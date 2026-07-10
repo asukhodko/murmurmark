@@ -35,6 +35,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--no-live-worker", action="store_true")
     parser.add_argument("--live-worker-timeout-sec", type=float, default=45.0)
+    parser.add_argument("--fallback-dir", type=Path, default=None)
     return parser.parse_args()
 
 
@@ -125,15 +126,15 @@ def source_audio_path(session: Path, row: dict[str, Any]) -> Path:
     return session / raw_path
 
 
-def output_audio_path(session: Path, experiment: str, row: dict[str, Any]) -> Path:
+def output_audio_path(fallback_dir: Path, row: dict[str, Any]) -> Path:
     source = str(row.get("source") or "unknown")
     index = int(row.get("index") or 0)
-    return session / "derived" / "experiments" / experiment / "audio" / source / f"{index:06d}.wav"
+    return fallback_dir / "audio" / source / f"{index:06d}.wav"
 
 
-def ffmpeg_materialize(session: Path, experiment: str, row: dict[str, Any], timeout_sec: float) -> tuple[bool, str, Path]:
+def ffmpeg_materialize(session: Path, fallback_dir: Path, row: dict[str, Any], timeout_sec: float) -> tuple[bool, str, Path]:
     source = source_audio_path(session, row)
-    output = output_audio_path(session, experiment, row)
+    output = output_audio_path(fallback_dir, row)
     output.parent.mkdir(parents=True, exist_ok=True)
     start = float(row.get("start_sec") or 0.0)
     duration = max(0.0, float(row.get("end_sec") or 0.0) - start)
@@ -243,11 +244,13 @@ def live_segment_row(session: Path, experiment: str, row: dict[str, Any], output
         "final": bool(row.get("final")),
         "after_overlap_complete": True,
         "materialized_from_raw_commit": True,
+        "created_at": utc_now(),
+        "provenance": "post_stop_raw_commit_recovery",
         "raw_path": str(row.get("raw_path") or ""),
     }
 
 
-def start_live_worker(session: Path, log) -> subprocess.Popen[str] | None:
+def start_live_worker(session: Path, fallback_dir: Path, segments_path: Path, log) -> subprocess.Popen[str] | None:
     script = Path("scripts/live-pipeline-shadow.py")
     if not script.exists():
         return None
@@ -255,10 +258,23 @@ def start_live_worker(session: Path, log) -> subprocess.Popen[str] | None:
     if not Path(python).exists():
         python = shutil.which("python3") or "/usr/bin/python3"
     return subprocess.Popen(
-        [python, str(script), str(session)],
+        [
+            python,
+            "-u",
+            str(script),
+            str(session),
+            "--segments-path",
+            str(segments_path),
+            "--output-dir",
+            str(fallback_dir),
+            "--provenance",
+            "post_stop_raw_commit_recovery",
+            "--no-causal-target-me",
+        ],
         stdout=log,
         stderr=log,
         text=True,
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
     )
 
 
@@ -268,9 +284,9 @@ def write_state(
     status: str,
     processed: set[int],
     materialized_rows: list[dict[str, Any]],
+    fallback_dir: Path,
     reason: str | None = None,
 ) -> None:
-    experiment_dir = session / "derived" / "experiments" / experiment
     raw_seconds = 0.0
     session_json = session / "session.json"
     if session_json.exists():
@@ -285,7 +301,8 @@ def write_state(
         "experiment_id": experiment,
         "kind": "near_realtime_shadow",
         "status": status,
-        "live_preview_mode": "fallback_raw_commit_only",
+        "live_preview_mode": "post_stop_raw_commit_recovery",
+        "provenance": "post_stop_raw_commit_recovery",
         "updated_at": utc_now(),
         "reason": reason,
         "answers": {
@@ -311,12 +328,12 @@ def write_state(
         },
         "outputs": {
             "raw_segment_commits": f"derived/experiments/{experiment}/raw_segment_commits.jsonl",
-            "segments": "derived/live/segments.jsonl",
-            "compat_live_dir": "derived/live",
-            "experiment_audio": f"derived/experiments/{experiment}/audio",
+            "segments": rel(fallback_dir / "segments.jsonl", session),
+            "fallback_dir": rel(fallback_dir, session),
+            "experiment_audio": rel(fallback_dir / "audio", session),
         },
     }
-    write_json(experiment_dir / "state.json", state)
+    write_json(fallback_dir / "state.json", state)
     report = {
         "schema": EXPERIMENT_REPORT_SCHEMA,
         "experiment_id": experiment,
@@ -332,7 +349,7 @@ def write_state(
             "reason": reason,
         },
     }
-    write_json(experiment_dir / "report.json", report)
+    write_json(fallback_dir / "report.json", report)
 
 
 def append_event(session: Path, experiment: str, event_type: str, status: str, **fields: Any) -> None:
@@ -356,13 +373,18 @@ def main() -> int:
     session = args.session.expanduser().resolve()
     experiment = args.experiment
     experiment_dir = session / "derived" / "experiments" / experiment
+    fallback_dir = (
+        args.fallback_dir.expanduser().resolve()
+        if args.fallback_dir is not None
+        else experiment_dir / "fallback"
+    )
     commit_log = experiment_dir / "raw_segment_commits.jsonl"
-    live_segments_path = session / "derived" / "live" / "segments.jsonl"
-    live_segments_path.parent.mkdir(parents=True, exist_ok=True)
-    if not live_segments_path.exists():
-        live_segments_path.write_text("", encoding="utf-8")
+    fallback_segments_path = fallback_dir / "segments.jsonl"
+    fallback_segments_path.parent.mkdir(parents=True, exist_ok=True)
+    if not fallback_segments_path.exists():
+        fallback_segments_path.write_text("", encoding="utf-8")
 
-    log_path = experiment_dir / "worker.log"
+    log_path = fallback_dir / "worker.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8") as log:
         child = None
@@ -373,7 +395,7 @@ def main() -> int:
         last_progress = time.monotonic()
         waiting_notified = False
         append_event(session, experiment, "raw_sidecar_worker.started", status)
-        write_state(session, experiment, status, processed, materialized_rows)
+        write_state(session, experiment, status, processed, materialized_rows, fallback_dir)
 
         try:
             while True:
@@ -389,7 +411,7 @@ def main() -> int:
                         append_event(session, experiment, "raw_sidecar_worker.waiting_for_session_close", status, reason=reason)
                         waiting_notified = True
                         last_progress = time.monotonic()
-                    write_state(session, experiment, status, processed, materialized_rows, reason=reason)
+                    write_state(session, experiment, status, processed, materialized_rows, fallback_dir, reason=reason)
                     time.sleep(max(0.1, args.poll_sec))
                     continue
                 if not session_closed and len(ready_unprocessed) > max(1, args.max_ready_backlog):
@@ -402,7 +424,12 @@ def main() -> int:
                     rows_for_index: list[dict[str, Any]] = []
                     failed_reason = None
                     for source in ("mic", "remote"):
-                        ok, mat_reason, output = ffmpeg_materialize(session, experiment, pair[source], args.ffmpeg_timeout_sec)
+                        ok, mat_reason, output = ffmpeg_materialize(
+                            session,
+                            fallback_dir,
+                            pair[source],
+                            args.ffmpeg_timeout_sec,
+                        )
                         if not ok:
                             failed_reason = mat_reason
                             break
@@ -412,10 +439,13 @@ def main() -> int:
                         reason = failed_reason
                         break
                     materialized_rows.extend(rows_for_index)
-                    rewrite_jsonl(live_segments_path, sorted(materialized_rows, key=lambda row: (int(row.get("index") or 0), str(row.get("source") or ""))))
+                    rewrite_jsonl(
+                        fallback_segments_path,
+                        sorted(materialized_rows, key=lambda row: (int(row.get("index") or 0), str(row.get("source") or ""))),
+                    )
                     processed.add(index)
                     if child is None and not args.no_live_worker:
-                        child = start_live_worker(session, log)
+                        child = start_live_worker(session, fallback_dir, fallback_segments_path, log)
                         if child is not None:
                             append_event(session, experiment, "live_worker.started", status, index=index)
                     status = "running"
@@ -423,7 +453,7 @@ def main() -> int:
                     waiting_notified = False
                     last_progress = time.monotonic()
                     append_event(session, experiment, "raw_sidecar_worker.materialized", status, index=index)
-                write_state(session, experiment, status, processed, materialized_rows, reason=reason)
+                write_state(session, experiment, status, processed, materialized_rows, fallback_dir, reason=reason)
 
                 if (session / "session.json").exists():
                     if all_final_pairs_processed(commits, processed):
@@ -441,7 +471,7 @@ def main() -> int:
                 if child.poll() is None:
                     child.terminate()
                     append_event(session, experiment, "live_worker.terminated", "terminated", reason="sidecar_worker_timeout")
-            write_state(session, experiment, status, processed, materialized_rows, reason=reason)
+            write_state(session, experiment, status, processed, materialized_rows, fallback_dir, reason=reason)
             append_event(session, experiment, "raw_sidecar_worker.finished", status, reason=reason)
     return 0
 

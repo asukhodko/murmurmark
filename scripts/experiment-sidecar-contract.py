@@ -182,20 +182,20 @@ def status_from(
         return "missing_session"
     if str((final_reconcile or {}).get("status") or "") == "passed":
         return "completed"
-    if comparison and (segments or live_report or live_state):
-        return "completed"
     for payload in (live_report, live_state, experiment_state):
         if not isinstance(payload, dict):
             continue
         status = str(payload.get("status") or "")
         if status in {"failed", "disabled", "disabled_backpressure", "disabled_pcm_copy"}:
             return status
-        if status in {"completed", "completed_partial_draft", "stopped_by_limit", "capture_finished"}:
+        if status == "completed_partial_draft":
+            return status
+        if status in {"completed", "stopped_by_limit", "capture_finished"}:
             return "completed"
         if status in {"running", "recording", "preview_running"}:
             return status
-    if segments:
-        return "completed"
+    if segments and session_manifest:
+        return "completed_partial_draft"
     if session_manifest:
         return "not_started"
     return "missing_session"
@@ -222,12 +222,17 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
     existing_manifest = read_json(experiment_dir / "experiment_manifest.json")
     existing_experiment_state = read_json(experiment_dir / "state.json")
     raw_commit_state = read_json(experiment_dir / "raw_commit_state.json")
+    fallback_dir = experiment_dir / "fallback"
+    fallback_state = read_json(fallback_dir / "state.json")
+    fallback_report = read_json(fallback_dir / "live_pipeline_report.json")
     final_reconcile = read_json(live_dir / "final_reconcile_report.json")
     comparison = read_json(live_dir / "live_batch_comparison.json")
     pipeline_report = read_json(session / "derived/pipeline-run/pipeline_run_report.json")
     readiness = read_json(session / "derived/readiness/session_readiness.json")
     segments = read_jsonl(live_dir / "segments.jsonl")
     raw_commits = read_jsonl(experiment_dir / "raw_segment_commits.jsonl")
+    fallback_segments = read_jsonl(fallback_dir / "segments.jsonl")
+    fallback_chunks = read_jsonl(fallback_dir / "chunks.jsonl")
     chunks = read_jsonl(live_dir / "chunks.jsonl")
     events = read_jsonl(session / "events.jsonl")
     warnings = warning_text(session_manifest or {})
@@ -269,6 +274,7 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
     session_display = display_session(session)
     recovery_command = f"murmurmark process {session_display}"
     comparison_command = f"murmurmark experiment compare {session_display} --experiment {experiment_id}"
+    draft_recovery_command = f"murmurmark experiment recover-draft {session_display} --experiment {experiment_id}"
 
     outputs = {
         "compat_live_dir": rel(live_dir, session),
@@ -284,6 +290,12 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         "pilot_report": rel(live_dir / "live_parity_pilot_report.json", session),
         "experiment_report": f"derived/experiments/{experiment_id}/report.json",
         "experiment_report_markdown": f"derived/experiments/{experiment_id}/report.md",
+        "fallback_dir": rel(fallback_dir, session),
+        "fallback_segments": rel(fallback_dir / "segments.jsonl", session),
+        "fallback_chunks": rel(fallback_dir / "chunks.jsonl", session),
+        "fallback_draft_transcript": rel(fallback_dir / "transcript.draft.md", session),
+        "fallback_state": rel(fallback_dir / "state.json", session),
+        "fallback_report": rel(fallback_dir / "live_pipeline_report.json", session),
     }
     outputs = {key: value for key, value in outputs.items() if value is not None}
 
@@ -328,6 +340,13 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         "outputs": outputs,
         "recovery_command": recovery_command,
         "comparison_command": comparison_command,
+        "draft_recovery_command": draft_recovery_command,
+        "fallback": {
+            "status": (fallback_state or {}).get("status") or (fallback_report or {}).get("status") or "not_run",
+            "segments_seen": len(fallback_segments),
+            "chunks_seen": len(fallback_chunks),
+            "provenance": "post_stop_raw_commit_recovery",
+        },
     }
 
     manifest = {
@@ -362,6 +381,7 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         "promotion_allowed": False,
         "recovery_command": recovery_command,
         "comparison_command": comparison_command,
+        "draft_recovery_command": draft_recovery_command,
         "state": f"derived/experiments/{experiment_id}/state.json",
         "events": f"derived/experiments/{experiment_id}/events.jsonl",
     }
@@ -383,12 +403,15 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
             "readiness_status": (readiness or {}).get("use_gate") or (readiness or {}).get("status") or "missing",
             "sidecar_disabled": state["answers"]["sidecar_disabled"],
             "backpressure_detected": backpressure,
+            "fallback_status": state["fallback"]["status"],
+            "fallback_chunks": state["fallback"]["chunks_seen"],
         },
         "machine_answers": state["answers"],
         "manifest": f"derived/experiments/{experiment_id}/experiment_manifest.json",
         "state": f"derived/experiments/{experiment_id}/state.json",
         "recovery_command": recovery_command,
         "comparison_command": comparison_command,
+        "draft_recovery_command": draft_recovery_command,
     }
 
     write_json(experiment_dir / "experiment_manifest.json", manifest)
@@ -471,6 +494,7 @@ def write_report_md(path: Path, report: dict[str, Any]) -> None:
         "",
         f"- recovery: `{report['recovery_command']}`",
         f"- comparison: `{report['comparison_command']}`",
+        f"- post-stop draft recovery: `{report['draft_recovery_command']}`",
         "",
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -496,6 +520,7 @@ def print_status(contract: dict[str, Any]) -> None:
     print(f"  sidecar_seconds_asr: {answers['sidecar_seconds_asr']}")
     print(f"  sidecar_disabled: {str(answers['sidecar_disabled']).lower()}")
     print(f"  backpressure_detected: {str(answers['backpressure_detected']).lower()}")
+    print(f"  fallback_status: {report['summary'].get('fallback_status') or 'not_run'}")
     print(f"  batch_reproducible_from_raw: {str(answers['batch_reproducible_from_raw']).lower()}")
     print(f"  manifest: {report['manifest']}")
     print(f"  report: derived/experiments/{report['experiment_id']}/report.md")
@@ -517,12 +542,10 @@ def print_report(contract: dict[str, Any]) -> None:
     print(f"live_preview_mode: {contract['state'].get('live_preview_mode') or 'unknown'}")
     print(f"recovery_command: {report['recovery_command']}")
     print(f"comparison_command: {report['comparison_command']}")
+    print(f"draft_recovery_command: {report['draft_recovery_command']}")
 
 
 def run_compare(session: Path) -> int:
-    materialize_status = run_raw_sidecar_worker_if_needed(session)
-    if materialize_status != 0:
-        print(f"warning: raw sidecar worker exited with {materialize_status}; comparing existing artifacts", file=sys.stderr)
     script = Path("scripts/compare-live-batch.py")
     if not script.exists():
         print(f"missing comparison script: {script}", file=sys.stderr)
@@ -555,57 +578,12 @@ def run_compare(session: Path) -> int:
         return 0
 
 
-def ready_commit_indexes(rows: list[dict[str, Any]]) -> set[int]:
-    grouped: dict[int, set[str]] = {}
-    for row in rows:
-        if row.get("schema") != "murmurmark.raw_segment_commit/v1":
-            continue
-        if row.get("status") != "committed":
-            continue
-        source = str(row.get("source") or "")
-        if source not in {"mic", "remote"}:
-            continue
-        try:
-            index = int(row.get("index"))
-        except (TypeError, ValueError):
-            continue
-        grouped.setdefault(index, set()).add(source)
-    return {index for index, sources in grouped.items() if {"mic", "remote"} <= sources}
-
-
-def materialized_segment_indexes(rows: list[dict[str, Any]]) -> set[int]:
-    grouped: dict[int, set[str]] = {}
-    for row in rows:
-        source = str(row.get("source") or "")
-        if source not in {"mic", "remote"}:
-            continue
-        try:
-            index = int(row.get("index"))
-        except (TypeError, ValueError):
-            continue
-        grouped.setdefault(index, set()).add(source)
-    return {index for index, sources in grouped.items() if {"mic", "remote"} <= sources}
-
-
-def run_raw_sidecar_worker_if_needed(session: Path, experiment_id: str = DEFAULT_EXPERIMENT_ID) -> int:
-    experiment_dir = session / "derived" / "experiments" / experiment_id
-    raw_commits = read_jsonl(experiment_dir / "raw_segment_commits.jsonl")
-    ready_indexes = ready_commit_indexes(raw_commits)
-    if not ready_indexes:
-        return 0
-    live_dir = session / "derived" / "live"
-    segments = read_jsonl(live_dir / "segments.jsonl")
-    segment_indexes = materialized_segment_indexes(segments)
-    live_report = read_json(live_dir / "live_pipeline_report.json") or {}
-    progress = live_report.get("progress") if isinstance(live_report.get("progress"), dict) else {}
-    chunks_processed = int(progress.get("chunks_processed") or 0)
-    if ready_indexes <= segment_indexes and str(live_report.get("status") or "") == "completed" and chunks_processed >= len(ready_indexes):
-        return 0
+def run_recover_draft(session: Path, experiment_id: str) -> int:
     script = Path("scripts/raw-sidecar-worker.py")
     if not script.exists():
-        return 0
-    timeout = os.environ.get("MURMURMARK_RAW_SIDECAR_COMPARE_TIMEOUT_SEC", "900")
-    return subprocess.call(
+        print(f"missing raw sidecar worker: {script}", file=sys.stderr)
+        return 1
+    return subprocess.run(
         [
             sys.executable,
             str(script),
@@ -617,14 +595,15 @@ def run_raw_sidecar_worker_if_needed(session: Path, experiment_id: str = DEFAULT
             "--idle-after-session-json-sec",
             "0.2",
             "--live-worker-timeout-sec",
-            timeout,
-        ]
-    )
+            os.environ.get("MURMURMARK_RAW_SIDECAR_RECOVERY_TIMEOUT_SEC", "1800"),
+        ],
+        check=False,
+    ).returncode
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Write and inspect MurmurMark experimental sidecar contract artifacts.")
-    parser.add_argument("command", choices=["refresh", "status", "report", "compare"])
+    parser.add_argument("command", choices=["refresh", "status", "report", "compare", "recover-draft"])
     parser.add_argument("session", help="Session path or latest.")
     parser.add_argument("--experiment", default=DEFAULT_EXPERIMENT_ID)
     parser.add_argument("--sessions-root", default="sessions")
@@ -638,12 +617,18 @@ def main() -> int:
         status = run_compare(session)
         if status != 0:
             return status
+    elif args.command == "recover-draft":
+        status = run_recover_draft(session, args.experiment)
+        if status != 0:
+            return status
     contract = build_contract(session, args.experiment, args.command)
     if args.command == "status":
         print_status(contract)
     elif args.command == "report":
         print_report(contract)
     elif args.command == "compare":
+        print_report(contract)
+    elif args.command == "recover-draft":
         print_report(contract)
     else:
         manifest_path = f"{display_session(session)}/derived/experiments/{args.experiment}/experiment_manifest.json"

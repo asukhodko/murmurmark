@@ -65,9 +65,11 @@ JSONL
   --poll-sec 0.1 \
   --idle-after-session-json-sec 0.1 >/dev/null
 
-[[ -s "$session/derived/experiments/$experiment/audio/mic/000001.wav" ]] \
+fallback="$session/derived/experiments/$experiment/fallback"
+
+[[ -s "$fallback/audio/mic/000001.wav" ]] \
   || fail "mic segment was not materialized"
-[[ -s "$session/derived/experiments/$experiment/audio/remote/000001.wav" ]] \
+[[ -s "$fallback/audio/remote/000001.wav" ]] \
   || fail "remote segment was not materialized"
 
 jq -e '
@@ -76,7 +78,7 @@ jq -e '
   and .answers.raw_capture_affected == false
   and .answers.batch_reproducible_from_raw == true
   and .counters.processed_indexes == [1]
-' "$session/derived/experiments/$experiment/state.json" >/dev/null \
+' "$fallback/state.json" >/dev/null \
   || fail "state did not prove completed fail-open sidecar"
 
 jq -e '
@@ -84,22 +86,28 @@ jq -e '
   and .status == "completed"
   and .batch_authoritative == true
   and .promotion_allowed == false
-' "$session/derived/experiments/$experiment/report.json" >/dev/null \
+' "$fallback/report.json" >/dev/null \
   || fail "report contract is invalid"
 
 jq -s -e '
   length == 2
   and all(.[]; .schema == "murmurmark.live_segment/v1")
   and all(.[]; .materialized_from_raw_commit == true)
-  and all(.[]; (.path | startswith("derived/experiments/live-shadow-v1/audio/")))
-' "$session/derived/live/segments.jsonl" >/dev/null \
-  || fail "compat live segments do not point to canonical experiment audio"
+  and all(.[]; .provenance == "post_stop_raw_commit_recovery")
+  and all(.[]; (.path | startswith("derived/experiments/live-shadow-v1/fallback/audio/")))
+' "$fallback/segments.jsonl" >/dev/null \
+  || fail "fallback segments do not point to isolated recovery audio"
+[[ ! -e "$session/derived/live/segments.jsonl" ]] \
+  || fail "fallback recovery mutated realtime segments"
 
 python3 scripts/experiment-sidecar-contract.py refresh "$session" >/dev/null
 jq -e '
   .outputs.raw_segment_commits == "derived/experiments/live-shadow-v1/raw_segment_commits.jsonl"
   and .counters.raw_commits_seen == 2
-  and .answers.sidecar_seconds_captured == 2
+  and .answers.raw_commit_seconds == 2
+  and .answers.sidecar_seconds_captured == 0
+  and .fallback.status == "completed"
+  and .fallback.segments_seen == 2
 ' "$session/derived/experiments/$experiment/state.json" >/dev/null \
   || fail "contract did not include raw commit evidence"
 
@@ -130,7 +138,7 @@ jq -e '
   and .answers.sidecar_disabled == true
   and .answers.raw_capture_affected == false
   and .answers.batch_reproducible_from_raw == true
-' "$backlog_session/derived/experiments/$experiment/state.json" >/dev/null \
+' "$backlog_session/derived/experiments/$experiment/fallback/state.json" >/dev/null \
   || fail "ready backlog did not disable only the sidecar"
 
 echo "raw sidecar worker smoke ok"

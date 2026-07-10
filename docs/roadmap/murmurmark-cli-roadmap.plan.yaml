@@ -540,9 +540,12 @@ nodes:
       `murmurmark process` остаются source of truth. Старый `--live-pipeline` quarantined. Новый
       путь — `record --experiment live-shadow-v1`: callback сначала пишет raw CAF, затем bounded
       committed-PCM queue пишет закрытые experiment segments, а `raw_segment_commits.jsonl`
-      остаётся audit/fallback. Committed-PCM transport и live draft уже работают. Текущая работа —
-      parity hardening через progressive past-only Target-Me, focused micro-ASR и corpus gates,
-      пока promotion остаётся blocked и batch transcript authoritative.
+      остаётся audit/fallback. Committed-PCM transport и live draft уже работают. Reliability unit
+      закрывает heartbeat, bounded child timeouts, immutable realtime provenance, read-only compare,
+      explicit isolated fallback и pre-stop worker integration smoke. Текущая работа — получить
+      минимум три свежих meaningful real-session comparison, затем продолжить parity hardening через
+      progressive past-only Target-Me, focused micro-ASR и corpus gates. Promotion остаётся blocked,
+      batch transcript authoritative.
 
   realtime-segment-writer:
     title: "Durable committed PCM sidecar"
@@ -802,6 +805,11 @@ nodes:
       before stop and a usable batch comparison. A fresh controlled Live
       Evidence run must still prove pre-stop artifacts, bounded lag and fail-open capture behavior;
       promotion remains blocked by ordinary parity gates.
+      The immediate reliability unit separates immutable realtime artifacts from explicit post-stop
+      fallback recovery, adds worker heartbeat and child-process timeouts, makes compare read-only,
+      and requires an integration smoke that observes a draft before recording stop.
+      Post-stop processing applies cheap cleanup before stronger-audio-judge, rebuilds the residual
+      review pack and uses two-source triage by default; exhaustive four-source decoding is opt-in.
       `remote_dominant_without_new_evidence` / `known_hallucination` stay blocked. Historical base
       triage had `14` contentful rows; the former voice-activity profile exposed `9` blocking
       boundary candidates and `12` advisory weak matches. The token-density follow-up clears
@@ -1769,8 +1777,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Near-Realtime Live Parity Coverage v1: снижать live missing-Me causal runtime-алгоритмами без роста remote leakage, order risk или review burden; batch остаётся authoritative."
-      success_by_next_sync: "Лучший live-implementable профиль измерен на полном real corpus, не регрессирует ни в одной сессии и остаётся shadow-only до прохождения всех parity gates."
+      nearest_goal: "Near-Realtime Live Parity Coverage v1: доказать committed-PCM live-preview на трёх свежих real sessions, затем снижать live missing-Me без роста remote leakage, order risk или review burden; batch остаётся authoritative."
+      success_by_next_sync: "Три свежие meaningful live sessions имеют healthy raw/batch, pre-stop temporal provenance и comparison; corpus report точно показывает оставшиеся parity blockers, promotion остаётся blocked до полного green."
     defaults:
       status_progress:
         done: 1.0

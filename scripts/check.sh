@@ -17,6 +17,7 @@ scripts/check-open-source-readiness.sh
 scripts/check-capture-regressions.sh
 scripts/smoke-experimental-sidecar-contract.sh
 scripts/smoke-committed-pcm-sidecar.sh
+scripts/smoke-live-worker-handoff.sh
 scripts/smoke-raw-sidecar-worker.sh
 scripts/smoke-process-chunk-resume.sh
 if [[ -f sessions/_reports/session-quality/session_quality_report.json ]]; then

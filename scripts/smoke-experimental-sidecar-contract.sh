@@ -11,6 +11,9 @@ fail() {
 
 command -v jq >/dev/null 2>&1 || fail "missing jq"
 
+python_bin="${MURMURMARK_PYTHON:-$repo_root/.venv/bin/python}"
+[[ -x "$python_bin" ]] || python_bin="$(command -v python3)"
+
 bin="${MURMURMARK_BIN:-$repo_root/.build/debug/murmurmark}"
 if [[ ! -x "$bin" ]]; then
   swift build >/dev/null
@@ -78,7 +81,7 @@ JSON
 session="$workdir/session-ok"
 write_session "$session" "[]"
 
-python3 scripts/experiment-sidecar-contract.py refresh "$session" >/dev/null
+"$python_bin" scripts/experiment-sidecar-contract.py refresh "$session" >/dev/null
 "$bin" experiment status "$session" >/dev/null
 "$bin" experiment report "$session" >/dev/null
 
@@ -117,9 +120,34 @@ jq -e '
 grep -q '"type": "experiment_contract.refreshed"' "$events" \
   || fail "experiment events were not written"
 
+resolved="$session/derived/transcript-simple/whisper-cpp/resolved"
+mkdir -p "$resolved"
+cat >"$resolved/transcript.audit_cleanup_v2.md" <<'MARKDOWN'
+# Transcript
+
+## 00:00 Colleagues
+
+тестовая удаленная реплика
+MARKDOWN
+cat >"$resolved/clean_dialogue.audit_cleanup_v2.json" <<'JSON'
+{"schema":"murmurmark.clean_dialogue/v1","utterances":[{"id":"remote_000001","start":0.0,"end":2.0,"role":"Colleagues","text":"тестовая удаленная реплика"}]}
+JSON
+segments_hash_before="$(shasum -a 256 "$session/derived/live/segments.jsonl" | awk '{print $1}')"
+chunks_hash_before="$(shasum -a 256 "$session/derived/live/chunks.jsonl" | awk '{print $1}')"
+MURMURMARK_LIVE_BATCH_COMPARE_TIMEOUT_SEC=20 \
+  "$python_bin" scripts/experiment-sidecar-contract.py compare "$session" >/dev/null
+segments_hash_after="$(shasum -a 256 "$session/derived/live/segments.jsonl" | awk '{print $1}')"
+chunks_hash_after="$(shasum -a 256 "$session/derived/live/chunks.jsonl" | awk '{print $1}')"
+[[ "$segments_hash_before" == "$segments_hash_after" ]] \
+  || fail "compare mutated realtime segments"
+[[ "$chunks_hash_before" == "$chunks_hash_after" ]] \
+  || fail "compare mutated realtime chunks"
+[[ ! -e "$session/derived/experiments/live-shadow-v1/fallback" ]] \
+  || fail "compare started implicit fallback recovery"
+
 backpressure_session="$workdir/session-backpressure"
 write_session "$backpressure_session" '["live segment writer disabled for remote: backlog exceeded 1 samples"]'
-python3 scripts/experiment-sidecar-contract.py refresh "$backpressure_session" >/dev/null
+"$python_bin" scripts/experiment-sidecar-contract.py refresh "$backpressure_session" >/dev/null
 jq -e '
   .status == "disabled_backpressure"
   and .disabled_reason == "sidecar_backpressure"

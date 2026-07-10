@@ -170,6 +170,17 @@ murmurmark process "$SESSION"
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 ```
 
+Realtime and recovery are separate branches:
+
+```text
+committed PCM -> derived/live/segments.jsonl -> live worker -> derived/live/transcript.draft.md
+raw commit log -> explicit recover-draft -> derived/experiments/live-shadow-v1/fallback/
+```
+
+The second branch is post-stop diagnostic recovery. It cannot replace or amend the first branch,
+and `experiment compare` never invokes it implicitly. This keeps temporal provenance auditable and
+prevents a replay from looking like near-realtime output.
+
 ## Known Failure Modes
 
 ### Callback Coupling

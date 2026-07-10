@@ -653,6 +653,14 @@ newer run-state exists.
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
 6. **Near-Realtime Pipeline Shadow v1.** Continue hardening draft transcripts from safe derived
    segments while keeping the batch pipeline as final authority until corpus gates prove parity.
+   Current immediate work is live-worker handoff reliability: heartbeat, bounded child-process
+   timeouts, immutable realtime provenance, explicit fallback recovery and a pre-stop integration
+   smoke with the worker enabled. The implementation unit is complete; the next evidence gate is
+   three fresh meaningful real meetings with healthy raw/batch output, pre-stop artifacts and
+   live-vs-batch comparison.
+   Post-stop latency is reduced conservatively by applying cheap cleanup before the stronger audio
+   judge, rebuilding only the residual review pack and using two-source triage by default; exhaustive
+   four-source decoding remains opt-in.
 7. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
    close safe suggested review rows, preserve manual rows and keep status/report aligned.
 8. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only

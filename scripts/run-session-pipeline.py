@@ -141,6 +141,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-audio-review-items", type=int, default=160)
     parser.add_argument("--max-stronger-audio-judge-items", type=int, default=80)
     parser.add_argument(
+        "--stronger-audio-judge-exhaustive",
+        action="store_true",
+        help="Decode all four audio sources instead of the bounded two-source pipeline triage.",
+    )
+    parser.add_argument(
         "--report",
         type=Path,
         help="Report path. Defaults to SESSION/derived/pipeline-run/pipeline_run_report.json.",
@@ -602,6 +607,17 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
 
     audio_judge_exists = args.audio_judge_queue.exists()
     live_report_exists = (session / "derived/live/live_pipeline_report.json").exists()
+    stronger_audio_judge = [
+        py,
+        str(repo_root / "scripts/audit-stronger-audio-judge.py"),
+        str(session),
+        "--profile",
+        "audit_cleanup_v2",
+        "--max-items",
+        str(args.max_stronger_audio_judge_items),
+    ]
+    if not args.stronger_audio_judge_exhaustive:
+        stronger_audio_judge.append("--quick")
     return [
         step("swift_build", ["swift", "build"], enabled=not args.skip_build, reason="--skip-build"),
         step("inspect", [str(args.murmurmark_bin), "inspect", str(session)]),
@@ -676,16 +692,37 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
         ),
         step("audit_audio_review_pack", [py, str(repo_root / "scripts/audit-audio-review-pack.py"), str(session)], enabled=not args.skip_audits, reason="--skip-audits"),
         step(
-            "audit_stronger_audio_judge",
+            "cleanup_v2",
+            [py, str(repo_root / "scripts/apply-audit-cleanup.py"), str(session), "--input-profile", "audit_cleanup_v1", "--output-profile", "audit_cleanup_v2", "--mode", "conservative"],
+            enabled=not args.skip_cleanup,
+            reason="--skip-cleanup",
+            warning_returncodes={2},
+        ),
+        step("synthesize_v2", [py, str(repo_root / "scripts/synthesize-simple-extractive.py"), str(session), "--transcript-profile", "audit_cleanup_v2"]),
+        step(
+            "rebuild_audio_review_pack_v2",
             [
                 py,
-                str(repo_root / "scripts/audit-stronger-audio-judge.py"),
+                str(repo_root / "scripts/build-audio-review-pack.py"),
                 str(session),
                 "--profile",
-                "audit_cleanup_v1",
+                "audit_cleanup_v2",
+                "--write-clips",
                 "--max-items",
-                str(args.max_stronger_audio_judge_items),
+                str(args.max_audio_review_items),
             ],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+        ),
+        step(
+            "audit_audio_review_pack_v2",
+            [py, str(repo_root / "scripts/audit-audio-review-pack.py"), str(session)],
+            enabled=not args.skip_audits,
+            reason="--skip-audits",
+        ),
+        step(
+            "audit_stronger_audio_judge",
+            stronger_audio_judge,
             enabled=not args.skip_audits and not args.skip_stronger_audio_judge,
             reason="--skip-audits/--skip-stronger-audio-judge",
         ),
@@ -701,14 +738,6 @@ def build_steps(args: argparse.Namespace, repo_root: Path, session: Path) -> lis
             enabled=not args.skip_audits,
             reason="--skip-audits",
         ),
-        step(
-            "cleanup_v2",
-            [py, str(repo_root / "scripts/apply-audit-cleanup.py"), str(session), "--input-profile", "audit_cleanup_v1", "--output-profile", "audit_cleanup_v2", "--mode", "conservative"],
-            enabled=not args.skip_cleanup,
-            reason="--skip-cleanup",
-            warning_returncodes={2},
-        ),
-        step("synthesize_v2", [py, str(repo_root / "scripts/synthesize-simple-extractive.py"), str(session), "--transcript-profile", "audit_cleanup_v2"]),
         step(
             "cleanup_v3",
             [

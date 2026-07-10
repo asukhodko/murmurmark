@@ -16,9 +16,33 @@ segment-level realtime through committed PCM: after raw write succeeds, a bounde
 writes closed experiment segments and the live worker drafts from those files. `raw_segment_commits`
 remain evidence and fallback, while batch remains authoritative.
 
-The current live-parity blocker is profile quality, not raw capture or lack of more recordings. The
-past-only Target-Me experiment is now integrated into the running live worker as a separate causal
-shadow. It enrolls only from closed earlier chunks, evaluates the current chunk before adding its
+Reliability unit status, 2026-07-10: implementation complete; fresh real-session coverage pending.
+
+- realtime rows are synchronized after append and carry `recording_time_committed_pcm` provenance;
+- the live worker writes heartbeat, current stage/index, child PID and bounded ffmpeg/Whisper
+  timeouts;
+- `murmurmark live watch SESSION` exposes draft updates, lag and stalled-worker state while capture
+  continues;
+- worker SIGTERM terminates the active child process and persists `completed_partial_draft` instead
+  of leaving stale `running`;
+- `experiment compare` no longer starts ASR or materializes missing audio;
+- explicit `experiment recover-draft` writes only under
+  `derived/experiments/live-shadow-v1/fallback/` with post-stop provenance;
+- cheap cleanup now precedes stronger-audio-judge, the residual review pack is rebuilt, and normal
+  processing decodes `mic_clean + remote`; four-source decoding is explicit diagnostic work.
+
+Automated evidence covers manifest handoff before stop, worker heartbeat, child timeout, external
+worker termination, compare immutability, fallback isolation, PCM backpressure and raw capture
+fail-open. A controlled worker-enabled ScreenCaptureKit run produced chunks before stop and completed
+all committed segments without final lag. This proves the implementation path, not the real-meeting
+coverage gate. The next required evidence is at least three fresh meaningful meetings with healthy
+raw CAF, pre-stop live artifacts, successful batch output and live-vs-batch comparison.
+
+The current live-parity blocker has two layers: fresh temporal evidence after the reliability fix,
+then profile quality. The historical corpus is sufficient for algorithmic work, but it cannot prove
+the corrected recording-time path. The past-only Target-Me experiment is integrated into the running
+live worker as a separate causal shadow. It enrolls only from closed earlier chunks, evaluates the
+current chunk before adding its
 seeds, and runs focused micro-ASR only for unpublished groups from a chunk-level suppressed mic
 chunk. Passed chunks are excluded; remote-free or speaker-confirmed subwindows prevent a coarse
 chunk interval from disturbing the live timeline.
@@ -1275,7 +1299,9 @@ Current implementation:
 - `murmurmark review suggested` rebuilds lane packs, refreshes suggestions from cached
   stronger-audio-judge and Target-Me evidence, applies only safe generated answers, and then refreshes
   `reviewed_v1` readiness when anything was closed.
-- `murmurmark process` now gives the stronger-audio-judge stage an `80` item budget by default. The
+- `murmurmark process` gives the stronger-audio-judge stage an `80` item budget by default. Cheap
+  cleanup now runs before that stage, the review pack is rebuilt from the residual transcript, and
+  the normal pass decodes `mic_clean + remote`; exhaustive four-source decoding is explicit. The
   older `12` item cap was too low for long meetings: on `sessions/2026-07-02_16-01-27`, a broader run
   reduced the manual tail from `78.52s` to `11.19s`, and a later timing-overlap evidence rule reduced
   it again to `8.92s`; on `sessions/2026-07-02_17-32-08`, it reduced

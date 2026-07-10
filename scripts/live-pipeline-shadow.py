@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import re
+import signal as process_signal
 import shutil
 import subprocess
 import sys
@@ -20,7 +21,7 @@ from scipy.io import wavfile
 
 
 SCHEMA = "murmurmark.live_pipeline_report/v1"
-SCRIPT_VERSION = "0.4.0"
+SCRIPT_VERSION = "0.5.0"
 EPSILON = 1.0e-12
 LIVE_ROLE_DUPLICATE_THRESHOLD = 0.55
 LIVE_RESCUE_SHADOW_POLICY = "audio_safe_union_v1"
@@ -30,6 +31,8 @@ KNOWN_HALLUCINATIONS = {
     "спасибо за просмотр",
 }
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9_+-]+")
+SHUTDOWN_REQUESTED = False
+ACTIVE_CHILD: subprocess.Popen[str] | None = None
 
 
 def parse_args() -> argparse.Namespace:
@@ -41,6 +44,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--poll-sec", type=float, default=2.0)
     parser.add_argument("--idle-after-session-json-sec", type=float, default=6.0)
     parser.add_argument("--commit-delay-sec", type=float, default=10.0)
+    parser.add_argument("--segments-path", type=Path, default=Path("derived/live/segments.jsonl"))
+    parser.add_argument("--output-dir", type=Path, default=Path("derived/live"))
+    parser.add_argument("--provenance", default="recording_time_committed_pcm")
+    parser.add_argument("--heartbeat-sec", type=float, default=2.0)
+    parser.add_argument("--ffmpeg-timeout-sec", type=float, default=45.0)
+    parser.add_argument("--whisper-timeout-sec", type=float, default=180.0)
     parser.add_argument("--max-segments", type=int, default=0, help="Debug limit. 0 means no limit.")
     parser.add_argument(
         "--no-causal-target-me",
@@ -63,6 +72,77 @@ def load_progressive_target_me() -> Any:
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def resolve_output_path(session: Path, value: Path) -> Path:
+    return value if value.is_absolute() else session / value
+
+
+class WorkerHeartbeat:
+    def __init__(self, output_dir: Path, *, provenance: str, interval_sec: float) -> None:
+        self.output_dir = output_dir
+        self.provenance = provenance
+        self.interval_sec = max(0.2, interval_sec)
+        self.state_path = output_dir / "live_pipeline_state.json"
+        self.events_path = output_dir / "worker_events.jsonl"
+        self.last_event: tuple[str, str, int | None] | None = None
+
+    def update(
+        self,
+        *,
+        status: str,
+        stage: str,
+        index: int | None = None,
+        child_pid: int | None = None,
+        detail: str | None = None,
+        progress: dict[str, Any] | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {
+            "schema": "murmurmark.live_pipeline_state/v1",
+            "status": status,
+            "current_stage": stage,
+            "current_index": index,
+            "child_pid": child_pid,
+            "detail": detail,
+            "heartbeat_at": utc_now(),
+            "worker_pid": os.getpid(),
+            "provenance": self.provenance,
+            "batch_authoritative": True,
+            "promotion_allowed": False,
+            "draft_transcript": str(self.output_dir / "transcript.draft.md"),
+            "report": str(self.output_dir / "live_pipeline_report.json"),
+        }
+        if progress:
+            payload["progress"] = progress
+        write_json(self.state_path, payload)
+        event_key = (status, stage, index)
+        if event_key != self.last_event:
+            append_jsonl(
+                self.events_path,
+                {
+                    "schema": "murmurmark.live_worker_event/v1",
+                    "created_at": payload["heartbeat_at"],
+                    "status": status,
+                    "stage": stage,
+                    "index": index,
+                    "child_pid": child_pid,
+                    "detail": detail,
+                    "provenance": self.provenance,
+                },
+            )
+            self.last_event = event_key
+
+
+def request_worker_shutdown(_signum: int, _frame: Any) -> None:
+    global SHUTDOWN_REQUESTED
+    SHUTDOWN_REQUESTED = True
+    child = ACTIVE_CHILD
+    if child is None or child.poll() is not None:
+        return
+    try:
+        os.killpg(child.pid, process_signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        child.terminate()
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -111,7 +191,7 @@ def rel(path: Path, session: Path) -> str:
         return str(path)
 
 
-def resolve_session_path(session: Path, value: Any) -> Path | None:
+def resolve_existing_session_path(session: Path, value: Any) -> Path | None:
     if not value:
         return None
     path = Path(str(value))
@@ -420,8 +500,8 @@ def segment_level_role_rescue(session: Path, record: dict[str, Any]) -> dict[str
     mic_audio: np.ndarray | None = None
     remote_audio: np.ndarray | None = None
     sample_rate: int | None = None
-    mic_audio_path = resolve_session_path(session, mic.get("asr_wav") or mic.get("wav") or mic.get("input"))
-    remote_audio_path = resolve_session_path(session, remote.get("wav") or remote.get("input"))
+    mic_audio_path = resolve_existing_session_path(session, mic.get("asr_wav") or mic.get("wav") or mic.get("input"))
+    remote_audio_path = resolve_existing_session_path(session, remote.get("wav") or remote.get("input"))
     if mic_audio_path and remote_audio_path:
         try:
             mic_rate, mic_audio = read_wav_float(mic_audio_path)
@@ -582,8 +662,89 @@ def apply_adjacent_boundary_gate(previous: dict[str, Any] | None, current: dict[
             }
 
 
-def run(command: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+def run_bounded(
+    command: list[str],
+    *,
+    timeout_sec: float,
+    heartbeat: WorkerHeartbeat,
+    stage: str,
+    index: int,
+) -> dict[str, Any]:
+    global ACTIVE_CHILD
+    if SHUTDOWN_REQUESTED:
+        heartbeat.update(
+            status="running",
+            stage=f"{stage}_cancelled",
+            index=index,
+            detail="worker shutdown requested",
+        )
+        return {
+            "returncode": 143,
+            "stdout": "",
+            "stderr": "worker shutdown requested",
+            "timed_out": False,
+            "elapsed_sec": 0.0,
+        }
+    started = time.monotonic()
+    process = subprocess.Popen(
+        command,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    ACTIVE_CHILD = process
+    try:
+        while True:
+            elapsed = time.monotonic() - started
+            remaining = timeout_sec - elapsed
+            if remaining <= 0:
+                try:
+                    os.killpg(process.pid, process_signal.SIGTERM)
+                except (ProcessLookupError, PermissionError):
+                    process.terminate()
+                try:
+                    stdout, stderr = process.communicate(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    try:
+                        os.killpg(process.pid, process_signal.SIGKILL)
+                    except (ProcessLookupError, PermissionError):
+                        process.kill()
+                    stdout, stderr = process.communicate()
+                heartbeat.update(
+                    status="running",
+                    stage=f"{stage}_timeout",
+                    index=index,
+                    detail=f"timed out after {timeout_sec:.1f}s",
+                )
+                return {
+                    "returncode": 124,
+                    "stdout": stdout,
+                    "stderr": stderr,
+                    "timed_out": True,
+                    "elapsed_sec": round(time.monotonic() - started, 3),
+                }
+            heartbeat.update(
+                status="running",
+                stage=stage,
+                index=index,
+                child_pid=process.pid,
+                detail=f"elapsed={elapsed:.1f}s",
+            )
+            try:
+                stdout, stderr = process.communicate(timeout=min(heartbeat.interval_sec, remaining))
+                return {
+                    "returncode": process.returncode,
+                    "stdout": stdout,
+                    "stderr": stderr,
+                    "timed_out": False,
+                    "elapsed_sec": round(time.monotonic() - started, 3),
+                }
+            except subprocess.TimeoutExpired:
+                continue
+    finally:
+        if ACTIVE_CHILD is process:
+            ACTIVE_CHILD = None
 
 
 def audio_filter(source_name: str) -> tuple[str, str]:
@@ -592,7 +753,15 @@ def audio_filter(source_name: str) -> tuple[str, str]:
     return "loudnorm", "highpass=f=80,lowpass=f=7800,loudnorm=I=-20:LRA=9:TP=-2,alimiter=limit=0.98"
 
 
-def convert_to_wav(source: Path, destination: Path, source_name: str) -> tuple[bool, str]:
+def convert_to_wav(
+    source: Path,
+    destination: Path,
+    source_name: str,
+    *,
+    args: argparse.Namespace,
+    heartbeat: WorkerHeartbeat,
+    index: int,
+) -> tuple[bool, str, str | None]:
     destination.parent.mkdir(parents=True, exist_ok=True)
     prep_name, filters = audio_filter(source_name)
     command = [
@@ -611,11 +780,27 @@ def convert_to_wav(source: Path, destination: Path, source_name: str) -> tuple[b
         "1",
         str(destination),
     ]
-    result = run(command)
-    return result.returncode == 0 and destination.exists() and destination.stat().st_size > 44, prep_name
+    result = run_bounded(
+        command,
+        timeout_sec=max(0.1, args.ffmpeg_timeout_sec),
+        heartbeat=heartbeat,
+        stage=f"preprocess_{source_name}",
+        index=index,
+    )
+    ok = result["returncode"] == 0 and destination.exists() and destination.stat().st_size > 44
+    reason = None if ok else ("ffmpeg_timeout" if result["timed_out"] else "ffmpeg_failed")
+    return ok, prep_name, reason
 
 
-def transcribe(wav: Path, output_base: Path, args: argparse.Namespace) -> dict[str, Any]:
+def transcribe(
+    wav: Path,
+    output_base: Path,
+    args: argparse.Namespace,
+    *,
+    heartbeat: WorkerHeartbeat,
+    index: int,
+    source: str,
+) -> dict[str, Any]:
     if not args.model.exists():
         return {
             "status": "skipped",
@@ -654,12 +839,17 @@ def transcribe(wav: Path, output_base: Path, args: argparse.Namespace) -> dict[s
         "--file",
         str(wav),
     ]
-    started = time.monotonic()
-    result = run(command)
-    elapsed = round(time.monotonic() - started, 3)
+    result = run_bounded(
+        command,
+        timeout_sec=max(0.1, args.whisper_timeout_sec),
+        heartbeat=heartbeat,
+        stage=f"asr_{source}",
+        index=index,
+    )
+    elapsed = result["elapsed_sec"]
     txt_path = output_base.with_suffix(".txt")
     text = clean_text(txt_path.read_text(encoding="utf-8", errors="ignore")) if txt_path.exists() else ""
-    status = "passed" if result.returncode == 0 else "failed"
+    status = "passed" if result["returncode"] == 0 else ("timed_out" if result["timed_out"] else "failed")
     if is_hallucination(text):
         text = ""
     return {
@@ -667,7 +857,7 @@ def transcribe(wav: Path, output_base: Path, args: argparse.Namespace) -> dict[s
         "elapsed_sec": elapsed,
         "text": text,
         "json": str(output_base.with_suffix(".json")) if output_base.with_suffix(".json").exists() else None,
-        "stderr_tail": result.stderr[-1000:] if result.returncode != 0 else "",
+        "stderr_tail": result["stderr"][-1000:] if result["returncode"] != 0 else "",
     }
 
 
@@ -863,8 +1053,8 @@ def grouped_segments(rows: list[dict[str, Any]]) -> dict[int, dict[str, dict[str
     return grouped
 
 
-def write_draft(session: Path, chunks: list[dict[str, Any]], commit_delay_sec: float) -> None:
-    draft = session / "derived/live/transcript.draft.md"
+def write_draft(output_dir: Path, chunks: list[dict[str, Any]], commit_delay_sec: float) -> None:
+    draft = output_dir / "transcript.draft.md"
     lines = [
         "# Live Draft Transcript",
         "",
@@ -925,9 +1115,11 @@ def process_segment(
     index: int,
     pair: dict[str, dict[str, Any]],
     args: argparse.Namespace,
+    output_dir: Path,
+    heartbeat: WorkerHeartbeat,
     progressive_target_me: Any | None = None,
 ) -> dict[str, Any]:
-    chunk_dir = session / "derived/live/chunks" / f"{index:06d}"
+    chunk_dir = output_dir / "chunks" / f"{index:06d}"
     start_sec = min(float(pair[source].get("start_sec") or 0.0) for source in pair)
     end_sec = max(float(pair[source].get("end_sec") or 0.0) for source in pair)
     record: dict[str, Any] = {
@@ -939,6 +1131,7 @@ def process_segment(
         "clip_start_sec": round(min(float(pair[source].get("clip_start_sec") or pair[source].get("start_sec") or 0.0) for source in pair), 3),
         "clip_end_sec": round(max(float(pair[source].get("clip_end_sec") or pair[source].get("end_sec") or 0.0) for source in pair), 3),
         "created_at": utc_now(),
+        "provenance": args.provenance,
         "mic": {},
         "remote": {},
     }
@@ -950,7 +1143,14 @@ def process_segment(
         hard_end_sec = float(pair[source].get("end_sec") or hard_start_sec)
         clip_start_sec = float(pair[source].get("clip_start_sec") or hard_start_sec)
         clip_end_sec = float(pair[source].get("clip_end_sec") or hard_end_sec)
-        ok, prep_name = convert_to_wav(source_path, wav_path, source)
+        ok, prep_name, preprocess_reason = convert_to_wav(
+            source_path,
+            wav_path,
+            source,
+            args=args,
+            heartbeat=heartbeat,
+            index=index,
+        )
         source_record: dict[str, Any] = {
             "input": rel(source_path, session),
             "wav": rel(wav_path, session) if ok else None,
@@ -960,6 +1160,7 @@ def process_segment(
             "clip_start_sec": round(clip_start_sec, 3),
             "clip_end_sec": round(clip_end_sec, 3),
             "preprocess_status": "passed" if ok else "failed",
+            "preprocess_reason": preprocess_reason,
         }
         if ok:
             converted[source] = wav_path
@@ -980,7 +1181,14 @@ def process_segment(
         source_record = record[source]
         wav_for_asr = converted.get(source)
         if wav_for_asr:
-            asr = transcribe(wav_for_asr, chunk_dir / source, args)
+            asr = transcribe(
+                wav_for_asr,
+                chunk_dir / source,
+                args,
+                heartbeat=heartbeat,
+                index=index,
+                source=source,
+            )
             source_record["asr"] = asr
             asr_json = Path(str(asr.get("json"))) if asr.get("json") else None
             source_record["text"] = text_inside_hard_window(
@@ -1005,15 +1213,15 @@ def process_segment(
     return record
 
 
-def write_chunks(session: Path, chunks: list[dict[str, Any]]) -> None:
-    rewrite_jsonl(session / "derived/live/chunks.jsonl", chunks)
+def write_chunks(output_dir: Path, chunks: list[dict[str, Any]]) -> None:
+    rewrite_jsonl(output_dir / "chunks.jsonl", chunks)
     for chunk in chunks:
         try:
             index = int(chunk.get("index") or 0)
         except (TypeError, ValueError):
             continue
         if index > 0:
-            write_json(session / "derived/live/chunks" / f"{index:06d}" / "chunk.json", chunk)
+            write_json(output_dir / "chunks" / f"{index:06d}" / "chunk.json", chunk)
 
 
 def live_rescue_shadow_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1064,7 +1272,14 @@ def causal_target_me_summary(chunks: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def write_report(session: Path, status: str, chunks: list[dict[str, Any]], rows: list[dict[str, Any]], args: argparse.Namespace) -> None:
+def write_report(
+    session: Path,
+    output_dir: Path,
+    status: str,
+    chunks: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+    args: argparse.Namespace,
+) -> None:
     captured = max((float(row.get("end_sec") or 0.0) for row in rows), default=0.0)
     processed = max((float(row.get("end_sec") or 0.0) for row in chunks), default=0.0)
     rescue_shadow = live_rescue_shadow_summary(chunks)
@@ -1078,6 +1293,7 @@ def write_report(session: Path, status: str, chunks: list[dict[str, Any]], rows:
         "mode": "near_realtime_shadow",
         "batch_authoritative": True,
         "promotion_allowed": False,
+        "provenance": args.provenance,
         "current_worker": "live-pipeline-shadow",
         "current_stage": status,
         "parameters": {
@@ -1098,32 +1314,36 @@ def write_report(session: Path, status: str, chunks: list[dict[str, Any]], rows:
             "segments_seen": len(rows),
         },
         "outputs": {
-            "draft_transcript": "derived/live/transcript.draft.md",
-            "chunks_jsonl": "derived/live/chunks.jsonl",
-            "segments_jsonl": "derived/live/segments.jsonl",
+            "draft_transcript": rel(output_dir / "transcript.draft.md", session),
+            "chunks_jsonl": rel(output_dir / "chunks.jsonl", session),
+            "segments_jsonl": rel(resolve_output_path(session, args.segments_path), session),
         },
         "recommended_next": "murmurmark process " + str(session),
     }
-    write_json(session / "derived/live/live_pipeline_report.json", report)
-    write_json(session / "derived/live/live_pipeline_state.json", {
-        "schema": "murmurmark.live_pipeline_state/v1",
-        "status": status,
-        "updated_at": utc_now(),
-        "draft_transcript": "derived/live/transcript.draft.md",
-        "report": "derived/live/live_pipeline_report.json",
-        "live_lag_sec": report["progress"]["live_lag_sec"],
-    })
+    write_json(output_dir / "live_pipeline_report.json", report)
 
 
 def main() -> int:
+    global SHUTDOWN_REQUESTED
     args = parse_args()
     session = args.session.expanduser().resolve()
-    segments_path = session / "derived/live/segments.jsonl"
+    segments_path = resolve_output_path(session, args.segments_path)
+    output_dir = resolve_output_path(session, args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    heartbeat = WorkerHeartbeat(
+        output_dir,
+        provenance=args.provenance,
+        interval_sec=args.heartbeat_sec,
+    )
+    SHUTDOWN_REQUESTED = False
+    process_signal.signal(process_signal.SIGTERM, request_worker_shutdown)
+    process_signal.signal(process_signal.SIGINT, request_worker_shutdown)
     processed: set[int] = set()
     chunks: list[dict[str, Any]] = []
     last_new_work = time.monotonic()
-    write_draft(session, chunks, args.commit_delay_sec)
-    write_report(session, "running", chunks, [], args)
+    heartbeat.update(status="running", stage="initializing")
+    write_draft(output_dir, chunks, args.commit_delay_sec)
+    write_report(session, output_dir, "running", chunks, [], args)
     progressive_target_me: Any | None = None
     if not args.no_causal_target_me:
         try:
@@ -1150,32 +1370,86 @@ def main() -> int:
         rows = read_jsonl(segments_path)
         grouped = grouped_segments(rows)
         ready_indexes = sorted(index for index, pair in grouped.items() if {"mic", "remote"} <= set(pair))
+        captured = max((float(row.get("end_sec") or 0.0) for row in rows), default=0.0)
+        completed = max((float(row.get("end_sec") or 0.0) for row in chunks), default=0.0)
+        heartbeat.update(
+            status="running",
+            stage="waiting_segments" if not [index for index in ready_indexes if index not in processed] else "segments_ready",
+            progress={
+                "segments_seen": len(rows),
+                "chunks_processed": len(chunks),
+                "captured_sec": round(captured, 3),
+                "processed_sec": round(completed, 3),
+                "live_lag_sec": round(max(0.0, captured - completed), 3),
+            },
+        )
         for index in ready_indexes:
             if index in processed:
                 continue
             if args.max_segments and len(processed) >= args.max_segments:
                 break
-            chunk = process_segment(session, index, grouped[index], args, progressive_target_me)
+            heartbeat.update(status="running", stage="chunk_start", index=index)
+            chunk = process_segment(
+                session,
+                index,
+                grouped[index],
+                args,
+                output_dir,
+                heartbeat,
+                progressive_target_me,
+            )
             processed.add(index)
             apply_adjacent_boundary_gate(chunks[-1] if chunks else None, chunk)
             chunks.append(chunk)
-            write_chunks(session, chunks)
-            write_draft(session, chunks, args.commit_delay_sec)
-            write_report(session, "running", chunks, rows, args)
+            write_chunks(output_dir, chunks)
+            write_draft(output_dir, chunks, args.commit_delay_sec)
+            write_report(session, output_dir, "running", chunks, rows, args)
+            heartbeat.update(status="running", stage="chunk_written", index=index)
             last_new_work = time.monotonic()
+
+        if SHUTDOWN_REQUESTED:
+            status = "completed_partial_draft"
+            completed = max((float(row.get("end_sec") or 0.0) for row in chunks), default=0.0)
+            write_draft(output_dir, chunks, args.commit_delay_sec)
+            write_report(session, output_dir, status, chunks, rows, args)
+            heartbeat.update(
+                status=status,
+                stage="terminated",
+                detail="worker shutdown requested",
+                progress={
+                    "segments_seen": len(rows),
+                    "chunks_processed": len(chunks),
+                    "captured_sec": round(captured, 3),
+                    "processed_sec": round(completed, 3),
+                    "live_lag_sec": round(max(0.0, captured - completed), 3),
+                },
+            )
+            return 0
 
         session_finished = (session / "session.json").exists()
         all_ready_done = all(index in processed for index in ready_indexes)
         idle_after_finish = session_finished and all_ready_done and (time.monotonic() - last_new_work >= args.idle_after_session_json_sec)
         if idle_after_finish or (args.max_segments and len(processed) >= args.max_segments):
             status = "completed" if session_finished else "stopped_by_limit"
-            write_draft(session, chunks, args.commit_delay_sec)
-            write_report(session, status, chunks, rows, args)
+            write_draft(output_dir, chunks, args.commit_delay_sec)
+            write_report(session, output_dir, status, chunks, rows, args)
             if progressive_target_me is not None:
                 progressive_target_me.persist(status="completed")
+            completed = max((float(row.get("end_sec") or 0.0) for row in chunks), default=0.0)
+            heartbeat.update(
+                status=status,
+                stage="completed",
+                progress={
+                    "segments_seen": len(rows),
+                    "chunks_processed": len(chunks),
+                    "captured_sec": round(captured, 3),
+                    "processed_sec": round(completed, 3),
+                    "live_lag_sec": round(max(0.0, captured - completed), 3),
+                },
+            )
             return 0
 
-        write_report(session, "running", chunks, rows, args)
+        write_report(session, output_dir, "running", chunks, rows, args)
         time.sleep(max(0.2, args.poll_sec))
 
 
