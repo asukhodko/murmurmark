@@ -149,14 +149,14 @@ batch output and does not break on chunk boundaries.
 
 Current state:
 
-- live sessions in the corpus: `27`;
+- live sessions in the corpus: `28`;
 - real live sessions in the corpus: `14`;
-- diagnostic/lab live sessions kept out of promotion scope: `13`;
+- diagnostic/lab live sessions kept out of promotion scope: `14`;
 - real live-vs-batch compared sessions: `11`;
 - meaningful real comparisons: `7`;
-- real passing comparisons: `1`;
+- real passing comparisons: `0` after enforcing pre-stop temporal provenance;
 - capture-safe candidate sessions: `4`;
-- capture-safe candidate passing sessions: `1`;
+- capture-safe candidate passing sessions: `0`;
 - promotion decision: `shadow_only_do_not_promote`;
 - new real live collection allowed: `false`;
 - controlled real live pilot collection is allowed as evidence collection; batch remains
@@ -174,7 +174,8 @@ Current state:
 - paired comparable-session gaps: `1869.02 sec` missing Me and `35.42 sec` remote-like Me;
 - direct runtime causal Target-Me delta: `557.89 sec` missing Me recovered, with unchanged remote and
   order counters and `+0.039337` weighted token F1;
-- current objective next focus: `fix_live_local_recall_gap`.
+- current corpus quality focus: `fix_live_local_recall_gap`;
+- current coverage target: `3` additional passing meaningful comparisons;
 - next runtime proof: fresh controlled Live Evidence with pre-stop causal artifacts, bounded lag and
   unchanged raw/batch reliability.
 

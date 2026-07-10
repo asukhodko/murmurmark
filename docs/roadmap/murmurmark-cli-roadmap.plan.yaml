@@ -805,6 +805,8 @@ nodes:
       before stop and a usable batch comparison. A fresh controlled Live
       Evidence run must still prove pre-stop artifacts, bounded lag and fail-open capture behavior;
       promotion remains blocked by ordinary parity gates.
+      The 2026-07-10 strict refresh classifies `14` real sessions, `7` meaningful comparisons and
+      `0` passing comparisons; the coverage target remains `3` fresh passing comparisons.
       The immediate reliability unit separates immutable realtime artifacts from explicit post-stop
       fallback recovery, adds worker heartbeat and child-process timeouts, makes compare read-only,
       and requires an integration smoke that observes a draft before recording stop.
