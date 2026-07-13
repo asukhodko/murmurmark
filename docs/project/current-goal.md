@@ -5,7 +5,7 @@ production path remains non-live `record -> process`. The current live work is e
 and gate hardening only: live output must stay shadow-only and batch transcript remains
 authoritative.
 
-## Current Live Evidence Status, 2026-07-10
+## Current Live Evidence Status, 2026-07-13
 
 `record --experiment live-shadow-v1` preserved raw capture on a real daily sync even when
 ScreenCaptureKit restarted once. The session completed with warning, but `mic` and `remote` CAF
@@ -16,8 +16,8 @@ segment-level realtime through committed PCM: after raw write succeeds, a bounde
 writes closed experiment segments and the live worker drafts from those files. `raw_segment_commits`
 remain evidence and fallback, while batch remains authoritative.
 
-Reliability unit status, 2026-07-10: implementation complete; one fresh real-session runtime proof
-exists, while three passing sessions are still required.
+Reliability unit status, 2026-07-13: implementation complete and transport proven on another fresh
+real session; full transcript parity still has zero passing sessions.
 
 - realtime rows are synchronized after append and carry `recording_time_committed_pcm` provenance;
 - the live worker writes heartbeat, current stage/index, child PID and bounded ffmpeg/Whisper
@@ -47,6 +47,25 @@ artifacts, successful batch output and live-vs-batch comparison.
 `murmurmark live evidence SESSION` now writes the compact per-session acceptance artifact used to
 classify each new meeting before the corpus refresh.
 
+Fresh session `2026-07-13_11-16-02-live` separates transport from quality cleanly. It preserved
+`1392.27s` of raw capture, produced `46` chunks and `90` non-empty preview snapshots before stop,
+showed the first chunk after `36.243s`, finished with zero live lag and had no backpressure or worker
+failure. Transport no longer blocks this branch. The baseline live policy still misses about
+`200s` of batch `Me`; most of that speech is visible in suppressed mic evidence. Runtime Target-Me
+policies recover part of the gap but add one blocking order mismatch while leaving remote-like `Me`
+unchanged. They remain shadow-only.
+
+The next loop is offline, not another recording. `murmurmark live replay SESSION --refresh` builds
+an explicit policy matrix and accepts an improvement only when missing `Me` decreases without extra
+remote leakage or blocking order errors. It also records the ASR-cache geometry debt: current live
+chunks use `30s/5s`, while batch expects `60s/5s`, so automatic reuse remains correctly disabled.
+Production defaults must not change until a shadow comparison passes.
+
+The stronger local audio judge safely closed the current machine-review queue: six suggested
+`keep_me` decisions covering `34.81s` were validated and materialized as `reviewed_v1`. Notes are
+now ready with zero mandatory notes review. Full transcript export remains blocked by one residual
+order-risk region of about `2.6s`; it stays explicit rather than being guessed away.
+
 The current live-parity blocker has two layers: bounded recording-time latency after the reliability
 fix, then profile quality. The fresh session proves the corrected recording-time path once. The
 past-only Target-Me experiment is integrated into the running
@@ -65,11 +84,11 @@ live-implementable policy therefore falls back to `online_live_me_remote_overlap
 has real pre-stop evidence, but that does not make the whole Target-Me chain safe relative to the
 base policy.
 
-The refreshed corpus contains `15` real live sessions and `8` meaningful comparisons. The fresh
-session contributes `36` direct and `37` speaker-overlap candidates before stop, so runtime evidence
-is no longer historical-only. Direct Target-Me is now `regression_detected`; speaker-overlap remains
-`safe_shadow_candidate` relative to direct. There are still `0` passing real comparisons, so
-promotion remains blocked and batch remains authoritative.
+The refreshed corpus contains `16` real live sessions and `9` meaningful comparisons. Two sessions
+now carry pre-stop runtime causal evidence. Direct Target-Me and remote-energy remain
+`regression_detected`; speaker-overlap remains a `safe_shadow_candidate` only relative to direct.
+There are still `0` passing real comparisons, so promotion remains blocked and batch remains
+authoritative.
 
 Profile selection now compares algorithms through common parity gates. The runtime-only
 `pre_stop_runtime_causal_target_me` gate remains part of total promotion readiness, but it no longer
@@ -78,7 +97,7 @@ still makes the direct runtime profile worse than baseline on common remote/orde
 is selected. This distinction keeps ranking honest; it does not relax temporal provenance.
 
 The speaker-overlap follow-up is paired against direct Target-Me. Its algorithmic status remains
-`safe_shadow_candidate` and it now has one qualifying pre-stop evidence session. It cannot repair
+`safe_shadow_candidate` and it now has two qualifying pre-stop evidence sessions. It cannot repair
 the regression introduced earlier in the chain, so it remains shadow-only.
 
 `compare-live-batch.py` writes `live_temporal_provenance/v1`; parity requires timestamped live chunks

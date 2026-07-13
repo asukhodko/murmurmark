@@ -687,6 +687,15 @@ newer run-state exists.
    Post-stop latency is reduced conservatively by applying cheap cleanup before the stronger audio
    judge, rebuilding only the residual review pack and using two-source triage by default; exhaustive
    four-source decoding remains opt-in.
+   Fresh session `2026-07-13_11-16-02-live` closes the immediate transport uncertainty: full
+   `1392s` raw capture, `46` pre-stop chunks, `90` pre-stop preview snapshots, first chunk in
+   `36.243s`, zero final lag and no backpressure. Quality parity remains the blocker. The baseline
+   misses about `200s` of batch `Me`; runtime Target-Me policies recover part of it but introduce a
+   blocking order regression while leaving remote-like `Me` unchanged. Further progress therefore
+   moves to `murmurmark live replay SESSION --refresh`: an offline policy matrix over existing
+   evidence. It may nominate a shadow candidate only when missing `Me` falls without extra remote
+   leakage or blocking order errors. The same lab records the `30/5` live versus `60/5` batch ASR
+   cache mismatch; production window defaults stay unchanged until a shadow comparison passes.
 7. **Corpus and review-loop closure.** Keep the operational corpus usable while echo work continues:
    close safe suggested review rows, preserve manual rows and keep status/report aligned.
 8. **Audio candidate promotion readiness.** Keep `coverage_v2_remote_gate_local_fir` shadow-only

@@ -195,6 +195,8 @@ The recording-time worker writes two Markdown views:
 derived/live/transcript.preview.md  # conservative default for live watch
 derived/live/transcript.draft.md    # complete candidate-only diagnostics
 derived/live/preview_snapshots.jsonl
+derived/live/replay-lab/live_replay_matrix.json
+derived/live/replay-lab/live_replay_matrix.md
 ```
 
 `transcript.preview.md` may include a causal Target-Me candidate only when its
@@ -238,6 +240,7 @@ murmurmark experiment report SESSION|latest
 murmurmark experiment compare SESSION|latest --experiment live-shadow-v1
 murmurmark experiment recover-draft SESSION|latest --experiment live-shadow-v1
 murmurmark live evidence SESSION|latest [--refresh] [--strict]
+murmurmark live replay SESSION|latest [--refresh] [--with-labs] [--lab-policy POLICY]
 ```
 
 `compare` runs the existing live-vs-batch comparison first, then refreshes the experiment contract.
@@ -255,6 +258,14 @@ The default comparison includes `online_live_me_remote_overlap_filter_v1` as the
 `live_runtime_causal_target_me_remote_energy_v1` as runtime candidates, so the corpus report can
 compute paired no-regression verdicts without offline Target-Me anchors. Other expensive or
 batch-informed shadow policies remain opt-in.
+
+`live replay` writes `murmurmark.live_replay_lab/v1`. It is an offline decision report over the
+existing `live_batch_comparison.json`: every policy row contains missing `Me` seconds, remote-in-Me
+seconds, blocking order errors, token F1 and deltas from the baseline. A policy is a safe candidate
+only when it reduces missing local speech without increasing either remote leakage or blocking
+order errors. The report also compares observed live chunk geometry with batch cache parameters.
+It always records `batch_authoritative: true`, `raw_audio_modified: false` and
+`production_defaults_changed: false`.
 
 ## Invariants
 

@@ -323,6 +323,7 @@ murmurmark process "$SESSION"
 murmurmark experiment status "$SESSION"
 murmurmark experiment report "$SESSION"
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
+murmurmark live replay "$SESSION" --refresh
 ```
 
 The shape is:
@@ -398,6 +399,7 @@ murmurmark experiment status "$SESSION"
 murmurmark experiment report "$SESSION"
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 murmurmark live evidence "$SESSION"
+murmurmark live replay "$SESSION" --refresh
 murmurmark experiment recover-draft "$SESSION" --experiment live-shadow-v1  # explicit fallback only
 ```
 
@@ -408,6 +410,11 @@ is never counted as pre-stop evidence and does not make the live result authorit
 `live evidence` writes `derived/live/live_session_evidence.{json,md}` and gives one compact verdict
 for capture health, pre-stop provenance, worker lag/termination, fallback isolation and parity. Use
 `--strict` in an acceptance run when a non-passing session must return exit code `2`.
+`live replay` builds `derived/live/replay-lab/live_replay_matrix.{json,md}` from existing artifacts.
+It compares the baseline and candidate role policies by missing `Me` speech, remote leakage,
+blocking order errors and token F1, then reports whether the current live ASR chunks can safely seed
+the batch cache. It does not change raw audio, the authoritative batch transcript or production
+defaults. Use `--with-labs` only for a deliberate expensive sweep.
 The default comparison computes the required parity gates. Expensive exploratory target-me shadow
 profiles are opt-in:
 

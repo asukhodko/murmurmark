@@ -554,6 +554,11 @@ nodes:
       Она также показала remote/order regression direct Target-Me относительно базового live filter,
       поэтому aggregate best live-implementable policy снова baseline. Нужны свежие прогоны уже на
       lag-aware worker и дальнейшее quality hardening без ослабления parity gates.
+      Fresh session `2026-07-13_11-16-02-live` закрывает transport uncertainty: полный raw capture,
+      46 pre-stop chunks, 90 pre-stop snapshots, first chunk latency 36.243s, zero final lag и no
+      backpressure. Текущий blocker — quality parity: baseline теряет около 200s batch Me, а
+      runtime candidates обменивают local recall на blocking order regression. Новые записи для
+      этой развилки не нужны; следующий цикл выполняется offline replay по сохранённым evidence.
 
   realtime-segment-writer:
     title: "Durable committed PCM sidecar"
@@ -619,6 +624,33 @@ nodes:
       Каждый preview rewrite фиксируется append-only строкой `live_preview_snapshot/v1` с временем,
       покрытым интервалом и SHA-256. Pre-stop gate требует такую строку до `session.ended_at`, поэтому
       post-stop replay не может считаться near-realtime доказательством.
+
+  live-parity-replay-lab:
+    title: "Offline Live Parity Replay Lab"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [realtime-live-draft, realtime-corpus-gates]
+    status: current
+    effort: 3
+    notes: |
+      `murmurmark live replay SESSION --refresh` строит
+      `derived/live/replay-lab/live_replay_matrix.{json,md}` без новой записи и без изменения raw
+      audio или batch transcript. Матрица сравнивает политики по missing Me, remote-in-Me,
+      blocking order и token F1. Candidate считается безопасным только при улучшении local recall
+      без regressions по remote/order. Report также фиксирует Pareto frontier и не разрешает
+      promotion.
+
+  live-asr-cache-compatibility:
+    title: "Live ASR cache compatibility shadow"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [live-parity-replay-lab]
+    status: next
+    effort: 3
+    notes: |
+      Проверить отдельно live geometry 30s/5s и batch default 60s/5s. Текущий cache report
+      справедливо отклоняет reuse из-за window mismatch. Production defaults не менять, пока
+      shadow comparison не докажет сохранение текста, ролей, порядка и review burden.
 
   realtime-final-reconcile:
     title: "Final reconcile after stop"

@@ -126,6 +126,7 @@ murmurmark experiment status "$SESSION"
 murmurmark experiment report "$SESSION"
 murmurmark experiment compare "$SESSION" --experiment live-shadow-v1
 murmurmark live evidence "$SESSION"
+murmurmark live replay "$SESSION" --refresh
 ```
 
 This command still writes the normal raw CAF session first. The live draft is shadow evidence and
@@ -176,6 +177,10 @@ and cannot satisfy pre-stop parity gates.
 `murmurmark live evidence "$SESSION"` is the per-session acceptance view. It writes a compact JSON
 and Markdown verdict and distinguishes transport evidence from full transcript parity. After three
 fresh sessions, refresh the corpus once with `murmurmark corpus live all --refresh`.
+Use `murmurmark live replay "$SESSION" --refresh` to iterate without another recording. It writes a
+policy matrix under `derived/live/replay-lab/`, keeps batch authoritative and accepts a candidate
+only when local recall improves without extra remote leakage or blocking order errors. The same
+report records why the current live chunk geometry can or cannot seed the batch ASR cache.
 The default comparison computes the required parity gates and a paired direct comparison between
 `online_live_me_remote_overlap_filter_v1` and `live_runtime_causal_target_me_direct_v1`.
 For an additional focused shadow experiment, materialize the selected policy explicitly:

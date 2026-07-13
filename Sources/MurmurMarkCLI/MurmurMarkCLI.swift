@@ -239,6 +239,7 @@ struct MurmurMark {
           murmurmark live status [all|latest|./session...] [--refresh] [--sessions-root ./sessions]
           murmurmark live watch SESSION|latest [--poll-sec SEC] [--diagnostic-draft] [--sessions-root ./sessions]
           murmurmark live evidence SESSION|latest [--refresh] [--strict] [--sessions-root ./sessions]
+          murmurmark live replay SESSION|latest [--refresh] [--with-labs] [--lab-policy POLICY]
           murmurmark live gate [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--controlled-real] [--preflight-only] [--skip-safety-gate]
           murmurmark experiment status|report|compare|recover-draft SESSION|latest [--experiment live-shadow-v1]
@@ -723,6 +724,7 @@ enum DoctorChecks {
             "scripts/live-progressive-target-me.py",
             "scripts/raw-sidecar-worker.py",
             "scripts/compare-live-batch.py",
+            "scripts/report-live-replay-lab.py",
             "scripts/materialize-live-asr-cache.py",
             "scripts/report-live-corpus-gates.py",
             "scripts/report-live-boundary-island-micro-asr-lab.py",
@@ -5188,6 +5190,23 @@ enum LiveCommands {
             if status != 0 {
                 Foundation.exit(status)
             }
+        case "replay":
+            if ArgumentEditing.hasHelpFlag(forwarded) {
+                printReplayHelp()
+                return
+            }
+            var replayArgs = forwarded
+            let sessionsRoot = PathURLs.fileURL(ArgumentEditing.takeOption("sessions-root", from: &replayArgs) ?? "sessions")
+            guard let target = replayArgs.first else {
+                printReplayHelp()
+                return
+            }
+            replayArgs.removeFirst()
+            let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+            try Tooling.runPath(
+                try PythonRuntime.resolve(),
+                [try script("report-live-replay-lab.py").path, session.path] + replayArgs
+            )
         case "pilot":
             if ArgumentEditing.hasHelpFlag(forwarded) {
                 printPilotHelp()
@@ -5230,6 +5249,8 @@ enum LiveCommands {
           murmurmark live watch SESSION|latest [--poll-sec SEC] [--diagnostic-draft]
                                               [--sessions-root ./sessions]
           murmurmark live evidence SESSION|latest [--refresh] [--strict] [--sessions-root ./sessions]
+          murmurmark live replay SESSION|latest [--refresh] [--with-labs] [--lab-policy POLICY]
+                                            [--sessions-root ./sessions]
           murmurmark live pilot [SESSION] [--duration SEC] [--segment-sec SEC] [--overlap-sec SEC]
                                [--controlled-real] [--preflight-only] [--skip-safety-gate]
 
@@ -5299,6 +5320,20 @@ enum LiveCommands {
         Writes a compact per-session verdict for capture health, pre-stop committed-PCM provenance,
         worker termination/lag, fallback isolation and live-vs-batch parity. --strict exits 2 until
         all parity gates pass. Batch remains authoritative and promotion remains disabled.
+        """)
+    }
+
+    static func printReplayHelp() {
+        Swift.print("""
+        usage:
+          murmurmark live replay SESSION|latest [--refresh] [--with-labs]
+                                            [--lab-policy POLICY]
+                                            [--sessions-root ./sessions]
+
+        Builds an offline matrix for live role policies from existing live/batch evidence. The
+        report selects only candidates that reduce missing Me speech without increasing remote leak
+        or blocking order errors. It also reports live/batch ASR-window compatibility. Raw audio,
+        batch transcript and production defaults are never modified.
         """)
     }
 
