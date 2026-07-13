@@ -333,6 +333,10 @@ capture -> durable raw writer -> stable session
                     +-> nonblocking committed PCM queue -> live segmenter -> live ASR draft
 ```
 
+Start `live watch` after the recorder has printed its session directory. Pass the explicit
+`$SESSION` path while recording: the final `session.json` does not exist yet, so `latest` only
+works after recording stops. `live watch` then waits for the first live preview instead of failing.
+
 In this mode the capture callback writes raw CAF first. Only after `AudioFileWriter` accepts the
 frames does the experiment enqueue a copied committed PCM packet into a bounded nonblocking queue.
 That queue writes closed segment files under `derived/experiments/live-shadow-v1/audio/` and appends

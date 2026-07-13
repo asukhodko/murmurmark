@@ -160,8 +160,10 @@ candidate-only text. The batch transcript from raw CAF remains authoritative. Th
 still written as evidence and as a post-stop fallback; preview never reads still-open CAF files.
 
 Watch the conservative preview from a second terminal with `murmurmark live watch "$SESSION"`.
-Use `--diagnostic-draft` only when investigating all candidate evidence. Both modes show worker
-heartbeat and lag; they must make a stalled preview visible while raw capture continues.
+Start it after the recorder has printed the session directory and pass that explicit path: during
+recording the final `session.json` does not exist yet, therefore `latest` is not usable until
+finalization. Use `--diagnostic-draft` only when investigating all candidate evidence. Both modes
+show worker heartbeat and lag; they must make a stalled preview visible while raw capture continues.
 `murmurmark live evidence "$SESSION"` additionally checks
 `derived/live/preview_snapshots.jsonl`: at least one non-empty snapshot must predate `ended_at` and
 carry `recording_time_committed_pcm`. This is the proof that the visible preview was not rebuilt by

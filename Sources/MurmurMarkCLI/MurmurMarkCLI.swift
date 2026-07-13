@@ -5159,7 +5159,9 @@ enum LiveCommands {
             guard watchArgs.count == 1 else {
                 throw CLIError("live watch accepts one session and optional --poll-sec/--diagnostic-draft/--sessions-root")
             }
-            let session = try SessionResolver.resolve(target, sessionsRoot: sessionsRoot)
+            // A recorder creates session.json only during finalization. Live watch must be able
+            // to attach to the explicit in-progress directory while the session lock is present.
+            let session = try SessionResolver.resolveLiveWatch(target, sessionsRoot: sessionsRoot)
             try Tooling.runPathForwardingInterrupts(
                 try PythonRuntime.resolve(),
                 [try script("watch-live-draft.py").path, session.path, "--poll-sec", pollSec]
@@ -5279,8 +5281,10 @@ enum LiveCommands {
                                               [--sessions-root ./sessions]
 
         Prints the conservative remote-energy preview plus worker heartbeat/lag until recording-time
-        preview reaches a terminal state. Use --diagnostic-draft to include all candidate-only
-        evidence. Batch transcript remains authoritative.
+        preview reaches a terminal state. An explicit SESSION path works while recording is in
+        progress, before session.json exists; latest becomes available after finalization. Use
+        --diagnostic-draft to include all candidate-only evidence. Batch transcript remains
+        authoritative.
         """)
     }
 
@@ -12110,6 +12114,44 @@ enum SessionResolver {
             }
         }
         throw CLIError("session.json not found for \(value) under \(direct.path) or \(sessionsRoot.path)")
+    }
+
+    static func resolveLiveWatch(_ value: String, sessionsRoot: URL) throws -> URL {
+        if value == "latest" {
+            return try latest(in: sessionsRoot)
+        }
+
+        let fileManager = FileManager.default
+        let direct = PathURLs.fileURL(value)
+        var candidates = [direct]
+        if !value.hasPrefix("/") {
+            candidates.append(sessionsRoot.appendingPathComponent(value))
+        }
+
+        for candidate in candidates {
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: candidate.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+                continue
+            }
+
+            let sessionMarkers = [
+                "session.json",
+                "session.lock",
+                "audio",
+                "derived/live",
+                "derived/experiments/live-shadow-v1",
+            ]
+            if sessionMarkers.contains(where: {
+                fileManager.fileExists(atPath: candidate.appendingPathComponent($0).path)
+            }) {
+                return candidate
+            }
+        }
+
+        throw CLIError(
+            "live session directory not found for \(value) under \(direct.path) or \(sessionsRoot.path); "
+                + "start watching after recording creates the session directory"
+        )
     }
 
     static func latest(in root: URL) throws -> URL {
