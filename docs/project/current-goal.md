@@ -24,7 +24,7 @@ sidecar disable or dropped packets. Full transcript parity still has zero passin
 The later `69m06s` session `2026-07-14_15-01-19-live` confirms the same transport result at a
 larger scale: raw capture, committed-PCM sidecar, `139` live chunks, `279` preview snapshots and the
 authoritative batch pipeline all completed. Its parity comparison remains non-passing. The baseline
-live draft misses `755.57s` of batch `Me`, contains `60.30s` of suspected remote-like `Me` and has
+live draft misses `749.71s` of batch `Me`, contains `60.30s` of suspected remote-like `Me` and has
 five blocking order rows. The conservative speaker-only boundary profile reduces remote-like `Me`
 to `40.98s` and blocking order rows to four without improving missing `Me`, so it remains
 shadow-only.
@@ -205,12 +205,12 @@ Completion evidence:
 - `MURMURMARK_RUN_LIVE_CAPTURE_TEST=1 scripts/check-capture-regressions.sh` passed;
 - `scripts/check.sh` passed.
 
-## Current Goal: Near-Realtime Live Parity Coverage v1
+## Completed Goal: Near-Realtime Live Parity Coverage v1
 
-Status, 2026-07-14: active. Three long real sessions now provide healthy recording-time transport
-evidence, including one negative backpressure run followed by two successful full-duration runs.
-Order risk, local recall, remote leakage, review burden, notes readiness and chunk boundaries still
-block promotion.
+Status, 2026-07-14: completed as an evidence and blocker-localization milestone. Three fresh
+meaningful real sessions provide healthy recording-time transport evidence, pre-stop preview,
+terminal workers, zero final lag and successful authoritative batch transcripts. This completion
+does not promote live output: quality parity remains blocked and batch stays authoritative.
 
 Goal:
 
@@ -226,45 +226,32 @@ batch-first until live proves that it does not damage raw capture, preserves loc
 introduce remote leakage or ordering errors, keeps review burden acceptable, produces notes-ready
 batch output and does not break on chunk boundaries.
 
-Current state:
+Completion evidence:
 
-- live sessions in the corpus: `29`;
-- real live sessions in the corpus: `15`;
-- diagnostic/lab live sessions kept out of promotion scope: `14`;
-- real live-vs-batch compared sessions: `11`;
-- meaningful real comparisons: `8`;
-- real passing comparisons: `0` after enforcing pre-stop temporal provenance;
-- capture-safe candidate sessions: `4`;
-- capture-safe candidate passing sessions: `0`;
+- live sessions in the corpus: `33`;
+- real live sessions: `19`; diagnostic/lab sessions excluded from promotion scope: `14`;
+- meaningful real comparisons: `12`; real passing comparisons: `0`;
+- capture-safe candidate sessions: `7`; passing candidates: `0`;
+- three fresh transport proofs (`2026-07-13_11-16-02-live`, `2026-07-14_11-14-29-live`,
+  `2026-07-14_15-01-19-live`) have complete raw tracks, pre-stop preview, terminal workers, zero
+  final lag and successful batch outputs;
+- a real rerun of `compare-live-batch.py` left chunks, segments, preview snapshots, preview text,
+  draft text and causal candidates byte-identical;
 - promotion decision: `shadow_only_do_not_promote`;
-- new real live collection allowed: `false`;
-- controlled real live pilot collection is allowed as evidence collection; batch remains
-  authoritative and promotion remains blocked;
-- current blocking dimensions: `capture_safety`, `order_risk`, `local_recall`, `remote_leakage`,
-  `review_burden`, `selected_notes_readiness`, `chunk_boundary_risks`, `draft_text_recall`,
-  `required_artifacts`.
-- capture-safe candidate blocking dimensions: `local_recall`, `remote_leakage`, `review_burden`,
-  `selected_notes_readiness`;
-- current aggregate best live-implementable profile:
-  `live_runtime_causal_target_me_remote_energy_v1`;
-- direct runtime Target-Me now has one real pre-stop evidence session but is `regression_detected`
-  because the fresh meeting exposed worse remote/order behavior;
-- remote-energy Target-Me has one real pre-stop evidence session and is `safe_shadow_candidate`;
-- across `11` comparable sessions it recovers `634.43s` missing `Me`, keeps remote-like `Me` at
-  `126.30s`, keeps blocking/advisory order at `2 / 14`, raises weighted F1 by `0.029584`, and has
-  zero per-session F1 regressions;
-- speaker-overlap remains `safe_shadow_candidate` only relative to direct Target-Me;
-- active capture-safe order-risk triage: `2` advisory timing/match ambiguities and `0` blocking rows;
-- historical full-corpus triage: `4` advisory rows and `1` blocking row outside the active slice;
-- best live-implementable paired gaps: `2324.26 sec` missing Me and `126.30 sec` remote-like Me;
-- current corpus quality focus: `fix_live_local_recall_gap`;
-- current coverage target: `3` additional passing meaningful comparisons;
-- latest runtime proof: `131` pre-stop chunks, `56` pre-stop accepted candidates, complete raw/batch,
-  but `82.752s` final lag and non-passing quality gates;
-- historical sessions have no `live_preview_snapshot/v1` rows because the contract was added after
-  recording; they cannot satisfy the new preview-provenance gate by replay;
-- next runtime proof: fresh controlled Live Evidence on the lag-aware worker with bounded lag and
-  unchanged raw/batch reliability, plus a non-empty preview snapshot created before stop.
+- new real live collection allowed: `false`; controlled real pilots remain evidence-only;
+- best live-implementable profile remains
+  `online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_speaker_only_v1`;
+- its capture-safe corpus blockers are precisely localized: `3678.10s` missing `Me`, `137.02s`
+  remote-like `Me`, `9` blocking order mismatches and `17` advisory order rows;
+- order triage contains six boundary-retime candidates, four cross-source risks, four unresolved
+  review rows and one same-source timeline candidate;
+- aggressive runtime Target-Me recovers much more local speech but regresses remote leakage and
+  order, so it remains rejected as a production candidate.
+
+Recommended next goal: `Live Order and Role Reconciliation v1`. Resolve the 15 blocking order
+items in the seven capture-safe sessions through live-only timing, boundary and role evidence,
+without increasing missing `Me`, remote leakage or per-session token-F1 regressions. New recordings
+are not required for this step.
 
 Safety constraint:
 

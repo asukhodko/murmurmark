@@ -35,8 +35,9 @@ The optional UI/app path is deliberately late. It should not block the useful CL
 The major product route remains [Reliable Transcription Route](../project/reliable-transcription-route.md):
 turn a complete recording into a truthful result without the user watching every stage. The batch
 route, outcome contract, observable processing and resumable ASR are implemented. The active goal is
-now Near-Realtime Live Parity Coverage v1: reduce post-meeting waiting while preserving the same
-truthfulness guarantees.
+now Live Order and Role Reconciliation v1. Near-Realtime Live Parity Coverage v1 completed its
+evidence milestone: three fresh real sessions proved complete raw capture, pre-stop preview,
+terminal workers, zero final lag and successful batch output. Live promotion remains blocked.
 
 The target outcome is:
 
@@ -59,8 +60,8 @@ roadmap point it means:
   without making the draft delay grow without bound;
 - a full `34m49s` real run now validates the corrected duration-bounded sidecar: raw and sidecar
   both cover `2089.1s`, all `70` chunks complete, final lag is zero and no packets are dropped;
-- a later `69m06s` real run confirms the transport at `139` chunks and `279` pre-stop preview
-  snapshots, but exposes the remaining quality gap: `755.57s` missing batch `Me`, `60.30s`
+- a later `69m06s` real run confirms the transport at `139` chunks and `279` preview snapshots,
+  `274` of them pre-stop, but exposes the remaining quality gap: `749.71s` missing batch `Me`, `60.30s`
   suspected remote-like `Me` and five blocking order rows;
 - independent causal live evidence now recovers `14` probable-lost-`Me` review rows / `65.54s`
   that were invisible to timeline-island-only audit; these rows are evidence for review and never
@@ -71,8 +72,11 @@ roadmap point it means:
   conservative boundary-retime shadow keeps missing `Me` (`2146.97s`) and remote-like `Me`
   (`67.44s`) unchanged while reducing contentful order mismatches `15 -> 14` and blocking rows
   `5 -> 4`;
-- current work therefore moves to live local recall and the four remaining blocking order rows;
+- current work therefore moves to live order/role reconciliation and local recall;
   collecting more recordings is not required for this algorithmic step;
+- the refreshed capture-safe scope contains seven sessions and 15 blocking order items under the
+  best live-implementable profile: six boundary-retime candidates, four cross-source risks, four
+  unresolved rows and one same-source timeline candidate; this bounded set is the next work unit;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;

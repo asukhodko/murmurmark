@@ -702,7 +702,7 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [chunked-resumable-processing-v1, realtime-corpus-gates]
-    status: current
+    status: done
     effort: 6
     notes: |
       После sparse-capture на legacy live путь `--live-pipeline` остаётся quarantined. Новый
@@ -723,12 +723,17 @@ nodes:
       shadow-only; ближайший blocker — live local recall и четыре остаточных blocking order rows.
       Сессия 2026-07-14_15-01-19-live добавила 69 минут здорового raw/sidecar transport: 139
       chunks, 279 pre-stop preview snapshots и успешный authoritative batch. При этом baseline
-      live draft пропускает 755.57s batch Me, содержит 60.30s suspected remote-like Me и 5 blocking
+      live draft пропускает 749.71s batch Me, содержит 60.30s suspected remote-like Me и 5 blocking
       order rows. Conservative speaker-only boundary profile снижает remote-like Me до 40.98s и
       blocking rows до 4, не улучшая missing Me. Independent causal live evidence обнаруживает 14
       probable-lost-Me review rows / 65.54s, которые timeline-island audit не видел; эти строки
       остаются review-only и не меняют transcript автоматически. Transport доказан лучше, но
       promotion по-прежнему блокируют полнота Me, порядок и remote leakage.
+      Goal завершён как evidence/localization milestone: три свежих meaningful real sessions имеют
+      complete raw, pre-stop preview, terminal worker, zero final lag и successful batch; реальный
+      compare оставляет realtime artifacts byte-identical. Corpus содержит 33 live sessions, 19
+      real, 12 meaningful comparisons, 7 capture-safe candidates и 0 parity passes. Promotion не
+      разрешён; следующий bounded этап вынесен в live-order-role-reconciliation-v1.
       Unevaluated oracle profiles публикуются как `not_evaluated` с null metrics. Отдельная non-live
       control session 2026-07-14 подтвердила здоровый stable capture и authoritative batch.
       Capture-safe/evaluable local-recall examples are listed in
@@ -1001,6 +1006,22 @@ nodes:
       remote/order counters и поднял weighted F1 `0.746153 -> 0.785490`. Paired no-regression status
       имеет `algorithmic_status = safe_shadow_candidate`, но общий status —
       `historical_replay_only`; promotion остаётся blocked до свежего soak и обычных parity gates.
+
+  live-order-role-reconciliation-v1:
+    title: "Live Order and Role Reconciliation v1"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [realtime-live-parity-coverage-v1]
+    status: current
+    effort: 5
+    notes: |
+      Ближайший bounded quality step после завершения parity coverage. Рабочий scope — 7
+      capture-safe sessions и 15 blocking order-triage items: 6 boundary-retime candidates, 4
+      cross-source risks, 4 unresolved review rows и 1 same-source timeline candidate. Сначала
+      отделить ошибки matcher от реального timeline/role conflict, затем materialize только
+      live-only исправления с causal timing, role и remote-forbidden evidence. No-regression gates:
+      missing Me не растёт, remote-like Me не растёт, per-session token F1 не регрессирует, batch
+      остаётся authoritative. Новые записи для этого этапа не требуются; promotion остаётся blocked.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -1875,7 +1896,7 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Near-Realtime Live Parity Coverage v1: доказать committed-PCM live-preview на трёх свежих real sessions, затем снижать live missing-Me без роста remote leakage, order risk или review burden; batch остаётся authoritative."
+      nearest_goal: "Live Order and Role Reconciliation v1: закрыть 15 blocking order-triage items в 7 capture-safe sessions без роста missing Me, remote leakage или per-session token-F1 regressions; batch остаётся authoritative."
       success_by_next_sync: "Три свежие meaningful live sessions имеют healthy raw/batch, pre-stop temporal provenance и comparison; corpus report точно показывает оставшиеся parity blockers, promotion остаётся blocked до полного green."
     defaults:
       status_progress:
