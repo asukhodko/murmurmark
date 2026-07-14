@@ -1032,7 +1032,9 @@ nodes:
       matcher_temporal_false_positive и 2 matcher_ambiguous_reference. Все 15 прежних effective
       blockers закрыты доказательствами; candidate order gate проходит 7/7. Реальных timeline/role
       conflicts не найдено, поэтому transcript mutation count = 0. Raw matcher rows остаются в
-      аудите, batch authoritative, promotion blocked другими parity gates.
+      аудите. Selected profile:
+      online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_speaker_only_v1.
+      Batch authoritative, promotion blocked другими parity gates.
 
   live-local-recall-remote-leakage-hardening-v1:
     title: "Live Local Recall and Remote Leakage Hardening v1"

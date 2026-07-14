@@ -42,6 +42,10 @@ Local Recall and Remote Leakage Hardening v1. Near-Realtime Live Parity Coverage
 complete raw capture, pre-stop preview, terminal workers, zero final lag and successful batch output
 on three fresh real sessions. Live promotion remains blocked.
 
+The selected capture-safe shadow profile remains
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_speaker_only_v1` in both
+per-session comparison reports and the corpus reconciliation report.
+
 The target outcome is:
 
 ```text
