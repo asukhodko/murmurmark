@@ -537,6 +537,9 @@ def main() -> int:
     dialogue = read_json(dialogue_path)
     input_quality = read_json(quality_path)
     transcript_report = read_json(report_path) if report_path.exists() else {}
+    if not transcript_report:
+        base_report_path = resolved / "transcribe_simple_report.json"
+        transcript_report = read_json(base_report_path) if base_report_path.exists() else {}
     utterances = [row for row in dialogue.get("utterances", []) if isinstance(row, dict)]
     by_id = {str(row.get("id")): row for row in utterances}
 

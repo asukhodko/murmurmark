@@ -3077,6 +3077,34 @@ def suppress_near_same_speaker_fragments(rows: list[dict[str, Any]]) -> tuple[li
     return [row for row, should_keep in zip(rows, keep) if should_keep], corrections
 
 
+def exact_overlapping_same_speaker_duplicate(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    left_text = str(left.get("corrected_text") or left.get("text") or "")
+    right_text = str(right.get("corrected_text") or right.get("text") or "")
+    left_tokens = [token for token, _, _ in display_token_spans(left_text)]
+    right_tokens = [token for token, _, _ in display_token_spans(right_text)]
+    if len(left_tokens) < 3 or left_tokens != right_tokens:
+        return False
+
+    left_start = float(left.get("start", 0.0))
+    left_end = float(left.get("end", left_start))
+    right_start = float(right.get("start", 0.0))
+    right_end = float(right.get("end", right_start))
+    overlap = max(0.0, min(left_end, right_end) - max(left_start, right_start))
+    shorter_duration = min(max(0.0, left_end - left_start), max(0.0, right_end - right_start))
+    return shorter_duration > 0.0 and overlap / shorter_duration >= 0.8
+
+
+def duplicate_preference_score(row: dict[str, Any]) -> tuple[float, int]:
+    quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+    try:
+        confidence = float(quality.get("role_confidence", 0.0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    # Prefer a normal candidate over a repair-generated candidate when confidence ties.
+    is_original = 0 if quality.get("repair") else 1
+    return confidence, is_original
+
+
 def suppress_adjacent_same_speaker_duplicates(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if not rows:
         return rows, []
@@ -3086,6 +3114,29 @@ def suppress_adjacent_same_speaker_duplicates(rows: list[dict[str, Any]]) -> tup
         current = copy.deepcopy(row)
         if output and output[-1].get("speaker_label") == current.get("speaker_label"):
             previous = output[-1]
+            if exact_overlapping_same_speaker_duplicate(previous, current):
+                keep_current = duplicate_preference_score(current) > duplicate_preference_score(previous)
+                kept = current if keep_current else previous
+                dropped = previous if keep_current else current
+                meta = {
+                    "reason": "exact_overlapping_same_speaker_duplicate_drop",
+                    "kept_utterance_id": kept.get("id"),
+                    "dropped_utterance_id": dropped.get("id"),
+                    "speaker_label": kept.get("speaker_label"),
+                    "kept_start": kept.get("start"),
+                    "kept_end": kept.get("end"),
+                    "dropped_start": dropped.get("start"),
+                    "dropped_end": dropped.get("end"),
+                    "source_text": str(dropped.get("corrected_text") or dropped.get("text") or "").strip(),
+                    "matched_text": str(kept.get("corrected_text") or kept.get("text") or "").strip(),
+                    "dropped": True,
+                }
+                kept.setdefault("corrections", []).append(meta)
+                kept.setdefault("quality", {})["adjacent_duplicate_repaired"] = True
+                corrections.append(meta)
+                if keep_current:
+                    output[-1] = current
+                continue
             repaired_text, meta = trim_trailing_duplicate_prefix(previous, current)
             if meta is not None:
                 meta = {
