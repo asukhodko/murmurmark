@@ -487,9 +487,21 @@ The CLI prints a compact summary with missing-island counts, possible lost local
 review seconds, `read: less ...` for the Markdown report and `recommended_next`. If possible lost
 local speech is present, `recommended_next` points back into `murmurmark review next SESSION`.
 
-The audit reads only timeline-repair examples and Echo Guard `speaker_state.jsonl`. It writes under
-`derived/audit/local-recall/`, does not edit transcripts, and is used by
+The baseline part of the audit reads timeline-repair examples and Echo Guard `speaker_state.jsonl`.
+When `derived/live/causal-target-me/candidates.jsonl` exists, it also performs an independent check:
+causal Target-Me candidates are compared with the best available batch dialogue. Candidates that
+have local-speaker evidence, pass remote-text/localization guards and are absent from both batch
+`Me` and authoritative remote text become `possible_lost_me` rows with
+`evidence_source: live_causal_target_me`. They remain review-only and never edit the transcript.
+This closes the circular blind spot where timeline repair could report no missing island because it
+had never detected the local phrase in the first place.
+
+The audit writes under `derived/audit/local-recall/`, does not edit transcripts, and is used by
 `report-session-quality.py` to decide whether low local recall should block `ready_for_notes`.
+`summary.audited_missing_island_count` still counts only timeline-repair islands;
+`independent_live_me_evidence_count/seconds` report the additional evidence separately. The
+pipeline pins both timeline and dialogue to `shadow_v2` for reproducibility. A later manual audit
+may omit `--dialogue-profile` to compare against the best available reviewed profile.
 An existing but empty `timeline_repair_examples*.jsonl` means timeline repair found no unrecovered
 local islands; the audit should finish as `status: ok` with zero items.
 If an unrecovered local island is already covered by nearby remote transcript text, the audit labels

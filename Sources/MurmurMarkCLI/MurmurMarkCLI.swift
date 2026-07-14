@@ -3829,7 +3829,17 @@ enum AuditPrinter {
         print("  kind: local_recall")
         print("  report: \(PathDisplay.display(outDir.appendingPathComponent("local_recall_review.md")))")
         print("  profile: \(string(payload["profile"]) ?? "unknown")")
+        if let dialogueProfile = payload["dialogue_profile"] as? String {
+            print("  dialogue_profile: \(dialogueProfile)")
+        }
         print("  missing_islands: \(int(summary["audited_missing_island_count"]))")
+        print(
+            String(
+                format: "  independent_live_me_evidence: %d / %.2fs",
+                int(summary["independent_live_me_evidence_count"]),
+                double(summary["independent_live_me_evidence_seconds"])
+            )
+        )
         print(
             String(
                 format: "  possible_lost_me: %d / %.2fs",
@@ -12408,7 +12418,7 @@ enum ReadinessPrinter {
         let exportHandoff = status == "exportable"
             ? successfulExportHandoff(session: session, explicitManifest: explicitExportManifest)
             : nil
-        let outcome = try? outcomePayload(session)
+        let outcome = compatibleOutcomePayload(session, readinessProfile: profile)
         let outcomeSummary = outcome?["summary"] as? [String: Any]
         let outcomeCommand = outcome.flatMap { string($0["next_command"]) }
         let command = exportHandoff?.command ?? outcomeCommand ?? readinessCommand
@@ -12456,6 +12466,21 @@ enum ReadinessPrinter {
             return nil
         }
         return try JSONFiles.object(url)
+    }
+
+    private static func compatibleOutcomePayload(_ session: URL, readinessProfile: String) -> [String: Any]? {
+        guard let outcome = try? outcomePayload(session) else { return nil }
+        let summary = outcome["summary"] as? [String: Any] ?? [:]
+        let outcomeProfile = string(summary["selected_profile"])
+            ?? string(outcome["selected_profile"])
+            ?? ""
+        if !readinessProfile.isEmpty,
+           readinessProfile != "unknown",
+           !outcomeProfile.isEmpty,
+           outcomeProfile != readinessProfile {
+            return nil
+        }
+        return outcome
     }
 
     private static func successfulExportHandoff(session: URL, explicitManifest: URL?) -> (command: String, manifest: URL)? {
@@ -12529,7 +12554,7 @@ enum ReadinessPrinter {
         let exportBlockers = strings(payload["export_blockers"])
         let reviewBlockers = strings(payload["review_blockers"])
         let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil)
-        let outcome = try? outcomePayload(session)
+        let outcome = compatibleOutcomePayload(session, readinessProfile: profile)
         let status = exportHandoff == nil
             ? effectiveStatus(readinessStatus: readinessStatus(gate: gate, payload: payload), outcome: outcome)
             : "exported"
@@ -12586,7 +12611,7 @@ enum ReadinessPrinter {
         printExperimentSidecarSummary(session)
         printStrongerAudioJudgeSummary(session)
         printSuggestedClosureSummary(session)
-        printOutcomeSummary(session)
+        printOutcomeSummary(session, readinessProfile: profile)
         let canReadOutputs = (outcome?["summary"] as? [String: Any]).flatMap { bool($0["can_read_notes"]) }
             ?? canReadOutputsForStatus(status)
         print("  open:")
@@ -13203,17 +13228,17 @@ enum ReadinessPrinter {
                 ?? "murmurmark inspect \(sessionPath)"
         } else if let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil) {
             command = exportHandoff.command
-        } else if let outcome = try? outcomePayload(session),
-           let outcomeCommand = string(outcome["next_command"]),
-           !outcomeCommand.isEmpty {
-            command = outcomeCommand
         } else if FileManager.default.fileExists(atPath: url.path) {
             let payload = try JSONFiles.object(url)
             let gate = string(payload["use_gate"]) ?? "unknown"
+            let profile = string(payload["selected_profile"]) ?? "unknown"
             let nextCommands = payload["next_commands"] as? [[String: Any]]
                 ?? fallbackNextCommands(gate: gate, session: session, payload: payload)
             let exportHandoff = successfulExportHandoff(session: session, explicitManifest: nil)
+            let outcomeCommand = compatibleOutcomePayload(session, readinessProfile: profile)
+                .flatMap { string($0["next_command"]) }
             command = exportHandoff?.command
+                ?? outcomeCommand
                 ?? string(payload["recommended_next"])
                 ?? preferredNextCommand(nextCommands)
                 ?? "murmurmark status \(sessionPath)"
@@ -13309,13 +13334,9 @@ enum ReadinessPrinter {
         print("    run_manifest: \(PathDisplay.display(session.appendingPathComponent("derived/run/pipeline_run.json")))")
     }
 
-    private static func printOutcomeSummary(_ session: URL) {
+    private static func printOutcomeSummary(_ session: URL, readinessProfile: String) {
         let url = session.appendingPathComponent("derived/outcome/outcome.json")
-        guard FileManager.default.fileExists(atPath: url.path),
-              let payload = try? JSONFiles.object(url)
-        else {
-            return
-        }
+        guard let payload = compatibleOutcomePayload(session, readinessProfile: readinessProfile) else { return }
         print("  outcome:")
         print("    status: \(string(payload["outcome"]) ?? "unknown")")
         print("    export_status: \(string(payload["export_status"]) ?? "unknown")")
@@ -13766,6 +13787,15 @@ enum ReviewNextPrinter {
             return
         }
         let firstLane = firstRecommendedLane(planOutDir: planOutDir) ?? "first"
+        if hasCompletedReviewProgress(planOutDir: planOutDir) {
+            Swift.print("  review_progress:")
+            Swift.print("    status: completed")
+            Swift.print("    inspect: murmurmark review progress --session \(sessionArg)")
+            Swift.print("  workspace_flow:")
+            Swift.print("    build_and_listen: murmurmark review workspace --session \(sessionArg)")
+            Swift.print("    apply_answers: murmurmark review workspace apply --session \(sessionArg)")
+            return
+        }
         Swift.print("  first_lane_flow:")
         Swift.print("    build_and_listen: murmurmark review first-lane --session \(sessionArg)")
         Swift.print("    apply_answers: murmurmark review lane apply \(firstLane) --session \(sessionArg)")
@@ -13845,6 +13875,17 @@ enum ReviewNextPrinter {
             if !planHasReviewActions(planOutDir: planOutDir) {
                 return nonActionableReviewCommands(sessionPath: sessionPath)
             }
+            if hasCompletedReviewProgress(planOutDir: planOutDir) {
+                let readinessCommands = rows.compactMap { string($0["command"]) }.filter { !$0.isEmpty }
+                let readinessReviewCommands = readinessCommands.filter { $0.contains("murmurmark review") }
+                if !readinessReviewCommands.isEmpty {
+                    return readinessReviewCommands
+                }
+                return [
+                    "murmurmark review workspace --session \(sessionPath)",
+                    "murmurmark review progress --session \(sessionPath)",
+                ]
+            }
             return sessionLocalReviewCommands(sessionArg: sessionPath, planOutDir: planOutDir)
         }
         let commands = rows.compactMap { string($0["command"]) }.filter { !$0.isEmpty }
@@ -13921,6 +13962,18 @@ enum ReviewNextPrinter {
         let reviewed = int(summary["reviewed"]) ?? 0
         let remaining = int(summary["remaining"]) ?? 0
         return reviewed > 0 && remaining > 0
+    }
+
+    private static func hasCompletedReviewProgress(planOutDir: URL) -> Bool {
+        let progressURL = planOutDir.appendingPathComponent("review_decisions_progress.json")
+        guard let payload = try? JSONFiles.object(progressURL),
+              let summary = payload["summary"] as? [String: Any]
+        else {
+            return false
+        }
+        let reviewed = int(summary["reviewed"]) ?? 0
+        let remaining = int(summary["remaining"]) ?? 0
+        return reviewed > 0 && remaining == 0
     }
 
     private static func firstRecommendedLane(planOutDir: URL) -> String? {

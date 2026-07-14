@@ -721,6 +721,14 @@ nodes:
       remote-like Me 67.44s, снижая contentful order 15 -> 14 и blocking rows 5 -> 4. Mixed mic
       turns с содержательным уникальным локальным текстом защищены от retime. Профиль остаётся
       shadow-only; ближайший blocker — live local recall и четыре остаточных blocking order rows.
+      Сессия 2026-07-14_15-01-19-live добавила 69 минут здорового raw/sidecar transport: 139
+      chunks, 279 pre-stop preview snapshots и успешный authoritative batch. При этом baseline
+      live draft пропускает 755.57s batch Me, содержит 60.30s suspected remote-like Me и 5 blocking
+      order rows. Conservative speaker-only boundary profile снижает remote-like Me до 40.98s и
+      blocking rows до 4, не улучшая missing Me. Independent causal live evidence обнаруживает 14
+      probable-lost-Me review rows / 65.54s, которые timeline-island audit не видел; эти строки
+      остаются review-only и не меняют transcript автоматически. Transport доказан лучше, но
+      promotion по-прежнему блокируют полнота Me, порядок и remote leakage.
       Unevaluated oracle profiles публикуются как `not_evaluated` с null metrics. Отдельная non-live
       control session 2026-07-14 подтвердила здоровый stable capture и authoritative batch.
       Capture-safe/evaluable local-recall examples are listed in

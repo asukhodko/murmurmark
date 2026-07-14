@@ -402,6 +402,30 @@ def main() -> int:
         assert len(speaker_turns) == 2, speaker_turns
         assert speaker_turns[1].get("runtime_causal_target_me_speaker_overlap_shadow") is True
         assert speaker_turns[1].get("candidate_source") == "runtime-causal-target-me-speaker-overlap"
+        _, _, speaker_only_turns, _, speaker_only_rejected = compare.target_me_shadow_profile_components(
+            session=session,
+            policy=compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
+            live_turns_rows=[],
+            suppressed_mic_asr_segments=[
+                {
+                    "chunk_index": 99,
+                    "start": 100.0,
+                    "end": 103.0,
+                    "text": "unrelated suppressed mic candidate",
+                    "rescue_policy_candidates": ["audio_safe_union_v1"],
+                }
+            ],
+            target_me_rows=[],
+            target_me_turns_by_policy={},
+            persistent_target_me_rows=[],
+            batch_utterances=[],
+        )
+        assert len(speaker_only_turns) == 1, speaker_only_turns
+        assert speaker_only_turns[0].get("runtime_causal_target_me_speaker_overlap_shadow") is True
+        assert any(
+            row.get("reason") == "runtime_candidate_not_speaker_confirmed"
+            for row in speaker_only_rejected
+        ), speaker_only_rejected
         assert compare.target_me_shadow_profile_is_live_implementable(
             compare.RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICY
         ) is False
@@ -414,11 +438,15 @@ def main() -> int:
         assert compare.target_me_shadow_profile_is_live_implementable(
             compare.RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY
         ) is True
+        assert compare.target_me_shadow_profile_is_live_implementable(
+            compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY
+        ) is True
         assert compare.selected_lab_policies(
             SimpleNamespace(with_labs=False, lab_policy=[])
         ) == (
             compare.RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
             compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+            compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
             compare.RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
             compare.RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
             compare.RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,

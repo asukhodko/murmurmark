@@ -21,6 +21,23 @@ confirmed by a full `34m49s` real meeting. Session `2026-07-14_11-14-29-live` pr
 tracks, produced all `70` live chunks and `141` preview snapshots, finished with zero lag and had no
 sidecar disable or dropped packets. Full transcript parity still has zero passing sessions.
 
+The later `69m06s` session `2026-07-14_15-01-19-live` confirms the same transport result at a
+larger scale: raw capture, committed-PCM sidecar, `139` live chunks, `279` preview snapshots and the
+authoritative batch pipeline all completed. Its parity comparison remains non-passing. The baseline
+live draft misses `755.57s` of batch `Me`, contains `60.30s` of suspected remote-like `Me` and has
+five blocking order rows. The conservative speaker-only boundary profile reduces remote-like `Me`
+to `40.98s` and blocking order rows to four without improving missing `Me`, so it remains
+shadow-only.
+
+An independent live-evidence reconciliation now catches omissions that the timeline-island audit
+could not see. On this session it produced `14` review-only probable-lost-`Me` rows covering
+`65.54s`, including the known omissions found through the external reference transcript. This
+evidence never edits the transcript automatically. It is admitted only with causal pre-stop
+provenance, remote-free localization, local-speaker support and low remote similarity. The active
+blocker is therefore transcript completeness and order, not recording transport. Live chunks use
+`30s/5s` geometry while batch ASR uses `60s/5s`; cache reuse correctly stays disabled until an
+explicit compatible geometry exists.
+
 The non-live control session `2026-07-14_12-49-04` also completed normally: wall time was `650.93s`,
 both raw tracks cover `650.98s`, capture had no restart, and the authoritative batch transcript was
 produced. This keeps the stable `record -> process` route separate from the remaining live-quality
@@ -190,8 +207,10 @@ Completion evidence:
 
 ## Current Goal: Near-Realtime Live Parity Coverage v1
 
-Status, 2026-07-10: active. One real pre-stop causal run exists. Bounded lag, order risk, local
-recall, remote leakage, review burden, notes readiness and chunk boundaries still block promotion.
+Status, 2026-07-14: active. Three long real sessions now provide healthy recording-time transport
+evidence, including one negative backpressure run followed by two successful full-duration runs.
+Order risk, local recall, remote leakage, review burden, notes readiness and chunk boundaries still
+block promotion.
 
 Goal:
 

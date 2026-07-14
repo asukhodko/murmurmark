@@ -387,10 +387,12 @@ produce `status: ok`, `audited_missing_island_count: 0`, and an empty `local_rec
   "status": "ok",
   "summary": {
     "audited_missing_island_count": 5,
-    "possible_lost_me_seconds": 0.0,
+    "independent_live_me_evidence_count": 2,
+    "independent_live_me_evidence_seconds": 6.4,
+    "possible_lost_me_seconds": 6.4,
     "needs_review_seconds": 0.7,
-    "blocking_low_local_recall": false,
-    "recommended_next_step": "local_recall_risk_explained"
+    "blocking_low_local_recall": true,
+    "recommended_next_step": "review_local_recall_items"
   }
 }
 ```
@@ -424,8 +426,32 @@ Each item also carries a `boundary` object:
 }
 ```
 
-The audit reads timeline-repair examples and Echo Guard `speaker_state.jsonl`; it does not read or
-modify raw capture. Session quality gates may ignore low local recall only when this audit says
+For Live Evidence sessions an item may additionally carry:
+
+```json
+{
+  "label": "possible_lost_me",
+  "evidence_source": "live_causal_target_me",
+  "parent_candidate_id": "live_runtime_causal_target_me_000029_02",
+  "independent_evidence": {
+    "candidate_score": 0.93,
+    "remote_similarity": 0.08,
+    "remote_text_recall_in_micro": 0.0,
+    "speaker_target_score": 0.19,
+    "remote_free_reason": "past_target_voice_in_remote_free_gap"
+  }
+}
+```
+
+These rows are independently generated during live capture and reconciled against batch dialogue.
+They are allowed into the review queue only; they do not mutate any transcript profile. Candidates
+selected with batch fields, candidates matching authoritative remote text and candidates already
+covered by a nearby batch `Me` utterance are rejected and counted in
+`summary.independent_live_me_rejections`.
+
+The audit reads timeline-repair examples, Echo Guard `speaker_state.jsonl`, batch dialogue and, when
+available, causal live Target-Me candidate metadata; it does not read or modify raw capture. Session
+quality gates may ignore low local recall only when this audit says
 `blocking_low_local_recall: false`. Possible lost local speech remains a blocking risk.
 `likely_harmless_remote_covered` means the unrecovered local island text is already covered by a
 nearby remote candidate, so the audit treats it as preserved content rather than missing meeting

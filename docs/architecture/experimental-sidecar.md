@@ -249,6 +249,16 @@ model differ.
 Mitigation: live ASR cache bridge is strict and writes `not_eligible` unless metadata is compatible;
 batch ASR remains the fallback.
 
+The current default geometries are intentionally different: live preview uses `30s` segments while
+authoritative batch transcription uses `60s` windows. Therefore cache reuse is normally
+`not_eligible` with `window_duration_mismatch`; this is a safe refusal, not a cache lookup failure.
+Do not coerce reuse until a separate corpus comparison proves equivalent recognition and boundary
+behaviour.
+
+Long-session `experiment compare` uses an adaptive timeout derived from recorded duration (bounded
+between 300 and 1800 seconds). `MURMURMARK_LIVE_BATCH_COMPARE_TIMEOUT_SEC` remains an explicit test
+or diagnostic override.
+
 ### Split-Brain Status
 
 Risk: user sees a live draft and treats it as final while batch later disagrees.

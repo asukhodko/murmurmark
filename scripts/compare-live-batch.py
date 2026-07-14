@@ -175,6 +175,9 @@ RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY = "online_live_me_remote_overla
 BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_live_boundary_split_retime_v1"
 )
+BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_speaker_only_v1"
+)
 PROFILE_SELECTION_IGNORED_GATES = {"pre_stop_runtime_causal_target_me"}
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
@@ -214,6 +217,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "online_suppressed_mic_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_v1",
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
@@ -410,6 +414,7 @@ SUPPRESSED_MIC_COMPOSITE_SHADOW_PROFILE_POLICIES = {
 LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_v1",
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
@@ -443,6 +448,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
 LIVE_ME_REMOTE_OVERLAP_FILTER_NO_TARGET_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_v1",
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
@@ -477,6 +483,7 @@ LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES = {
 }
 LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
@@ -539,6 +546,7 @@ RUNTIME_CAUSAL_TARGET_ME_MICRO_ASR_PROFILE_POLICIES = {
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
+    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
 }
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICIES = {
     REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY,
@@ -562,6 +570,7 @@ MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 DEFAULT_TARGET_ME_SHADOW_POLICIES = (
     RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
     BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
@@ -6610,7 +6619,11 @@ def target_me_shadow_profile_components(
         policy in LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES
         or (
             policy in LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES
-            and policy != BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY
+            and policy
+            not in {
+                BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+                BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
+            }
         )
         or policy in SOFT_LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES
         or policy in BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES
@@ -6781,12 +6794,30 @@ def target_me_shadow_profile_components(
         runtime_turns, rejected_runtime_turns = runtime_causal_target_me_shadow_turns(
             session,
             allow_speaker_confirmed_overlap=(
-                policy == RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY
+                policy
+                in {
+                    RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
+                    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY,
+                }
             ),
             require_remote_audio_guard=(
                 policy == RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY
             ),
         )
+        if policy == BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY:
+            rejected_runtime_turns.extend(
+                {
+                    **turn,
+                    "reason": "runtime_candidate_not_speaker_confirmed",
+                }
+                for turn in runtime_turns
+                if not turn.get("runtime_causal_target_me_speaker_overlap_shadow")
+            )
+            runtime_turns = [
+                turn
+                for turn in runtime_turns
+                if turn.get("runtime_causal_target_me_speaker_overlap_shadow")
+            ]
         runtime_turns, rejected_covered_runtime_turns = filter_micro_asr_turns_covered_by_base(
             runtime_turns,
             live_turns + target_turns + supplemental_turns,

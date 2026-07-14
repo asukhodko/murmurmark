@@ -46,6 +46,8 @@ def main() -> int:
     baseline = module.RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY
     boundary_retime = module.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY
     assert boundary_retime in module.TARGET_ME_SHADOW_PROFILE_POLICIES
+    speaker_only = module.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY
+    assert speaker_only in module.TARGET_ME_SHADOW_PROFILE_POLICIES
 
     root = Path("/tmp/murmurmark-live-corpus")
     assert module.evidence_scope(root / "2026-07-10_16-00-29", root) == "real_meeting"

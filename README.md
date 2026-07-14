@@ -1153,6 +1153,12 @@ murmurmark audit audio-review latest --write-clips
 murmurmark audit stronger-audio-judge latest --max-items 80
 ```
 
+For Live Evidence sessions, `audit local-recall` also checks causal Target-Me candidates created
+during recording against the selected batch dialogue. A candidate absent from batch is added to the
+existing `check_local_recall` queue only when it is timeline-causal, has local-speaker evidence and
+passes remote-text guards. This is audit evidence, not an automatic transcript insertion. It catches
+missing `Me` speech that timeline repair cannot discover from its own dropped-island list.
+
 The stronger audio judge is a local second opinion over short review clips. It does not replace the
 main `whisper.cpp` transcript. The normal post-recording pipeline first applies cheap conservative
 cleanup, rebuilds the review pack from the residual queue, and then audits up to `80` items using

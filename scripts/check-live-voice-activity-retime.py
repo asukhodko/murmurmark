@@ -51,6 +51,10 @@ def main() -> int:
         compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY
         in compare.DEFAULT_TARGET_ME_SHADOW_POLICIES
     )
+    assert (
+        compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_SPEAKER_ONLY_PROFILE_POLICY
+        in compare.DEFAULT_TARGET_ME_SHADOW_POLICIES
+    )
     micro_lab = load_micro_lab_module()
     sample_rate = 16_000
     with tempfile.TemporaryDirectory(prefix="murmurmark-live-retime-") as temporary:

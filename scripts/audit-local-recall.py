@@ -11,7 +11,23 @@ from typing import Any
 
 SCHEMA_AUDIT = "murmurmark.local_recall_audit/v1"
 SCHEMA_ITEM = "murmurmark.local_recall_item/v1"
-SCRIPT_VERSION = "0.4.1"
+SCRIPT_VERSION = "0.5.0"
+DIALOGUE_PROFILE_ORDER = [
+    "reviewed_v1",
+    "order_repair_v1",
+    "local_recall_repair_v1",
+    "agent_reviewed_v1",
+    "audit_cleanup_v7",
+    "suggested_review_v1",
+    "audit_cleanup_v6",
+    "audit_cleanup_v5",
+    "audit_cleanup_v4",
+    "audit_cleanup_v3",
+    "audit_cleanup_v2",
+    "audit_cleanup_v1",
+    "shadow_v2",
+    "current",
+]
 ACK_TOKENS = {
     "ага",
     "угу",
@@ -28,6 +44,10 @@ ACK_TOKENS = {
     "да",
     "нет",
 }
+KNOWN_HALLUCINATION_RE = re.compile(
+    r"^(продолжение следует|спасибо за просмотр|редактор субтитров|субтитры.*)$",
+    re.IGNORECASE,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,6 +57,11 @@ def parse_args() -> argparse.Namespace:
         "--profile",
         default="auto",
         help="Timeline repair profile to inspect. Default: auto, preferring shadow_v2.",
+    )
+    parser.add_argument(
+        "--dialogue-profile",
+        default="auto",
+        help="Batch dialogue used to detect already recovered Me text. Default: best available profile.",
     )
     parser.add_argument(
         "--out-dir",
@@ -100,6 +125,18 @@ def resolve_profile(session: Path, requested: str) -> str:
     if (resolved / "timeline_repair_report.json").exists():
         return "current"
     return "shadow_v2"
+
+
+def resolve_dialogue_profile(session: Path, requested: str, timeline_profile: str) -> str:
+    resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
+    if requested == "same":
+        return timeline_profile
+    if requested != "auto":
+        return requested
+    for profile in DIALOGUE_PROFILE_ORDER:
+        if (resolved / f"clean_dialogue{suffix(profile)}.json").exists():
+            return profile
+    return timeline_profile
 
 
 def interval_overlap(left: tuple[int, int], right: tuple[int, int]) -> int:
@@ -167,6 +204,233 @@ def token_containment(left: Any, right: Any) -> float:
         return 0.0
     right_tokens = set(content_tokens(right))
     return len(left_tokens & right_tokens) / max(1, len(left_tokens))
+
+
+def safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def interval_overlap_sec(start: float, end: float, other_start: float, other_end: float) -> float:
+    return max(0.0, min(end, other_end) - max(start, other_start))
+
+
+def is_me_utterance(row: dict[str, Any]) -> bool:
+    role = str(row.get("role") or row.get("speaker_label") or "").lower()
+    return role in {"me", "mic"}
+
+
+def candidate_remote_free_evidence(row: dict[str, Any]) -> tuple[bool, str]:
+    localization = row.get("remote_free_localization")
+    if not isinstance(localization, dict):
+        return False, "missing_remote_free_localization"
+    reason = str(localization.get("reason") or "")
+    status = str(localization.get("status") or "")
+    if reason not in {
+        "no_remote_overlap",
+        "past_target_voice_in_remote_free_gap",
+        "past_target_voice_sliding_window",
+    } or status not in {"not_needed", "localized"}:
+        return False, "candidate_not_remote_free"
+    if reason != "past_target_voice_sliding_window":
+        return True, reason
+
+    selected = localization.get("selected")
+    selected = selected if isinstance(selected, dict) else {}
+    selected_target = safe_float(selected.get("mean_target_score"))
+    if not selected_target:
+        scores = selected.get("scores")
+        if isinstance(scores, dict):
+            selected_target = safe_float(scores.get("target"))
+    if (
+        selected_target < 0.12
+        or safe_float(row.get("source_text_token_recall")) < 0.25
+        or safe_float(row.get("micro_text_token_recall_in_source")) < 0.55
+    ):
+        return False, "speaker_overlap_evidence_too_weak"
+    return True, reason
+
+
+def independent_candidate_is_already_covered(
+    row: dict[str, Any],
+    utterances: list[dict[str, Any]],
+) -> tuple[bool, dict[str, Any]]:
+    start = safe_float(row.get("start"))
+    end = safe_float(row.get("end"), start)
+    duration = max(0.001, end - start)
+    text = str(row.get("text") or "")
+    me_rows = [
+        item
+        for item in utterances
+        if is_me_utterance(item)
+        and interval_overlap_sec(start - 3.0, end + 3.0, safe_float(item.get("start")), safe_float(item.get("end"))) > 0
+    ]
+    remote_rows = [
+        item
+        for item in utterances
+        if not is_me_utterance(item)
+        and interval_overlap_sec(start - 1.0, end + 1.0, safe_float(item.get("start")), safe_float(item.get("end"))) > 0
+    ]
+    me_coverage = min(
+        1.0,
+        sum(
+            interval_overlap_sec(start, end, safe_float(item.get("start")), safe_float(item.get("end")))
+            for item in me_rows
+        )
+        / duration,
+    )
+    me_text_containment = max((token_containment(text, item.get("text")) for item in me_rows), default=0.0)
+    remote_text_containment = max(
+        (token_containment(text, item.get("text")) for item in remote_rows),
+        default=0.0,
+    )
+    diagnostics = {
+        "batch_me_interval_coverage": round(me_coverage, 6),
+        "batch_me_text_containment": round(me_text_containment, 6),
+        "batch_remote_text_containment": round(remote_text_containment, 6),
+        "nearby_me_utterance_ids": [str(item.get("id") or "") for item in me_rows if item.get("id")],
+        "nearby_remote_utterance_ids": [
+            str(item.get("id") or "") for item in remote_rows if item.get("id")
+        ],
+    }
+    if remote_text_containment >= 0.65:
+        return True, {**diagnostics, "coverage_reason": "candidate_matches_authoritative_remote"}
+    if me_text_containment >= 0.75 or (me_coverage >= 0.70 and me_text_containment >= 0.45):
+        return True, {**diagnostics, "coverage_reason": "candidate_already_present_in_me"}
+    return False, diagnostics
+
+
+def independent_live_me_items(
+    candidates: list[dict[str, Any]],
+    utterances: list[dict[str, Any]],
+    speaker_states: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], Counter[str]]:
+    accepted: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    rejected: Counter[str] = Counter()
+    for row in candidates:
+        if row.get("status") != "accepted":
+            rejected["candidate_not_accepted"] += 1
+            continue
+        if row.get("used_batch_fields_for_selection") is not False or row.get("timeline_causal") is not True:
+            rejected["candidate_not_independent"] += 1
+            continue
+        text = str(row.get("text") or "").strip()
+        if KNOWN_HALLUCINATION_RE.match(text):
+            rejected["known_hallucination"] += 1
+            continue
+        if len(content_tokens(text)) < 3:
+            rejected["too_few_content_tokens"] += 1
+            continue
+        if safe_float(row.get("score")) < 0.78:
+            rejected["micro_asr_score_too_low"] += 1
+            continue
+        if safe_float(row.get("remote_similarity")) > 0.30 or safe_float(
+            row.get("remote_text_recall_in_micro")
+        ) > 0.10:
+            rejected["remote_text_guard_failed"] += 1
+            continue
+        speaker_scores = row.get("speaker_scores")
+        speaker_scores = speaker_scores if isinstance(speaker_scores, dict) else {}
+        if safe_float(speaker_scores.get("target")) < 0.10:
+            rejected["target_speaker_evidence_too_weak"] += 1
+            continue
+        remote_free, remote_free_reason = candidate_remote_free_evidence(row)
+        if not remote_free:
+            rejected[remote_free_reason] += 1
+            continue
+        start = safe_float(row.get("start"))
+        end = safe_float(row.get("end"), start)
+        if end <= start:
+            rejected["invalid_interval"] += 1
+            continue
+        covered, coverage = independent_candidate_is_already_covered(row, utterances)
+        if covered:
+            rejected[str(coverage.get("coverage_reason") or "candidate_already_covered")] += 1
+            continue
+        accepted.append(
+            (
+                row,
+                {
+                    **coverage,
+                    "remote_free_reason": remote_free_reason,
+                    "speaker_target_score": round(safe_float(speaker_scores.get("target")), 6),
+                },
+            )
+        )
+
+    selected: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for row, diagnostics in sorted(
+        accepted,
+        key=lambda value: (-safe_float(value[0].get("score")), safe_float(value[0].get("start"))),
+    ):
+        start = safe_float(row.get("start"))
+        end = safe_float(row.get("end"), start)
+        text = row.get("text")
+        duplicate = any(
+            interval_overlap_sec(start, end, safe_float(other.get("start")), safe_float(other.get("end")))
+            >= 0.5 * min(end - start, safe_float(other.get("end")) - safe_float(other.get("start")))
+            and max(token_containment(text, other.get("text")), token_containment(other.get("text"), text)) >= 0.65
+            for other, _ in selected
+        )
+        if duplicate:
+            rejected["duplicate_independent_candidate"] += 1
+            continue
+        selected.append((row, diagnostics))
+
+    items: list[dict[str, Any]] = []
+    for index, (row, diagnostics) in enumerate(
+        sorted(selected, key=lambda value: (safe_float(value[0].get("start")), safe_float(value[0].get("end")))),
+        start=1,
+    ):
+        start = safe_float(row.get("start"))
+        end = safe_float(row.get("end"), start)
+        speaker_scores = row.get("speaker_scores")
+        speaker_scores = speaker_scores if isinstance(speaker_scores, dict) else {}
+        confidence = min(
+            0.95,
+            0.55 + 0.25 * safe_float(row.get("score")) + 0.45 * safe_float(speaker_scores.get("target")),
+        )
+        items.append(
+            {
+                "schema": SCHEMA_ITEM,
+                "item_id": f"local_recall_independent_{index:04d}",
+                "label": "possible_lost_me",
+                "confidence": round(confidence, 3),
+                "reason": "independent causal live evidence contains a probable Me phrase absent from batch",
+                "evidence_source": "live_causal_target_me",
+                "parent_candidate_id": row.get("id"),
+                "parent_action": "independent_live_me_evidence",
+                "parent_start_sec": round(start, 3),
+                "parent_end_sec": round(end, 3),
+                "start_sec": round(start, 3),
+                "end_sec": round(end, 3),
+                "duration_sec": round(end - start, 3),
+                "parent_text": str(row.get("text") or ""),
+                "parent_content_token_count": len(content_tokens(row.get("text"))),
+                "parent_has_work_marker": has_work_marker(row.get("text")),
+                "parent_is_acknowledgement": is_acknowledgement_text(row.get("text")),
+                "state": state_summary(speaker_states, int(start * 1000), int(end * 1000)),
+                "boundary": {"boundary_fragment": False, "source": "independent_live_evidence"},
+                "matched_remote_candidate_ids": diagnostics.get("nearby_remote_utterance_ids", []),
+                "remote_overlap_text_sample": str(row.get("remote_text") or "")[:280],
+                "remote_overlap_text_containment": round(
+                    safe_float(row.get("remote_text_recall_in_micro")), 6
+                ),
+                "independent_evidence": {
+                    "candidate_score": row.get("score"),
+                    "remote_similarity": row.get("remote_similarity"),
+                    "remote_text_recall_in_micro": row.get("remote_text_recall_in_micro"),
+                    "speaker_scores": speaker_scores,
+                    "remote_audio_guard": row.get("remote_audio_guard"),
+                    "remote_free_localization": row.get("remote_free_localization"),
+                    "micro_asr_wav": row.get("wav"),
+                    **diagnostics,
+                },
+            }
+        )
+    return items, rejected
 
 
 def has_work_marker(text: Any) -> bool:
@@ -447,7 +711,12 @@ def audit_items(examples: list[dict[str, Any]], speaker_states: list[dict[str, A
     return items
 
 
-def summarize(report: dict[str, Any] | None, examples: list[dict[str, Any]], items: list[dict[str, Any]]) -> dict[str, Any]:
+def summarize(
+    report: dict[str, Any] | None,
+    examples: list[dict[str, Any]],
+    items: list[dict[str, Any]],
+    independent_rejections: Counter[str] | None = None,
+) -> dict[str, Any]:
     metrics = report.get("metrics") if isinstance(report, dict) else {}
     if not isinstance(metrics, dict):
         metrics = {}
@@ -459,7 +728,9 @@ def summarize(report: dict[str, Any] | None, examples: list[dict[str, Any]], ite
     possible_lost = seconds_by_label["possible_lost_me"]
     review = seconds_by_label["needs_review"]
     harmful_or_review = possible_lost + review
-    missing_count = len(items)
+    timeline_items = [item for item in items if item.get("evidence_source") != "live_causal_target_me"]
+    independent_items = [item for item in items if item.get("evidence_source") == "live_causal_target_me"]
+    missing_count = len(timeline_items)
     expected_missing = None
     island_count = metrics.get("local_only_island_count")
     recovered_count = metrics.get("local_only_island_recovered_count")
@@ -483,6 +754,12 @@ def summarize(report: dict[str, Any] | None, examples: list[dict[str, Any]], ite
         "expected_missing_island_count": expected_missing,
         "audited_missing_island_count": missing_count,
         "audit_count_matches_timeline_metrics": expected_missing is None or expected_missing == missing_count,
+        "independent_live_me_evidence_count": len(independent_items),
+        "independent_live_me_evidence_seconds": round(
+            sum(float(item.get("duration_sec", 0.0) or 0.0) for item in independent_items),
+            3,
+        ),
+        "independent_live_me_rejections": dict(sorted((independent_rejections or Counter()).items())),
         "by_label": {
             label: {
                 "count": by_label[label],
@@ -501,18 +778,31 @@ def summarize(report: dict[str, Any] | None, examples: list[dict[str, Any]], ite
     }
 
 
-def write_review(path: Path, session: Path, profile: str, summary: dict[str, Any], items: list[dict[str, Any]]) -> None:
+def write_review(
+    path: Path,
+    session: Path,
+    profile: str,
+    dialogue_profile: str,
+    summary: dict[str, Any],
+    items: list[dict[str, Any]],
+) -> None:
     lines = [
         "# Local Recall Audit",
         "",
         f"Session: `{session}`",
-        f"Profile: `{profile}`",
+        f"Timeline profile: `{profile}`",
+        f"Dialogue profile: `{dialogue_profile}`",
         f"Recommendation: `{summary.get('recommended_next_step')}`",
         f"Blocking low local recall: `{str(summary.get('blocking_low_local_recall')).lower()}`",
         "",
         "## Summary",
         "",
         f"- Missing islands: `{summary.get('audited_missing_island_count')}`",
+        (
+            "- Independent live Me evidence absent from batch: "
+            f"`{summary.get('independent_live_me_evidence_count', 0)}` / "
+            f"`{summary.get('independent_live_me_evidence_seconds', 0.0)}` sec"
+        ),
         f"- Possible lost Me: `{summary.get('possible_lost_me_count')}` / `{summary.get('possible_lost_me_seconds')}` sec",
         f"- Needs review: `{summary.get('needs_review_count')}` / `{summary.get('needs_review_seconds')}` sec",
         f"- Likely harmless: `{summary.get('likely_harmless_seconds')}` sec",
@@ -554,11 +844,14 @@ def main() -> int:
     args = parse_args()
     session = args.session
     profile = resolve_profile(session, args.profile)
+    dialogue_profile = resolve_dialogue_profile(session, args.dialogue_profile, profile)
     out_dir = args.out_dir or session / "derived/audit/local-recall"
     resolved = session / "derived/transcript-simple/whisper-cpp/resolved"
     report_path = resolved / f"timeline_repair_report{suffix(profile)}.json"
     examples_path = resolved / f"timeline_repair_examples{suffix(profile)}.jsonl"
+    dialogue_path = resolved / f"clean_dialogue{suffix(dialogue_profile)}.json"
     speaker_state_path = session / "derived/preprocess/echo/speaker_state.jsonl"
+    independent_candidates_path = session / "derived/live/causal-target-me/candidates.jsonl"
 
     report = read_json(report_path)
     examples = read_jsonl(examples_path)
@@ -569,11 +862,14 @@ def main() -> int:
             "version": SCRIPT_VERSION,
             "session": str(session),
             "profile": profile,
+            "dialogue_profile": dialogue_profile,
             "status": "missing_inputs",
             "inputs": {
                 "timeline_repair_report": str(report_path),
                 "timeline_repair_examples": str(examples_path),
+                "clean_dialogue": str(dialogue_path),
                 "speaker_state": str(speaker_state_path),
+                "independent_live_me_candidates": str(independent_candidates_path),
             },
             "summary": {
                 "blocking_low_local_recall": True,
@@ -582,33 +878,57 @@ def main() -> int:
         }
         write_json(out_dir / "local_recall_audit.json", payload)
         write_jsonl(out_dir / "local_recall_items.jsonl", [])
-        write_review(out_dir / "local_recall_review.md", session, profile, payload["summary"], [])
+        write_review(
+            out_dir / "local_recall_review.md",
+            session,
+            profile,
+            dialogue_profile,
+            payload["summary"],
+            [],
+        )
         print(f"local_recall_audit: {out_dir / 'local_recall_audit.json'}")
         print("status: missing_inputs")
         return 1
 
     items = audit_items(examples, speaker_states)
-    summary = summarize(report, examples, items)
+    dialogue = read_json(dialogue_path) or {}
+    utterances = dialogue.get("utterances") if isinstance(dialogue.get("utterances"), list) else None
+    independent_candidates = read_jsonl(independent_candidates_path)
+    if utterances is None:
+        independent_items = []
+        independent_rejections = Counter({"missing_batch_dialogue": len(independent_candidates)})
+    else:
+        independent_items, independent_rejections = independent_live_me_items(
+            independent_candidates,
+            [row for row in utterances if isinstance(row, dict)],
+            speaker_states,
+        )
+    items.extend(independent_items)
+    summary = summarize(report, examples, items, independent_rejections)
     payload = {
         "schema": SCHEMA_AUDIT,
         "version": SCRIPT_VERSION,
         "session": str(session),
         "profile": profile,
+        "dialogue_profile": dialogue_profile,
         "status": "ok",
         "inputs": {
             "timeline_repair_report": str(report_path),
             "timeline_repair_examples": str(examples_path),
+            "clean_dialogue": str(dialogue_path),
             "speaker_state": str(speaker_state_path),
+            "independent_live_me_candidates": str(independent_candidates_path),
         },
         "summary": summary,
     }
     write_json(out_dir / "local_recall_audit.json", payload)
     write_jsonl(out_dir / "local_recall_items.jsonl", items)
-    write_review(out_dir / "local_recall_review.md", session, profile, summary, items)
+    write_review(out_dir / "local_recall_review.md", session, profile, dialogue_profile, summary, items)
     print(f"local_recall_audit: {out_dir / 'local_recall_audit.json'}")
     print(f"missing_islands: {summary['audited_missing_island_count']}")
     print(f"possible_lost_me_seconds: {summary['possible_lost_me_seconds']}")
     print(f"needs_review_seconds: {summary['needs_review_seconds']}")
+    print(f"independent_live_me_evidence: {summary['independent_live_me_evidence_count']}")
     print(f"recommendation: {summary['recommended_next_step']}")
     return 0
 

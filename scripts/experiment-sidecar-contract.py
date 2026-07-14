@@ -562,12 +562,21 @@ def print_report(contract: dict[str, Any]) -> None:
     print(f"draft_recovery_command: {report['draft_recovery_command']}")
 
 
+def compare_timeout(session: Path) -> tuple[float, str]:
+    configured_timeout = os.environ.get("MURMURMARK_LIVE_BATCH_COMPARE_TIMEOUT_SEC")
+    if configured_timeout is not None:
+        return float(configured_timeout), "environment_override"
+    manifest = read_json(session / "session.json") or {}
+    duration = session_duration(manifest)
+    return max(300.0, min(1800.0, 120.0 + duration * 0.12)), "session_duration_adaptive"
+
+
 def run_compare(session: Path) -> int:
     script = Path("scripts/compare-live-batch.py")
     if not script.exists():
         print(f"missing comparison script: {script}", file=sys.stderr)
         return 1
-    timeout = float(os.environ.get("MURMURMARK_LIVE_BATCH_COMPARE_TIMEOUT_SEC", "300"))
+    timeout, timeout_policy = compare_timeout(session)
     try:
         return subprocess.run([sys.executable, str(script), str(session)], timeout=timeout, check=False).returncode
     except subprocess.TimeoutExpired:
@@ -582,6 +591,7 @@ def run_compare(session: Path) -> int:
                 "status": "warning",
                 "details": {
                     "timeout_sec": timeout,
+                    "timeout_policy": timeout_policy,
                     "script": str(script),
                     "reason": "comparison_timeout",
                 },

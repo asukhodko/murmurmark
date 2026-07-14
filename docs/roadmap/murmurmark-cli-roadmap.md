@@ -59,6 +59,12 @@ roadmap point it means:
   without making the draft delay grow without bound;
 - a full `34m49s` real run now validates the corrected duration-bounded sidecar: raw and sidecar
   both cover `2089.1s`, all `70` chunks complete, final lag is zero and no packets are dropped;
+- a later `69m06s` real run confirms the transport at `139` chunks and `279` pre-stop preview
+  snapshots, but exposes the remaining quality gap: `755.57s` missing batch `Me`, `60.30s`
+  suspected remote-like `Me` and five blocking order rows;
+- independent causal live evidence now recovers `14` probable-lost-`Me` review rows / `65.54s`
+  that were invisible to timeline-island-only audit; these rows are evidence for review and never
+  automatic transcript edits;
 - a non-live `10m51s` control run confirms that stable raw capture and authoritative batch remain
   healthy independently of the live experiment;
 - the focused capture-safe corpus has `6` meaningful comparisons and zero parity passes; a
