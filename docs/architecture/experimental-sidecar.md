@@ -225,8 +225,13 @@ worker may recover more candidates without holding the base draft path.
 
 Risk: long meetings plus slow sidecar worker accumulate unbounded sample buffers.
 
-Mitigation: fixed queue limits, fixed segment windows, sidecar disable on overflow, metrics for
-captured/dropped/disabled seconds.
+Mitigation: bound pending PCM by audio seconds per source rather than ScreenCaptureKit packet count.
+Packet duration changes between runs, so a fixed packet limit can represent only a few seconds and
+fail during an otherwise normal segment rotation. The committed-PCM queue uses one drain task,
+refreshes JSON state at most once per second, keeps a separate hard packet guard for fault injection,
+and reports both configured and maximum observed pending seconds. The default `30s` limit leaves
+headroom above the `12.88s` peak observed on the full `2026-07-14_11-14-29-live` meeting while
+keeping memory bounded. Fixed segment windows and fail-open sidecar disable remain the final guard.
 
 ### Boundary Drift
 

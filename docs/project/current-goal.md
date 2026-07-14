@@ -5,7 +5,7 @@ production path remains non-live `record -> process`. The current live work is e
 and gate hardening only: live output must stay shadow-only and batch transcript remains
 authoritative.
 
-## Current Live Evidence Status, 2026-07-13
+## Current Live Evidence Status, 2026-07-14
 
 `record --experiment live-shadow-v1` preserved raw capture on a real daily sync even when
 ScreenCaptureKit restarted once. The session completed with warning, but `mic` and `remote` CAF
@@ -16,8 +16,10 @@ segment-level realtime through committed PCM: after raw write succeeds, a bounde
 writes closed experiment segments and the live worker drafts from those files. `raw_segment_commits`
 remain evidence and fallback, while batch remains authoritative.
 
-Reliability unit status, 2026-07-13: implementation complete and transport proven on another fresh
-real session; full transcript parity still has zero passing sessions.
+Reliability unit status, 2026-07-14: committed-PCM transport is implemented, fail-open and now
+confirmed by a full `34m49s` real meeting. Session `2026-07-14_11-14-29-live` preserved both raw
+tracks, produced all `70` live chunks and `141` preview snapshots, finished with zero lag and had no
+sidecar disable or dropped packets. Full transcript parity still has zero passing sessions.
 
 - realtime rows are synchronized after append and carry `recording_time_committed_pcm` provenance;
 - the live worker writes heartbeat, current stage/index, child PID and bounded ffmpeg/Whisper
@@ -50,12 +52,31 @@ classify each new meeting before the corpus refresh.
 Fresh session `2026-07-13_11-16-02-live` separates transport from quality cleanly. It preserved
 `1392.27s` of raw capture, produced `46` chunks and `90` non-empty preview snapshots before stop,
 showed the first chunk after `36.243s`, finished with zero live lag and had no backpressure or worker
-failure. Transport no longer blocks this branch. The baseline live policy still misses about
+failure. This proved the transport once. The baseline live policy still misses about
 `200s` of batch `Me`; most of that speech is visible in suppressed mic evidence. Runtime Target-Me
 policies recover part of the gap but add one blocking order mismatch while leaving remote-like `Me`
 unchanged. They remain shadow-only.
 
-The next loop is offline, not another recording. `murmurmark live replay SESSION --refresh` builds
+Later session `2026-07-13_16-32-37-live` preserved both raw tracks for the full `2262.5s` and
+completed the authoritative batch pipeline, but the sidecar stopped at `32.3s` with
+`disabled_backpressure`. The old queue limit counted `512` ScreenCaptureKit packets; in this run
+that represented only about three seconds of audio. Per-packet experiment JSON writes and the first
+`30s/5s` segment rotation consumed that margin. The transport now uses one buffered drain task,
+throttles state/report writes to once per second, bounds pending PCM by audio duration and keeps the
+packet cap only as an emergency guard. Session `2026-07-14_11-14-29-live` confirmed the correction
+for the full `2089.1s`: raw and sidecar coverage match, all `70` chunks were processed, and the peak
+pending PCM was `12.88s` without drops. The default bound is now `30s` per source for practical
+headroom. Transport is closed for this failure mode; live text quality remains the active blocker.
+
+The refreshed corpus confirms that more recordings are not required for the current blocker. It
+contains `18` real live sessions, `11` meaningful live/batch comparisons and `6` capture-safe
+candidate sessions, with zero passing parity sessions. The best live-implementable profile still
+has `7` blocking contentful order mismatches, `4263.04s` missing `Me` and `186.92s` remote-like
+`Me` across the real corpus. The next implementation focus is live timeline reconciliation: first
+classify and repair the `5` boundary-retime candidates and `2` unresolved order rows without
+loosening remote-leak or batch-authoritative gates.
+
+The quality loop is offline. `murmurmark live replay SESSION --refresh` builds
 an explicit policy matrix and accepts an improvement only when missing `Me` decreases without extra
 remote leakage or blocking order errors. It also records the ASR-cache geometry debt: current live
 chunks use `30s/5s`, while batch expects `60s/5s`, so automatic reuse remains correctly disabled.

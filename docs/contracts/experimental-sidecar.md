@@ -111,6 +111,19 @@ Required fields:
 - whether batch processing can be reproduced from raw CAF without sidecar artifacts;
 - current batch pipeline status.
 
+Committed-PCM transport counters survive contract refreshes:
+
+- `pending_pcm_packets`;
+- `pending_pcm_seconds_by_source`;
+- `max_pending_pcm_seconds`;
+- `max_observed_pending_pcm_seconds`;
+- `max_pending_pcm_packets`, an emergency guard rather than the primary backlog measure;
+- `dropped_pcm_packets` and `artificial_write_delay_ms` for fail-open evidence.
+
+The default `max_pending_pcm_seconds` is `30` per source. It may be reduced through
+`MURMURMARK_LIVE_PCM_MAX_PENDING_SECONDS` for fail-open tests; production code clamps it to
+`0.1...300s`.
+
 For a successful fail-open backpressure scenario:
 
 ```json

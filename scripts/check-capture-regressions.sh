@@ -162,6 +162,15 @@ assert_static_capture_contract() {
   grep -q 'MURMURMARK_LIVE_SEGMENT_WRITE_DELAY_MS' "$source_file" \
     || fail "async live segment queue must expose a lab write-delay override for fail-open tests"
 
+  grep -q 'final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable' "$source_file" \
+    || fail "committed PCM sidecar must run behind its own async capture-safe wrapper"
+
+  grep -q 'MURMURMARK_LIVE_PCM_MAX_PENDING_SECONDS' "$source_file" \
+    || fail "committed PCM sidecar backlog must be bounded by audio duration"
+
+  grep -q 'writeExperimentStateIfDue' "$source_file" \
+    || fail "committed PCM sidecar state writes must be throttled away from packet rate"
+
   grep -q 'final class RecordingProcessLock' "$source_file" \
     || fail "recording lock must keep concurrent record processes rejected"
 

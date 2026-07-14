@@ -34,11 +34,11 @@ record_log="$workdir/record.log"
 
 "$bin" record \
   --target-bundle system \
-  --duration 7 \
+  --duration 12 \
   --experiment live-shadow-v1 \
   --live-no-worker \
-  --live-segment-sec 2 \
-  --live-overlap-sec 0.5 \
+  --live-segment-sec 5 \
+  --live-overlap-sec 2.4 \
   --out "$session" >"$record_log" 2>&1 || {
     cat "$record_log" >&2
     fail "record command failed"
@@ -51,8 +51,8 @@ record_log="$workdir/record.log"
 
 jq -e '
   (.health.partial // false) == false
-  and (.health.tracks.mic.duration_sec // 0) >= 6.0
-  and (.health.tracks.remote.duration_sec // 0) >= 6.0
+  and (.health.tracks.mic.duration_sec // 0) >= 11.0
+  and (.health.tracks.remote.duration_sec // 0) >= 11.0
   and (.health.tracks.mic.frames // 0) > 0
   and (.health.tracks.remote.frames // 0) > 0
 ' "$session/session.json" >/dev/null || {
@@ -66,8 +66,14 @@ jq -e '
   and .status == "completed"
   and .answers.raw_capture_affected == false
   and .answers.sidecar_disabled == false
+  and .counters.max_pending_pcm_packets == 100000
+  and .counters.max_pending_pcm_seconds == 30
+  and (.counters.max_observed_pending_pcm_seconds // 999) < 30
 ' "$session/derived/experiments/live-shadow-v1/state.json" >/dev/null \
-  || fail "experiment state does not describe committed PCM preview"
+  || {
+    jq '.' "$session/derived/experiments/live-shadow-v1/state.json" >&2
+    fail "experiment state does not describe committed PCM preview"
+  }
 
 jq -s -e '
   length >= 4
@@ -116,6 +122,45 @@ jq -e '
   and .answers.backpressure_detected == true
 ' "$backpressure_session/derived/experiments/live-shadow-v1/state.json" >/dev/null \
   || fail "backpressure state does not prove committed PCM fail-open behavior"
+
+duration_backpressure_session="$workdir/session-duration-backpressure"
+duration_backpressure_log="$workdir/record-duration-backpressure.log"
+
+MURMURMARK_LIVE_PCM_MAX_PENDING_PACKETS=100000 \
+MURMURMARK_LIVE_PCM_MAX_PENDING_SECONDS=0.1 \
+MURMURMARK_LIVE_PCM_WRITE_DELAY_MS=250 \
+  "$bin" record \
+    --target-bundle system \
+    --duration 4 \
+    --experiment live-shadow-v1 \
+    --live-no-worker \
+    --live-segment-sec 2 \
+    --live-overlap-sec 0.5 \
+    --out "$duration_backpressure_session" >"$duration_backpressure_log" 2>&1 || {
+      cat "$duration_backpressure_log" >&2
+      fail "duration-backpressure record command failed"
+    }
+
+jq -e '
+  (.health.partial // false) == false
+  and (.health.tracks.mic.duration_sec // 0) >= 3.0
+  and (.health.tracks.remote.duration_sec // 0) >= 3.0
+' "$duration_backpressure_session/session.json" >/dev/null || {
+  cat "$duration_backpressure_log" >&2
+  jq '.health' "$duration_backpressure_session/session.json" >&2
+  fail "raw capture did not survive duration-based committed PCM backpressure"
+}
+
+jq -e '
+  .status == "disabled_backpressure"
+  and .live_preview_mode == "committed_pcm_queue_v1"
+  and .answers.raw_capture_affected == false
+  and .answers.sidecar_disabled == true
+  and .answers.backpressure_detected == true
+  and .counters.max_pending_pcm_seconds == 0.1
+  and (.reason | contains("exceeded 0.1s"))
+' "$duration_backpressure_session/derived/experiments/live-shadow-v1/state.json" >/dev/null \
+  || fail "duration-backpressure state does not prove duration-based fail-open behavior"
 
 if [[ "${MURMURMARK_RUN_LIVE_WORKER_CAPTURE_TEST:-0}" == "1" ]]; then
   worker_session="$workdir/session-worker"

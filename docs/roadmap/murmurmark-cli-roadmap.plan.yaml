@@ -559,6 +559,16 @@ nodes:
       backpressure. Текущий blocker — quality parity: baseline теряет около 200s batch Me, а
       runtime candidates обменивают local recall на blocking order regression. Новые записи для
       этой развилки не нужны; следующий цикл выполняется offline replay по сохранённым evidence.
+      Более поздняя сессия `2026-07-13_16-32-37-live` сохранила полные raw tracks и batch, но
+      sidecar отключился на `32.3s`: лимит `512` пакетов означал лишь около трёх секунд при новом
+      размере ScreenCaptureKit packets. Исправление заменило packet-count на duration bound, один drain task
+      и throttled JSON state writes. Сессия `2026-07-14_11-14-29-live` подтвердила fix на полных
+      `2089.1s`: raw/sidecar coverage совпадает, `70` chunks завершены, final lag `0`, drops/backpressure
+      нет. Peak pending PCM достиг `12.88s`, поэтому default поднят до `30s` per source. Transport
+      для этого failure mode закрыт. Corpus refresh теперь содержит `6` capture-safe
+      candidate sessions и `11` meaningful real comparisons, но ни одного parity pass. Новые
+      записи для текущего blocker не нужны; next focus — `9` blocking order-risk rows, включая
+      `5` boundary-retime candidates и `2` unresolved classifications, с сохранением remote-leak gates.
 
   realtime-segment-writer:
     title: "Durable committed PCM sidecar"
@@ -574,6 +584,9 @@ nodes:
       продолжает писать `murmurmark.raw_segment_commit/v1` как audit/fallback. При backlog/read
       failure отключается только experiment. Два параллельных `murmurmark record` процесса запрещены
       lock-ом: stable и experimental живут внутри одного запуска как raw capture плюс sidecar.
+      Backlog измеряется pending audio seconds per source; packet count остаётся hard guard.
+      Experiment state/report writes throttled до 1 Hz, queue использует single drain task, а
+      contract сохраняет configured/max-observed pending PCM counters после refresh.
 
   experimental-sidecar-contract-v1:
     title: "Experimental Sidecar Contract v1"

@@ -340,6 +340,12 @@ works after recording stops. `live watch` then waits for the first live preview 
 
 In this mode the capture callback writes raw CAF first. Only after `AudioFileWriter` accepts the
 frames does the experiment enqueue a copied committed PCM packet into a bounded nonblocking queue.
+The queue is bounded by pending audio duration per source, not by ScreenCaptureKit packet count:
+packet duration varies between runs and is not a stable measure of memory or processing backlog.
+The current default allows `30s` of pending PCM per source, keeps a separate hard packet guard for
+fail-open tests, drains through one worker task and refreshes experiment JSON at most once per
+second. These limits keep packet-rate logging and short segment-rotation bursts from disabling a
+healthy sidecar.
 That queue writes closed segment files under `derived/experiments/live-shadow-v1/audio/` and appends
 compatible rows to `derived/live/segments.jsonl`; `scripts/live-pipeline-shadow.py` then consumes
 those closed segments and updates `derived/live/transcript.preview.md`. `murmurmark live watch`
@@ -367,6 +373,8 @@ chunks, draft text, state or timestamps.
 If the PCM queue or live ASR falls behind, only the experiment is disabled or marked partial. Raw
 `audio/mic/*.caf` and `audio/remote/*.caf` remain the authoritative recording and `murmurmark process`
 remains the authoritative transcript path.
+`state.json.counters` exposes the duration limit, maximum observed pending PCM and the emergency
+packet limit so a packet-size-sensitive regression is visible after the meeting.
 The transport/worker reliability unit is covered by pre-stop, timeout, termination, backpressure and
 fallback-isolation tests. Promotion still requires at least three fresh meaningful real meetings
 with healthy raw/batch output, timestamped pre-stop artifacts and passing live-vs-batch gates.

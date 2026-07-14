@@ -7522,6 +7522,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                 )
                 rawSidecarCommits = tracker
                 let maxPendingPackets = AsyncCommittedLiveSegmentCapture.resolveMaxPendingPackets()
+                let maxPendingSeconds = AsyncCommittedLiveSegmentCapture.resolveMaxPendingSeconds()
                 let livePreviewWriteDelayMilliseconds = AsyncCommittedLiveSegmentCapture.resolveWriteDelayMilliseconds()
                 let livePreview = try AsyncCommittedLiveSegmentCapture(
                     sessionDirectory: outputDirectory,
@@ -7529,6 +7530,7 @@ final class SessionRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
                     segmentSeconds: liveSegmentSeconds,
                     overlapSeconds: liveOverlapSeconds,
                     maxPendingPackets: maxPendingPackets,
+                    maxPendingSeconds: maxPendingSeconds,
                     artificialWriteDelayMilliseconds: livePreviewWriteDelayMilliseconds,
                     warningHandler: { [weak self] warning in
                         self?.appendWarning(warning)
@@ -9326,6 +9328,12 @@ final class AsyncLiveSegmentCapture: @unchecked Sendable {
 }
 
 final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
+    private enum EnqueueDecision {
+        case enqueue(scheduleDrain: Bool)
+        case ignore
+        case disable(String)
+    }
+
     private let writer: LiveSegmentCapture
     private let writerQueue = DispatchQueue(label: "murmurmark.live.committed-pcm.writer")
     private let stateQueue = DispatchQueue(label: "murmurmark.live.committed-pcm.state")
@@ -9334,23 +9342,32 @@ final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
     private let segmentSeconds: TimeInterval
     private let overlapSeconds: TimeInterval
     private let maxPendingPackets: Int
+    private let maxPendingSeconds: TimeInterval
     private let artificialWriteDelayMilliseconds: Int
     private let warningHandler: (String) -> Void
 
+    private var packetQueue: [CommittedAudioPacket] = []
+    private var packetQueueHead = 0
     private var pendingPackets = 0
+    private var pendingFramesBySource: [String: AVAudioFramePosition] = [:]
+    private var sampleRateBySource: [String: Double] = [:]
+    private var maxObservedPendingSeconds = 0.0
+    private var drainScheduled = false
     private var disabled = false
     private var closed = false
     private var capturedDuration: TimeInterval = 0
     private var droppedPackets = 0
     private var lastStatus = "preview_running"
     private var disabledReason: String?
+    private var lastStateWriteDate = Date.distantPast
 
     init(
         sessionDirectory: URL,
         experimentID: String,
         segmentSeconds: TimeInterval,
         overlapSeconds: TimeInterval,
-        maxPendingPackets: Int = 512,
+        maxPendingPackets: Int = 100_000,
+        maxPendingSeconds: TimeInterval = 30.0,
         artificialWriteDelayMilliseconds: Int = 0,
         warningHandler: @escaping (String) -> Void
     ) throws {
@@ -9359,6 +9376,7 @@ final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
         self.segmentSeconds = max(5.0, segmentSeconds)
         self.overlapSeconds = max(0.0, overlapSeconds)
         self.maxPendingPackets = max(1, maxPendingPackets)
+        self.maxPendingSeconds = max(0.1, min(maxPendingSeconds, 300.0))
         self.artificialWriteDelayMilliseconds = max(0, min(artificialWriteDelayMilliseconds, 5000))
         self.warningHandler = warningHandler
         writer = try LiveSegmentCapture(
@@ -9369,15 +9387,25 @@ final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
             provenance: "recording_time_committed_pcm"
         )
         try writeExperimentState(status: "preview_running", reason: nil)
+        lastStateWriteDate = Date()
     }
 
     static func resolveMaxPendingPackets() -> Int {
         let env = ProcessInfo.processInfo.environment
         guard let value = env["MURMURMARK_LIVE_PCM_MAX_PENDING_PACKETS"],
               let parsed = Int(value) else {
-            return 512
+            return 100_000
         }
         return max(1, min(parsed, 100_000))
+    }
+
+    static func resolveMaxPendingSeconds() -> TimeInterval {
+        let env = ProcessInfo.processInfo.environment
+        guard let value = env["MURMURMARK_LIVE_PCM_MAX_PENDING_SECONDS"],
+              let parsed = TimeInterval(value) else {
+            return 30.0
+        }
+        return max(0.1, min(parsed, 300.0))
     }
 
     static func resolveWriteDelayMilliseconds() -> Int {
@@ -9390,25 +9418,35 @@ final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
     }
 
     func enqueue(_ packet: CommittedAudioPacket) {
-        enum Decision {
-            case enqueue
-            case ignore
-            case disable(String)
-        }
-
-        let decision = stateQueue.sync { () -> Decision in
+        let decision = stateQueue.sync { () -> EnqueueDecision in
             if closed || disabled {
                 return .ignore
             }
+            let packetFrames = max(0, packet.gapFrames) + max(0, packet.sampleFrames)
+            let sampleRate = max(packet.format.sampleRate, 1.0)
+            let sourceFrames = (pendingFramesBySource[packet.source] ?? 0) + packetFrames
+            let sourceSeconds = Double(sourceFrames) / sampleRate
             if pendingPackets >= maxPendingPackets {
-                disabled = true
-                droppedPackets += 1
-                lastStatus = "disabled_backpressure"
-                disabledReason = "committed PCM queue exceeded \(maxPendingPackets) packets"
-                return .disable("live-shadow-v1 committed PCM sidecar disabled: backlog exceeded \(maxPendingPackets) packets")
+                return disableForBackpressure(
+                    reason: "committed PCM queue exceeded hard limit of \(maxPendingPackets) packets",
+                    warning: "live-shadow-v1 committed PCM sidecar disabled: backlog exceeded hard limit of \(maxPendingPackets) packets"
+                )
             }
+            if sourceSeconds > maxPendingSeconds {
+                let formatted = String(format: "%.1f", maxPendingSeconds)
+                return disableForBackpressure(
+                    reason: "committed PCM queue exceeded \(formatted)s for \(packet.source)",
+                    warning: "live-shadow-v1 committed PCM sidecar disabled: \(packet.source) backlog exceeded \(formatted)s"
+                )
+            }
+            packetQueue.append(packet)
             pendingPackets += 1
-            return .enqueue
+            pendingFramesBySource[packet.source] = sourceFrames
+            sampleRateBySource[packet.source] = sampleRate
+            maxObservedPendingSeconds = max(maxObservedPendingSeconds, sourceSeconds)
+            let shouldSchedule = !drainScheduled
+            drainScheduled = true
+            return .enqueue(scheduleDrain: shouldSchedule)
         }
 
         switch decision {
@@ -9419,36 +9457,10 @@ final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
             writerQueue.async { [weak self] in
                 self?.closeWriterFromWriterQueue(status: "disabled_backpressure", reason: warning)
             }
-        case .enqueue:
-            writerQueue.async { [weak self, packet] in
-                guard let self else { return }
-                defer {
-                    stateQueue.sync {
-                        pendingPackets = max(0, pendingPackets - 1)
-                    }
-                }
-                let shouldWrite = stateQueue.sync { !closed && !disabled }
-                guard shouldWrite else { return }
-                do {
-                    if artificialWriteDelayMilliseconds > 0 {
-                        Thread.sleep(forTimeInterval: Double(artificialWriteDelayMilliseconds) / 1000.0)
-                    }
-                    try writer.write(packet)
-                    let duration = writer.capturedDurationSeconds()
-                    stateQueue.sync {
-                        capturedDuration = max(capturedDuration, duration)
-                    }
-                    try? writeExperimentState(status: "preview_running", reason: nil)
-                } catch {
-                    let reason = error.localizedDescription
-                    stateQueue.sync {
-                        disabled = true
-                        lastStatus = "disabled_pcm_copy"
-                        disabledReason = reason
-                    }
-                    warningHandler("live-shadow-v1 committed PCM sidecar disabled for \(packet.source): \(reason)")
-                    closeWriterFromWriterQueue(status: "disabled_pcm_copy", reason: reason)
-                }
+        case .enqueue(let scheduleDrain):
+            guard scheduleDrain else { return }
+            writerQueue.async { [weak self] in
+                self?.drainPacketsFromWriterQueue()
             }
         }
     }
@@ -9462,7 +9474,7 @@ final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
             let status = stateQueue.sync { () -> String in
                 capturedDuration = max(capturedDuration, duration)
                 closed = true
-                pendingPackets = 0
+                clearPendingPacketsLocked()
                 if disabled {
                     return lastStatus == "preview_running" ? "completed_partial_draft" : lastStatus
                 }
@@ -9480,16 +9492,107 @@ final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
     private func closeWriterFromWriterQueue(status: String, reason: String?) {
         let shouldClose = stateQueue.sync { !closed }
         guard shouldClose else { return }
-        writer.closeAll()
+        writer.closeAll(stateStatus: status)
         let duration = writer.capturedDurationSeconds()
         stateQueue.sync {
             capturedDuration = max(capturedDuration, duration)
             closed = true
-            pendingPackets = 0
+            clearPendingPacketsLocked()
             lastStatus = status
             disabledReason = reason
         }
         try? writeExperimentState(status: status, reason: reason)
+    }
+
+    private func drainPacketsFromWriterQueue() {
+        while let packet = nextPacketForWriting() {
+            let shouldWrite = stateQueue.sync { !closed && !disabled }
+            guard shouldWrite else {
+                completePacket(packet)
+                continue
+            }
+            do {
+                if artificialWriteDelayMilliseconds > 0 {
+                    Thread.sleep(forTimeInterval: Double(artificialWriteDelayMilliseconds) / 1000.0)
+                }
+                try writer.write(packet)
+                let duration = writer.capturedDurationSeconds()
+                stateQueue.sync {
+                    capturedDuration = max(capturedDuration, duration)
+                }
+                completePacket(packet)
+                writeExperimentStateIfDue()
+            } catch {
+                let reason = error.localizedDescription
+                completePacket(packet)
+                stateQueue.sync {
+                    disabled = true
+                    lastStatus = "disabled_pcm_copy"
+                    disabledReason = reason
+                    clearPendingPacketsLocked()
+                }
+                warningHandler("live-shadow-v1 committed PCM sidecar disabled for \(packet.source): \(reason)")
+                closeWriterFromWriterQueue(status: "disabled_pcm_copy", reason: reason)
+                return
+            }
+        }
+    }
+
+    private func nextPacketForWriting() -> CommittedAudioPacket? {
+        stateQueue.sync {
+            guard !closed, !disabled, packetQueueHead < packetQueue.count else {
+                if closed || disabled {
+                    clearPendingPacketsLocked()
+                }
+                drainScheduled = false
+                return nil
+            }
+            let packet = packetQueue[packetQueueHead]
+            packetQueueHead += 1
+            compactPacketQueueIfNeededLocked()
+            return packet
+        }
+    }
+
+    private func completePacket(_ packet: CommittedAudioPacket) {
+        stateQueue.sync {
+            pendingPackets = max(0, pendingPackets - 1)
+            let packetFrames = max(0, packet.gapFrames) + max(0, packet.sampleFrames)
+            pendingFramesBySource[packet.source] = max(
+                0,
+                (pendingFramesBySource[packet.source] ?? 0) - packetFrames
+            )
+        }
+    }
+
+    private func disableForBackpressure(reason: String, warning: String) -> EnqueueDecision {
+        disabled = true
+        droppedPackets += 1
+        lastStatus = "disabled_backpressure"
+        disabledReason = reason
+        clearPendingPacketsLocked()
+        return .disable(warning)
+    }
+
+    private func clearPendingPacketsLocked() {
+        packetQueue.removeAll(keepingCapacity: false)
+        packetQueueHead = 0
+        pendingPackets = 0
+        pendingFramesBySource.removeAll(keepingCapacity: false)
+        sampleRateBySource.removeAll(keepingCapacity: false)
+    }
+
+    private func compactPacketQueueIfNeededLocked() {
+        guard packetQueueHead >= 512, packetQueueHead * 2 >= packetQueue.count else { return }
+        packetQueue.removeFirst(packetQueueHead)
+        packetQueueHead = 0
+    }
+
+    private func writeExperimentStateIfDue() {
+        let now = Date()
+        guard now.timeIntervalSince(lastStateWriteDate) >= 1.0 else { return }
+        lastStateWriteDate = now
+        try? writeExperimentState(status: "preview_running", reason: nil)
     }
 
     private func writeExperimentState(status: String, reason: String?) throws {
@@ -9499,7 +9602,12 @@ final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
                 dropped: droppedPackets,
                 disabled: disabled,
                 duration: capturedDuration,
-                reason: reason ?? disabledReason
+                reason: reason ?? disabledReason,
+                pendingSeconds: pendingFramesBySource.reduce(into: [String: Double]()) { result, entry in
+                    let sampleRate = max(sampleRateBySource[entry.key] ?? 1.0, 1.0)
+                    result[entry.key] = rounded(Double(entry.value) / sampleRate)
+                },
+                maxObservedPendingSeconds: maxObservedPendingSeconds
             )
         }
         let experimentDirectory = sessionDirectory
@@ -9530,8 +9638,11 @@ final class AsyncCommittedLiveSegmentCapture: @unchecked Sendable {
             ],
             "counters": [
                 "pending_pcm_packets": snapshot.pending,
+                "pending_pcm_seconds_by_source": snapshot.pendingSeconds,
                 "dropped_pcm_packets": snapshot.dropped,
                 "max_pending_pcm_packets": maxPendingPackets,
+                "max_pending_pcm_seconds": rounded(maxPendingSeconds),
+                "max_observed_pending_pcm_seconds": rounded(snapshot.maxObservedPendingSeconds),
                 "artificial_write_delay_ms": artificialWriteDelayMilliseconds,
             ],
             "inputs": [
@@ -9626,6 +9737,7 @@ final class LiveSegmentCapture {
         var sampleRate: Double = 0
         var path: String = ""
         var tail: [BufferedSample] = []
+        var tailHead = 0
         var tailFrames: AVAudioFramePosition = 0
         var closing: [ClosingSegment] = []
     }
@@ -9686,29 +9798,33 @@ final class LiveSegmentCapture {
         gapFrames: AVAudioFramePosition,
         source: String
     ) throws {
-        var state = states[source] ?? SourceState()
+        var state = states.removeValue(forKey: source) ?? SourceState()
+        do {
+            try writePendingAfterOverlap(buffer: buffer, format: format, gapFrames: gapFrames, source: source, state: &state)
+            if state.writer == nil {
+                try startSegment(source: source, format: format, state: &state)
+            }
+            let writtenFrames = try state.writer?.writeCommittedPCM(buffer, format: format, gapFrames: gapFrames)
+                ?? (max(0, gapFrames) + AVAudioFramePosition(buffer.frameLength))
+            state.hardFrames += writtenFrames
+            state.fileFrames += writtenFrames
+            state.cumulativeFrames += writtenFrames
+            appendTail(buffer: buffer, format: format, gapFrames: gapFrames, frames: writtenFrames, state: &state)
 
-        try writePendingAfterOverlap(buffer: buffer, format: format, gapFrames: gapFrames, source: source, state: &state)
-        if state.writer == nil {
-            try startSegment(source: source, format: format, state: &state)
+            let targetFrames = AVAudioFramePosition(max(1.0, state.sampleRate * segmentSeconds))
+            if state.hardFrames >= targetFrames {
+                try rotateSegment(source: source, state: &state)
+            }
+            states[source] = state
+        } catch {
+            states[source] = state
+            throw error
         }
-        let writtenFrames = try state.writer?.writeCommittedPCM(buffer, format: format, gapFrames: gapFrames)
-            ?? (max(0, gapFrames) + AVAudioFramePosition(buffer.frameLength))
-        state.hardFrames += writtenFrames
-        state.fileFrames += writtenFrames
-        state.cumulativeFrames += writtenFrames
-        appendTail(buffer: buffer, format: format, gapFrames: gapFrames, frames: writtenFrames, state: &state)
-
-        let targetFrames = AVAudioFramePosition(max(1.0, state.sampleRate * segmentSeconds))
-        if state.hardFrames >= targetFrames {
-            try rotateSegment(source: source, state: &state)
-        }
-        states[source] = state
     }
 
-    func closeAll(finalDurationSeconds: TimeInterval? = nil) {
+    func closeAll(finalDurationSeconds: TimeInterval? = nil, stateStatus: String = "capture_finished") {
         for source in Array(states.keys) {
-            var state = states[source] ?? SourceState()
+            var state = states.removeValue(forKey: source) ?? SourceState()
             if let finalDurationSeconds, finalDurationSeconds > 0 {
                 try? padCurrentSegment(
                     toGlobalDuration: finalDurationSeconds,
@@ -9722,7 +9838,7 @@ final class LiveSegmentCapture {
             try? closeCurrentSegment(source: source, state: &state, final: true)
             states[source] = state
         }
-        try? writeState(status: "capture_finished")
+        try? writeState(status: stateStatus)
         try? manifestHandle.close()
     }
 
@@ -9744,7 +9860,7 @@ final class LiveSegmentCapture {
             source: "live-\(source)-\(state.index)"
         )
         state.writer = writer
-        for sample in state.tail {
+        for sample in state.tail.dropFirst(state.tailHead) {
             do {
                 try writer.writeCommittedPCM(sample.buffer, format: sample.format, gapFrames: sample.gapFrames)
                 state.fileFrames += sample.frames
@@ -9752,6 +9868,7 @@ final class LiveSegmentCapture {
                 state.fileStartFrame = state.cumulativeFrames
                 state.fileFrames = 0
                 state.tail.removeAll()
+                state.tailHead = 0
                 state.tailFrames = 0
                 break
             }
@@ -9908,15 +10025,21 @@ final class LiveSegmentCapture {
     ) {
         guard overlapSeconds > 0 else {
             state.tail.removeAll()
+            state.tailHead = 0
             state.tailFrames = 0
             return
         }
         state.tail.append(BufferedSample(format: format, buffer: buffer, gapFrames: gapFrames, frames: frames))
         state.tailFrames += frames
         let maxFrames = overlapFrames(sampleRate: format.sampleRate)
-        while state.tailFrames > maxFrames, !state.tail.isEmpty {
-            let removed = state.tail.removeFirst()
+        while state.tailFrames > maxFrames, state.tailHead < state.tail.count {
+            let removed = state.tail[state.tailHead]
+            state.tailHead += 1
             state.tailFrames -= removed.frames
+        }
+        if state.tailHead >= 512, state.tailHead * 2 >= state.tail.count {
+            state.tail.removeFirst(state.tailHead)
+            state.tailHead = 0
         }
     }
 

@@ -252,6 +252,21 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         else 0.0,
     )
     existing_answers = (existing_experiment_state or {}).get("answers") if isinstance((existing_experiment_state or {}).get("answers"), dict) else {}
+    existing_counters = (existing_experiment_state or {}).get("counters") if isinstance((existing_experiment_state or {}).get("counters"), dict) else {}
+    transport_counter_keys = (
+        "pending_pcm_packets",
+        "pending_pcm_seconds_by_source",
+        "dropped_pcm_packets",
+        "max_pending_pcm_packets",
+        "max_pending_pcm_seconds",
+        "max_observed_pending_pcm_seconds",
+        "artificial_write_delay_ms",
+    )
+    transport_counters = {
+        key: existing_counters[key]
+        for key in transport_counter_keys
+        if key in existing_counters
+    }
     existing_config = (existing_manifest or {}).get("config") if isinstance((existing_manifest or {}).get("config"), dict) else {}
     live_preview_mode = str(
         (existing_experiment_state or {}).get("live_preview_mode")
@@ -306,6 +321,7 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
         "status": status,
         "updated_at": utc_now(),
         "live_preview_mode": live_preview_mode,
+        "reason": (existing_experiment_state or {}).get("reason") or disabled_reason(status, warnings, live_report),
         "answers": {
             "experiment_started": bool(segments or raw_commits or live_report or live_state or existing_experiment_state),
             "raw_seconds_recorded": raw_seconds,
@@ -330,6 +346,7 @@ def build_contract(session: Path, experiment_id: str, event_reason: str) -> dict
                 if isinstance((session_manifest or {}).get("health"), dict)
                 else None
             ),
+            **transport_counters,
         },
         "inputs": {
             "session_manifest": "session.json",

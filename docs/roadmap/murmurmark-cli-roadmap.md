@@ -57,8 +57,11 @@ roadmap point it means:
 - base live chunks now become visible before optional Target-Me enrichment; Target-Me has a bounded
   child timeout and a `60s` lag budget, so speaker recovery can degrade to explicit shadow skips
   without making the draft delay grow without bound;
-- one fresh real run now proves causal artifacts before stop and intact raw/batch output; the next
-  run must validate the lag-aware worker with bounded lag;
+- a full `34m49s` real run now validates the corrected duration-bounded sidecar: raw and sidecar
+  both cover `2089.1s`, all `70` chunks complete, final lag is zero and no packets are dropped;
+- the refreshed real corpus has enough evidence for the next step: `6` capture-safe candidate
+  sessions and `11` meaningful comparisons, but zero parity passes; current work moves to the `9`
+  blocking order-risk rows, led by `5` boundary-retime candidates, without requesting more records;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
