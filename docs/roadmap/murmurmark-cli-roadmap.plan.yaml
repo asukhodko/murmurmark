@@ -32,7 +32,7 @@ nodes:
   murmurmark-cli:
     title: "MurmurMark CLI"
     kind: summary
-    status: done
+    status: current
     effort: 297
     notes: |
       Roadmap CLI-версии MurmurMark.
@@ -40,6 +40,12 @@ nodes:
       CLI MVP закрыт: автоматический acceptance, release bundle, live-session gate,
       export bundle и retention plan уже доказали, что pipeline можно использовать как
       локальный инструмент, а не как набор лабораторных скриптов.
+
+      Authoritative status, 2026-07-14: stable batch route и committed-PCM live transport работают;
+      live quality promotion остаётся blocked. Активная цель — Live Order and Role Reconciliation
+      v1: закрыть или evidence-classify 15 blocking rows в 7 capture-safe sessions без регрессий.
+
+      Historical operational snapshot, 2026-07-02:
 
       Review-loop stabilization завершён: `review_decisions.jsonl`, `review progress`, `status`,
       `report` и `suggested_closure` показывают одну и ту же оставшуюся очередь, а
@@ -68,10 +74,8 @@ nodes:
       experimental profile: 5/6 safe improved, 1/6 not applicable, 0 local-recall regressions,
       no default promotion. Reliable Transcription Route v1, Reliable Processing UX v1 и
       Chunked/Resumable Processing v1 уже сделали outcome/next/export gate и ASR chunk-resume
-      честным пользовательским контрактом. Ближайший крупный шаг теперь — Current Pipeline
-      Stabilization v1: заморозить новые продуктовые ветки, оставить один production path
-      (`record --out "$SESSION" --target-bundle system` без live, затем `process "$SESSION"`)
-      и доказать, что он либо даёт transcript/notes, либо честно блокируется с причиной.
+      честным пользовательским контрактом. Current Pipeline Stabilization v1 после этого был
+      завершён; stable production path остаётся regression baseline для текущей live quality work.
 
       Философия:
       - CLI-first: полезный исполнимый pipeline важнее UI.
@@ -312,9 +316,10 @@ nodes:
       review burden, next command, export gate и retention state. Outcome Contract v1, Gate
       Evaluator, Review Plan, Next Command, Reliable Processing UX v1 и Chunked/Resumable
       Processing v1 уже закрыли пользовательский handoff и ASR chunk-resume. Current Pipeline
-      Stabilization v1 доказал один поддерживаемый non-live production path. Следующий конкретный
-      узел внутри маршрута — Process Observability & Run Monitor v1: сделать долгие
-      `process`-прогоны наблюдаемыми и безопасно возобновляемыми без новых quality слоёв.
+      Stabilization v1 доказал один поддерживаемый non-live production path, а Process
+      Observability & Run Monitor v1 сделал долгие прогоны наблюдаемыми и возобновляемыми.
+      Ближайший конечный quality-шаг — Live Order and Role Reconciliation v1: закрыть или
+      evidence-classify 15 уже локализованных blocking rows без регрессий batch и live gates.
 
   current-pipeline-stabilization-v1:
     title: "Current Pipeline Stabilization v1"
@@ -338,14 +343,14 @@ nodes:
     kind: task
     parent: reliable-transcription-route
     deps: [current-pipeline-stabilization-v1, chunked-resumable-processing-v1, reliable-progress-resume]
-    status: current
+    status: done
     effort: 5
     notes: |
-      Ближайшая цель после стабилизации записи. Долгий `murmurmark process SESSION` должен быть
-      понятен без чтения сырых логов: текущий шаг, heartbeat, ASR chunk progress, safe interrupt
-      hint, resume command и stale-report protection должны быть доступны из `status`, `next` и
-      машинно-читаемого run-state ещё до финального `pipeline_run_report.json`. Не менять capture,
-      Echo Guard, ASR model, transcript profiles, review logic или synthesis.
+      Завершено. Долгий `murmurmark process SESSION` пишет
+      `derived/pipeline-run/pipeline_run_state.json`, показывает текущий шаг, heartbeat,
+      ASR chunk progress, safe-interrupt hint и resume command. `status` и `next` читают
+      незавершённый run-state и не подменяют его устаревшими финальными отчётами. Capture,
+      Echo Guard, ASR model, transcript profiles, review logic и synthesis не менялись.
 
   reliable-outcome-contract:
     title: "Outcome Contract v1"
@@ -453,24 +458,25 @@ nodes:
     kind: task
     parent: reliable-transcription-route
     deps: [review-suggested-closure-v2, review-loop-stabilization-v1]
-    status: current
+    status: done
     effort: 4
     notes: |
-      После process первым автоматическим шагом закрывать только доказанные rows:
-      stronger-audio-judge/Target-Me/audio-review/order evidence, cumulative key-based apply,
-      source_audit_ids для каждого решения. Оставшийся ручной хвост должен быть точным и коротким.
+      Завершено. После process `review suggested` закрывает только доказанные rows по
+      stronger-audio-judge/Target-Me/audio-review/order evidence, применяет решения cumulative
+      и key-based и сохраняет `source_audit_ids`. Неуверенные строки остаются в явной ручной
+      очереди; новый тяжёлый decode запускается только явно.
 
   reliable-burden-telemetry:
     title: "Review burden telemetry"
     kind: task
     parent: reliable-transcription-route
     deps: [reliable-gate-evaluator, reliable-suggested-review-first]
-    status: next
+    status: done
     effort: 3
     notes: |
-      Review burden должен считаться по lanes, а не только по количеству items:
+      Завершено. Review burden считается по lanes, а не только по количеству items:
       critical, order, me_role_risk, notes_impacting, overlap_review, local_recall, low_priority.
-      Outcome показывает минуты, blocking lanes, hidden low-priority rows и первую команду для
+      Outcome, status и review progress показывают минуты, blocking lanes, hidden low-priority rows и первую команду для
       закрытия обязательного хвоста.
 
   reliable-corpus-v0-labels:
@@ -492,7 +498,7 @@ nodes:
     kind: task
     parent: reliable-transcription-route
     deps: [quality-asr-positive-echo-candidate-hardening-v1, corpus-regression]
-    status: current
+    status: later
     effort: 6
     notes: |
       Не менять default `local_fir`. Расширить validation `coverage_v2_remote_gate_local_fir`
@@ -542,10 +548,11 @@ nodes:
       committed-PCM queue пишет закрытые experiment segments, а `raw_segment_commits.jsonl`
       остаётся audit/fallback. Committed-PCM transport и live draft уже работают. Reliability unit
       закрывает heartbeat, bounded child timeouts, immutable realtime provenance, read-only compare,
-      explicit isolated fallback и pre-stop worker integration smoke. Текущая работа — получить
-      минимум три свежих meaningful real-session comparison, затем продолжить parity hardening через
-      progressive past-only Target-Me, focused micro-ASR и corpus gates. Promotion остаётся blocked,
-      batch transcript authoritative. Первый длинный recording-time прогон показал отдельный
+      explicit isolated fallback и pre-stop worker integration smoke. Три свежих meaningful
+      real-session transport proofs уже получены. Текущая работа — bounded order/role reconciliation
+      по 15 corpus rows, затем local-recall/remote-leak hardening через progressive past-only
+      Target-Me, focused micro-ASR и corpus gates. Promotion остаётся blocked, batch transcript
+      authoritative. Первый длинный recording-time прогон показал отдельный
       latency-долг: последовательный Target-Me добавлял 6-25 секунд после основного ASR чанка.
       Базовый чанк теперь публикуется до enrichment, Target-Me child bounded, а lag budget `60s`
       переводит enrichment в явный `skipped_lag_budget`, не задерживая draft бесконечно. Реальная
@@ -565,10 +572,11 @@ nodes:
       и throttled JSON state writes. Сессия `2026-07-14_11-14-29-live` подтвердила fix на полных
       `2089.1s`: raw/sidecar coverage совпадает, `70` chunks завершены, final lag `0`, drops/backpressure
       нет. Peak pending PCM достиг `12.88s`, поэтому default поднят до `30s` per source. Transport
-      для этого failure mode закрыт. Corpus refresh теперь содержит `6` capture-safe
-      candidate sessions и `11` meaningful real comparisons, но ни одного parity pass. Новые
-      записи для текущего blocker не нужны; next focus — `9` blocking order-risk rows, включая
-      `5` boundary-retime candidates и `2` unresolved classifications, с сохранением remote-leak gates.
+      для этого failure mode закрыт. Corpus refresh теперь содержит `7` capture-safe
+      candidate sessions и `12` meaningful real comparisons, но ни одного parity pass. Новые
+      записи для текущего blocker не нужны; next focus — `15` blocking order-triage rows: `6`
+      boundary-retime candidates, `4` cross-source risks, `4` unresolved rows и `1` same-source
+      timeline candidate, с сохранением remote-leak/local-recall gates.
 
   realtime-segment-writer:
     title: "Durable committed PCM sidecar"
@@ -643,10 +651,10 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [realtime-live-draft, realtime-corpus-gates]
-    status: current
+    status: done
     effort: 3
     notes: |
-      `murmurmark live replay SESSION --refresh` строит
+      Реализовано: `murmurmark live replay SESSION --refresh` строит
       `derived/live/replay-lab/live_replay_matrix.{json,md}` без новой записи и без изменения raw
       audio или batch transcript. Матрица сравнивает политики по missing Me, remote-in-Me,
       blocking order и token F1. Candidate считается безопасным только при улучшении local recall
@@ -722,7 +730,7 @@ nodes:
       turns с содержательным уникальным локальным текстом защищены от retime. Профиль остаётся
       shadow-only; ближайший blocker — live local recall и четыре остаточных blocking order rows.
       Сессия 2026-07-14_15-01-19-live добавила 69 минут здорового raw/sidecar transport: 139
-      chunks, 279 pre-stop preview snapshots и успешный authoritative batch. При этом baseline
+      chunks, 279 preview snapshots (274 pre-stop) и успешный authoritative batch. При этом baseline
       live draft пропускает 749.71s batch Me, содержит 60.30s suspected remote-like Me и 5 blocking
       order rows. Conservative speaker-only boundary profile снижает remote-like Me до 40.98s и
       blocking rows до 4, не улучшая missing Me. Independent causal live evidence обнаруживает 14
@@ -1101,15 +1109,16 @@ nodes:
     kind: phase
     parent: murmurmark-cli
     deps: [cli-orchestration, corpus-regression]
-    status: current
+    status: done
     effort: 24
     notes: |
-      Удобный review CLI для спорных мест. Базовые plan/progress/apply и интерактивный
+      Базовый review loop завершён. Plan/progress/apply и интерактивный
       review SESSION/latest уже доступны. Workspace review и агентный review agent доступны
-      через CLI, readiness и blocked export ведут к workspace next commands. Текущий слой —
-      review-loop stabilization: suggested decisions применяются накопительно, уже закрытые строки
+      через CLI, readiness и blocked export ведут к workspace next commands. Suggested decisions
+      применяются накопительно, уже закрытые строки
       не теряются при пересборке template, а progress/status/report показывают один и тот же ручной
-      остаток.
+      остаток. Дальнейшее снижение очереди относится к quality-hardening и текущей live
+      reconciliation, а не к отсутствию review-механизма.
 
   cli-review-command:
     title: "murmurmark review SESSION"
@@ -1208,12 +1217,12 @@ nodes:
     kind: task
     parent: corpus-regression
     deps: [review-loop-stabilization-v1, corpus-process-report]
-    status: current
+    status: done
     effort: 5
     notes: |
-      Текущая цель. Довести operational corpus до честного зелёного состояния для medium-risk
-      рабочих встреч: все рабочие сессии либо ready_for_notes, либо имеют короткую,
-      доказанную и не закрываемую безопасной автоматикой manual review очередь. Текущий проход:
+      Завершённый операционный baseline для medium-risk рабочих встреч: все рабочие сессии либо
+      ready_for_notes, либо имеют короткую, доказанную и не закрываемую безопасной автоматикой
+      manual review очередь. Зафиксированный проход:
       `murmurmark next corpus --refresh` пишет `pilot_ready_with_review`, `0` do-not-use sessions,
       irreducible review gate `irreducible_manual_review_queue_present`, `9` actions
       обязательной очереди, `28` low-materiality rows / `70.95s` вне mandatory queue,
@@ -1332,9 +1341,9 @@ nodes:
     kind: task
     parent: quality-hardening
     deps: [corpus-error-taxonomy]
-    status: current
+    status: done
     effort: 6
-    notes: "Более точные метки: lost_me, remote_duplicate, asr_noise, timing_overlap, double_talk. Daily sync 2026-06-30 показал, что confirm_timing_or_doubletalk полезен для suggested review closure; status теперь должен показывать текущий остаток после частичного suggested apply, а не старый прогноз."
+    notes: "Реализованы более точные метки: lost_me, remote_duplicate, asr_noise, timing_overlap, double_talk. Daily sync 2026-06-30 подтвердил полезность confirm_timing_or_doubletalk для suggested review closure; status показывает текущий остаток после частичного suggested apply, а не старый прогноз."
 
   quality-offline-aec-v2-lab:
     title: "Echo Guard complete-removal lab"
@@ -1445,7 +1454,7 @@ nodes:
     kind: task
     parent: quality-hardening
     deps: [quality-asr-positive-echo-candidate-hardening-v1, corpus-regression]
-    status: current
+    status: later
     effort: 8
     notes: |
       Broaden the experimental candidate beyond the current six-session corpus and define the future
@@ -1592,12 +1601,13 @@ nodes:
     kind: phase
     parent: murmurmark-cli
     deps: [export-workflows, readiness-single-output]
-    status: current
+    status: done
     effort: 14
     notes: |
-      Управление raw audio и приватностью: что хранится, что удаляется,
-      что может покинуть локальную машину и с каким manifest.
-      Базовая локальная policy, retention plan, provider payload manifest и guarded raw deletion уже есть.
+      Базовый локальный контур завершён: policy определяет, что хранится и удаляется,
+      provider payload manifest показывает, что может покинуть локальную машину, а raw deletion
+      требует успешный export manifest и явное подтверждение. Будущие интеграции обязаны
+      переиспользовать эти gates.
 
   retention-policy-file:
     title: "Retention policy file"
@@ -1897,7 +1907,7 @@ x:
   exec:
     program:
       nearest_goal: "Live Order and Role Reconciliation v1: закрыть 15 blocking order-triage items в 7 capture-safe sessions без роста missing Me, remote leakage или per-session token-F1 regressions; batch остаётся authoritative."
-      success_by_next_sync: "Три свежие meaningful live sessions имеют healthy raw/batch, pre-stop temporal provenance и comparison; corpus report точно показывает оставшиеся parity blockers, promotion остаётся blocked до полного green."
+      success_by_next_sync: "Все 15 blocking order-triage rows классифицированы; безопасные live-only repair candidates не ухудшают missing Me, remote leakage, per-session token F1 или review burden; corpus report и docs показывают один выбранный shadow profile, promotion остаётся blocked до полного green."
     defaults:
       status_progress:
         done: 1.0
@@ -1918,13 +1928,13 @@ x:
           sync_note: "Capture, Echo Guard, транскрибация, audit, agent-review и readiness уже дают полезный результат."
           next_sync_goal: "Не ломать baseline и использовать готовую основу как regression corpus."
       next-cli:
-        title: "Единый CLI"
+        title: "Live качество"
         scope_nodes: [cli-orchestration, reliable-transcription-route, near-realtime-pipeline]
         kind: main
         mgmt:
-          health: green
-          sync_note: "CLI MVP и batch reliability закрыты. Committed-PCM live sidecar, draft worker и progressive causal Target-Me работают как shadow; production output остаётся batch."
-          next_sync_goal: "Уменьшать live local-recall gap только через runtime-causal evidence и corpus parity, не продвигая live output преждевременно."
+          health: yellow
+          sync_note: "CLI MVP и batch reliability закрыты. Committed-PCM live transport доказан на трёх свежих real sessions, но 0 live comparisons проходят все quality gates; production output остаётся batch."
+          next_sync_goal: "Закрыть или evidence-classify 15 blocking order/role rows через causal live-only evidence, не продвигая live output преждевременно."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]
@@ -1975,7 +1985,7 @@ x:
         show_progress: false
         show_gate_date: false
         wrap_title_lines: 2
-        caption: "Короткая карта: что уже работает, где ближайший CLI-фокус и какие хвосты не держат roadmap."
+        caption: "Короткая карта: что уже работает, где ближайший quality-фокус и какие хвосты не держат roadmap."
         blocks:
           - working-now
           - next-cli

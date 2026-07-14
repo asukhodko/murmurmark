@@ -20,35 +20,31 @@ Working now:
 - `shadow_v2` repair profile with no-regression gates, audit artifacts and start-of-call repair;
 - local extractive synthesis with quality verdicts, review items and evidence-backed notes;
 - Markdown/Obsidian-style export bundles, JSON/audit artifacts for review, and raw retention plans.
-- first near-realtime shadow branch exists, but is quarantined: tests showed that older inline
-  segment writing in `record --live-pipeline` can starve ScreenCaptureKit audio delivery and leave
-  raw meeting tracks mostly silent. The current async bounded segment queue still needs
-  capture-safety and parity proof. It is disabled by default and must not be used for real meetings.
+- near-realtime shadow branch uses a bounded committed-PCM queue after durable raw writes. The old
+  inline `record --live-pipeline` path remains quarantined, while controlled
+  `record --experiment live-shadow-v1` runs are allowed as evidence collection. Three fresh real
+  sessions prove complete raw capture, preview before stop, terminal workers and zero final lag.
+  Live output is still advisory and cannot replace the batch transcript.
 - live-ASR cache bridge exists as a diagnostic/future acceleration layer; incompatible or unsafe
   chunks fall back to batch ASR.
 
-Current operating point, measured by `murmurmark report corpus` on 2026-07-01:
+Current operating point, 2026-07-14:
 
-- the current working corpus is `pilot_ready_with_review`: usable for pilot notes with explicit
-  review, but not yet `medium_risk_ready`;
-- `20` working sessions are in scope and `26` diagnostic sessions are excluded from operational
-  readiness;
-- `15/20` working sessions are `ready_for_notes`, five are `review_first`, and none are currently
-  `do_not_use_without_manual_review`;
-- selected evidence-backed notes carry about `0.81 min` of documented residual review burden;
-- full transcript/export still has about `3.48 min` of explicit review surface;
-- the remaining mandatory review queue is `5` actions / `8.78s` of raw audio;
-- suggested review closure has no safe automatic keep/drop rows left; the remaining queue is treated
-  as irreducible for the current local agents;
-- readiness reconciliation is complete: MurmurMark no longer sends the user to empty review packs,
-  and it keeps the remaining manual queue explicit. A narrow risky session is represented as formal
-  residual risk instead of blocking the whole corpus as unusable.
+- the stable batch route is usable for working transcripts and evidence-backed notes, with guarded
+  review/export when unresolved risks remain;
+- the live corpus contains `33` sessions: `19` real meetings, `12` meaningful comparisons and `7`
+  capture-safe candidate sessions;
+- no live session passes every parity gate, so `shadow_only_do_not_promote` remains mandatory;
+- Near-Realtime Live Parity Coverage v1 is complete as a transport/evidence milestone;
+- the active goal is Live Order and Role Reconciliation v1: close or evidence-classify 15 blocking
+  order-triage rows without worsening local recall, remote leakage, token F1 or review burden;
+- more recordings are not required for this bounded offline step.
 
 Still future:
 
-- near-realtime redesign beyond shadow: capture-safe segment production, stronger per-segment Echo
-  Guard, resumable worker state, corpus parity gates and live-ASR cache reuse before it can shorten
-  the authoritative post-meeting path;
+- near-realtime promotion beyond shadow: order/role reconciliation, stronger per-segment Echo Guard,
+  local-recall recovery and strict live-ASR cache compatibility before it can shorten the
+  authoritative post-meeting path;
 - signed menubar app;
 - remote speaker diarization inside `Colleagues`;
 - heavy-local ASR stack with specialized models;
@@ -108,11 +104,11 @@ Excluded from v1 scope or not implemented yet:
 The CLI is the primary v1 product path. Any future GUI should reuse the same capture and pipeline
 contracts instead of introducing a separate workflow.
 
-The near-realtime CLI mode reuses these contracts as a future shadow branch, but the current
-implementation is disabled by default. It may be used only for lab diagnostics with an explicit
-unsafe environment flag until the async segment queue proves that it cannot affect raw
-ScreenCaptureKit capture and live-vs-batch parity gates pass. The normal v1 product path is
-batch-first: record raw `mic`/`remote`, then run `murmurmark process`.
+The near-realtime CLI mode reuses these contracts as a shadow branch. The old `--live-pipeline`
+transport is disabled, while `record --experiment live-shadow-v1` uses copied committed PCM after
+durable raw writes and may be used for controlled real evidence. It never changes the normal v1
+product path: record raw `mic`/`remote`, then run `murmurmark process`; live preview is advisory and
+batch remains authoritative.
 
 Required commands:
 

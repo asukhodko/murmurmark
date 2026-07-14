@@ -5232,6 +5232,10 @@ terminated during finalization from reporting zero lag merely because its last r
 observed the final committed segments. These gates are common profile gates, so they affect
 promotion readiness without changing algorithm ranking between profiles.
 
+Illustrative schema shape follows. Counts, statuses and `objective_next_focus` values in the example
+are non-authoritative snapshots; the generated corpus report and opskarta `nearest_goal` define the
+current execution state.
+
 Schema:
 
 ```json

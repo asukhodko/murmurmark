@@ -5,6 +5,48 @@ production path remains non-live `record -> process`. The current live work is e
 and gate hardening only: live output must stay shadow-only and batch transcript remains
 authoritative.
 
+## Active Goal: Live Order and Role Reconciliation v1
+
+Status, 2026-07-14: active. Near-Realtime Live Parity Coverage v1 proved the committed-PCM
+transport and localized the remaining quality blockers. The next bounded step uses the existing
+capture-safe corpus; it does not need more recordings.
+
+Goal:
+
+```text
+Resolve or evidence-classify the 15 blocking live order-triage items in seven capture-safe sessions
+without increasing missing Me, remote-like Me, per-session token-F1 regressions or review burden.
+Batch remains authoritative and every candidate stays shadow-only until corpus gates pass.
+```
+
+The work unit is deliberately finite:
+
+- six boundary-retime candidates;
+- four cross-source order risks;
+- four unresolved order-review rows;
+- one same-source timeline candidate.
+
+Implementation order:
+
+1. distinguish weak matcher/reference errors from real timeline or role conflicts;
+2. use only recording-time chunk timing, source role, boundary overlap, remote-forbidden evidence
+   and causal speaker evidence for fixes;
+3. materialize each repair as a separate shadow profile;
+4. compare every session against the current best live-implementable profile;
+5. reject any profile that increases missing `Me`, remote leakage, blocking order, review burden or
+   per-session token-F1 regressions.
+
+Definition of done:
+
+- all 15 rows have a stable class and machine-readable evidence;
+- matcher false positives no longer block promotion gates, but remain auditable;
+- real timeline/role conflicts are repaired or remain explicit blockers with a precise next action;
+- capture, committed-PCM transport and realtime provenance are unchanged;
+- `compare-live-batch.py` remains read-only for realtime artifacts;
+- corpus reports agree on the selected shadow profile and blocker counts;
+- `scripts/check.sh`, focused profile tests and opskarta validation pass;
+- live promotion remains blocked unless every required parity gate actually passes.
+
 ## Current Live Evidence Status, 2026-07-14
 
 `record --experiment live-shadow-v1` preserved raw capture on a real daily sync even when
@@ -58,6 +100,13 @@ work. Its residual blocker is post-ASR mixed `Me`/remote content, not capture lo
   `derived/experiments/live-shadow-v1/fallback/` with post-stop provenance;
 - cheap cleanup now precedes stronger-audio-judge, the residual review pack is rebuilt, and normal
   processing decodes `mic_clean + remote`; four-source decoding is explicit diagnostic work.
+
+<details>
+<summary>Historical evidence and completed-goal archive</summary>
+
+The entries below preserve experiment chronology and completed-goal evidence. Their metrics and
+"next" statements are historical snapshots; the active goal and current status above are
+authoritative.
 
 Automated evidence covers manifest handoff before stop, worker heartbeat, child timeout, external
 worker termination, compare immutability, fallback isolation, PCM backpressure and raw capture
@@ -242,9 +291,10 @@ Completion evidence:
 - best live-implementable profile remains
   `online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_speaker_only_v1`;
 - its capture-safe corpus blockers are precisely localized: `3678.10s` missing `Me`, `137.02s`
-  remote-like `Me`, `9` blocking order mismatches and `17` advisory order rows;
-- order triage contains six boundary-retime candidates, four cross-source risks, four unresolved
-  review rows and one same-source timeline candidate;
+  remote-like `Me`, `9` aggregate blocking mismatch counters and `17` advisory order rows;
+- the actionable order triage expands the blocking evidence into 15 rows: six boundary-retime
+  candidates, four cross-source risks, four unresolved review rows and one same-source timeline
+  candidate;
 - aggressive runtime Target-Me recovers much more local speech but regresses remote leakage and
   order, so it remains rejected as a production candidate.
 
@@ -353,7 +403,7 @@ Current result:
 
 Conclusion: simple live-accessible thresholds over text overlap, RMS, mic-minus-remote energy and
 zero-lag correlation are not enough as the main local-recall fix. They can supply a small safe
-shadow rescue, but closing the current goal needs stronger local-speaker evidence, remote-forbidden
+shadow rescue, but closing that local-recall hypothesis needed stronger local-speaker evidence, remote-forbidden
 evidence, or a local judge for suppressed mic regions. New recordings are not the blocker right now;
 the current corpus is sufficient to prove this design direction.
 
@@ -1823,3 +1873,5 @@ The resulting Markdown or Obsidian bundle should answer:
 ## Commit
 
 `6362d12 feat: improve export bundle handoff`
+
+</details>

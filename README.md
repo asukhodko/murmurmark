@@ -21,60 +21,40 @@ utterance or audit evidence.
 
 ## Current Status
 
-The CLI pipeline is usable for pilot notes on regular working meetings with a short explicit review
-queue. It is not yet a fully unattended transcription appliance: guarded full-transcript export can
-still require review, especially for order risks and remote leakage in `mic`.
+The stable CLI path is usable for working transcripts and evidence-backed notes. A complete session
+can be processed unattended and ends as `ready_for_notes`, `review_first` or `blocked`. Full export
+still requires explicit review when order, local recall or remote leakage cannot be resolved safely.
 
-Current corpus snapshot from `murmurmark next corpus --refresh` on 2026-07-02 after the broader
-stronger-audio-judge pass:
+Authoritative operating point, 2026-07-14:
 
-- operational status: `pilot_ready_with_review`;
-- working sessions in scope: `24`;
-- diagnostic sessions excluded from readiness: `26`;
-- session readiness: `15/24 ready_for_notes`, `9/24 review_first`, `0/24 do_not_use_without_manual_review`;
-- selected notes review burden: `1.32 min`;
-- full transcript/export review surface: `4.09 min`;
-- mandatory review queue: `9` actions / `12` rows;
-- low-materiality rows outside mandatory review: `28` rows / `70.95s`;
-- corpus gate review limits: `15` actions / `25` rows;
-- irreducible review gate: `irreducible_manual_review_queue_present`;
-- safe suggested rows still pending: `0`.
+- stable production remains `record -> process -> next -> finish` against one explicit `SESSION`;
+- raw `mic` and `remote` CAF files and the normal batch transcript remain the source of truth;
+- committed-PCM Live Evidence is capture-safe in three fresh meaningful real sessions: complete raw
+  tracks, preview before stop, terminal worker, zero final lag and successful batch output;
+- the live corpus contains `33` sessions, including `19` real meetings and `12` meaningful
+  live-vs-batch comparisons;
+- `7` real sessions form the capture-safe candidate scope; `0` pass every quality gate;
+- live promotion is `shadow_only_do_not_promote`; controlled real pilots are evidence collection,
+  not a replacement for the batch result;
+- the active quality unit is finite: `15` blocking order-triage rows in those seven sessions;
+- no additional recording is required for the current algorithmic step.
 
-This does not mean “zero review”. It means the current operational corpus has no hidden blocker:
-safe local evidence has been applied where available, and the remaining queue is short, explicit and
-not safely closable by the current local agents. The stronger local audio judge can now close a
-narrow `probable_timing_overlap` class as `keep_me` only when group-overlap evidence shows strong
-local support and weak remote/leak support; real double-talk and conflicting clips stay in review.
-One `check_transcript_order` overlap is already closed this way through the normal suggested-review
-apply path.
-Single-word `так` tails without action/decision/risk markers are counted as low-materiality rather
-than mandatory review.
-Short exact partial duplicates with no unique `Me` content are also kept out of the mandatory queue.
-The one risky session is represented as formal residual risk, not as unattended export readiness.
-`finish` and `export` still block full transcript
-bundles when transcript-only blockers remain.
-The operational report includes `manual_tail_explanation`, which groups the remaining queue by
-reason: weak/conflicting audio, ambiguous chronology, possible unique `Me` content inside remote
-leak, and local-recall evidence that is still too weak for an automatic call.
+The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
+only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
+when transcript-only blockers survive.
 
-Current reliability focus:
-[Reliable Transcription Route](docs/project/reliable-transcription-route.md). Outcome and handoff
-UX v1 are now in place: a processed session reports `ready_for_notes`, `review_first` or `blocked`,
-with selected profile, verdict, review burden, export blockers and one next command.
-Chunked/Resumable Processing v1 is now complete at the ASR layer: long `windowed` whisper.cpp runs
-write validated chunk reports, interrupted `process` runs can resume from verified chunks, and
-corpus gates treat failed chunk rebuilds as hard failures. Batch processing remains authoritative.
-The live/near-realtime branch is still quarantined as a source of truth. Its segment writer now runs
-behind a bounded committed-PCM queue after durable raw writes, not inside the ScreenCaptureKit
-callback. A progressive past-only Target-Me shadow now evaluates suppressed mic segments inside the
-live worker, localizes candidate text to remote-free or speaker-confirmed subwindows, and runs focused
-micro-ASR without using batch fields. The full fail-open proof allows
-controlled Live Evidence runs on real meetings, but live promotion still requires passing parity
-coverage. The latest audio milestone,
-ASR-Positive Echo Candidate Hardening v1, remains important but shadow-only:
-`coverage_v2_remote_gate_local_fir` improved `5/6` candidate-corpus sessions without local-recall
-regression, yet `local_fir` is still the default ASR input until promotion gates are defined and
-passed on a broader corpus.
+Current reliability route:
+[Reliable Transcription Route](docs/project/reliable-transcription-route.md). Outcome, resumable ASR,
+review and final handoff are implemented. The active development goal is
+[Live Order and Role Reconciliation v1](docs/project/current-goal.md): classify or repair the 15
+blocking order rows already isolated in the capture-safe live corpus. Every change is evaluated as a
+shadow profile and must preserve local recall, remote-leakage, token-F1 and review-burden gates.
+
+The live branch remains quarantined as a source of truth. It consumes copied PCM only after durable
+raw writes, produces advisory preview during recording and fails open without affecting raw capture.
+Controlled real Live Evidence runs are allowed, but they do not change the normal batch-first product
+path. `local_fir` likewise remains the default Echo Guard input; stronger audio candidates stay
+shadow-only until a broader corpus passes explicit promotion gates.
 
 ## What Works Now
 
@@ -165,12 +145,13 @@ covers `14/50` sessions with `0` failed chunk rebuilds and `146/146` completed A
 29-minute session was interrupted during `murmurmark process`, resumed with the same command, reused
 `14` cached ASR chunks and passed the rebuild gate.
 
-Live/near-realtime cache promotion is gated separately and is currently quarantined. Existing
-diagnostic live sessions are negative evidence for the old inline writer: it could starve
-ScreenCaptureKit audio delivery and leave raw capture mostly silent. A later controlled-real run also
-showed sparse raw capture, so new real Live Evidence recording is disabled again. Lab pilots and
-existing-session analysis remain useful, but valuable meetings must use the non-live production
-route until capture isolation is proven again.
+Live/near-realtime promotion is gated separately and remains quarantined. Historical inline-writer
+sessions are negative evidence because they could starve ScreenCaptureKit. The replacement
+committed-PCM sidecar has now passed fail-open tests and three fresh real transport proofs, so
+controlled Live Evidence recording is allowed. It is still experimental: valuable meetings rely on
+the same durable raw files and authoritative post-stop batch processing, regardless of whether the
+sidecar succeeds. Live ASR cache reuse remains disabled when its `30s/5s` geometry does not exactly
+match the batch `60s/5s` contract.
 
 ## What Is Still Out Of Scope
 
@@ -376,8 +357,9 @@ remains the authoritative transcript path.
 `state.json.counters` exposes the duration limit, maximum observed pending PCM and the emergency
 packet limit so a packet-size-sensitive regression is visible after the meeting.
 The transport/worker reliability unit is covered by pre-stop, timeout, termination, backpressure and
-fallback-isolation tests. Promotion still requires at least three fresh meaningful real meetings
-with healthy raw/batch output, timestamped pre-stop artifacts and passing live-vs-batch gates.
+fallback-isolation tests. The required three fresh meaningful transport proofs now exist. Promotion
+is still blocked because none of the meaningful comparisons passes every quality gate; the active
+work is the bounded order/role reconciliation set described in the roadmap.
 
 `--experiment live-shadow-v1` is controlled evidence, not promotion. It can be used on real
 meetings when you want live evidence, because raw CAF remains the source of truth and
@@ -1390,11 +1372,34 @@ rule and need corpus gates before any automatic review decision.
 - [Transcript and evidence contracts](docs/contracts/transcript-and-evidence.md)
 - [Evidence synthesis architecture](docs/architecture/evidence-synthesis.md)
 - [Open-source readiness](docs/project/open-source-readiness.md)
-- [Latest completed quality goal](docs/project/current-goal.md)
+- [Current goal and completed-goal context](docs/project/current-goal.md)
 
 ## Roadmap Summary
 
-Current focus:
+The authoritative roadmap is the [opskarta v3 plan](docs/roadmap/murmurmark-cli-roadmap.plan.yaml),
+with a readable view in [CLI roadmap](docs/roadmap/murmurmark-cli-roadmap.md). The current execution
+state is:
+
+1. **Stable product path:** explicit `SESSION`, durable two-track capture, resumable batch
+   processing, evidence-backed review, guarded export and retention planning.
+2. **Active goal:** Live Order and Role Reconciliation v1. Resolve or evidence-classify 15 blocking
+   order rows in seven capture-safe sessions without worsening missing `Me`, remote leakage,
+   per-session token F1 or review burden.
+3. **Safety boundary:** live output remains advisory and shadow-only; raw CAF plus batch output are
+   authoritative.
+4. **Evidence already closed:** three fresh real live sessions have complete raw capture, pre-stop
+   preview, terminal workers, zero final lag and successful batch transcripts. More recordings are
+   not required for the active algorithmic step.
+5. **After the active goal:** return to local-recall/remote-leak reduction, then decide whether any
+   live profile is eligible for promotion. UI remains optional and late.
+
+<details>
+<summary>Historical implementation log (non-authoritative)</summary>
+
+The entries below preserve experiment history and old corpus snapshots. They are useful for
+engineering provenance but must not be read as current commands, metrics or priorities.
+
+Historical focus snapshot:
 
 - stabilize the current production path first: set `SESSION`, run
   `record --out "$SESSION" --target-bundle system`, then `process`, `next`, `status`, `finish`
@@ -1418,14 +1423,13 @@ Current focus:
   live chunk geometry, audio prep, language and model match batch ASR expectations, and materialized
   live chunks must still pass the raw chunk rebuild check;
 - use `murmurmark corpus live all --refresh` to inspect historical/debug live evidence and controlled
-  evidence readiness; after full fail-open proof, the next live milestone is two more controlled
-  passing real comparisons, not production promotion;
+  evidence readiness; this historical snapshot predates the three fresh transport proofs;
 - make `process -> next -> review -> export -> retention` feel boring and repeatable;
 - keep README, runbooks and roadmap aligned with the actual CLI.
 
-Active goal and near-term candidates:
+Historical goal snapshot:
 
-1. Active: Process Observability & Run Monitor v1: keep the stable non-live production path and make
+1. Then-active: Process Observability & Run Monitor v1: keep the stable non-live production path and make
    long `murmurmark process` runs observable from `status`/`next` without trusting stale reports.
 2. Completed: Current Pipeline Stabilization v1: the supported production path is normal non-live
    `record -> process -> status/next/finish`; silent, sparse, partial and interrupted captures block
@@ -1433,7 +1437,8 @@ Active goal and near-term candidates:
 3. Completed: Chunked/Resumable Processing v1: ASR work is chunk-addressed, cacheable,
    interrupt-safe and guarded by rebuild/corpus gates. The remaining work is broader corpus
    coverage, not the v1 mechanism.
-4. Active live follow-up: Near-Realtime Live Parity Coverage v1. Capture-safe sidecar proof exists,
+4. Historical live follow-up: Near-Realtime Live Parity Coverage v1, completed as an evidence and
+   blocker-localization milestone on 2026-07-14. Capture-safe sidecar proof exists,
    `murmurmark corpus live all --refresh` compares real live chunks/drafts with batch output, and
    live promotion stays blocked. The comparison now uses ASR-segment granularity when available, with
    chunk fallback for older artifacts. A focused materialization of the current best profile showed
@@ -1644,6 +1649,8 @@ Longer-term:
 - optional local LLM synthesis with evidence guards;
 - reviewed docs/ticket export proposals;
 - optional UI only after the CLI is mature.
+
+</details>
 
 ## Development Checks
 

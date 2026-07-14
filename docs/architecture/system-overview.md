@@ -55,41 +55,33 @@ MurmurMark
 Current implemented CLI path:
 
 ```text
-record command
-  |
-  v
-session/
-  session.json
-  events.jsonl
-  audio/mic/*.caf
-  audio/remote/*.caf
-  |
-  v
-preprocess --echo clean --echo-engine local_fir
-  derived/preprocess/audio/mic_for_asr.wav
-  derived/preprocess/echo/speaker_state.jsonl
-  derived/preprocess/echo/echo_suppression_report.json
-  |
-  v
-scripts/transcribe-simple-whispercpp.py
-  derived/transcript-simple/whisper-cpp/resolved/
-    clean_dialogue.json
-    clean_dialogue.shadow_v2.json
-    quality_report.json
-    quality_report.shadow_v2.json
-    transcript.md
-    transcript.shadow_v2.md
-    repair_comparison.json
-  |
-  v
-scripts/synthesize-simple-extractive.py
-  derived/synthesis-simple/extractive/
-    quality_verdict.json
-    quality_verdict.md
-    notes.md
-    evidence_notes.json
-    review_items.jsonl
+record --out SESSION
+  -> durable raw writer
+       -> audio/mic/*.caf
+       -> audio/remote/*.caf
+       -> session.json + events.jsonl
+  -> optional committed-PCM sidecar
+       -> derived/live/transcript.preview.md
+       -> derived/live/transcript.draft.md
+       -> shadow evidence only
+
+process SESSION
+  -> capture health gate
+  -> local_fir Echo Guard + speaker_state
+  -> resumable whisper.cpp ASR chunks
+  -> timeline/start/boundary repair candidates
+  -> audit cleanup + reviewed transcript profiles
+  -> quality verdict + evidence-backed extractive notes
+  -> outcome.json + exact next command
+
+review / finish / export / retention
+  -> selected batch profile
+  -> guarded user-facing bundle
 ```
+
+Raw CAF files and the selected batch transcript are authoritative. The optional live sidecar reads
+only copied PCM after durable raw writes, can fail independently and cannot mutate batch outputs.
+Live promotion remains blocked until all corpus parity gates pass.
 
 Target full-product path:
 

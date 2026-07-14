@@ -37,7 +37,7 @@ Read in this order:
 ## Current Planning Entry Points
 
 - Start with [README](../README.md) for the current command-line workflow and latest corpus snapshot.
-- Latest completed goal and recommended next goal: [Current goal notes](project/current-goal.md).
+- Active goal, acceptance gates and completed-goal context: [Current goal notes](project/current-goal.md).
 - Route design: [Reliable transcription route](project/reliable-transcription-route.md).
 - Use [CLI MVP Definition of Done](project/cli-mvp-definition-of-done.md) to check whether the command-line product gate still holds.
 - Use [CLI roadmap](roadmap/murmurmark-cli-roadmap.md) for the next implementation goal and the dependency map.

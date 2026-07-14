@@ -49,7 +49,7 @@ batch transcript until separate parity gates pass.
 10. **Bounded enrichment.** Optional Target-Me micro-ASR has its own child timeout and lag budget.
     When the budget is exceeded, the enrichment is skipped and the base worker continues.
 
-## Proposed Runtime Shape
+## Current Runtime Shape
 
 ```text
 ScreenCaptureKit
@@ -92,6 +92,11 @@ The existing `derived/live/` path stays as a compatibility alias for `segments.j
 preview/draft output. `transcript.preview.md` is the conservative recording-time view;
 `transcript.draft.md` retains all candidate-only diagnostics. Canonical experiment audio lives under
 `derived/experiments/live-shadow-v1/audio/`.
+
+Evidence status, 2026-07-14: three fresh meaningful real sessions have complete raw tracks,
+recording-time preview snapshots, terminal workers, zero final lag and successful authoritative
+batch transcripts. This closes transport uncertainty for v1. Quality promotion remains blocked;
+the active work is order/role reconciliation over 15 localized corpus rows.
 
 Implemented v1 contract:
 

@@ -19,14 +19,15 @@ MurmurMark should become a dependable local CLI transcription pipeline for sensi
 6. export reviewed artifacts;
 7. plan or apply raw-audio retention.
 
-The current product shape is batch-first: a meeting is recorded, then processed. During Current
-Pipeline Stabilization v1, this batch-first path is the only supported production route. A future
-near-realtime path should eventually reduce the wait after a meeting. The old inline live segment
-writer is quarantined because it can starve ScreenCaptureKit audio delivery; the new async bounded
-segment queue has a full fail-open proof. Real live promotion is still blocked, but controlled Live
-Evidence runs may now be used on real meetings to collect parity evidence while the batch transcript
-remains authoritative. The intended shape is a single stable capture with a best-effort experimental
-sidecar, documented in [Experimental sidecar architecture](../architecture/experimental-sidecar.md).
+The product remains batch-first: a meeting is recorded, then processed. Current Pipeline
+Stabilization v1 established this as the supported production route. The near-realtime branch now
+produces an advisory preview from a committed-PCM sidecar and may eventually reduce post-meeting
+wait. The old inline live writer stays quarantined because it can starve ScreenCaptureKit; its
+replacement has a full fail-open proof and three fresh real transport proofs. Live promotion is
+still blocked, but controlled Live Evidence runs may collect parity evidence while the batch
+transcript remains authoritative. The intended shape is a single stable capture with a best-effort
+experimental sidecar, documented in
+[Experimental sidecar architecture](../architecture/experimental-sidecar.md).
 
 The optional UI/app path is deliberately late. It should not block the useful CLI product.
 
@@ -84,9 +85,8 @@ roadmap point it means:
 - stronger Echo Guard candidates stay shadow-only until corpus gates prove lower remote leakage
   without local-recall regression.
 
-External consultation converged on the same implementation order. The first four steps are now
-implemented as v1. The current stabilization pass freezes new product work until this route is
-boring and repeatable:
+External consultation converged on the same implementation order. The reliability foundation and
+capture-safe sidecar boundary are implemented; current quality work stays inside these contracts:
 
 1. build `Outcome Contract v1` and a deterministic gate evaluator;
 2. write `outcome.json`, `outcome.md`, `review_plan.json` and `next_command.txt` for every processed
@@ -98,7 +98,8 @@ boring and repeatable:
 7. keep the experimental sidecar contract as the boundary for live work:
    `derived/experiments/live-shadow-v1` must prove fail-open behavior and raw capture isolation;
    real live-pipeline coverage returns only through controlled Live Evidence runs with that proof;
-8. improve live local recall only with causal runtime evidence and no per-session parity regression;
+8. repair live order/role conflicts, then improve local recall, using only causal runtime evidence
+   and no per-session parity regression;
 9. reuse or promote live output only after every required corpus gate passes.
 
 The explicit non-goal for this phase is changing the default ASR, default `local_fir`, UI, cloud
@@ -194,6 +195,7 @@ flowchart LR
     cli["cli-orchestration<br/>single user-facing CLI"]
     reliable["reliable-transcription-route<br/>unattended truthful outcome"]
     live["near-realtime-shadow<br/>segment pipeline during recording"]
+    live_order["live-order-role-reconciliation-v1<br/>15 bounded blocker rows"]
     corpus["corpus-regression<br/>quality gates"]
     review["review-loop<br/>short explicit review queue"]
     hardening["quality-hardening<br/>fewer order/recall/duplicate failures"]
@@ -210,9 +212,10 @@ flowchart LR
     foundation --> cli
     cli --> reliable
     cli --> live
+    live --> live_order
     foundation --> corpus
     cli --> review
-    live --> review
+    live_order --> review
     corpus --> live
     corpus --> review
     review --> hardening
@@ -315,19 +318,15 @@ flowchart LR
 
 ### Next
 
-- Current Pipeline Stabilization v1:
-  - freeze new product work and use only the supported production command sequence:
-    set `SESSION`, then `record --out "$SESSION" --target-bundle system`, `process`, `next`,
-    `status`, `finish` against the same session;
-  - prove at least one fresh short non-live recording with audible content reaches a non-empty
-    transcript;
-  - prove silent/partial/interrupted captures block before ASR and never look like successful empty
-    transcripts;
-  - verify `status` and `next` agree for successful, review-first, blocked and failed-capture
-    sessions;
+- Live Order and Role Reconciliation v1:
+  - classify all 15 blocking rows in the seven capture-safe sessions;
+  - separate matcher/reference false positives from real timeline and role conflicts;
+  - materialize only live-only, causal shadow repairs;
+  - require no regression in missing `Me`, remote-like `Me`, per-session token F1 and review burden;
+  - keep batch authoritative and live promotion blocked until all gates pass;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
-- Near-realtime shadow pipeline follow-up, after stabilization:
+- Near-realtime shadow pipeline follow-up:
   - previous inline segment writing during capture is quarantined: live tests showed it can starve
     ScreenCaptureKit audio delivery and leave raw tracks mostly silent;
   - first redesign step is now implemented as committed PCM after durable raw writes; the callback
@@ -395,20 +394,27 @@ flowchart LR
 
 ## Latest Completed Goals
 
-Chunked/Resumable Processing v1 is the latest completed reliability goal. Default `windowed`
+Near-Realtime Live Parity Coverage v1 is the latest completed live reliability goal. Three fresh
+real sessions prove complete raw capture, recording-time preview provenance, terminal workers, zero
+final lag and successful authoritative batch output. A real comparison rerun left realtime
+artifacts byte-identical. The milestone closes transport and blocker localization, not live
+promotion: the refreshed corpus still has zero complete parity passes.
+
+Chunked/Resumable Processing v1 remains the completed batch reliability foundation. Default `windowed`
 whisper.cpp runs now write per-window chunk cache metadata, `murmurmark process` can resume
 interrupted ASR work from verified chunks, legacy raw ASR cache without chunk reports is rebuilt
 instead of being trusted, and corpus gates treat chunk rebuild failures as hard failures. Current
-ASR chunk-cache corpus coverage is `14/50`, with `0` failed rebuilds and `146/146` completed chunks.
+ASR chunk-cache corpus coverage at completion was `14/50`, with `0` failed rebuilds and `146/146`
+completed chunks.
 
-ASR-positive Echo Candidate Hardening v1 is the latest completed quality goal. It turns
+ASR-positive Echo Candidate Hardening v1 is a completed Echo Guard quality goal. It turns
 `coverage_v2_remote_gate_local_fir` into an explicit experimental profile with one-session and
 corpus reports, while keeping `local_fir` as the default.
 
 Remote-Forbidden Evidence Coverage v2 broadened ASR audit window selection and made that
 audio-candidate search measurable.
 
-Export Bundle Quality v1 is the latest completed product-handoff goal. MurmurMark can now end a
+Export Bundle Quality v1 is the completed product-handoff foundation. MurmurMark can now end a
 successful pipeline with a readable local handoff instead of a pile of derived artifacts.
 
 In practical terms, `murmurmark finish SESSION` now produces a Markdown or Obsidian bundle where:
@@ -462,21 +468,18 @@ Recently completed:
   `first-lane` handoff. MurmurMark now points to `ready_for_notes`, a non-empty actionable review
   pack, or a documented non-actionable blocker.
 
-## Candidate Next Goals
+## Goal Sequence
 
-Recommended nearest goal: **Process Observability & Run Monitor v1**. Current Pipeline
-Stabilization v1 restored one supported production path: normal non-live recording, then batch
-processing. The next reliability gap is visibility while `murmurmark process` is still running or
-has been interrupted: `status`, `next` and `sessions --all` must not depend on stale readiness when a
-newer run-state exists.
+Recommended nearest goal: **Live Order and Role Reconciliation v1**. Transport, provenance and
+comparison immutability are proven. The smallest meaningful next unit is the 15 blocking order rows
+already isolated in seven capture-safe sessions; no additional recording is required.
 
-1. **Process Observability & Run Monitor v1.** Write a current run-state artifact during
-   `murmurmark process`, expose the active step and ASR chunk progress through `status`/`next`, keep
-   interruption recovery obvious and make stale readiness harmless.
-2. **Near-Realtime Capture Isolation v1.** Legacy controlled-real live produced sparse raw capture,
-   so `--live-pipeline` stays quarantined. Prove the new `record --experiment live-shadow-v1`
-   architecture where one durable raw writer emits raw commit events and a best-effort sidecar
-   consumes them without owning capture buffers. Keep production on plain `record -> process`.
+1. **Live Order and Role Reconciliation v1.** Classify matcher errors versus real timeline/role
+   conflicts, repair only with causal live evidence, and require no regression in local recall,
+   remote leakage, token F1 or review burden.
+2. **Live Local Recall and Remote Leakage vNext.** After order gates are trustworthy, reduce the
+   remaining missing `Me` and remote-like `Me` with remote-forbidden and same-session speaker
+   evidence. Keep every candidate shadow-only until corpus gates pass.
 3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth
@@ -689,12 +692,9 @@ newer run-state exists.
    sessions, keep guarded export blockers explicit, and close only rows with safe local evidence.
 6. **Near-Realtime Pipeline Shadow v1.** Continue hardening draft transcripts from safe derived
    segments while keeping the batch pipeline as final authority until corpus gates prove parity.
-   Current immediate work is live-worker handoff reliability: heartbeat, bounded child-process
-   timeouts, immutable realtime provenance, explicit fallback recovery and a pre-stop integration
-   smoke with the worker enabled. The implementation unit is complete; the next evidence gate is
-   three fresh meaningful real meetings with healthy raw/batch output, pre-stop artifacts and
-   live-vs-batch comparison. `murmurmark live evidence SESSION` is the compact per-session gate for
-   this collection loop.
+   Worker handoff reliability, immutable realtime provenance and the three fresh transport proofs
+   are complete. Current work is the bounded order/role reconciliation set; `murmurmark live
+   evidence SESSION` remains the compact per-session transport and parity gate.
    The normal `murmurmark live watch` path now reads `transcript.preview.md`: ordinary role-gated
    chunks plus only causal Target-Me candidates accepted by recording-time remote energy. The full
    `transcript.draft.md` remains available through `--diagnostic-draft`, so conservative user preview
