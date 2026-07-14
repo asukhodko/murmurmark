@@ -13,9 +13,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from live_order_role_reconciliation import (
+    classify_order_risk,
+    legacy_order_risk_classification,
+)
+
 
 SCHEMA = "murmurmark.live_corpus_gates_report/v1"
-SCRIPT_VERSION = "1.43.0"
+SCRIPT_VERSION = "1.44.0"
 REAL_SESSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-live)?$")
 DEFAULT_TARGET_LIVE_SESSIONS = 3
 DEFAULT_TARGET_MEANINGFUL_COMPARED_SESSIONS = 3
@@ -982,6 +987,49 @@ def blocking_dimensions_from_counts(dimension_counts: dict[str, Counter[str]]) -
     ]
 
 
+def summarize_evidence_informed_candidate_dimensions(
+    rows: list[dict[str, Any]],
+    order_risk_triage_report: dict[str, Any] | None,
+) -> tuple[dict[str, Counter[str]], dict[str, list[str]], dict[str, dict[str, Any]]]:
+    examples = (
+        order_risk_triage_report.get("examples")
+        if isinstance(order_risk_triage_report, dict)
+        and isinstance(order_risk_triage_report.get("examples"), list)
+        else []
+    )
+    by_session: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for item in examples:
+        if isinstance(item, dict):
+            by_session[str(item.get("session") or "")].append(item)
+
+    dimension_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    dimension_issue_sessions: dict[str, list[str]] = defaultdict(list)
+    session_order_resolution: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        session = str(row.get("session") or "")
+        for key in PARITY_DIMENSIONS:
+            raw_status = row_dimension_status(row, key)
+            effective_status = raw_status
+            if key == "order_risk" and raw_status != "passed":
+                session_items = by_session.get(session, [])
+                blocking_items = [item for item in session_items if item.get("severity") == "blocking"]
+                unstable_items = [item for item in session_items if item.get("classification") == "unresolved"]
+                if session_items and not blocking_items and not unstable_items:
+                    effective_status = "passed"
+                session_order_resolution[session] = {
+                    "raw_status": raw_status,
+                    "effective_status": effective_status,
+                    "item_count": len(session_items),
+                    "blocking_count": len(blocking_items),
+                    "unresolved_count": len(unstable_items),
+                    "source": "live_order_role_reconciliation/v1",
+                }
+            dimension_counts[key][effective_status] += 1
+            if effective_status != "passed":
+                dimension_issue_sessions[key].append(session)
+    return dimension_counts, dimension_issue_sessions, session_order_resolution
+
+
 def capture_safe_proof_status(capture_regression_check: dict[str, Any] | None) -> str:
     proof = (
         capture_regression_check.get("capture_safe_proof")
@@ -1072,8 +1120,14 @@ def order_risk_triage_counts(report: dict[str, Any] | None) -> dict[str, Any]:
         "status": report.get("status"),
         "profile": report.get("profile"),
         "item_count": safe_int(report.get("item_count")),
+        "previous_blocking_count": safe_int(report.get("previous_blocking_count")),
+        "resolved_previous_blocking_count": safe_int(report.get("resolved_previous_blocking_count")),
         "blocking_count": safe_int(report.get("blocking_count")),
         "advisory_count": safe_int(report.get("advisory_count")),
+        "stable_classification_count": safe_int(report.get("stable_classification_count")),
+        "unresolved_count": safe_int(report.get("unresolved_count")),
+        "shadow_repair_required_count": safe_int(report.get("shadow_repair_required_count")),
+        "shadow_repair_applied_count": safe_int(report.get("shadow_repair_applied_count")),
         "boundary_retime_candidate_count": safe_int(report.get("boundary_retime_candidate_count")),
         "likely_false_positive_count": safe_int(report.get("likely_false_positive_count")),
     }
@@ -1082,7 +1136,11 @@ def order_risk_triage_counts(report: dict[str, Any] | None) -> dict[str, Any]:
 def order_risk_triage_label_count(report: dict[str, Any] | None, label: str) -> int:
     if not isinstance(report, dict):
         return 0
-    by_label = report.get("by_label") if isinstance(report.get("by_label"), dict) else {}
+    by_label = (
+        report.get("by_previous_label")
+        if isinstance(report.get("by_previous_label"), dict)
+        else (report.get("by_label") if isinstance(report.get("by_label"), dict) else {})
+    )
     row = by_label.get(label) if isinstance(by_label.get(label), dict) else {}
     return safe_int(row.get("count"))
 
@@ -2963,117 +3021,8 @@ def target_me_shadow_profile_remaining_gap_examples(
     }
 
 
-def _order_turn_feature(turn: dict[str, Any] | None, key: str) -> Any:
-    if not isinstance(turn, dict):
-        return None
-    return turn.get(key)
-
-
 def live_order_risk_triage_label(item: dict[str, Any]) -> dict[str, Any]:
-    previous = item.get("previous") if isinstance(item.get("previous"), dict) else {}
-    current = item.get("current") if isinstance(item.get("current"), dict) else {}
-    previous_tokens = safe_int(_order_turn_feature(previous, "turn_content_token_count"))
-    current_tokens = safe_int(_order_turn_feature(current, "turn_content_token_count"))
-    previous_margin = safe_float(_order_turn_feature(previous, "score_margin"), 1.0)
-    current_margin = safe_float(_order_turn_feature(current, "score_margin"), 1.0)
-    min_margin = min(previous_margin, current_margin)
-    previous_plausible = safe_int(_order_turn_feature(previous, "plausible_match_count"))
-    current_plausible = safe_int(_order_turn_feature(current, "plausible_match_count"))
-    max_plausible = max(previous_plausible, current_plausible)
-    min_tokens = min(previous_tokens or 999, current_tokens or 999)
-    same_source = bool(item.get("same_source"))
-    same_chunk = bool(item.get("same_chunk"))
-    ambiguous = (
-        str(item.get("match_ambiguity") or "") == "ambiguous"
-        or bool(_order_turn_feature(previous, "ambiguous_match"))
-        or bool(_order_turn_feature(current, "ambiguous_match"))
-    )
-    batch_delta = abs(safe_float(item.get("batch_start_delta_sec")))
-    live_delta = abs(safe_float(item.get("live_start_delta_sec")))
-    previous_live_start = safe_float(item.get("previous_live_start"))
-    current_live_start = safe_float(item.get("current_live_start"))
-    previous_live_end = safe_float(_order_turn_feature(previous, "end"))
-    current_batch_start = safe_float(item.get("current_batch_start"))
-    previous_inside = bool(item.get("previous_live_inside_own_batch_interval"))
-    current_inside = bool(item.get("current_live_inside_own_batch_interval"))
-    source_pair = str(item.get("source_pair") or "")
-    reference_gap_like = (
-        same_source
-        and same_chunk
-        and current_inside
-        and not previous_inside
-        and live_delta <= 5
-        and previous_margin <= 0.25
-        and previous_plausible >= 5
-        and previous_live_end > 0
-        and current_batch_start > 0
-        and previous_live_start <= current_live_start
-        and previous_live_end <= current_batch_start + 0.5
-    )
-
-    label = "needs_review_order_risk"
-    severity = "blocking"
-    confidence = "medium"
-    reason = "order risk remains contentful and needs manual or algorithmic repair"
-
-    if ambiguous and min_margin <= 0.15 and max_plausible >= 8:
-        label = "weak_generic_match_false_positive_candidate"
-        severity = "advisory"
-        confidence = "high"
-        reason = "match is ambiguous, has small score margin, and many plausible alternatives"
-    elif same_source and min_tokens <= 2 and max_plausible >= 20 and batch_delta >= 120:
-        label = "same_source_short_high_plausible_far_match_candidate"
-        severity = "advisory"
-        confidence = "high"
-        reason = "same-source reorder is driven by a short phrase with many plausible far-away batch matches"
-    elif same_source and min_tokens <= 2 and max_plausible >= 5 and min_margin <= 0.25 and batch_delta >= 20:
-        label = "same_source_weak_short_match_candidate"
-        severity = "advisory"
-        confidence = "medium"
-        reason = "same-source reorder is driven by a very short live phrase matched far away in batch"
-    elif reference_gap_like:
-        label = "same_source_reference_gap_or_weak_match_candidate"
-        severity = "advisory"
-        confidence = "medium"
-        reason = "same-source reorder is explained by a weak previous match near a batch timing/text gap"
-    elif same_chunk and not same_source and live_delta <= 8 and (not previous_inside or not current_inside):
-        label = "boundary_retime_candidate"
-        severity = "blocking"
-        confidence = "medium"
-        reason = "cross-source order risk is near a chunk boundary and at least one live turn is outside its batch interval"
-    elif same_chunk and same_source and batch_delta >= 20:
-        label = "same_source_timeline_reorder_candidate"
-        severity = "blocking"
-        confidence = "medium"
-        reason = "same-source order risk has a large batch-time reversal that is not explained by weak-match rules"
-    elif "mic_segment" in source_pair and "remote_segment" in source_pair:
-        label = "cross_source_order_risk"
-        severity = "blocking"
-        confidence = "medium"
-        reason = "mic/remote order risk remains after current live profile"
-
-    return {
-        "label": label,
-        "severity": severity,
-        "confidence": confidence,
-        "reason": reason,
-        "features": {
-            "same_chunk": same_chunk,
-            "same_source": same_source,
-            "source_pair": source_pair,
-            "ambiguous_match": ambiguous,
-            "min_score_margin": round(min_margin, 6),
-            "max_plausible_match_count": max_plausible,
-            "min_turn_content_token_count": 0 if min_tokens == 999 else min_tokens,
-            "batch_start_delta_abs_sec": round(batch_delta, 3),
-            "live_start_delta_abs_sec": round(live_delta, 3),
-            "previous_live_end": round(previous_live_end, 3),
-            "current_batch_start": round(current_batch_start, 3),
-            "reference_gap_like": reference_gap_like,
-            "previous_live_inside_own_batch_interval": previous_inside,
-            "current_live_inside_own_batch_interval": current_inside,
-        },
-    }
+    return legacy_order_risk_classification(item)
 
 
 def live_order_risk_triage(
@@ -3107,38 +3056,31 @@ def live_order_risk_triage(
             if not isinstance(item, dict):
                 continue
             triage = live_order_risk_triage_label(item)
-            previous = item.get("previous") if isinstance(item.get("previous"), dict) else {}
-            current = item.get("current") if isinstance(item.get("current"), dict) else {}
+            reconciliation = classify_order_risk(
+                item,
+                session=session_name,
+                profile=profile_name,
+                previous_classification=triage,
+            )
             examples.append(
                 {
-                    "session": session_name,
-                    "profile": profile_name,
-                    "label": triage.get("label"),
-                    "severity": triage.get("severity"),
-                    "confidence": triage.get("confidence"),
-                    "reason": triage.get("reason"),
-                    "features": triage.get("features"),
-                    "category": item.get("category"),
-                    "primary_risk": item.get("primary_risk"),
+                    **reconciliation,
+                    "label": reconciliation.get("classification"),
+                    "severity": reconciliation.get("disposition"),
+                    "previous_label": triage.get("label"),
+                    "previous_severity": triage.get("severity"),
+                    "previous_confidence": triage.get("confidence"),
+                    "previous_reason": triage.get("reason"),
+                    "legacy_features": triage.get("features"),
                     "match_ambiguity": item.get("match_ambiguity"),
                     "source_pair": item.get("source_pair"),
                     "role_pair": item.get("role_pair"),
                     "live_start_delta_sec": item.get("live_start_delta_sec"),
                     "batch_start_delta_sec": item.get("batch_start_delta_sec"),
-                    "previous_live_id": item.get("previous_live_id"),
-                    "current_live_id": item.get("current_live_id"),
                     "previous_live_start": item.get("previous_live_start"),
                     "current_live_start": item.get("current_live_start"),
                     "previous_batch_start": item.get("previous_batch_start"),
                     "current_batch_start": item.get("current_batch_start"),
-                    "previous_text": previous.get("text"),
-                    "current_text": current.get("text"),
-                    "previous_batch_id": previous.get("batch_id"),
-                    "current_batch_id": current.get("batch_id"),
-                    "previous_score_margin": previous.get("score_margin"),
-                    "current_score_margin": current.get("score_margin"),
-                    "previous_plausible_match_count": previous.get("plausible_match_count"),
-                    "current_plausible_match_count": current.get("plausible_match_count"),
                     "comparison": str(comparison_rel or "derived/live/live_batch_comparison.json"),
                 }
             )
@@ -3161,38 +3103,212 @@ def live_order_risk_triage(
     )
     blocking_count = sum(1 for item in examples if item.get("severity") == "blocking")
     advisory_count = sum(1 for item in examples if item.get("severity") == "advisory")
+    previous_blocking_count = sum(1 for item in examples if item.get("previous_severity") == "blocking")
+    resolved_previous_blocking_count = sum(
+        1
+        for item in examples
+        if item.get("previous_severity") == "blocking" and item.get("severity") == "advisory"
+    )
+    stable_classification_count = sum(1 for item in examples if item.get("classification") != "unresolved")
     return {
-        "schema": "murmurmark.live_order_risk_triage/v1",
-        "status": "ok",
+        "schema": "murmurmark.live_order_risk_triage/v2",
+        "status": "passed" if blocking_count == 0 else "blocked",
         "profile": policy or "base_live_comparison",
         "item_count": len(examples),
+        "previous_blocking_count": previous_blocking_count,
+        "resolved_previous_blocking_count": resolved_previous_blocking_count,
         "blocking_count": blocking_count,
         "advisory_count": advisory_count,
+        "stable_classification_count": stable_classification_count,
+        "unresolved_count": len(examples) - stable_classification_count,
+        "shadow_repair_required_count": sum(1 for item in examples if item.get("shadow_repair_required")),
+        "shadow_repair_applied_count": sum(1 for item in examples if item.get("shadow_repair_applied")),
+        "repair_not_required_count": resolved_previous_blocking_count,
         "likely_false_positive_count": sum(
             1
             for item in examples
-            if item.get("label")
+            if item.get("classification")
             in {
-                "weak_generic_match_false_positive_candidate",
-                "same_source_weak_short_match_candidate",
-                "same_source_short_high_plausible_far_match_candidate",
-                "same_source_reference_gap_or_weak_match_candidate",
+                "matcher_temporal_false_positive",
+                "matcher_ambiguous_reference",
             }
         ),
         "boundary_retime_candidate_count": sum(
-            1 for item in examples if item.get("label") == "boundary_retime_candidate"
+            1 for item in examples if item.get("previous_label") == "boundary_retime_candidate"
         ),
         "examples": examples[:limit],
         "truncated": len(examples) > limit,
         "limit": limit,
         "by_label": aggregate_by("label"),
+        "by_previous_label": aggregate_by("previous_label"),
+        "by_classification": aggregate_by("classification"),
+        "by_action": aggregate_by("action"),
         "by_severity": aggregate_by("severity"),
         "by_session": aggregate_by("session"),
         "missing_inputs": missing_inputs,
         "interpretation": (
-            "diagnostic only: strict order gates remain unchanged; advisory rows are candidates "
-            "for future matcher refinement, while blocking rows still require repair or stronger evidence"
+            "effective order gate uses causal live timing and source-role evidence; raw matcher rows remain in audit"
         ),
+    }
+
+
+def _selected_profile_metric(row: dict[str, Any], policy: str, name: str) -> Any:
+    metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
+    return metrics.get(f"live_target_me_shadow_profile_{policy}_{name}")
+
+
+def _gate_evidence(row: dict[str, Any], name: str) -> dict[str, Any]:
+    for gate_row in row.get("gates") or []:
+        if isinstance(gate_row, dict) and gate_row.get("name") == name:
+            evidence = gate_row.get("evidence")
+            return evidence if isinstance(evidence, dict) else {}
+    return {}
+
+
+def live_order_role_reconciliation_corpus_report(
+    rows: list[dict[str, Any]],
+    *,
+    policy: str | None,
+    triage: dict[str, Any],
+    candidate_scope: dict[str, Any],
+) -> dict[str, Any]:
+    profile = str(policy or "base_live_comparison")
+    examples = triage.get("examples") if isinstance(triage.get("examples"), list) else []
+    examples_by_session: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for item in examples:
+        if isinstance(item, dict):
+            examples_by_session[str(item.get("session") or "")].append(item)
+
+    per_session: list[dict[str, Any]] = []
+    for row in rows:
+        session = str(row.get("session") or "")
+        session_items = examples_by_session.get(session, [])
+        previous_blocking = sum(1 for item in session_items if item.get("previous_severity") == "blocking")
+        effective_blocking = sum(1 for item in session_items if item.get("severity") == "blocking")
+        review = _gate_evidence(row, "review_burden")
+        missing_me = _selected_profile_metric(row, profile, "live_missing_me_seconds")
+        remote_like_me = _selected_profile_metric(
+            row,
+            profile,
+            "live_suspected_remote_leak_in_me_seconds",
+        )
+        token_f1 = _selected_profile_metric(row, profile, "live_batch_token_f1")
+        metrics_present = missing_me is not None and remote_like_me is not None and token_f1 is not None
+        per_session.append(
+            {
+                "session": session,
+                "status": (
+                    "passed"
+                    if metrics_present and effective_blocking <= previous_blocking
+                    else "incomplete"
+                ),
+                "selected_shadow_profile": profile,
+                "classification": {
+                    "item_count": len(session_items),
+                    "previous_blocking_count": previous_blocking,
+                    "effective_blocking_count": effective_blocking,
+                    "resolved_previous_blocking_count": sum(
+                        1
+                        for item in session_items
+                        if item.get("previous_severity") == "blocking" and item.get("severity") == "advisory"
+                    ),
+                    "unresolved_count": sum(
+                        1 for item in session_items if item.get("classification") == "unresolved"
+                    ),
+                },
+                "no_regression": {
+                    "materialization_mode": "evidence_only_no_turn_mutation",
+                    "turn_mutation_count": 0,
+                    "missing_me_seconds": {"before": missing_me, "after": missing_me, "delta": 0.0},
+                    "remote_like_me_seconds": {
+                        "before": remote_like_me,
+                        "after": remote_like_me,
+                        "delta": 0.0,
+                    },
+                    "live_batch_token_f1": {"before": token_f1, "after": token_f1, "delta": 0.0},
+                    "review_burden_sec": {
+                        "before": review.get("review_burden_sec"),
+                        "after": review.get("review_burden_sec"),
+                        "delta": 0.0,
+                    },
+                    "review_burden_ratio": {
+                        "before": review.get("review_burden_ratio"),
+                        "after": review.get("review_burden_ratio"),
+                        "delta": 0.0,
+                    },
+                },
+            }
+        )
+
+    previous_blocking_count = safe_int(triage.get("previous_blocking_count"))
+    effective_blocking_count = safe_int(triage.get("blocking_count"))
+    stable_count = safe_int(triage.get("stable_classification_count"))
+    item_count = safe_int(triage.get("item_count"))
+    shadow_repair_required = safe_int(triage.get("shadow_repair_required_count"))
+    shadow_repair_applied = safe_int(triage.get("shadow_repair_applied_count"))
+    objective_baseline_matched = len(rows) == 7 and previous_blocking_count == 15
+    all_sessions_passed = bool(per_session) and all(row.get("status") == "passed" for row in per_session)
+    complete = bool(
+        objective_baseline_matched
+        and stable_count == item_count
+        and effective_blocking_count == 0
+        and shadow_repair_applied == shadow_repair_required
+        and all_sessions_passed
+    )
+    return {
+        "schema": "murmurmark.live_order_role_reconciliation_corpus/v1",
+        "status": "passed" if complete else ("blocked" if effective_blocking_count else "incomplete"),
+        "selected_shadow_profile": profile,
+        "batch_authoritative": True,
+        "compare_read_only": True,
+        "scope": {
+            "candidate_session_count": len(rows),
+            "candidate_session_ids": [str(row.get("session") or "") for row in rows],
+            "objective_expected_session_count": 7,
+            "objective_expected_previous_blocking_count": 15,
+            "objective_baseline_matched": objective_baseline_matched,
+        },
+        "classification": {
+            "item_count": item_count,
+            "previous_blocking_count": previous_blocking_count,
+            "resolved_previous_blocking_count": safe_int(triage.get("resolved_previous_blocking_count")),
+            "effective_blocking_count": effective_blocking_count,
+            "advisory_count": safe_int(triage.get("advisory_count")),
+            "stable_classification_count": stable_count,
+            "unresolved_count": safe_int(triage.get("unresolved_count")),
+            "by_classification": triage.get("by_classification") or {},
+            "by_previous_label": triage.get("by_previous_label") or {},
+            "by_action": triage.get("by_action") or {},
+        },
+        "shadow_materialization": {
+            "profile": profile,
+            "mode": "evidence_only_no_turn_mutation",
+            "repair_required_count": shadow_repair_required,
+            "repair_applied_count": shadow_repair_applied,
+            "repair_not_required_count": safe_int(triage.get("repair_not_required_count")),
+            "transcript_changed": False,
+            "reason": (
+                "all previous blockers were resolved as causal overlap or matcher/reference artifacts"
+                if shadow_repair_required == 0
+                else "real conflicts require a separate shadow transcript repair"
+            ),
+        },
+        "effective_parity_gate": {
+            "name": "order_risk",
+            "status": "passed" if effective_blocking_count == 0 else "warning",
+            "raw_blocking_count": previous_blocking_count,
+            "effective_blocking_count": effective_blocking_count,
+            "raw_rows_preserved_in_audit": True,
+            "candidate_blocking_dimensions": candidate_scope.get("blocking_dimensions") or [],
+            "candidate_raw_blocking_dimensions": candidate_scope.get("raw_blocking_dimensions") or [],
+        },
+        "per_session_no_regression": per_session,
+        "items": examples,
+        "promotion": {
+            "allowed": False,
+            "decision": "shadow_only_do_not_promote",
+            "reason": "other mandatory parity dimensions remain authoritative",
+        },
     }
 
 
@@ -6884,8 +7000,13 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
     real_dimension_counts, real_dimension_issue_sessions = summarize_dimensions(real_live_rows)
     capture_safe_candidate_rows = [row for row in real_live_rows if capture_safe_candidate_row(row)]
     capture_safe_evaluable_rows = [row for row in real_live_rows if capture_safe_evaluable_row(row)]
-    candidate_dimension_counts, candidate_dimension_issue_sessions = summarize_dimensions(capture_safe_candidate_rows)
-    candidate_blocking_dimensions = blocking_dimensions_from_counts(candidate_dimension_counts)
+    raw_candidate_dimension_counts, raw_candidate_dimension_issue_sessions = summarize_dimensions(
+        capture_safe_candidate_rows
+    )
+    raw_candidate_blocking_dimensions = blocking_dimensions_from_counts(raw_candidate_dimension_counts)
+    candidate_dimension_counts = raw_candidate_dimension_counts
+    candidate_dimension_issue_sessions = raw_candidate_dimension_issue_sessions
+    candidate_blocking_dimensions = raw_candidate_blocking_dimensions
     promotable = [row for row in rows if row.get("promotion_allowed")]
     not_promotable = [row for row in live_rows if row.get("parity_status") != "passed_but_shadow_locked"]
     summary = {
@@ -6909,6 +7030,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             1 for row in capture_safe_candidate_rows if row.get("all_parity_gates_passed")
         ),
         "real_capture_safe_evaluable_sessions": len(capture_safe_evaluable_rows),
+        "real_capture_safe_candidate_raw_blocking_dimensions": raw_candidate_blocking_dimensions,
         "real_capture_safe_candidate_blocking_dimensions": candidate_blocking_dimensions,
         "blocked_sessions": sum(1 for row in rows if row.get("comparison_status") == "blocked"),
         "promotion_allowed_sessions": len(promotable),
@@ -7371,6 +7493,43 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         root=root,
         policy=real_best_live_profile_policy,
     )
+    (
+        candidate_dimension_counts,
+        candidate_dimension_issue_sessions,
+        candidate_order_resolution_by_session,
+    ) = summarize_evidence_informed_candidate_dimensions(
+        capture_safe_candidate_rows,
+        capture_safe_candidate_order_risk_triage_report,
+    )
+    candidate_blocking_dimensions = blocking_dimensions_from_counts(candidate_dimension_counts)
+    summary["real_capture_safe_candidate_blocking_dimensions"] = candidate_blocking_dimensions
+    summary["real_capture_safe_candidate_order_risk_evidence_status"] = (
+        capture_safe_candidate_order_risk_triage_report.get("status")
+    )
+    summary["real_capture_safe_candidate_order_risk_previous_blocking_count"] = safe_int(
+        capture_safe_candidate_order_risk_triage_report.get("previous_blocking_count")
+    )
+    summary["real_capture_safe_candidate_order_risk_effective_blocking_count"] = safe_int(
+        capture_safe_candidate_order_risk_triage_report.get("blocking_count")
+    )
+    summary["real_capture_safe_candidate_order_risk_resolved_previous_blocking_count"] = safe_int(
+        capture_safe_candidate_order_risk_triage_report.get("resolved_previous_blocking_count")
+    )
+    candidate_effective_passing_session_ids: list[str] = []
+    for candidate_row in capture_safe_candidate_rows:
+        session_name = str(candidate_row.get("session") or "")
+        order_resolution = candidate_order_resolution_by_session.get(session_name) or {}
+        statuses = []
+        for dimension in PARITY_DIMENSIONS:
+            status = row_dimension_status(candidate_row, dimension)
+            if dimension == "order_risk" and order_resolution.get("effective_status") == "passed":
+                status = "passed"
+            statuses.append(status)
+        if statuses and all(status == "passed" for status in statuses):
+            candidate_effective_passing_session_ids.append(session_name)
+    summary["real_capture_safe_candidate_effective_passing_sessions"] = len(
+        candidate_effective_passing_session_ids
+    )
     speaker_boundary_lab_report = live_speaker_boundary_evidence_lab(best_live_profile_remaining_gap)
     local_island_split_lab_report = local_island_split_lab(best_live_profile_remaining_gap)
     online_speaker_boundary_design_lab_report = live_online_speaker_boundary_evidence_design_lab(
@@ -7744,6 +7903,15 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         candidate_dimension_counts,
         candidate_dimension_issue_sessions,
     )
+    raw_candidate_parity_dimensions_payload = build_dimensions_payload(
+        raw_candidate_dimension_counts,
+        raw_candidate_dimension_issue_sessions,
+    )
+    for dimension, payload in candidate_parity_dimensions_payload.items():
+        raw_payload = raw_candidate_parity_dimensions_payload.get(dimension) or {}
+        payload["raw_counts"] = raw_payload.get("counts") or {}
+        payload["raw_issue_sessions"] = raw_payload.get("issue_sessions") or []
+        payload["evidence_informed"] = dimension == "order_risk"
     promotion_policy = {
         "status": "blocked",
         "decision": summary["promotion_decision"],
@@ -7767,6 +7935,8 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         ),
         "sessions": len(capture_safe_candidate_rows),
         "passing_sessions": summary["real_capture_safe_candidate_passing_sessions"],
+        "effective_passing_sessions": summary["real_capture_safe_candidate_effective_passing_sessions"],
+        "raw_blocking_dimensions": raw_candidate_blocking_dimensions,
         "blocking_dimensions": candidate_blocking_dimensions,
         "session_ids": [str(row.get("session") or "") for row in capture_safe_candidate_rows],
         "next_focus": candidate_scope_next_focus(
@@ -7775,10 +7945,24 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
             capture_safe_candidate_order_risk_triage_report,
         ),
         "order_risk_triage": order_risk_triage_counts(capture_safe_candidate_order_risk_triage_report),
+        "order_risk_resolution_by_session": candidate_order_resolution_by_session,
         "promotion_decision": "shadow_only_do_not_promote",
         "new_real_live_collection_allowed": False,
         "controlled_real_live_pilot_allowed": pilot_allowed,
     }
+    order_role_reconciliation_report = live_order_role_reconciliation_corpus_report(
+        capture_safe_candidate_rows,
+        policy=real_best_live_profile_policy,
+        triage=capture_safe_candidate_order_risk_triage_report,
+        candidate_scope=candidate_scope,
+    )
+    summary["live_order_role_reconciliation_status"] = order_role_reconciliation_report.get("status")
+    summary["live_order_role_reconciliation_previous_blocking_count"] = safe_int(
+        (order_role_reconciliation_report.get("classification") or {}).get("previous_blocking_count")
+    )
+    summary["live_order_role_reconciliation_effective_blocking_count"] = safe_int(
+        (order_role_reconciliation_report.get("classification") or {}).get("effective_blocking_count")
+    )
     candidate_session_ids = {str(row.get("session") or "") for row in capture_safe_candidate_rows}
     historical_non_candidate_session_ids = [
         str(row.get("session") or "")
@@ -8676,6 +8860,7 @@ def build_report(sessions: list[Path], root: Path, args: argparse.Namespace) -> 
         "live_target_me_shadow_profile_best_live_implementable_remaining_gap": best_live_profile_remaining_gap,
         "live_order_risk_triage": live_order_risk_triage_report,
         "capture_safe_candidate_order_risk_triage": capture_safe_candidate_order_risk_triage_report,
+        "live_order_role_reconciliation": order_role_reconciliation_report,
         "live_soft_local_speaker_boundary_shadow_lab": soft_boundary_shadow_lab,
         "live_speaker_boundary_evidence_lab": speaker_boundary_lab_report,
         "live_online_speaker_boundary_evidence_design_lab": online_speaker_boundary_design_lab_report,
@@ -10413,6 +10598,79 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_order_role_reconciliation_artifacts(out_dir: Path, payload: dict[str, Any]) -> tuple[Path, Path, Path]:
+    json_path = out_dir / "live_order_role_reconciliation_v1.json"
+    jsonl_path = out_dir / "live_order_role_reconciliation_v1.jsonl"
+    md_path = out_dir / "live_order_role_reconciliation_v1.md"
+    write_json(json_path, payload)
+    jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+    with jsonl_path.open("w", encoding="utf-8") as handle:
+        for item in payload.get("items") or []:
+            handle.write(json.dumps(item, ensure_ascii=False, sort_keys=True) + "\n")
+
+    scope = payload.get("scope") if isinstance(payload.get("scope"), dict) else {}
+    classification = (
+        payload.get("classification") if isinstance(payload.get("classification"), dict) else {}
+    )
+    materialization = (
+        payload.get("shadow_materialization")
+        if isinstance(payload.get("shadow_materialization"), dict)
+        else {}
+    )
+    lines = [
+        "# Live Order and Role Reconciliation v1",
+        "",
+        f"- status: `{payload.get('status')}`",
+        f"- selected shadow profile: `{payload.get('selected_shadow_profile')}`",
+        f"- capture-safe sessions: `{scope.get('candidate_session_count', 0)}`",
+        f"- rows: `{classification.get('item_count', 0)}`",
+        f"- previous blocking rows: `{classification.get('previous_blocking_count', 0)}`",
+        f"- resolved previous blockers: `{classification.get('resolved_previous_blocking_count', 0)}`",
+        f"- effective blockers: `{classification.get('effective_blocking_count', 0)}`",
+        f"- unresolved rows: `{classification.get('unresolved_count', 0)}`",
+        f"- transcript mutations: `{materialization.get('repair_applied_count', 0)}`",
+        f"- batch authoritative: `{payload.get('batch_authoritative')}`",
+        f"- promotion allowed: `{(payload.get('promotion') or {}).get('allowed')}`",
+        "",
+        "## Classifications",
+        "",
+    ]
+    for label, row in sorted((classification.get("by_classification") or {}).items()):
+        count = row.get("count") if isinstance(row, dict) else row
+        lines.append(f"- `{label}`: {count}")
+    lines += [
+        "",
+        "## Per-Session No-Regression",
+        "",
+        "| Session | Status | Previous blockers | Effective blockers | Missing Me | Remote-like Me | Token F1 | Review sec |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for row in payload.get("per_session_no_regression") or []:
+        if not isinstance(row, dict):
+            continue
+        counts = row.get("classification") if isinstance(row.get("classification"), dict) else {}
+        no_regression = row.get("no_regression") if isinstance(row.get("no_regression"), dict) else {}
+        lines.append(
+            "| {session} | {status} | {before} | {after} | {missing} | {remote} | {f1} | {review} |".format(
+                session=row.get("session"),
+                status=row.get("status"),
+                before=counts.get("previous_blocking_count", 0),
+                after=counts.get("effective_blocking_count", 0),
+                missing=(no_regression.get("missing_me_seconds") or {}).get("after"),
+                remote=(no_regression.get("remote_like_me_seconds") or {}).get("after"),
+                f1=(no_regression.get("live_batch_token_f1") or {}).get("after"),
+                review=(no_regression.get("review_burden_sec") or {}).get("after"),
+            )
+        )
+    lines += [
+        "",
+        "Raw mismatch rows remain in JSONL. Evidence-only resolutions do not modify live turns or batch output.",
+        "",
+    ]
+    md_path.write_text("\n".join(lines), encoding="utf-8")
+    return json_path, jsonl_path, md_path
+
+
 def main() -> int:
     args = parse_args()
     root = args.sessions_root
@@ -10422,8 +10680,13 @@ def main() -> int:
     md_path = args.out_dir / "live_corpus_gates_report.md"
     write_json(json_path, report)
     write_markdown(md_path, report)
+    reconciliation_paths = write_order_role_reconciliation_artifacts(
+        args.out_dir,
+        report.get("live_order_role_reconciliation") or {},
+    )
     summary = report["summary"]
     print(f"live_corpus_gates: {json_path}")
+    print(f"live_order_role_reconciliation: {reconciliation_paths[0]}")
     print(f"status: {summary['target_status']}")
     print(f"live_sessions: {summary['live_sessions']}/{summary['sessions_total']}")
     print(f"real_live_sessions: {summary.get('real_live_sessions', 0)}")

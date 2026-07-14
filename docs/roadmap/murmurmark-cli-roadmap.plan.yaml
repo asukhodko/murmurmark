@@ -41,9 +41,11 @@ nodes:
       export bundle и retention plan уже доказали, что pipeline можно использовать как
       локальный инструмент, а не как набор лабораторных скриптов.
 
-      Authoritative status, 2026-07-14: stable batch route и committed-PCM live transport работают;
-      live quality promotion остаётся blocked. Активная цель — Live Order and Role Reconciliation
-      v1: закрыть или evidence-classify 15 blocking rows в 7 capture-safe sessions без регрессий.
+      Authoritative status, 2026-07-14: stable batch route и committed-PCM live transport работают.
+      Live Order and Role Reconciliation v1 завершён: 23 audit rows классифицированы, 15 прежних
+      effective blockers сведены к 0 без transcript mutation. Live promotion остаётся blocked.
+      Активная цель — Live Local Recall and Remote Leakage Hardening v1: безопасно обработать
+      конечную очередь 118 rows / 451.03s в 7 capture-safe sessions.
 
       Historical operational snapshot, 2026-07-02:
 
@@ -318,8 +320,9 @@ nodes:
       Processing v1 уже закрыли пользовательский handoff и ASR chunk-resume. Current Pipeline
       Stabilization v1 доказал один поддерживаемый non-live production path, а Process
       Observability & Run Monitor v1 сделал долгие прогоны наблюдаемыми и возобновляемыми.
-      Ближайший конечный quality-шаг — Live Order and Role Reconciliation v1: закрыть или
-      evidence-classify 15 уже локализованных blocking rows без регрессий batch и live gates.
+      Live Order and Role Reconciliation v1 уже закрыл 15 effective blockers без transcript
+      mutation. Ближайший конечный quality-шаг — Live Local Recall and Remote Leakage Hardening
+      v1: обработать 118 локализованных rows / 451.03s без регрессий batch и live gates.
 
   current-pipeline-stabilization-v1:
     title: "Current Pipeline Stabilization v1"
@@ -549,9 +552,10 @@ nodes:
       остаётся audit/fallback. Committed-PCM transport и live draft уже работают. Reliability unit
       закрывает heartbeat, bounded child timeouts, immutable realtime provenance, read-only compare,
       explicit isolated fallback и pre-stop worker integration smoke. Три свежих meaningful
-      real-session transport proofs уже получены. Текущая работа — bounded order/role reconciliation
-      по 15 corpus rows, затем local-recall/remote-leak hardening через progressive past-only
-      Target-Me, focused micro-ASR и corpus gates. Promotion остаётся blocked, batch transcript
+      real-session transport proofs уже получены. Order/role reconciliation завершён с 0 effective
+      blockers. Текущая работа — bounded local-recall/remote-leak hardening по 118 corpus rows /
+      451.03s через progressive past-only Target-Me, focused micro-ASR и corpus gates. Promotion
+      остаётся blocked, batch transcript
       authoritative. Первый длинный recording-time прогон показал отдельный
       latency-долг: последовательный Target-Me добавлял 6-25 секунд после основного ASR чанка.
       Базовый чанк теперь публикуется до enrichment, Target-Me child bounded, а lag budget `60s`
@@ -1020,16 +1024,30 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [realtime-live-parity-coverage-v1]
-    status: current
+    status: done
     effort: 5
     notes: |
-      Ближайший bounded quality step после завершения parity coverage. Рабочий scope — 7
-      capture-safe sessions и 15 blocking order-triage items: 6 boundary-retime candidates, 4
-      cross-source risks, 4 unresolved review rows и 1 same-source timeline candidate. Сначала
-      отделить ошибки matcher от реального timeline/role conflict, затем materialize только
-      live-only исправления с causal timing, role и remote-forbidden evidence. No-regression gates:
-      missing Me не растёт, remote-like Me не растёт, per-session token F1 не регрессирует, batch
-      остаётся authoritative. Новые записи для этого этапа не требуются; promotion остаётся blocked.
+      Завершено 2026-07-14. В 7 capture-safe sessions классифицированы все 23 audit rows: 10
+      causal_cross_source_overlap, 5 causal_same_source_overlap_context, 6
+      matcher_temporal_false_positive и 2 matcher_ambiguous_reference. Все 15 прежних effective
+      blockers закрыты доказательствами; candidate order gate проходит 7/7. Реальных timeline/role
+      conflicts не найдено, поэтому transcript mutation count = 0. Raw matcher rows остаются в
+      аудите, batch authoritative, promotion blocked другими parity gates.
+
+  live-local-recall-remote-leakage-hardening-v1:
+    title: "Live Local Recall and Remote Leakage Hardening v1"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [live-order-role-reconciliation-v1]
+    status: current
+    effort: 8
+    notes: |
+      Ближайший bounded quality step. Scope — 7 capture-safe sessions, 118 local-recall blocker
+      rows / 451.03s. Начать с partial safe tails и remote-free local islands; mixed/double-talk и
+      unsupported rows оставить явными. Любой опубликованный Me-фрагмент требует causal
+      local-speaker и remote-forbidden evidence. Каждый shadow candidate отклоняется при росте
+      remote-like Me, effective order blockers, review burden или per-session token-F1 regressions.
+      Raw CAF, batch transcript и realtime provenance не меняются; новые записи сначала не нужны.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -1906,8 +1924,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Live Order and Role Reconciliation v1: закрыть 15 blocking order-triage items в 7 capture-safe sessions без роста missing Me, remote leakage или per-session token-F1 regressions; batch остаётся authoritative."
-      success_by_next_sync: "Все 15 blocking order-triage rows классифицированы; безопасные live-only repair candidates не ухудшают missing Me, remote leakage, per-session token F1 или review burden; corpus report и docs показывают один выбранный shadow profile, promotion остаётся blocked до полного green."
+      nearest_goal: "Live Local Recall and Remote Leakage Hardening v1: обработать 118 local-recall blocker rows / 451.03s в 7 capture-safe sessions и восстановить только causally supported Me без роста remote-like Me, effective order blockers, review burden или per-session token-F1 regressions."
+      success_by_next_sync: "Очередь 118 rows имеет машинные dispositions; отдельный shadow profile материально уменьшает missing Me хотя бы в одной затронутой сессии; все 7 per-session no-regression gates проходят; batch authoritative и promotion остаётся blocked до полного green."
     defaults:
       status_progress:
         done: 1.0
@@ -1933,8 +1951,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP и batch reliability закрыты. Committed-PCM live transport доказан на трёх свежих real sessions, но 0 live comparisons проходят все quality gates; production output остаётся batch."
-          next_sync_goal: "Закрыть или evidence-classify 15 blocking order/role rows через causal live-only evidence, не продвигая live output преждевременно."
+          sync_note: "CLI MVP, batch reliability и committed-PCM transport закрыты. Effective order gate теперь проходит 7/7 без transcript mutation, но 0 live comparisons проходят все quality gates; production output остаётся batch."
+          next_sync_goal: "Безопасно уменьшить bounded local-recall queue 118 rows / 451.03s, не ослабляя remote-forbidden, order, token-F1 и review-burden gates."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]

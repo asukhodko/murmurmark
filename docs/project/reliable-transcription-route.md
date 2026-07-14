@@ -1,16 +1,18 @@
 # Reliable Transcription Route
 
-Status: active product route; stable batch capture/processing and live transport evidence complete,
-Live Order and Role Reconciliation v1 active
+Status: active product route; stable batch capture/processing, live transport evidence and Live
+Order and Role Reconciliation v1 complete; Live Local Recall and Remote Leakage Hardening v1 active
 Date: 2026-07-14
 
 Consultation synthesis: Gemini, GPT-Pro and Fable converged on deterministic outcomes,
 corpus-calibrated gates and explicit review burden before broader repair. Outcome Contract v1,
 Reliable Processing UX v1, resumable ASR and durable committed-PCM Live Evidence are implemented.
 The stable production path is intentionally boring: a normal recording produces a usable two-track
-session or fails explicitly before ASR. The current bounded gap is live order/role reconciliation:
-15 blocking rows in seven capture-safe sessions must be repaired or evidence-classified without
-weakening local-recall, remote-leakage or token-F1 gates. Near-realtime output remains shadow-only.
+session or fails explicitly before ASR. Order/role reconciliation classified all `23` auditable
+rows and reduced the `15` previous effective blockers to `0` without changing turns. The current
+bounded gap is `118` local-recall blocker rows / `451.03s` in seven capture-safe sessions; recovery
+must not weaken remote-leakage, effective-order, token-F1 or review-burden gates. Near-realtime
+output remains shadow-only.
 
 ## Why This Exists
 

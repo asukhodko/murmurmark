@@ -95,8 +95,9 @@ preview/draft output. `transcript.preview.md` is the conservative recording-time
 
 Evidence status, 2026-07-14: three fresh meaningful real sessions have complete raw tracks,
 recording-time preview snapshots, terminal workers, zero final lag and successful authoritative
-batch transcripts. This closes transport uncertainty for v1. Quality promotion remains blocked;
-the active work is order/role reconciliation over 15 localized corpus rows.
+batch transcripts. This closes transport uncertainty for v1. Order/role reconciliation also closed
+the `15` previous effective blockers without mutating turns. Quality promotion remains blocked; the
+active work is local-recall and remote-leakage hardening over `118` localized rows / `451.03s`.
 
 Implemented v1 contract:
 

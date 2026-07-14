@@ -36,14 +36,17 @@ Current operating point, 2026-07-14:
   capture-safe candidate sessions;
 - no live session passes every parity gate, so `shadow_only_do_not_promote` remains mandatory;
 - Near-Realtime Live Parity Coverage v1 is complete as a transport/evidence milestone;
-- the active goal is Live Order and Role Reconciliation v1: close or evidence-classify 15 blocking
-  order-triage rows without worsening local recall, remote leakage, token F1 or review burden;
+- Live Order and Role Reconciliation v1 is complete: all `23` auditable rows are classified, the
+  `15` previous effective order blockers are now `0`, and no live turn mutation was required;
+- the active goal is Live Local Recall and Remote Leakage Hardening v1: process the finite `118`
+  local-recall rows / `451.03s` without increasing remote-like `Me`, effective order blockers,
+  per-session token F1 regressions or review burden;
 - more recordings are not required for this bounded offline step.
 
 Still future:
 
-- near-realtime promotion beyond shadow: order/role reconciliation, stronger per-segment Echo Guard,
-  local-recall recovery and strict live-ASR cache compatibility before it can shorten the
+- near-realtime promotion beyond shadow: local-recall recovery, remote-leakage reduction, stronger
+  per-segment Echo Guard and strict live-ASR cache compatibility before it can shorten the
   authoritative post-meeting path;
 - signed menubar app;
 - remote speaker diarization inside `Colleagues`;

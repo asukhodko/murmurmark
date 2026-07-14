@@ -36,7 +36,10 @@ Authoritative operating point, 2026-07-14:
 - `7` real sessions form the capture-safe candidate scope; `0` pass every quality gate;
 - live promotion is `shadow_only_do_not_promote`; controlled real pilots are evidence collection,
   not a replacement for the batch result;
-- the active quality unit is finite: `15` blocking order-triage rows in those seven sessions;
+- Live Order and Role Reconciliation v1 classified all `23` auditable order rows and reduced the
+  `15` previous effective order blockers to `0` without changing rendered live turns;
+- the active quality unit is finite: `118` local-recall blocker rows / `451.03s` in those seven
+  sessions, with remote leakage as a parallel hard gate;
 - no additional recording is required for the current algorithmic step.
 
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
@@ -46,9 +49,10 @@ when transcript-only blockers survive.
 Current reliability route:
 [Reliable Transcription Route](docs/project/reliable-transcription-route.md). Outcome, resumable ASR,
 review and final handoff are implemented. The active development goal is
-[Live Order and Role Reconciliation v1](docs/project/current-goal.md): classify or repair the 15
-blocking order rows already isolated in the capture-safe live corpus. Every change is evaluated as a
-shadow profile and must preserve local recall, remote-leakage, token-F1 and review-burden gates.
+[Live Local Recall and Remote Leakage Hardening v1](docs/project/current-goal.md): recover a
+material, causally supported subset of the `118` isolated local-recall rows without publishing
+remote speech as `Me`. Every change is evaluated as a shadow profile and must preserve effective
+order, remote-leakage, token-F1 and review-burden gates independently for every session.
 
 The live branch remains quarantined as a source of truth. It consumes copied PCM only after durable
 raw writes, produces advisory preview during recording and fails open without affecting raw capture.
@@ -358,8 +362,9 @@ remains the authoritative transcript path.
 packet limit so a packet-size-sensitive regression is visible after the meeting.
 The transport/worker reliability unit is covered by pre-stop, timeout, termination, backpressure and
 fallback-isolation tests. The required three fresh meaningful transport proofs now exist. Promotion
-is still blocked because none of the meaningful comparisons passes every quality gate; the active
-work is the bounded order/role reconciliation set described in the roadmap.
+is still blocked because none of the meaningful comparisons passes every quality gate. Order/role
+reconciliation is complete; active work is the bounded local-recall and remote-leakage set described
+in the roadmap.
 
 `--experiment live-shadow-v1` is controlled evidence, not promotion. It can be used on real
 meetings when you want live evidence, because raw CAF remains the source of truth and
@@ -1382,16 +1387,19 @@ state is:
 
 1. **Stable product path:** explicit `SESSION`, durable two-track capture, resumable batch
    processing, evidence-backed review, guarded export and retention planning.
-2. **Active goal:** Live Order and Role Reconciliation v1. Resolve or evidence-classify 15 blocking
-   order rows in seven capture-safe sessions without worsening missing `Me`, remote leakage,
-   per-session token F1 or review burden.
-3. **Safety boundary:** live output remains advisory and shadow-only; raw CAF plus batch output are
+2. **Completed quality gate:** Live Order and Role Reconciliation v1 classified all `23` auditable
+   rows and turned the `15` previous effective blockers into advisory evidence. No transcript repair
+   was required; candidate order risk passes `7/7`.
+3. **Active goal:** Live Local Recall and Remote Leakage Hardening v1. Work through the finite
+   `118`-row / `451.03s` local-recall queue and recover only fragments supported by causal local
+   evidence and remote-forbidden checks.
+4. **Safety boundary:** live output remains advisory and shadow-only; raw CAF plus batch output are
    authoritative.
-4. **Evidence already closed:** three fresh real live sessions have complete raw capture, pre-stop
+5. **Evidence already closed:** three fresh real live sessions have complete raw capture, pre-stop
    preview, terminal workers, zero final lag and successful batch transcripts. More recordings are
    not required for the active algorithmic step.
-5. **After the active goal:** return to local-recall/remote-leak reduction, then decide whether any
-   live profile is eligible for promotion. UI remains optional and late.
+6. **After the active goal:** close the remaining review/notes/boundary gates, then decide whether
+   any live profile is eligible for promotion. UI remains optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

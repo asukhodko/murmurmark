@@ -371,6 +371,22 @@ Start with `real_blocker_triage_summary` when deciding the next action. It group
 blockers into actionable buckets such as batch review/readiness, missing artifacts, capture safety
 risk, local recall gap, remote leakage and live draft drift. Treat it as diagnosis only: it does not
 permit promotion or normal production live use.
+
+Order/role reconciliation has a separate compact audit. Refresh the corpus report, then inspect the
+effective blocker result:
+
+```bash
+murmurmark corpus live all --refresh
+jq '.live_order_role_reconciliation' \
+  sessions/_reports/live-pipeline/live_corpus_gates_report.json
+less sessions/_reports/live-pipeline/live_order_role_reconciliation_v1.md
+```
+
+The 2026-07-14 seven-session scope classifies all `23` order rows and resolves the `15` previous
+effective blockers without changing live turns. Raw matcher counters remain visible. A passing
+effective order gate is therefore evidence that matcher/reference ambiguity no longer blocks the
+candidate; it is not live-promotion approval. Local recall, remote leakage, review burden, notes
+readiness and chunk-boundary gates still apply.
 `objective_audit` is the compact checklist for the active near-realtime goal: real live sessions,
 live-vs-batch comparison, required dimensions, batch-authoritative policy and promotion/collection
 blocks. During quarantine it should keep `ready_for_live_promotion` and

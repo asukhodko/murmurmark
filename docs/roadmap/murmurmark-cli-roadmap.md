@@ -35,10 +35,12 @@ The optional UI/app path is deliberately late. It should not block the useful CL
 
 The major product route remains [Reliable Transcription Route](../project/reliable-transcription-route.md):
 turn a complete recording into a truthful result without the user watching every stage. The batch
-route, outcome contract, observable processing and resumable ASR are implemented. The active goal is
-now Live Order and Role Reconciliation v1. Near-Realtime Live Parity Coverage v1 completed its
-evidence milestone: three fresh real sessions proved complete raw capture, pre-stop preview,
-terminal workers, zero final lag and successful batch output. Live promotion remains blocked.
+route, outcome contract, observable processing and resumable ASR are implemented. Live Order and
+Role Reconciliation v1 is complete: all `23` auditable rows have stable classes, the `15` previous
+effective blockers became `0`, and no transcript mutation was required. The active goal is now Live
+Local Recall and Remote Leakage Hardening v1. Near-Realtime Live Parity Coverage v1 already proved
+complete raw capture, pre-stop preview, terminal workers, zero final lag and successful batch output
+on three fresh real sessions. Live promotion remains blocked.
 
 The target outcome is:
 
@@ -73,11 +75,11 @@ roadmap point it means:
   conservative boundary-retime shadow keeps missing `Me` (`2146.97s`) and remote-like `Me`
   (`67.44s`) unchanged while reducing contentful order mismatches `15 -> 14` and blocking rows
   `5 -> 4`;
-- current work therefore moves to live order/role reconciliation and local recall;
+- order/role reconciliation now passes `7/7`; raw matcher ambiguity remains visible as audit data;
+- current work therefore moves to live local recall with remote leakage as a parallel hard gate;
   collecting more recordings is not required for this algorithmic step;
-- the refreshed capture-safe scope contains seven sessions and 15 blocking order items under the
-  best live-implementable profile: six boundary-retime candidates, four cross-source risks, four
-  unresolved rows and one same-source timeline candidate; this bounded set is the next work unit;
+- the refreshed capture-safe scope contains seven sessions and a finite local-recall work queue of
+  `118` blocker rows / `451.03s`; this bounded set is the next work unit;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -98,7 +100,7 @@ capture-safe sidecar boundary are implemented; current quality work stays inside
 7. keep the experimental sidecar contract as the boundary for live work:
    `derived/experiments/live-shadow-v1` must prove fail-open behavior and raw capture isolation;
    real live-pipeline coverage returns only through controlled Live Evidence runs with that proof;
-8. repair live order/role conflicts, then improve local recall, using only causal runtime evidence
+8. improve live local recall without publishing remote speech, using only causal runtime evidence
    and no per-session parity regression;
 9. reuse or promote live output only after every required corpus gate passes.
 
@@ -195,7 +197,8 @@ flowchart LR
     cli["cli-orchestration<br/>single user-facing CLI"]
     reliable["reliable-transcription-route<br/>unattended truthful outcome"]
     live["near-realtime-shadow<br/>segment pipeline during recording"]
-    live_order["live-order-role-reconciliation-v1<br/>15 bounded blocker rows"]
+    live_order["live-order-role-reconciliation-v1<br/>15 blockers resolved"]
+    live_recall["live-local-recall-remote-leakage-v1<br/>118 bounded rows"]
     corpus["corpus-regression<br/>quality gates"]
     review["review-loop<br/>short explicit review queue"]
     hardening["quality-hardening<br/>fewer order/recall/duplicate failures"]
@@ -213,9 +216,10 @@ flowchart LR
     cli --> reliable
     cli --> live
     live --> live_order
+    live_order --> live_recall
     foundation --> corpus
     cli --> review
-    live_order --> review
+    live_recall --> review
     corpus --> live
     corpus --> review
     review --> hardening
@@ -318,11 +322,12 @@ flowchart LR
 
 ### Next
 
-- Live Order and Role Reconciliation v1:
-  - classify all 15 blocking rows in the seven capture-safe sessions;
-  - separate matcher/reference false positives from real timeline and role conflicts;
-  - materialize only live-only, causal shadow repairs;
-  - require no regression in missing `Me`, remote-like `Me`, per-session token F1 and review burden;
+- Live Local Recall and Remote Leakage Hardening v1:
+  - classify the `118` local-recall rows / `451.03s` in the seven capture-safe sessions;
+  - start with partial safe tails and remote-free local islands;
+  - publish only fragments with causal local-speaker and remote-forbidden evidence;
+  - require no regression in remote-like `Me`, effective order blockers, per-session token F1 or
+    review burden;
   - keep batch authoritative and live promotion blocked until all gates pass;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
@@ -470,16 +475,16 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Live Order and Role Reconciliation v1**. Transport, provenance and
-comparison immutability are proven. The smallest meaningful next unit is the 15 blocking order rows
-already isolated in seven capture-safe sessions; no additional recording is required.
+Recommended nearest goal: **Live Local Recall and Remote Leakage Hardening v1**. Transport,
+provenance, comparison immutability and effective order gates are proven. The smallest meaningful
+next unit is the existing `118` local-recall rows / `451.03s` in seven capture-safe sessions; no
+additional recording is required initially.
 
-1. **Live Order and Role Reconciliation v1.** Classify matcher errors versus real timeline/role
-   conflicts, repair only with causal live evidence, and require no regression in local recall,
-   remote leakage, token F1 or review burden.
-2. **Live Local Recall and Remote Leakage vNext.** After order gates are trustworthy, reduce the
-   remaining missing `Me` and remote-like `Me` with remote-forbidden and same-session speaker
-   evidence. Keep every candidate shadow-only until corpus gates pass.
+1. **Live Local Recall and Remote Leakage Hardening v1.** Classify the bounded queue, materialize
+   only causal local fragments, and require zero growth in remote-like `Me`, effective order
+   blockers, per-session token-F1 regressions and review burden.
+2. **Live review/notes/boundary readiness.** After recall improves safely, close review burden,
+   selected-notes readiness and chunk-boundary gates without weakening batch authority.
 3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and
    local recall more broadly, and only then decide whether a non-default promoted bundle is worth
@@ -693,8 +698,9 @@ already isolated in seven capture-safe sessions; no additional recording is requ
 6. **Near-Realtime Pipeline Shadow v1.** Continue hardening draft transcripts from safe derived
    segments while keeping the batch pipeline as final authority until corpus gates prove parity.
    Worker handoff reliability, immutable realtime provenance and the three fresh transport proofs
-   are complete. Current work is the bounded order/role reconciliation set; `murmurmark live
-   evidence SESSION` remains the compact per-session transport and parity gate.
+   are complete. Order/role reconciliation also passes `7/7` without turn mutation. Current work is
+   the bounded `118`-row local-recall/remote-leakage set; `murmurmark live evidence SESSION` remains
+   the compact per-session transport and parity gate.
    The normal `murmurmark live watch` path now reads `transcript.preview.md`: ordinary role-gated
    chunks plus only causal Target-Me candidates accepted by recording-time remote energy. The full
    `transcript.draft.md` remains available through `--diagnostic-draft`, so conservative user preview

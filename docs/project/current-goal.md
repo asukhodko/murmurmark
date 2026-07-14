@@ -1,51 +1,81 @@
 # Current Goal Context
 
 This file keeps the latest goal context and the most relevant completed goals. The stable
-production path remains non-live `record -> process`. The current live work is evidence gathering
-and gate hardening only: live output must stay shadow-only and batch transcript remains
+production path remains non-live `record -> process`. The current live work is bounded local-recall
+and remote-leakage hardening: live output stays shadow-only and batch transcript remains
 authoritative.
 
-## Active Goal: Live Order and Role Reconciliation v1
+## Active Goal: Live Local Recall and Remote Leakage Hardening v1
 
-Status, 2026-07-14: active. Near-Realtime Live Parity Coverage v1 proved the committed-PCM
-transport and localized the remaining quality blockers. The next bounded step uses the existing
-capture-safe corpus; it does not need more recordings.
+Status, 2026-07-14: ready to start. Live Order and Role Reconciliation v1 is complete. The same
+seven-session capture-safe corpus is sufficient for the next bounded quality step; no new recording
+is required initially.
 
 Goal:
 
 ```text
-Resolve or evidence-classify the 15 blocking live order-triage items in seven capture-safe sessions
-without increasing missing Me, remote-like Me, per-session token-F1 regressions or review burden.
-Batch remains authoritative and every candidate stays shadow-only until corpus gates pass.
+Recover a material, causally supported subset of the 118 local-recall blocker rows / 451.03s in the
+seven capture-safe sessions while preventing new remote-like Me, effective order blockers,
+per-session token-F1 regressions or review burden. Batch remains authoritative and every candidate
+stays shadow-only until corpus gates pass.
 ```
 
-The work unit is deliberately finite:
-
-- six boundary-retime candidates;
-- four cross-source order risks;
-- four unresolved order-review rows;
-- one same-source timeline candidate.
+The starting profile is
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_speaker_only_v1`. Across
+the seven sessions it still has 2844.88s missing `Me`, 108.42s remote-like `Me` and 490.38s of
+authoritative review burden. The first actionable slice is the existing blocker analysis, not the
+entire missing-speech total.
 
 Implementation order:
 
-1. distinguish weak matcher/reference errors from real timeline or role conflicts;
-2. use only recording-time chunk timing, source role, boundary overlap, remote-forbidden evidence
-   and causal speaker evidence for fixes;
-3. materialize each repair as a separate shadow profile;
-4. compare every session against the current best live-implementable profile;
-5. reject any profile that increases missing `Me`, remote leakage, blocking order, review burden or
-   per-session token-F1 regressions.
+1. split the 118-row queue into partial safe tails, remote-free local islands, mixed/double-talk
+   speech, duplicate context and unsupported rows;
+2. materialize the strongest partial-safe-tail/local-island rule as a separate shadow profile using
+   only evidence available during recording;
+3. require remote-forbidden and causal local-speaker evidence before publishing any `Me` fragment;
+4. compare every session against the current selected profile;
+5. reject any profile that increases remote-like `Me`, effective order blockers, review burden or
+   per-session token-F1 regressions, even if aggregate missing `Me` improves.
 
 Definition of done:
 
-- all 15 rows have a stable class and machine-readable evidence;
-- matcher false positives no longer block promotion gates, but remain auditable;
-- real timeline/role conflicts are repaired or remain explicit blockers with a precise next action;
-- capture, committed-PCM transport and realtime provenance are unchanged;
-- `compare-live-batch.py` remains read-only for realtime artifacts;
-- corpus reports agree on the selected shadow profile and blocker counts;
+- every candidate row has a machine-readable disposition and source evidence;
+- the selected shadow recovers a material amount of `Me` in at least one affected session;
+- every affected session passes the remote-like-Me, effective-order, token-F1 and review-burden
+  no-regression checks independently;
+- unsupported or ambiguous rows remain explicit blockers;
+- capture, committed-PCM transport, batch output and realtime provenance remain unchanged;
+- corpus and comparison reports agree on the selected shadow profile and blocker counts;
 - `scripts/check.sh`, focused profile tests and opskarta validation pass;
 - live promotion remains blocked unless every required parity gate actually passes.
+
+## Completed Goal: Live Order and Role Reconciliation v1
+
+Completed, 2026-07-14. The finite seven-session scope contained 23 auditable order rows, including
+the 15 previously blocking rows. All received stable machine-readable classifications:
+
+- 10 `causal_cross_source_overlap`;
+- 5 `causal_same_source_overlap_context`;
+- 6 `matcher_temporal_false_positive`;
+- 2 `matcher_ambiguous_reference`.
+
+No row proved a real timeline or role conflict, so transcript mutation would have been harmful.
+The selected shadow profile therefore stayed byte-identical in its rendered Markdown and required
+zero repairs. All 15 previous blockers became evidence-backed advisory rows; raw matcher rows remain
+in the audit. Candidate order risk now passes `7/7`, while promotion remains blocked by local
+recall, remote leakage, review burden, selected-notes readiness and chunk-boundary risks.
+
+Authoritative outputs:
+
+```text
+sessions/_reports/live-pipeline/live_order_role_reconciliation_v1.json
+sessions/_reports/live-pipeline/live_order_role_reconciliation_v1.jsonl
+sessions/_reports/live-pipeline/live_order_role_reconciliation_v1.md
+```
+
+Each selected per-session `live_batch_comparison.json` contains the same
+`order_role_reconciliation` counts. SHA-256 checks confirmed that raw CAF and batch
+`clean_dialogue*.json` inputs did not change; selected live Markdown also remained unchanged.
 
 ## Current Live Evidence Status, 2026-07-14
 
@@ -140,14 +170,11 @@ pending PCM was `12.88s` without drops. The default bound is now `30s` per sourc
 headroom. Transport is closed for this failure mode; live text quality remains the active blocker.
 
 The focused capture-safe corpus confirms that more recordings are not required for the current
-algorithmic blocker. It contains `6` meaningful comparisons and zero passing parity sessions. A
-new conservative baseline boundary-retime shadow keeps missing `Me` at `2146.97s` and remote-like
-`Me` at `67.44s`, while reducing contentful order mismatches from `15` to `14` and blocking rows
-from `5` to `4`. Mixed mic turns with more than two unique local content tokens are protected from
-retiming. The profile is now part of default shadow comparison, never authoritative output. The
-remaining main blocker is live local recall, followed by four blocking order rows and remote leak.
-Unevaluated oracle profiles are reported as `not_evaluated` with null metrics instead of misleading
-zeroes.
+algorithmic blocker. The older six-session snapshot below localized the order problem. The completed
+seven-session reconciliation then classified all `23` auditable order rows and reduced the `15`
+effective blockers to `0` without transcript mutation. The remaining main blocker is live local
+recall, with remote leakage as a parallel hard gate. Unevaluated oracle profiles are reported as
+`not_evaluated` with null metrics instead of misleading zeroes.
 
 The quality loop is offline. `murmurmark live replay SESSION --refresh` builds
 an explicit policy matrix and accepts an improvement only when missing `Me` decreases without extra
@@ -298,10 +325,14 @@ Completion evidence:
 - aggressive runtime Target-Me recovers much more local speech but regresses remote leakage and
   order, so it remains rejected as a production candidate.
 
-Recommended next goal: `Live Order and Role Reconciliation v1`. Resolve the 15 blocking order
-items in the seven capture-safe sessions through live-only timing, boundary and role evidence,
-without increasing missing `Me`, remote leakage or per-session token-F1 regressions. New recordings
-are not required for this step.
+Completed goal: `Live Order and Role Reconciliation v1`. All 15 previous effective blockers now
+have stable evidence-backed dispositions and candidate order risk passes `7/7`.
+
+Recommended next goal: `Live Local Recall and Remote Leakage Hardening v1`. Classify the existing
+`118` local-recall blocker rows / `451.03s`, materialize only causally supported local fragments in
+new shadow profiles, and reject any candidate that increases remote-like `Me`, effective order
+blockers, review burden or per-session token-F1 regressions. New recordings are not required for
+the initial step.
 
 Safety constraint:
 

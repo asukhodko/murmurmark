@@ -13,10 +13,12 @@ from typing import Any
 import numpy as np
 from scipy.io import wavfile
 
+from live_order_role_reconciliation import build_reconciliation, legacy_order_risk_classification
+
 
 SCHEMA = "murmurmark.live_batch_comparison/v1"
 SESSION_REPORT_SCHEMA = "murmurmark.live_parity_session_report/v1"
-SCRIPT_VERSION = "0.43.0"
+SCRIPT_VERSION = "0.44.0"
 EPSILON = 1.0e-12
 REMOTE_AUDIO_QUIET_MAX_DB = -65.0
 MIC_REMOTE_DOMINANCE_MIN_DB = 20.0
@@ -5725,11 +5727,22 @@ def parity_gates(
     )
     missing_me_seconds = safe_float(assessment_metrics.get("live_missing_me_seconds"))
     remote_leak_seconds = safe_float(assessment_metrics.get("live_suspected_remote_leak_in_me_seconds"))
+    order_reconciliation = (
+        live_assessment.get("order_role_reconciliation")
+        if isinstance(live_assessment, dict)
+        and isinstance(live_assessment.get("order_role_reconciliation"), dict)
+        else {}
+    )
+    effective_blocking_order_mismatches = (
+        safe_int(order_reconciliation.get("blocking_count"))
+        if order_reconciliation.get("status") in {"passed", "blocked"}
+        else blocking_contentful_order_mismatches
+    )
     gates.append(
         gate(
             "order_risk",
-            "passed" if blocking_contentful_order_mismatches == 0 else "warning",
-            "contentful live order must have no unambiguous blocking contradiction with batch",
+            "passed" if effective_blocking_order_mismatches == 0 else "warning",
+            "contentful live order must have no evidence-confirmed causal or role contradiction",
             {
                 "live_order_mismatch_count": order_mismatches,
                 "live_role_constrained_order_mismatch_count": role_constrained_order_mismatches,
@@ -5740,6 +5753,14 @@ def parity_gates(
                 "live_advisory_contentful_role_constrained_order_mismatch_count": (
                     advisory_contentful_order_mismatches
                 ),
+                "live_effective_blocking_contentful_role_constrained_order_mismatch_count": (
+                    effective_blocking_order_mismatches
+                ),
+                "live_evidence_resolved_contentful_role_constrained_order_mismatch_count": safe_int(
+                    order_reconciliation.get("resolved_previous_blocking_count")
+                ),
+                "order_role_reconciliation_status": order_reconciliation.get("status"),
+                "order_role_reconciliation_schema": order_reconciliation.get("schema"),
                 "live_batch_interval_overlap_order_ambiguity_count": assessment_metrics.get(
                     "live_batch_interval_overlap_order_ambiguity_count"
                 ),
@@ -7332,6 +7353,12 @@ def build_target_me_shadow_profiles(
             match_mode=f"target_me_shadow_profile_{policy}_contentful_batch_overlap_ambiguity_examples",
             only_batch_interval_overlap_ambiguity=True,
         )
+        order_role_reconciliation = build_reconciliation(
+            contentful_order_mismatch_examples,
+            session=session.name,
+            profile=policy,
+            previous_classifier=legacy_order_risk_classification,
+        )
         missing_rows, missing_diagnostics = local_missing_diagnostics_for_turns(
             batch_utterances=batch_utterances,
             turns=combined_turns,
@@ -7391,7 +7418,16 @@ def build_target_me_shadow_profiles(
             "\n".join(clean_text(str(turn.get("text") or "")) for turn in batch_utterances)
         )
         text_overlap = bag_overlap_metrics(profile_dialogue_tokens, batch_dialogue_tokens)
-        profile_assessment = {"metrics": metrics}
+        metrics["live_effective_blocking_contentful_role_constrained_order_mismatch_count"] = safe_int(
+            order_role_reconciliation.get("blocking_count")
+        )
+        metrics["live_evidence_resolved_contentful_role_constrained_order_mismatch_count"] = safe_int(
+            order_role_reconciliation.get("resolved_previous_blocking_count")
+        )
+        profile_assessment = {
+            "metrics": metrics,
+            "order_role_reconciliation": order_role_reconciliation,
+        }
         gates = parity_gates(
             capture_safety_gate=capture_safety_gate,
             blockers=blockers,
@@ -7536,6 +7572,8 @@ def build_target_me_shadow_profiles(
             "live_contentful_role_constrained_order_mismatch_count",
             "live_blocking_contentful_role_constrained_order_mismatch_count",
             "live_advisory_contentful_role_constrained_order_mismatch_count",
+            "live_effective_blocking_contentful_role_constrained_order_mismatch_count",
+            "live_evidence_resolved_contentful_role_constrained_order_mismatch_count",
             "live_batch_interval_overlap_order_ambiguity_count",
             "live_role_constrained_batch_interval_overlap_order_ambiguity_count",
             "live_contentful_role_constrained_batch_interval_overlap_order_ambiguity_count",
@@ -7638,6 +7676,7 @@ def build_target_me_shadow_profiles(
                     contentful_order_ambiguity_examples[:20]
                 ),
             },
+            "order_role_reconciliation": order_role_reconciliation,
             "parity_gates": {
                 "status": "not_promotable" if gate_statuses - {"passed"} else "passed_but_shadow_locked",
                 "gates": gates,

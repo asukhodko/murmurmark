@@ -6613,6 +6613,39 @@ When `live_quarantined` is true, `recommended_next` must point to triage/inspect
 artifacts or to a controlled pilot command when full fail-open proof has passed. It must not print
 the strict coverage command as the next action, because that can be misread as promotion permission.
 
+### Live order/role reconciliation
+
+Each evaluated Target-Me shadow profile may contain `order_role_reconciliation` with schema
+`murmurmark.live_order_role_reconciliation/v1`. It classifies every auditable order row using causal
+timing, source-role consistency, batch matcher diagnostics and the scope of recording-time evidence.
+Stable classes are:
+
+```text
+causal_cross_source_overlap
+causal_same_source_overlap_context
+matcher_temporal_false_positive
+matcher_ambiguous_reference
+real_role_conflict
+real_timeline_conflict
+unresolved
+```
+
+The corpus report writes the same aggregate under `live_order_role_reconciliation` and materializes:
+
+```text
+sessions/_reports/live-pipeline/live_order_role_reconciliation_v1.json
+sessions/_reports/live-pipeline/live_order_role_reconciliation_v1.jsonl
+sessions/_reports/live-pipeline/live_order_role_reconciliation_v1.md
+```
+
+`live_contentful_role_constrained_order_mismatch_count` remains the raw matcher counter.
+`live_effective_blocking_contentful_role_constrained_order_mismatch_count` is the gate input after
+stable evidence classification. Rows resolved as matcher/reference ambiguity remain in JSONL and in
+`raw_counts`; they are never silently deleted. `real_role_conflict`, `real_timeline_conflict` and
+`unresolved` remain effective blockers. The seven-session 2026-07-14 evidence scope resolved the
+`15` previous blockers with zero turn mutations; it did not authorize promotion. Comparison remains
+read-only for raw, batch and recording-time live artifacts.
+
 Strict coverage mode is optional and is currently historical/diagnostic while live capture is
 quarantined:
 
