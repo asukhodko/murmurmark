@@ -44,6 +44,8 @@ def main() -> int:
     module = load_module()
     runtime = module.RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY
     baseline = module.RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY
+    boundary_retime = module.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY
+    assert boundary_retime in module.TARGET_ME_SHADOW_PROFILE_POLICIES
 
     root = Path("/tmp/murmurmark-live-corpus")
     assert module.evidence_scope(root / "2026-07-10_16-00-29", root) == "real_meeting"
@@ -107,6 +109,67 @@ def main() -> int:
     ] = 1
     no_regression = module.runtime_profile_no_regression([{"session": "fixture", "metrics": row_metrics}])
     assert no_regression.get("pre_stop_runtime_evidence_session_count") == 1, no_regression
+
+    unlock_args = {
+        "remaining_gap": {},
+        "order_risk_triage": {
+            "status": "ok",
+            "item_count": 1,
+            "blocking_count": 1,
+            "boundary_retime_candidate_count": 1,
+        },
+        "speaker_boundary_lab": {},
+        "mixed_voice_coverage_lab": {},
+        "tight_voice_remote_guard_lab": {},
+        "same_session_voice_disambiguation_lab": {},
+        "local_island_split": {},
+        "live_only_local_island": {},
+        "timing_gap": {},
+    }
+    missing_oracles = module.live_next_unlock_report(summary={}, **unlock_args)
+    missing_retime = missing_oracles["boundary_order_retime_oracle"]
+    missing_split = missing_oracles["boundary_order_split_retime_oracle"]
+    assert missing_retime["status"] == "not_evaluated", missing_retime
+    assert missing_retime["missing_me_seconds"] is None, missing_retime
+    assert missing_retime["retimed_turn_count"] is None, missing_retime
+    assert missing_split["status"] == "not_evaluated", missing_split
+    assert missing_split["contentful_order_mismatch_count"] is None, missing_split
+    boundary_action = next(
+        row for row in missing_oracles["next_actions"] if row.get("id") == "repair_live_boundary_retime_order_risk"
+    )
+    assert boundary_action["oracle_evidence"]["status"] == "not_evaluated", boundary_action
+    assert boundary_action["split_oracle_evidence"]["missing_me_delta_seconds"] is None, boundary_action
+
+    evaluated_summary = {
+        "real_live_boundary_order_retime_oracle_profile_missing_me_seconds": 0.0,
+        "real_live_boundary_order_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds": 0.0,
+        "real_live_boundary_order_retime_oracle_profile_remote_leak_seconds": 0.0,
+        "real_live_boundary_order_retime_oracle_profile_contentful_order_mismatch_count": 0,
+        "real_live_boundary_order_retime_oracle_profile_retimed_turn_count": 0,
+        "real_live_boundary_order_retime_oracle_profile_retimed_trimmed_seconds": 0.0,
+        "real_live_boundary_order_split_retime_oracle_profile_missing_me_seconds": 0.0,
+        "real_live_boundary_order_split_retime_oracle_profile_missing_me_delta_vs_best_live_implementable_seconds": 0.0,
+        "real_live_boundary_order_split_retime_oracle_profile_remote_leak_seconds": 0.0,
+        "real_live_boundary_order_split_retime_oracle_profile_contentful_order_mismatch_count": 0,
+        "real_live_boundary_order_split_retime_oracle_profile_retimed_turn_count": 0,
+        "real_live_boundary_order_split_retime_oracle_profile_retimed_trimmed_seconds": 0.0,
+        "real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_count": 0,
+        "real_live_boundary_order_split_retime_oracle_profile_preserved_prefix_seconds": 0.0,
+    }
+    evaluated_oracles = module.live_next_unlock_report(summary=evaluated_summary, **unlock_args)
+    assert evaluated_oracles["boundary_order_retime_oracle"]["status"] == "evaluated", evaluated_oracles
+    assert evaluated_oracles["boundary_order_retime_oracle"]["missing_me_seconds"] == 0.0, evaluated_oracles
+    assert evaluated_oracles["boundary_order_split_retime_oracle"]["status"] == "evaluated", evaluated_oracles
+
+    assert not module.target_me_shadow_profile_row(
+        {"profiles": [{"policy": "not-run", "evaluated_session_count": 0, "live_missing_me_seconds": 0.0}]},
+        "not-run",
+    )
+    evaluated_row = module.target_me_shadow_profile_row(
+        {"profiles": [{"policy": "run", "evaluated_session_count": 1, "live_missing_me_seconds": 0.0}]},
+        "run",
+    )
+    assert evaluated_row.get("policy") == "run", evaluated_row
 
     print("live profile selection checks passed")
     return 0

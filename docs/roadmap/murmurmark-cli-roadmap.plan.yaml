@@ -716,6 +716,13 @@ nodes:
       when live source ASR JSON is present, with chunk fallback for older artifacts. На 2026-07-08
       capture-safe candidate scope: 2 real sessions, 1 passing, blockers `order_risk`,
       `local_recall` and `selected_notes_readiness`.
+      Обновление 2026-07-14: focused capture-safe corpus содержит 6 meaningful comparisons и 0
+      parity passes. Conservative baseline boundary-retime shadow сохраняет missing Me 2146.97s и
+      remote-like Me 67.44s, снижая contentful order 15 -> 14 и blocking rows 5 -> 4. Mixed mic
+      turns с содержательным уникальным локальным текстом защищены от retime. Профиль остаётся
+      shadow-only; ближайший blocker — live local recall и четыре остаточных blocking order rows.
+      Unevaluated oracle profiles публикуются как `not_evaluated` с null metrics. Отдельная non-live
+      control session 2026-07-14 подтвердила здоровый stable capture и authoritative batch.
       Capture-safe/evaluable local-recall examples are listed in
       `capture_safe_evaluable_local_recall_gap_examples` so the next fix has concrete target rows.
       Segment-level parity exposes `30` real live strict order mismatches, `4` batch-interval

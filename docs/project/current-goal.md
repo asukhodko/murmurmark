@@ -21,6 +21,11 @@ confirmed by a full `34m49s` real meeting. Session `2026-07-14_11-14-29-live` pr
 tracks, produced all `70` live chunks and `141` preview snapshots, finished with zero lag and had no
 sidecar disable or dropped packets. Full transcript parity still has zero passing sessions.
 
+The non-live control session `2026-07-14_12-49-04` also completed normally: wall time was `650.93s`,
+both raw tracks cover `650.98s`, capture had no restart, and the authoritative batch transcript was
+produced. This keeps the stable `record -> process` route separate from the remaining live-quality
+work. Its residual blocker is post-ASR mixed `Me`/remote content, not capture loss.
+
 - realtime rows are synchronized after append and carry `recording_time_committed_pcm` provenance;
 - the live worker writes heartbeat, current stage/index, child PID and bounded ffmpeg/Whisper
   timeouts;
@@ -68,13 +73,15 @@ for the full `2089.1s`: raw and sidecar coverage match, all `70` chunks were pro
 pending PCM was `12.88s` without drops. The default bound is now `30s` per source for practical
 headroom. Transport is closed for this failure mode; live text quality remains the active blocker.
 
-The refreshed corpus confirms that more recordings are not required for the current blocker. It
-contains `18` real live sessions, `11` meaningful live/batch comparisons and `6` capture-safe
-candidate sessions, with zero passing parity sessions. The best live-implementable profile still
-has `7` blocking contentful order mismatches, `4263.04s` missing `Me` and `186.92s` remote-like
-`Me` across the real corpus. The next implementation focus is live timeline reconciliation: first
-classify and repair the `5` boundary-retime candidates and `2` unresolved order rows without
-loosening remote-leak or batch-authoritative gates.
+The focused capture-safe corpus confirms that more recordings are not required for the current
+algorithmic blocker. It contains `6` meaningful comparisons and zero passing parity sessions. A
+new conservative baseline boundary-retime shadow keeps missing `Me` at `2146.97s` and remote-like
+`Me` at `67.44s`, while reducing contentful order mismatches from `15` to `14` and blocking rows
+from `5` to `4`. Mixed mic turns with more than two unique local content tokens are protected from
+retiming. The profile is now part of default shadow comparison, never authoritative output. The
+remaining main blocker is live local recall, followed by four blocking order rows and remote leak.
+Unevaluated oracle profiles are reported as `not_evaluated` with null metrics instead of misleading
+zeroes.
 
 The quality loop is offline. `murmurmark live replay SESSION --refresh` builds
 an explicit policy matrix and accepts an improvement only when missing `Me` decreases without extra

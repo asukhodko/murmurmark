@@ -172,6 +172,9 @@ RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY = (
     "live_runtime_causal_target_me_speaker_overlap_v1"
 )
 RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY = "online_live_me_remote_overlap_filter_v1"
+BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY = (
+    "online_live_me_remote_overlap_filter_live_boundary_split_retime_v1"
+)
 PROFILE_SELECTION_IGNORED_GATES = {"pre_stop_runtime_causal_target_me"}
 REMOTE_GUARDED_VOICE_BOUNDARY_PROFILE_POLICY = (
     "online_live_me_remote_overlap_filter_plus_target_me_possible_timeline_safe_audio_safe_union_"
@@ -210,6 +213,7 @@ TARGET_ME_SHADOW_PROFILE_POLICIES = (
     "target_me_confirmed_remote_guard_timeline_safe_batch_remote_forbidden_visible_suppressed_mic_oracle_v1",
     "online_suppressed_mic_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_v1",
+    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
@@ -405,6 +409,7 @@ SUPPRESSED_MIC_COMPOSITE_SHADOW_PROFILE_POLICIES = {
 }
 LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_v1",
+    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_v1",
     "online_live_me_remote_overlap_filter_plus_target_me_remote_guard_audio_safe_union_v1",
@@ -437,6 +442,7 @@ LIVE_ME_REMOTE_OVERLAP_FILTER_SHADOW_PROFILE_POLICIES = {
 }
 LIVE_ME_REMOTE_OVERLAP_FILTER_NO_TARGET_PROFILE_POLICIES = {
     "online_live_me_remote_overlap_filter_v1",
+    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     "online_live_me_remote_overlap_filter_plus_dual_target_remote_guard_v1",
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
@@ -470,6 +476,7 @@ LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES = {
     LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICY,
 }
 LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES = {
+    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_BOUNDARY_RETIME_PROFILE_POLICY,
     VOICE_ACTIVITY_TOKEN_DENSITY_RETIME_PROFILE_POLICY,
@@ -554,6 +561,7 @@ BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICIES = {
 MATERIALIZED_TARGET_ME_SHADOW_POLICIES = TARGET_ME_SHADOW_PROFILE_POLICIES
 DEFAULT_TARGET_ME_SHADOW_POLICIES = (
     RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
+    BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
     RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
@@ -2243,8 +2251,17 @@ def live_boundary_split_retime_adjustments(turns: list[dict[str, Any]]) -> dict[
             and previous_start < current_start < previous_end
         ):
             features = text_features_against_remote(str(previous.get("text") or ""), tokens(str(current.get("text") or "")))
+            unique_content = {
+                token
+                for token in (features.get("unique_tokens") or [])
+                if token in content_tokens(str(previous.get("text") or ""))
+            }
+            token_count = max(1, safe_int(features.get("token_count")))
+            unique_content_ratio = len(unique_content) / token_count
             if (
                 safe_int(features.get("overlapping_remote_token_count")) >= 3
+                and len(unique_content) <= 2
+                and unique_content_ratio <= 0.34
                 and (
                     safe_float(features.get("overlapping_remote_token_recall_in_mic")) >= 0.45
                     or safe_float(features.get("mic_token_recall_in_overlapping_remote")) >= 0.20
@@ -2269,7 +2286,11 @@ def live_boundary_split_retime_adjustments(turns: list[dict[str, Any]]) -> dict[
                     "previous_source": previous.get("source"),
                     "previous_role": previous.get("role"),
                     "previous_text": previous.get("text"),
-                    "live_features": features,
+                    "live_features": {
+                        **features,
+                        "distinct_unique_content_token_count": len(unique_content),
+                        "unique_content_ratio": round(unique_content_ratio, 6),
+                    },
                 }
         elif (
             previous_role == "Colleagues"
@@ -6587,7 +6608,10 @@ def target_me_shadow_profile_components(
         rejected_supplemental_turns.extend(rejected_boundary_turns)
     elif (
         policy in LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES
-        or policy in LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES
+        or (
+            policy in LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICIES
+            and policy != BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY
+        )
         or policy in SOFT_LOCAL_SPEAKER_BOUNDARY_SHADOW_PROFILE_POLICIES
         or policy in BOUNDARY_ORDER_RETIME_ORACLE_PROFILE_POLICIES
         or policy in BOUNDARY_ORDER_SPLIT_RETIME_ORACLE_PROFILE_POLICIES

@@ -1452,6 +1452,13 @@ Active goal and near-term candidates:
    exposed worse remote/order behavior. Direct Target-Me is therefore `regression_detected` and the
    aggregate best live-implementable policy is again the base remote-overlap filter. The next run
    must validate the lag-aware worker; local recall and remote leakage remain parallel blockers.
+   A focused six-session capture-safe refresh now evaluates a conservative baseline
+   boundary-retime profile by default. It leaves missing `Me` (`2146.97s`) and remote-like `Me`
+   (`67.44s`) unchanged, while reducing contentful order mismatches `15 -> 14` and blocking rows
+   `5 -> 4`. Mixed mic turns with meaningful unique local content are protected. This remains
+   shadow-only; the next algorithmic focus is local recall and the four residual blocking order
+   rows. A separate non-live `10m51s` control run confirms that stable raw capture and batch output
+   are healthy.
    The corpus report now lists concrete
    `capture_safe_evaluable_local_recall_gap_examples` for the fix. Most missing Me seconds are
    visible in suppressed mic chunks. A text-only segment rescue is now recorded as diagnostic

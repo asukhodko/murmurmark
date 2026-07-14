@@ -47,6 +47,10 @@ def write_track(path: Path, values: np.ndarray, sample_rate: int) -> None:
 
 def main() -> int:
     compare = load_compare_module()
+    assert (
+        compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY
+        in compare.DEFAULT_TARGET_ME_SHADOW_POLICIES
+    )
     micro_lab = load_micro_lab_module()
     sample_rate = 16_000
     with tempfile.TemporaryDirectory(prefix="murmurmark-live-retime-") as temporary:
@@ -230,6 +234,77 @@ def main() -> int:
             ]
         )
         assert [row.get("id") for row in deduped] == ["long"], deduped
+
+        baseline_boundary_turns = [
+            {
+                "id": "mic-duplicate",
+                "chunk_index": 5,
+                "source": "mic_segment",
+                "role": "Me",
+                "start": 50.0,
+                "end": 54.0,
+                "text": "remote phrase appears in mic",
+            },
+            {
+                "id": "remote-authoritative",
+                "chunk_index": 5,
+                "source": "remote_segment",
+                "role": "Colleagues",
+                "start": 51.0,
+                "end": 55.0,
+                "text": "remote phrase appears in mic",
+            },
+        ]
+        baseline_adjustments = compare.live_boundary_split_retime_adjustments(
+            baseline_boundary_turns
+        )
+        assert "mic-duplicate" in baseline_adjustments, baseline_adjustments
+        baseline_retimed = compare.apply_live_boundary_split_retime(
+            baseline_boundary_turns,
+            baseline_adjustments,
+        )
+        assert [row.get("id") for row in baseline_retimed] == [
+            "mic-duplicate_boundary_prefix",
+            "remote-authoritative",
+        ], baseline_retimed
+        assert baseline_retimed[0].get("boundary_order_split_part") == "preserved_prefix", baseline_retimed
+
+        live_turns, target_turns, supplemental_turns, _, _ = compare.target_me_shadow_profile_components(
+            session=session,
+            policy=compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
+            live_turns_rows=baseline_boundary_turns,
+            suppressed_mic_asr_segments=[],
+            target_me_rows=[],
+            target_me_turns_by_policy={"target_me_possible_timeline_safe_v1": baseline_boundary_turns},
+            persistent_target_me_rows=[],
+            batch_utterances=[],
+        )
+        assert [row.get("id") for row in live_turns] == ["remote-authoritative"], live_turns
+        assert not target_turns, target_turns
+        assert not supplemental_turns, supplemental_turns
+
+        mixed_local_turns = [
+            {
+                "id": "mic-mixed",
+                "chunk_index": 6,
+                "source": "mic_segment",
+                "role": "Me",
+                "start": 60.0,
+                "end": 68.0,
+                "text": "remote phrase and my unique local answer follows here",
+            },
+            {
+                "id": "remote-mixed",
+                "chunk_index": 6,
+                "source": "remote_segment",
+                "role": "Colleagues",
+                "start": 61.0,
+                "end": 65.0,
+                "text": "remote phrase",
+            },
+        ]
+        mixed_adjustments = compare.live_boundary_split_retime_adjustments(mixed_local_turns)
+        assert "mic-mixed" not in mixed_adjustments, mixed_adjustments
 
         previous = {
             "role": "Me",

@@ -59,9 +59,14 @@ roadmap point it means:
   without making the draft delay grow without bound;
 - a full `34m49s` real run now validates the corrected duration-bounded sidecar: raw and sidecar
   both cover `2089.1s`, all `70` chunks complete, final lag is zero and no packets are dropped;
-- the refreshed real corpus has enough evidence for the next step: `6` capture-safe candidate
-  sessions and `11` meaningful comparisons, but zero parity passes; current work moves to the `9`
-  blocking order-risk rows, led by `5` boundary-retime candidates, without requesting more records;
+- a non-live `10m51s` control run confirms that stable raw capture and authoritative batch remain
+  healthy independently of the live experiment;
+- the focused capture-safe corpus has `6` meaningful comparisons and zero parity passes; a
+  conservative boundary-retime shadow keeps missing `Me` (`2146.97s`) and remote-like `Me`
+  (`67.44s`) unchanged while reducing contentful order mismatches `15 -> 14` and blocking rows
+  `5 -> 4`;
+- current work therefore moves to live local recall and the four remaining blocking order rows;
+  collecting more recordings is not required for this algorithmic step;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;

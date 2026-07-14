@@ -418,6 +418,7 @@ def main() -> int:
             SimpleNamespace(with_labs=False, lab_policy=[])
         ) == (
             compare.RUNTIME_CAUSAL_TARGET_ME_BASELINE_PROFILE_POLICY,
+            compare.BASELINE_LIVE_BOUNDARY_SPLIT_RETIME_PROFILE_POLICY,
             compare.RUNTIME_CAUSAL_TARGET_ME_DIRECT_PROFILE_POLICY,
             compare.RUNTIME_CAUSAL_TARGET_ME_REMOTE_ENERGY_PROFILE_POLICY,
             compare.RUNTIME_CAUSAL_TARGET_ME_SPEAKER_OVERLAP_PROFILE_POLICY,
