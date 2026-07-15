@@ -41,8 +41,12 @@ Current operating point, 2026-07-15:
 - Live Local Recall and Remote Leakage Hardening v1 is complete: all `118` local-recall rows have
   stable dispositions, the selected causal remote-energy shadow recovers `678.32s` aggregate
   missing `Me`, and all seven per-session no-regression gates pass;
-- the recommended next goal is Causal Local-Island Micro-ASR v2 over `40` unresolved rows /
-  `210.41s`; more recordings are not required for its initial bounded offline step.
+- Causal Local-Island Micro-ASR v2 is complete: all `40` unresolved rows have stable outcomes, its
+  explicit-only shadow reduces aggregate missing `Me` by another `255.77s`, remote-like `Me` stays
+  at `108.42s`, effective order blockers stay at `0`, and all seven per-session gates pass;
+- the recommended next goal is Causal Remote-Active Me Separation v1 over `19`
+  speaker-supported rejected rows / `88.39s`, cross-checked against `16` mixed/double-talk rows /
+  `65.07s`; more recordings are not required for the initial bounded experiment.
 
 Still future:
 

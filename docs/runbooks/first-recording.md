@@ -196,6 +196,24 @@ scripts/compare-live-batch.py "$SESSION" --lab-policy "$POLICY"
 `--lab-policy` is repeatable. Keep `--with-labs` for deliberate full laboratory sweeps; it runs all
 exploratory profiles and can take many minutes on a long meeting.
 
+The completed Causal Local-Island Micro-ASR v2 remains an explicit-only corpus experiment. To
+rebuild it for one of the bounded capture-safe sessions without rewriting previous shadows:
+
+```bash
+BASE=online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_v1
+CAND=online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2
+
+.venv/bin/python scripts/live-causal-local-island-micro-asr.py "$SESSION"
+.venv/bin/python scripts/compare-live-batch.py "$SESSION" \
+  --only-lab-policy "$BASE" \
+  --only-lab-policy "$CAND" \
+  --write-shadow-policy "$CAND"
+```
+
+Do not use this profile as the normal watch, transcript or export source. It is selected in the
+focused corpus report only after every session passes missing-`Me`, remote-like-`Me`, order, token-F1
+and review-burden gates. Batch transcript remains authoritative.
+
 Normal `process` keeps the stronger-audio-judge queue broad but bounded: cheap cleanup runs first,
 the review pack is rebuilt from the residual transcript, and the judge decodes `mic_clean + remote`.
 Use `--stronger-audio-judge-exhaustive` only when all four clip sources are needed for diagnosis.

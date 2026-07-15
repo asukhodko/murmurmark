@@ -40,10 +40,14 @@ Authoritative operating point, 2026-07-15:
   `15` previous effective order blockers to `0` without changing rendered live turns;
 - Live Local Recall and Remote Leakage Hardening v1 classified all `118` local-recall blocker rows
   and selected a causal remote-energy shadow profile with per-session no-regression `7/7`;
-- the selected shadow reduces missing `Me` from `2844.88s` to `2166.56s` while remote-like `Me`
-  remains `108.42s` and effective order blockers remain `0`;
-- the next bounded slice is `40` unresolved local-island rows / `210.41s`; no additional recording
-  is required initially.
+- Causal Local-Island Micro-ASR v2 gives all `40` unresolved rows / `210.41s` stable outcomes
+  (`2 accepted`, `38 rejected`) and adds only causally selected remote-free `Me` turns;
+- the selected v2 shadow reduces missing `Me` from `2166.56s` to `1910.79s` while remote-like `Me`
+  remains `108.42s`, effective order blockers remain `0`, review burden remains `490.38s`, and all
+  seven per-session gates pass;
+- the next bounded class is remote-active speech: `19` speaker-supported rejected rows / `88.39s`,
+  cross-checked against the original `16` mixed/double-talk rows / `65.07s`. No new recording is
+  required initially.
 
 The system deliberately keeps unresolved uncertainty visible. Suggested review decisions may close
 only rows supported by local audio and audit evidence. `finish` and guarded `export` remain blocked
@@ -51,12 +55,12 @@ when transcript-only blockers survive.
 
 Current reliability route:
 [Reliable Transcription Route](docs/project/reliable-transcription-route.md). Outcome, resumable ASR,
-review and final handoff are implemented. Live Local Recall and Remote Leakage Hardening v1 is
-complete; the selected shadow is
-`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_v1`.
-The [current goal context](docs/project/current-goal.md) recommends causal local-island micro-ASR as
-the next bounded experiment. Every live change remains shadow-only and must preserve effective
-order, remote-leakage, token-F1 and review-burden gates independently for every session.
+review and final handoff are implemented. Live Local Recall and Remote Leakage Hardening v1 and
+Causal Local-Island Micro-ASR v2 are complete. The selected capture-safe shadow is
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2`.
+The [current goal context](docs/project/current-goal.md) recommends causal remote-active `Me`
+separation as the next bounded experiment. Every live change remains shadow-only and must preserve
+effective order, remote leakage, token F1 and review burden independently for every session.
 
 The live branch remains quarantined as a source of truth. It consumes copied PCM only after durable
 raw writes, produces advisory preview during recording and fails open without affecting raw capture.
@@ -493,11 +497,38 @@ less sessions/_reports/live-pipeline/live_corpus_gates_report.md
 jq '.real_blocker_triage_summary' sessions/_reports/live-pipeline/live_corpus_gates_report.json
 less sessions/_reports/live-pipeline/live_local_recall_remote_leakage_hardening_v1.md
 jq '.summary' sessions/_reports/live-pipeline/live_local_recall_remote_leakage_hardening_v1.json
+less sessions/_reports/live-pipeline/live_causal_local_island_micro_asr_v2.md
+jq '{status, summary, completion_checks, corpus_agreement}' \
+  sessions/_reports/live-pipeline/live_causal_local_island_micro_asr_v2.json
 ```
 
 For the seven-session capture-safe scope, `murmurmark corpus live` also writes the bounded
 local-recall hardening report and its `118` disposition rows. Partial corpora skip this extra report
 without failing the normal corpus command.
+
+The v2 local-island experiment is intentionally explicit-only. It is not part of normal compare,
+preview, export or promotion. Rebuild one session and write only its new shadow profile with:
+
+```bash
+BASE=online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_v1
+CAND=online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2
+
+.venv/bin/python scripts/live-causal-local-island-micro-asr.py "$SESSION"
+.venv/bin/python scripts/compare-live-batch.py "$SESSION" \
+  --only-lab-policy "$BASE" \
+  --only-lab-policy "$CAND" \
+  --write-shadow-policy "$CAND"
+```
+
+`--write-shadow-policy` protects previous shadow drafts from timestamp-only rewrites. Batch fields
+are evaluation-only; accepted candidates require committed-PCM provenance, past-only speaker
+enrollment, strictly quiet remote audio, a clear guarded remote-ASR interval and bounded micro-ASR.
+
+### Historical Live-Quality Lab Notes
+
+The notes below preserve the sequence of earlier shadow experiments and their then-current corpus
+metrics. They are useful for provenance, but the Current Status and v2 focused report above are the
+authoritative profile, metrics and next-goal source.
 
 To test whether simple live-accessible suppressed-mic thresholds can recover lost `Me` speech:
 
@@ -1405,11 +1436,12 @@ state is:
    passed and promotion stayed blocked.
 4. **Safety boundary:** live output remains advisory and shadow-only; raw CAF plus batch output are
    authoritative.
-5. **Evidence already closed:** three fresh real live sessions have complete raw capture, pre-stop
-   preview, terminal workers, zero final lag and successful batch transcripts. More recordings are
-   not required for the active algorithmic step.
-6. **Recommended next goal:** Causal Local-Island Micro-ASR v2 for the `40` unresolved rows /
-   `210.41s`, followed by review/notes/boundary readiness. UI remains optional and late.
+5. **Completed bounded recovery:** Causal Local-Island Micro-ASR v2 gave all `40` unresolved rows
+   stable outcomes and reduced aggregate missing `Me` by `255.77s` with all seven no-regression
+   gates passing. More recordings were not required.
+6. **Recommended next goal:** Causal Remote-Active Me Separation v1 for `19`
+   speaker-supported rejected rows / `88.39s`, cross-checked against `16` mixed/double-talk rows /
+   `65.07s`. Review/notes/boundary readiness follows; UI remains optional and late.
 
 <details>
 <summary>Historical implementation log (non-authoritative)</summary>

@@ -5204,6 +5204,49 @@ SHA-256 input manifests for raw CAF and authoritative batch dialogue. It never e
 When `murmurmark corpus live` runs on a partial scope, this focused seven-session report is skipped
 without failing the normal corpus report.
 
+### Causal Local-Island Micro-ASR v2
+
+The bounded v2 experiment writes only session-derived shadow evidence:
+
+```text
+derived/live/causal-local-island-micro-asr-v2/
+  selection.jsonl
+  candidates.jsonl
+  outcomes.jsonl
+  state.json
+  report.md
+  micro_asr/
+```
+
+`state.json`, `selection.jsonl` and `candidates.jsonl` use
+`murmurmark.live_causal_local_island_micro_asr/v2`. Global reports use:
+
+```text
+sessions/_reports/live-pipeline/live_causal_local_island_micro_asr_v2.json
+sessions/_reports/live-pipeline/live_causal_local_island_micro_asr_v2.jsonl
+sessions/_reports/live-pipeline/live_causal_local_island_micro_asr_v2.md
+```
+
+The global JSON uses `murmurmark.live_causal_local_island_micro_asr_v2_report/v1`; every outcome
+row uses `murmurmark.live_causal_local_island_micro_asr_v2_outcome/v1` and has one stable status:
+`accepted`, `rejected` or `unresolved`.
+
+A published candidate must be selected without batch fields and prove all of these conditions:
+
+- causal timeline and committed-PCM or committed-raw replay provenance;
+- at least three past-only positive and remote-negative speaker-enrollment samples;
+- a bounded local interval supported by Target-Me evidence;
+- remote audio at or below the strict quiet threshold and no guarded remote-ASR overlap;
+- no duplicate already present in the baseline live profile;
+- bounded micro-ASR text aligned to the local interval, with sufficient token and confidence support.
+
+Micro-ASR output is trimmed by token-center timestamps to the causal island. Batch text and timing
+are evaluation-only. The v2 profile is excluded from default comparison, preview, export and
+promotion; it must be requested with `--only-lab-policy`, and only its own draft may be written with
+`--write-shadow-policy`. The global report includes per-session no-regression gates, agreement with
+the standard corpus report and SHA-256 manifests proving raw CAF and authoritative batch inputs are
+unchanged. `promotion_allowed` remains `false`.
+
 ### Live Corpus Gates
 
 `scripts/report-live-corpus-gates.py` aggregates live comparisons:

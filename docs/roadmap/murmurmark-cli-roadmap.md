@@ -40,13 +40,16 @@ Role Reconciliation v1 is complete: all `23` auditable rows have stable classes,
 effective blockers became `0`, and no transcript mutation was required. Live Local Recall and
 Remote Leakage Hardening v1 is also complete: all `118` bounded rows have dispositions and its
 causal shadow recovers `678.32s` aggregate missing `Me` with all seven no-regression gates passing.
+Causal Local-Island Micro-ASR v2 is complete as an explicit-only shadow: all `40` previously
+unresolved rows have stable outcomes and aggregate missing `Me` falls by another `255.77s` without
+regressing remote-like `Me`, effective order, token F1 or review burden.
 Near-Realtime Live Parity Coverage v1 already proved complete raw capture, pre-stop preview,
 terminal workers, zero final lag and successful batch output on three fresh real sessions. Live
 promotion remains blocked.
 
 The selected capture-safe shadow profile is
-`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_v1` in both
-per-session comparison reports and the corpus reconciliation report.
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2`
+in both per-session comparison reports and the corpus reconciliation report.
 
 The target outcome is:
 
@@ -87,8 +90,12 @@ roadmap point it means:
 - the selected shadow reduces aggregate missing `Me` from `2844.88s` to `2166.56s`, while
   remote-like `Me` remains `108.42s`, effective order blockers remain `0`, and review burden
   remains `490.38s`;
-- the next bounded work unit is `40` unresolved rows / `210.41s`; collecting more recordings is
-  not required initially;
+- local-island v2 gives all `40` unresolved rows / `210.41s` stable outcomes (`2 accepted`, `38`
+  rejected), adds `44` deduplicated turns / `267.12s`, and reduces missing `Me` further to
+  `1910.79s` with all seven no-regression gates passing;
+- the next bounded work unit is `19` speaker-supported remote-active rejected rows / `88.39s`,
+  cross-checked against `16` mixed/double-talk rows / `65.07s`; collecting more recordings is not
+  required initially;
 - `status`, `next`, `finish`, session report and corpus report agree;
 - safe review suggestions are applied before asking for manual listening;
 - remaining review is short, explicit and backed by audio/transcript evidence;
@@ -331,14 +338,15 @@ flowchart LR
 
 ### Next
 
-- Causal Local-Island Micro-ASR v2:
-  - process the `40` unresolved rows / `210.41s` left by completed hardening v1;
-  - re-decode only recording-time remote-free local islands with committed-PCM timing;
-  - require local-speaker evidence and a passing remote-audio guard before materialization;
-  - use batch text and timing only for evaluation after candidate selection;
-  - reject every candidate profile that regresses remote-like `Me`, effective order blockers,
-    per-session token F1 or review burden;
-  - keep batch authoritative and live promotion blocked until all gates pass;
+- Causal Remote-Active Me Separation v1:
+  - process the `19` speaker-supported remote-active rejected rows / `88.39s` left by local-island
+    v2, with the original `16` mixed/double-talk rows / `65.07s` as a cross-check;
+  - build a causal remote-conditioned residual or separation candidate from committed mic/remote
+    PCM and past-only Target-Me evidence;
+  - run bounded micro-ASR only inside the supported interval;
+  - reject remote-text/audio similarity, unsupported local speech and every per-session regression
+    in remote-like `Me`, effective order blockers, token F1 or review burden;
+  - keep batch fields evaluation-only, batch authoritative and live promotion blocked;
 - keep `--live-pipeline` disabled by default; all new evidence should go through
   `record --experiment live-shadow-v1`.
 - Near-realtime shadow pipeline follow-up:
@@ -485,16 +493,16 @@ Recently completed:
 
 ## Goal Sequence
 
-Recommended nearest goal: **Causal Local-Island Micro-ASR v2**. Transport, provenance, comparison
-immutability, effective order gates and the bounded v1 disposition pass are proven. The smallest
-meaningful next unit is the existing `40` unresolved rows / `210.41s`; no additional recording is
-required initially.
+Recommended nearest goal: **Causal Remote-Active Me Separation v1**. Transport, provenance,
+comparison immutability, effective order gates, bounded v1 dispositions and remote-free local-island
+v2 are proven. The smallest meaningful next unit is the existing `19` speaker-supported
+remote-active rejected rows / `88.39s`, cross-checked against `16` mixed/double-talk rows / `65.07s`;
+no additional recording is required initially.
 
-1. **Causal Local-Island Micro-ASR v2.** Re-decode only recording-time remote-free local islands in
-   the `40` unresolved rows, require committed-PCM timing, local-speaker evidence and a passing
-   remote guard, then reject every per-session regression in remote-like `Me`, effective order,
-   token F1 or review burden.
-2. **Live review/notes/boundary readiness.** After recall improves safely, close review burden,
+1. **Causal Remote-Active Me Separation v1.** Build a causal remote-conditioned residual from
+   committed mic/remote PCM, verify local speech with past-only Target-Me evidence, micro-decode
+   only supported intervals, and reject every remote-similar or per-session regressing candidate.
+2. **Live review/notes/boundary readiness.** After remote-active recall improves safely, close review burden,
    selected-notes readiness and chunk-boundary gates without weakening batch authority.
 3. **ASR-positive Echo promotion readiness.** Expand `coverage_v2_remote_gate_local_fir` validation
    beyond the current six sessions, add rollback/inspection criteria, compare review burden and

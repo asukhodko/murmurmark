@@ -4,18 +4,47 @@ This file keeps the latest goal context and the most relevant completed goals. T
 path remains non-live `record -> process`. Live output stays shadow-only and batch transcript remains
 authoritative.
 
-## Recommended Next Goal: Causal Local-Island Micro-ASR v2
+## Recommended Next Goal: Causal Remote-Active Me Separation v1
 
-Status, 2026-07-15: ready for a separate goal. No new recording is required initially.
+Status, 2026-07-15: ready for a separate goal after the completed v2 shadow. No new recording is
+required initially.
 
-The completed v1 hardening leaves `109` blocked rows. The next bounded algorithmic slice is the `40`
-`unresolved` rows / `210.41s`: they contain local-looking suppressed mic evidence but do not yet have
-a complete causal publication contract. Build micro-ASR only inside recording-time remote-free
-islands with committed-PCM timing, local-speaker evidence and a passing remote guard. Evaluate batch
-text and timing only after materialization. Reject the candidate if any session gains remote-like
-`Me`, effective order blockers, review burden or a token-F1 regression. The `16` mixed/double-talk,
-`25` duplicate-context and `28` unsupported rows remain separate problems unless new causal evidence
-changes their disposition.
+Causal Local-Island Micro-ASR v2 proves that strict remote-free publication is useful but bounded.
+The next primary scope is the `19` speaker-supported remote-active rejected rows / `88.39s`; the
+original `16` mixed/double-talk rows / `65.07s` are the cross-check scope and may overlap. Build a
+causal remote-conditioned residual or separation candidate from committed mic/remote PCM, verify it
+with past-only Target-Me evidence, and run bounded micro-ASR only inside the supported interval.
+Remote text/audio similarity remains a hard rejection gate. Batch text and timing remain
+evaluation-only. Duplicate-context, unsupported and no-enrollment opening rows stay separate.
+
+## Completed Goal: Causal Local-Island Micro-ASR v2
+
+Completed, 2026-07-15. The explicit-only shadow profile is:
+
+`online_live_me_remote_overlap_filter_live_boundary_split_retime_causal_remote_energy_local_island_micro_asr_v2`
+
+Results:
+
+- all `40` unresolved rows / `210.41s` have stable outcomes: `2 accepted`, `38 rejected`;
+- `44` deduplicated v2 turns / `267.12s` were added across the causal profile;
+- aggregate missing `Me` fell from `2166.56s` to `1910.79s`, a `255.77s` improvement;
+- the largest per-session improvement is `127.16s`;
+- remote-like `Me` stayed at `108.42s`;
+- effective order blockers stayed at `0` in every session;
+- token F1 did not regress and authoritative review burden stayed at `490.38s`;
+- every per-session no-regression gate passed `7/7`;
+- the standard corpus report and focused report agree on profile, sessions, turns and metrics;
+- SHA-256 manifests prove raw CAF and authoritative batch inputs unchanged;
+- batch fields were evaluation-only, previous shadows are protected by explicit write selection,
+  and live promotion remains blocked.
+
+Authoritative outputs:
+
+```text
+sessions/_reports/live-pipeline/live_causal_local_island_micro_asr_v2.json
+sessions/_reports/live-pipeline/live_causal_local_island_micro_asr_v2.jsonl
+sessions/_reports/live-pipeline/live_causal_local_island_micro_asr_v2.md
+```
 
 ## Completed Goal: Live Local Recall and Remote Leakage Hardening v1
 
@@ -326,7 +355,8 @@ Completion evidence:
 Completed goal: `Live Order and Role Reconciliation v1`. All 15 previous effective blockers now
 have stable evidence-backed dispositions and candidate order risk passes `7/7`.
 
-Recommended next goal: `Live Local Recall and Remote Leakage Hardening v1`. Classify the existing
+Historical successor at this checkpoint, now completed: `Live Local Recall and Remote Leakage
+Hardening v1`. Classify the existing
 `118` local-recall blocker rows / `451.03s`, materialize only causally supported local fragments in
 new shadow profiles, and reject any candidate that increases remote-like `Me`, effective order
 blockers, review burden or per-session token-F1 regressions. New recordings are not required for

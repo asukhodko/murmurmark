@@ -46,8 +46,11 @@ nodes:
       effective blockers сведены к 0 без transcript mutation. Live Local Recall and Remote Leakage
       Hardening v1 также завершён: все 118 rows классифицированы, causal shadow восстановил 678.32s
       aggregate missing Me, а 7/7 per-session no-regression gates прошли. Live promotion остаётся
-      blocked. Ближайшая рекомендуемая цель — Causal Local-Island Micro-ASR v2 для 40 unresolved
-      rows / 210.41s.
+      blocked. Causal Local-Island Micro-ASR v2 завершён: все 40 unresolved rows получили outcomes,
+      aggregate missing Me уменьшился ещё на 255.77s, а remote-like Me, effective order, token F1 и
+      review burden не регрессировали ни в одной сессии. Ближайшая рекомендуемая цель — Causal
+      Remote-Active Me Separation v1 для 19 speaker-supported rows / 88.39s с cross-check на 16
+      mixed/double-talk rows / 65.07s.
 
       Historical operational snapshot, 2026-07-02:
 
@@ -324,9 +327,10 @@ nodes:
       Observability & Run Monitor v1 сделал долгие прогоны наблюдаемыми и возобновляемыми.
       Live Order and Role Reconciliation v1 уже закрыл 15 effective blockers без transcript
       mutation. Live Local Recall and Remote Leakage Hardening v1 классифицировал 118 rows и
-      безопасно восстановил 678.32s aggregate missing Me. Ближайший bounded quality-шаг — Causal
-      Local-Island Micro-ASR v2: обработать 40 unresolved rows / 210.41s без регрессий batch и live
-      gates.
+      безопасно восстановил 678.32s aggregate missing Me. Causal Local-Island Micro-ASR v2 дал
+      outcomes всем 40 unresolved rows и восстановил ещё 255.77s без per-session регрессий.
+      Ближайший bounded quality-шаг — Causal Remote-Active Me Separation v1: обработать 19
+      speaker-supported rows / 88.39s без регрессий batch и live gates.
 
   current-pipeline-stabilization-v1:
     title: "Current Pipeline Stabilization v1"
@@ -1062,16 +1066,31 @@ nodes:
     kind: task
     parent: near-realtime-pipeline
     deps: [live-local-recall-remote-leakage-hardening-v1]
+    status: done
+    effort: 8
+    notes: |
+      Завершено 2026-07-15. Все 40 unresolved rows / 210.41s получили стабильные outcomes: 2
+      accepted, 38 rejected. Explicit-only profile добавляет 44 deduplicated turns / 267.12s и
+      уменьшает aggregate missing Me 2166.56s -> 1910.79s. Remote-like Me остаётся 108.42s,
+      effective order blockers 0, review burden 490.38s; token F1 не регрессирует, все 7
+      per-session gates проходят. Batch использован только для оценки, raw CAF, authoritative batch
+      и предыдущие shadows не менялись, promotion остаётся blocked.
+
+  live-causal-remote-active-me-separation-v1:
+    title: "Causal Remote-Active Me Separation v1"
+    kind: task
+    parent: near-realtime-pipeline
+    deps: [live-causal-local-island-micro-asr-v2]
     status: next
     effort: 8
     notes: |
-      Ближайший bounded algorithmic step: 40 unresolved rows / 210.41s из завершённого v1 report.
-      Micro-ASR разрешён только внутри recording-time remote-free islands с committed-PCM timing,
-      local-speaker evidence и passing remote guard. Batch text/timing используются только после
-      materialization для оценки. Любая per-session регрессия remote-like Me, effective order,
-      token F1 или review burden отклоняет shadow candidate. Mixed/double-talk, duplicate-context и
-      unsupported rows не входят в автоматический scope. Новые записи сначала не нужны; promotion
-      остаётся blocked.
+      Следующий bounded algorithmic step: 19 speaker-supported remote-active rejected rows / 88.39s
+      из v2 outcomes; исходные 16 mixed/double-talk rows / 65.07s служат cross-check scope и могут
+      пересекаться. Построить causal remote-conditioned residual или separation candidate из
+      committed mic/remote PCM, подтвердить local speech только past-only Target-Me evidence и
+      запускать bounded micro-ASR внутри поддержанного интервала. Remote text/audio similarity —
+      hard rejection. Batch text/timing evaluation-only. Duplicate-context, unsupported и opening
+      rows без enrollment не входят в scope. Новые записи сначала не нужны; promotion blocked.
 
   corpus-regression:
     title: "Corpus regression и постоянный контур качества"
@@ -1948,8 +1967,8 @@ views:
 x:
   exec:
     program:
-      nearest_goal: "Causal Local-Island Micro-ASR v2: обработать 40 unresolved rows / 210.41s только внутри recording-time remote-free islands и принять shadow candidate лишь при отсутствии per-session регрессий remote-like Me, effective order, token F1 и review burden."
-      success_by_next_sync: "Все 40 unresolved rows имеют causal micro-ASR outcome; хотя бы одна затронутая сессия материально улучшает missing Me; все 7 per-session no-regression gates проходят; batch authoritative и promotion остаётся blocked."
+      nearest_goal: "Causal Remote-Active Me Separation v1: обработать 19 speaker-supported remote-active rows / 88.39s через causal remote-conditioned residual и bounded micro-ASR, не публикуя remote speech как Me."
+      success_by_next_sync: "Все 19 rows имеют устойчивый outcome; хотя бы одна затронутая сессия материально улучшает missing Me; remote-like Me не выше 108.42s, effective order blockers равны 0, token F1 и review burden не регрессируют во всех 7 sessions; batch authoritative и promotion blocked."
     defaults:
       status_progress:
         done: 1.0
@@ -1975,8 +1994,8 @@ x:
         kind: main
         mgmt:
           health: yellow
-          sync_note: "CLI MVP, batch reliability и committed-PCM transport закрыты. Order reconciliation и local-recall hardening v1 завершены: causal shadow восстановил 678.32s aggregate missing Me при 7/7 no-regression gates, но 0 live comparisons проходят все quality gates; production output остаётся batch."
-          next_sync_goal: "Проверить causal local-island micro-ASR на 40 unresolved rows / 210.41s, не ослабляя remote-forbidden, order, token-F1 и review-burden gates."
+          sync_note: "CLI MVP, batch reliability и committed-PCM transport закрыты. Local-recall hardening v1 и local-island micro-ASR v2 суммарно уменьшили aggregate missing Me 2844.88s -> 1910.79s при 7/7 no-regression gates, но live promotion всё ещё blocked; production output остаётся batch."
+          next_sync_goal: "Проверить causal remote-active Me separation на 19 speaker-supported rows / 88.39s, не ослабляя remote-forbidden, order, token-F1 и review-burden gates."
       quality-loop:
         title: "Контур качества"
         scope_nodes: [corpus-regression, review-loop, quality-hardening, reliable-transcription-route]
